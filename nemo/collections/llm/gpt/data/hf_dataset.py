@@ -23,7 +23,11 @@ from torch.utils.data.distributed import DistributedSampler
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-
+from typing import Dict
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+import numpy as np
+import re
+from functools import partial
 
 def clean_split(name):
     """removes split from name
@@ -254,7 +258,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         def pad_within_micro(batch, pad_token_id):
             max_len = max(map(len, batch))
             return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
-
         return {
             key: batchify(
                 torch.LongTensor(
@@ -348,7 +351,119 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 continue
             dataset_splits[split_name] = subset.map(function, **kwargs)
 
+def preprocess(text):
+    text = text.strip()
+    # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
+    text = text.replace(" [title]", ". ")
+    text = re.sub("\\[.*?\\]", "", text)
+    text = text.replace("  ", " ")
+    return text
 
+def process_doc(doc):
+    ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
+    query = preprocess(doc["activity_label"] + ": " + ctx)
+    choices = [preprocess(ending) for ending in doc["endings"]]
+    gold = int(doc["label"])
+    out_doc = {
+        "query": query,
+        "choices": choices,
+        "gold": gold,
+        "text": query + " " + choices[gold]
+    }
+    return out_doc
+
+# Note: I'm training the model causally not through multiclass classification.
+def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
+    # Format each prompt.
+    print("Preprocessing dataset...")
+    dataset = dataset.map(process_doc)
+
+    def preprocess_batch(batch, tokenizer, max_length):
+        ans = tokenizer(
+            batch["text"],
+            max_length=max_length,
+            truncation=True,
+        )
+        ans['labels'] = [
+            x[1:] + [-100] for x in ans['input_ids']
+        ]
+        return ans
+
+    # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
+    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+    dataset = dataset.map(
+        _preprocessing_function,
+        batched=True,
+    ).select_columns(['input_ids', 'attention_mask', 'labels'])
+
+    # Shuffle dataset.
+    dataset = dataset.shuffle(seed=seed)
+
+    return dataset
+
+
+def preprocess(text):
+    text = text.strip()
+    # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
+    text = text.replace(" [title]", ". ")
+    import re
+    text = re.sub("\\[.*?\\]", "", text)
+    text = text.replace("  ", " ")
+    return text
+
+def process_doc(doc):
+    ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
+    query = preprocess(doc["activity_label"] + ": " + ctx)
+    choices = [preprocess(ending) for ending in doc["endings"]]
+    gold = int(doc["label"])
+    out_doc = {
+        "query": query,
+        "choices": choices,
+        "gold": gold,
+        "text": query + " " + choices[gold]
+    }
+    return out_doc
+
+# Note: I'm training the model causally not through multiclass classification.
+def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
+    # Format each prompt.
+    print("Preprocessing dataset...")
+    dataset = dataset.map(process_doc)
+
+    def preprocess_batch(batch, tokenizer, max_length):
+        ans = tokenizer(
+            batch["text"],
+            max_length=max_length,
+            truncation=True,
+        )
+        ans['labels'] = [
+            x[1:] + [-100] for x in ans['input_ids']
+        ]
+        return ans
+
+    # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
+    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+    dataset = dataset.map(
+        _preprocessing_function,
+        batched=True,
+    ).select_columns(['input_ids', 'attention_mask', 'labels'])
+
+    # Shuffle dataset.
+    dataset = dataset.shuffle(seed=seed)
+
+    return dataset
+
+class HellaSwagHFDataModule(HFDatasetDataModule):
+    def __init__(self, tokenizer, dataset_name="Rowan/hellaswag", *args, **kwargs):
+        tokenizer = tokenizer.tokenizer
+        tokenizer.pad_token = tokenizer.eos_token
+        dataset = load_dataset(dataset_name)
+        super().__init__(
+            preprocess_dataset(tokenizer, 7500, dataset["train"]),
+            *args,
+            **kwargs
+        )
+    
 class SquadHFDataModule(HFDatasetDataModule):
     """
     A data module for handling the SQuAD dataset using HFDatasetDataModule.
@@ -423,3 +538,142 @@ class SquadHFDataModule(HFDatasetDataModule):
             batch_size=2,
             remove_columns=["id", "title", "context", "question", 'answers'],
         )
+
+
+class HFMockDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        seq_length: int = 2048,
+        tokenizer=None,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        rampup_batch_size=None,
+        num_train_samples: int = 10_000,
+        num_val_samples: int = 10_000,
+        num_test_samples: int = 10_000,
+        num_workers: int = 8,
+        pin_memory: bool = True,
+        persistent_workers: bool = False,
+        create_attention_mask: bool = False,
+        vocab_file=None,
+        merges_file=None,
+    ):
+        super().__init__()
+        self.seq_length = seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
+        self.num_train_samples = num_train_samples
+        self.num_val_samples = num_val_samples
+        self.num_test_samples = num_test_samples
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
+        self.persistent_workers = persistent_workers
+        self.create_attention_mask = create_attention_mask
+        self.collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=0)
+
+        if tokenizer is None:
+            self.tokenizer = get_nmt_tokenizer(
+                "megatron",
+                "GPT2BPETokenizer",
+                vocab_file=vocab_file,
+                merges_file=merges_file,
+            )
+        else:
+            self.tokenizer = tokenizer
+
+        # self.data_sampler = MegatronDataSampler(
+        #     seq_len=self.seq_length,
+        #     micro_batch_size=self.micro_batch_size,
+        #     global_batch_size=self.global_batch_size,
+        #     rampup_batch_size=rampup_batch_size,
+        # )
+
+    def setup(self, stage: str = None) -> None:
+        self._train_ds = _MockGPTDataset(
+            self.tokenizer,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+        self._val_ds = _MockGPTDataset(
+            self.tokenizer,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+        self._test_ds = _MockGPTDataset(
+            self.tokenizer,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+
+    def train_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._train_ds)
+
+    def val_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._val_ds)
+
+    def test_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._test_ds)
+
+    def _create_dataloader(self, dataset) -> DataLoader:
+        return DataLoader(
+            dataset,
+            batch_size=self.micro_batch_size,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
+        )
+
+
+class _MockGPTDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        tokenizer: "TokenizerSpec",
+        name: str,
+        num_samples: int,
+        seq_length: int,
+        create_attention_mask: bool = False,
+        seed: int = 42,
+    ) -> None:
+        super().__init__()
+        self.name = name
+        self.seq_length = seq_length
+        self.tokenizer = tokenizer
+        self.vocab_size = self.tokenizer.vocab_size
+        self.length = num_samples
+        self.seed = seed
+        self.create_attention_mask = create_attention_mask
+
+        if create_attention_mask:
+            self.attention_mask = np.tril(
+                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
+            )[np.newaxis, :].tolist()
+
+        self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
+        self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
+
+    def __len__(self) -> int:
+        return self.length
+
+    def __getitem__(self, idx) -> Dict[str, list]:
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+
+        batch = {
+            "tokens": tokens,
+            "labels": labels,
+            "loss_mask": self.loss_mask,
+            "position_ids": self.position_ids,
+        }
+
+        if self.create_attention_mask:
+            batch["attention_mask"] = self.attention_mask
+
+        return batch
