@@ -100,6 +100,66 @@ def generate(model, processor, images, text, params):
     return generated_texts
 
 
+def legacy_generate(model, processor, raw_image, text, num_tokens_to_generate):
+    # pylint: disable=C0115,C0116
+    conversation = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": text},
+                {"type": "image"},
+            ],
+        },
+    ]
+    prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
+    hf_tokenizer = processor.tokenizer
+
+    inputs = processor(prompt, raw_image, return_tensors='pt').to(0, torch.float16)
+    input_ids = hf_tokenizer(prompt, return_tensors='pt')['input_ids'].cuda()
+    input_ids[input_ids == 32000] = -200
+    images = inputs['pixel_values'].cuda()
+    images = images.reshape(images.size(0), 3, 336, 336)
+
+    position_ids = (
+        torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
+    )
+
+    model = model.module.cuda()
+    model.eval()
+    generated_ids = input_ids.clone()
+
+    # Greedy generation loop
+    for _ in range(num_tokens_to_generate):
+        with torch.no_grad():
+            output = model(
+                images=images,
+                input_ids=input_ids,
+                position_ids=position_ids,
+                attention_mask=None,
+            )
+
+            next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
+
+            generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
+
+            input_ids = generated_ids
+            position_ids = (
+                torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+                .unsqueeze(0)
+                .expand_as(input_ids)
+            )
+
+            # If the generated token is the end of sequence token, stop generating
+            if next_token_ids.item() == hf_tokenizer.eos_token_id:
+                break
+
+    generated_ids[generated_ids == -200] = 0
+    generated_texts = hf_tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
+    logging.info("======== GENERATED TEXT OUTPUT ========")
+    logging.info(f"{generated_texts}")
+    logging.info("=======================================")
+
+
 def main(args) -> None:
     # pylint: disable=C0115,C0116
     strategy = nl.MegatronStrategy(
@@ -139,7 +199,10 @@ def main(args) -> None:
         top_k=args.top_k,
         num_tokens_to_generate=args.num_tokens_to_generate,
     )
-    generate(model, processor, images=raw_image, text=args.prompt, params=params)
+    if args.legacy_generate:
+        legacy_generate(model, processor, raw_image, args.prompt, args.num_tokens_to_generate)
+    else:
+        generate(model, processor, images=raw_image, text=args.prompt, params=params)
 
 
 if __name__ == "__main__":
@@ -190,6 +253,11 @@ if __name__ == "__main__":
         type=int,
         default=20,
         help="""Number of tokens to generate per prompt""",
+    )
+    parser.add_argument(
+        "--legacy_generate",
+        action="store_true",
+        help="Flag to indicate whether to use legacy generation function.",
     )
     args = parser.parse_args()
 
