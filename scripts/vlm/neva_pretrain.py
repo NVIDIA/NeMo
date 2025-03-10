@@ -73,6 +73,7 @@ def main(args):
     if args.data_type == "energon":
         from transformers import AutoProcessor
 
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
         from nemo.collections.multimodal.data.energon import (
             EnergonMultiModalDataModule,
             ImageToken,
@@ -80,8 +81,9 @@ def main(args):
             MultiModalSampleConfig,
         )
 
-        processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-        tokenizer = processor.tokenizer
+        model_id = "llava-hf/llava-1.5-7b-hf"
+        processor = AutoProcessor.from_pretrained(model_id)
+        tokenizer = AutoTokenizer(model_id)
         image_processor = processor.image_processor
 
         # Configure multimodal samples
@@ -102,7 +104,7 @@ def main(args):
             num_workers=0,
             multimodal_sample_config=config,
             task_encoder=MultiModalTaskEncoder(
-                tokenizer=tokenizer,
+                tokenizer=tokenizer.tokenizer,
                 image_processor=image_processor,
                 multimodal_sample_config=config,
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
