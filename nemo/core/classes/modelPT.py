@@ -210,7 +210,8 @@ class ModelPT(LightningModule, Model):
         self._nsys_profile_complete = False
         self._memory_profile_started = False
         self._memory_profile_complete = False
-
+        self.epoch_count = 0
+        
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 

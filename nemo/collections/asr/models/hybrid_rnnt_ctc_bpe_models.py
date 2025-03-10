@@ -136,13 +136,13 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.cur_decoder = "rnnt"
         self.epoch_count = 0
 
-    def on_train_epoch_end(self):
-        super().on_train_epoch_end()
-        if self.epoch_count == 1:  
-            torch.distributed.barrier()
-            self.trainer.should_stop = True
-        else:
-            self.epoch_count += 1
+    # def on_train_epoch_end(self):
+    #     super().on_train_epoch_end()
+    #     if self.epoch_count == 1:  
+    #         torch.distributed.barrier()
+    #         self.trainer.should_stop = True
+    #     else:
+    #         self.epoch_count += 1
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
