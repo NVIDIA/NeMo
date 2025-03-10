@@ -22,10 +22,12 @@ if TYPE_CHECKING:
     pass
 
 import copy
+
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from qwen_vl_utils import fetch_image, fetch_video
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 from transformers import CLIPImageProcessor, Qwen2VLImageProcessor
@@ -40,7 +42,6 @@ from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
     VIDEO_TOKEN_INDEX,
     VISION_END_TOKEN_INDEX,
 )
-from nemo.collections.vlm.qwen2vl.data.vision_process import process_vision_info
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
@@ -368,9 +369,66 @@ class PreloadedSupervisedDataset(Dataset):
         )
         return data_dict
 
+    def _normalize_vision_paths(self, source, image_folder, video_folder):
+        """
+        Normalize image and video paths, converting relative paths to absolute paths.
+
+        Args:
+            source: Dictionary containing image and video paths
+            image_folder: Base directory for image files
+            video_folder: Base directory for video files
+
+        Returns:
+            Source dictionary with normalized image and video paths
+        """
+
+        def normalize_paths(paths, base_folder):
+            """Convert relative paths to absolute paths"""
+            if base_folder is None or not paths:
+                return paths
+
+            for i, path in enumerate(paths):
+                # Skip non-string paths
+                if not isinstance(path, str):
+                    continue
+
+                # Skip URLs and absolute paths
+                if any(prefix in path for prefix in ["http:", "https:", "file:"]) or os.path.isabs(path):
+                    continue
+
+                # Convert relative path to absolute path
+                paths[i] = os.path.normpath(os.path.join(base_folder, path))
+
+            return paths
+
+        # Get image and video paths
+        images = source.get('images', [])
+        videos = source.get('videos', [])
+
+        # Process image and video paths
+        images = normalize_paths(images, image_folder)
+        videos = normalize_paths(videos, video_folder)
+
+        return images, videos
+
+    def _fetch_vision_content(self, images, videos):
+        image_inputs = []
+        for image in images:
+            image_inputs.append(fetch_image({"image": image}))
+        video_inputs = []
+        for video in videos:
+            video_inputs.append(fetch_video({"video": video}))
+        if len(image_inputs) == 0:
+            image_inputs = None
+        if len(video_inputs) == 0:
+            video_inputs = None
+        return image_inputs, video_inputs
+
     def _process_vision(self, source, image_folder, video_folder):
+        # normalize image and video paths
+        images, videos = self._normalize_vision_paths(source, image_folder, video_folder)
         # leave the I/O and smart_resize to qwen_vl_utils, which is maintained on github by Qwen Team.
-        image_inputs, video_inputs = process_vision_info(source, image_folder, video_folder)
+        image_inputs, video_inputs = self._fetch_vision_content(images, videos)
         # call Huggingface processor to get patches and size info, which is maintained by Qwen Team as well.
         vision_tensors = process_vision(self.image_processor, image_inputs, video_inputs)
         return vision_tensors
@@ -411,6 +469,8 @@ class PreloadedSupervisedDataset(Dataset):
         # FIXME: Current implementation does not support system prompt in the data.
         # FIXME: Current implementation does not support tools in the data.
         messages = source['messages']
+        if source.get('system', None) is not None:
+            conv.system = source['system']
 
         def _fix_roles(roles):
             if len(messages) < 2:

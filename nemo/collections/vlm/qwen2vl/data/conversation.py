@@ -49,11 +49,6 @@ class Conversation:
 
     skip_next: bool = False
 
-    def process_prompt_with_images(self, messages):
-        # pylint: disable=C0115,C0116
-        # Process messages to handle potential image tokens.
-        return messages
-
     def process_chat_template(self, tokenizer_name_or_path, messages):
         # pylint: disable=C0115,C0116
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
@@ -75,6 +70,7 @@ class Conversation:
             refer to: https://github.com/QwenLM/Qwen2-VL#data-preparation
             [
               {
+                "system": "You are a helpful assistant.",
                 "messages": [
                   {
                     "content": "<image>Who are they?",
@@ -260,7 +256,7 @@ class Conversation:
 
 
 conv_qwen2vl = Conversation(
-    system="",
+    system="You are a helpful assistant.",
     roles=("user", "assistant"),
     version="qwen2vl",
     messages=[],
