@@ -47,10 +47,14 @@ from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from megatron.core import Timers
+from megatron.core import tensor_parallel, Timers
 from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer
+from packaging import version
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.checkpoint.utils import CheckpointException
@@ -91,6 +95,7 @@ ConfigT = TypeVar("ConfigT")
 
 
 DDPLiteral = Literal["megatron", "pytorch"]
+FSDPLiteral = Literal["megatron", "pytorch"]
 
 
 URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html"
@@ -164,6 +169,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
+        fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"]. Defaults to None.
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
@@ -238,6 +244,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
+        fsdp: Optional[FSDPLiteral] = None,
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         use_te_rng_tracker: bool = False,
@@ -315,11 +322,22 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
 
         self._ddp = ddp
+        self._fsdp = None
+        if fsdp == "pytorch":
+            raise NotImplementedError("PyTorch FSDP2 is not supported with MegatronParallel.")
+        elif fsdp == "megatron":
+            self._fsdp = fsdp
+            logging.info("FSDP option is set to MCore. Using MCore's Custom FSDP for DP.")
+        elif fsdp is not None:
+            raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
+
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
         elif isinstance(ddp, DistributedDataParallelConfig):
             self.ddp_config = ddp
         elif ddp == "pytorch":
+            if self._fsdp is not None:
+                raise ValueError("Please set ddp to megatron to use FSDP.")
             self.ddp_config = None
             self.no_ddp_communication_hook = False
         else:
@@ -523,6 +541,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             vp_size=self.virtual_pipeline_model_parallel_size,
             cpu=isinstance(trainer.accelerator, CPUAccelerator),
             ddp_config=self.ddp_config,
+            fsdp=self._fsdp,
             convert_module_fn=convert_module_fn,
         )
 
@@ -918,8 +937,25 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if not self.should_restore_optimizer_states(selective_restore=selective_restore):
             return
 
+        from megatron.core import parallel_state
+        from torch.distributed import DeviceMesh
+        from torch.distributed._tensor import DTensor, Shard
+
+        mesh = DeviceMesh.from_group(parallel_state.get_data_parallel_group(), "cuda")
+
         optimizer_states = checkpoint["optimizer"]
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
+            if self._fsdp is not None:
+                opt_state['fp32_from_fp16_params'] = OrderedDict()
+                for opt_param in opt_state['optimizer']['state'].values():
+                    if isinstance(opt_param, Dict):
+                        for opt_param_state_key, opt_param_state in opt_param.items():
+                            opt_param[opt_param_state_key] = DTensor.from_local(
+                                opt_param_state,
+                                mesh,
+                                (Shard(dim=0),),
+                            )
+
             optimizer.load_state_dict(opt_state)
             _optimizer_to_device(optimizer, self.root_device)
 
@@ -934,6 +970,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         """loads model state dict"""
+        if self._fsdp is not None:
+            return
+
         assert self.megatron_parallel is not None
 
         strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
