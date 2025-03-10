@@ -187,12 +187,8 @@ class ASRModel(ModelPT, ABC):
         """
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
         if self._cfg.ipl_training:
-            print("self._cfg.ipl_training ")
-            print(self.epoch_count)
             if self.epoch_count == 1:  
-                print("will stop the trainings")
                 torch.distributed.barrier()
-                
                 self.trainer.should_stop = True
             else:
                 self.epoch_count += 1
