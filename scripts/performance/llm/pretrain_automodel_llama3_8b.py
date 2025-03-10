@@ -45,7 +45,6 @@ from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_prima
 
 SEQ_LENGTH = 2048
 NUM_GPUS_PER_NODE = 8
-GLOBAL_BATCH_SIZE = 32
 
 def override_recipe_configs(
     args: str,
@@ -94,10 +93,11 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "8b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _ = kwargs
+    breakpoint()
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, _ = kwargs
 
-    recipe = override_recipe_configs(args, num_nodes, num_gpus_per_node=NUM_GPUS_PER_NODE, seq_length=SEQ_LENGTH, global_batch_size=GLOBAL_BATCH_SIZE)
-    exp_config = f"{num_nodes}nodes_seq{SEQ_LENGTH}_gbs{GLOBAL_BATCH_SIZE}"
+    recipe = override_recipe_configs(args, num_nodes, num_gpus_per_node=NUM_GPUS_PER_NODE, seq_length=SEQ_LENGTH, global_batch_size=gbs, micro_batch_size=mbs)
+    exp_config = f"{num_nodes}nodes_seq{SEQ_LENGTH}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
