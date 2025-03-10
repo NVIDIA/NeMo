@@ -84,14 +84,13 @@ python convert_hf_dataset_to_nemo.py \
 import json
 import os
 import traceback
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Optional
 
 import hydra
 import librosa
 import soundfile
 import tqdm
-from dataclasses import dataclass, field, is_dataclass
 from hydra.conf import HydraConf, RunDir
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
