@@ -155,6 +155,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """setup distributed environment and device mesh"""
         from torch.distributed.device_mesh import init_device_mesh
 
+        self.accelerator.setup_device(self.root_device)
+
         self._setup_distributed()
         if self._data_parallel_size == "auto":
             self._data_parallel_size = self.num_nodes

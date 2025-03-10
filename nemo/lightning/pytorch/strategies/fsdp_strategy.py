@@ -95,6 +95,8 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         """Initializes rank and process group for communications."""
         setup_parallel_ranks(self)
 
+        self.accelerator.setup_device(self.root_device)
+
         # Implementation from superclass copied below in order to pass the store to the process group init
         reset_seed()
         self.set_world_ranks()
