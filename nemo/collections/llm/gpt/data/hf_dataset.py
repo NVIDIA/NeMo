@@ -406,7 +406,6 @@ def preprocess(text):
     text = text.strip()
     # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
     text = text.replace(" [title]", ". ")
-    import re
     text = re.sub("\\[.*?\\]", "", text)
     text = text.replace("  ", " ")
     return text
