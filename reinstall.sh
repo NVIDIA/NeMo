@@ -17,7 +17,7 @@ export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 
 PIP=pip
-${PIP} install -U ${PIP} setuptools
+${PIP} install --no-cache-dir -U ${PIP} setuptools
 
 te() {
   local mode="$1"
