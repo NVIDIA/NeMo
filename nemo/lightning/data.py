@@ -19,6 +19,7 @@ from itertools import chain
 from typing import List, Literal, Optional
 
 import torch
+from pytorch_lightning.overrides.distributed import _IndexBatchSamplerWrapper
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -139,6 +140,7 @@ def add_megatron_sampler(
     dataloader_type: Literal["single", "cyclic", "batch"] = "single",
     drop_last: bool = True,
     pad_samples_to_global_batch_size: bool = False,
+    dataloader_mode: Literal["train", "validation", "test", "predict"] = "train",
     rank: int = 0,
     world_size: int = 1,
     # data_sharding: bool = False
@@ -170,6 +172,7 @@ def add_megatron_sampler(
         pad_samples_to_global_batch_size (bool, optional): Whether to pad the last incomplete
             batch to the `global_batch_size`  (defaults to False, only applies when
             `drop_last` is False).
+        dataloader_mode (Literal["train", "validation", "test", "predict"]): The mode of dataloader.
 
     Returns:
         DataLoader: A new DataLoader instance with the configured Megatron sampler.
@@ -213,6 +216,9 @@ def add_megatron_sampler(
         )
     else:
         raise Exception(f'{dataloader_type} dataloader type is not supported.')
+
+    if dataloader_mode in ["test", "predict"]:
+        batch_sampler = _IndexBatchSamplerWrapper(batch_sampler)  # BatchSampler wrapper to capture its indices
 
     return DataLoader(
         dataloader.dataset,
@@ -369,6 +375,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
+        seed: int = 0,
     ) -> None:
         super().__init__(
             total_samples=total_samples,
@@ -383,7 +390,30 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         assert (
             not pad_samples_to_global_batch_size
         ), "`MegatronPretrainingRandomSampler` does not support sample padding"
+        if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
+            raise RuntimeError(
+                "`MegatronPretrainingRandomSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
+                  please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
+            )
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
+        self.seed = seed
+
+    def __len__(self):
+        active_total_samples = self.total_samples - (self.last_batch_size if self.drop_last else 0)
+        num_available_samples = active_total_samples - self.consumed_samples % active_total_samples
+        if self.global_batch_size is not None:
+            if self.drop_last:
+                num_global_batches = num_available_samples // self.global_batch_size
+            else:
+                num_global_batches = (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
+            # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
+            # num of batches fetched (as training step fetches in terms of micro batches)
+            return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
+        else:
+            if self.drop_last:
+                return num_available_samples // self.micro_batch_times_data_parallel_size
+            else:
+                return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size
 
     def __iter__(self):
         active_total_samples = self.total_samples - self.last_batch_size
@@ -398,7 +428,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         start_idx = self.data_parallel_rank * bucket_size
 
         g = torch.Generator()
-        g.manual_seed(self.epoch)
+        g.manual_seed(self.seed + self.epoch)
         random_idx = torch.randperm(bucket_size, generator=g).tolist()
         idx_range = [start_idx + x for x in random_idx[bucket_offset:]]
 

@@ -84,6 +84,8 @@ def init_parallel_ranks(
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
+        encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
+        encoder_pipeline_model_parallel_size=getattr(parallel_config, "encoder_pipeline_model_parallel_size", 0),
         seed=seed,
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
@@ -113,6 +115,8 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
+                encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
@@ -130,16 +134,6 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
             # create MPI process group for UCX-based communication APIs
             if app_state.init_mpi_proc_group:
                 torch.distributed.new_group(backend="mpi")
-
-        if model:
-            # Set TP group
-            # Deep iterate but skip self to avoid infinite recursion.
-            for index, child in enumerate(model.modules()):
-                if index == 0:
-                    continue
-                if hasattr(child, "set_tensor_parallel_group"):
-                    tp_group = parallel_state.get_tensor_model_parallel_group()
-                    child.set_tensor_parallel_group(tp_group)
 
 
 def set_model_parallel_attributes(model, parallelism):

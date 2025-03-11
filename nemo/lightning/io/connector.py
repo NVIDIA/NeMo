@@ -22,7 +22,7 @@ import pytorch_lightning as pl
 from filelock import FileLock, Timeout
 from pytorch_lightning.trainer.states import TrainerFn
 
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
@@ -198,7 +198,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         trainer.strategy.setup(trainer)
         output_path = Path(output_path)
         output_path.mkdir(parents=True, exist_ok=True)
-        trainer.save_checkpoint(ckpt_to_weights_subdir(output_path))
+        trainer.save_checkpoint(output_path)
         if getattr(trainer.strategy, "async_save", False):
             trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
 
@@ -228,7 +228,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
         model = load_context(path).model
         _trainer = trainer or Trainer(
-            devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy(ddp="pytorch")
+            devices=1,
+            accelerator="cpu" if cpu else "gpu",
+            strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False),
         )
 
         _trainer.strategy.connect(model)
@@ -255,10 +257,12 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
             _base = Path(NEMO_MODELS_CACHE)
 
-        # If the useu supplied `hf:///path/to/downloaded/my-model/`
+        # If the user supplied `hf:///path/to/downloaded/my-model/`
         # then extract the last dir-name (i.e. my-model) and append it to _base
         if str(self).startswith('/'):
-            return _base / PurePath((str(self))).name
+            if self.suffix in ['.pt', '.pth']:
+                return _base / self.parent.name
+            return _base / self.name
         return _base / str(self).replace("://", "/")
 
     def on_import_ckpt(self, model: pl.LightningModule):
