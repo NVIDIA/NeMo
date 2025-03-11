@@ -170,7 +170,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
 
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
-        if data_cfg.get("use_lhotse"):
+        if data_cfg.get("use_lhotse", True):
             logging.info(f"Creating Lhotse dataset for {mode}")
             if mode != 'train':
                 setattr(self, f"_{mode}_names", self._parse_lhotse_data_name(mode))
