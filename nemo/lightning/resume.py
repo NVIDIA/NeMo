@@ -95,9 +95,29 @@ class AutoResume:
     WEIGHTS_PATH = "weights"
 
     def get_weights_path(self, path):
+        """Returns the path to the weights directory within the specified path.
+
+        Args:
+            path: The checkpoint directory path
+
+        Returns:
+            Path: A Path object pointing to the weights directory
+        """
         return Path(path) / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
+        """Sets up checkpoint restoration for the Pytorch Lightning trainer.
+
+        This method configures the trainer with the appropriate checkpoint path for resuming
+        training and handles loading model artifacts like tokenizers when specified.
+
+        Args:
+            trainer: The PyTorch Lightning trainer or Fabric instance
+            model: Optional model instance to load artifacts into
+
+        Raises:
+            NotImplementedError: If trainer is a Fabric instance (not yet supported)
+        """
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
 
@@ -265,6 +285,18 @@ class AutoResume:
         return checkpoint
 
     def get_context_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
+        """Retrieves the path to the context directory of a checkpoint.
+
+        The context directory contains serialized objects like tokenizers. This method
+        handles both cases where the context is directly in the checkpoint directory
+        or in a subdirectory called "context".
+
+        Args:
+            model: Optional model instance
+
+        Returns:
+            Optional[Path]: Path to the context directory if found, None otherwise
+        """
         checkpoint = None
         app_state = AppState()
         app_state.restore = self.resume_if_exists
@@ -278,6 +310,21 @@ class AutoResume:
         return checkpoint
 
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
+        """Resolves the path to a checkpoint for resuming training.
+
+        This method handles various checkpoint sources with the following priority:
+        1. Explicit path specified in resume_from_path
+        2. Automatic discovery in the checkpoint directory when resume_if_exists=True
+
+        For adapter checkpoints (PEFT), it also retrieves the base model path from metadata.
+
+        Args:
+            model: Optional model instance
+
+        Returns:
+            Optional[Path]: Path to the checkpoint if found, or AdapterPath for PEFT checkpoints,
+                           or None if no checkpoint is found or needed
+        """
         if self.resume_from_path:
             maybe_weights_path = self.get_weights_path(self.resume_from_path)
             if maybe_weights_path.is_dir():
