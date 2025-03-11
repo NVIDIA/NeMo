@@ -32,6 +32,7 @@ else:
         print('Fused optimized group norm has not been installed.')
         OPT_GROUP_NORM = False
 
+from nemo.collections.multimodal.modules.stable_diffusion import fast_geglu
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -106,8 +107,12 @@ class GEGLU(nn.Module):
         self.proj = LinearWrapper(dim_in, dim_out * 2)
 
     def forward(self, x):
-        x, gate = self.proj(x).chunk(2, dim=-1)
-        return x * F.gelu(gate)
+        x = self.proj(x)
+        if x.is_cuda and x.dtype == torch.float16 and x.shape[-1] // 2 in [1280, 2560, 5120] and x.is_contiguous():
+            return fast_geglu.geglu(x)
+        else:
+            x, gate = x.chunk(2, dim=-1)
+            return x * F.gelu(gate)
 
 
 class FeedForward(nn.Module):
