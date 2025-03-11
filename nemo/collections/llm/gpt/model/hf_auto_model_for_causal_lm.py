@@ -201,7 +201,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.model_accelerator is not None:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-            te_accelerate(self.model, self.model_accelerator.fp8_autocast)
+            te_accelerate(self.model, True)
 
         self.model.train()
 
@@ -446,7 +446,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
-    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
+    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask', 'input_ids']):
         """Remove extra keys from batch that are not kwargs in model's forward
 
         Args:

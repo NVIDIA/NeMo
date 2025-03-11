@@ -37,7 +37,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, batch_size):
+def make_squad_hf_dataset(tokenizer, batch_size, pad_seq_len_divisible=None):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -56,7 +56,12 @@ def make_squad_hf_dataset(tokenizer, batch_size):
         )
 
     datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad", split="train", micro_batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0
+        "rajpurkar/squad",
+        split="train",
+        micro_batch_size=batch_size,
+        pad_token_id=tokenizer.eos_id or 0,
+        global_batch_size=batch_size,
+        pad_seq_len_divisible=pad_seq_len_divisible,
     )
     datamodule.map(
         formatting_prompts_func,
@@ -124,7 +129,7 @@ def main():
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
-        '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
+        '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over'
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
@@ -139,15 +144,20 @@ def main():
         action='store_true',
         help='Enables trust_remote_code to load HF models with unverified sources',
     )
+    parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
+    parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
     args = parser.parse_args()
 
     wandb = None
     if args.wandb_project is not None:
-        model = '_'.join(args.model.split('/')[-2:])
+        model = args.model.split('/')[-1] # '_'.join(args.model.split('/')[-2:])
+        name = (f'{model}_{args.devices}GPUs_{args.strategy}_{"fp8" if args.fp8 else ""}'
+                f'mbs{args.batch_size}_gbs{args.batch_size * args.devices}_steps{args.max_steps}_pyt')
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+            name=name,
         )
+        args.ckpt_folder = args.ckpt_folder + '/' + name
 
     callbacks = []
     if args.use_torch_jit:
@@ -157,12 +167,16 @@ def main():
     if args.use_te_optimizer:
         # Use TE optimizer
         # Faster convergence but may lead to memory issues
-        optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5))
+        optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=3e-4))
+        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
 
+    if args.fp8:
+        model_accelerator = True
+    else:
+        model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=None, trust_remote_code=args.trust_remote_code
+        model_name=args.model, model_accelerator=model_accelerator, trust_remote_code=args.trust_remote_code
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
@@ -175,9 +189,14 @@ def main():
         else None
     )
 
+    if args.fp8:
+        # FP8 training requires Seq length to be divisible by 16.
+        data = make_squad_hf_dataset(model.tokenizer, args.batch_size, 16)
+    else:
+        data = make_squad_hf_dataset(model.tokenizer, args.batch_size)
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer, args.batch_size),
+        data=data,
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
