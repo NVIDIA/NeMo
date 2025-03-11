@@ -588,7 +588,7 @@ class HFMockDataModule(pl.LightningDataModule):
             self.tokenizer = tokenizer
 
     def setup(self, stage: str = None) -> None:
-        """ setup """
+        """setup"""
         self._train_ds = _MockGPTDataset(
             self.tokenizer,
             "train",
@@ -612,19 +612,19 @@ class HFMockDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader:
-        """ train_dataloader """
+        """train_dataloader"""
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> DataLoader:
-        """ val_dataloader """
+        """val_dataloader"""
         return self._create_dataloader(self._val_ds)
 
     def test_dataloader(self) -> DataLoader:
-        """ test_dataloader """
+        """test_dataloader"""
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset) -> DataLoader:
-        """ creates the dataloader for given dataset """
+        """creates the dataloader for given dataset"""
         return DataLoader(
             dataset,
             batch_size=self.micro_batch_size,
