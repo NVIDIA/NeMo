@@ -25,10 +25,10 @@ from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
+from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 def clean_split(name):
@@ -85,9 +85,7 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got " + str(
-            type(split)
-        )
+        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
@@ -120,9 +118,7 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert (
-        num_init_splits > 0
-    ), f"Expected at least one split to have been initialized {num_init_splits}"
+    assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
     return dataset_splits
 
 
@@ -276,27 +272,20 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(
-                f"Loading HF dataset from {path_or_dataset}, this may take a moment."
-            )
+            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
-        elif isinstance(path_or_dataset, Dataset) or isinstance(
-            path_or_dataset, DatasetDict
-        ):
+        elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "
-                + str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id
-            )
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
         else:
             self._collate_fn = collate_fn
 
@@ -336,11 +325,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def setup(self, stage: str):
         """setups sampler"""
         # Turn-on dist-sampler if the user is running inside a dist-env.
-        if (
-            not self.use_dist_sampler
-            and not self.use_mcore_sampler
-            and has_dist_env_init_or_rank_env_var()
-        ):
+        if not self.use_dist_sampler and not self.use_mcore_sampler and has_dist_env_init_or_rank_env_var():
             self.use_dist_sampler = True
             logging.info("Turning on distributed data sampler")
         elif self.use_mcore_sampler:
@@ -365,9 +350,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id
-            )
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
         return DataLoader(
             dataset,
@@ -463,9 +446,7 @@ def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
         return ans
 
     # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
-    _preprocessing_function = partial(
-        preprocess_batch, max_length=max_length, tokenizer=tokenizer
-    )
+    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
     dataset = dataset.map(
         _preprocessing_function,
         batched=True,
@@ -484,9 +465,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         tokenizer = tokenizer.tokenizer
         tokenizer.pad_token = tokenizer.eos_token
         dataset = load_dataset(dataset_name)
-        super().__init__(
-            preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs
-        )
+        super().__init__(preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
 
 
 class SquadHFDataModule(HFDatasetDataModule):
@@ -673,9 +652,9 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = np.tril(
-                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
-            )[np.newaxis, :].tolist()
+            self.attention_mask = np.tril(np.ones((self.seq_length, self.seq_length), dtype=np.float32))[
+                np.newaxis, :
+            ].tolist()
 
         self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
         self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
@@ -685,12 +664,8 @@ class _MockGPTDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx) -> Dict[str, list]:
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = np_gen.integers(
-            self.vocab_size, size=[self.seq_length], dtype=np.int64
-        ).tolist()
-        labels = np_gen.integers(
-            self.vocab_size, size=[self.seq_length], dtype=np.int64
-        ).tolist()
+        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
 
         batch = {
             "tokens": tokens,
