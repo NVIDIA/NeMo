@@ -65,7 +65,9 @@ def main(args):
 
     samples = []
     loader = data.train_dataloader()
-    for sample in loader: samples.append(sample)
+    for sample in loader: 
+        import pdb;pdb.set_trace()
+        samples.append(sample)
 
 
 if __name__ == "__main__":

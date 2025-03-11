@@ -14,18 +14,21 @@
 
 import io
 import av
+import re
 import itertools
 import numpy.typing as npt
 from PIL import Image
 from dataclasses import dataclass, field
-from typing import Dict, List, Union, Literal, TypedDict, Callable
+from typing import Dict, List, Union, Literal, TypedDict, Callable, Optional
 
 import torch
 import torchvision
+from torch.nn.utils.rnn import pad_sequence
+
 from megatron.core import parallel_state
 from megatron.energon import Sample
 from megatron.energon import batch_list, batch_pad_stack
-from torch.nn.utils.rnn import pad_sequence
+from megatron.energon.task_encoder.base import stateless
 
 from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AudioSize,
@@ -83,11 +86,11 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         self.video_token = multimodal_sample_config.video_token
 
         if self.tokenizer is None:
-            self.build_tokenizer(self.multimodal_sample_config.model_id)
+            self.build_tokenizer()
         if self.audio_processor == {}:
-            self.build_audio_processor(self.multimodal_sample_config)
+            self.build_audio_processor()
         if self.image_processor is None:
-            self.build_image_processor(self.multimodal_sample_config.model_id)
+            self.build_image_processor()
 
         self.concate_audio_video_tokens = None
         if self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "sequential":
@@ -180,7 +183,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
 
     def build_tokenizer(self):
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        self.tokenizer = AutoTokenizer(self.multimodal_sample_config.model_id)
+        self.tokenizer = AutoTokenizer(self.multimodal_sample_config.model_id).tokenizer
 
     def build_audio_processor(self):
         self.audio_augmentor = audio_process_augmentations(
@@ -585,10 +588,11 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         if processed_audios:
             processed_audio_tensor = torch.concatenate(processed_audios)
             processed_audio_lengths_tensor = torch.tensor(processed_audio_lengths)
-        if images:
+        if processed_images:
             processed_image_tensor = torch.concatenate(processed_images)  # T c h w
             processed_num_image_tiles_tensor = torch.tensor(processed_num_image_tiles)
             processed_image_sizes_tensor = torch.tensor(processed_image_sizes)
+
         return {
             "tokens": tokens, 
             "audios": processed_audio_tensor, 
@@ -664,6 +668,17 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
             ),
         }
 
+    @stateless
+    def encode_sample(self, sample: AVLMEnergonQASample) -> AVLMSample:
+        """
+        """
+        sample_type = type(sample).__name__
+        encoder = self.encoders.get(sample_type)
+        if not encoder:
+            raise NotImplementedError(f"No encoder implemented for sample type {sample_type}")
+        encoded_sample = encoder.encode(input_sample=sample, output_sample=AVLMSample())
+        return encoded_sample
+
     def batch(self, samples: List[AVLMSample]) -> AVLMRawBatch:
         """
         Batch multiple encoded samples into a single batch structure for model input.
@@ -694,7 +709,9 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         keys, tokens, labels, loss_mask, \
             audios, audio_lengths, \
             videos, video_lengths, num_video_tiles, \
-            images, num_image_tiles, image_sizes, attention_mask = (
+            images, num_image_tiles, image_sizes, \
+            attention_mask = (
+            [],
             [],
             [],
             [],
@@ -740,7 +757,7 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
 
         if audios:
             # get the audio samples' maximum length and pad all samples to that length
-            rawBatch.audios = torch.nn.utils.rnn.pad_sequence(audios, batch_first=True)
+            rawBatch.audios = pad_sequence(audios, batch_first=True)
             if audio_lengths:
                 rawBatch.audio_lengths = torch.tensor(batch_list(audio_lengths), dtype=torch.int)
         if videos:

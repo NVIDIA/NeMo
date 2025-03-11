@@ -200,7 +200,7 @@ def sample_loader_QA(raw: dict) -> dict:
     # Note that only the images are decoded, all other files are read as raw bytes
     jsn = json.loads(raw["json"])
     output_dict = {
-        "contexts": [],
+        "context": [],
         "answers": [],
         "audios": [],
         "videos": [],
@@ -269,11 +269,11 @@ def sample_loader_QA(raw: dict) -> dict:
         if turn["from"].lower() == "assistant" or turn["from"].lower() == "gpt":
             output_dict["answers"].append(string)
         elif turn["from"].lower() == "user" or turn["from"].lower() == "human":
-            output_dict["contexts"].append(string)
+            output_dict["context"].append(string)
 
     return dict(
         __key__=raw["__key__"],
-        contexts=output_dict["contexts"],
+        context=output_dict["context"],
         answers=output_dict["answers"] if output_dict["answers"] else None,
         audios=output_dict["audios"] if output_dict["audios"] else None,
         videos=output_dict["videos"] if output_dict["videos"] else None,

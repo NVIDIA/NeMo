@@ -52,7 +52,7 @@ class AVLMEnergonInterleavedSample(Sample):
 
 @dataclass
 class AVLMEnergonQASample(Sample):
-    contexts: List[str]
+    context: List[str]
     answers: Optional[List[str]] = None
     answer_weights: Optional[torch.Tensor] = None
 
