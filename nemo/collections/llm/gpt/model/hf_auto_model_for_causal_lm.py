@@ -106,11 +106,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
         self.use_liger_kernel = use_liger_kernel
-        if use_liger_kernel:
-            liger_kernel, HAS_LIGER_KERNEL = safe_import('liger_kernel')
-            if not HAS_LIGER_KERNEL:
-                logging.warning("Asked to use Liger Kernel, but could not import")
-                self.use_liger_kernel = False
         # holds loss values until optim step.
         self.loss_buffer = []
         self.n_tok = 0
@@ -168,7 +163,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # create all your layers here
         auto_cls = AutoModelForCausalLM
         if self.use_liger_kernel:
-            auto_cls = liger_kernel.transformers.AutoLigerKernelForCausalLM
+            liger_kernel, HAS_LIGER_KERNEL = safe_import('liger_kernel')
+            if not HAS_LIGER_KERNEL:
+                logging.warning("Asked to use Liger Kernel, but could not import")
+            else:
+                auto_cls = liger_kernel.transformers.AutoLigerKernelForCausalLM
 
         if self.load_pretrained_weights:
             return auto_cls.from_pretrained(
