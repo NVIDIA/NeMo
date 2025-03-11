@@ -76,7 +76,6 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError
 
-    use_dist_samp = False
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
     model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor)
     peft = None
