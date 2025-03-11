@@ -26,8 +26,6 @@ from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject,
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
-from torch.distributed._composable.fsdp.fully_shard import fully_shard
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
@@ -35,6 +33,11 @@ from torch.distributed.device_mesh import DeviceMesh
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+from nemo.utils.import_utils import safe_import_from
+
+
+MixedPrecisionPolicy = safe_import_from("torch.distributed._composable.fsdp", "MixedPrecisionPolicy")
+fully_shard = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
 
 
 @dataclass(kw_only=True)
