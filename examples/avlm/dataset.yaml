@@ -1,5 +1,5 @@
 sample_type:
-  __module__: nemo.collections.avlm.data.energon.avlm_sample_config
+  __module__: nemo.collections.avlm.data.energon
   __class__: AVLMEnergonQASample
 sample_loader: sample_loaders.py:sample_loader_QA
 part_filter: sample_loaders.py:part_filter_QA

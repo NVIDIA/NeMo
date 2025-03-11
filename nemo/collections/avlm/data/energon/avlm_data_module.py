@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional, Literal
+
+from megatron.energon import get_train_dataset
+
 from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-from nemo.collections.avlm.data.energon import AVLMSampleConfig
-from nemo.collections.avlm.data.energon import AVLMTaskEncoder
+from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSampleConfig
+from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMTaskEncoder
 from nemo.utils import logging
 
 
@@ -51,7 +55,7 @@ class AVLMDataModule(EnergonMultiModalDataModule):
         pin_memory: bool = True,
         shuffle_buffer_size: int = 100,
         max_samples_per_sequence: int | None = None,
-        avlm_sample_config: Optional[AVLMSampleConfig] = AVLMSampleConfig(),
+        multimodal_sample_config: Optional[AVLMSampleConfig] = AVLMSampleConfig(),
         task_encoder: Optional[AVLMTaskEncoder] = None,
         decoder_seq_length: Optional[int] = None,
         packing_buffer_size: Optional[int] = None,
@@ -70,7 +74,7 @@ class AVLMDataModule(EnergonMultiModalDataModule):
             pin_memory,
             shuffle_buffer_size,
             max_samples_per_sequence,
-            avlm_sample_config,
+            multimodal_sample_config,
             task_encoder,
             decoder_seq_length,
             packing_buffer_size,

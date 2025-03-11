@@ -3,12 +3,12 @@ import re
 import json
 import torch
 
-from nemo.collections.multimodal.data.energon.config import (
+from nemo.collections.multimodal.data.energon import (
     ImageToken,
     AudioToken,
     VideoToken,
 )
-from nemo.collections.avlm.data.energon.avlm_sample_config import MediaDict
+from nemo.collections.avlm.data.energon import AVLMMediaDict
 
 
 def get_media(raw, media_type, value, offset=None, duration=None):
@@ -16,7 +16,7 @@ def get_media(raw, media_type, value, offset=None, duration=None):
     Return:
         if media_type == 'text', return the text string
         if media_type == 'image', return as PIL Image
-        if media_type == 'audio' or 'video', return as MediaDict
+        if media_type == 'audio' or 'video', return as AVLMMediaDict
     """
     assert media_type in ["text", "audio", "video", "image"]
 
@@ -28,7 +28,7 @@ def get_media(raw, media_type, value, offset=None, duration=None):
             media_dict["offset"] = offset
         if duration is not None:
             media_dict["duration"] = duration
-        return MediaDict(**media_dict)
+        return AVLMMediaDict(**media_dict)
     else:
         return raw[value]
 
@@ -134,7 +134,6 @@ sample_000003.json
       "value": "<audio>"
     },
     {
-      "type": "text",
       "from": "Assistant",
       "value": "Automatic speech recognition is a technology that allows computers to recognize and transcribe spoken language. In the NeMo Framework, ASR is used for tasks such as speech-to-text and voice recognition."
     },
@@ -143,7 +142,6 @@ sample_000003.json
       "value": "Describe what is NeMo based on the tutorial video: <video> and the information in the two images: <image> <image>. Combine that information with sound <audio>. Answer: "
     },
     {
-      "type": "text",
       "from": "Assistant",
       "value": "The NeMo Framework provides a range of tools and features for training and deploying ASR models, including model parallelism, data parallelism, and distributed checkpointing. This allows for faster training and inference times, as well as improved model accuracy and reliability."
     }
@@ -217,9 +215,9 @@ def sample_loader_QA(raw: dict) -> dict:
         durations = jsn.get("audio_durations") or [None] * len(audio_files)
         if not isinstance(offsets, list):
             offsets = [offsets]
-        if not isinstance(durations):
+        if not isinstance(durations, list):
             durations = [durations]
-        output_dict["audios"] = [get_media(raw, "audio", f.split(',',1)[1], offsets[i], durations[i]) for i,f in enumerate(audio_files)]
+        output_dict["audios"] = [get_media(raw, "audio", f.split('.',1)[1], offsets[i], durations[i]) for i,f in enumerate(audio_files)]
 
     if "video" in jsn or "videos" in jsn:
         video_files = jsn["video"].split(",") if "video" in jsn else jsn["videos"].split(",")
@@ -229,7 +227,7 @@ def sample_loader_QA(raw: dict) -> dict:
             offsets = [offsets]
         if not isinstance(durations):
             durations = [durations]
-        output_dict["videos"] = [get_media(raw, "video", f.split(',',1)[1], offsets[i], durations[i]) for i,f in enumerate(video_files)]
+        output_dict["videos"] = [get_media(raw, "video", f.split('.',1)[1], offsets[i], durations[i]) for i,f in enumerate(video_files)]
 
     if "image" in jsn or "images" in jsn:
         image_files = jsn["image"].split(",") if "image" in jsn else jsn["images"].split(",")
@@ -239,7 +237,7 @@ def sample_loader_QA(raw: dict) -> dict:
             offsets = [offsets]
         if not isinstance(durations):
             durations = [durations]
-        output_dict["images"] = [get_media(raw, "image", f.split(',',1)[1], offsets[i], durations[i]) for i,f in enumerate(image_files)]
+        output_dict["images"] = [get_media(raw, "image", f.split('.',1)[1], offsets[i], durations[i]) for i,f in enumerate(image_files)]
 
     for turn in jsn["conversations"]:
         if "type" not in turn:
@@ -261,7 +259,7 @@ def sample_loader_QA(raw: dict) -> dict:
                 durations = [durations]
 
             for t, v, offset, duration in zip(types, values, offsets, durations):
-                raw_media = get_media(t, v, offset, duration)
+                raw_media = get_media(raw, t, v, offset, duration)
                 if t == "text":
                     string += raw_media
                 else:
@@ -274,11 +272,12 @@ def sample_loader_QA(raw: dict) -> dict:
             output_dict["contexts"].append(string)
 
     return dict(
+        __key__=raw["__key__"],
         contexts=output_dict["contexts"],
-        answers=answers if output_dict["answers"] else None,
-        audios=audios if output_dict["audios"] else None,
-        videos=videos if output_dict["videos"] else None,
-        images=images if output_dict["images"] else None,
+        answers=output_dict["answers"] if output_dict["answers"] else None,
+        audios=output_dict["audios"] if output_dict["audios"] else None,
+        videos=output_dict["videos"] if output_dict["videos"] else None,
+        images=output_dict["images"] if output_dict["images"] else None,
     )
 
 

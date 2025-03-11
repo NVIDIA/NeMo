@@ -36,6 +36,7 @@ def main(args):
     # Global and micro batch sizes
     gbs = args.gbs
     mbs = args.mbs
+    num_workers = args.num_workers
 
     if args.data_type == "energon":
         from nemo.collections.avlm.data.energon import AVLMDataModule
@@ -49,33 +50,34 @@ def main(args):
         avlm_sample_config.conversation_template_config.system = ''
 
         task_encoder = AVLMTaskEncoder(
-            avlm_sample_config=avlm_sample_config,
+            multimodal_sample_config=avlm_sample_config,
         )
         data = AVLMDataModule(
             path=data_path,
-            num_workers=32,
+            num_workers=num_workers,
             micro_batch_size=mbs,
             global_batch_size=gbs,
-            avlm_sample_config=avlm_sample_config,
+            multimodal_sample_config=avlm_sample_config,
             task_encoder=task_encoder,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
 
     samples = []
-    for sample in data:
-        samples.append(sample)
+    loader = data.train_dataloader()
+    for sample in loader: samples.append(sample)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Llava Next Pretraining Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | energon")
+    parser.add_argument("--data_type", type=str, required=False, default="energon", help="mock | energon")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset with data.yaml file."
         " More details about Energon data preparation: https://nvidia.github.io/Megatron-Energon/index.html")
     parser.add_argument("--gbs", type=int, required=False, default=32, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
+    parser.add_argument("--num_workers", type=int, required=False, default=32, help="Number of workers for data loading")
 
     args = parser.parse_args()
     main(args)

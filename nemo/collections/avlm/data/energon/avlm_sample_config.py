@@ -14,7 +14,7 @@
 
 from PIL import Image
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal
+from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal, Any
 
 import torch
 
@@ -44,13 +44,13 @@ class MediaDict(TypedDict):
     duration: NotRequired[float]
 
 
-@dataclass_slot
+@dataclass
 class AVLMEnergonInterleavedSample(Sample):
     # sequence of interleaved media, (either PIL.Image for an image, str for text, bytes or mediaDict for an audio or video)
     sequence: List[Union[bytes, str, Image.Image, dict]]
 
 
-@dataclass_slot
+@dataclass
 class AVLMEnergonQASample(Sample):
     contexts: List[str]
     answers: Optional[List[str]] = None

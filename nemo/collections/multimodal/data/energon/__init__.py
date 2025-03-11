@@ -17,6 +17,8 @@ from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataM
 from nemo.collections.multimodal.data.energon.config import (
     ImageTextSample,
     ImageToken,
+    AudioToken,
+    VideoToken,
     LLaVATemplateConfig,
     MultiModalSampleConfig,
 )
