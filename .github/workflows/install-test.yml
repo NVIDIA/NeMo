@@ -44,7 +44,7 @@ jobs:
           fi
 
       - name: Run LLM example
-        if: ${{ matrix.installer == 'nemo-install' && matrix.os != 'macos-13' }}
+        if: ${{ matrix.installer == 'nemo-install' }}
         run: |
           # This is guarded since it requires nemo-run. We expect Nemo-run to be
           # available on PyPi with 25.04.
