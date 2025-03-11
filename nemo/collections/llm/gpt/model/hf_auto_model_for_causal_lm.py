@@ -22,7 +22,6 @@ import torch.nn.functional as F
 
 from nemo.utils.import_utils import safe_import
 
-liger_kernel, HAS_LIGER_KERNEL = safe_import('liger_kernel')
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -109,9 +108,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
         self.use_liger_kernel = use_liger_kernel
-        if use_liger_kernel and not HAS_LIGER_KERNEL:
-            logging.warning("Asked to use Liger Kernel, but could not import")
-            self.use_liger_kernel = False
+        if use_liger_kernel:
+            liger_kernel, HAS_LIGER_KERNEL = safe_import('liger_kernel')
+            if not HAS_LIGER_KERNEL:
+                logging.warning("Asked to use Liger Kernel, but could not import")
+                self.use_liger_kernel = False
         # holds loss values until optim step.
         self.loss_buffer = []
         self.n_tok = 0
