@@ -201,8 +201,8 @@ def write_sampled_transcriptions(manifest_filepaths: List[str], prefix) -> List[
             for line in f:
                 data_entry = json.loads(line)
                 all_data_entries.append(data_entry)
-
-	output_filename = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
+                
+        output_filename = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
         with open(output_filename, 'w') as f:
             for data_entry in all_data_entries:
                 audio_filepath = data_entry['audio_filepath']
