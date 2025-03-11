@@ -336,7 +336,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         if self.joint.fuse_loss_wer:
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
-                
+
     def change_vocabulary(
         self,
         new_tokenizer_dir: Union[str, DictConfig],
