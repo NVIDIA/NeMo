@@ -248,7 +248,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         safetensor_files_to_load = set()
         mtp_hf_keys = set()
         for k, fname in manifest['weight_map'].items():
-            if (match := re.match(r".*\.layers\.(\d+)\.", k)):
+            if match := re.match(r".*\.layers\.(\d+)\.", k):
                 if mtp_hf_layer_low <= int(match.group(1)) <= mtp_hf_layer_high:
                     safetensor_files_to_load.add(fname)
                     mtp_hf_keys.add(k)
@@ -301,14 +301,10 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         if self.config.q_lora_rank is not None and not isinstance(
             target.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp
         ):
-            mapping["**.self_attn.q_a_layernorm.weight"] = (
-                "**.self_attention.q_layernorm.weight"
-            )
+            mapping["**.self_attn.q_a_layernorm.weight"] = "**.self_attention.q_layernorm.weight"
 
         if not isinstance(target.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp):
-            mapping["**.self_attn.kv_a_layernorm.weight"] = (
-                "**.self_attention.kv_layernorm.weight"
-            )
+            mapping["**.self_attn.kv_a_layernorm.weight"] = "**.self_attention.kv_layernorm.weight"
 
         if not isinstance(target.module.decoder.layers[0].pre_mlp_layernorm, IdentityOp):
             del mapping["**.dense-post_attention_layernorm.weight"]
@@ -350,12 +346,14 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         # Convert MTP weights
         if getattr(self.config, "num_mtp_layers", None) and self.convert_mtp:
             self._add_mtp_to_source(source)
-            mapping.update({
-                'model.mtp.*.eh_proj.weight': "mtp.layers.*.eh_proj.weight",
-                'model.mtp.*.enorm.weight': "mtp.layers.*.enorm.weight",
-                'model.mtp.*.hnorm.weight': "mtp.layers.*.hnorm.weight",
-                'model.mtp.*.shared_head.norm.weight': "mtp.layers.*.shared_head_norm.weight",
-            })
+            mapping.update(
+                {
+                    'model.mtp.*.eh_proj.weight': "mtp.layers.*.eh_proj.weight",
+                    'model.mtp.*.enorm.weight': "mtp.layers.*.enorm.weight",
+                    'model.mtp.*.hnorm.weight': "mtp.layers.*.hnorm.weight",
+                    'model.mtp.*.shared_head.norm.weight': "mtp.layers.*.shared_head_norm.weight",
+                }
+            )
 
         return io.apply_transforms(
             source,
@@ -387,7 +385,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             v3_kwargs = {
                 "moe_router_score_function": "sigmoid",
                 "moe_router_enable_expert_bias": True,
-                "num_mtp_layers": source.num_nextn_predict_layers
+                "num_mtp_layers": source.num_nextn_predict_layers,
             }
         else:
             v3_kwargs = {}

@@ -210,6 +210,7 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
     else:
         return local_layer_spec(config)
 
+
 def mtp_layer_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
     """Pass in the MTP layer spec if model has MTP layers.
 
@@ -221,6 +222,7 @@ def mtp_layer_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
     """
     if getattr(config, "num_mtp_layers", None):
         from megatron.core.models.gpt.gpt_layer_specs import get_mtp_layer_with_transformer_engine_spec
+
         if isinstance(config.transformer_layer_spec, Callable):
             spec = config.transformer_layer_spec(config)
         else:
@@ -228,6 +230,7 @@ def mtp_layer_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
         return get_mtp_layer_with_transformer_engine_spec(spec)
     else:
         return None
+
 
 def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
     """Extract the appropriate torch dtype from a Megatron Core configuration.
@@ -356,6 +359,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
         with build_model_context():
             import inspect
+
             if 'mtp_layer_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
                 kwargs = {"mtp_layer_spec": mtp_layer_spec(self)}
             else:
