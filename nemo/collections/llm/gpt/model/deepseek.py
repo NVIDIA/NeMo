@@ -67,7 +67,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     rotary_base: float = 10000.0
     make_vocab_size_divisible_by: int = 3200
     num_mtp_layers: Optional[int] = None
-    mtp_loss_scaling_factor: float = Optional[float]
+    mtp_loss_scaling_factor: Optional[float] = None
 
     # Regularization
     attention_dropout: float = 0.0
