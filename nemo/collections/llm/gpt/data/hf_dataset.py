@@ -40,8 +40,8 @@ def clean_split(name):
     Returns:
         str: return partition name without any selector (e.g. "train").
     """
-    if '[' in name:
-        return name.split('[')[0]
+    if "[" in name:
+        return name.split("[")[0]
     return name
 
 
@@ -75,7 +75,7 @@ def make_dataset_splits(dataset, split, split_aliases):
     >    "val": Dataset .. (with 10570 rows),
     > }
     """
-    valid_split_names = ['train', 'test', 'val']
+    valid_split_names = ["train", "test", "val"]
     dataset_splits = {_split: None for _split in valid_split_names}
 
     alias_to_split = {}
@@ -85,7 +85,9 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
+        assert isinstance(split, str), "Expected split to be a string, but got " + str(
+            type(split)
+        )
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
@@ -106,10 +108,10 @@ def make_dataset_splits(dataset, split, split_aliases):
         logging.info("Loaded HF dataset has a single split.")
         assert not isinstance(dataset, list)
         alias_split_name = split
-        if '+' in alias_split_name:
+        if "+" in alias_split_name:
             raise ValueError("Split concatenation not supported")
-        elif '[' in alias_split_name:
-            alias_split_name = alias_split_name.split('[')[0]
+        elif "[" in alias_split_name:
+            alias_split_name = alias_split_name.split("[")[0]
         split_name = alias_to_split[alias_split_name]
         assert dataset_splits[split_name] is None
         dataset_splits[split_name] = dataset
@@ -118,13 +120,15 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
+    assert (
+        num_init_splits > 0
+    ), f"Expected at least one split to have been initialized {num_init_splits}"
     return dataset_splits
 
 
 def has_dist_env_init_or_rank_env_var():
     """returns whether it runs on a dist-environment"""
-    env_vars = ['LOCAL_RANK', 'GLOBAL_RANK', 'WORLD_SIZE', 'MASTER_ADDR', 'MASTER_PORT']
+    env_vars = ["LOCAL_RANK", "GLOBAL_RANK", "WORLD_SIZE", "MASTER_ADDR", "MASTER_PORT"]
     return dist.is_initialized() or any(map(lambda x: x in os.environ, env_vars))
 
 
@@ -253,7 +257,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         pad_token_id=0,
         use_mcore_sampler=False,
         use_dist_sampler=False,
-        mcore_dataloader_type='cyclic',
+        mcore_dataloader_type="cyclic",
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
@@ -264,24 +268,35 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
-        split_aliases = {'train': train_aliases, 'test': test_aliases, 'val': val_aliases}
+        split_aliases = {
+            "train": train_aliases,
+            "test": test_aliases,
+            "val": val_aliases,
+        }
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
+            logging.info(
+                f"Loading HF dataset from {path_or_dataset}, this may take a moment."
+            )
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
-        elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
+        elif isinstance(path_or_dataset, Dataset) or isinstance(
+            path_or_dataset, DatasetDict
+        ):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "
+                + str(type(path_or_dataset))
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id
+            )
         else:
             self._collate_fn = collate_fn
 
@@ -311,7 +326,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id if key != 'loss_mask' else 0,
+                        pad_token_id if key != "loss_mask" else 0,
                     )
                 )
             )
@@ -321,7 +336,11 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def setup(self, stage: str):
         """setups sampler"""
         # Turn-on dist-sampler if the user is running inside a dist-env.
-        if not self.use_dist_sampler and not self.use_mcore_sampler and has_dist_env_init_or_rank_env_var():
+        if (
+            not self.use_dist_sampler
+            and not self.use_mcore_sampler
+            and has_dist_env_init_or_rank_env_var()
+        ):
             self.use_dist_sampler = True
             logging.info("Turning on distributed data sampler")
         elif self.use_mcore_sampler:
@@ -346,7 +365,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id
+            )
 
         return DataLoader(
             dataset,
@@ -361,17 +382,17 @@ class HFDatasetDataModule(pl.LightningDataModule):
     @property
     def train(self):
         """Returns the training partition"""
-        return self.dataset_splits['train']
+        return self.dataset_splits["train"]
 
     @property
     def val(self):
         """Returns the validation partition"""
-        return self.dataset_splits['val']
+        return self.dataset_splits["val"]
 
     @property
     def test(self):
         """Returns the test partition"""
-        return self.dataset_splits['test']
+        return self.dataset_splits["test"]
 
     def train_dataloader(self):
         """Returns the train dataloader"""
@@ -401,6 +422,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
 
 def preprocess(text):
+    """Preprocesses text data by removing unwanted characters and artifacts."""
     text = text.strip()
     # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
     text = text.replace(" [title]", ". ")
@@ -410,16 +432,23 @@ def preprocess(text):
 
 
 def process_doc(doc):
+    """Processes a document from the HellaSwag dataset into a structured format suitable for training."""
     ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
     query = preprocess(doc["activity_label"] + ": " + ctx)
     choices = [preprocess(ending) for ending in doc["endings"]]
     gold = int(doc["label"])
-    out_doc = {"query": query, "choices": choices, "gold": gold, "text": query + " " + choices[gold]}
+    out_doc = {
+        "query": query,
+        "choices": choices,
+        "gold": gold,
+        "text": query + " " + choices[gold],
+    }
     return out_doc
 
 
 # Note: I'm training the model causally not through multiclass classification.
 def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
+    """Preprocesses a dataset for training a language model."""
     # Format each prompt.
     print("Preprocessing dataset...")
     dataset = dataset.map(process_doc)
@@ -430,61 +459,17 @@ def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
             max_length=max_length,
             truncation=True,
         )
-        ans['labels'] = [x[1:] + [-100] for x in ans['input_ids']]
+        ans["labels"] = [x[1:] + [-100] for x in ans["input_ids"]]
         return ans
 
     # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
-    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+    _preprocessing_function = partial(
+        preprocess_batch, max_length=max_length, tokenizer=tokenizer
+    )
     dataset = dataset.map(
         _preprocessing_function,
         batched=True,
-    ).select_columns(['input_ids', 'attention_mask', 'labels'])
-
-    # Shuffle dataset.
-    dataset = dataset.shuffle(seed=seed)
-
-    return dataset
-
-
-def preprocess(text):
-    text = text.strip()
-    # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
-    text = text.replace(" [title]", ". ")
-    text = re.sub("\\[.*?\\]", "", text)
-    text = text.replace("  ", " ")
-    return text
-
-
-def process_doc(doc):
-    ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
-    query = preprocess(doc["activity_label"] + ": " + ctx)
-    choices = [preprocess(ending) for ending in doc["endings"]]
-    gold = int(doc["label"])
-    out_doc = {"query": query, "choices": choices, "gold": gold, "text": query + " " + choices[gold]}
-    return out_doc
-
-
-# Note: I'm training the model causally not through multiclass classification.
-def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
-    # Format each prompt.
-    print("Preprocessing dataset...")
-    dataset = dataset.map(process_doc)
-
-    def preprocess_batch(batch, tokenizer, max_length):
-        ans = tokenizer(
-            batch["text"],
-            max_length=max_length,
-            truncation=True,
-        )
-        ans['labels'] = [x[1:] + [-100] for x in ans['input_ids']]
-        return ans
-
-    # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
-    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
-    dataset = dataset.map(
-        _preprocessing_function,
-        batched=True,
-    ).select_columns(['input_ids', 'attention_mask', 'labels'])
+    ).select_columns(["input_ids", "attention_mask", "labels"])
 
     # Shuffle dataset.
     dataset = dataset.shuffle(seed=seed)
@@ -493,11 +478,15 @@ def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
 
 
 class HellaSwagHFDataModule(HFDatasetDataModule):
+    """A data module for handling the HellaSwag dataset using HFDatasetDataModule."""
+
     def __init__(self, tokenizer, dataset_name="Rowan/hellaswag", *args, **kwargs):
         tokenizer = tokenizer.tokenizer
         tokenizer.pad_token = tokenizer.eos_token
         dataset = load_dataset(dataset_name)
-        super().__init__(preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
+        super().__init__(
+            preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs
+        )
 
 
 class SquadHFDataModule(HFDatasetDataModule):
@@ -572,11 +561,13 @@ class SquadHFDataModule(HFDatasetDataModule):
             self.formatting_prompts_func,
             batched=False,
             batch_size=2,
-            remove_columns=["id", "title", "context", "question", 'answers'],
+            remove_columns=["id", "title", "context", "question", "answers"],
         )
 
 
 class HFMockDataModule(pl.LightningDataModule):
+    """A PyTorch Lightning DataModule for generating mock data for testing purposes."""
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -661,6 +652,8 @@ class HFMockDataModule(pl.LightningDataModule):
 
 
 class _MockGPTDataset(torch.utils.data.Dataset):
+    """A mock dataset for generating random data for testing purposes."""
+
     def __init__(
         self,
         tokenizer: "TokenizerSpec",
@@ -680,9 +673,9 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = np.tril(np.ones((self.seq_length, self.seq_length), dtype=np.float32))[
-                np.newaxis, :
-            ].tolist()
+            self.attention_mask = np.tril(
+                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
+            )[np.newaxis, :].tolist()
 
         self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
         self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
@@ -692,8 +685,12 @@ class _MockGPTDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx) -> Dict[str, list]:
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
-        labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        tokens = np_gen.integers(
+            self.vocab_size, size=[self.seq_length], dtype=np.int64
+        ).tolist()
+        labels = np_gen.integers(
+            self.vocab_size, size=[self.seq_length], dtype=np.int64
+        ).tolist()
 
         batch = {
             "tokens": tokens,
