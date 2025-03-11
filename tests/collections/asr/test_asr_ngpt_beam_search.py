@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import Mock
+
 import pytest
 import torch
+
 from nemo.collections.asr.modules.ngpt_decoder import NGPTDecoder, NGPTDecoderHead
-from nemo.collections.asr.parts.submodules.multitask_beam_decoding import TransformerAEDBeamInfer
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-
 from nemo.collections.asr.modules.transformer.transformer import TransformerDecoderNM
+from nemo.collections.asr.parts.submodules.multitask_beam_decoding import TransformerAEDBeamInfer
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-from unittest.mock import Mock
 
 @pytest.fixture
 def setup_device():

@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 import torch
 from omegaconf.omegaconf import MISSING, DictConfig
 
+from nemo.collections.asr.modules.ngpt_decoder import Embedding
 from nemo.collections.asr.modules.transformer.decoder_module import DecoderModule
 from nemo.collections.asr.modules.transformer.encoder_module import EncoderModule
 from nemo.collections.asr.modules.transformer.transformer_decoders import TransformerDecoder, TransformerDecoderAdapter
@@ -29,7 +30,6 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.neural_types import ChannelType, NeuralType
-from nemo.collections.asr.modules.ngpt_decoder import Embedding
 
 
 @dataclass
