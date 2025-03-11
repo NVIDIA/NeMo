@@ -588,7 +588,7 @@ class HFMockDataModule(pl.LightningDataModule):
             self.tokenizer = tokenizer
 
     def setup(self, stage: str = None) -> None:
-        """ setup ""
+        """ setup """
         self._train_ds = _MockGPTDataset(
             self.tokenizer,
             "train",
