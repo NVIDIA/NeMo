@@ -224,6 +224,7 @@ class DuplexS2SModel(LightningModule):
         self.log_dict(
             {
                 "loss": loss,
+                "learning_rate": self.lr_schedulers().get_last_lr()[0],
                 "text_loss": text_loss,
                 "audio_loss": audio_loss,
                 "batch_size": B,
@@ -274,17 +275,8 @@ class DuplexS2SModel(LightningModule):
         # ASR BLEU
         import torchaudio
 
-        predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=2).transpose(1, 2)
-        # torch.save({
-        #     "tokens": predicted_audio_tokens,
-        #     "tokens_len": inputs["output_lens"],
-        # }, f"problematic-decode-input-{self.local_rank}.pt")
-        # with torch.inference_mode():
-        #     batch = torch.load("problematic-decode-input.pt", weights_only=False)
-        #     print(f'{batch["tokens"]=}')
-        #     output = self._audio_codec.decode(**batch)
-        #     print(f"{output=}")
         with torch.inference_mode():
+            predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=2).transpose(1, 2)
             with _safe_audio_codec_inference():
                 predicted_audio, predicted_audio_lens = self._audio_codec.decode(
                     tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
