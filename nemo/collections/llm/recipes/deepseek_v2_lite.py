@@ -153,10 +153,7 @@ def finetune_recipe(
         seq_length = 2048
 
     if num_nodes is None:
-        if peft_scheme is None or peft_scheme.lower() == 'none':
-            num_nodes = 16
-        elif peft_scheme.lower() in ['lora', 'dora']:
-            num_nodes = 2
+        num_nodes = 1
 
     recipe = default_finetune_recipe(
         model(), "deepseek-ai/DeepSeek-V2-Lite", dir, name, num_nodes, num_gpus_per_node, packed_sequence

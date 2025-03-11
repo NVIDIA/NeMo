@@ -90,6 +90,7 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
+            tensor_parallelism=1,
             pipeline_parallelism=4,
             expert_parallelism=32,
             num_nodes=num_nodes,

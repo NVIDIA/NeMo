@@ -210,6 +210,24 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
     else:
         return local_layer_spec(config)
 
+def mtp_layer_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
+    """Pass in the MTP layer spec if model has MTP layers.
+
+    Args:
+        config: GPT configuration object
+
+    Returns:
+        ModuleSpec: The MTP module specification
+    """
+    if getattr(config, "num_mtp_layers", None):
+        from megatron.core.models.gpt.gpt_layer_specs import get_mtp_layer_with_transformer_engine_spec
+        if isinstance(config.transformer_layer_spec, Callable):
+            spec = config.transformer_layer_spec(config)
+        else:
+            spec = config.transformer_layer_spec
+        return get_mtp_layer_with_transformer_engine_spec(spec)
+    else:
+        return None
 
 def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
     """Extract the appropriate torch dtype from a Megatron Core configuration.
@@ -337,6 +355,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 build_model_context = fp8_model_init
 
         with build_model_context():
+            import inspect
+            if 'mtp_layer_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
+                kwargs = {"mtp_layer_spec": mtp_layer_spec(self)}
+            else:
+                kwargs = {}
             model = MCoreGPTModel(
                 self,
                 transformer_layer_spec=transformer_layer_spec,
@@ -352,6 +375,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
                 post_process=post_process or parallel_state.is_pipeline_last_stage(),
                 scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
+                **kwargs,
             )
 
         # If using full TE layer, need to set TP, CP group since the module call
