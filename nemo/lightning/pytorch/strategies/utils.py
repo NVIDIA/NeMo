@@ -443,7 +443,7 @@ def pyt_to_mcore_state_dict(
 def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
-    mp_policy: MixedPrecisionPolicy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32),
+    mp_policy: MixedPrecisionPolicy = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
@@ -451,6 +451,9 @@ def fsdp2_strategy_parallelize(
     NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
     """
+        
+    if not mp_policy:
+        mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
 
     def parallelize_helper(module, mesh, mp_policy):
         if isinstance(module, nn.ModuleList):
