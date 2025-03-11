@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-from nemo.utils.exp_manager import TimingCallback
 
 import nemo.lightning as nl
 from nemo.collections import llm
@@ -27,6 +26,7 @@ from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks import PEFT
+from nemo.utils.exp_manager import TimingCallback
 
 if TYPE_CHECKING:
     from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
@@ -142,6 +142,7 @@ def default_finetune_trainer(
     )
 
     return trainer
+
 
 def default_finetune_log(
     dir: Optional[str] = None,
