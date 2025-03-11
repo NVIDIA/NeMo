@@ -153,9 +153,10 @@ async def chat_completions_v1(request: CompletionRequest):
             init_timeout=300
         )
         # Add 'role' as 'assistant' key to the output dict
-        output["choices"][0]["messages"] = {"role": "assistant",
+        output["choices"][0]["message"] = {"role": "assistant",
                                         "content": output["choices"][0]["text"]
                                         }
+        output["object"] = "chat.completion"
 
         del output["choices"][0]["text"]
 
@@ -172,7 +173,7 @@ async def chat_completions_v1(request: CompletionRequest):
 
         output_serializable = convert_numpy(output)
         ## #TODO Temp WAR
-        output_serializable["choices"][0]["messages"]["content"]= output_serializable["choices"][0]["messages"]["content"][0][0]
+        output_serializable["choices"][0]["message"]["content"]= output_serializable["choices"][0]["message"]["content"][0][0]
         # output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
         # output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
         print("--output--", output_serializable)
