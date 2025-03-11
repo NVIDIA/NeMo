@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Run LLM example
-        if: ${{ matrix.installer == 'nemo-install' && matrix.python != '3.12' }}
+        if: ${{ matrix.installer == 'nemo-install' }}
         run: |
           # This is guarded since it requires nemo-run. We expect Nemo-run to be
           # available on PyPi with 25.04.
@@ -55,7 +55,6 @@ jobs:
           python examples/llm/pretrain/pretrain.py
 
       - name: Run import checks
-        if: ${{ matrix.os != 'macos-13' }}
         run: |
           # Run import checks
           for collection in "asr" "tts"; do
