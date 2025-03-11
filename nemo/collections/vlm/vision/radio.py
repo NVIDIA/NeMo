@@ -105,6 +105,7 @@ class RADIOViTConfig(CLIPViTConfig):
     max_img_h: int = 2048
     max_img_w: int = 2048
     class_token_len: int = 8
+    max_num_tiles: int = 12
     num_layers: int = 32
     num_attention_heads: int = 16
     num_query_groups: int = 16
@@ -127,6 +128,7 @@ class RADIOViTConfig(CLIPViTConfig):
     apply_rope_fusion: bool = False
     embedder_bias: bool = False
     use_mask_token: bool = False
+    use_thumbnail: bool = True
 
     def configure_model(self) -> "MCoreRADIOViTModel":
         # pylint: disable=C0115,C0116
@@ -156,14 +158,14 @@ class RADIOViTConfig(CLIPViTConfig):
 class RADIO_25_h_Config(RADIOViTConfig):
     """Radio v2.5 h Config"""
 
-    vision_model_type: str = "radio_v2.5-h"
+    vision_model_type: str = "radio"
 
 
 @dataclass
 class RADIO_25_g_Config(RADIOViTConfig):
     """Radio v2.5 g Config"""
 
-    vision_model_type: str = "radio_v2.5-g"
+    vision_model_type: str = "raido_g"
     num_layers: int = 40
     num_attention_heads: int = 24
     num_query_groups: int = 24
