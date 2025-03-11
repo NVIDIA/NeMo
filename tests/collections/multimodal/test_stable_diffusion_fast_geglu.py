@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import random
+
+import pytest
 import torch
 
 from nemo.collections.multimodal.modules.stable_diffusion import fast_geglu
@@ -44,7 +45,9 @@ class TestStableDiffusionFastGeGLU:
             batch_size = rng.randint(1, 16)
             shape1 = rng.randint(1, 8192)
 
-            x_and_gate_fast = torch.randn([batch_size, shape1, 2 * dim_last], device='cuda', dtype=dtype).requires_grad_(True)
+            x_and_gate_fast = torch.randn(
+                [batch_size, shape1, 2 * dim_last], device='cuda', dtype=dtype
+            ).requires_grad_(True)
             x_and_gate_compile = x_and_gate_fast.detach().clone().requires_grad_(True)
             x_and_gate_ref = x_and_gate_fast.detach().clone().to(dtype_ref).requires_grad_(True)
             grad_output = torch.randn([batch_size, shape1, dim_last], device='cuda', dtype=dtype)

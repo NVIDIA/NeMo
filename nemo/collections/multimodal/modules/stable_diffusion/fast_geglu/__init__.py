@@ -17,7 +17,9 @@ def get_geglu_ext():
                 srcpath / "geglu_cuda.cu",
             ],
             extra_cuda_cflags=[
-                "-O2", "--use_fast_math", "--ftz=false",
+                "-O2",
+                "--use_fast_math",
+                "--ftz=false",
                 "-U__CUDA_NO_HALF_CONVERSIONS__",
             ],
             verbose=True,
@@ -33,11 +35,10 @@ def geglu_fprop(x_and_gate: torch.Tensor) -> torch.Tensor:
     geglu_ext = get_geglu_ext()
     dim_batch = x_and_gate.shape[:-1]
     dim_last = x_and_gate.shape[-1] // 2
-    out = torch.empty(dim_batch + (dim_last,), dtype=x_and_gate.dtype,
-                      device=x_and_gate.device)
-    geglu_ext.geglu(out.data_ptr(), x_and_gate.data_ptr(),
-                    dim_batch.numel(), dim_last,
-                    torch.cuda.current_stream().cuda_stream)
+    out = torch.empty(dim_batch + (dim_last,), dtype=x_and_gate.dtype, device=x_and_gate.device)
+    geglu_ext.geglu(
+        out.data_ptr(), x_and_gate.data_ptr(), dim_batch.numel(), dim_last, torch.cuda.current_stream().cuda_stream
+    )
     return out
 
 
@@ -48,8 +49,7 @@ def geglu_fprop_fake(x_and_gate: torch.Tensor) -> torch.Tensor:
     assert x_and_gate.is_contiguous()
     dim_batch = x_and_gate.shape[:-1]
     dim_last = x_and_gate.shape[-1] // 2
-    out = torch.empty(dim_batch + (dim_last,), dtype=x_and_gate.dtype,
-                      device=x_and_gate.device)
+    out = torch.empty(dim_batch + (dim_last,), dtype=x_and_gate.dtype, device=x_and_gate.device)
     return out
 
 
@@ -65,10 +65,14 @@ def geglu_bprop(grad_out: torch.Tensor, x_and_gate: torch.Tensor) -> torch.Tenso
     dim_batch = x_and_gate.shape[:-1]
     dim_last = x_and_gate.shape[-1] // 2
     grad_x_and_gate = torch.empty_like(x_and_gate)
-    geglu_ext.geglu_bwd(grad_x_and_gate.data_ptr(),
-                        grad_out.data_ptr(), x_and_gate.data_ptr(),
-                        dim_batch.numel(), dim_last,
-                        torch.cuda.current_stream().cuda_stream)
+    geglu_ext.geglu_bwd(
+        grad_x_and_gate.data_ptr(),
+        grad_out.data_ptr(),
+        x_and_gate.data_ptr(),
+        dim_batch.numel(),
+        dim_last,
+        torch.cuda.current_stream().cuda_stream,
+    )
     return grad_x_and_gate
 
 
@@ -85,13 +89,13 @@ def geglu_bprop_fake(grad_out: torch.Tensor, x_and_gate: torch.Tensor) -> torch.
 
 
 def backward(ctx, grad_out):
-    x_and_gate, = ctx.saved_tensors
+    (x_and_gate,) = ctx.saved_tensors
     grad_x_and_gate = geglu_bprop(grad_out, x_and_gate)
     return grad_x_and_gate
 
 
 def setup_context(ctx, inputs, output):
-    x_and_gate, = inputs
+    (x_and_gate,) = inputs
     ctx.save_for_backward(x_and_gate)
 
 
