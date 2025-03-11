@@ -19,15 +19,13 @@ import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-
-from nemo.utils.import_utils import safe_import
-
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
 
 
 def masked_cross_entropy(logits, targets, mask=None):
