@@ -211,7 +211,7 @@ else
     echo 'Installing numba'
     conda install -y -c conda-forge numba
   else
-    pip install --no-cache-dir --no-deps torch
+    pip install --no-cache-dir --no-deps 'torch>=2.4.0'
   fi
 fi
 
