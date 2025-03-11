@@ -16,10 +16,10 @@ import fiddle as fdl
 import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
+from scripts.vlm.automodel_datasets import mk_hf_vlm_dataset_cord_v2, mk_hf_vlm_dataset_rdr
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from scripts.vlm.automodel_datasets import mk_hf_vlm_dataset_rdr, mk_hf_vlm_dataset_cord_v2
 
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
@@ -41,6 +41,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     else:
         raise NotImplementedError("Encountered unknown strategy")
 
+
 if __name__ == '__main__':
     import argparse
 
@@ -60,10 +61,13 @@ if __name__ == '__main__':
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--disable-ckpt', action='store_false')
     parser.add_argument('--use-4bit', help="Load model in 4bit", action="store_true")
-    parser.add_argument("--data_path", type=str, default="quintend/rdr-items",
-                        help="Path to the dataset. Can be a local path or a HF dataset name")
-    parser.add_argument("--peft", type=str, default="none", choices=["lora", "none"],
-                        help="Which peft to use")
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        default="quintend/rdr-items",
+        help="Path to the dataset. Can be a local path or a HF dataset name",
+    )
+    parser.add_argument("--peft", type=str, default="none", choices=["lora", "none"], help="Which peft to use")
     args = parser.parse_args()
 
     dataset_fn = None
@@ -111,5 +115,5 @@ if __name__ == '__main__':
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=nemo_logger,
-        peft=peft
+        peft=peft,
     )
