@@ -71,7 +71,6 @@ class AutoResume:
             resume_from_folder or the run's log_dir takes precedence over restore_config.
         resume_from_directory (str): Path to the checkpointing directory to restore from.
         resume_from_path (str): Path to a specific checkpoint to restore from.
-        adapter_path (str): Path to any adapter checkpoints.
         resume_if_exists (bool): Whether this experiment is resuming from a previous run. If
             True, it sets trainer._checkpoint_connector._ckpt_path so that the trainer should
             auto-resume. exp_manager will move files under log_dir to log_dir/run_{int}.
@@ -89,7 +88,6 @@ class AutoResume:
     restore_config: Optional[RestoreConfig] = None
     resume_from_directory: Optional[str] = None
     resume_from_path: Optional[str] = None
-    adapter_path: Optional[str] = None
     resume_if_exists: bool = False
     resume_past_end: bool = False
     resume_ignore_no_checkpoint: bool = False
@@ -108,7 +106,7 @@ class AutoResume:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
             # Load artifacts
-            if getattr(self.restore_config, 'load_artifacts', False):
+            if getattr(self.restore_config, "load_artifacts", False):
                 if isinstance(trainer_ckpt_path, AdapterPath):
                     # load tokenizer from the base model during peft resume, in case the first peft checkpoint
                     # is deleted before the current peft checkpoint is saved
@@ -153,7 +151,6 @@ class AutoResume:
             new_path = path
 
         if adapter_path:
-
             maybe_weights_path = self.get_weights_path(adapter_path)
             if maybe_weights_path.is_dir():
                 adapter_path = maybe_weights_path
@@ -165,19 +162,17 @@ class AutoResume:
 
         return new_path
 
-    def _resume_peft(self, adapter_meta_path, model):
+    def _get_base_model_path_for_adapter(self, adapter_meta_path, model):
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
 
-        assert self.restore_config, "PEFT resume requires specifying restore_config"
-        base_model_path = self._extract_path(model, self.restore_config.path)
-        if base_model_path not in [Path(metadata['model_ckpt_path']), Path(metadata['model_ckpt_path']).parent]:
-            logging.warning(
-                f"⚠️ When trying to resume a PEFT training run, found mismatching values: "
-                f"your specified restore_path points to {base_model_path}, "
-                f"but the PEFT checkpoint was trained with "
-                f"model_ckpt_path={metadata['model_ckpt_path']}"
-            )
+        # Use the model_ckpt_path from metadata directly
+        base_model_path = Path(metadata["model_ckpt_path"])
+
+        # If base_model_path points to a specific checkpoint file, use its parent directory
+        if not base_model_path.is_dir() and base_model_path.exists():
+            base_model_path = base_model_path.parent
+
         return base_model_path
 
     def _find_trainer_ckpt_path(self) -> Optional[Path]:
@@ -289,7 +284,7 @@ class AutoResume:
                 adapter_meta_path = maybe_weights_path / ADAPTER_META_FILENAME
                 if adapter_meta_path.exists():
                     # the resume_from_path is an adapter checkpoint
-                    base_model_path = self._resume_peft(adapter_meta_path, model)
+                    base_model_path = self._get_base_model_path_for_adapter(adapter_meta_path, model)
                     return AdapterPath(Path(self.resume_from_path), base_model_path=base_model_path)
                 else:
                     # the resume_from_path is not PEFT checkpoint
@@ -309,15 +304,12 @@ class AutoResume:
                 checkpoint = maybe_weights_path
 
         if checkpoint:
-            if self.adapter_path:
-                return AdapterPath(Path(self.adapter_path), base_model_path=checkpoint)
+            adapter_meta_path = checkpoint / ADAPTER_META_FILENAME
+            if adapter_meta_path.exists():
+                base_model_path = self._get_base_model_path_for_adapter(adapter_meta_path, model)
+                return AdapterPath(checkpoint, base_model_path=base_model_path)
             else:
-                adapter_meta_path = checkpoint / ADAPTER_META_FILENAME
-                if adapter_meta_path.exists():
-                    base_model_path = self._resume_peft(adapter_meta_path, model)
-                    return AdapterPath(checkpoint, base_model_path=base_model_path)
-                else:
-                    return Path(checkpoint)
+                return Path(checkpoint)
 
         return None
 

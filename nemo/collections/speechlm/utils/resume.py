@@ -30,6 +30,8 @@ class SpeechLMAutoResume(AutoResume):
     Wrapper for AutoResume to get rid of requirement on restore_config.
     """
 
+    adapter_path: Optional[str] = None
+
     def _maybe_get_adapter_path(self, checkpoint: Path) -> Optional[Path]:
         if self.adapter_path:
             logging.info(f"Using provided adapter path: {self.adapter_path}")
