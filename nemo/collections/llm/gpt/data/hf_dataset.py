@@ -299,7 +299,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.pad_token_id = pad_token_id
-
         self.use_dist_sampler = use_dist_sampler
         self.pad_seq_len_divisible = pad_seq_len_divisible
 
@@ -328,6 +327,13 @@ class HFDatasetDataModule(pl.LightningDataModule):
             )
             for key in batch[0].keys()
         }
+        if self.pack_sequence:
+            if self.return_pos_ids_only:
+                output_dict["pos_ids"] = self.get_attention_mask_for_packed_sequence(output_dict['input_ids'], self.return_pos_ids_only)# tokenizer)
+            else:
+                output_dict["attn_mask"] = self.get_attention_mask_for_packed_sequence(output_dict['input_ids']) #TODO tojenizer
+
+        return output_dict
 
     def setup(self, stage: str):
         """setups sampler"""
