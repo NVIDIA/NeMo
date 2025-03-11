@@ -1,12 +1,12 @@
 model:
   #pretrained_llm: TinyLlama/TinyLlama_v1.1
-#  pretrained_llm: google/gemma-2-2b-it
+  pretrained_llm: google/gemma-2-2b-it
 #  pretrained_llm: google/gemma-2-9b-it
 #  pretrained_llm: meta-llama/Llama-3.2-3B-Instruct
 #  pretrained_llm: meta-llama/Llama-3.1-8B-Instruct
-  pretrained_llm: Qwen/Qwen2.5-7B-Instruct
-  pretrained_audio_codec: nvidia/low-frame-rate-speech-codec-22khz
-#  pretrained_audio_codec: /home/pzelasko/exp/duplex_s2s/Low_Frame-rate_Speech_Codec++_without_speaker_encoder.nemo
+#  pretrained_llm: Qwen/Qwen2.5-7B-Instruct
+#  pretrained_audio_codec: nvidia/low-frame-rate-speech-codec-22khz
+  pretrained_audio_codec: /home/pzelasko/exp/duplex_s2s/Low_Frame-rate_Speech_Codec++_without_speaker_encoder.nemo
   pretrained_asr: stt_en_fastconformer_transducer_large
 
   perception:
@@ -82,6 +82,7 @@ trainer:
   accelerator: gpu
   num_nodes: 1
   precision: bf16-true
+#  precision: bf16-mixed
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -89,6 +90,7 @@ trainer:
   limit_train_batches: 1000000
   log_every_n_steps: 10
   val_check_interval: 1000
+#  num_sanity_val_steps: 0
 #  gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
@@ -113,7 +115,7 @@ data:
 
 #    batch_size: 1
 #    batch_duration: 600
-    batch_duration: 120
+    batch_duration: 100
     bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
 #    bucket_batch_size: [32, 24, 16, 8, 4]
     use_bucketing: true

@@ -72,7 +72,9 @@ class S2SDataModule(LightningDataModule):
     def _get_dp_rank(self):
         if torch.distributed.is_available() and torch.distributed.is_initialized():
             if (
-                hasattr(self.trainer.model, "device_mesh") and self.trainer.model.device_mesh is not None
+                hasattr(self.trainer, "model")
+                and hasattr(self.trainer.model, "device_mesh")
+                and self.trainer.model.device_mesh is not None
             ):  # model parallelism
                 return self.trainer.model.device_mesh.get_coordinate()[0]
             else:
@@ -83,7 +85,9 @@ class S2SDataModule(LightningDataModule):
     def _get_world_size(self):
         if torch.distributed.is_available() and torch.distributed.is_initialized():
             if (
-                hasattr(self.trainer.model, "device_mesh") and self.trainer.model.device_mesh is not None
+                hasattr(self.trainer, "model")
+                and hasattr(self.trainer.model, "device_mesh")
+                and self.trainer.model.device_mesh is not None
             ):  # model parallelism
                 return self.trainer.model.device_mesh.shape[0]
             else:  # plain ol' DDP

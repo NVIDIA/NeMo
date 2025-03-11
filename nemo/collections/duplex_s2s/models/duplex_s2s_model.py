@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import builtins
+from contextlib import contextmanager
 from itertools import chain
 from pathlib import Path
 from typing import Any
@@ -49,7 +50,12 @@ class DuplexS2SModel(LightningModule):
         super().__init__()
         self.cfg = cfg
 
-        self.audio_codec = _load_pretrained(AudioCodecModel, self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
+        self._audio_codec = (
+            _load_pretrained(AudioCodecModel, self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
+        )
+        del self._audio_codec.discriminator  # free up some memory
+        self._codebook_size = self._audio_codec.vector_quantizer.codebook_size_per_group
+        self._num_codebooks = self._audio_codec.vector_quantizer.num_groups
 
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
         self.llm = AutoModel.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
@@ -67,9 +73,7 @@ class DuplexS2SModel(LightningModule):
         self.perception.load_state_dict(asr.state_dict(), strict=False)
 
         self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.llm.config.vocab_size)
-        self.audio_head = torch.nn.Linear(
-            self.llm.config.hidden_size, 2048 * 8
-        )  # TODO: self.audio_codec.codebook_size * num_codebooks ????
+        self.audio_head = torch.nn.Linear(self.llm.config.hidden_size, self._codebook_size * self._num_codebooks)
 
         # metrics
         self.bleu = SacreBLEUScore()
@@ -89,7 +93,7 @@ class DuplexS2SModel(LightningModule):
         out = self.llm(inputs_embeds=input_embeds)
         B, T = input_embeds.shape[:2]
         text_logits = self.lm_head(out['last_hidden_state'])
-        audio_logits = self.audio_head(out['last_hidden_state']).view(B, T, 2048, 8)
+        audio_logits = self.audio_head(out['last_hidden_state']).view(B, T, self._codebook_size, self._num_codebooks)
         return {
             "text_logits": text_logits,
             "audio_logits": audio_logits,
@@ -118,17 +122,7 @@ class DuplexS2SModel(LightningModule):
             input_signal=batch["source_audio"], input_signal_length=batch["source_audio_lens"]
         )
 
-        # Target audio encoding.
-        with torch.no_grad():
-            target_codes, target_codes_lens = self.audio_codec.encode(
-                audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
-            )
-            target_codes = target_codes.transpose(1, 2)
-        # TODO: TEMPORARY HACK: SLICE UNTIL I CAN LOAD THE CORRECT FRAME RATE AUDIO CODEC
-        target_codes = target_codes[:, : source_encoded.shape[1]]
-
-        # Target text preparation and combination with target audio for labels.
-        # TODO: resolve the slicing hacks lol
+        # Target text preparation.
         target_tokens = batch["target_tokens"]
         if target_tokens.shape[1] < source_encoded.shape[1]:
             pad_id = self.tokenizer.pad
@@ -143,6 +137,42 @@ class DuplexS2SModel(LightningModule):
                 ],
                 dim=-1,
             )
+
+        # Target audio encoding.
+        with torch.no_grad(), _safe_audio_codec_inference():
+            target_codes, target_codes_lens = self._audio_codec.encode(
+                audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
+            )
+            target_codes = target_codes.transpose(1, 2)
+            # print(target_codes)
+            # print("target_codes", target_codes.min().item(), target_codes.max().item())
+            # if self.local_rank == 0:
+            #     breakpoint()
+            # else:
+            #     import time; time.sleep(3600)
+
+        # Note: Because we are using separate models for source and target representations,
+        #       despite best-effort attempt to align their frame rates, they may be off by a few frames.
+        #       We'll fix it by truncating to shortest sequence, and emit a warning if the discrepancy is too high.
+        if (tl := target_codes.shape[1]) != (sl := source_encoded.shape[1]):
+            if tl < sl:
+                diff = sl - tl
+                source_encoded = source_encoded[:, :tl]
+                target_tokens = target_tokens[:, :tl]
+                torch.clamp_(source_encoded_lens, max=tl)
+            else:
+                diff = tl - sl
+                target_codes = target_codes[:, :sl]
+                torch.clamp_(target_codes_lens, max=sl)
+            if diff > 2:
+                logging.warning(
+                    f"A mismatch between source ({sl}) and target ({tl}) sequence length greater than 2 detected. "
+                    f"This may indicate significant desynchronization in longer sessions."
+                )
+
+        # Combine target audio and text into a single tensor to slice them together.
+        # It will also help us truncate the sequence lengths to be divisible by TP world size,
+        # when TP is enabled.
         input_ids = torch.cat([target_codes, target_tokens[..., None]], dim=-1)
         if self._use_tp:
             tp_world_size = self.device_mesh["tensor_parallel"].size()
@@ -162,6 +192,7 @@ class DuplexS2SModel(LightningModule):
         return {
             "input_embeds": input_embeds,
             "input_lens": source_encoded_lens,
+            "output_lens": target_codes_lens,
             "text_labels": text_labels,
             "audio_labels": audio_labels,
         }
@@ -179,15 +210,11 @@ class DuplexS2SModel(LightningModule):
                 )
                 / num_frames
             )
-            audio_loss = (
-                torch.nn.functional.cross_entropy(
-                    forward_outputs["audio_logits"].transpose(1, 2),
-                    inputs["audio_labels"],
-                    reduction="sum",
-                )
-                / num_frames
-                * 8
-            )  # TODO: num_codebooks
+            audio_loss = torch.nn.functional.cross_entropy(
+                forward_outputs["audio_logits"].transpose(1, 2),
+                inputs["audio_labels"],
+                reduction="sum",
+            ) / (num_frames * self._num_codebooks)
 
         loss = text_loss + audio_loss
 
@@ -231,15 +258,11 @@ class DuplexS2SModel(LightningModule):
                 )
                 / num_frames
             )
-            audio_loss = (
-                torch.nn.functional.cross_entropy(
-                    forward_outputs["audio_logits"].transpose(1, 2),
-                    inputs["audio_labels"],
-                    reduction="sum",
-                )
-                / num_frames
-                * 8
-            )  # TODO: num_codebooks
+            audio_loss = torch.nn.functional.cross_entropy(
+                forward_outputs["audio_logits"].transpose(1, 2),
+                inputs["audio_labels"],
+                reduction="sum",
+            ) / (num_frames * self._num_codebooks)
 
         loss = text_loss + audio_loss
 
@@ -252,14 +275,25 @@ class DuplexS2SModel(LightningModule):
         import torchaudio
 
         predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=2).transpose(1, 2)
-        predicted_audio, predicted_audio_lens = self.audio_codec.decode(
-            tokens=predicted_audio_tokens, tokens_len=inputs["input_lens"]
-        )
-        ans = self.asr.transcribe(
-            list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
-            batch_size=predicted_audio.shape[0],
-            verbose=False,
-        )
+        # torch.save({
+        #     "tokens": predicted_audio_tokens,
+        #     "tokens_len": inputs["output_lens"],
+        # }, f"problematic-decode-input-{self.local_rank}.pt")
+        # with torch.inference_mode():
+        #     batch = torch.load("problematic-decode-input.pt", weights_only=False)
+        #     print(f'{batch["tokens"]=}')
+        #     output = self._audio_codec.decode(**batch)
+        #     print(f"{output=}")
+        with torch.inference_mode():
+            with _safe_audio_codec_inference():
+                predicted_audio, predicted_audio_lens = self._audio_codec.decode(
+                    tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
+                )
+            ans = self.asr.transcribe(
+                list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
+                batch_size=predicted_audio.shape[0],
+                verbose=False,
+            )
         self.bleu.update([hyp.text for hyp in ans], [[tt] for tt in batch["target_texts"]])
 
         return {"loss": loss}
@@ -422,3 +456,20 @@ def _load_pretrained(cls, model_path_or_name: str):
         return cls.restore_from(model_path_or_name)
     else:
         return cls.from_pretrained(model_path_or_name)
+
+
+@contextmanager
+def _safe_audio_codec_inference():
+    """
+    Works around an issue where PTL setting of precision='bf16-true'
+    interferes with padding shape computations inside of audio codec convolutional layers.
+    This is because bf16-true temporarily changes the default float dtype to bf16,
+    which cannot represent integers used in shape computations, and truncates them.
+    """
+    default_dtype = torch.get_default_dtype()
+    torch.set_default_dtype(torch.float32)
+    with torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.bfloat16):
+        try:
+            yield
+        finally:
+            torch.set_default_dtype(default_dtype)
