@@ -47,6 +47,7 @@ def _mock_import(module: str):
         def __getattr__(self, name):
             class Dummy:
                 """Dummy."""
+
                 pass
 
             return Dummy
