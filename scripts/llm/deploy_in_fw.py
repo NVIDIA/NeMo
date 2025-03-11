@@ -1,6 +1,7 @@
 import argparse
 from nemo.collections.llm import deploy
 
+
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
     parser.add_argument(
@@ -46,6 +47,7 @@ def get_parser():
     )
     return parser
 
+
 if __name__ == "__main__":
     args = get_parser().parse_args()
     deploy(
@@ -56,4 +58,5 @@ if __name__ == "__main__":
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         context_parallel_size=args.context_parallel_size,
-        expert_model_parallel_size=args.expert_model_parallel_size)
+        expert_model_parallel_size=args.expert_model_parallel_size,
+    )

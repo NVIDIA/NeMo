@@ -8,16 +8,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from pathlib import Path
-import json
 
 import numpy as np
 import requests
 from fastapi import FastAPI, HTTPException
+from jinja2 import Template
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
-from jinja2 import Template
 
 from nemo.deploy.nlp import NemoQueryLLMPyTorch
 from nemo.utils import logging
@@ -51,7 +51,7 @@ triton_settings = TritonSettings()
 
 class CompletionRequest(BaseModel):
     model: str
-    prompt: str ='hello'
+    prompt: str = 'hello'
     messages: list[dict] = [{}]
     max_tokens: int = 512
     temperature: float = 1.0
@@ -101,8 +101,9 @@ async def completions_v1(request: CompletionRequest):
             top_p=request.top_p,
             compute_logprob=True if request.logprobs == 1 else False,
             max_length=request.max_tokens,
-            init_timeout=300
+            init_timeout=300,
         )
+
         # Convert NumPy arrays in output to lists
         def convert_numpy(obj):
             if isinstance(obj, np.ndarray):
@@ -118,16 +119,22 @@ async def completions_v1(request: CompletionRequest):
         ## #TODO Temp WAR
         output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
         if request.logprobs == 1:
-            output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
-            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
+            output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0][
+                "logprobs"
+            ]["token_logprobs"][0]
+            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0][
+                "logprobs"
+            ]["top_logprobs"][0]
         print("--output--", output_serializable)
         return output_serializable
     except Exception as error:
         logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
         return {"error": "An exception occurred"}
 
+
 def dict_to_str(messages):
     return json.dumps(messages)
+
 
 @app.post("/v1/chat/completions/")
 async def chat_completions_v1(request: CompletionRequest):
@@ -138,7 +145,7 @@ async def chat_completions_v1(request: CompletionRequest):
         prompts = request.messages
         if not isinstance(request.messages, list):
             prompts = [request.messages]
-        # Serialize the dictionary to a JSON string represnetation to be able to convert to numpy array 
+        # Serialize the dictionary to a JSON string represnetation to be able to convert to numpy array
         # (str_list2numpy) and back to list (str_ndarray2list) as required by PyTriton. Using the dictionaries directly
         # with these methods is not possible as they expect string type.
         json_prompts = [dict_to_str(prompts)]
@@ -150,12 +157,10 @@ async def chat_completions_v1(request: CompletionRequest):
             compute_logprob=True if request.logprobs == 1 else False,
             max_length=request.max_tokens,
             apply_chat_template=True,
-            init_timeout=300
+            init_timeout=300,
         )
         # Add 'role' as 'assistant' key to the output dict
-        output["choices"][0]["message"] = {"role": "assistant",
-                                        "content": output["choices"][0]["text"]
-                                        }
+        output["choices"][0]["message"] = {"role": "assistant", "content": output["choices"][0]["text"]}
         output["object"] = "chat.completion"
 
         del output["choices"][0]["text"]
@@ -173,7 +178,9 @@ async def chat_completions_v1(request: CompletionRequest):
 
         output_serializable = convert_numpy(output)
         ## #TODO Temp WAR
-        output_serializable["choices"][0]["message"]["content"]= output_serializable["choices"][0]["message"]["content"][0][0]
+        output_serializable["choices"][0]["message"]["content"] = output_serializable["choices"][0]["message"][
+            "content"
+        ][0][0]
         # output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
         # output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
         print("--output--", output_serializable)

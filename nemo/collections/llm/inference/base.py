@@ -176,7 +176,7 @@ def setup_model_and_tokenizer(
     trainer: nl.Trainer,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
-    inference_max_seq_length: int = 4096
+    inference_max_seq_length: int = 4096,
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -199,8 +199,9 @@ def setup_model_and_tokenizer(
     model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
-    inference_wrapped_model = model.get_inference_wrapper(params_dtype, inference_batch_times_seqlen_threshold,
-                                                          inference_max_seq_length)
+    inference_wrapped_model = model.get_inference_wrapper(
+        params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
+    )
     return inference_wrapped_model, MCoreTokenizerWrappper(model.tokenizer)
 
 
