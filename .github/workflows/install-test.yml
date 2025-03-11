@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, macos-13]
+        os: [macos-latest]
         python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
