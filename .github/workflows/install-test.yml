@@ -34,7 +34,8 @@ jobs:
           NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
           if [[ "$INSTALLER" == "pip-install" ]]; then
-            pip install ".[all]"
+            pip install -U pip
+            pip install --no-cache-dir ".[all]"
           else
             export NEMO_TAG
             export NEMO_REPO
