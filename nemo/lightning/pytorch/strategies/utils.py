@@ -451,7 +451,7 @@ def fsdp2_strategy_parallelize(
     NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
     """
-        
+
     if not mp_policy:
         mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
 
