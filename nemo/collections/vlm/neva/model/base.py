@@ -23,6 +23,7 @@ from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from megatron.core.models.multimodal.llava_model import pixel_shuffle
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -32,6 +33,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+from nemo.collections.vlm.vision import CLIPViTModelWrapper
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -174,6 +176,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     vision_projection_config: Optional[TransformerConfig] = None
 
     drop_vision_class_token: bool = True
+    pixel_shuffle: bool = False
     vision_feature_layer: int = -2
 
     encoder_pipeline_model_parallel_size: int = 0
@@ -310,9 +313,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
         self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
+        self._pixel_shuffle = getattr(config, "pixel_shuffle", False)
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
+        if self._pixel_shuffle:
+            # TODO (yuya): Assuming scale_factor=0.5 in pixel shuffle,
+            # the sequence length will be divided by 4, and the hidden dimension will be multiplied by 4.
+            self._img_seq_len //= 4
 
     def forward(
         self,
@@ -382,11 +390,21 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     self.config.vision_feature_layer
                 ]  # [num_images, img_seq_len, h_vision]
             else:
-                # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
-                image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
+                # MCore Clip path not yet support taking a specific layer hidden states, so we implemented nemo wrapper
+                if isinstance(self.vision_model, CLIPViTModelWrapper):
+                    image_embeddings = self.vision_model(
+                        images, num_unused_layers=-self.config.vision_feature_layer - 1
+                    )
+                else:
+                    image_embeddings = self.vision_model(images)
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
                 image_embeddings = image_embeddings[:, class_token_len:, :]
+
+            if self._pixel_shuffle:
+                image_embeddings = pixel_shuffle(
+                    image_embeddings
+                )  # [num_tiles, img_seq_len_shuffled, h_vision_shuffled]
 
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
             image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
