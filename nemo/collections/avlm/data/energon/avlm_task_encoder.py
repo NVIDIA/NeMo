@@ -15,9 +15,10 @@
 import io
 import av
 import itertools
+import numpy.typing as npt
 from PIL import Image
 from dataclasses import dataclass, field
-from typing import Dict, List, Union, Literal, TypedDict
+from typing import Dict, List, Union, Literal, TypedDict, Callable
 
 import torch
 import torchvision
@@ -43,6 +44,7 @@ from nemo.collections.multimodal.data.energon.sample_encoder import (
     VQASampleEncoder,
 )
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations as audio_process_augmentations
 
@@ -54,9 +56,11 @@ class AVLMSampleEncoder(BaseSampleEncoder):
 
     def __init__(
         self, 
-        tokenizer=None, 
-        audio_processor=None,
-        image_processor=None, 
+        tokenizer: Optional[Callable]=None, 
+        audio_processor: Optional[
+            Union[Callable, Dict[Literal["from_file", "from_decoded"], Callable]]
+        ]=None,
+        image_processor: Optional[Callable]=None, 
         multimodal_sample_config=AVLMSampleConfig()
     ):
         """
@@ -69,16 +73,21 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             Defaults to AVLMSampleConfig().
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
-        self.audio_processor = audio_processor
+        self.audio_processor = {}
+        if audio_processor is not None:
+            if not isinstance(audio_processor, dict):
+                self.audio_processor["from_file"] = self.audio_processor["from_decoded"] = audio_processor
+            else:
+                self.audio_processor = audio_processor
         self.audio_token = multimodal_sample_config.audio_token
         self.video_token = multimodal_sample_config.video_token
 
         if self.tokenizer is None:
-            self.tokenizer = self.build_tokenizer(self.multimodal_sample_config.model_id)
-        if self.audio_processor is None:
-            self.audio_processor = self.build_audio_processor(self.multimodal_sample_config)
+            self.build_tokenizer(self.multimodal_sample_config.model_id)
+        if self.audio_processor == {}:
+            self.build_audio_processor(self.multimodal_sample_config)
         if self.image_processor is None:
-            self.image_processor = self.build_image_processor(self.multimodal_sample_config.model_id)
+            self.build_image_processor(self.multimodal_sample_config.model_id)
 
         self.concate_audio_video_tokens = None
         if self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "sequential":
@@ -169,31 +178,37 @@ class AVLMSampleEncoder(BaseSampleEncoder):
 
         return tokenized_chunks
 
-    @staticmethod
-    def build_tokenizer(model_id):
+    def build_tokenizer(self):
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        return AutoTokenizer(model_id)
+        self.tokenizer = AutoTokenizer(self.multimodal_sample_config.model_id)
 
-    @staticmethod
-    def build_audio_processor(config: AVLMSampleConfig):
-        audio_augmentor = audio_process_augmentations(
-            config.audio_augmentor,
+    def build_audio_processor(self):
+        self.audio_augmentor = audio_process_augmentations(
+            self.multimodal_sample_config.audio_augmentor,
             global_rank=parallel_state.get_data_parallel_rank(),
             world_size=parallel_state.get_data_parallel_world_size(),
         )
-        return WaveformFeaturizer(
-            sample_rate=config.audio_sample_rate, 
-            int_values=config.audio_waveform_featurizer_int_values,
-            augmentor=audio_augmentor,
-        ).process
 
-    @staticmethod
-    def build_image_processor(model_id):
+        featurizer = WaveformFeaturizer(
+            sample_rate=self.multimodal_sample_config.audio_sample_rate, 
+            int_values=self.multimodal_sample_config.audio_waveform_featurizer_int_values,
+            augmentor=self.audio_augmentor,
+        )
+        
+        self.audio_processor["from_file"] = featurizer.process
+        self.audio_processor["from_decoded"] = self._process_audio_from_decoded 
+
+    def build_image_processor(self):
         from transformers import AutoProcessor
-        processor = AutoProcessor.from_pretrained(model_id)
-        return processor.image_processor
+        self.image_processor = AutoProcessor.from_pretrained(self.multimodal_sample_config.model_id)
 
-    def process_audio(self, audio: Union[bytes, dict]):
+    def _process_audio_from_decoded(self, audio: npt.NDArray, sample_rate, **kwargs) -> npt.NDArray:
+        samples = AudioSegment(audio, sample_rate, **kwargs)
+        if self.audio_augmentor is not None:
+            samples = self.audio_augmentor.perturb(samples)
+        return torch.tensor(samples.samples, dtype=torch.float)
+
+    def process_audio(self, audio: dict, mode: Literal["from_file", "from_decoded"]):
         """
         Process and prepare an audio sample for encoding.
 
@@ -206,18 +221,16 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                 The processed audio tensor length: int or None
             ]
         """
-        if self.audio_processor is not None:
-            audio_bytes = audio
-            offset = 0
-            duration = 0
-            if isinstance(audio, dict):
-                audio_bytes = audio["media_value"]
-                offset = audio.get("offset")
-                duration = audio.get("duration")
-            processed_audio = self.audio_processor(
-                io.BytesIO(audio_bytes), 
-                offset=offset, 
-                duration=duration)
+
+        if mode in self.audio_processor:
+            audio_data = audio["media_value"]
+            if mode == "from_file" and isinstance(audio_data, bytes):
+                audio_data = io.BytesIO(audio_data)
+            elif mode == "from_decoded" and torch.is_tensor(audio_data):
+                audio_data = audio_data.numpy()
+
+            processed_audio = self.audio_processor[mode](
+                audio_data, **{k: audio[k] for k in audio if k != "media_type" and k != "media_value"})
             return processed_audio, processed_audio.shape[0]
         else:
             return None, None
@@ -227,27 +240,25 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         data: torch.tensor
         original_size: Union[AudioSize, VideoSize]
 
-    def process_video(self, video: Union[bytes, dict]) -> Dict[int, _processed_video_dict]:
+    def process_video(self, video: dict) -> Dict[int, _processed_video_dict]:
         """
         Returns:
             {video_stream_index: {"media_type": Literal["video", "audio"], "data": torch.tensor, "original_size": Union[AudioSize, VideoSize]}}
-            audio tensor in "data" is of shape: [audio_length x channel]
+            audio tensor in "data" is of shape: [audio_length]
             video tensor in "data" is of shape: [frames x num_of_tiles x channel x height x width]
         """
         ret_dict = dict()
 
         # get all stream information from the file
-        video_bytes = video
-        offset = 0
-        duration = 0
-        if isinstance(video, dict):
-            video_bytes = video["media_value"]
-            offset = video["offset"]
-            duration = video["duration"]
+        video_bytes = video["media_value"]
+        offset = video.get("offset", 0)
+        duration = video.get("duration", 0)
+        # copy audio processing configs
+        audio_sample = {k: video[k] for k in video if k != "media_type" and k != "media_value"}
 
         start_seconds = offset
-        end_seconds = start_seconds + duration
-        container = av.open(io.BytesIO(video))
+        end_seconds = start_seconds + duration if duration != 0 else 0
+        container = av.open(io.BytesIO(video_bytes))
         media_stream_count = {"audio": 0, "video": 0}
         for stream in container.streams:
             if stream.type not in ["audio", "video"]:
@@ -256,6 +267,8 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             frames = []
             stream_start_seconds = stream.time_base * stream.start_time
             stream_end_seconds = stream_start_seconds + stream.time_base * stream.duration
+            if end_seconds == 0:
+                end_seconds = stream_end_seconds
             if stream_start_seconds >= start_seconds and stream_start_seconds < end_seconds:
                 # only retrieve the streams whose time spans within the required start and end
                 reader = torchvision.io.VideoReader(video_bytes, f"{stream.type}:{media_stream_count[stream.type]}")
@@ -277,6 +290,9 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                                 width=stream.width)
                     elif stream.type == "audio":
                         frames = torch.cat(frames)
+                        audio_sample["media_value"] = frames
+                        audio_sample["sample_rate"] = stream.codec_context.sample_rate
+                        frames = self.processed_audio(audio_sample, "from_decoded")
                         # TODO: verify duration is the same as total frame size
                         original_size = AudioSize(length=stream.duration, channel=stream.codec_context.channel)
                     
@@ -370,7 +386,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                 media_type = chunk["media_type"]
                 if media_type == "audio":
                     # process audio
-                    processed_audio, _ = self.process_audio(chunk)
+                    processed_audio, _ = self.process_audio(chunk, "from_file")
                     if processed_audio is not None:
                         audios.append(processed_audio)
                         audio_lengths.append(processed_audio.shape[0])
@@ -446,8 +462,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         output_sample.images = media_dict["images"]
         output_sample.num_image_tiles = media_dict["num_image_tiles"]
         output_sample.image_sizes = media_dict["image_sizes"]
-        if output_sample.images is not None:
-            output_sample.image_attention_mask = torch.ones(len(tokens), dtype=torch.long)
+        output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
 
         labels = self.compute_labels(tokens, input_sample)
         tokens = tokens[:-1].contiguous()
@@ -519,7 +534,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
             if chunk == self.audio_token.token_str:
                 tokenized_chunks.append(self.audio_token.token_str)
                 # process the corresponding audio bytes
-                processed_audio, _ = self.process_audio(input_sample.audios[input_audio_index])
+                processed_audio, _ = self.process_audio(input_sample.audios[input_audio_index], "from_file")
                 if processed_audio is not None:
                     processed_audios.append(processed_audio)
                     processed_audio_lengths.append(processed_audio.shape[0])
@@ -529,7 +544,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                 audio_stream_index_tokens_dict = {}
                 video_stream_index_tokens_dict = {}
                 # process video and audio (if any) streams in a video file
-                video_audio_dict = self.process_video(chunk)
+                video_audio_dict = self.process_video(input_sample.videos[input_video_index])
                 for stream_index in video_audio_dict:
                     media_data = video_audio_dict[stream_index]
 
@@ -602,8 +617,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         output_sample.images = media_dict["images"]
         output_sample.num_image_tiles = media_dict["num_image_tiles"]
         output_sample.image_sizes = media_dict["image_sizes"]
-        if output_sample.images is not None:
-            output_sample.image_attention_mask = torch.ones(len(tokens), dtype=torch.long)
+        output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
 
         labels = self.compute_labels(tokens, input_sample)
         tokens = tokens[:-1].contiguous()
@@ -675,12 +689,12 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
             images: [total_image_tiles_in_a_batch x channels x tile_height x tile_width]
             num_image_tiles: [num_of_tiles_of_each_image_in_a_batch x 1]
             image_sizes: [total_images_in_a_batch x 2]
-            image_attention_mask: Optional[torch.tensor] = None
+            attention_mask: Optional[torch.tensor] = None
         """
         keys, tokens, labels, loss_mask, \
             audios, audio_lengths, \
             videos, video_lengths, num_video_tiles, \
-            images, num_image_tiles, image_sizes, image_attention_mask = (
+            images, num_image_tiles, image_sizes, attention_mask = (
             [],
             [],
             [],
@@ -715,8 +729,8 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
                 num_image_tiles.append(sample.num_image_tiles)
             if sample.image_sizes is not None:
                 image_sizes.append(sample.image_sizes)
-            if sample.image_attention_mask is not None:
-                image_attention_mask.append(sample.image_attention_mask)
+            if sample.attention_mask is not None:
+                attention_mask.append(sample.attention_mask)
 
         rawBatch = AVLMRawBatch()
         rawBatch.__keys__ = batch_list(keys)
@@ -725,22 +739,23 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         rawBatch.loss_mask = batch_pad_stack(loss_mask)
 
         if audios:
-            rawBatch.audios = torch.cat(audios)
-        if audio_lengths:
-            rawBatch.audio_lengths = torch.tensor(batch_list(audio_lengths), dtype=torch.int)
+            # get the audio samples' maximum length and pad all samples to that length
+            rawBatch.audios = torch.nn.utils.rnn.pad_sequence(audios, batch_first=True)
+            if audio_lengths:
+                rawBatch.audio_lengths = torch.tensor(batch_list(audio_lengths), dtype=torch.int)
         if videos:
             rawBatch.videos = torch.cat(videos)
-        if video_lengths:
-            rawBatch.video_lengths = torch.tensor(batch_list(video_lengths), dtype=torch.int)
-        if num_video_tiles:
-            rawBatch.num_video_tiles = torch.tensor(batch_list(num_video_tiles), dtype=torch.int)
+            if video_lengths:
+                rawBatch.video_lengths = torch.tensor(batch_list(video_lengths), dtype=torch.int)
+            if num_video_tiles:
+                rawBatch.num_video_tiles = torch.tensor(batch_list(num_video_tiles), dtype=torch.int)
         if images:
             rawBatch.images = torch.cat(images)
-        if num_image_tiles:
-            rawBatch.num_image_tiles = torch.tensor(batch_list(num_image_tiles), dtype=torch.int)
-        if image_sizes:
-            rawBatch.image_sizes = torch.cat(image_sizes)
-        if image_attention_mask:
-            rawBatch.image_attention_mask = batch_pad_stack(image_attention_mask)            
+            if num_image_tiles:
+                rawBatch.num_image_tiles = torch.tensor(batch_list(num_image_tiles), dtype=torch.int)
+            if image_sizes:
+                rawBatch.image_sizes = torch.cat(image_sizes)
+        if attention_mask:
+            rawBatch.attention_mask = batch_pad_stack(attention_mask)            
         
         return rawBatch

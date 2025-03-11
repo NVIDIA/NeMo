@@ -84,7 +84,7 @@ class AVLMSample:
     images: Optional[torch.tensor] = None
     num_image_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
-    image_attention_mask: Optional[torch.tensor] = None
+    attention_mask: Optional[torch.tensor] = None
 
 
 @dataclass
@@ -109,7 +109,7 @@ class AVLMRawBatch:
     images: Optional[torch.tensor] = None
     num_image_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
-    image_attention_mask: Optional[torch.tensor] = None
+    attention_mask: Optional[torch.tensor] = None
 
 
 @dataclass
