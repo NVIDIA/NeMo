@@ -206,14 +206,14 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
             class_token_len=self.class_token_len,
         )
 
-    def configure_model(self) -> "BaseCLIPViTModel":
+    def configure_model(self) -> "CLIPViTModelWrapper":
         # pylint: disable=C0115,C0116
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
 
             transformer_layer_spec = get_layer_spec_te(is_vit=True)
-        return BaseCLIPViTModel(
+        return CLIPViTModelWrapper(
             self,
             transformer_layer_spec,
             ln_pre_impl=self.ln_pre_impl,
@@ -227,7 +227,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         )
 
 
-class BaseCLIPViTModel(MCoreCLIPViTModel):
+class CLIPViTModelWrapper(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
