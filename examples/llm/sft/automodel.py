@@ -15,6 +15,7 @@
 import os
 import tempfile
 from functools import partial
+from types import SimpleNamespace
 
 import fiddle as fdl
 import lightning.pytorch as pl
@@ -174,7 +175,7 @@ def main():
         optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
 
     if args.fp8:
-        model_accelerator = True
+        model_accelerator = SimpleNamespace(fp8_autocast=True)
     else:
         model_accelerator = None
     model = llm.HFAutoModelForCausalLM(

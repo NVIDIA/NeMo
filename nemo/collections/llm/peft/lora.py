@@ -186,20 +186,17 @@ class LinearAdapter(nn.Linear):
         lora_A_init_method='xavier',
         lora_dtype=None,
     ):
-        self.fp8 = isinstance(orig_linear, TELinear)
-        assert isinstance(orig_linear, nn.Linear) or isinstance(orig_linear, TELinear)
-        # TELinear has bias set to empty tensor
-        has_bias = orig_linear.bias is not None and orig_linear.bias.shape[0] != 0
+        assert isinstance(orig_linear, nn.Linear)
         super(LinearAdapter, self).__init__(
             in_features=orig_linear.in_features,
             out_features=orig_linear.out_features,
-            bias=has_bias,
+            bias=orig_linear.bias is not None,
             device=orig_linear.weight.device,
             dtype=orig_linear.weight.dtype,
         )
         # copy weights
         self.weight.data.copy_(orig_linear.weight.data)
-        if has_bias:
+        if orig_linear.bias is not None:
             self.bias.data.copy_(orig_linear.bias.data)
         # initialize the adapte
         LinearAdapter._init_adapter(

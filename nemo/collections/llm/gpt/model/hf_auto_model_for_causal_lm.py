@@ -201,7 +201,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.model_accelerator is not None:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-            te_accelerate(self.model, True)
+            te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
         self.model.train()
 
