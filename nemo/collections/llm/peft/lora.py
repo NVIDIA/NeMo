@@ -19,7 +19,10 @@ from typing import List, Literal
 import torch
 import torch.nn.functional as F
 from torch import nn
-from transformer_engine.pytorch.module.linear import Linear as TELinear
+
+from nemo.utils.import_utils import safe_import_from
+
+te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
@@ -42,7 +45,7 @@ class LoRALinear(AdapterWrapper):
         return linear_output + adapter_output, bias
 
 
-class TELinearAdapter(TELinear):
+class TELinearAdapter(te.Linear):
     """
     Linear + LoRA, maintains ckpts structrue (i.e. Linear's weight/bias remain at the same FQN)
 
@@ -71,7 +74,7 @@ class TELinearAdapter(TELinear):
         lora_A_init_method='xavier',
         lora_dtype=None,
     ):
-        assert isinstance(orig_linear, TELinear)
+        assert isinstance(orig_linear, te.Linear)
         # TELinear has bias set to empty tensor
         has_bias = orig_linear.bias is not None and orig_linear.bias.shape[0] != 0
         super(TELinearAdapter, self).__init__(
@@ -311,7 +314,7 @@ def patch_linear_module(
         (nn.Module): the monkey-patched (nn.Linear + LoRA) nn.Module
     """
 
-    assert isinstance(orig_linear, nn.Linear) or isinstance(orig_linear, TELinear)
+    assert isinstance(orig_linear, nn.Linear) or isinstance(orig_linear, te.Linear)
 
     if isinstance(orig_linear, nn.Linear):
         LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
@@ -406,14 +409,14 @@ class LoRA(PEFT, ModuleMatcher):
 
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
-            if isinstance(m, nn.Linear) or isinstance(m, TELinear):
+            if isinstance(m, nn.Linear) or isinstance(m, te.Linear):
                 # Will use the `patch_linear_module` function if:
                 # - is FSDP v1
                 # - is DTensor (has _local_tensor attribute)
                 # - is quantized weights.
                 if self._is_fsdp_v1 or hasattr(m.weight.data, '_local_tensor') or m.weight.data.dtype == torch.uint8:
                     lora_cls = patch_linear_module
-                elif isinstance(m, TELinear):
+                elif isinstance(m, te.Linear):
                     lora_cls = TELinearAdapter
                 else:
                     lora_cls = LinearAdapter
