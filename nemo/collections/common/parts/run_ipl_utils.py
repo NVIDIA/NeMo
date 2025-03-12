@@ -46,12 +46,12 @@ def separate_bucket_transcriptions(inference_config: str) -> tuple:
             return [manifest_filepaths], [tarred_audio_filepaths]
     else:
         if isinstance(inference_config.predict_ds.manifest_filepath, str):
-            return [inference_config.predict_ds.manifest_filepath ], None
+            return [inference_config.predict_ds.manifest_filepath], None
         else:
             return inference_config.predict_ds.manifest_filepath, None
 
 
-def get_transcribed_names(manifest_filepaths: List[str], prefix: str, is_tarred: bool=False) -> List[List[str]]:
+def get_transcribed_names(manifest_filepaths: List[str], prefix: str, is_tarred: bool = False) -> List[List[str]]:
     """
     Generates a list of modified file paths by prepending 'transcribed_' to the filenames.
     The use case is for non AIStore datasets
@@ -77,11 +77,8 @@ def get_transcribed_names(manifest_filepaths: List[str], prefix: str, is_tarred:
 
     for file_path in manifest_filepaths:
         directory, filename = os.path.split(file_path)
-        
-        new_filename = (
-            f"{prefix}_transcribed_{filename}" if is_tarred 
-            else f"{prefix}_transcribed_manifest.json"
-        )
+
+        new_filename = f"{prefix}_transcribed_{filename}" if is_tarred else f"{prefix}_transcribed_manifest.json"
         transcribed_paths.append([os.path.join(directory, new_filename)])
 
     return transcribed_paths
@@ -91,7 +88,7 @@ def update_training_sets(
     config: DictConfig,
     updated_manifest_filepaths: List[str],
     updated_tarred_audio_filepaths: Optional[List[str]] = None,
-    prefix:str  = ""
+    prefix: str = "",
 ) -> Tuple[str, str]:
     """
     Updates the training dataset configuration by adding pseudo-labeled datasets
@@ -107,7 +104,9 @@ def update_training_sets(
             - Updated manifest file paths as a string, formatted for Omegaconf.
             - Updated tarred audio file paths as a string, formatted for Omegaconf.
     """
-    updated_manifest_filepaths = get_transcribed_names(updated_manifest_filepaths, prefix, is_tarred=config.model.train_ds.get("is_tarred", False))
+    updated_manifest_filepaths = get_transcribed_names(
+        updated_manifest_filepaths, prefix, is_tarred=config.model.train_ds.get("is_tarred", False)
+    )
     manifest_filepath = config.model.train_ds.manifest_filepath
 
     if updated_tarred_audio_filepaths:

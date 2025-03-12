@@ -15,10 +15,10 @@ import argparse
 import glob
 import json
 import os
-from filelock import FileLock
 from typing import List
 
 import torch.distributed as dist
+from filelock import FileLock
 
 from nemo.utils import logging
 
@@ -110,7 +110,7 @@ def create_transcribed_manifests(prediction_filepaths: List[str], prefix) -> Lis
     return all_manifest_filepaths
 
 
-def write_sampled_shard_transcriptions(manifest_filepaths: List[str],prefix) -> List[List[str]]:
+def write_sampled_shard_transcriptions(manifest_filepaths: List[str], prefix) -> List[List[str]]:
     """
     Updates transcriptions by merging predicted shard data and transcribed manifest data.
     This function processes prediction and transcribed manifest files, merges them
@@ -163,7 +163,9 @@ def write_sampled_shard_transcriptions(manifest_filepaths: List[str],prefix) -> 
                         json.dump(data_entry, f, ensure_ascii=False)
                     f.write("\n")
 
-    shard_manifest_filepath = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest__OP_0..{max_shard_id}_CL_.json")
+    shard_manifest_filepath = os.path.join(
+        prediction_filepath, f"{prefix}_transcribed_manifest__OP_0..{max_shard_id}_CL_.json"
+    )
     all_manifest_filepaths.append([shard_manifest_filepath])
 
     return all_manifest_filepaths
@@ -202,7 +204,7 @@ def write_sampled_transcriptions(manifest_filepaths: List[str], prefix) -> List[
                 data_entry = json.loads(line)
                 all_data_entries.append(data_entry)
 
-	output_filename = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
+        output_filename = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
         with open(output_filename, 'w') as f:
             for data_entry in all_data_entries:
                 audio_filepath = data_entry['audio_filepath']
@@ -221,15 +223,16 @@ def write_sampled_transcriptions(manifest_filepaths: List[str], prefix) -> List[
     return all_manifest_filepaths
 
 
-
 if __name__ == "__main__":
     rank = int(os.environ.get("RANK", 0))  # Default to 0 if not set
 
     parser = argparse.ArgumentParser(description="Script to create or write transcriptions")
-    parser.add_argument("--prefix", type=str,
+    parser.add_argument(
+        "--prefix",
+        type=str,
         nargs='+',  # Accepts one or more values as a list
         required=True,
-        help="Paths to one or more inference config YAML files."
+        help="Paths to one or more inference config YAML files.",
     )
     parser.add_argument("--is_tarred", action="store_true", help="If true, processes tarred manifests")
     parser.add_argument("--full_pass", action="store_true", help="If true, processes full pass manifests")
@@ -238,18 +241,18 @@ if __name__ == "__main__":
         type=str,
         nargs='+',  # Accepts one or more values as a list
         required=True,
-        help="Paths to one or more inference config YAML files."
+        help="Paths to one or more inference config YAML files.",
     )
-    
+
     args = parser.parse_args()
 
     lock_dir = os.path.dirname(args.prediction_filepaths[0])
-    lock_file = lock_dir + "/my_script.lock" 
+    lock_file = lock_dir + "/my_script.lock"
 
     with FileLock(lock_file):
         if rank == 0:
             if args.is_tarred:
-                result = ( 
+                result = (
                     write_sampled_shard_transcriptions(args.prediction_filepaths, args.prefix[0])
                     if not args.full_pass
                     else create_transcribed_shard_manifests(args.prediction_filepaths, args.prefix[0])
@@ -260,4 +263,3 @@ if __name__ == "__main__":
                     if not args.full_pass
                     else create_transcribed_manifests(args.prediction_filepaths, args.prefix[0])
                 )
-    

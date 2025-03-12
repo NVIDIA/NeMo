@@ -234,7 +234,8 @@ def get_pl_inference_command(inference_configs, shuffle=None):
 
 
 def get_pseudo_labeling_command(
-        merged_config: Dict, config_name: str, cluster_script_path: str, config_dir: str, ipl_training: Dict[str, any]) -> str:
+    merged_config: Dict, config_name: str, cluster_script_path: str, config_dir: str, ipl_training: Dict[str, any]
+) -> str:
     """
      Generate the pseudo-labeling command for the given configuration and training parameters.
 
@@ -255,7 +256,7 @@ def get_pseudo_labeling_command(
     Returns:
         str: The constructed pseudo-labeling command.
     """
-     
+
     prediction_directories_str = " ".join([os.path.dirname(path) for path in ipl_training['manifests']])
     inference_config_paths_str = " ".join(ipl_training['inference_config_paths'])
 
@@ -292,7 +293,7 @@ def get_pseudo_labeling_command(
         )
         if merged_config.model.train_ds.is_tarred:
             exec_cmd += " --is_tarred"
-    #exec_cmd = "python /nemo_run/code/examples/asr/run_update_inf_config.py "
+    # exec_cmd = "python /nemo_run/code/examples/asr/run_update_inf_config.py "
     return exec_cmd
 
 

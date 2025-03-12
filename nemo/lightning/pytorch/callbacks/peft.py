@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 import pytorch_lightning as pl
+import torch
 import torch.nn as nn
 from lightning_fabric.utilities.types import _PATH
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
@@ -27,8 +28,10 @@ from typing_extensions import override
 
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.io.pl import ckpt_to_dir
+from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
+from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -92,7 +95,15 @@ class PEFT(IOMixin, ABC, ModelTransform):
             nn.Module: The transformed model with PEFT applied.
         """
         self.freeze_model(model)
-        model.walk(self.transform)
+
+        # apply walk to model(s)
+        if isinstance(model, MegatronParallel) and len(model) > 1:
+            for model_chunk in model:
+                model_chunk.walk(self.transform)
+        elif isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
+            model.module.walk(self.transform)
+        else:
+            model.walk(self.transform)
 
         return model
 
@@ -108,7 +119,13 @@ class PEFT(IOMixin, ABC, ModelTransform):
         Returns:
             nn.Module: The transformed model with PEFT applied.
         """
-        model.freeze()
+        if isinstance(model, MegatronParallel) and len(model) > 1:
+            for model_chunk in model:
+                model_chunk.freeze()
+        if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
+            model.module.freeze()
+        else:
+            model.freeze()
         model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
@@ -118,20 +135,25 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
+
+        ckpt_io_kwarg_names = [
+            "save_ckpt_format",
+            "async_save",
+            "torch_dist_multiproc",
+            "assume_constant_structure",
+            "parallel_save",
+            "parallel_save_within_dp",
+            "parallel_load",
+            "load_directly_on_device",
+        ]
         ckpt_io_kwargs = {
-            "save_ckpt_format": trainer.strategy.save_ckpt_format,
-            "async_save": trainer.strategy.async_save,
-            "torch_dist_multiproc": trainer.strategy.torch_dist_multiproc,
-            "assume_constant_structure": trainer.strategy.assume_constant_structure,
-            "parallel_save": trainer.strategy.parallel_save,
-            "parallel_save_within_dp": trainer.strategy.parallel_save_within_dp,
-            "parallel_load": trainer.strategy.parallel_load,
-            "load_directly_on_device": trainer.strategy.load_directly_on_device,
+            arg: getattr(trainer.strategy, arg)
+            for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
         }
         trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
         self.wrapped_io = (
             trainer.strategy._checkpoint_io._checkpoint_io
-            if trainer.strategy.async_save
+            if getattr(trainer.strategy, 'async_save', False)
             else trainer.strategy._checkpoint_io
         )
         trainer.strategy._init_model_parallel = False
@@ -171,6 +193,16 @@ class PEFT(IOMixin, ABC, ModelTransform):
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
                 trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
+
+        for cb in trainer.callbacks[::-1]:
+            if isinstance(cb, MegatronOptimizerModule):
+                cb.on_fit_start(trainer, trainer.lightning_module)
+                break
+        else:
+            logging.warning(
+                "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
+                "properly set up for PEFT."
+            )
 
     def adapter_key_filter(self, key: str) -> bool:
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
@@ -302,8 +334,11 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         assert self.checkpoint_io is not None
 
-        checkpoint['sharded_state_dict'] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint['sharded_state_dict'].items())
+        state_key = 'sharded_state_dict'
+        if not state_key in checkpoint:
+            state_key = 'state_dict'
+        checkpoint[state_key] = dict(
+            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
         )
         request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
@@ -311,7 +346,9 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
         if is_global_rank_zero():
             metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
+            base_dir = ckpt_to_weights_subdir(path, is_saving=True)
+            base_dir.mkdir(parents=True, exist_ok=True)
+            adapter_meta_path = base_dir / ADAPTER_META_FILENAME
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
         return request
