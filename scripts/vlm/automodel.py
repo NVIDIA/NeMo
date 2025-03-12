@@ -121,6 +121,8 @@ if __name__ == '__main__':
             precision='bf16-mixed',
             num_nodes=args.num_nodes,
         ),
+        # llm.adam.pytorch_adam_with_flat_lr is returns a fiddle
+        #  config, so we need to build the object from the config.
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=nemo_logger,
         peft=peft,
