@@ -69,6 +69,7 @@ def build_trtllm_engine(
         tensor_parallelism_size=tensor_parallelism_size,
         max_input_len=max_input_len,
         max_output_len=max_output_len,
+        max_seq_len=max_input_len + max_output_len,
         max_batch_size=max_batch_size,
         max_prompt_embedding_table_size=max_multimodal_len,
         dtype=dtype,
@@ -76,6 +77,7 @@ def build_trtllm_engine(
         use_lora_plugin=use_lora_plugin,
         lora_target_modules=lora_target_modules,
         max_lora_rank=max_lora_rank,
+        use_mcore_path=False,
     )
 
 
