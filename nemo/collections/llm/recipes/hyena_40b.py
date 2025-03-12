@@ -37,6 +37,7 @@ def model(tp_comm_overlap: bool=False, seq_length:int=8192) -> run.Config[pl.Lig
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
+    dir=None,
     micro_batch_size=1, 
     global_batch_size=8,
     num_nodes=4,
@@ -64,7 +65,8 @@ def pretrain_recipe(
         run.Partial: Partial configuration for pre-training.
 
     """
-    return pretrain_recipe_creater(micro_batch_size=micro_batch_size, 
+    return pretrain_recipe_creater(dir=dir,
+                                    micro_batch_size=micro_batch_size, 
                                     global_batch_size=global_batch_size,
                                     num_nodes=num_nodes,
                                     devices=devices,
@@ -75,7 +77,8 @@ def pretrain_recipe(
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
-    ckpt_dir:str = None,
+    dir=None,
+    resume_path=None,
     micro_batch_size=1, 
     global_batch_size=8,
     num_nodes=4,
@@ -89,8 +92,9 @@ def finetune_recipe(
     """
 
     """
-    assert ckpt_dir is not None, "ckpt_dir None, invalid for finetune"
-    return pretrain_recipe_creater(ckpt_dir=ckpt_dir,
+    assert resume_path is not None, "resume_path None, invalid for finetune"
+    return pretrain_recipe_creater(dir=dir,
+                                    resume_path=resume_path,
                                     micro_batch_size=micro_batch_size, 
                                     global_batch_size=global_batch_size,
                                     num_nodes=num_nodes,

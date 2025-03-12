@@ -236,7 +236,7 @@ def pretrain_recipe_creater(
     use_megatron_comm_overlap_llama3_8k:bool = False,
     workers:int = 10,
     val_check_interval:int = 100,
-    experiment_dir:str = None,
+    dir:str = None,
     enable_preemption:bool = True,
     align_param_gather:bool = True,
     tflops_callback:bool = None,
@@ -255,7 +255,7 @@ def pretrain_recipe_creater(
     ckpt_format: Literal["zarr", "torch_dist"] = "torch_dist",
     limit_val_batches:int = 10,
     restore_optimizer_from_ckpt:bool = False,
-    ckpt_dir: str = None,
+    resume_path: str = None,
     wandb_project: str = None,
     wandb_name: str = None,
     name:str = "default",
@@ -288,7 +288,7 @@ def pretrain_recipe_creater(
             improve performance during pretraining.
         workers (int): Number of workers to use for per-device batch creation.
         val_check_interval (int): How often the model evaluates during training.
-        experiment_dir (str): Directory to save logs and checkpoints
+        dir (str): Directory to save logs and checkpoints
         enable_preemption (bool): Enable preemption when training on slurm, captures timeout signals and attempts to
             save a final checkpoint.
         align_param_gather (bool): Optimization for faster train step timing potentially through aligning parameter
@@ -307,7 +307,7 @@ def pretrain_recipe_creater(
         ckpt_async_save (bool): Bool indicating whether to use asynchronous checkpoint saving.
         save_ckpt_format (Literal['torch_dist', 'zarr']): The checkpoint save method. The default torch_dist may result
             in larger checkpoints currently, but is the preferred option in the long run.
-        ckpt_dir (str): If specified starting weights will be loaded from this checkpoint rather than being
+        resume_path (str): If specified starting weights will be loaded from this checkpoint rather than being
             randomly initialized.
         restore_optimizer_from_ckpt (bool): when loading checkpoint, try to load the optimizer.
         wandb_run_id (str): If specified, this will control the id of the wandb run to use.
@@ -350,10 +350,10 @@ def pretrain_recipe_creater(
                 f"-NODES{num_nodes}-FP8{fp8}"
             )
         extra_loggers['wandb_logger'] = wandb_logger(project=wandb_project, name=wandb_name, id=wandb_run_id)
-    if ckpt_dir:
+    if resume_path:
         restore_cfg = run.Config(
             nl.RestoreConfig,
-                path=ckpt_dir,
+                path=resume_path,
                 load_model_state=True,
                 load_optim_state=restore_optimizer_from_ckpt,
             )
@@ -365,7 +365,7 @@ def pretrain_recipe_creater(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_past_end=False,
-        resume_from_directory=experiment_dir,
+        resume_from_directory=dir,
         restore_config=restore_cfg,
     )
 
@@ -448,7 +448,7 @@ def pretrain_recipe_creater(
         ),
         data=data_run_cfg,
         log=default_log(
-            dir=experiment_dir,
+            dir=dir,
             name=name,
             tensorboard_logger=tensorboard_logger(name=name),
             **extra_loggers,
@@ -497,11 +497,11 @@ def pretrain_recipe(
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
-    ckpt_dir:str | None,
+    resume_path:str | None,
     *args, fn=finetune, **kwargs,
 ) -> run.Partial:
     """
 
     """
-    assert ckpt_dir is not None, "ckpt_dir None, invalid for finetune"
-    return pretrain_recipe_creater(*args, ckpt_dir=ckpt_dir, fn=fn, **kwargs)
+    assert resume_path is not None, "resume_path None, invalid for finetune"
+    return pretrain_recipe_creater(*args, resume_path=resume_path, fn=fn, **kwargs)
