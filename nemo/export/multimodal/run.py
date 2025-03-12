@@ -764,7 +764,8 @@ class MultimodalModelRunner:
                     "You are a helpful language and vision assistant. "
                     "You are able to understand the visual content that the user provides, "
                     "and assist the user with a variety of tasks using natural language. "
-                    "<|start_header_id|>user<|end_header_id|>\n\n"""
+                    "<|start_header_id|>user<|end_header_id|>\n\n"
+                    ""
                 )
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
