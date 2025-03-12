@@ -315,16 +315,18 @@ def patch_linear_module(
 
     if isinstance(orig_linear, nn.Linear):
         LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
+        cls = orig_linear.__class__
+        new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
     else:
         TELinearAdapter._init_adapter(
             orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
         )
+        cls = orig_linear.__class__
+        new_cls = type('PatchedTELinearAdapter', (TELinearAdapter, cls), {})
     # If the model uses quantized weights, we want to use orig_linear's forward
     if orig_linear.weight.dtype == torch.uint8:
         orig_linear.super_fwd = orig_linear.forward
 
-    cls = orig_linear.__class__
-    new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
     orig_linear.__class__ = new_cls
     return orig_linear
 
