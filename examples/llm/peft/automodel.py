@@ -175,6 +175,7 @@ def main():
 
     if args.fp8:
         from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
         model_accelerator = partial(te_accelerate, fp8_autocast=True)
     else:
         model_accelerator = None
