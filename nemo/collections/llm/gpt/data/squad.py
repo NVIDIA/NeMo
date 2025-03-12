@@ -107,8 +107,8 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             dset (DatasetDict): The downloaded dataset object.
             split_val_from_train (bool, optional): Whether to split the validation set from the training set.
                 If False, the validation set is split from the test set. Defaults to True.
-            val_proportion (float, optional): The proportion of the training or test set to be used for the validation split.
-                Defaults to 0.05.
+            val_proportion (float, optional): The proportion of the training or test set to be used
+                for the validation split. Defaults to 0.05.
         """
         logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
         save_splits = {}
@@ -151,4 +151,5 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
                     p.unlink()
 
     def reconfigure_limit_batches(self):
+        """ no op """
         return
