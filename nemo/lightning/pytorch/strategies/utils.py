@@ -37,7 +37,9 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
 
-MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from("torch.distributed._composable.fsdp", "MixedPrecisionPolicy")
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
+)
 fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
 
 
