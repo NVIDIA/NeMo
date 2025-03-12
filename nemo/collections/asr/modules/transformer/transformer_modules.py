@@ -140,7 +140,7 @@ class MultiHeadAttention(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0):
+    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0, return_xatt_scores=False):
         super().__init__()
         if hidden_size % num_attention_heads != 0:
             raise ValueError(
@@ -159,6 +159,8 @@ class MultiHeadAttention(nn.Module):
 
         self.attn_dropout = nn.Dropout(attn_score_dropout)
         self.layer_dropout = nn.Dropout(attn_layer_dropout)
+
+        self.return_xatt_scores = return_xatt_scores
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attn_head_size)
@@ -193,7 +195,12 @@ class MultiHeadAttention(nn.Module):
         # output projection
         output_states = self.out_projection(context)
         output_states = self.layer_dropout(output_states)
-        return output_states
+
+        extra_output = {}
+        if self.return_xatt_scores:
+            extra_output['xatt_scores'] = attention_probs
+
+        return output_states, extra_output
 
 
 class PositionWiseFF(nn.Module):

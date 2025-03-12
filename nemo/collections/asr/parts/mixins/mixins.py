@@ -23,6 +23,7 @@ from typing import List
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import Tensor
+from dataclasses import dataclass
 
 import nemo.collections.asr.models as asr_models
 from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModelMixin
@@ -31,6 +32,28 @@ from nemo.collections.asr.parts.utils import asr_module_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
 from nemo.utils import app_state, logging
+# from examples.asr.asr_cache_aware_streaming.speech_to_text_canary_streaming_infer import CanaryData
+
+@dataclass
+class CanaryData():
+    encoded_speech: torch.Tensor = None
+    decoder_input_ids: torch.Tensor = None
+    tgt: torch.Tensor = None
+    last_predicted_token: torch.Tensor = None
+    decoding_step: int = -1
+    decoder_mems_list: list = None
+    alignatt_thr: int = 4
+    max_generation_length: int = 10
+    is_last_speech_chunk: bool = False
+
+def lens_to_mask(lens, max_length):
+    """
+    Create a mask from a tensor of lengths.
+    """
+    batch_size = lens.shape[0]
+    arange = torch.arange(max_length, device=lens.device)
+    mask = arange.expand(batch_size, max_length) < lens.unsqueeze(1)
+    return mask
 
 
 class ASRBPEMixin(ABC):
@@ -602,6 +625,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         drop_extra_pre_encoded: int = None,
         return_transcription: bool = True,
         return_log_probs: bool = False,
+        canary_data: CanaryData = None,
     ):
         """
         It simulates a forward step with caching for streaming purposes.
@@ -629,7 +653,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             log_probs: the logits tensor of current streaming chunk, only returned when return_log_probs=True
             encoded_len: the length of the output log_probs + history chunk log_probs, only returned when return_log_probs=True
         """
-        if not isinstance(self, asr_models.EncDecRNNTModel) and not isinstance(self, asr_models.EncDecCTCModel):
+        if not isinstance(self, asr_models.EncDecRNNTModel) and not isinstance(self, asr_models.EncDecCTCModel) and not isinstance(self, asr_models.EncDecMultiTaskModel):
             raise NotImplementedError(f"stream_step does not support {type(self)}!")
 
         if not isinstance(self.encoder, StreamingEncoder):
@@ -701,7 +725,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     )
                     all_hyp_or_transcribed_texts.append(decoded_out[0])
             best_hyp = None
-        else:
+        elif isinstance(self, asr_models.EncDecRNNTModel) or (
+            isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "rnnt"
+        ):
             best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                 encoder_output=encoded,
                 encoded_lengths=encoded_len,
@@ -711,6 +737,97 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
 
             all_hyp_or_transcribed_texts = best_hyp
+        
+        # canary decoding
+        elif isinstance(self, asr_models.EncDecMultiTaskModel):
+            
+            all_hyp_or_transcribed_texts = []
+            greedy_predictions = []
+            best_hyp = None
+            
+            # decoder_input_ids = None
+            encoder_input_mask = None
+            enc_states = encoded.permute(0, 2, 1)
+            encoder_hidden_states = self.encoder_decoder_proj(enc_states)
+
+            if not torch.is_tensor(canary_data.encoded_speech):
+                canary_data.encoded_speech = encoder_hidden_states
+            else:
+                canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
+            # enc_mask = lens_to_mask(encoded_len, enc_states.shape[1]).to(enc_states.dtype)
+
+            # import pdb; pdb.set_trace()
+
+            if canary_data.decoding_step < 0:
+                # first decoding step
+                tgt, batch_size, canary_data.max_generation_length = self.decoding.decoding.greedy_search._prepare_for_search(canary_data.decoder_input_ids, canary_data.encoded_speech)
+                input_ids = tgt
+            else:
+                tgt = canary_data.tgt
+                input_ids = tgt[:, -1:]
+            start_from = canary_data.decoding_step + 1
+
+            decoder_mems_list = canary_data.decoder_mems_list
+            for i in range(start_from, canary_data.max_generation_length):
+                if i != 0 and start_from == 0:
+                    i += canary_data.decoder_input_ids.size(-1)
+                logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
+                    input_ids,
+                    canary_data.encoded_speech,
+                    encoder_input_mask,
+                    decoder_mems_list,
+                    i,
+                    return_scores=False,
+                    return_xatt_scores=True,
+                )
+                
+                # compute the most attended encoder token
+                xatt_scores = xatt_scores_list[-2]
+                # if i == 0:
+                    # xatt_scores = xatt_scores[:, -1, :]
+                xatt_scores = torch.mean(xatt_scores, 1)
+                most_attended_idx = torch.argmax(xatt_scores, dim=-1)
+                if i == 0:
+                    most_attended_idx = most_attended_idx[:, -1]
+                logging.warning(f"-------------"*5)
+                logging.warning(f"decoding step i: {i}")
+                logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
+                logging.warning(f"[most_attended_idx]: {most_attended_idx}")
+                
+                next_tokens = torch.argmax(logits[:, -1], dim=-1)
+                text_token = self.tokenizer.ids_to_tokens(next_tokens.tolist())
+                logging.warning(f"[predicted token]: {text_token}")
+                logging.warning(f"[predicted token id]: {next_tokens}")
+
+                # aligatt condition
+                if not canary_data.is_last_speech_chunk and \
+                    canary_data.encoded_speech.shape[1] - most_attended_idx < canary_data.alignatt_thr:
+                    # need to wait for the next speech chunk
+                    logging.warning(f"!!! need more speech according to the alignatt policy !!!")
+                    greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
+                    break
+
+                if next_tokens == self.tokenizer.eos:
+                    if not canary_data.is_last_speech_chunk:
+                        logging.warning(f"!#! EOS predicted before last speech chunk, wait for more speech !#!")
+                    else:
+                        logging.warning(f"!#! EOS predicted during last speech chunk, end of decoding !#!")
+                    greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
+                    break
+                
+
+                tgt = torch.cat((tgt, next_tokens.unsqueeze(1)), dim=-1)
+
+                canary_data.decoder_mems_list = decoder_mems_list
+                canary_data.decoding_step = i
+                canary_data.last_predicted_token = tgt[:, -1:]
+                canary_data.tgt = tgt
+                input_ids = tgt[:, -1:]
+
+                # all_hyp_or_transcribed_texts.append(next_tokens)
+            
+                # import pdb; pdb.set_trace() 
+
 
         result = [
             greedy_predictions,
@@ -719,6 +836,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             cache_last_time_next,
             cache_last_channel_next_len,
             best_hyp,
+            canary_data,
         ]
         if return_log_probs:
             result.append(log_probs)

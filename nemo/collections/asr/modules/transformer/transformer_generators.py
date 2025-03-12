@@ -23,6 +23,8 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
 
+from nemo.utils import logging
+
 __all__ = [
     "GreedySequenceGenerator",
     "TopKSequenceGenerator",
@@ -127,6 +129,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         decoder_mems_list=None,
         pos=0,
         return_scores: bool = True,
+        return_xatt_scores: bool = False,
     ):
         """
         One step of autoregressive output generation.
@@ -147,7 +150,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
 
         if encoder_hidden_states is not None:
-            decoder_mems_list = self.decoder.forward(
+            decoder_mems_list, xatt_scores_list = self.decoder.forward(
                 decoder_hidden_states,
                 decoder_input_mask,
                 encoder_hidden_states,
@@ -155,13 +158,17 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
                 decoder_mems_list,
                 return_mems=True,
             )
+            # import pdb; pdb.set_trace()
         else:
-            decoder_mems_list = self.decoder.forward(
+            decoder_mems_list, _ = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
         with self.classifier.with_log_softmax_enabled(return_scores) as clf:
             logits = clf.forward(hidden_states=decoder_mems_list[-1][:, -1:])
-        return logits, decoder_mems_list
+        if return_xatt_scores:
+            return logits, decoder_mems_list, xatt_scores_list
+        else:
+            return logits, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
         """
@@ -201,6 +208,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         is_sampling = self.temperature is not None and self.n_samples > 1
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
+        tgt_len = tgt.size(-1)
         if is_sampling:
             tgt = torch.repeat_interleave(tgt, self.n_samples, dim=0)
             encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, self.n_samples, dim=0)
@@ -223,12 +231,19 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
 
         decoder_mems_list = None
         for i in range(max_generation_length):
-
+            
             if i == 0:
                 input_ids = tgt
             else:
+                i += tgt_len-1
                 input_ids = tgt[:, -1:]
 
+            logging.warning(f"Step {i}")
+            logging.warning(f"tgt: {tgt}")
+            logging.warning(f"input_ids: {input_ids}")
+            # if i == 14:
+            #     raise ValueError("Stop here")
+            
             logits, decoder_mems_list = self._one_step_forward(
                 input_ids,
                 encoder_hidden_states,
@@ -412,6 +427,11 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
+        logging.warning(f"Step {0}")
+        logging.warning(f"decoder_input_ids:   {decoder_input_ids}")
+        logging.warning(f"tgt:   {tgt}")
+        logging.warning(f"prefixes[:, -1:]: {prefixes[:, -1:]}")
+
         # repeat init target prefixes and cached memory states beam_size times
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
@@ -438,6 +458,10 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         tgt_len = tgt.size(-1)
         for i in range(tgt_len, max_generation_length + tgt_len):
 
+            # import pdb; pdb.set_trace()
+            logging.warning(f"Step {i}")
+            logging.warning(f"prefixes[:, -1:]: {prefixes[:, -1:]}")
+            # raise ValueError("Stop here")
             # mask all finished hypotheses to exclude them from beam
             pad_mask = pad_profile.repeat(1, self.beam_size)
 
@@ -446,6 +470,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
                 prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
+
+            logging.warning(f"prefixes_i: {prefixes_i}")    
 
             # for all prefixes ending with <eos> or <pad> replace generated
             # continuations with <pad>

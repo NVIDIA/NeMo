@@ -880,6 +880,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         log_probs, encoded_len, enc_states, enc_mask = self.forward(input_signal=audio, input_signal_length=audio_lens)
 
+        # import pdb; pdb.set_trace()
+
         if decoder_input_ids is None:
             # The dataloader provided only audio + audio_lens, so we
             # are constructing the prompt dynamically using TranscribeConfig.
