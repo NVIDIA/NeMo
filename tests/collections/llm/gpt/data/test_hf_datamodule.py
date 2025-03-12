@@ -27,8 +27,6 @@ from nemo.collections.llm.gpt.data.hf_dataset import (
     pad_within_micro,
 )
 
-import lightning.pytorch as pl
-import torch.distributed as dist
 from torch.utils.data import DataLoader
 
 
