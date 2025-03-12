@@ -55,26 +55,25 @@ model:
 #       dropout_emb: 0.0 # The dropout used for embeddings
 #       dropout_att: 0.1 # The dropout for multi-headed attention modules
 
-#     spec_augment:
-#       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-#       freq_masks: 2 # set to zero to disable it
-#       time_masks: 10 # set to zero to disable it
-#       freq_width: 27
-#       time_width: 0.05
+     spec_augment:
+       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+       freq_masks: 2 # set to zero to disable it
+       time_masks: 10 # set to zero to disable it
+       freq_width: 27
+       time_width: 0.05
 
   optimizer:
     _target_: torch.optim.AdamW
-#    _convert_: all
-    lr: 1e-3
+    lr: 3e-4
     betas: [0.9, 0.98]
     weight_decay: 1e-3
     foreach: true # set to false if having issues with tensor-parallelism
 
   lr_scheduler:
     _target_: nemo.core.optim.lr_scheduler.CosineAnnealing
-    warmup_steps: 15000
+    warmup_steps: 2500
     warmup_ratio: null
-    min_lr: 1e-4
+    min_lr: 1e-6
     max_steps: ${trainer.max_steps}
 
 trainer:
@@ -82,7 +81,6 @@ trainer:
   accelerator: gpu
   num_nodes: 1
   precision: bf16-true
-#  precision: bf16-mixed
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -91,7 +89,7 @@ trainer:
   log_every_n_steps: 10
   val_check_interval: 1000
 #  num_sanity_val_steps: 0
-#  gradient_clip_val: 1.0
+  gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
     _target_: lightning.pytorch.strategies.ModelParallelStrategy

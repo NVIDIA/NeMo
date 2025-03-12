@@ -224,7 +224,7 @@ class DuplexS2SModel(LightningModule):
         self.log_dict(
             {
                 "loss": loss,
-                "learning_rate": self.lr_schedulers().get_last_lr()[0],
+                "learning_rate": torch.as_tensor(self.trainer.optimizers[0].param_groups[0]['lr']),
                 "text_loss": text_loss,
                 "audio_loss": audio_loss,
                 "batch_size": B,
