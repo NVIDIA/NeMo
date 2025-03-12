@@ -115,6 +115,9 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig):
     data_sharding: bool = True
     """Disable data sharding."""
 
+    create_attention_mask_in_dataloader: bool = True
+    """If set, do not create attention_masks in dataloader."""
+
     def __post_init__(self) -> None:
         super(MCoreGPTDatasetConfig, self).__post_init__()
 
