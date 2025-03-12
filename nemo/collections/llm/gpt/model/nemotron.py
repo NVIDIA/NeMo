@@ -324,6 +324,8 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))
         target = self.init(torch_dtype_from_mcore_config(source.config))
+
+        breakpoint()
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -389,6 +391,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
         return HFNemotronConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
             head_dim=(
                 source.kv_channels
