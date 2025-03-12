@@ -1,0 +1,18 @@
+python tests/collections/llm/gpt/model/test_hyena.py \
+--mock-data \
+--experiment-dir=tests/collections/llm/hyena_pretrain_results/${{ github.run_id }} \
+--model-size=7b_nv \
+--num-layers=4 \
+--hybrid-override-pattern=SDH* \
+--no-activation-checkpointing \
+--add-bias-output \
+--max-steps=5 \
+--warmup-steps=1 \
+--micro-batch-size=2 \
+--global-batch-size=4 \
+--no-wandb \
+--seq-length=128 \
+--hidden-dropout=0.01 \
+--attention-dropout=0.01 \
+--devices=2 \
+--debug-ddp-parity-freq=1

@@ -1,0 +1,8 @@
+
+python tests/collections/llm/lora_mistralai.py \
+--max-steps 3 \
+--ep 1 \
+--tp 2 \
+--mbs 1 \
+--model mixtral \
+--use-exclude
