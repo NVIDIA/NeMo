@@ -29,6 +29,8 @@ class SpeechLMAutoResume(AutoResume):
     Wrapper for AutoResume to get rid of requirement on restore_config.
     """
 
+    adapter_path: Optional[str] = None
+
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
         if self.resume_from_path:
             maybe_weights_path = self.get_weights_path(self.resume_from_path)
