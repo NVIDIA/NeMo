@@ -7,6 +7,15 @@
 # One extra (linear projection) layer is added between FastConformer encoder and Transformer decoder if they have different hidden sizes
 # It is recommended to initialize FastConformer with ASR/SSL pre-trained encoder for better accuracy and faster convergence
 
+# Canary model family
+
+# |         Model        | Num Params |  encoder.n_layers | transf_decoder.config_dict.num_layers | transf_decoder.config_dict.max_sequence_length | model_defaults.asr_enc_hidden | model_defaults.lm_dec_hidden |
+# |:--------------------:|:----------:|:-----------------:|:-------------------------------------:|:----------------------------------------------:|:-----------------------------:|:----------------------------:|
+# |      canary-1b       |     1B     |        24         |                     24                |                        512                     |              1024             |             1024             |
+# |   canary-1b-flash    |    883M    |        32         |                     4                 |                       1024                     |              1024             |             1024             |
+# |  canary-180m-flash   |    182M    |        17         |                     4                 |                       1024                     |               512             |             1024             |
+
+
 name: "FastConformer-Transformer-MultiTask"
 
 # Note: for larger models (1B+ params) initializing from a pretrained encoder
@@ -102,7 +111,7 @@ model:
     window_size: 0.025
     window_stride: 0.01
     window: "hann"
-    features: 80
+    features: 128
     n_fft: 512
     log: true
     frame_splicing: 1
