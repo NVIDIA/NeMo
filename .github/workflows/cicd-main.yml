@@ -1500,6 +1500,13 @@ jobs:
           --devices 2 \
           --strategy fsdp2 \
           --ckpt-folder /tmp/hf_peft_ckpt_fsdp2 --auto-resume
+
+        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/peft/automodel.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy fsdp2
+
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1568,12 +1575,9 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 \
-        NCCL_CHECK_POINTERS=1 \
-        NCCL_DEBUG=TRACE \
-        NCCL_DEBUG_SUBSYS=INIT,ENV,GRAPH,NET,COLL \
-        NCCL_DEBUG_FILE=nccl_log.%h.%p.txt \
-        python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
-        cat nccl_log*
+              python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
+        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/sft/automodel.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy fsdp2
+
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -2847,7 +2851,7 @@ jobs:
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
-        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_engine --ckpt_load_strictness log_all
+        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_engine --export_format trtllm --legacy_ckpt
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -2862,7 +2866,7 @@ jobs:
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
-        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_ckpt --export_format nemo
+        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_ckpt --export_format nemo --legacy_ckpt
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -2920,7 +2924,6 @@ jobs:
           --pp_size 2 \
           --devices 2 \
           --seq_length 128 \
-          --gbs 8 \
           --mbs 2 \
           --num_train_samples 32 \
           --data_paths 1.0 /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
