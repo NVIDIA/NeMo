@@ -353,6 +353,7 @@
 - Publish r2.2.0 by @chtruong814 :: PR: #12583
 
 </details>
+
 ## NVIDIA Neural Modules 2.1.0
 
 ### Highlights
