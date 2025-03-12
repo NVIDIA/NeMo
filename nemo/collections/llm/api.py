@@ -26,8 +26,8 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
-from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
+from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -523,7 +523,7 @@ def ptq(
     else:
         assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
         model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
-           model_path=nemo_checkpoint,
+            model_path=nemo_checkpoint,
             tensor_model_parallel_size=calibration_tp,
             pipeline_model_parallel_size=calibration_pp,
             num_layers_in_first_pipeline_stage=num_layers_in_first_pipeline_stage,

@@ -257,7 +257,6 @@ class Quantizer:
             logging.info(f"Using int8_sq alpha = {sq_alpha}")
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": sq_alpha}
 
-
         unwrapped_model = mtq.quantize(unwrap_for_modelopt_operations(model), quant_cfg, forward_loop)
         if decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
@@ -399,6 +398,7 @@ class Quantizer:
             self._save_tokenizer(model, model_dir, export_dir, export_fmt)
             logging.info(f"Export succeeded, model has been exported to {export_dir}.")
 
+
 def get_calib_data_iter(
     data: str = "cnn_dailymail", batch_size: int = 64, calib_size: int = 512, max_sequence_length: int = 512
 ):
@@ -443,7 +443,6 @@ def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration
         return iter(tqdm(data))
 
     return _get_iterator
-
 
 
 huggingface_model_type_pattern_match = {
@@ -504,6 +503,7 @@ def unwrap_for_modelopt_operations(model):
     if isinstance(model, llm.HFAutoModelForCausalLM):
         return model.model
     return unwrap_model(model)
+
 
 def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausalLM]) -> Optional[str]:
     """Infers the modelopt decoder type from GPTModel or HFAutoModelForCausalLM.
