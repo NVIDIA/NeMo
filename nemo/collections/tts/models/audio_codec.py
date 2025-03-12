@@ -32,7 +32,7 @@ from nemo.collections.tts.losses.audio_codec_loss import (
     SISDRLoss,
     TimeDomainLoss,
 )
-from nemo.collections.tts.modules.audio_codec_modules import PhonemeASR, ResNetSpeakerEncoder
+from nemo.collections.tts.modules.audio_codec_modules import ResNetSpeakerEncoder
 from nemo.collections.tts.modules.common import GaussianDropout
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
@@ -173,13 +173,16 @@ class AudioCodecModel(ModelPT):
             self.speaker_encoder.freeze()
             print("Speaker encoder loaded and frozen !!")
 
-        self.use_asr_consitency_loss = cfg.get("use_asr_consitency_loss", False)
-        self.acl_loss_scale = cfg.get("acl_loss_scale", False)
-        if self.use_asr_consitency_loss:
-            self.phoneme_asr_model = PhonemeASR(input_sr=self.sample_rate)
-            self.phoneme_asr_model.freeze()
-            # self.acl_loss = CrossEntropyLoss()
-            print("Phoneme ASR model loaded and frozen !!")
+        # Disabled for now as it is not used in final model
+        self.use_asr_consitency_loss = False
+        self.acl_loss_scale = False
+        # self.use_asr_consitency_loss = cfg.get("use_asr_consitency_loss", False)
+        # self.acl_loss_scale = cfg.get("acl_loss_scale", False)
+        # if self.use_asr_consitency_loss:
+        #     self.phoneme_asr_model = PhonemeASR(input_sr=self.sample_rate)
+        #     self.phoneme_asr_model.freeze()
+        #     # self.acl_loss = CrossEntropyLoss()
+        #     print("Phoneme ASR model loaded and frozen !!")
 
         # Log setup
         self.log_config = cfg.get("log_config", None)
@@ -219,7 +222,7 @@ class AudioCodecModel(ModelPT):
                     )
                 else:
                     logging.error('Could not import torchaudio!')
-                    raise ModuleNotFoundError(f"torchaudio is not installed but is necessary to audio resample !!")
+                    raise ModuleNotFoundError("torchaudio is not installed but is necessary to audio resample !!")
                 g = self.speaker_encoder(audio_resampled, l2_norm=True).unsqueeze(-1)
         else:
             if HAVE_TORCHAUDIO:
@@ -228,7 +231,7 @@ class AudioCodecModel(ModelPT):
                 )
             else:
                 logging.error('Could not import torchaudio!')
-                raise ModuleNotFoundError(f"torchaudio is not installed but is necessary to audio resample !!")
+                raise ModuleNotFoundError("torchaudio is not installed but is necessary to audio resample !!")
             g = self.speaker_encoder(audio_resampled, l2_norm=True).unsqueeze(-1)
 
         return g

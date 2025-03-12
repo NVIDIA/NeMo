@@ -28,7 +28,6 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import Bas
 from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
 from nemo.collections.tts.parts.preprocessing.features import Featurizer
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    BetaBinomialInterpolator,
     _read_audio,
     beta_binomial_prior_distribution,
     filter_dataset_by_duration,

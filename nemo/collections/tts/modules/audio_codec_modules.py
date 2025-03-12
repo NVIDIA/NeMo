@@ -139,8 +139,8 @@ class SLMDiscriminator(NeuralModule):
 
         x = self.pre(x)
         fmap = []
-        for l in self.convs:
-            x = l(x)
+        for layer in self.convs:
+            x = layer(x)
             x = F.leaky_relu(x, 0.1)
             fmap.append(x.unsqueeze(-1))
 
@@ -185,29 +185,6 @@ def zero_mean_unit_var_norm(input_values):
     return normed_input_values
 
 
-class PhonemeASR(NeuralModule):
-    def __init__(self, input_sr=22050, model_sr=16000):
-        super().__init__()
-        # self.processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft") # processor are not grad friendly
-        self.model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft")
-        if HAVE_TORCHAUDIO:
-            self.resample = torchaudio.transforms.Resample(input_sr, model_sr)
-        else:
-            self.resample = None
-
-    def forward(self, audio):
-        audio = self.resample(audio)
-        # input_values = self.processor(audio, return_tensors="pt").input_values
-        input_values = zero_mean_unit_var_norm(audio)
-        logits = self.model(input_values).logits
-        predicted_ids = torch.argmax(logits, dim=-1)
-
-        # transcription = self.processor.batch_decode(predicted_ids)
-        # print("GT Phonemes:", transcription[0])
-        # print("GEN Phonemes:", transcription[len(transcription)//2])
-        return logits, predicted_ids
-
-
 ##############
 # Speaker encoder #
 ##############
@@ -232,7 +209,7 @@ def load_fsspec(path: str, map_location: str = None, **kwargs):
                 return torch.load(f, map_location=map_location, **kwargs)
         else:
             logging.error('Could not import fsspec. Loading a checkpoint link is not supported!')
-            raise ModuleNotFoundError(f"fsspec is not installed but is necessary to download remote checkpoints !!")
+            raise ModuleNotFoundError("fsspec is not installed but is necessary to download remote checkpoints !!")
 
 
 class PreEmphasis(NeuralModule):
@@ -304,7 +281,6 @@ class ResNetSpeakerEncoder(NeuralModule):
     Adapted from: https://github.com/clovaai/voxceleb_trainer
     """
 
-    # pylint: disable=W0102
     def __init__(
         self,
         input_dim=64,
@@ -415,7 +391,6 @@ class ResNetSpeakerEncoder(NeuralModule):
 
         return nn.Sequential(*layers)
 
-    # pylint: disable=R0201
     def new_parameter(self, *size):
         out = nn.Parameter(torch.FloatTensor(*size))
         nn.init.xavier_normal_(out)

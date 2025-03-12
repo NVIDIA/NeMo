@@ -39,7 +39,7 @@ from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, plot
 from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 
 
 def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, mode='train'):
@@ -502,27 +502,18 @@ class MagpieTTS_Model(ModelPT):
         text = None
         text_lens = None
 
+        # self.model_type must be one of
+        # [single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts, decoder_pretrain_synthesizer]
         if self.model_type != 'decoder_pretrain_synthesizer':
             text = batch['text']
             text_lens = batch['text_lens']
-
             text_embedded = self.text_embedding(text)  # (B, T, E)
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
             text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
-
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)
 
-        if self.model_type == 'decoder_pretrain_synthesizer':
-            text = None
-            text_lens = None
-            text_encoder_out = None
-            cond = None
-            cond_mask = None
-            attn_prior = None
-            multi_encoder_mapping = None
-
-        elif self.model_type == 'single_encoder_sv_tts':
+        if self.model_type == 'single_encoder_sv_tts':
             target_audio_16khz = batch['audio_16khz']
             target_audio_lens_16khz = batch['audio_lens_16khz']
             speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
@@ -531,7 +522,6 @@ class MagpieTTS_Model(ModelPT):
             cond_mask = text_mask
             multi_encoder_mapping = None
             attn_prior = _attn_prior
-
         elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts']:
             if 'context_audio_codes' in batch:
                 context_audio_codes = batch['context_audio_codes']
@@ -601,7 +591,8 @@ class MagpieTTS_Model(ModelPT):
                 multi_encoder_mapping = None
                 additional_decoder_input = context_embeddings
                 addtional_decoder_mask = context_mask
-
+        elif self.model_type == 'decoder_pretrain_synthesizer':
+            pass
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
 
@@ -1205,7 +1196,8 @@ class MagpieTTS_ModelInference(MagpieTTS_Model):
                             ).any(), f"Expected short audio file to be the only cause of ASR errors, but got error with lengths {predicted_audio_lens}"
                             logging.warning(f"Exception during ASR transcription: {e}")
                             logging.warning(
-                                f"Skipping processing of the batch; generating metrics indicating a WER of 100% and Speaker Similarity of 0.0"
+                                "Skipping processing of the batch; generating metrics indicating a WER of 100% and "
+                                "Speaker Similarity of 0.0"
                             )
                             batch_invalid = True
                             continue  # don't break since we want to continue building audio durations list
