@@ -1035,16 +1035,38 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         return None
 
     @classmethod
-    def batch_rearrange_states(
+    def batch_aggregate_states_beam(
         cls,
         src_states: Tuple[torch.Tensor, torch.Tensor],
+        batch_size: int,
+        beam_size: int,
         indices: torch.Tensor,
-    ):
-        dtype = src_states[0].dtype
-        indices = indices.flatten()
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+         Aggregates decoder states based on the given indices.
+
+        Args:
+            src_states (Tuple[torch.Tensor, torch.Tensor]): Source states. ([L x Batch * Beam x H], [L x Batch * Beam x H])
+            batch_size (int): The batch size.
+            beam_size (int): The beam size.
+            indices (torch.Tensor): Indices used to aggregate the states. These indices determine which beam elements to select.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: 
+                A tuple of two tensors representing the aggregated states. 
+                Each tensor has shape (L x Batch * Beam x H).
+        """
+        layers_num = src_states[0].shape[0]
+        layers_dim = src_states[0].shape[-1]
+        
+        beam_shape = torch.Size((layers_num, batch_size, beam_size, layers_dim))
+        flat_shape = torch.Size((layers_num, batch_size * beam_size, layers_dim))
+        
+        indices_expanded = indices[None, :, :, None].expand(beam_shape)
+        
         return (
-            torch.index_select(src_states[0].to(dtype), dim=1, index=indices),
-            torch.index_select(src_states[1].to(dtype), dim=1, index=indices)
+            torch.gather(src_states[0].view(beam_shape), dim=2, index=indices_expanded).view(flat_shape),
+            torch.gather(src_states[1].view(beam_shape), dim=2, index=indices_expanded).view(flat_shape),
         )
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:

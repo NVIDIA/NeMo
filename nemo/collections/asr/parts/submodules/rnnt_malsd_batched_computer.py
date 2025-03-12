@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -225,16 +225,13 @@ class SeparateGraphsMALSD:
 
 class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     """
-    Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
-    Iterates over labels, on each step finding the next non-blank label
-    (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
-    to prediction network (with maximum possible batch size),
-    which makes it especially useful for scaling the prediction network.
-    During decoding all active hypotheses ("texts") have the same lengths.
+    Batched Alignment-Length Synchronous Decoding implementation. Callable.
+    Based on https://ieeexplore.ieee.org/document/9053040 with the following modficiations:
+        - does not prediction network caching
+        - does not employ transcript length estimation, instead, limits the number of expansions for every frame.
     """
-
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
-    CUDA_PROGRAM_NAME = b"while_loop_labels_conditional_rnnt.cu"
+    CUDA_PROGRAM_NAME = b"while_malsd_batch_conditional_rnnt.cu"
 
     class CudaGraphsMode(PrettyStrEnum):
         FULL_GRAPH = "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
@@ -261,10 +258,27 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         pruning_mode: Optional[str | PruningMode] = None,
-        allow_recombine_hyps: bool = True,
         score_norm: bool = True,
-        allow_cuda_graphs: bool = False
+        allow_cuda_graphs: bool = True
     ):
+        """
+        Init method.
+        Args:
+            decoder: Prediction network from RNN-T
+            joint: Joint module from RNN-T
+            blank_index: index of blank symbol
+            max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
+            preserve_alignments: if alignments are needed
+            preserve_frame_confidence: if frame confidence is needed
+            confidence_method_cfg: config for the confidence
+            ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
+            ngram_lm_alpha: weight for the n-gram LM scores
+            blank_lm_score_mode: mode for scoring blank symbol with LM
+            pruning_mode: mode for pruning hypotheses with LM
+            allow_recombine_hyps: bool = True,
+            score_norm: bool = True,
+            allow_cuda_graphs: bool = False
+        """
         super().__init__()
         self.decoder = decoder
         self.joint = joint
@@ -273,15 +287,13 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
-        self.allow_recombine_hyps = allow_recombine_hyps
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.score_norm = score_norm
         self.allow_cuda_graphs = allow_cuda_graphs
 
-        assert self._SOS == self._blank_index  # "blank as pad" algorithm only
-        assert not self.preserve_alignments
-        assert not self.preserve_frame_confidence
+        assert not self.preserve_alignments, "Preserve aligments is not supported"
+        assert not self.preserve_frame_confidence, "Preserve frame confidence is not supported"
         
         self.state = None
         self.full_graph = None
@@ -364,14 +376,14 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
     ) -> list[rnnt_utils.Hypothesis]:
-        batch_size, max_time, vocab_size = encoder_output.shape
+        batch_size, max_time, _ = encoder_output.shape
         device = encoder_output.device
 
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
         float_dtype = encoder_output_projected.dtype
 
-        # init empty batched hypotheses
+        # init empty batched beam hypotheses
         batched_hyps = BatchedBeamHyps(
             batch_size=batch_size,
             beam_size=self.beam_size,
@@ -386,7 +398,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         )
 
         batch_indices = torch.arange(batch_size, device=device, dtype=torch.long).unsqueeze(1).repeat(1, self.beam_size)
-        batch_indices_scaled = self.beam_size * batch_indices
             
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
@@ -490,10 +501,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 batched_hyps.add_results_(hyps_indices, next_labels, next_hyps_prob)
             else:
                 batched_hyps.add_results_no_checks_(hyps_indices, next_labels, next_hyps_prob)
-            if self.allow_recombine_hyps:
-                batched_hyps.self_recombine_hyps_()
+            
+            # step 4: recombine hypotheses: sum probabilities of identical hypotheses.
+            batched_hyps.recombine_hyps()
 
-            # step 4: update decoder state + decoder output (+ lm state/scores)
+            # step 5: update decoder state + decoder output (+ lm state/scores)
             last_labels_wb = torch.where(
                 next_labels >= 0, next_labels, self._blank_index
             )
@@ -510,23 +522,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             # TODO: move state aggregation to decoder + support stateless decoder:
             #  self.decoder.batch_aggregate_states_beam(...)
             # state: tuple, each is of [Layers, (BxBeam), Dim]
-            prev_decoder_state = self.decoder.batch_rearrange_states(decoder_state, (batch_indices_scaled + hyps_indices).flatten())
-            # prev_decoder_state = (
-            #     torch.gather(
-            #         decoder_state[0].view(decoder_state[0].shape[0], batch_size, self.beam_size, -1),
-            #         dim=2,
-            #         index=hyps_indices[None, :, :, None].expand(
-            #             decoder_state[0].shape[0], batch_size, self.beam_size, decoder_state[0].shape[-1]
-            #         ),
-            #     ).view(decoder_state[0].shape[0], batch_size * self.beam_size, -1),
-            #     torch.gather(
-            #         decoder_state[1].view(decoder_state[1].shape[0], batch_size, self.beam_size, -1),
-            #         dim=2,
-            #         index=hyps_indices[None, :, :, None].expand(
-            #             decoder_state[1].shape[0], batch_size, self.beam_size, decoder_state[1].shape[-1]
-            #         ),
-            #     ).view(decoder_state[1].shape[0], batch_size * self.beam_size, -1),
-            # )
+            prev_decoder_state = self.decoder.batch_aggregate_states_beam(decoder_state, batch_size, self.beam_size, hyps_indices)
 
             decoder_output, decoder_state, *_ = self.decoder.predict(
                 last_labels_wb.view(-1).unsqueeze(1),
@@ -571,7 +567,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             time_indices = batched_hyps.next_timestep
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
-            # torch.cuda.set_sync_debug_mode(0)
 
         return batched_hyps.to_hyps_list(score_norm=self.score_norm)
     
@@ -996,8 +991,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 self.state.next_idx,
                 self.state.next_labels,
                 self.state.next_scores)
-        if self.allow_recombine_hyps:
-            self.state.batched_hyps.self_recombine_hyps_()
+        
+        self.state.batched_hyps.recombine_hyps()
 
     def _loop_update_decoder(self):
         # step 4: update decoder state + decoder output (+ lm state/scores)

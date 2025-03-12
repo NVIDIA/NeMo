@@ -276,9 +276,11 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     @classmethod
-    def batch_rearrange_states(
+    def batch_aggregate_states_beam(
         cls,
         src_states: Tuple[torch.Tensor, torch.Tensor],
+        batch_size: int,
+        beam_size: int,
         indices: torch.Tensor,
     ):
         raise NotImplementedError()

@@ -169,7 +169,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     labels = torch.where(to_update.unsqueeze(-1), labels, -1)
                     total_logps = torch.where(to_update.unsqueeze(-1), total_logps, batched_hyps.INACTIVE_SCORE)
                     
-                    total_logps = batched_hyps.remove_duplicate_new(labels, total_logps)
+                    total_logps = batched_hyps.remove_duplicates(labels, total_logps)
                     total_logps[..., -1] = torch.where(to_update, total_logps[..., -1], batched_hyps.scores)
                                 
                     total_logps, idx = total_logps.view(batch_size, -1).topk(self.beam_size, dim=-1, largest=True, sorted=True)
