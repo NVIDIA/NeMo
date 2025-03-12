@@ -30,15 +30,19 @@ if TYPE_CHECKING:
 class SquadDataModule(FineTuningDataModule, IOMixin):
     """A data module for fine-tuning on the Squad dataset.
 
-    This class inherits from the `FineTuningDataModule` class and is specifically designed for fine-tuning models on the
-    Stanford Question Answering Dataset (SQuAD). It handles data download, preprocessing, splitting, and preparing the data
-    in a format suitable for training, validation, and testing.
+    This class inherits from the `FineTuningDataModule` class and is specifically designed for
+    fine-tuning models on the Stanford Question Answering Dataset (SQuAD). It handles data download,
+    preprocessing, splitting, and preparing the data in a format suitable for training,
+    validation, and testing.
 
     Args:
-        dataset_root (Optional[Union[str, Path]]): The root directory containing the training, validation, and test data.
-            Defaults to None, which by default downloads the data.
-        force_redownload (bool, optional): Whether to force re-download the dataset even if it exists locally. Defaults to False.
-        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing. Defaults to True.
+        dataset_root (Optional[Union[str, Path]]): The root directory containing the training,
+            validation, and test data. Defaults to None, which by default downloads the data.
+        force_redownload (bool, optional): Whether to force re-download the dataset even if it
+            exists locally. Defaults to False.
+        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing.
+            Defaults to True.
+
         See FineTuningDataModule for the other args
     """
 
