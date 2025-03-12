@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import tempfile
-from types import SimpleNamespace
+from functools import partial
 
 import fiddle as fdl
 import lightning.pytorch as pl
@@ -21,8 +21,7 @@ from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing, pytorch_adam_with_flat_lr
-from nemo.lightning import NeMoLogger
+from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
@@ -175,7 +174,8 @@ def main():
         optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr, warmup_steps=50))
 
     if args.fp8:
-        model_accelerator = SimpleNamespace(fp8_autocast=True)
+        from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+        model_accelerator = partial(te_accelerate, fp8_autocast=True)
     else:
         model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
@@ -217,7 +217,7 @@ def main():
             precision="bf16-mixed",
         ),
         optim=optimizer,
-        log=logger(args.ckpt_folder, args.max_steps),
+        log=logger(args.ckpt_folder, args.max_steps // 2),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
             dim=8,

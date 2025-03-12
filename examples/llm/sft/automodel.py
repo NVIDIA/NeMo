@@ -12,15 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import tempfile
 from functools import partial
-from types import SimpleNamespace
 
 import fiddle as fdl
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
-from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -175,7 +172,8 @@ def main():
         optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
 
     if args.fp8:
-        model_accelerator = SimpleNamespace(fp8_autocast=True)
+        from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+        model_accelerator = partial(te_accelerate, fp8_autocast=True)
     else:
         model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
