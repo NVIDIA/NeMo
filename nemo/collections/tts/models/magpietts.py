@@ -163,9 +163,7 @@ class MagpieTTS_Model(ModelPT):
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
 
-        self.final_proj = nn.Linear(
-            cfg.decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook
-        )
+        self.final_proj = nn.Linear(cfg.decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook)
 
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
         # del codec discriminator to free memory
@@ -510,9 +508,7 @@ class MagpieTTS_Model(ModelPT):
 
             text_embedded = self.text_embedding(text)  # (B, T, E)
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
-            text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)[
-                'output'
-            ]  # (B, T, E)
+            text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
 
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)

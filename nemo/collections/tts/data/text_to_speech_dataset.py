@@ -756,6 +756,7 @@ class MagpieTTSDatasetDPO(MagpieTTSDataset):
         - scripts/magpietts/dpo/create_preference_pairs.py
     in sequence to generate samples and create preference pairs.
     """
+
     def __len__(self):
         return len(self.data_samples) // 2
 
