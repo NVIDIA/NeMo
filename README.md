@@ -294,7 +294,7 @@ multi-GPU/multi-node training.
 ## Requirements
 
 - Python 3.10 or above
-- Pytorch 1.13.1 or above
+- Pytorch 2.5 or above
 - NVIDIA GPU (if you intend to do model training)
 
 ## Developer Documentation
@@ -370,6 +370,7 @@ following domain-specific commands:
 ```bash
 pip install nemo_toolkit['asr']
 pip install nemo_toolkit['nlp']
+pip install nemo_toolkit['llm']
 pip install nemo_toolkit['tts']
 pip install nemo_toolkit['vision']
 pip install nemo_toolkit['multimodal']
