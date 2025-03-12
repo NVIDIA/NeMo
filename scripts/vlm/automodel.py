@@ -90,8 +90,9 @@ if __name__ == '__main__':
 
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
     if "gemma-3" in args.model.lower():
-        model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor,
-                                                  attn_implementation='eager')
+        model = vlm.HFAutoModelForImageTextToText(
+            args.model, load_in_4bit=args.use_4bit, processor=processor, attn_implementation='eager'
+        )
     else:
         model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor)
     peft = None
