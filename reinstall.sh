@@ -17,7 +17,7 @@ export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 
 PIP=pip
-${PIP} install -U ${PIP} setuptools
+${PIP} install --no-cache-dir -U ${PIP} setuptools
 
 te() {
   local mode="$1"
@@ -97,8 +97,8 @@ mcore() {
 
   build() {
     if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
-      pip wheel --no-deps --wheel-dir $WHEELS_DIR $MAMBA_DIR
-      pip wheel --no-deps --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
+      pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $MAMBA_DIR
+      pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
     fi
 
     pip wheel --no-deps --wheel-dir $WHEELS_DIR $MLM_DIR
@@ -176,8 +176,8 @@ nemo() {
   fi
 
   DEPS=(
-    "sox"                                                    # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
-    "ctc_segmentation==1.7.1 ; platform_machine == 'x86_64'" # requires numpy<2.0.0 to be installed before
+    "sox"                                                                                      # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
+    "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
   )
 
