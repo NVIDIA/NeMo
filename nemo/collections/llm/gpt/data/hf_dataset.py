@@ -85,18 +85,18 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
+        assert isinstance(split, str), "Expected split to be a string, but got {}".format(type(split))
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
         dataset_split_names = dataset.keys()
-        logging.info(f"HF dataset has the following splits: {dataset_split_names}")
+        logging.info("HF dataset has the following splits: {}".format(dataset_split_names))
         for alias_split_name, split in dataset.items():
             split_name = alias_to_split[alias_split_name]
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = split
     elif isinstance(split, list):
-        logging.info(f"Loaded HF dataset will use {str(split)} splits.")
+        logging.info("Loaded HF dataset will use {} splits.".format(split))
         assert isinstance(dataset, list)
         for i, alias_split_name in enumerate(map(clean_split, split)):
             split_name = alias_to_split[alias_split_name]
@@ -118,7 +118,7 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
+    assert num_init_splits > 0, "Expected at least one split to have been initialized {}".format(num_init_splits)
     return dataset_splits
 
 
@@ -266,14 +266,14 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
+            logging.info("Loading HF dataset from {}, this may take a moment.".format(path_or_dataset))
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
         elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
-            logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
+            logging.info("Using passed HF dataset {}".format(path_or_dataset))
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got {}".format(type(path_or_dataset))
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
