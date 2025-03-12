@@ -39,6 +39,7 @@ class MegatronDataSampler(DataSampler):
         seq_len: int,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
+        cu_global_batch_splits: Optional[List[int]] = None,
         rampup_batch_size: Optional[List[int]] = None,
         dataloader_type: Literal["single", "cyclic", "batch"] = "single",
         init_consumed_samples: int = 0,
@@ -59,48 +60,62 @@ class MegatronDataSampler(DataSampler):
         self.prev_global_batch_size = None
         self.init_global_step = init_global_step
 
+        from megatron.core import parallel_state
+
+        self.data_parallel_rank = parallel_state.get_data_parallel_rank()
+        self.data_parallel_size = parallel_state.get_data_parallel_world_size()
+        self.global_batch_split_range = None
+        if cu_global_batch_splits is not None:
+            # assume world size is evenly split into len(cu_global_batch_splits)
+            self.data_parallel_size = self.data_parallel_size // len(cu_global_batch_splits)
+            world_size_split_range_id = self.data_parallel_rank // self.data_parallel_size
+            self.data_parallel_rank = self.data_parallel_rank % self.data_parallel_size
+            self.global_batch_split_range = (
+                cu_global_batch_splits[world_size_split_range_id],
+                cu_global_batch_splits[world_size_split_range_id+1],
+            )
+
     def setup(self, global_rank: int) -> None:
         from nemo.lightning.data import setup_microbatch_calculator
 
-        setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size)
+        setup_microbatch_calculator(
+            global_rank,
+            self.data_parallel_size,
+            self.micro_batch_size,
+            self.global_batch_size,
+            self.global_batch_split_range,
+            self.rampup_batch_size,
+        )
 
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
-        from megatron.core import parallel_state
-
         from nemo.lightning.data import add_megatron_sampler
 
         mode = getattr(dataloader, 'mode', 'train')
 
-        data_parallel_rank = parallel_state.get_data_parallel_rank()
-        data_parallel_size = parallel_state.get_data_parallel_world_size()
         return add_megatron_sampler(
             dataloader,
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
+            global_batch_split_range=self.global_batch_split_range,
             rampup_batch_size=self.rampup_batch_size,
             consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
             dataloader_type=self.dataloader_type,
             drop_last=mode not in ["test", "predict"],  # don't drop the incomplete batch in test and predict methods
             dataloader_mode=mode,  # dataloader wrapped with nemo.lightning.data.WrappedDataLoader has mode attribute
-            rank=data_parallel_rank,
-            world_size=data_parallel_size,
+            rank=self.data_parallel_rank,
+            world_size=self.data_parallel_size,
         )
 
     def compute_consumed_samples(self, steps_since_resume=0) -> int:
         from nemo.lightning.pytorch.strategies import MegatronStrategy
-        from nemo.utils import AppState
 
         if not hasattr(self, "trainer") or not isinstance(self.trainer.strategy, MegatronStrategy):
             return 0
 
-        app_state = AppState()
         if self.rampup_batch_size is not None:
             consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
         else:
-            consumed_samples = (
-                self.init_consumed_samples
-                + steps_since_resume * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
-            )
+            consumed_samples = self.init_consumed_samples + steps_since_resume * self.current_global_batch_size
 
         return int(consumed_samples)
 
