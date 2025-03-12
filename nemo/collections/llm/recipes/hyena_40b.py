@@ -21,12 +21,15 @@ from nemo.collections.llm.recipes.hyena_base import model_recipe, pretrain_recip
 
 
 NAME = "hyena_40b"
+
+
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[TokenizerSpec]:
     return tokenizer_recipe()
 
+
 @run.cli.factory(name=NAME)
-def model(tp_comm_overlap: bool=False, seq_length:int=8192) -> run.Config[pl.LightningModule]:
+def model(tp_comm_overlap: bool = False, seq_length: int = 8192) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Striped-Hyena 40B model configuration.
 
@@ -35,17 +38,18 @@ def model(tp_comm_overlap: bool=False, seq_length:int=8192) -> run.Config[pl.Lig
     """
     return model_recipe('40b', tp_comm_overlap, seq_length)
 
+
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir=None,
-    micro_batch_size=1, 
+    micro_batch_size=1,
     global_batch_size=8,
     num_nodes=4,
     num_gpus_per_node=8,
     tensor_parallel_size=8,
     context_parallel_size=2,
     model_size='40b',
-    fn=pretrain, 
+    fn=pretrain,
     **kwargs,
 ) -> run.Partial:
     """
@@ -65,42 +69,45 @@ def pretrain_recipe(
         run.Partial: Partial configuration for pre-training.
 
     """
-    return pretrain_recipe_creater(dir=dir,
-                                    micro_batch_size=micro_batch_size, 
-                                    global_batch_size=global_batch_size,
-                                    num_nodes=num_nodes,
-                                    num_gpus_per_node=num_gpus_per_node,
-                                    tensor_parallel_size=tensor_parallel_size,
-                                    context_parallel_size=context_parallel_size,
-                                    model_size=model_size,
-                                    **kwargs)
+    return pretrain_recipe_creater(
+        dir=dir,
+        micro_batch_size=micro_batch_size,
+        global_batch_size=global_batch_size,
+        num_nodes=num_nodes,
+        num_gpus_per_node=num_gpus_per_node,
+        tensor_parallel_size=tensor_parallel_size,
+        context_parallel_size=context_parallel_size,
+        model_size=model_size,
+        **kwargs,
+    )
+
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir=None,
     resume_path=None,
-    micro_batch_size=1, 
+    micro_batch_size=1,
     global_batch_size=8,
     num_nodes=4,
     num_gpus_per_node=8,
     tensor_parallel_size=8,
     context_parallel_size=2,
     model_size='40b',
-    fn=finetune, 
+    fn=finetune,
     **kwargs,
 ) -> run.Partial:
-    """
-
-    """
+    """ """
     assert resume_path is not None, "resume_path None, invalid for finetune"
-    return pretrain_recipe_creater(dir=dir,
-                                    resume_path=resume_path,
-                                    micro_batch_size=micro_batch_size, 
-                                    global_batch_size=global_batch_size,
-                                    num_nodes=num_nodes,
-                                    num_gpus_per_node=num_gpus_per_node,
-                                    tensor_parallel_size=tensor_parallel_size,
-                                    context_parallel_size=context_parallel_size,
-                                    model_size=model_size,
-                                    fn=fn, 
-                                    **kwargs)
+    return pretrain_recipe_creater(
+        dir=dir,
+        resume_path=resume_path,
+        micro_batch_size=micro_batch_size,
+        global_batch_size=global_batch_size,
+        num_nodes=num_nodes,
+        num_gpus_per_node=num_gpus_per_node,
+        tensor_parallel_size=tensor_parallel_size,
+        context_parallel_size=context_parallel_size,
+        model_size=model_size,
+        fn=fn,
+        **kwargs,
+    )

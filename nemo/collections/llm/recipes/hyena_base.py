@@ -14,10 +14,9 @@
 
 
 from collections import defaultdict
+from dataclasses import asdict
 from pathlib import Path
 from typing import Literal, Optional
-from dataclasses import asdict
-
 
 import lightning.pytorch as pl
 import nemo_run as run
@@ -43,8 +42,8 @@ from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCall
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-
 NAME = "hyena_test"
+
 
 def tokenizer_recipe():
     return run.Config(
@@ -52,7 +51,8 @@ def tokenizer_recipe():
         library='byte-level',
     )
 
-def model_recipe(model_size:str, tp_comm_overlap: bool, seq_length:int) -> run.Config[pl.LightningModule]:
+
+def model_recipe(model_size: str, tp_comm_overlap: bool, seq_length: int) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a striped hyena model
 
@@ -95,6 +95,8 @@ def model_recipe(model_size:str, tp_comm_overlap: bool, seq_length:int) -> run.C
         ),
         tokenizer=tokenizer(),
     )
+
+
 def trainer_recipe(
     tensor_parallelism: int = 8,
     pipeline_parallelism: int = 1,
@@ -110,12 +112,12 @@ def trainer_recipe(
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
     callbacks: Optional[list[run.Config[Callback]]] = None,
-    fp8:bool = False,
-    grad_reduce_in_fp32:bool = True,
+    fp8: bool = False,
+    grad_reduce_in_fp32: bool = True,
     align_param_gather: bool = True,
     no_aligned_megatron_ddp: bool = False,
-    ckpt_async_save:bool = True,
-    save_ckpt_format:Literal['torch_dist', 'zarr'] = 'torch_dist',
+    ckpt_async_save: bool = True,
+    save_ckpt_format: Literal['torch_dist', 'zarr'] = 'torch_dist',
 ) -> run.Config[nl.Trainer]:
     """
     Configure the NeMo Lightning Trainer for Striped Hyena model.
@@ -171,7 +173,7 @@ def trainer_recipe(
             align_param_gather=align_param_gather,
             use_distributed_optimizer=True,  # this should inherit from the optimizer config, but just in case...
         )
-    
+
     strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
@@ -212,54 +214,53 @@ def trainer_recipe(
     return trainer
 
 
-def blended_dataset_config_recipe(
-    config_path: Path | str | None = None
-):
+def blended_dataset_config_recipe(config_path: Path | str | None = None):
     return run.Config(
         parse_dataset_config,
         dataset_config_path=config_path,
     )
 
+
 def pretrain_recipe_creater(
-    dataset_config:str = None,
-    global_batch_size:int = 8,
-    micro_batch_size:int = 1,
-    num_nodes:int = 1,
-    num_gpus_per_node:int = 8,
-    grad_acc_batches:int=1,
-    tensor_parallel_size:int = 8,
-    pipeline_model_parallel_size:int=1,
-    context_parallel_size:int = 1,
-    seq_length:int = 8192,
-    seed:int = 1234,
-    model_size:str = '7b',
-    use_megatron_comm_overlap_llama3_8k:bool = False,
-    workers:int = 10,
-    val_check_interval:int = 100,
-    dir:str = None,
-    enable_preemption:bool = True,
-    align_param_gather:bool = True,
-    tflops_callback:bool = None,
-    gc_interval:int = 0,
-    nsys_profiling:bool = False,
-    max_steps:int = 100,
-    nsys_start_step:int = 1,
-    nsys_end_step:int = None,
+    dataset_config: str = None,
+    global_batch_size: int = 8,
+    micro_batch_size: int = 1,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    grad_acc_batches: int = 1,
+    tensor_parallel_size: int = 8,
+    pipeline_model_parallel_size: int = 1,
+    context_parallel_size: int = 1,
+    seq_length: int = 8192,
+    seed: int = 1234,
+    model_size: str = '7b',
+    use_megatron_comm_overlap_llama3_8k: bool = False,
+    workers: int = 10,
+    val_check_interval: int = 100,
+    dir: str = None,
+    enable_preemption: bool = True,
+    align_param_gather: bool = True,
+    tflops_callback: bool = None,
+    gc_interval: int = 0,
+    nsys_profiling: bool = False,
+    max_steps: int = 100,
+    nsys_start_step: int = 1,
+    nsys_end_step: int = None,
     nsys_ranks: list[int] = [0],
-    no_aligned_megatron_ddp:bool = False,
-    grad_reduce_in_fp32:bool = False,
-    fp8:bool = True,
+    no_aligned_megatron_ddp: bool = False,
+    grad_reduce_in_fp32: bool = False,
+    fp8: bool = True,
     wandb_run_id: str = None,
     ckpt_async_save: bool = True,
-    sequence_parallel:bool = True,
+    sequence_parallel: bool = True,
     ckpt_format: Literal["zarr", "torch_dist"] = "torch_dist",
-    limit_val_batches:int = 10,
-    restore_optimizer_from_ckpt:bool = False,
+    limit_val_batches: int = 10,
+    restore_optimizer_from_ckpt: bool = False,
     resume_path: str = None,
     wandb_project: str = None,
     wandb_name: str = None,
-    name:str = "default",
-    fn=pretrain
+    name: str = "default",
+    fn=pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for a striped hyena model.
@@ -274,7 +275,7 @@ def pretrain_recipe_creater(
         micro_batch_size (int): micro batch size per active device.
         num_nodes (int): number of nodes to use
         num_gpus_per_node (int): number of num_gpus_per_node per node to use.
-        grad_acc_batches (int): number of training batches the gradients will be accumulated before performing each 
+        grad_acc_batches (int): number of training batches the gradients will be accumulated before performing each
             optimizer update.
         tensor_parallel_size (int): Number of tensor parallel splits. Typically between 1 and 8 to keep parallelism
             within a single node.
@@ -317,9 +318,11 @@ def pretrain_recipe_creater(
         run.Partial: Partial configuration for pre-training.
 
     """
-    model_run_cfg = model_recipe(model_size=model_size, seq_length=seq_length, tp_comm_overlap=use_megatron_comm_overlap_llama3_8k)
+    model_run_cfg = model_recipe(
+        model_size=model_size, seq_length=seq_length, tp_comm_overlap=use_megatron_comm_overlap_llama3_8k
+    )
     if not dataset_config:
-        data_run_cfg=run.Config(
+        data_run_cfg = run.Config(
             MockDataModule,
             seq_length=seq_length,
             global_batch_size=global_batch_size,
@@ -353,10 +356,10 @@ def pretrain_recipe_creater(
     if resume_path:
         restore_cfg = run.Config(
             nl.RestoreConfig,
-                path=resume_path,
-                load_model_state=True,
-                load_optim_state=restore_optimizer_from_ckpt,
-            )
+            path=resume_path,
+            load_model_state=True,
+            load_optim_state=restore_optimizer_from_ckpt,
+        )
     else:
         restore_cfg = None
 
@@ -369,9 +372,8 @@ def pretrain_recipe_creater(
         restore_config=restore_cfg,
     )
 
-    callbacks:list[run.Config] = [
+    callbacks: list[run.Config] = [
         run.Config(TimingCallback),
-
     ]
     if use_megatron_comm_overlap_llama3_8k:
         callbacks.append(
@@ -408,17 +410,12 @@ def pretrain_recipe_creater(
             )
         )
     if enable_preemption:
-        callbacks.append(
-            run.Config(nl_callbacks.PreemptionCallback)
-        )
+        callbacks.append(run.Config(nl_callbacks.PreemptionCallback))
     if tflops_callback:
         # Add callback that logs the tera-FLOPS per second per GPU during training.
         flop_meas_callback = run.Config(
             FLOPsMeasurementCallback,
-            run.Config(
-                asdict,
-                model_run_cfg
-            ),
+            run.Config(asdict, model_run_cfg),
             data_run_cfg,
             "hyena",
         )
@@ -433,7 +430,7 @@ def pretrain_recipe_creater(
             tensor_parallelism=tensor_parallel_size,
             pipeline_parallelism=pipeline_model_parallel_size,
             context_parallelism=context_parallel_size,
-            sequence_parallelism=sequence_parallel, # TODO Turn it on by default if TP is on
+            sequence_parallelism=sequence_parallel,  # TODO Turn it on by default if TP is on
             num_gpus_per_node=num_gpus_per_node,
             val_check_interval=val_check_interval,
             limit_test_batches=limit_val_batches,
@@ -457,12 +454,14 @@ def pretrain_recipe_creater(
         resume=nemo_resume,
     )
 
+
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[TokenizerSpec]:
     return tokenizer_recipe()
 
+
 @run.cli.factory(name=NAME)
-def model(tp_comm_overlap: bool, seq_length:int) -> run.Config[pl.LightningModule]:
+def model(tp_comm_overlap: bool, seq_length: int) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Hyena model configuration.
 
@@ -472,9 +471,12 @@ def model(tp_comm_overlap: bool, seq_length:int) -> run.Config[pl.LightningModul
     """
     return model_recipe('test', tp_comm_overlap, seq_length)
 
+
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    *args, fn=pretrain, **kwargs,
+    *args,
+    fn=pretrain,
+    **kwargs,
 ) -> run.Partial:
     """
     Create a pre-training recipe for a Hyena model.
@@ -495,13 +497,14 @@ def pretrain_recipe(
     """
     return pretrain_recipe_creater(*args, **kwargs)
 
+
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
-    resume_path:str | None,
-    *args, fn=finetune, **kwargs,
+    resume_path: str | None,
+    *args,
+    fn=finetune,
+    **kwargs,
 ) -> run.Partial:
-    """
-
-    """
+    """ """
     assert resume_path is not None, "resume_path None, invalid for finetune"
     return pretrain_recipe_creater(*args, resume_path=resume_path, fn=fn, **kwargs)
