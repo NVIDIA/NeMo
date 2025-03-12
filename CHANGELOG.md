@@ -3,8 +3,41 @@
 <!-- Next changelog -->
 ## NVIDIA Neural Modules 2.2.0
 
-### Detailed Changelogs:
+### Highlights
 
+- Training
+  - Blackwell and Grace Blackwell support
+  - Pipeline parallel support for distillation
+  - Improved NeMo Framework installation
+- Export & Deploy
+  - vLLM export for NeMo 2.0
+- Evaluations
+  - Integrate lm-eval-harness
+- Collections
+  - LLM
+    - DAPT Example and best practices in nemo 2.0
+    - [NeMo 2.0] Enable Tool Learning and add a tutorial
+    - Support GPT Embedding Model (Llama 3.2 1B/3B)
+    - Qwen2.5, Phi4 (via AutoModel)
+    - SFT for Llama 3.3 model (via AutoModel)
+    - Support BERT Embedding Model with NeMo 2.0
+    - DeepSeek SFT & PEFT Support
+  - MultiModal
+    - Clip
+    - SP for NeVA
+    - CP for NeVA
+    - Intern-VIT
+- Automodel
+  - Preview release.
+  - PEFT and SFT support for LLMs available via Hugging Face’s AutoModelForCausalLM.
+  - Support for Hugging Face-native checkpoints (full model and adapter only).
+  - Support for distributed training via DDP and FSDP2.
+- ASR/TTS
+  - Lhotse: TPS-free 2D bucket estimation and filtering
+  - Update model outputs to make all asr outputs to be in consistent format
+  - Sortformer Release Model
+
+### Detailed Changelogs:
 
 #### ASR
 
@@ -770,10 +803,10 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 
 <details><summary>Changelog</summary>
 
-- Support dataloader as input to `audio` for transcription by @titu1994 :: PR: #9201  
-- Clean up dev docs collection section by @yaoyu-33 :: PR: #9205  
-- Fix Online_Offline_Microphone_VAD_Demo.ipynb by @stevehuang52 :: PR: #9251  
-- Remove .nemo instead of renaming by @mikolajblaz :: PR: #9281  
+- Support dataloader as input to `audio` for transcription by @titu1994 :: PR: #9201
+- Clean up dev docs collection section by @yaoyu-33 :: PR: #9205
+- Fix Online_Offline_Microphone_VAD_Demo.ipynb by @stevehuang52 :: PR: #9251
+- Remove .nemo instead of renaming by @mikolajblaz :: PR: #9281
 - Fix GreedyBatchedCTCInfer regression from GreedyCTCInfer. by @galv :: PR: #9347
 - Revert "Fix GreedyBatchedCTCInfer regression from GreedyCTCInfer." by @titu1994 :: PR: #9351
 - Prompt formatter API and canary transcribe tensor input support by @pzelasko :: PR: #9206
@@ -812,7 +845,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 </details>
 
 #### LLM/Multimodal
-  
+
 <details><summary>Changelog</summary>
 
 - Update nemo.export module for quantized models by @janekl :: PR: #9218
@@ -946,7 +979,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 
 
 #### Bugfixes
-  
+
 <details><summary>Changelog</summary>
 
 - use get with fallback when reading checkpoint_callback_params by @akoumpa :: PR: #9223
@@ -1206,7 +1239,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 ### Detailed Changelogs
 
 #### ASR
-  
+
 <details><summary>Changelog</summary>
 
 - Enable using hybrid asr models in CTC Segmentation tool by @erastorgueva-nv :: PR: #8828
@@ -1239,7 +1272,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 - Force diarizer to use CUDA if cuda is available and if device=None. by @tango4j :: PR: #9380
 
 </details>
-  
+
 #### TTS
 
 <details><summary>Changelog</summary>
@@ -1450,7 +1483,7 @@ Previously, the RNNT metric was stateful while the CTC one was not ([r1.22.0](ht
 
 Therefore this calculation in the RNNT joint for fused operation worked properly. However with the unification of metrics in r1.23.0, a bug was introduced where only the last sub-batch of metrics calculates the scores and does not accumulate. This is patched via https://github.com/NVIDIA/NeMo/pull/8587 and will be fixed in the next release.
 
-**Workaround**: Explicitly disable fused batch size during inference using the following command 
+**Workaround**: Explicitly disable fused batch size during inference using the following command
 
 ```python
 from omegaconf import open_dict
