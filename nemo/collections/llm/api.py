@@ -516,9 +516,7 @@ def ptq(
     trainer = None
     if is_automodel:
         assert export_config.export_format != "nemo", "Automodel PTQ does not support export format nemo"
-        model = HFAutoModelForCausalLM(
-            model_name=nemo_checkpoint, load_pretrained_weights=True, trust_remote_code=trust_remote_code
-        )
+        model = HFAutoModelForCausalLM(model_name=nemo_checkpoint, trust_remote_code=trust_remote_code)
         model.configure_model()
     else:
         assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
