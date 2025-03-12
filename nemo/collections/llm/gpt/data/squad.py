@@ -13,8 +13,9 @@
 # limitations under the License.
 import json
 import shutil
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
 from datasets import DatasetDict, load_dataset
 
 from nemo.collections.llm.gpt.data.core import get_dataset_root
@@ -151,5 +152,5 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
                     p.unlink()
 
     def reconfigure_limit_batches(self):
-        """ no op """
+        """no op"""
         return

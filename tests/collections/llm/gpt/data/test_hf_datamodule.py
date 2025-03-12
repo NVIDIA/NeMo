@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 from datasets import Dataset, DatasetDict
+from torch.utils.data import DataLoader
 
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import (
@@ -27,11 +28,9 @@ from nemo.collections.llm.gpt.data.hf_dataset import (
     pad_within_micro,
 )
 
-from torch.utils.data import DataLoader
-
-
 SQUAD_HF_CACHE = "/home/TestData/lite/hf_cache/squad/"
 SQUAD_NEMO_CACHE = "/home/TestData/lite/nemo_cache/squad"
+
 
 def test_load_single_split():
     ds = llm.HFDatasetDataModule(
@@ -346,32 +345,30 @@ def test_pad_within_micro():
 
 @pytest.fixture
 def mock_tokenizer():
-    """ Mock tokenizer for testing. """
+    """Mock tokenizer for testing."""
     tokenizer = MagicMock()
     tokenizer.bos_id = 1
     tokenizer.eos_id = 2
+
     def mock_text_to_ids(text):
         # Return a deterministic list of token ids for the test
         return [1, 11, 22, 2]
+
     tokenizer.text_to_ids.side_effect = mock_text_to_ids
     return tokenizer
 
 
 @pytest.fixture
 def mock_trainer():
-    """ Mock Trainer object that can provide max_steps attribute. """
+    """Mock Trainer object that can provide max_steps attribute."""
     trainer = MagicMock()
-    trainer.max_steps = 42 # Example value; adjust as needed
+    trainer.max_steps = 42  # Example value; adjust as needed
     return trainer
 
 
 def test_squad_data_module_no_download(mock_trainer):
     """Test that SquadDataModule uses the dataset_root path and does not download data."""
-    data_module = llm.SquadDataModule(
-        dataset_root=SQUAD_NEMO_CACHE,
-        force_redownload=False,
-        delete_raw=False
-    )
+    data_module = llm.SquadDataModule(dataset_root=SQUAD_NEMO_CACHE, force_redownload=False, delete_raw=False)
     data_module.trainer = mock_trainer
     data_module.prepare_data()
     data_module.setup(stage="fit")
@@ -383,7 +380,7 @@ def test_squad_data_module_no_download(mock_trainer):
 def test_squad_data_module_with_pth_dataloader_init(mock_tokenizer, mock_trainer):
     """
     Test that SquadDataModuleWithPthDataloader can be instantiated without errors, and that it
-    creates a PyTorch DataLoader (not some other type). """
+    creates a PyTorch DataLoader (not some other type)."""
 
     class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
         """Creates a squad dataset with a PT dataloader"""
@@ -406,7 +403,8 @@ def test_squad_data_module_with_pth_dataloader_init(mock_tokenizer, mock_trainer
         micro_batch_size=4,
         global_batch_size=128,
         num_workers=0,
-        force_redownload=False, delete_raw=False,
+        force_redownload=False,
+        delete_raw=False,
         dataset_kwargs={
             "pad_to_max_length": True,
             "sanity_check_dist_workers": False,
@@ -442,7 +440,7 @@ def test_squad_data_module_with_pth_dataloader_init(mock_tokenizer, mock_trainer
         'answers': [4, 512],
         'metadata': 4,
         'token_count': 4,
-        'attention_mask': [4, 1, 512, 512]
+        'attention_mask': [4, 1, 512, 512],
     }
     assert isinstance(batch, dict)
     for key, val in expected_batch.items():
