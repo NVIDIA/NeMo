@@ -25,6 +25,7 @@ from nemo.collections.vlm.vision.intern_vit import (
     InternViTModel,
 )
 from nemo.collections.vlm.vision.siglip_vit import SigLIPViT400M_14_384_Config, SigLIPViTModel
+from nemo.collections.vlm.vision.radio import RADIO_25_h_Config, RADIO_25_g_Config, RADIOViTModel
 
 __all__ = [
     "MultimodalProjectorConfig",
@@ -37,4 +38,7 @@ __all__ = [
     "InternViTModel",
     "InternViT_300M_448px_Config",
     "InternViT_6B_448px_Config",
+    "RADIO_25_h_Config",
+    "RADIO_25_g_Config",
+    "RADIOViTModel",
 ]

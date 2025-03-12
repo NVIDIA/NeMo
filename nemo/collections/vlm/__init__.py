@@ -53,6 +53,11 @@ from nemo.collections.vlm.neva.data import (
 )
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
+from nemo.collections.vlm.neva.model.cosmos_megatron import (
+    CosmosMegatronConfig,
+    CosmosMegatronRadioLlama8BConfig,
+    CosmosMegatronModel,
+)
 
 # PEFT
 from nemo.collections.vlm.peft import LoRA
@@ -71,6 +76,9 @@ from nemo.collections.vlm.vision import (
     MultimodalProjectorConfig,
     SigLIPViT400M_14_384_Config,
     SigLIPViTModel,
+    RADIO_25_h_Config,
+    RADIO_25_g_Config,
+    RADIOViTModel,
 )
 
 __all__ = [
@@ -123,4 +131,10 @@ __all__ = [
     "CLIPConfigL14",
     "CLIPConfigB32",
     "ClipMockDataModule",
+    "RADIO_25_h_Config",
+    "RADIO_25_g_Config",
+    "RADIOViTModel",
+    "CosmosMegatronConfig",
+    "CosmosMegatronRadioLlama8BConfig",
+    "CosmosMegatronModel",
 ]

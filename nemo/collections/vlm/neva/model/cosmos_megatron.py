@@ -24,7 +24,7 @@ from torch import nn
 from nemo.collections.audio.parts.utils.audio import toeplitz
 from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig, Llama31Config8B
 from nemo.collections.llm.utils import Config
-from nemo.collections.vlm import LlavaConfig
+from nemo.collections.vlm.neva.model.llava import LlavaConfig
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProjectorConfig
 from nemo.collections.vlm.vision.radio import RADIO_25_h_Config
@@ -59,7 +59,7 @@ class CosmosMegatronConfig(LlavaConfig):
 
 
 @dataclass
-class CosmosMegatron8BConfig(CosmosMegatronConfig):
+class CosmosMegatronRadioLlama8BConfig(CosmosMegatronConfig):
     """Cosmos Megatron 8B Config"""
     pass
 
@@ -156,6 +156,6 @@ class CosmosMegatronImporter(io.ModelConnector["CosmosMegatronModel", CosmosMega
     @property
     def config(self) -> CosmosMegatronConfig:
         # pylint: disable=C0115,C0116
-        output = CosmosMegatron8BConfig()
+        output = CosmosMegatronRadioLlama8BConfig()
 
         return output
