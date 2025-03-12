@@ -45,7 +45,6 @@ jobs:
           fi
 
       - name: Run LLM example
-        if: ${{ matrix.installer == 'nemo-install' }}
         run: |
           # This is guarded since it requires nemo-run. We expect Nemo-run to be
           # available on PyPi with 25.04.
@@ -57,7 +56,7 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts"; do
+          for collection in "asr" "tts" "nlp"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
@@ -92,7 +91,6 @@ jobs:
           fi
 
       - name: Run LLM example
-        if: ${{ matrix.installer == 'nemo-install' }}
         run: |
           # This is guarded since it requires nemo-run. We expect Nemo-run to be
           # available on PyPi with 25.04.
@@ -104,6 +102,6 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts"; do
+          for collection in "asr" "tts" "nlp"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
