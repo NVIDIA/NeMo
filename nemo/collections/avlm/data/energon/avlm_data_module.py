@@ -90,10 +90,8 @@ class AVLMDataModule(EnergonMultiModalDataModule):
         This method retrieves the dataset for the specified split (either 'train' or 'val') and configures
         it according to the worker configuration.
 
-        video and audio files wil be passed to the task encoder as raw bytes which will be processed in a 
+        audio, video and image files wil be passed to the task encoder as raw bytes which will be processed in a 
         more fine-grained way.
-        Raw audio bytes will be read by soundFile. E.g. MediaCrudeWebDataset._build_sample
-        Raw video bytes will be read by torchvision.io.VideoReader
 
         Parameters:
         worker_config: Configuration for the data loader workers.
@@ -121,7 +119,6 @@ class AVLMDataModule(EnergonMultiModalDataModule):
             shuffle_buffer_size=self.shuffle_buffer_size,
             max_samples_per_sequence=self.max_samples_per_sequence,
             auto_decode=False,
-            image_decode='pil',
             **self.kwargs,
         )
 

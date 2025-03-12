@@ -22,15 +22,13 @@ def get_media(raw, media_type, value, offset=None, duration=None):
 
     if media_type == "text":
         return value
-    elif media_type == "audio" or media_type == "video":
+    else:
         media_dict = { "media_type": media_type, "media_value": raw[value]}
         if offset is not None:
             media_dict["offset"] = offset
         if duration is not None:
             media_dict["duration"] = duration
         return AVLMMediaDict(**media_dict)
-    else:
-        return raw[value]
 
 
 """
@@ -225,19 +223,13 @@ def sample_loader_QA(raw: dict) -> dict:
         durations = jsn.get("video_durations") or [None] * len(video_files)
         if not isinstance(offsets, list):
             offsets = [offsets]
-        if not isinstance(durations):
+        if not isinstance(durations, list):
             durations = [durations]
         output_dict["videos"] = [get_media(raw, "video", f.split('.',1)[1], offsets[i], durations[i]) for i,f in enumerate(video_files)]
 
     if "image" in jsn or "images" in jsn:
         image_files = jsn["image"].split(",") if "image" in jsn else jsn["images"].split(",")
-        offsets = jsn.get("image_offsets") or [None] * len(image_files)
-        durations = jsn.get("image_durations") or [None] * len(image_files)
-        if not isinstance(offsets, list):
-            offsets = [offsets]
-        if not isinstance(durations):
-            durations = [durations]
-        output_dict["images"] = [get_media(raw, "image", f.split('.',1)[1], offsets[i], durations[i]) for i,f in enumerate(image_files)]
+        output_dict["images"] = [get_media(raw, "image", f.split('.',1)[1]) for i,f in enumerate(image_files)]
 
     for turn in jsn["conversations"]:
         if "type" not in turn:

@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from PIL import Image
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal, Any
+from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal, Any, Iterable
 
 import torch
 
@@ -36,9 +35,14 @@ class VideoSize:
     height: int
     width: int
 
+@dataclass
+class ImageSize:
+    height: int
+    width: int
+
 
 class MediaDict(TypedDict):
-    media_type: Literal["audio", "video"]
+    media_type: Literal["audio", "video", "image"]
     media_value: bytes
     offset: NotRequired[float]
     duration: NotRequired[float]
@@ -46,8 +50,8 @@ class MediaDict(TypedDict):
 
 @dataclass
 class AVLMEnergonInterleavedSample(Sample):
-    # sequence of interleaved media, (either PIL.Image for an image, str for text, bytes or mediaDict for an audio or video)
-    sequence: List[Union[bytes, str, Image.Image, dict]]
+    # sequence of interleaved media, (either str for text, MediaDict for an audio, a video or an image)
+    sequence: List[Union[bytes, str, MediaDict]]
 
 
 @dataclass
@@ -56,9 +60,9 @@ class AVLMEnergonQASample(Sample):
     answers: Optional[List[str]] = None
     answer_weights: Optional[torch.Tensor] = None
 
-    audios: Optional[List[Union[bytes, dict]]] = None
-    videos: Optional[List[Union[bytes, dict]]] = None
-    images: Optional[List[Image.Image]] = None
+    audios: Optional[List[MediaDict]] = None
+    videos: Optional[List[MediaDict]] = None
+    images: Optional[List[MediaDict]] = None
 
 
 @dataclass
@@ -119,6 +123,7 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     # audio related sample config
     audio_token: AudioToken = field(default_factory=AudioToken)
     audio_sample_rate: int = field(default=16000)
+    audio_channel_selector: Optional[Union[int, Iterable[int], Literal["average"]]] = "average"
     audio_waveform_featurizer_int_values: bool = field(default=False)
     # the detailed structure of audio_augmentor can be found at: 
     audio_augmentor: Optional[
