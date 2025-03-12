@@ -22,7 +22,6 @@ import torch
 import torch.distributed as dist
 from accelerate.hooks import remove_hook_from_module
 from datasets import load_dataset
-from megatron.core import parallel_state
 from tqdm import tqdm
 
 from nemo.collections import llm

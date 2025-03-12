@@ -31,7 +31,7 @@ import torch
 import torch.nn.functional as F
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
-from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast, PreTrainedTokenizerBase
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
