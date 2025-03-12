@@ -98,7 +98,6 @@ class Conversation:
             """
             tokenizer_name_or_path = self.tokenizer_name_or_path or "Qwen/Qwen2-VL-2B-Instruct"
             ret = self.process_chat_template(tokenizer_name_or_path, messages)
-            return ret
 
         elif self.sep_style == SeparatorStyle.CHATML:
             # FIXME:  To be support video.
@@ -124,7 +123,6 @@ class Conversation:
                     ret += role + "\n" + message + self.sep + "\n"
                 else:
                     ret += role + "\n"
-            return ret
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
