@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import io
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
@@ -26,8 +27,6 @@ from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject,
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
-from torch.distributed._composable.fsdp.fully_shard import fully_shard
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
@@ -35,6 +34,13 @@ from torch.distributed.device_mesh import DeviceMesh
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+from nemo.utils.import_utils import safe_import_from
+
+
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
+)
+fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
 
 
 @dataclass(kw_only=True)
@@ -175,14 +181,10 @@ def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
     Returns:
         Checkpoint IO handler instance.
     """
-    model_library = "megatron"
-    if "model_library" in kwargs.keys():
-        model_library = kwargs["model_library"]
+    if kwargs.get("model_library", None) == "huggingface":
+        from nemo.lightning.io.hf import HFCheckpointIO
 
-    if model_library == "huggingface":
-        from nemo.lightning.io.pl import HuggingFaceCheckpointIO
-
-        checkpoint_io = HuggingFaceCheckpointIO(lora=kwargs["lora"])
+        checkpoint_io = HFCheckpointIO(adapter_only=kwargs.get("lora", False))
     else:
         from nemo.lightning.io.pl import MegatronCheckpointIO
 
@@ -444,7 +446,7 @@ def pyt_to_mcore_state_dict(
 def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
-    mp_policy: MixedPrecisionPolicy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32),
+    mp_policy: MixedPrecisionPolicy = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
@@ -453,8 +455,9 @@ def fsdp2_strategy_parallelize(
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
     """
 
-    dp_mesh = device_mesh["data_parallel"]
-    tp_mesh = device_mesh["tensor_parallel"]
+    if not mp_policy:
+        assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
+        mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
 
     def parallelize_helper(module, mesh, mp_policy):
         if isinstance(module, nn.ModuleList):
@@ -475,11 +478,12 @@ def fsdp2_strategy_parallelize(
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-    assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
-
+    # assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
+    dp_mesh = device_mesh["data_parallel"]
     if dp_mesh.size() > 1:
-        assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
+        assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
+        assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
         # Find transformer layers and apply parallelisms
         parallelize_helper(model, dp_mesh, mp_policy)
 
@@ -529,3 +533,12 @@ def to_cpu(v):
         return v.cpu()
     else:
         return v
+
+
+def _destroy_dist_connection() -> None:
+    """Destroy process group."""
+    # Don't allow Ctrl+C to interrupt this handler
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+    signal.signal(signal.SIGINT, signal.SIG_DFL)

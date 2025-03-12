@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
+import logging as _logging
 import os
 import shutil
 from contextlib import contextmanager
@@ -21,55 +23,55 @@ from typing import Any, Dict, Literal, Optional, Union
 import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import CheckpointIO
-from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.fabric.utilities.rank_zero import rank_zero_info
+from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
-    StateDictOptions,
-    get_optimizer_state_dict,
-    set_state_dict,
-)
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
+    _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
-    fix_progress_bar,
-    init_model_parallel,
-    mcore_to_pyt_sharded_state_dict,
-    pyt_to_mcore_state_dict,
+    fsdp2_strategy_parallelize,
     setup_data_sampler,
-    setup_parallel_ranks,
+)
+from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
+
+try:
+    from torch.distributed.tensor._api import distribute_tensor
+    from torch.distributed.tensor.placement_types import Shard
+except ImportError:
+    from torch.distributed._tensor.api import distribute_tensor
+    from torch.distributed._tensor.placement_types import Shard
+
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
 )
 
 
-class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
-    """Megatron plugin for Pytorch Lightning implementing FSDP 2.
+_logger = _logging.getLogger(__name__)
 
-    This strategy utilizes PyTorch's native Fully Sharded Data Parallel (FSDP) version 2 methods.
-    Compared to `MegatronStrategy`, `FSDP2Strategy` is designed to be more lightweight while
-    maintaining compatibility with NeMo and MCore. By default, this strategy wraps FSDP2 per
-    Transformer layer.
+
+class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
+    """FSDP2Strategy implementing FSDP via FSDP 2.
 
     Notes:
-        - This strategy is designed for NVIDIA's Megatron-LM framework and requires models
-          compatible with Megatron's parallelism techniques.
-        - Due to different optimizer structures, training cannot be resumed from checkpoints
-          saved with `MegatronStrategy`. However, model weights remain compatible, allowing for
-          switching strategies when only weights are needed (e.g., pretraining with Megatron 4D
-          parallelism and fine-tuning with FSDP2).
+    - TP + FSDP2 is currently not supported.
     """
 
     def __init__(
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
-        ckpt_load_optimizer: bool = True,
-        ckpt_save_optimizer: bool = True,
         data_sampler=None,
+        checkpoint_io=None,
+        mp_policy=None,
+        parallelize_fn=None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -77,23 +79,101 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Args:
             data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
             tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
-            ckpt_load_optimizer (bool): Whether to load optimizer state from checkpoints.
-            ckpt_save_optimizer (bool): Whether to save optimizer state in checkpoints.
             data_sampler (optional): Custom data sampler to process dataloaders.
+            mp_policy (optional): Mixed precision policy for parameter and operation casting.
+                Defaults to:
+                ```python
+                MixedPrecisionPolicy(
+                    param_dtype=torch.bfloat16,
+                    reduce_dtype=torch.float32,
+                    output_dtype=None,
+                    cast_forward_inputs=True,
+                )
+                ```
+            parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
-
+        self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
-        self.ckpt_load_optimizer = ckpt_load_optimizer
-        self.ckpt_save_optimizer = ckpt_save_optimizer
+        self.checkpoint = None
+        self.mp_policy = mp_policy
+        if self.mp_policy is None:
+            assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
+            self.mp_policy = MixedPrecisionPolicy(
+                param_dtype=torch.bfloat16,
+                reduce_dtype=torch.bfloat16,
+                output_dtype=torch.bfloat16,
+                cast_forward_inputs=True,
+            )
+        self.parallelize_fn = parallelize_fn or fsdp2_strategy_parallelize
+        self.store: Optional[torch.distributed.Store] = None
+
+    @property
+    @override
+    def lightning_restore_optimizer(self) -> bool:
+        """Optim state restoration is enabled"""
+        return True
+
+    def load_optimizer_state_dict(self, checkpoint) -> None:
+        """Stores a reference to the optimizer state-dict for later restoration.
+
+        Instead of immediately restoring the optimizer's state, this method saves the checkpoint
+        reference and defers the restoration until the first training step. This is necessary
+        because, in NeMo 2.0, PeFT adapters are added dynamically just before the first training
+        step. Attempting to restore the optimizer state-dict before the adapters are initialized
+        would result in an error.
+
+        Args:
+            checkpoint (dict): A dictionary containing the trainer's checkpoint,
+                            including the optimizer state-dict.
+        """
+        # TODO(@akoumparouli): refactor.
+        self.checkpoint = checkpoint
+
+    def _load_optimizer_state_dict(self) -> None:
+        """Restores the optimizer state-dict from the stored checkpoint.
+
+        This method applies the optimizer state stored in the checkpoint to the corresponding
+        optimizers. It ensures that the optimizer states are correctly restored after the
+        PeFT adapters have been added in the first training step.
+
+        If no checkpoint is stored, the method exits without performing any restoration.
+
+        Note: This operation runs only once, as the checkpoint reference is cleared after execution.
+        """
+        from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
+
+        if self.checkpoint is None:
+            for optimizer, opt_state in zip(self.optimizers, self.checkpoint["optimizer_states"]):
+                set_optimizer_state_dict(
+                    self.lightning_module,
+                    optimizer,
+                    optim_state_dict=opt_state,
+                    options={},
+                )
+            # run this only once
+            self.checkpoint = None
 
     @override
     def setup_environment(self) -> None:
-        """Sets up the parallel environment and initializes model parallelism."""
-        setup_parallel_ranks(self)
-        super().setup_environment()
-        init_model_parallel(self.model)
+        """setup distributed environment and device mesh"""
+        from torch.distributed.device_mesh import init_device_mesh
+
+        self.accelerator.setup_device(self.root_device)
+
+        self._setup_distributed()
+        if self._data_parallel_size == "auto":
+            self._data_parallel_size = self.num_nodes
+        if self._tensor_parallel_size == "auto":
+            self._tensor_parallel_size = self.num_processes
+        # No TP currently
+        self._device_mesh = init_device_mesh(
+            device_type=self.root_device.type,
+            mesh_shape=(self._data_parallel_size,),
+            mesh_dim_names=("data_parallel",),
+        )
+        self.lightning_module._device_mesh = self._device_mesh
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
@@ -104,8 +184,60 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """
         self.trainer = trainer
         setup_data_sampler(self.trainer)
-        fix_progress_bar(trainer)
-        super().setup(trainer)
+        # connect trainer to accelerator.
+        self.accelerator.setup(trainer)
+        # Parallelize model
+        if getattr(self, '_init_model_parallel', True):
+            self.parallelize()
+        # setup optim
+        if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
+            super().setup_optimizers(trainer)
+
+    def parallelize(self):
+        """Applies fully_shard on model"""
+        if self.parallelize_fn is not None:
+            # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
+            # Apply FSDP2 and TP to the model
+            self.parallelize_fn(self.lightning_module.model, device_mesh=self._device_mesh, mp_policy=self.mp_policy)
+            # Apply this only once
+            self.parallelize_fn = None
+        else:
+            logging.warning("Called parallelize more than once.")
+
+    @override
+    def _setup_distributed(self) -> None:
+        """Initializes process group for communications."""
+
+        # Implementation from superclass copied below in order to pass the store to the process group init
+        reset_seed()
+        self.set_world_ranks()
+        self._process_group_backend = self._get_process_group_backend()
+        assert self.cluster_environment is not None
+        if not torch.distributed.is_available():
+            raise RuntimeError("torch.distributed is not available. Cannot initialize distributed process group")
+        if torch.distributed.is_initialized():
+            _logger.debug("torch.distributed is already initialized. Exiting early")
+            return
+
+        global_rank = self.cluster_environment.global_rank()
+        world_size = self.cluster_environment.world_size()
+        os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
+        os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+        torch.distributed.init_process_group(
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+        )
+
+        if self._process_group_backend == "nccl":
+            atexit.register(_destroy_dist_connection)
+
+        # On rank=0 let everyone know training is starting
+        rank_zero_info(
+            f"{'-' * 100}\n"
+            f"distributed_backend={self._process_group_backend}\n"
+            f"All distributed processes registered. Starting with {world_size} processes\n"
+            f"{'-' * 100}\n"
+        )
 
     def _get_loss_reduction(self, step_type: str):
         """Retrieves the loss reduction method for a given step type.
@@ -144,6 +276,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         return loss, {'avg': loss}
 
     @override
+    def optimizer_state(self, optimizer):
+        """returns the sharded optim state"""
+        return optimizer.state_dict()
+
+    @override
     def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
         """Defines the training step, logging relevant metrics.
 
@@ -154,28 +291,29 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             STEP_OUTPUT: The loss for backpropagation.
         """
+
+        # See load_optimizer_state_dict to understand why we call this here.
+        if self.checkpoint is not None:
+            self._load_optimizer_state_dict()
+
         assert self.lightning_module is not None
         assert self.model is not None
-        with self.precision_plugin.train_step_context():
-            loss, reduced = self._step_proxy("training", batch, batch_idx)
-            self.lightning_module.log(
-                'global_step',
-                self.trainer.global_step,
-                prog_bar=True,
-                rank_zero_only=True,
-                batch_size=1,
-            )
 
-            self.lightning_module.log(
-                'step',
-                self.trainer.global_step,
-            )
-            self.lightning_module.log(
-                'reduced_train_loss', reduced['avg'], prog_bar=True, rank_zero_only=True, batch_size=1
-            )
+        loss = self.lightning_module.training_step(batch, batch_idx)
+        self.lightning_module.log(
+            'global_step',
+            self.trainer.global_step,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
 
-            # returns unreduced loss for backward
-            return loss
+        self.lightning_module.log(
+            'step',
+            self.trainer.global_step,
+        )
+
+        return loss
 
     @override
     def validation_step(self, batch, batch_idx=None) -> Any:
@@ -256,7 +394,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             CheckpointIO: _description_
         """
-        if not self._checkpoint_io:
+        if self._checkpoint_io is None:
             self._checkpoint_io = create_checkpoint_io()
 
         return self._checkpoint_io
@@ -297,75 +435,46 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 shutil.rmtree(ckpt)
 
     @override
+    def lightning_module_state_dict(self) -> Dict[str, Any]:
+        """Collects the state dict of the model.
+
+        Only returns a non-empty state dict on rank 0 if ``save_distributed_checkpoint=False``.
+
+        """
+        from nemo.lightning.pytorch.strategies.utils import to_cpu
+
+        assert self.lightning_module is not None
+        state_dict = self.lightning_module.state_dict()
+
+        module_names = list(state_dict.keys())
+        for name in module_names:
+            param = state_dict.pop(name)
+            state_dict[name] = to_cpu(param)
+        return state_dict
+
+    @override
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
-        """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
+        """
+        Unshards FSDP2 checkpoint and passes it to checkpoint_io for saving to a file.
+        """
 
-        from nemo.lightning.pytorch.strategies.utils import to_cpu
-
-        module_names = list(checkpoint["state_dict"].keys())
-        for name in module_names:
-            param = checkpoint["state_dict"].pop(name)
-            checkpoint["state_dict"][name] = to_cpu(param)
-
-        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
-            # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
-            # Ideally, the optimizer state dicts should not be generated in this case
-            checkpoint["optimizer_states"] = {}
-
-            # replace unsharded optimizer_states with sharded dict.
-            # note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-            # the checkpoint will contain only model weights. Optimizer states will be omitted.
-            if self.ckpt_save_optimizer:
-                checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
-                pyt_to_mcore_state_dict(
-                    checkpoint['optimizer']['state'], prefix="optimizer.state.", device_mesh=self.device_mesh
-                )
-
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        if self.is_global_zero:
+            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
-        """PTL method which we override to integrate distributed checkpoints for FSDP models.
-        Different from MegatronStrategy, both model and optimizer states are restore within
-        this method.
+        """Loads checkpoint with checkpoint_io"""
+        return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
-        The logic here is slightly more complicated:
-        1. Obtain PyT state dicts (sharded & unflattened) for model and optim -> torch::ShardedTensor
-        2. Convert to MCore state dicts -> mcore::ShardedTensor
-        3. Load from checkpoint using MCore dist ckpt API -> torch::Tensor
-        4. Convert to PyT state dicts (sharded & unflattened) -> torch::ShardedTensor
-        5. Load into model and optim using PyT dist ckpt API
-        6. Return the loaded checkpoint for lightning to load other metadata
-        """
-        path = Path(self.broadcast(checkpoint_path))
-        torch.cuda.empty_cache()
-
-        # TODO: the elegant way to load both state dicts. Need pytorch 2.3.1
-        # msd, osd = get_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
-        sharded_state_dict = {}
-        with _get_sharded_state_dict_context(self.model):
-            msd = self.model.state_dict()
-            pyt_to_mcore_state_dict(msd, device_mesh=self.device_mesh)
-            sharded_state_dict["sharded_state_dict"] = msd
-
-        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
-            pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.", device_mesh=self.device_mesh)
-            sharded_state_dict["optimizer"] = osd
-
-        checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
-        mcore_to_pyt_sharded_state_dict(checkpoint['sharded_state_dict'], msd)
-
-        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            mcore_to_pyt_sharded_state_dict(checkpoint['optimizer']['state'], osd['state'])
-
-        set_state_dict(
-            self.model,
-            self.optimizers if self.ckpt_load_optimizer else [],
-            model_state_dict=checkpoint['sharded_state_dict'],
-            optim_state_dict=checkpoint['optimizer'] if self.ckpt_load_optimizer else None,
-        )
-
-        return checkpoint
+    @override
+    @torch.no_grad
+    def load_model_state_dict(self, ckpt, strict=False):
+        """Shards a full state dict"""
+        # TODO(@akoumparouli): update `placements` value once TP is enabled.
+        sharded_state = {
+            k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
+            for k, v in ckpt['state_dict'].items()
+        }
+        self.lightning_module.load_state_dict(sharded_state, strict=strict)

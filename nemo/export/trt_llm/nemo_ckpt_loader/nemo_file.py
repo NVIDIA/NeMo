@@ -17,25 +17,21 @@ import functools
 import json
 import logging
 import os
+import pickle
 import shutil
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
-import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import yaml
-import zarr
-from torch.distributed.checkpoint import FileSystemReader
-from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
-from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, GPT2Tokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.export.tarutils import TarPath, ZarrPathStore
+from nemo.export.tarutils import TarPath
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.export.utils import torch_dtype_from_precision
+from nemo.export.utils import load_model_weights, nemo_to_path, torch_dtype_from_precision
 
 try:
     from nemo.lightning import io
@@ -45,37 +41,30 @@ except (ImportError, ModuleNotFoundError):
     HAVE_NEMO2 = False
 
 LOGGER = logging.getLogger("NeMo")
-
 EXTRA_STATE = "extra_state"
 
 
-def is_nemo_file(path):
-    flag = False
+def load_extra_state_from_bytes(val: Optional[Union[torch.Tensor, BytesIO]]) -> Optional[dict]:
+    """Loads single extra_state from bytes storage.
 
-    if path is not None:
-        if len(path) > 5:
-            pc = Path(path)
-            if pc.exists():
-                if pc.is_file():
-                    if path[-5 : len(path)] == ".nemo":
-                        flag = True
-
-    return flag
-
-
-class TarFileSystemReader(FileSystemReader):
-    """Reader that accepts both Path and TarPath checkpoint directory.
-
-    The FileSystemReader works with TarPath, but expects a pure Path.
-    It's enough to skip the Path check in __init__.
+    Args:
+        val (torch.Tensor | BytesIO): Bytes storage of extra_state
+    Returns:
+        Optional[dict]: Deserialized extra_state, or None if the bytes storage is empty.
     """
+    if val is None:
+        return None
 
-    def __init__(self, path: Union[Path, TarPath]) -> None:
-        """Makes sure that super().__init__ gets a pure path as expected."""
-        super_path = str(path) if isinstance(path, TarPath) else path
-        super().__init__(super_path)
-        if isinstance(path, TarPath):
-            self.path = path  # overwrites path set in super().__init__ call
+    # TransformerEngine shifted from storing extra_states bytes storage from _io.BytesIO to torch.Tensor
+    if isinstance(val, torch.Tensor):
+        if val.numel() == 0:
+            return None
+
+        val = val.detach().numpy(force=True).tobytes()
+        return pickle.loads(val)
+
+    val.seek(0)
+    return torch.load(val, weights_only=True)
 
 
 def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -87,18 +76,15 @@ def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> D
     Args:
         state_dict (dict): Model state dictionary
     Returns:
-        dict: The same dictionary, with explicitly loaded extra states from BufferIO objects.
+        dict: The same dictionary, with explicitly loaded extra states from bytes.
     """
-    scales_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE in k}
+    scales_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE in k and 'core_attention' not in k}
     state_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE not in k}
     scales = {}
 
     for key, value in scales_dict.items():
-        if value is None:
-            continue
+        extra_state = load_extra_state_from_bytes(value)
 
-        value.seek(0)
-        extra_state = torch.load(value, weights_only=True)
         if extra_state is not None and 'scale_fwd' in extra_state:
             scales[key + '.scale_fwd'] = extra_state['scale_fwd'].cpu()
 
@@ -163,93 +149,29 @@ def rename_extra_states(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     return state_dict | mcore_extra_states
 
 
-def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor: bool = True):
-    fs_reader = TarFileSystemReader(checkpoint_dir)
-    metadata = fs_reader.read_metadata()
+def torch_to_numpy_state_dict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transforms model state dictionary with torch tensors to numpy arrays.
 
-    state_dict = {
-        k: torch.empty(tp.size, dtype=tp.properties.dtype)
-        for k, tp in metadata.state_dict_metadata.items()
-        if isinstance(tp, TensorStorageMetadata)
-    }
+    Args:
+        state_dict (dict): Model state dictionary.
+    Returns:
+        dict: State dictionary using numpy arrays.
+    """
+    for k, v in state_dict.items():
+        if v.dtype == torch.bfloat16:
+            from tensorrt_llm._utils import np_bfloat16
 
-    state_dict.update(
-        {k: [] for k, tp in metadata.state_dict_metadata.items() if isinstance(tp, BytesStorageMetadata)}
-    )
+            state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
+        else:
+            state_dict[k] = v.numpy()
 
-    load_state_dict(
-        state_dict,
-        storage_reader=fs_reader,
-        no_dist=True,
-    )
-    state_dict = rename_extra_states(state_dict)
-
-    if not torch_tensor:
-        for k, v in state_dict.items():
-            if v.dtype == torch.bfloat16:
-                from tensorrt_llm._utils import np_bfloat16
-
-                state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
-            else:
-                state_dict[k] = v.numpy()
     return state_dict
 
 
-def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
-    pt_files = list(dir.glob('shard_*_*.pt'))
-    extra_states = {}
-    for file in pt_files:
-        shard_name = file.name.split('.')[0]
-        with file.open('rb') as opened_file:
-            extra_states[dir.name + '/' + shard_name] = torch.load(opened_file, weights_only=True)
-
-    return rename_extra_states(extra_states)
-
-
-def contains_extra_states(subdir: Union[Path, TarPath]):
-    return list(subdir.glob('shard_0_*.pt')) != []
-
-
-def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    torch.serialization.add_safe_globals([BytesIO])  # For possible extra states
-    sharded_state_dict = {}
-    for subdir in checkpoint_dir.iterdir():
-        if not subdir.is_dir():
-            continue
-
-        if contains_extra_states(subdir):
-            sharded_state_dict.update(load_sharded_pickle_extra_state_scale(subdir))
-        elif (subdir / '.zarray').exists():
-            key = subdir.name
-            zstore = ZarrPathStore(subdir)
-            arr = zarr.open(zstore, 'r')
-
-            if torch_tensor:
-                # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
-                if arr.dtype.name == "bfloat16":
-                    sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
-                else:
-                    from tensorrt_llm._utils import str_dtype_to_torch
-
-                    sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
-            else:
-                sharded_state_dict[key] = arr[:]
-
-    return sharded_state_dict
-
-
-def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    with (checkpoint_dir / 'metadata.json').open(mode='r') as f:
-        config_dict = json.load(f)
-    if config_dict['sharded_backend'] == 'zarr':
-        return load_sharded_metadata_zarr(checkpoint_dir, torch_tensor)
-    elif config_dict['sharded_backend'] == 'torch_dist':
-        return load_sharded_metadata_torch_dist(checkpoint_dir, torch_tensor)
-    else:
-        raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
-
-
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
+    """Updates tokenizer paths in the tokenizer config."""
+
     def _update_config_entry(key, file_pattern):
         old_path = tokenizer_config.get(key, None)
         if old_path is None:
@@ -271,6 +193,7 @@ def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
 
 
 def copy_tokenizer_files(config, out_dir):
+    """Copies tokenizer files to the output directory."""
     basenames = {
         "model": "tokenizer",
         "vocab_file": "vocab",
@@ -350,14 +273,13 @@ def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenize
     tokenizer_dir_or_path = Path(tokenizer_dir_or_path)
     if (tokenizer_dir_or_path / "nemo_context").exists():
         return get_tokenizer_from_nemo2_context(tokenizer_dir_or_path / "nemo_context")
+    elif (tokenizer_dir_or_path / "tokenizer_config.json").exists():
+        return AutoTokenizer.from_pretrained(tokenizer_dir_or_path)
     elif os.path.exists(os.path.join(tokenizer_dir_or_path, "vocab.json")):
         vocab_path = tokenizer_dir_or_path / "vocab.json" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
         tokenizer_config = {"library": "tiktoken", "vocab_file": str(vocab_path)}
         return build_tokenizer(tokenizer_config)
     else:
-        if (tokenizer_dir_or_path / "huggingface_tokenizer").is_dir():
-            return AutoTokenizer.from_pretrained(tokenizer_dir_or_path / "huggingface_tokenizer")
-
         model_path = (
             tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
         )
@@ -366,6 +288,7 @@ def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenize
 
 
 def build_tokenizer(tokenizer):
+    """Builds tokenizer for trt-llm export."""
     if isinstance(tokenizer, dict):
         tokenizer_config = tokenizer
         if tokenizer_config["library"] == "sentencepiece":
@@ -514,44 +437,44 @@ def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
 
 
 def load_distributed_model_weights(
-    weights_directory: Union[Path, TarPath], mcore_scales_format: bool
+    nemo_checkpoint: Union[str, Path], mcore_scales_format: bool, torch_tensor: bool = True
 ) -> Dict[str, Any]:
     """
-    Loads model weights in `torch_dist` format directly from weights directory.
+    Loads model weights in `torch_dist` format from the model path.
     Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
 
     Args:
-        weights_directory (Path | TarPath): Path to the weights directory.
+        nemo_checkpoint (str | Path): Path to the nemo checkpoint.
         mcore_scales_format (bool): Flag for local vs megatron.core export.
-
+        torch_tensor (bool): If set to False, converts returns weights in numpy format.
     Returns:
-        dict: Model state dictionary
+        dict: Model state dictionary.
     """
-    model = load_sharded_metadata(weights_directory)
-    if not mcore_scales_format:
-        model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
-        model = preprocess_scaling_factors_for_local_export(model)
+    state_dict = load_model_weights(nemo_checkpoint, load_extra_states=True)
+    if not torch_tensor:
+        state_dict = torch_to_numpy_state_dict(state_dict)
 
-    return model
+    state_dict = rename_extra_states(state_dict)
+    if not mcore_scales_format:
+        state_dict.update({k: v[0] for k, v in state_dict.items() if EXTRA_STATE in k and isinstance(v, list)})
+        state_dict = preprocess_scaling_factors_for_local_export(state_dict)
+
+    return state_dict
 
 
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path], mcore_scales_format: bool = True):
+    """Unified model loading for trt-llm export."""
     if not os.path.exists(nemo_ckpt):
         raise TypeError("%s does not exist", nemo_ckpt)
 
-    if os.path.isdir(nemo_ckpt):
-        nemo_dir = Path(nemo_ckpt)
-    else:
-        nemo_dir = TarPath(nemo_ckpt)
+    nemo_dir = nemo_to_path(nemo_ckpt)
 
     tokenizer = None
     try:
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
         if (nemo_dir / "model_weights").exists():
-            dist_ckpt_folder = nemo_dir / "model_weights"
-
-            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
+            model = load_distributed_model_weights(nemo_ckpt, mcore_scales_format)
 
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
@@ -566,8 +489,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
                 tokenizer = build_tokenizer(tokenizer_config)
         elif (nemo_dir / "weights").exists():
-            dist_ckpt_folder = nemo_dir / "weights"
-            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
+            model = load_distributed_model_weights(nemo_ckpt, mcore_scales_format)
             io_folder = nemo_dir / "context"
 
             if (io_folder / "model.yaml").exists():
@@ -623,10 +545,12 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
 
 def cpu_map_location(storage, loc):
+    """Maps storage to CPU."""
     return storage.cpu()
 
 
 def gpu_map_location(storage, loc):
+    """Maps storage to GPU."""
     if loc.startswith("cuda"):
         training_gpu_idx = int(loc.split(":")[1])
         inference_gpu_idx = training_gpu_idx % torch.cuda.device_count()
@@ -638,6 +562,10 @@ def gpu_map_location(storage, loc):
 
 
 class UnpackedNemoCheckpointDir:
+    """
+    Caches model config and tokenizer file path when loading from a packed NeMo checkpoint directory.
+    """
+
     def __init__(
         self,
         checkpoints_dir: Union[Path, TarPath],
@@ -650,6 +578,7 @@ class UnpackedNemoCheckpointDir:
     @property
     @functools.lru_cache
     def model_config(self):
+        """Returns model config dictionary."""
         model_config = None
 
         model_config_filename = "model_config.yaml"
@@ -690,6 +619,7 @@ class UnpackedNemoCheckpointDir:
 
     @property
     def checkpoints_dir(self):
+        """Returns path to checkpoints directory."""
         return self._checkpoints_dir
 
     def get_checkpoints_paths(self, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
@@ -727,6 +657,7 @@ class UnpackedNemoCheckpointDir:
     @property
     @functools.lru_cache
     def checkpoint_name(self):
+        """Returns the name of the checkpoint file."""
         patterns = [
             "model_weights.ckpt",  # older megatron checkpoints
             "*last.ckpt",  # newer format of checkpoints
@@ -740,6 +671,7 @@ class UnpackedNemoCheckpointDir:
 
     @functools.lru_cache
     def get_tokenizer_file_path(self, tokenizer_key, file_key, default_filename_pattern):
+        """Returns path to tokenizer file."""
         model_config = self.model_config
         file_property = None
         if tokenizer_key in model_config and file_key in model_config[tokenizer_key]:

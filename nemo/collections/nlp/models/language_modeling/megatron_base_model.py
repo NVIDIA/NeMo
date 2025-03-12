@@ -52,7 +52,7 @@ try:
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.transformer.enums import AttnBackend
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.transformer.transformer_config import MLATransformerConfig, TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
     HAVE_MEGATRON_CORE = True
@@ -396,7 +396,7 @@ class MegatronBaseModel(NLPModel):
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
 
         def is_official_release_version(nvidia_torch_version):
-            return re.fullmatch("[0-9][0-9]\.[0-9][0-9].*", nvidia_torch_version)  # "YY.MM.*"
+            return re.fullmatch(r"[0-9][0-9]\.[0-9][0-9].*", nvidia_torch_version)  # "YY.MM.*"
 
         # Support DLFW dev container
         if not is_official_release_version(nvidia_torch_version):
@@ -581,8 +581,12 @@ class MegatronBaseModel(NLPModel):
             'attention_backend': attention_backend,
         }
 
+        transformer_config_cls = TransformerConfig
+        if self.cfg.get('multi_latent_attention', False):
+            transformer_config_cls = MLATransformerConfig
+
         # populate the transformer config dict
-        for field in fields(TransformerConfig):
+        for field in fields(transformer_config_cls):
             # config mapping has second highest priority
             if field.name in config_mapping:
                 transformer_config_dict[field.name] = config_mapping[field.name]
@@ -598,7 +602,7 @@ class MegatronBaseModel(NLPModel):
                     f"Add this key to cfg or config_mapping to make to make it configurable."
                 )
 
-        transformer_config = TransformerConfig(**transformer_config_dict)
+        transformer_config = transformer_config_cls(**transformer_config_dict)
 
         return transformer_config
 
@@ -1320,6 +1324,10 @@ class MegatronBaseModel(NLPModel):
             for submodule in frozen_submodule_names:
                 logging.debug(f"Ignoring state {submodule} in FSDP.")
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
+
+            # Transformer Engine expects that module parameters are available, so FSDP should not replace them
+            self.trainer.strategy.kwargs['use_orig_params'] = True
+
             # FSDP requires uniform status of require_grads
             # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states'
             # from sharding for FSDP to work
