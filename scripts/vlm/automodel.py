@@ -11,6 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage example:
+    python scripts/vlm/gemma3_automodel.py --model llava-hf/llava-v1.6-mistral-7b-hf --data_path naver-clova-ix/cord-v2
+
+Used Automodel for training and finetuning HF models. More details can be found at:
+https://docs.nvidia.com/nemo-framework/user-guide/latest/automodel/index.html
+"""
+
 
 import fiddle as fdl
 import lightning.pytorch as pl
@@ -95,7 +103,7 @@ if __name__ == '__main__':
         wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
     )
 
-    llm.api.finetune(
+    llm.finetune(
         model=model,
         data=dataset_fn(args.data_path, processor, args.mbs, args.gbs),
         trainer=nl.Trainer(

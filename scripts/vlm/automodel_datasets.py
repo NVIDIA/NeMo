@@ -68,7 +68,7 @@ def mk_hf_vlm_dataset_rdr(data_path, processor, mbs, gbs):
         micro_batch_size=mbs,
         global_batch_size=gbs,
         collate_fn=lambda x: collate_fn(x, processor=processor),
-        num_workers=16,
+        num_workers=4,
         persistent_workers=True,
     )
 
@@ -151,7 +151,7 @@ def mk_hf_vlm_dataset_cord_v2(data_path, processor, mbs, gbs):
         split="train",
         micro_batch_size=mbs,
         global_batch_size=gbs,
-        num_workers=16,
+        num_workers=4,
         persistent_workers=True,
         collate_fn=lambda x: train_collate_fn(x, processor=processor),
     )
