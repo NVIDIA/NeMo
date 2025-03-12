@@ -39,6 +39,8 @@ from torch.nn import functional as F
 from torchvision import transforms
 from transformers import AutoProcessor, CLIPImageProcessor
 
+from nemo.export.utils.constants import TRTLLM_ENGINE_DIR
+
 
 def trt_dtype_to_torch(dtype):
     if dtype == trt.float16:
@@ -80,15 +82,15 @@ class MultimodalModelRunner:
         if modality == 'vision':
             self.init_image_encoder(visual_engine_dir)
         self.init_tokenizer(llm_engine_dir)
-        self.init_llm(llm_engine_dir)
+        self.init_llm(os.path.join(llm_engine_dir, TRTLLM_ENGINE_DIR))  # Engine is stored in subdirectory
         if self.model_type == 'lita' or self.model_type == 'vila' or self.model_type == 'vita':
             self.init_vision_preprocessor(visual_engine_dir)
 
     def init_tokenizer(self, llm_engine_dir):
-        if os.path.exists(os.path.join(llm_engine_dir)):
+        if os.path.exists(os.path.join(llm_engine_dir, "tokenizer_config.json")):
             from transformers import AutoTokenizer
 
-            self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(llm_engine_dir))
+            self.tokenizer = AutoTokenizer.from_pretrained(llm_engine_dir)
             self.tokenizer.pad_token = self.tokenizer.eos_token
             if self.model_type == 'vita':
                 self.tokenizer.im_start_id = self.tokenizer.convert_tokens_to_ids("<extra_id_4>")
