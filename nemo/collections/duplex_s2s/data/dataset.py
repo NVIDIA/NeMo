@@ -92,12 +92,17 @@ def build_token_channel(
         if supervision.speaker == role:
             text_ids = torch.as_tensor(bos + tokenizer.text_to_ids(supervision.text) + eos)
             pos = compute_num_frames(offset, frame_length, cut.sampling_rate)
-            # TODO: at least emit a warning if a truncation happens
+            if pos > len(tokens):
+                logging.warning(f"Ill-constructed example: the beginning offset of a supervision {pos} is larger than the example's length {len(tokens)}.")
+                continue
             endpos = pos + len(text_ids)
             if endpos > len(tokens):
                 trunc_len = len(tokens) - pos
                 logging.warning(f"Truncating training example's text_ids of length {len(text_ids)} by {trunc_len} because {endpos=} > {len(tokens)=}.")
                 text_ids = text_ids[:trunc_len]
+            try:
                 tokens[pos : endpos] = text_ids
+            except Exception as e:
+                raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=}") from e
         offset += d
     return tokens

@@ -238,6 +238,10 @@ class DuplexS2SModel(LightningModule):
         return loss
 
     def on_validation_epoch_start(self) -> None:
+        # Cleaning up GPU memory before we load ASRModel, because it may already
+        # be quite fragmented and close to the limit after observing many
+        # dynamic shapes during the training epoch.
+        torch.cuda.memory.empty_cache()
         self.asr = ASRModel.from_pretrained(self.cfg.pretrained_asr).to(torch.bfloat16).eval()
         WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
 
@@ -245,6 +249,7 @@ class DuplexS2SModel(LightningModule):
         self.log("val_asr_bleu", self.bleu.compute(), on_epoch=True, sync_dist=True)
         self.bleu.reset()
         self.asr = None  # free up GPU memory
+        torch.cuda.memory.empty_cache()
 
     def validation_step(self, batch: dict, batch_idx: int):
         inputs = self.prepare_inputs(batch)
