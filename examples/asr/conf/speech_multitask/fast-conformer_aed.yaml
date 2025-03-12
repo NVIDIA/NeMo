@@ -63,6 +63,9 @@ model:
     num_buckets: 20
     bucket_buffer_size: 20000
     shuffle_buffer_size: 10000
+    text_field: "text"
+    lang_field: "target_lang"
+
 
   validation_ds:
     use_lhotse: true
@@ -74,6 +77,8 @@ model:
     pin_memory: true
     use_start_end_token: true
     use_bucketing: false
+    text_field: "text"
+    lang_field: "target_lang"
 
   test_ds:
     use_lhotse: true
@@ -280,8 +285,8 @@ exp_manager:
   create_checkpoint_callback: true
   checkpoint_callback_params:
     # in case of multiple validation sets, first one is used
-    monitor: "val_sacreBLEU"
-    mode: "max"
+    monitor: "val_loss"
+    mode: "min"
     save_top_k: 3
     always_save_nemo: True # saves the checkpoints as nemo files instead of PTL checkpoints
 
