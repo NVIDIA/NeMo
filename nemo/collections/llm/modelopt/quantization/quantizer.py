@@ -152,15 +152,13 @@ class Quantizer:
             return self.export_config.decoder_type
 
         unwrapped_model = model
-        while not isinstance(unwrapped_model, llm.GPTModel) and not isinstance(
-            unwrapped_model, llm.HFAutoModelForCausalLM
-        ):
+        while not isinstance(unwrapped_model, (llm.GPTModel, llm.HFAutoModelForCausalLM)):
             unwrapped_model = unwrapped_model.module
 
         if decoder_type := get_modelopt_decoder_type(unwrapped_model):
             return decoder_type
         raise ValueError(
-            "Could not infer the decoder type for the provided model."
+            "Could not infer the decoder type for the provided model. "
             "Please provide the decoder type explicitly in the ExportConfig."
         )
 
@@ -348,7 +346,7 @@ class Quantizer:
 
     def export(self, model, model_dir: str, trainer: Optional["Trainer"] = None) -> None:
         """Export model to a TensorRT-LLM or NeMo checkpoint."""
-        export_dir = Path(self.export_config.path)
+        export_dir = self.export_config.path
         export_fmt = self.export_config.export_format
         assert export_fmt in SUPPORTED_EXPORT_FMT, f"Unsupported export format: {export_fmt}"
         is_automodel = isinstance(model, llm.HFAutoModelForCausalLM)

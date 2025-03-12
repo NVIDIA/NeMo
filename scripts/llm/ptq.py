@@ -95,25 +95,20 @@ def get_args():
         help='Calibration dataset to be used. Should be "wikitext", "cnn_dailymail" or path to a local .json file',
     )
     parser.add_argument(
-        '--generate_sample', help='Generate sample model output after performing PTQ', action='store_true'
+        "--generate_sample", help="Generate sample model output after performing PTQ", action="store_true"
     )
-    parser.set_defaults(generate_sample=False)
     parser.add_argument(
-        '--trust_remote_code', help='Trust remote code when loading HuggingFace models', action='store_true'
+        "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
     )
-    parser.set_defaults(trust_remote_code=False)
-    parser.add_argument("--legacy_ckpt", action="store_true", help="""Load ckpt saved with TE < 1.14""", default=False)
-    parser.set_defaults(legacy_ckpt=False)
+    parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
 
     args = parser.parse_args()
 
     if args.export_path is None:
         if args.export_format == "trtllm":
             args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
-        elif args.export_format == "hf":
-            args.export_path = f"./hf_{args.algorithm}"
         else:
-            args.export_path = f"./nemo_{args.algorithm}"
+            args.export_path = f"./{args.export_format}_{args.algorithm}"
 
     if args.devices is None:
         args.devices = args.calibration_tp

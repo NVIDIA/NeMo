@@ -544,7 +544,7 @@ def ptq(
     if is_global_rank_zero():
         console = Console()
         console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
-    return Path(export_config.path)
+    return export_config.path
 
 
 @run.cli.entrypoint(namespace="llm")
