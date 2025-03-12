@@ -35,6 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_an
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
+from nemo.collections.vlm.vision.vision_transform import VisualProcessor
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
@@ -160,7 +161,9 @@ class TarOrFolderVideoLoader:
 
 
 def process_image(processor, image, image_process_mode="square"):  # this needs to be merged with conv's process image
-    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
+    if isinstance(processor, VisualProcessor):
+        image = processor.preprocess(image)['pixel_values']
+    else:
         # image processor from HF
         if image_process_mode == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)
@@ -186,12 +189,10 @@ def process_image(processor, image, image_process_mode="square"):  # this needs 
                     return result
 
             image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values']
         else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-    else:
-        assert image_process_mode == 'square', 'NeMo image transform with setting `image_process_mode` to `square`.'
-        image = processor(image)
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values']
+
     return image
 
 
@@ -297,7 +298,7 @@ class LazySupervisedDataset(Dataset):
         return data_dict
 
     def _process_images(self, source):
-        media_tensors = torch.tensor([])
+        media_tensors = torch.empty((0, 0))
         if 'image' in source:
             if not isinstance(source['image'], list):
                 source['image'] = [source['image']]
@@ -308,6 +309,8 @@ class LazySupervisedDataset(Dataset):
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
                 image = process_image(self.image_processor, image, self.image_process_mode)
+                if image.ndim == 3:
+                    image.unsqueeze_(0)  # tile dim
                 images.append(image)
 
             if images:
@@ -437,9 +440,12 @@ class NevaDataset(LazySupervisedDataset):
         media_type = data_config.media_type
         if media_type == 'image':
             media = [instance.pop('image') for instance in instances]
+            num_media_tiles = [item.shape[1] for item in media if item.shape[1] > 0]
+            media = [item.reshape(-1, *item.shape[2:]) for item in media]
             media = torch.cat(media, dim=0)
         elif media_type == 'video':
             media = [instance.pop('video', None) for instance in instances]
+            num_media_tiles = None
         else:
             raise ValueError(f"Unsupported media type {media_type}")
 
@@ -483,6 +489,7 @@ class NevaDataset(LazySupervisedDataset):
             'loss_mask': loss_mask,
             'position_ids': position_ids,
             'media': media,
+            "num_media_tiles": num_media_tiles,
         }
         if packed_sequence:
             batch["packed_seq_params"] = packed_seq_params
@@ -497,6 +504,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         data_config: Optional[DataConfig] = ImageDataConfig,
         seq_length: int = 2048,
         decoder_seq_length: Optional[int] = None,
+        hf_processor_id: Optional[str] = "llava-hf/llava-1.5-7b-hf",
         tokenizer: Optional = None,
         image_processor: Optional = None,
         micro_batch_size: int = 4,
@@ -541,13 +549,16 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         self.init_global_step = 0
 
         if tokenizer is None or image_processor is None:
-            logging.warning("Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
+            logging.warning(f"Processor or tokenizer is not provided! Fall back to `{hf_processor_id}`.")
             from transformers import AutoProcessor
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-            processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
+            processor = AutoProcessor.from_pretrained(hf_processor_id)
+            self.tokenizer = tokenizer or AutoTokenizer(hf_processor_id)
             self.image_processor = image_processor or processor.image_processor
+        else:
+            self.tokenizer = tokenizer
+            self.image_processor = image_processor
 
         if self.packed_sequence:
             import dataclasses

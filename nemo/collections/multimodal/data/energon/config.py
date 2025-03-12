@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import torch
 from megatron.core.packed_seq_params import PackedSeqParams
@@ -44,6 +44,7 @@ class ImageTextSample:
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    num_image_tiles: Optional[List[int]] = None
 
 
 @dataclass
@@ -66,6 +67,7 @@ class ImageTextRawBatch:
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    num_image_tiles: Optional[List[int]] = None
 
 
 @dataclass
