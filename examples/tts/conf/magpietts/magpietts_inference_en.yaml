@@ -1,6 +1,7 @@
-name: T5TTS
-
-max_epochs: ???
+name: Magpie-TTS-EN-Infer
+mode: test
+init_from_ptl_ckpt: ???
+max_epochs: 1
 # Adjust batch size based on GPU memory
 batch_size: 16
 # When doing weighted sampling with multiple manifests, this defines how many training steps are in an epoch.
@@ -9,35 +10,42 @@ weighted_sampling_steps_per_epoch: null
 
 # Dataset metadata for each manifest
 # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/data/vocoder_dataset.py#L39-L41
-train_ds_meta: ???
-val_ds_meta: ???
+test_ds_meta: ???
 
 # Modify these values based on your sample rate
 sample_rate: 22050
 
+phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
+  use_kv_cache_for_inference: true
+  inference_temperature: 0.7
+  inference_topk: 80
+  inference_use_cfg: false
+  inference_cfg_scale: 1.0
   model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
-  use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
+  use_text_conditioning_encoder: false
   transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
   context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
   context_duration_min: 3.0
   context_duration_max: 8.0
-  speaker_emb_dim: 192 # Only used for single_encoder_sv_tts, ignored otherwise
+  speaker_emb_dim: 192
+  max_decoder_steps: 500
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1024
   load_cached_codes_if_available: true
-  prior_scaling_factor: 0.5
-  prior_end_step: 12000
-  prior_scaledown_start_step: 8000
+  prior_scaling_factor: null
+  prior_end_step: 0
+  prior_scaledown_start_step: 0
   alignment_loss_scale: 0.0
   embedding_dim: 768
-  codecmodel_path: ???
+  codecmodel_path: null
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
 
   sample_rate: ${sample_rate}
-  
+
   text_tokenizers: # Add more languages for multi-lingual TTS
     english_phoneme:
       _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
@@ -53,34 +61,19 @@ model:
         use_chars: true
         use_stresses: true
 
-  train_ds:
+  test_ds:
     dataset:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.T5TTSDataset
-      dataset_meta: ${train_ds_meta}
-      weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
+      dataset_meta: ${test_ds_meta}
       sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
       min_duration: 0.5
       max_duration: 20.0
+      # speaker_path: ${speaker_path}
 
     dataloader_params:
       batch_size: ${batch_size}
-      num_workers: 4
-      drop_last: true
+      num_workers: 2
 
-  validation_ds:
-    dataset:
-      _target_: nemo.collections.tts.data.text_to_speech_dataset.T5TTSDataset
-      dataset_meta: ${val_ds_meta}
-      sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
-      min_duration: 0.5
-      max_duration: 20.0
-
-    dataloader_params:
-      batch_size: ${batch_size}
-      num_workers: 0
-  
   t5_encoder:
     n_layers: 6
     d_model: 768
@@ -94,7 +87,7 @@ model:
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
-  
+
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
     n_layers: 3
     d_model: 768
@@ -158,7 +151,7 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
-  create_checkpoint_callback: true 
+  create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: val_loss
     mode: min

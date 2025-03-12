@@ -1,4 +1,4 @@
-name: T5TTS
+name: Magpie-TTS-ML-V1-Infer
 mode: test
 init_from_ptl_ckpt: ???
 max_epochs: 1
@@ -45,7 +45,7 @@ model:
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
 
   sample_rate: ${sample_rate}
-  
+
   text_tokenizers: # Add more languages for multi-lingual TTS
     english_phoneme:
       _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
@@ -135,7 +135,7 @@ model:
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
-  
+
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
     n_layers: 3
     d_model: 768
@@ -199,7 +199,7 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
-  create_checkpoint_callback: true 
+  create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: val_loss
     mode: min

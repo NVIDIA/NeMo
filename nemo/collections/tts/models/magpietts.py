@@ -85,32 +85,32 @@ def worker_init_fn(worker_id):
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
 
 
-class T5TTS_Model(ModelPT):
+class MagpieTTS_Model(ModelPT):
     """
-    T5TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context audio/text
+    Magpie-TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context
+    audio/text
 
     Supports multiple model types:
 
-    - single_encoder_sv_tts: Transcript goes into the encoder and target audio goes to the decoder.
-    Additionally, speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder output (all timesteps).
+    - single_encoder_sv_tts: Transcript goes into the encoder and target audio goes to the decoder. Additionally,
+    speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder
+    output(all timesteps).
 
-    - multi_encoder_context_tts:  Transcript and context audio go to different encoders.
-    Transcript encoding feeds to layers given by cfg.model.transcript_decoder_layers and the context encoding
-    feeds into the layers given by context_decoder_layers . Also supports text context which gets encoded
-    by the same encoder as context audio. Only one of context audio or contex text is supported.
+    - multi_encoder_context_tts: Transcript and context audio go to different encoders. Transcript encoding feeds to
+    layers given by cfg.model.transcript_decoder_layers and the context encoding feeds into the layers given by
+    context_decoder_layers .Also supports text context which gets encoded by the same encoder as context audio.
+    Only one of context audio or contex text is supported.
 
-    - decoder_context_tts: Text goes into the encoder; context & target audio go to the decoder.
-    Also supports text context. Supports fixed sized context so we set context_duration_min and context_duration_max to the same value (5 seconds).
-    Text context, which is usually shorter than number of codec frames of 5 second of audio, is padded to the max context duration in this model.
+    - decoder_context_tts: Text goes into the encoder; context & target audio go to the decoder. Also supports text
+    context. Supports fixed sized context so we set context_duration_min and context_duration_max to the same
+    value (5 seconds). Text context, which is usually shorter than number of codec frames of 5 second of audio, is
+    padded to the max context duration in this model.
 
-    - decoder_pretrain_synthesizer: This is the model type used for pretraining the decoder only on audio data using next frame prediction loss.
+    - decoder_pretrain_synthesizer: This is the model type used for pretraining the decoder only on audio data using
+    next frame prediction loss.
     """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        # Convert to Hydra 1.0 compatible DictConfig
-        cfg = model_utils.convert_model_config_to_dict_config(cfg)
-        cfg = model_utils.maybe_update_config_version(cfg)
-
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
@@ -159,12 +159,12 @@ class T5TTS_Model(ModelPT):
         if self.model_type != 'decoder_pretrain_synthesizer':
             # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
             self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
-            self.t5_encoder = transformer_2501.Transformer(**dict(cfg.t5_encoder))
+            self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
-        self.t5_decoder = transformer_2501.Transformer(**dict(cfg.t5_decoder))
+        self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
 
         self.final_proj = nn.Linear(
-            cfg.t5_decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook
+            cfg.decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook
         )
 
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
@@ -183,24 +183,23 @@ class T5TTS_Model(ModelPT):
             self._speaker_verification_model = speaker_verification_model
             self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
             self.transcript_decoder_layers = [
-                idx for idx in range(cfg.t5_decoder.n_layers)
+                idx for idx in range(cfg.decoder.n_layers)
             ]  # All layers are used for text
         elif self.model_type == 'multi_encoder_context_tts':
             self.transcript_decoder_layers = cfg.get('transcript_decoder_layers', [3, 4, 5, 6, 7, 8])
             self.context_decoder_layers = cfg.get(
                 'context_decoder_layers', [0, 1, 2, 9, 10, 11]
             )  # For backward compatibility
-            multi_encoder_mapping = [None for _ in range(cfg.t5_decoder.n_layers)]
+            multi_encoder_mapping = [None for _ in range(cfg.decoder.n_layers)]
             for layer in self.transcript_decoder_layers:
                 multi_encoder_mapping[layer] = 0  # 0 means text goes to this layer, 1 means context goes to this layer
             for layer in self.context_decoder_layers:
                 multi_encoder_mapping[layer] = 1
             self.multi_encoder_mapping = multi_encoder_mapping
             self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
-
         elif self.model_type == 'decoder_context_tts':
             self.transcript_decoder_layers = [
-                idx for idx in range(cfg.t5_decoder.n_layers)
+                idx for idx in range(cfg.decoder.n_layers)
             ]  # All layers are used for text
         elif self.model_type == 'decoder_pretrain_synthesizer':
             assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
@@ -346,7 +345,7 @@ class T5TTS_Model(ModelPT):
         return total_codebook_loss, loss_mask
 
     def forward(self, dec_input_embedded, dec_input_mask, cond, cond_mask, attn_prior, multi_encoder_mapping):
-        decoder_out = self.t5_decoder(
+        decoder_out = self.decoder(
             dec_input_embedded,
             dec_input_mask,
             cond=cond,
@@ -511,7 +510,7 @@ class T5TTS_Model(ModelPT):
 
             text_embedded = self.text_embedding(text)  # (B, T, E)
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
-            text_encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None)[
+            text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)[
                 'output'
             ]  # (B, T, E)
 
@@ -827,7 +826,7 @@ class T5TTS_Model(ModelPT):
 
     def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_cfg=False, cfg_scale=1.0):
         with torch.no_grad():
-            self.t5_decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
+            self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
 
             context_tensors = self.prepare_context_tensors(batch)
             text = context_tensors['text']
@@ -1064,8 +1063,8 @@ class T5TTS_Model(ModelPT):
         return []
 
 
-class T5TTS_ModelInference(T5TTS_Model):
-    """Small override of T5TTS_Model for parallel multi-GPU inference and metrics calculation.
+class MagpieTTS_ModelInference(MagpieTTS_Model):
+    """Small override of MagpieTTS_Model for parallel multi-GPU inference and metrics calculation.
     This class is used in 'test' mode and leverages trainer.test() for multi-GPU/multi-node inference.
     Saves the predicted audio files and logs the CER/WER metrics as individual json files for each audio.
     """
@@ -1255,15 +1254,15 @@ class T5TTS_ModelInference(T5TTS_Model):
                     json.dump(item_metrics, f)
 
 
-class T5TTS_ModelDPO(T5TTS_Model):
-    """Extends T5TTS_Model to support Direct Preference Optimization (DPO) training.
+class MagpieTTS_ModelDPO(MagpieTTS_Model):
+    """Extends MagpieTTS_Model to support Direct Preference Optimization (DPO) training.
     This class is used for training the model with preference-based losses, including DPO, RPO, and IPO losses.
     It maintains a frozen reference model to compare log probabilities between policy and reference outputs.
 
     """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        """Initialize the T5TTS_ModelDPO class.
+        """Initialize the MagpieTTS_ModelDPO class.
 
         Args:
             cfg (DictConfig): Configuration object containing model hyperparameters.
@@ -1277,7 +1276,7 @@ class T5TTS_ModelDPO(T5TTS_Model):
             ref_model_cfg.validation_ds = None
 
         # Initialize the frozen reference model
-        self._reference_model = T5TTS_Model(cfg=ref_model_cfg)
+        self._reference_model = MagpieTTS_Model(cfg=ref_model_cfg)
         print("Loading reference model from checkpoint")
         self._reference_model.load_state_dict(
             torch.load(cfg.reference_model_ckpt_path, map_location="cpu")['state_dict']
@@ -1312,11 +1311,14 @@ class T5TTS_ModelDPO(T5TTS_Model):
 
         Args:
             logits: Logits of the model (unnormalized). Shape: (batch_size, sequence_length, vocab_size)
-            labels: Labels for which to compute the log probabilities. Label tokens with a value of -100 are ignored. Shape: (batch_size, sequence_length)
-            average_log_prob: If True, return the average log probability per (non-masked) token. Otherwise, return the sum of the log probabilities of the (non-masked) tokens.
+            labels: Labels for which to compute the log probabilities. Label tokens with a value of -100 are ignored.
+                Shape: (batch_size, sequence_length)
+            average_log_prob: If True, return the average log probability per (non-masked) token. Otherwise, return
+                the sum of the log probabilities of the (non-masked) tokens.
 
         Returns:
-            A tensor of shape (batch_size,) containing the average/sum log probabilities of the given labels under the given logits.
+            A tensor of shape (batch_size,) containing the average/sum log probabilities of the given labels under
+            the given logits.
         """
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
 
@@ -1325,7 +1327,6 @@ class T5TTS_ModelDPO(T5TTS_Model):
         else:
             return (per_token_logps * loss_mask).sum(-1)
 
-    # https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py
     def preference_loss(
         self,
         policy_chosen_logps,
@@ -1343,19 +1344,27 @@ class T5TTS_ModelDPO(T5TTS_Model):
         """Compute the DPO loss for a batch of policy and reference model log probabilities.
 
         Args:
-            policy_chosen_logps: Log probabilities of the policy model for the chosen responses. Shape: (batch_size,)
-            policy_rejected_logps: Log probabilities of the policy model for the rejected responses. Shape: (batch_size,)
-            reference_chosen_logps: Log probabilities of the reference model for the chosen responses. Shape: (batch_size,)
-            reference_rejected_logps: Log probabilities of the reference model for the rejected responses. Shape: (batch_size,)
-            beta: Temperature parameter for the DPO loss, typically something in the range of 0.1 to 0.5. We ignore the reference model as beta -> 0.
-            label_smoothing: conservativeness for DPO loss, which assumes that preferences are noisy (flipped with probability label_smoothing)
+            policy_chosen_logps: Log probabilities of the policy model for the chosen responses.
+                Shape: (batch_size,)
+            policy_rejected_logps: Log probabilities of the policy model for the rejected responses.
+                Shape: (batch_size,)
+            reference_chosen_logps: Log probabilities of the reference model for the chosen responses.
+                Shape: (batch_size,)
+            reference_rejected_logps: Log probabilities of the reference model for the rejected responses.
+                Shape: (batch_size,)
+            beta: Temperature parameter for the DPO loss, typically something in the range of 0.1 to 0.5. We ignore
+                the reference model as beta -> 0.
+            label_smoothing: conservativeness for DPO loss, which assumes that preferences are noisy (flipped with
+                probability label_smoothing)
             ipo: If True, use the IPO loss instead of the DPO loss.
-            reference_free: If True, we ignore the _provided_ reference model and implicitly use a reference model that assigns equal probability to all responses.
+            reference_free: If True, we ignore the _provided_ reference model and implicitly use a reference model
+                that assigns equal probability to all responses.
 
         Returns:
             A tuple of three tensors: (losses, chosen_rewards, rejected_rewards).
             The losses tensor contains the DPO loss for each example in the batch.
-            The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected responses, respectively.
+            The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected
+            responses, respectively.
         """
         pi_logratios = policy_chosen_logps - policy_rejected_logps
         ref_logratios = reference_chosen_logps - reference_rejected_logps
@@ -1366,7 +1375,8 @@ class T5TTS_ModelDPO(T5TTS_Model):
         logits = pi_logratios - ref_logratios  # also known as h_{\pi_\theta}^{y_w,y_l}
         # logits = (policy_chosen_logps - policy_rejected_logps) - (reference_chosen_logps - reference_rejected_logps)
         # logits = (policy_chosen_logps - reference_chosen_logps) - (policy_rejected_logps - reference_rejected_logps)
-        # logits is the same as rewards_delta in NeMo aligner: https://github.com/NVIDIA/NeMo-Aligner/blob/0b5bffeb78a8316dd57e0816a2a9544540f0c8dd/nemo_aligner/models/nlp/gpt/megatron_gpt_dpo_model.py#L241
+        # logits is the same as rewards_delta in NeMo aligner
+        # https://github.com/NVIDIA/NeMo-Aligner/blob/0b5bffeb78a8316dd57e0816a2a9544540f0c8dd/nemo_aligner/models/nlp/gpt/megatron_gpt_dpo_model.py#L241
 
         if loss_type == "ipo":
             losses = (logits - 1 / (2 * beta)) ** 2  # Eq. 17 of https://arxiv.org/pdf/2310.12036v2.pdf
@@ -1384,7 +1394,8 @@ class T5TTS_ModelDPO(T5TTS_Model):
             gt_rewards_delta = gt_reward_scale * (chosen_gt_rewards - rejected_gt_rewards)
             losses = (beta * logits - gt_rewards_delta) ** 2
         elif loss_type == "dpo":
-            # Eq. 3 https://ericmitchell.ai/cdpo.pdf; label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
+            # Eq. 3 https://ericmitchell.ai/cdpo.pdf;
+            # label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
             F = torch.nn.functional
             losses = (
                 -F.logsigmoid(beta * logits) * (1 - label_smoothing) - F.logsigmoid(-beta * logits) * label_smoothing

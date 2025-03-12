@@ -142,7 +142,6 @@ def find_audio_files(directory):
 
 def pareto_rank(items):
     """
-    LLM generated Code for pareto_ranking - Be Careful!
     Given a list of (cer, ssim, item_idx), return the list of items
     sorted by their Pareto rank (rank 1 is best). Items in the same
     rank are sorted by ascending cer.

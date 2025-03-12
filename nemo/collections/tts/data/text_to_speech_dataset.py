@@ -319,9 +319,9 @@ class TextToSpeechDataset(Dataset):
         return batch_dict
 
 
-class T5TTSDataset(TextToSpeechDataset):
+class MagpieTTSDataset(TextToSpeechDataset):
     """
-    Class for processing and loading text to speech training examples for T5-TTS model.
+    Class for processing and loading text to speech training examples for Magpie-TTS model.
     In addition to the manifest structure for TextToSpeechDataset, we can have the following keys:
     context_audio_filepath, context_audio_duration, target_audio_codes_path, context_audio_codes_path.
     Note: target_audio_codes_path, context_audio_codes_path are absolute paths to the cached audio codes.
@@ -350,7 +350,7 @@ class T5TTSDataset(TextToSpeechDataset):
         prior_scaling_factor: Scaling factor for the beta binomial prior distribution.
         load_cached_codes_if_available: Whether to load cached audio codes if available *_codes_path keys are available in the manifest.
         dataset_type: Dataset type (train, dev, test).
-        tokenizer_config: Config of the tokenzizer used in worker_init_fn to setup the tokenizer (See t5tts.yaml)
+        tokenizer_config: Config of the tokenzizer used in worker_init_fn to setup the tokenizer (See Magpie-TTS yamls)
         load_16khz_audio: Whether to load 16khz audio for SV model.
         use_text_conditioning_tokenizer: Set True for text context conditioning.
         pad_context_text_to_max_duration: Whether to pad context text to max context audio frames.
@@ -548,6 +548,7 @@ class T5TTSDataset(TextToSpeechDataset):
                 example['context_audio'] = context_audio
                 example['context_audio_len'] = context_audio_len
 
+        # 16kHz audio is used for SV model
         if self.load_16khz_audio:
             if 'context_audio_filepath' in data.manifest_entry:
                 # If context_audio_filepath is available, then use that for 16khz audio for SV model
@@ -597,7 +598,6 @@ class T5TTSDataset(TextToSpeechDataset):
             example['context_text_len'] = context_text_len
 
         if self.include_align_prior:
-            # align_prior = self.beta_binomial_interpolator(spec_len, text_len)
             align_prior = beta_binomial_prior_distribution(
                 phoneme_count=text_len, mel_count=spec_len, scaling_factor=self.prior_scaling_factor
             )
@@ -749,7 +749,13 @@ class T5TTSDataset(TextToSpeechDataset):
         return batch_dict
 
 
-class T5TTSDatasetDPO(T5TTSDataset):
+class MagpieTTSDatasetDPO(MagpieTTSDataset):
+    """
+    This class is meant to be used with the DPO model. To generate manifests for this dataset, please use
+        - scripts/magpietts/dpo/create_text_contextpairs.py
+        - scripts/magpietts/dpo/create_preference_pairs.py
+    in sequence to generate samples and create preference pairs.
+    """
     def __len__(self):
         return len(self.data_samples) // 2
 
