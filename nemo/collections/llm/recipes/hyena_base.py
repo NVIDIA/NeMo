@@ -197,7 +197,7 @@ def trainer_recipe(
         accelerator="gpu",
         accumulate_grad_batches=1,
         callbacks=callbacks,
-        devices=num_gpus_per_node,
+        num_gpus_per_node=num_gpus_per_node,
         max_steps=max_steps,
         num_nodes=num_nodes,
         plugins=mixed_precision_cfg,
@@ -225,7 +225,7 @@ def pretrain_recipe_creater(
     global_batch_size:int = 8,
     micro_batch_size:int = 1,
     num_nodes:int = 1,
-    devices:int = 8,
+    num_gpus_per_node:int = 8,
     grad_acc_batches:int=1,
     tensor_parallel_size:int = 8,
     pipeline_model_parallel_size:int=1,
@@ -273,7 +273,7 @@ def pretrain_recipe_creater(
             model parallelism configurations.
         micro_batch_size (int): micro batch size per active device.
         num_nodes (int): number of nodes to use
-        devices (int): number of devices per node to use.
+        num_gpus_per_node (int): number of num_gpus_per_node per node to use.
         grad_acc_batches (int): number of training batches the gradients will be accumulated before performing each 
             optimizer update.
         tensor_parallel_size (int): Number of tensor parallel splits. Typically between 1 and 8 to keep parallelism
@@ -434,7 +434,7 @@ def pretrain_recipe_creater(
             pipeline_parallelism=pipeline_model_parallel_size,
             context_parallelism=context_parallel_size,
             sequence_parallelism=sequence_parallel, # TODO Turn it on by default if TP is on
-            num_gpus_per_node=devices,
+            num_gpus_per_node=num_gpus_per_node,
             val_check_interval=val_check_interval,
             limit_test_batches=limit_val_batches,
             limit_val_batches=limit_val_batches,
