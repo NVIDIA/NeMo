@@ -737,23 +737,35 @@ class MultimodalModelRunner:
                 input_text = "Hi! What is in this video?"
 
             # SteerLM prompt template
-            pre_prompt = """<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n<extra_id_1>User"""
+            pre_prompt = (
+                "<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. "
+                "The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n"
+                "<extra_id_1>User"
+            )
             post_prompt = (
-                f"\n{input_text}\n<extra_id_1>Assistant\n<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4\n"
-                ""
+                f"\n{input_text}\n<extra_id_1>Assistant\n"
+                "<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,"
+                "correctness:4,coherence:4,complexity:4,verbosity:4\n"
             )
         elif self.model_type in ['vila', 'lita', 'vita']:
             if self.model_type == "vila" or self.model_type == "lita":
-                pre_prompt = "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. USER: "
+                pre_prompt = (
+                    "A chat between a curious user and an artificial intelligence assistant. "
+                    "The assistant gives helpful, detailed, and polite answers to the user's questions. USER: "
+                )
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + " ASSISTANT:"
 
             elif self.model_type == "vita":
                 # llama3 prompt template
-                pre_prompt = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful language and vision assistant. "
-                                "You are able to understand the visual content that the user provides, "
-                                "and assist the user with a variety of tasks using natural language. <|start_header_id|>user<|end_header_id|>\n\n"""
+                pre_prompt = (
+                    "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
+                    "You are a helpful language and vision assistant. "
+                    "You are able to understand the visual content that the user provides, "
+                    "and assist the user with a variety of tasks using natural language. "
+                    "<|start_header_id|>user<|end_header_id|>\n\n"""
+                )
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
