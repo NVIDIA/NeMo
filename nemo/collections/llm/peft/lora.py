@@ -312,9 +312,12 @@ def patch_linear_module(
         (nn.Module): the monkey-patched (nn.Linear + LoRA) nn.Module
     """
 
-    assert isinstance(orig_linear, nn.Linear)
+    assert isinstance(orig_linear, nn.Linear) or isinstance(orig_linear, TELinear)
 
-    LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
+    if isinstance(orig_linear, nn.Linear):
+        LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
+    else:
+        TELinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
     # If the model uses quantized weights, we want to use orig_linear's forward
     if orig_linear.weight.dtype == torch.uint8:
         orig_linear.super_fwd = orig_linear.forward

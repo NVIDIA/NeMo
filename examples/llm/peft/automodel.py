@@ -144,7 +144,7 @@ def main():
         help='Enables trust_remote_code to load HF models with unverified sources',
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
-    parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate')
     args = parser.parse_args()
 
     wandb = None
@@ -170,7 +170,7 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(pytorch_adam_with_flat_lr(lr=args.lr))
+        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr, warmup_steps=50))
 
     if args.fp8:
         model_accelerator = True
@@ -215,7 +215,7 @@ def main():
             precision="bf16-mixed",
         ),
         optim=optimizer,
-        log=logger(args.ckpt_folder, args.max_steps // 2),
+        log=logger(args.ckpt_folder, args.max_steps),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
             dim=8,
