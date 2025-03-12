@@ -4,7 +4,7 @@ python tests/collections/speechlm/speech_to_text_llm_train.py \
   --restore_path /home/TestData/nemo2_ckpt/llama_68M \
   --devices 2 \
   --max_steps 500 \
-  --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
+  --experiment_dir /tmp/nemo2_speechlm_lora/$RUN_ID \
   --peft lora \
   --tp_size 1 \
   --pp_size 1 \
@@ -16,7 +16,7 @@ python tests/collections/speechlm/speech_to_text_llm_train.py \
   --restore_path /home/TestData/nemo2_ckpt/llama_68M \
   --devices 2 \
   --max_steps 600 \
-  --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
+  --experiment_dir /tmp/nemo2_speechlm_lora/$RUN_ID \
   --peft lora \
   --tp_size 1 \
   --pp_size 1 \
