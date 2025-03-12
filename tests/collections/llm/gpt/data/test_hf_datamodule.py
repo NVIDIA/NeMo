@@ -434,3 +434,23 @@ def test_squad_data_module_with_pth_dataloader_init(mock_tokenizer, mock_trainer
     # Depending on your environment, that might be empty or a dict
     # Check that the batch is not None
     assert batch is not None
+    expected_batch = {
+        'tokens': [4, 512],
+        'labels': [4, 512],
+        'loss_mask': [4, 512],
+        'position_ids': [4, 512],
+        'contexts': [4, 512],
+        'context_lengths': [4],
+        'answers': [4, 512],
+        'metadata': 4,
+        'token_count': 4,
+        'attention_mask': [4, 1, 512, 512]
+    }
+    assert isinstance(batch, dict)
+    for key, val in expected_batch.items():
+        batch_val = batch.pop(key)
+        if isinstance(batch_val, list):
+            assert len(batch_val) == val, (key, val, batch_val)
+        else:
+            assert list(batch_val.size()) == val, (key, val, batch_val)
+    assert len(batch) == 0
