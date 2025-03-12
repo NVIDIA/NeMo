@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import argparse
 import json
 import random
@@ -22,7 +35,7 @@ def main():
     Processes text and audio context data to create text-context pairs.
     The resulting dataset is saved as a JSON manifest file.
 
-    Example usage: 
+    Example usage:
     python scripts/t5tts/dpo/create_text_contextpairs.py \
     --challenging_texts /Data/DPOPairsInputData/challenging_texts_nemollm.txt \
     --regular_texts_for_audiocontext /Data/DPOPairsInputData/regular_texts_for_audiocontext.txt \
