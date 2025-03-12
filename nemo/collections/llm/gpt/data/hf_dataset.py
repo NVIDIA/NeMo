@@ -201,10 +201,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         micro_batch_size (int, optional): Batch size per device. Defaults to 2.
         global_batch_size (int, optional): Total batch size across all devices. Defaults to 2.
         pad_token_id (int, optional): Token ID used for padding sequences. Defaults to 0.
-        use_mcore_sampler (bool, optional): Whether to use NVIDIA MCore sampler for efficient data loading.
-            Defaults to False.
         use_dist_sampler (bool, optional): Whether to enable distributed sampling. Defaults to False.
-        mcore_dataloader_type (str, optional): Dataloader type when using MCore sampling. Defaults to 'cyclic'.
         train_aliases (list, optional): Alternative names for the training split. Defaults to ["train", "training"].
         test_aliases (list, optional): Alternative names for the test split. Defaults to ["test", "testing"].
         val_aliases (list, optional): Alternative names for the validation split.
@@ -233,8 +230,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
         ```
 
     Notes:
-        - If neither `use_dist_sampler` nor `use_mcore_sampler` are enabled, but a distributed
-        environment is detected, HFDatasetDataModule will use a distributed-sampler automatically.
+        - If `use_dist_sampler` is not enabled, but a distributed environment is detected,
+        HFDatasetDataModule will use a distributed-sampler automatically.
         - If no collation function is provided, a default function with padding using `pad_token_id` is applied.
     """
 
@@ -250,9 +247,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         micro_batch_size=2,
         global_batch_size=2,
         pad_token_id=0,
-        use_mcore_sampler=False,
         use_dist_sampler=False,
-        mcore_dataloader_type="cyclic",
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
@@ -296,8 +291,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.global_batch_size = global_batch_size
         self.pad_token_id = pad_token_id
 
-        self.use_mcore_sampler = use_mcore_sampler
-        self.mcore_dataloader_type = mcore_dataloader_type
         self.use_dist_sampler = use_dist_sampler
 
     @staticmethod
@@ -324,23 +317,14 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def setup(self, stage: str):
         """setups sampler"""
         # Turn-on dist-sampler if the user is running inside a dist-env.
-        if not self.use_dist_sampler and not self.use_mcore_sampler and has_dist_env_init_or_rank_env_var():
+        if not self.use_dist_sampler and has_dist_env_init_or_rank_env_var():
             self.use_dist_sampler = True
             logging.info("Turning on distributed data sampler")
-        elif self.use_mcore_sampler:
-            self.mcore_data_sampler = MegatronDataSampler(
-                seq_len=self.seq_length,
-                micro_batch_size=self.micro_batch_size,
-                global_batch_size=self.global_batch_size,
-                dataloader_type=self.mcore_dataloader_type,
-            )
 
     def get_data_sampler(self, dataset):
         """returns the data sampler"""
         if self.use_dist_sampler:
             return DistributedSampler(dataset)
-        elif self.use_mcore_sampler:
-            return self.mcore_data_sampler
         else:
             return None
 
