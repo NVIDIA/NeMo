@@ -19,12 +19,13 @@ from typing import List, Literal
 import torch
 import torch.nn.functional as F
 from torch import nn
+from transformer_engine.pytorch.module.linear import Linear as TELinear
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
-from transformer_engine.pytorch.module.linear import Linear as TELinear
+
 
 class LoRALinear(AdapterWrapper):
     """An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
@@ -39,6 +40,7 @@ class LoRALinear(AdapterWrapper):
         linear_output, bias, layernorm_output = self.base_linear_forward(x)
         adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
+
 
 class TELinearAdapter(TELinear):
     """
@@ -317,7 +319,9 @@ def patch_linear_module(
     if isinstance(orig_linear, nn.Linear):
         LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
     else:
-        TELinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
+        TELinearAdapter._init_adapter(
+            orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
+        )
     # If the model uses quantized weights, we want to use orig_linear's forward
     if orig_linear.weight.dtype == torch.uint8:
         orig_linear.super_fwd = orig_linear.forward

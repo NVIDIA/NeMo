@@ -150,9 +150,11 @@ def main():
 
     wandb = None
     if args.wandb_project is not None:
-        model = args.model.split('/')[-1] # '_'.join(args.model.split('/')[-2:])
-        name = (f'{model}_{args.devices}GPUs_{args.strategy}_{"fp8" if args.fp8 else ""}'
-                f'mbs{args.batch_size}_gbs{args.batch_size * args.devices}_steps{args.max_steps}_pyt')
+        model = args.model.split('/')[-1]  # '_'.join(args.model.split('/')[-2:])
+        name = (
+            f'{model}_{args.devices}GPUs_{args.strategy}_{"fp8" if args.fp8 else ""}'
+            f'mbs{args.batch_size}_gbs{args.batch_size * args.devices}_steps{args.max_steps}_pyt'
+        )
         wandb = WandbLogger(
             project=args.wandb_project,
             name=name,

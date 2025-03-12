@@ -279,7 +279,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=pad_seq_len_divisible)
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=pad_seq_len_divisible
+            )
         else:
             self._collate_fn = collate_fn
 
@@ -346,7 +348,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible)
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible
+            )
 
         return DataLoader(
             dataset,
