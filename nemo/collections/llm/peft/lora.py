@@ -46,6 +46,7 @@ class LoRALinear(AdapterWrapper):
 
 
 if HAVE_TE:
+
     class TELinearAdapter(te.Linear):
         """
         TELinear + LoRA, maintains ckpts structrue (i.e. Linear's weight/bias remain at the same FQN)
