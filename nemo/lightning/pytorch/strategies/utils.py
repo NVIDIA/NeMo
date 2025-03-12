@@ -483,7 +483,7 @@ def fsdp2_strategy_parallelize(
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
-        assert HAS_FULLY_SHARD, "Expected to have fully_shard"
+        assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
         # Find transformer layers and apply parallelisms
         parallelize_helper(model, dp_mesh, mp_policy)
 
