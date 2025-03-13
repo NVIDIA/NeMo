@@ -15,8 +15,8 @@
 import copy
 import os
 import re
-from typing import List, Optional
 from collections import OrderedDict
+from typing import List, Optional
 
 from nemo.collections.llm import GPTModel
 from nemo.collections.llm.api import pretrain
@@ -24,7 +24,6 @@ from nemo.collections.llm.tools.auto_configurator.core.training_config import ge
 from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils import logging
-
 
 SUPPORTED_MODELS = OrderedDict(
     [
@@ -95,8 +94,9 @@ class AutoConfigurator:
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {list(SUPPORTED_MODELS.keys())}."
 
         if model_type in ["bert", "t5"]:
-            assert recipe.data.seq_length <= 2048, \
-            "seq_length higher than 2048 is not supported for bert and t5 models."
+            assert (
+                recipe.data.seq_length <= 2048
+            ), "seq_length higher than 2048 is not supported for bert and t5 models."
         else:
             assert recipe.data.seq_length in [
                 2048,
@@ -154,7 +154,7 @@ class AutoConfigurator:
         for k, v in SUPPORTED_MODELS.items():
             if v in str(model):
                 return k
-        
+
         return None
 
     def _get_model_size(self, model: Config) -> int:

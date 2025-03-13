@@ -880,5 +880,5 @@ def _calculate_tp_pp_mbs_grid(
         params.min_model_parallel = min_model_parallel_size
     if max_model_parallel_size is not None and max_model_parallel_size != "auto":
         params.max_model_parallel = max_model_parallel_size
-    
+
     return params

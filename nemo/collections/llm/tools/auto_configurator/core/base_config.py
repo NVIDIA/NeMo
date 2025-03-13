@@ -94,7 +94,8 @@ def _estimate_model_size(
     model_penalty = 0.87 if model_name == "mt5" else 1.0
     valid_models = valid_models = [
         "gpt3",
-        "t5", "mt5",
+        "t5",
+        "mt5",
         "bert",
         "llama",
         "mixtral",
@@ -102,7 +103,7 @@ def _estimate_model_size(
         "gemma",
         "nemotron",
         "starcoder",
-        "qwen"
+        "qwen",
     ]
     try:
         if model_name in valid_models:
@@ -150,7 +151,8 @@ def _estimate_training_time(
     model_penalty = 1.15 if model_name == "mt5" else 1.0
     valid_models = [
         "gpt3",
-        "t5", "mt5",
+        "t5",
+        "mt5",
         "bert",
         "llama",
         "mixtral",
@@ -158,7 +160,7 @@ def _estimate_training_time(
         "gemma",
         "nemotron",
         "starcoder",
-        "qwen"
+        "qwen",
     ]
     try:
         if model_name in valid_models:
