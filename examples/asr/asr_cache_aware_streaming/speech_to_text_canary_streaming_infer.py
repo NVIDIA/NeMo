@@ -88,8 +88,11 @@ import time
 from argparse import ArgumentParser
 
 import torch
-from omegaconf import open_dict
-from dataclasses import dataclass
+from omegaconf import MISSING, OmegaConf, open_dict
+from dataclasses import dataclass, field, is_dataclass
+from typing import Optional
+from nemo.core.config import hydra_runner
+
 import numpy as np
 
 import nemo.collections.asr as nemo_asr
@@ -98,6 +101,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
 from nemo.utils import logging
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
+from examples.asr.transcribe_speech import TranscriptionConfig
 
 
 @dataclass
@@ -108,28 +112,35 @@ class CanaryData():
     last_predicted_token: torch.Tensor = None
     decoding_step: int = -1
     decoder_mems_list: list = None
-    alignatt_thr: int = 4
-    waitk_lagging: int = 3
-    exclude_sink_frames: int = 8
     max_generation_length: int = 10
     is_last_speech_chunk: bool = False
-    decoding_policy: str = "waitk" # "alignatt" or "waitk"
-    debug_mode: bool = False
 
-    
 
-def extract_transcriptions(hyps):
-    """
-    The transcribed_texts returned by CTC and RNNT models are different.
-    This method would extract and return the text section of the hypothesis.
-    """
-    if isinstance(hyps[0], Hypothesis):
-        transcriptions = []
-        for hyp in hyps:
-            transcriptions.append(hyp.text)
-    else:
-        transcriptions = hyps
-    return transcriptions
+@dataclass
+class StreamingEvaluationConfig(TranscriptionConfig):
+
+    asr_model: Optional[str] = None  # Path to a .nemo file
+
+    manifest_file : Optional[str] = None # Path to a manifest file containing audio files to perform streaming
+    audio_file: Optional[str] = None # Path to an audio file to perform streaming
+    output_path: Optional[str] = None # path to output file when manifest is used as input
+
+    batch_size: int = 1 # The batch size to be used to perform streaming in batch mode with multiple streams
+    att_context_size: Optional[list] = None # Sets the att_context_size for the models which support multiple lookaheads
+
+    decoding_policy: str = "alignatt" # streaming decoding policy ["alignatt" or "waitk"]
+    alignatt_thr: int = 4 # The frame threshold to be used for alignatt decoding policy
+    waitk_lagging: int = 3 # The frame lagging to be used for waitk decoding policy
+    exclude_sink_frames: int = 8 # The number of sink frames to be excluded from the output
+
+    online_normalization: bool = False # Perform normalization on the run per chunk
+    pad_and_drop_preencoded: bool = False # Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.
+
+    use_amp: bool = False # Whether to use AMP
+    device: str = "cuda" # The device to load the model onto and perform the streaming
+
+    debug_mode: bool = False # Whether to print more detail in the output
+
 
 
 def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
@@ -141,36 +152,9 @@ def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
 
 
 def perform_streaming(
-    asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False, canary_data=None
+    cfg, asr_model, streaming_buffer, debug_mode=False, pad_and_drop_preencoded=False, canary_data=None
 ):
     batch_size = len(streaming_buffer.streams_length)
-    # if compare_vs_offline:
-    #     # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
-    #     # the output of the model in the offline and streaming mode should be exactly the same
-    #     # import pdb; pdb.set_trace()
-        
-    #     with torch.inference_mode():
-    #         with autocast:
-    #             processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
-    #             with torch.no_grad():
-    #                 (
-    #                     pred_out_offline,
-    #                     transcribed_texts,
-    #                     cache_last_channel_next,
-    #                     cache_last_time_next,
-    #                     cache_last_channel_len,
-    #                     best_hyp,
-    #                 ) = asr_model.conformer_stream_step(
-    #                     processed_signal=processed_signal,
-    #                     processed_signal_length=processed_signal_length,
-    #                     return_transcription=True,
-    #                     canary_data=canary_data,
-    #                 )
-    #     final_offline_tran = extract_transcriptions(transcribed_texts)
-    #     logging.info(f"[pred_text]:   {final_offline_tran}")
-    # else:
-    #     final_offline_tran = None
-    final_offline_tran = None
 
     cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
         batch_size=batch_size
@@ -199,6 +183,7 @@ def perform_streaming(
                         previous_hypotheses,
                         canary_data,
                     ) = asr_model.conformer_stream_step(
+                        cfg=cfg,
                         processed_signal=chunk_audio,
                         processed_signal_length=chunk_lengths,
                         cache_last_channel=cache_last_channel,
@@ -214,9 +199,6 @@ def perform_streaming(
                         canary_data=canary_data,
                     )
 
-        if debug_mode:
-            logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
-
     # final_streaming_tran = extract_transcriptions(transcribed_texts)
     if torch.is_tensor(pred_out_stream):
         final_streaming_tran = asr_model.tokenizer.ids_to_text(pred_out_stream[0].tolist()).strip()
@@ -224,136 +206,40 @@ def perform_streaming(
         final_streaming_tran = ""
     logging.info(f"[pred_text]: {final_streaming_tran}")
 
-    # if compare_vs_offline:
-    #     # calculates and report the differences between the predictions of the model in offline mode vs streaming mode
-    #     # Normally they should be exactly the same predictions for streaming models
-    #     pred_out_stream_cat = torch.cat(pred_out_stream)
-    #     pred_out_offline_cat = torch.cat(pred_out_offline)
-    #     if pred_out_stream_cat.size() == pred_out_offline_cat.size():
-    #         diff_num = torch.sum(pred_out_stream_cat != pred_out_offline_cat).cpu().numpy()
-    #         logging.info(
-    #             f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode."
-    #         )
-    #     else:
-    #         logging.info(
-    #             f"The shape of the outputs of the model in streaming mode ({pred_out_stream_cat.size()}) is different from offline mode ({pred_out_offline_cat.size()})."
-    #         )
-
-    return final_streaming_tran, final_offline_tran, pred_out_stream
+    return final_streaming_tran, pred_out_stream
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--asr_model",
-        type=str,
-        required=True,
-        help="Path to an ASR model .nemo file or name of a pretrained model.",
-    )
-    parser.add_argument(
-        "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
-    )
-    parser.add_argument("--audio_file", type=str, help="Path to an audio file to perform streaming", default=None)
-    parser.add_argument(
-        "--manifest_file",
-        type=str,
-        help="Path to a manifest file containing audio files to perform streaming",
-        default=None,
-    )
-    parser.add_argument("--use_amp", action="store_true", help="Whether to use AMP")
-    parser.add_argument("--debug_mode", action="store_true", help="Whether to print more detail in the output.")
-    parser.add_argument(
-        "--compare_vs_offline",
-        action="store_true",
-        help="Whether to compare the output of the model with the offline mode.",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=32,
-        help="The batch size to be used to perform streaming in batch mode with multiple streams",
-    )
-    parser.add_argument(
-        "--chunk_size",
-        type=int,
-        default=-1,
-        help="The chunk_size to be used for models trained with full context and offline models",
-    )
-    parser.add_argument(
-        "--shift_size",
-        type=int,
-        default=-1,
-        help="The shift_size to be used for models trained with full context and offline models",
-    )
-    parser.add_argument(
-        "--left_chunks",
-        type=int,
-        default=2,
-        help="The number of left chunks to be used as left context via caching for offline models",
-    )
+@hydra_runner(config_name="StreamingEvaluationConfig", schema=StreamingEvaluationConfig)
+def main(cfg: StreamingEvaluationConfig):
+    
+    if is_dataclass(cfg):
+        cfg = OmegaConf.structured(cfg)
 
-    parser.add_argument(
-        "--online_normalization",
-        default=False,
-        action='store_true',
-        help="Perform normalization on the run per chunk.",
-    )
-    parser.add_argument(
-        "--output_path", type=str, help="path to output file when manifest is used as input", default=None
-    )
-    parser.add_argument(
-        "--pad_and_drop_preencoded",
-        action="store_true",
-        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.",
-    )
-
-    parser.add_argument(
-        "--decoding_strategy",
-        choices=["greedy", "beam"],
-        default=None,
-        help="Decoding stratagy for Canary model (greedy is preferred for streaming)",
-    )
-
-    parser.add_argument(
-        "--att_context_size",
-        type=str,
-        default=None,
-        help="Sets the att_context_size for the models which support multiple lookaheads",
-    )
-
-    args = parser.parse_args()
-    if (args.audio_file is None and args.manifest_file is None) or (
-        args.audio_file is not None and args.manifest_file is not None
+    if (cfg.audio_file is None and cfg.manifest_file is None) or (
+        cfg.audio_file is not None and cfg.manifest_file is not None
     ):
         raise ValueError("One of the audio_file and manifest_file should be non-empty!")
 
-    if args.asr_model.endswith('.nemo'):
-        logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model)
+    if cfg.asr_model.endswith('.nemo'):
+        logging.info(f"Using local ASR model from {cfg.asr_model}")
+        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=cfg.asr_model)
     else:
-        logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=args.asr_model)
+        logging.info(f"Using NGC cloud ASR model {cfg.asr_model}")
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=cfg.asr_model)
 
     logging.info(asr_model.encoder.streaming_cfg)
 
-    # if args.set_decoder is not None:
-    #     if hasattr(asr_model, "cur_decoder"):
-    #         asr_model.change_decoding_strategy(decoder_type=args.set_decoder)
-    #     else:
-    #         raise ValueError("Decoder cannot get changed for non-Hybrid ASR models.")
-
-    if args.att_context_size is not None:
+    # setup att context size
+    if cfg.att_context_size is not None:
         if hasattr(asr_model.encoder, "set_default_att_context_size"):
-            asr_model.encoder.set_default_att_context_size(att_context_size=json.loads(args.att_context_size))
+            asr_model.encoder.set_default_att_context_size(att_context_size=json.loads(str(cfg.att_context_size)))
         else:
             raise ValueError("Model does not support multiple lookaheads.")
 
     global autocast
-    autocast = torch.amp.autocast(asr_model.device.type, enabled=args.use_amp)
+    autocast = torch.amp.autocast(asr_model.device.type, enabled=cfg.use_amp)
 
     # # configure the decoding config
-    decoding_cfg = asr_model.cfg.decoding
-
     multitask_decoding = MultiTaskDecodingConfig()
     multitask_decoding.strategy = "greedy"
     asr_model.change_decoding_strategy(multitask_decoding)
@@ -364,84 +250,45 @@ def main():
     default_turns = asr_model.prompt.get_default_dialog_slots()
     default_turns[0]["slots"]["prompt_language"] = "spl_tokens"
     default_turns = [default_turns[0]]
-    decoder_input_ids = asr_model.prompt.encode_dialog(turns=default_turns)["context_ids"].unsqueeze(0).repeat(1, 1).to(args.device)
+    decoder_input_ids = asr_model.prompt.encode_dialog(turns=default_turns)["context_ids"].unsqueeze(0).repeat(1, 1).to(cfg.device)
+
 
     canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
 
-    # import pdb; pdb.set_trace()
-    
-    # decoding_cfg = asr_model.cfg.decoding
-    # with open_dict(decoding_cfg):
-    #     decoding_cfg.strategy = "greedy"
-    #     decoding_cfg.preserve_alignments = False
-    #     # if hasattr(asr_model, 'joint'):  # if an RNNT model
-    #     #     decoding_cfg.greedy.max_symbols = 10
-    #     #     decoding_cfg.fused_batch_size = -1
-    #     asr_model.change_decoding_strategy(decoding_cfg)
-    # asr_model.decoding.change_strategy(asr_model.decoding.cfg.strategy)
-
-    # import pdb; pdb.set_trace()
-
-
-    asr_model = asr_model.to(args.device)
+    asr_model = asr_model.to(cfg.device)
     asr_model.eval()
 
-    # chunk_size is set automatically for models trained for streaming. For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
-    if args.chunk_size > 0:
-        if args.shift_size < 0:
-            shift_size = args.chunk_size
-        else:
-            shift_size = args.shift_size
-        asr_model.encoder.setup_streaming_params(
-            chunk_size=args.chunk_size, left_chunks=args.left_chunks, shift_size=shift_size
-        )
-
-    # In streaming, offline normalization is not feasible as we don't have access to the whole audio at the beginning
-    # When online_normalization is enabled, the normalization of the input features (mel-spectrograms) are done per step
-    # It is suggested to train the streaming models without any normalization in the input features.
-    if args.online_normalization:
-        if asr_model.cfg.preprocessor.normalize not in ["per_feature", "all_feature"]:
-            logging.warning(
-                "online_normalization is enabled but the model has no normalization in the feature extration part, so it is ignored."
-            )
-            online_normalization = False
-        else:
-            online_normalization = True
-
-    else:
-        online_normalization = False
+    online_normalization = False
 
     streaming_buffer = CacheAwareStreamingAudioBuffer(
         model=asr_model,
         online_normalization=online_normalization,
-        pad_and_drop_preencoded=args.pad_and_drop_preencoded,
+        pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
     )
-    if args.audio_file is not None:
+    if cfg.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-            args.audio_file, stream_id=-1
+            cfg.audio_file, stream_id=-1
         )
         perform_streaming(
             asr_model=asr_model,
             streaming_buffer=streaming_buffer,
-            compare_vs_offline=args.compare_vs_offline,
-            pad_and_drop_preencoded=args.pad_and_drop_preencoded,
+            pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
             canary_data=canary_data,
         )
     else:
         # stream audio files in a manifest file in batched mode
         samples = []
         all_streaming_tran = []
-        all_offline_tran = []
         all_refs_text = []
         all_laal = []
 
-        with open(args.manifest_file, 'r') as f:
+        with open(cfg.manifest_file, 'r') as f:
             for line in f:
                 item = json.loads(line)
                 samples.append(item)
 
-        logging.info(f"Loaded {len(samples)} from the manifest at {args.manifest_file}.")
+        logging.info(f"Loaded {len(samples)} from the manifest at {cfg.manifest_file}.")
 
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
@@ -458,37 +305,31 @@ def main():
             canary_data.frame_chunk_size = asr_model.encoder.att_context_size[-1] + 1
             canary_data.pred_tokens_alignment = []
             
-            if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
+            if (sample_idx + 1) % cfg.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 logging.info(f'[orig_text]: {sample["text"]}')
-                streaming_tran, offline_tran, predicted_token_ids = perform_streaming(
+                streaming_tran, predicted_token_ids = perform_streaming(
+                    cfg=cfg,
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
-                    compare_vs_offline=args.compare_vs_offline,
-                    debug_mode=args.debug_mode,
-                    pad_and_drop_preencoded=args.pad_and_drop_preencoded,
+                    debug_mode=cfg.debug_mode,
+                    pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
                     canary_data=canary_data,
                 )
                 all_streaming_tran.extend([streaming_tran])
                 sample["audio_length_ms"] = streaming_buffer.buffer.size(-1)*10
-                # if args.compare_vs_offline:
-                #     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
 
                 # comput decoding latency:
                 sample['text_token_ids'] = [asr_model.tokenizer.text_to_ids(sample["text"], "en")]
                 sample['text'] = [sample['text']]
                 # import pdb; pdb.set_trace()
-                if canary_data.decoding_policy == "waitk":
-                    laal = compute_waitk_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581")
+                if cfg.decoding_policy == "waitk":
+                    laal = compute_waitk_lagging(sample, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581")
                 else:
                     laal = compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581")
                 all_laal.append(int(laal))
                 # import pdb; pdb.set_trace()
-
-        # if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
-        #     offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
-        #     logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
         
         # import pdb; pdb.set_trace()
         if len(all_refs_text) == len(all_streaming_tran):
@@ -501,23 +342,23 @@ def main():
         logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
 
         # stores the results including the transcriptions of the streaming inference in a json file
-        if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
+        if cfg.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
             fname = (
                 "streaming_"
-                + os.path.splitext(os.path.basename(args.manifest_file))[0]
+                + os.path.splitext(os.path.basename(cfg.manifest_file))[0]
                 + "_"
-                + f"att-cs{args.att_context_size}"
+                + f"att-cs{cfg.att_context_size}"
                 + "_"
-                + f"{canary_data.decoding_policy}"
+                + f"{cfg.decoding_policy}"
                 + "_"
-                + f"wl-{canary_data.waitk_lagging}"
+                + f"wl-{cfg.waitk_lagging}"
                 + "_"
-                + f"at_{canary_data.alignatt_thr}"
+                + f"at_{cfg.alignatt_thr}"
                 + ".json"
             )
 
-            hyp_json = os.path.join(args.output_path, fname)
-            os.makedirs(args.output_path, exist_ok=True)
+            hyp_json = os.path.join(cfg.output_path, fname)
+            os.makedirs(cfg.output_path, exist_ok=True)
             with open(hyp_json, "w") as out_f:
                 for i, hyp in enumerate(all_streaming_tran):
                     record = {
@@ -529,7 +370,7 @@ def main():
                     out_f.write(json.dumps(record) + '\n')
             
             scoring_fname = "scoring.wer"
-            scoring_file = os.path.join(args.output_path, scoring_fname)
+            scoring_file = os.path.join(cfg.output_path, scoring_fname)
             with open(scoring_file, "w") as out_f:
                 out_f.write(f"Streaming WER : {round(streaming_wer*100, 2)}%\n")
                 out_f.write(f"Streaming LAAL: {streaming_laal}")
@@ -558,9 +399,6 @@ def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model
     target_length_word = [len(a.split()) for a in sample['text']]
     # import pdb; pdb.set_trace()
     for i, tokens in enumerate(predicted_token_ids):
-        # audio_signal_length = batch['audio_signal_length'][i] * 1000  # convert to ms
-        # audio_signal_length = audio_signal_length // strategy_args.get('sample_rate', 16000)
-        # audio_encoder_fs = strategy_args.get('audio_encoder_fs', 80)
         audio_encoder_fs = 80
         audio_signal_length = sample["audio_length_ms"]
         # obtain lagging for alignatt
@@ -575,25 +413,17 @@ def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model
         if len(lagging) == 0:
             lagging.append(0)
         laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
-        # if isinstance(laal, torch.Tensor):
-        #     laal = laal.tolist()
-        # if isinstance(al, torch.Tensor):
-        #     al = al.tolist()
     return laal
 
 
-def compute_waitk_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
-    waitk_lagging = canary_data.waitk_lagging
+def compute_waitk_lagging(sample, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+    waitk_lagging = cfg.waitk_lagging
     pre_decision_ratio = canary_data.frame_chunk_size
-    # target_length = [len(a) - a.count(asr_model.tokenizer.eos_id) + 1 for a in sample['text_token_ids']]
     target_length_word = [len(a.split()) for a in sample['text']]
     right_context = 0
     # import pdb; pdb.set_trace()
     for i, tokens in enumerate(predicted_token_ids):
         lagging = []
-        # audio_signal_length = batch['audio_signal_length'][i] * 1000  # convert to ms
-        # audio_signal_length = audio_signal_length // strategy_args.get('sample_rate', 16000)
-        # audio_encoder_fs = strategy_args.get('audio_encoder_fs', 80)
         audio_encoder_fs = 80
         audio_signal_length = sample["audio_length_ms"]
         for j, cur_t in enumerate(tokens):

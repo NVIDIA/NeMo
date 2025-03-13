@@ -471,7 +471,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             )
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
 
-            logging.warning(f"prefixes_i: {prefixes_i}")    
+            # logging.warning(f"prefixes_i: {prefixes_i}")    
 
             # for all prefixes ending with <eos> or <pad> replace generated
             # continuations with <pad>

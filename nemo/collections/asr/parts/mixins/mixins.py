@@ -614,6 +614,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
     def conformer_stream_step(
         self,
+        cfg: DictConfig,
         processed_signal: Tensor,
         processed_signal_length: Tensor = None,
         cache_last_channel: Tensor = None,
@@ -746,7 +747,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             best_hyp = None
             encoder_input_mask = None
             
-            if canary_data.decoding_policy == "waitk":
+            if cfg.decoding_policy == "waitk":
                 enc_states = encoded.permute(0, 2, 1)
                 encoder_hidden_states = self.encoder_decoder_proj(enc_states)
 
@@ -755,9 +756,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 else:
                     canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
                 
-                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < canary_data.waitk_lagging:
+                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < cfg.waitk_lagging:
                     # need to wait for more speech
-                    if canary_data.debug_mode:
+                    if cfg.debug_mode:
                         logging.warning(f"!!! need more initial speech according to the waitk policy !!!")
                         logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
                 else:
@@ -798,7 +799,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         next_tokens = torch.argmax(logits[:, -1], dim=-1)
                         text_token = self.tokenizer.ids_to_tokens(next_tokens.tolist())
                         
-                        if canary_data.debug_mode:
+                        if cfg.debug_mode:
                             logging.warning(f"-------------"*5)
                             logging.warning(f"decoding step: {i}")
                             logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
@@ -807,10 +808,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                         if next_tokens == self.tokenizer.eos or next_tokens == 16:
                             if not canary_data.is_last_speech_chunk:
-                                if canary_data.debug_mode:
+                                if cfg.debug_mode:
                                     logging.warning(f"!#! EOS predicted before last speech chunk, wait for more speech !#!")
                             else:
-                                if canary_data.debug_mode:
+                                if cfg.debug_mode:
                                     logging.warning(f"!#! EOS predicted during last speech chunk, end of decoding !#!")
                             break
                         
@@ -821,13 +822,13 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         canary_data.tgt = tgt
                         input_ids = tgt[:, -1:]
 
-                        if canary_data.debug_mode:
+                        if cfg.debug_mode:
                             import pdb; pdb.set_trace()
 
                     greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
 
 
-            elif canary_data.decoding_policy == "alignatt":
+            elif cfg.decoding_policy == "alignatt":
 
                 enc_states = encoded.permute(0, 2, 1)
                 encoder_hidden_states = self.encoder_decoder_proj(enc_states)
@@ -862,21 +863,18 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     # compute the most attended encoder token
                     xatt_scores = xatt_scores_list[-2]
                     xatt_scores = torch.mean(xatt_scores, 1)
-                    if i == 0:
-                        if xatt_scores.shape[-1] < canary_data.exclude_sink_frames:
-                            exclude_sink_frames = xatt_scores.shape[-1] - 2
-                        else:
-                            exclude_sink_frames = canary_data.exclude_sink_frames
+                    if i == 0 and xatt_scores.shape[-1] < cfg.exclude_sink_frames:
+                        exclude_sink_frames = xatt_scores.shape[-1] - 2
                     else:
-                        exclude_sink_frames = canary_data.exclude_sink_frames
-                    most_attended_idx = torch.argmax(xatt_scores[:,:,exclude_sink_frames:], dim=-1) + canary_data.exclude_sink_frames
+                        exclude_sink_frames = cfg.exclude_sink_frames
+                    most_attended_idx = torch.argmax(xatt_scores[:,:,exclude_sink_frames:], dim=-1) + cfg.exclude_sink_frames
                     if i == 0:
                         most_attended_idx = most_attended_idx[:, -1]
                     
                     next_tokens = torch.argmax(logits[:, -1], dim=-1)
                     text_token = self.tokenizer.ids_to_tokens(next_tokens.tolist())
                     
-                    if canary_data.debug_mode:
+                    if cfg.debug_mode:
                         logging.warning(f"-------------"*5)
                         logging.warning(f"decoding step i: {i}")
                         logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
@@ -886,19 +884,19 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                     # aligatt condition
                     if not canary_data.is_last_speech_chunk and \
-                        canary_data.encoded_speech.shape[1] - (most_attended_idx+1) < canary_data.alignatt_thr:
+                        canary_data.encoded_speech.shape[1] - (most_attended_idx+1) < cfg.alignatt_thr:
                         # need to wait for the next speech chunk
-                        if canary_data.debug_mode:
+                        if cfg.debug_mode:
                             logging.warning(f"!!! need more speech according to the alignatt policy !!!")
                         greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
                         break
 
                     if next_tokens == self.tokenizer.eos or next_tokens == 16:
                         if not canary_data.is_last_speech_chunk:
-                            if canary_data.debug_mode:
+                            if cfg.debug_mode:
                                 logging.warning(f"!#! EOS predicted before last speech chunk, wait for more speech !#!")
                         else:
-                            if canary_data.debug_mode:
+                            if cfg.debug_mode:
                                 logging.warning(f"!#! EOS predicted during last speech chunk, end of decoding !#!")
                         greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
                         break
@@ -915,7 +913,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                     # all_hyp_or_transcribed_texts.append(next_tokens)
                 
-                    if canary_data.debug_mode:
+                    if cfg.debug_mode:
                         import pdb; pdb.set_trace() 
 
             else:
