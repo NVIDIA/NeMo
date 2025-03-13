@@ -39,7 +39,9 @@ python speech_to_text_aed_chunked_infer.py \
     output_filename="<(optional) specify output filename>" \
     chunk_len_in_secs=40.0 \
     batch_size=16 \
-    decoding.beam.beam_size=5
+    decoding.beam.beam_size=1
+
+To return word and segment level timestamps, add `compute_timestamps=True` to the above command.
     
 """
 
@@ -213,10 +215,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.device,
                 manifest,
                 filepaths,
+                compute_timestamps=cfg.compute_timestamps,
             )
 
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.compute_timestamps
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 

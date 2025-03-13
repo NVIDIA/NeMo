@@ -188,6 +188,7 @@ def get_buffered_pred_feat_multitaskAED(
     manifest: str = None,
     filepaths: List[list] = None,
     delay: float = 0.0,
+    compute_timestamps: bool = False,
 ) -> List[rnnt_utils.Hypothesis]:
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
@@ -217,6 +218,7 @@ def get_buffered_pred_feat_multitaskAED(
                 'target_lang': 'en',
                 'pnc': 'yes',
                 'answer': 'nothing',
+                'timestamp': 'yes' if compute_timestamps else 'no',
             }
             asr.reset()
             asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=meta)
@@ -245,6 +247,9 @@ def get_buffered_pred_feat_multitaskAED(
 
 def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     """Wrap transcription to the expected format in func write_transcription"""
+    if isinstance(hyps[0], rnnt_utils.Hypothesis):
+        return hyps
+    
     wrapped_hyps = []
     for hyp in hyps:
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)
