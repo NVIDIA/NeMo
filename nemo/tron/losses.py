@@ -89,5 +89,5 @@ def masked_next_token_loss(
     return (
         loss[0].clone(),
         local_num_tokens,
-        {'lm loss': (reporting_loss[0], reporting_loss[1])},
+        {"lm loss": (reporting_loss[0], reporting_loss[1])},
     )

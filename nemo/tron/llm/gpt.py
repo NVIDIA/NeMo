@@ -51,10 +51,10 @@ def forward_step(data_iterator: Iterable, model: GPTModel, state: GlobalState):
     timers = state.cfg.model_config.timers
     straggler_timer = state.straggler_timer
 
-    timers('batch-generator', log_level=2).start()
+    timers("batch-generator", log_level=2).start()
     with straggler_timer(bdata=True):
         tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator, state.cfg)
-    timers('batch-generator').stop()
+    timers("batch-generator").stop()
 
     with straggler_timer:
         output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
