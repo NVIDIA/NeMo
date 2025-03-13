@@ -32,8 +32,48 @@ from torch.distributed.checkpoint.storage import WriteResult
 
 logger = getLogger(__name__)
 
-
 class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
+    """ An asynchronous strategy for saving PyTorch sharded state dictionaries in a dist env.
+
+    This class extends TorchDistSaveShardedStrategy and provides methods to:
+    1. Translate MCore sharded state dictionaries to PyTorch's native format.
+    2. Save them asynchronously using a daemon-based file system writer.
+    3. Optionally cache and reuse checkpoint structure (plans and metadata)
+        for faster subsequent saves.
+
+    Args:
+        backend (str): The distributed backend in use.
+        version (int): Checkpoint version number.
+        keep_only_main_replica (bool, optional): If True, deduplicates and keeps only the main
+            replica's tensors before saving. Defaults to True.
+        thread_count (int, optional): Number of threads the daemon-based writer should use.
+            Defaults to 2.
+        cached_metadata (bool, optional): If True, attempts to cache and reuse pre-computed
+            remote metadata. Defaults to False.
+        separation_hint (str, optional): Logical grouping hint (e.g., "metadata" or "weights") that
+            the daemon-based writer can use for separating data in the file system. Defaults to None.
+
+    Attributes:
+        cached_central_plan (Optional[Any]): Cached plan for the central process group if
+            caching is enabled.
+        cached_local_plan (Optional[Any]): Cached plan for local process group members if
+            caching is enabled.
+        validated_cache_reuse (bool): Whether the cached plan is validated for subsequent reuse.
+        cached_global_metadata (Optional[Any]): If caching is enabled, holds the metadata
+            required for globally recognized checkpoint details.
+
+    Methods:
+        save(sharded_state_dict, checkpoint_dir):
+            Synchronous wrapper around the asynchronous save. Calls async_save(...) and then
+            executes the returned finalize functions immediately, effectively blocking until
+            completion.
+
+        async_save(sharded_state_dict, checkpoint_dir) -> AsyncRequest:
+            Translates the MCore sharded state dictionary to a native PyTorch state dictionary,
+            initiates an asynchronous save routine with a daemon-based file system writer,
+            and caches checkpoint structures if enabled. Returns an AsyncRequest containing
+            the necessary asynchronous callbacks for finalization.
+    """
     def __init__(
         self,
         backend: str,
@@ -123,6 +163,9 @@ class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
 
 
 class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
+    """ DaemonFileSystemWriterAsync
+        TODO
+    """
     def __init__(self, *args, separation_hint: Optional[str] = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.separation_hint = separation_hint

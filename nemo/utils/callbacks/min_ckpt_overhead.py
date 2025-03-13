@@ -14,11 +14,46 @@ from nemo.utils._ckpt_utils import TorchCompatiblePersistentAsyncCaller
 from nemo.utils._state_dict_utils import _copy_state_dict, _create_cpu_state_dict, _offload_state_dict_to_cpu
 from nemo.utils.callbacks.daemon_strategies import DaemonTorchDistSaveShardedStrategy
 from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
+from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.dist_checkpointing.serialization import (
+    get_default_save_sharded_strategy,
+)
+from megatron.core.parallel_state import get_data_parallel_group
 
 logger = getLogger(__name__)
 
 
 class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
+    """
+    Initializes the MinCkptOverheadCheckpointIO instance for distributed ckpt with minimal overhead.
+
+    Args:
+        save_ckpt_format (str):
+            The format in which checkpoints will be saved (e.g., "torch", "zarr", "torch_dist").
+        load_directly_on_device (bool, optional):
+            If True, loads the checkpoint directly onto the device (e.g., GPU) if possible.
+            Defaults to True.
+        load_strictness (Optional["StrictHandling"], optional):
+            Controls the strictness when loading checkpoints, e.g. for missing or unexpected keys.
+            Defaults to None.
+        async_save (bool, optional):
+            If True, enables asynchronous saving of checkpoints (only supported with the
+            "torch_dist" format). Defaults to False.
+        torch_dist_multiproc (Optional[int], optional):
+            Number of parallel threads to use when saving with PyTorch Distributed format.
+            Defaults to None, meaning a single thread.
+        assume_constant_structure (bool, optional):
+            If True, assumes the checkpoint structure remains constant across saves, potentially
+            skipping repeated checks and validations. Defaults to False.
+        parallel_save (bool, optional):
+            Enables fully parallel checkpoint saves, leveraging distributed or data parallel groups.
+            Defaults to False.
+        parallel_save_within_dp (bool, optional):
+            If True, performs parallel checkpoint saves within a data parallel group in addition
+            to context parallelism. Defaults to False.
+        parallel_load (bool, optional):
+            Enables loading operations in a parallel/distributed manner. Defaults to False.
+    """
     def __init__(
         self,
         save_ckpt_format: str,
@@ -52,7 +87,8 @@ class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
         path: _PATH,
         storage_options: Optional[Any] = None,
     ) -> Optional["AsyncRequest"]:
-        """Saves a distributed checkpoint via checkpoint subprocess. Creates the checkpoint root directory if doesn't exist.
+        """Saves a distributed checkpoint via checkpoint subprocess.
+            Creates the checkpoint root directory if doesn't exist.
 
         Args:
             checkpoint (Dict[str, Any]): sharded state dict to save
@@ -118,9 +154,13 @@ class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
         if self.async_save and self.save_ckpt_format != "torch_dist":
             raise ValueError("Async dist-ckpt save supported only for torch_dist format")
 
-        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
+        if self.torch_dist_multiproc is None:
+            torch_dist_kwargs = {}
+        else:
+            torch_dist_kwargs = dict(thread_count=self.torch_dist_multiproc)
         if self.save_ckpt_format == "torch_dist" and torch_dist_kwargs:
-            save_strategy = DaemonTorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
+            save_strategy = DaemonTorchDistSaveShardedStrategy(
+                self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
             save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
 

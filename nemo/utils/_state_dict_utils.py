@@ -18,6 +18,7 @@ def _identity_func(
     device: Optional[torch.device],
     companion_obj: Any,
 ) -> torch.Tensor:
+    """ noop """
     return obj
 
 
@@ -150,7 +151,7 @@ def _iterate_state_dict(
                 ret.data = ret.data.detach().to(cpu_device)
 
             if companion_obj is not None:
-                companion_obj_dict = {k: copy.deepcopy(v) for k, v in ret.__dict__.items() if k != "data"}
+                # companion_obj_dict = {k: copy.deepcopy(v) for k, v in ret.__dict__.items() if k != "data"}
                 companion_obj.__dict__.update(ret_dict)
                 if isinstance(companion_obj.data, torch.Tensor):
                     if ret.data.requires_grad:

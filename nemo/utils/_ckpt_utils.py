@@ -77,7 +77,7 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
         storage_writer: Optional[StorageWriter] = None,
         planner: Optional[SavePlanner] = None,
     ) -> None:
-        thread_count = state_dict.pop("thread_count")
+        state_dict.pop("thread_count")
 
         save(
             sharded_state_dict=state_dict,
@@ -122,7 +122,7 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                     logger.info("Terminating the checkpoint background process.")
                     return
                 assert isinstance(obj, AsyncRequest)
-                logger.info(f"Received async checkpoint request with id={obj.call_idx}")  # noqa: G004
+                logger.info("Received async checkpoint request with id={}".format(obj.call_idx))  # noqa: G004
 
                 if profile_dir is not None and dist.get_rank() == 0:
                     from custom_callbacks.profile import MAX_TRACE_ENTRIES
@@ -137,7 +137,10 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                     )
                     tracer.start()
 
-                    logger.info(f"Started profile in subprocess for checkpointing step {global_step}.")
+                    logger.info("Started profile in subprocess for checkpointing step {}.".format(
+                            global_step
+                        )
+                    )
 
                 # Call the actual save function
                 obj.async_fn(*obj.async_fn_args)
@@ -145,15 +148,24 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                 if profile_dir is not None and dist.get_rank() == 0:
                     tracer.stop()
                     tracer.save(
-                        output_file=f"{profile_dir}/profile/ckpt_subproc_rank{dist.get_rank()}_step{global_step}_trace.json"
+                        output_file="{}/profile/ckpt_subproc_rank{}_step{}_trace.json".format(
+                            profile_dir, dist.get_rank(), global_step
+                        )
                     )
 
-                    logger.info(f"Finished profile in subprocess for checkpointing step {global_step}.")
+                    logger.info(
+                        "Finished profile in subprocess for checkpointing step {}.".format(
+                            global_step
+                        )
+                    )
 
                 send.put(obj.call_idx)
-                logger.info(f"Submitted checkpoint save request for checkpoint_id={obj.call_idx}")  # noqa: G004
+                logger.info("Submitted checkpoint save request for checkpoint_id={}".format(
+                    obj.call_idx
+                    )
+                )  # noqa: G004
         except BaseException as e:
-            logger.error(f"Checkpoint background process encountered an exception: {e}")  # noqa: G004
+            logger.error("Checkpoint background process encountered an exception: {}".format(e))  # noqa: G004
             send.put(e)
             raise
         finally:
