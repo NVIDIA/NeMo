@@ -310,23 +310,18 @@ The NeMo Framework can be installed in a variety of ways, depending on
 your needs. Depending on the domain, you may find one of the following
 installation methods more suitable.
 
-- Conda / Pip - Refer to [Conda](#conda) and [Pip](#pip) for
-  installation instructions.
+- [Conda / Pip](#conda--pip): Install NeMo-Framework with native Pip into a virtual environment.
   - This is the recommended method for ASR and TTS domains.
   - When using a Nvidia PyTorch container as the base, this is the
       recommended method for all domains.
-- Docker Containers - Refer to [Docker containers](#docker-containers)
-  for installation instructions.
-  - NeMo Framework container -
-      [nvcr.io/nvidia/nemo:24.05]{.title-ref}
-- LLMs and MMs Dependencies - Refer to [LLMs and MMs
-    Dependencies](#install-llms-and-mms-dependencies) for installation
-    instructions.
+- [NGC Containers](#docker-containers): Install NeMo-Framework into a highly-optimized NVIDIA NGC container.
+  - NeMo Framework container
+  - Pytorch container
 
 **Important: We strongly recommended that you start with a base NVIDIA
 PyTorch container: nvcr.io/nvidia/pytorch:24.02-py3.**
 
-### Conda
+### Conda / Pip
 
 Install NeMo in a fresh Conda environment:
 
