@@ -100,7 +100,7 @@ jobs:
 
           # Read the file content
           if [[ -f "$FILENAME" ]]; then
-              FILE_CONTENT=$(cat "$FILENAME")
+              FILE_CONTENT=$(docker exec nemo_container_${{ github.run_id }} cat "$FILENAME")
           else
               FILE_CONTENT=""
           fi
