@@ -33,7 +33,7 @@ An example manifest line:
 Example Usage:
 python speech_to_text_aed_chunked_infer.py \
     model_path=null \
-    pretrained_name="nvidia/canary-1b" \
+    pretrained_name="nvidia/canary-1b-flash" \
     audio_dir="<(optional) path to folder of audio files>" \
     dataset_manifest="<(optional) path to manifest>" \
     output_filename="<(optional) specify output filename>" \
@@ -41,7 +41,8 @@ python speech_to_text_aed_chunked_infer.py \
     batch_size=16 \
     decoding.beam.beam_size=1
 
-To return word and segment level timestamps, add `compute_timestamps=True` to the above command.
+To return word and segment level timestamps, add `compute_timestamps=True` to the above command, 
+and set `chunk_len_in_secs=10.0` for best results.
     
 """
 
@@ -127,6 +128,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     Transcribes the input audio and can be used to infer long audio files by chunking
     them into smaller segments.
     """
+    
+    assert not (cfg.compute_timestamps and cfg.chunk_len_in_secs != 10.0), (
+        "When compute_timestamps is True, use `chunk_len_in_secs=10.0` for optimal results."
+    )
+
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
 

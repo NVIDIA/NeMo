@@ -233,6 +233,8 @@ def get_buffered_pred_feat_multitaskAED(
                 if not line:
                     continue
                 sample = json.loads(line)
+                if compute_timestamps:      # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
+                    sample['timestamp'] = 'yes'
                 if 'text' in sample:
                     refs.append(sample['text'])
                 audio_file = get_full_path(audio_file=sample['audio_filepath'], manifest_file=manifest)
