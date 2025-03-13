@@ -339,7 +339,7 @@ To install nemo_toolkit from such a wheel, use the following installation method
 pip install "nemo_toolkit"
 ```
 
-If a more specific version is desired, we recommend a Pip-VCS install. From [NVIDIA/NeMo](github.com/NVIDIA/NeMo), fetch the commit/branch/tag that you want to install.  
+If a more specific version is desired, we recommend a Pip-VCS install. From [NVIDIA/NeMo](github.com/NVIDIA/NeMo), fetch the commit, branch, or tag that you would like to install.  
 To install nemo_toolkit from this Git reference `$REF`, use the following installation method:
 
 ```bash
