@@ -330,9 +330,6 @@ conda create --name nemo python==3.10.12
 conda activate nemo
 ```
 
-Install PyTorch using their
-[configurator](https://pytorch.org/get-started/locally/):
-
 #### Pick the right version
 
 NeMo-Framework publishes pre-built wheels with each release.
