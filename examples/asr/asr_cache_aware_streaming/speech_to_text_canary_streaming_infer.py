@@ -90,6 +90,7 @@ from argparse import ArgumentParser
 import torch
 from omegaconf import open_dict
 from dataclasses import dataclass
+import numpy as np
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
@@ -108,7 +109,7 @@ class CanaryData():
     decoding_step: int = -1
     decoder_mems_list: list = None
     alignatt_thr: int = 4
-    waitk: int = 4
+    waitk_lagging: int = 3
     exclude_sink_frames: int = 8
     max_generation_length: int = 10
     is_last_speech_chunk: bool = False
@@ -238,7 +239,7 @@ def perform_streaming(
     #             f"The shape of the outputs of the model in streaming mode ({pred_out_stream_cat.size()}) is different from offline mode ({pred_out_offline_cat.size()})."
     #         )
 
-    return final_streaming_tran, final_offline_tran
+    return final_streaming_tran, final_offline_tran, pred_out_stream
 
 
 def main():
@@ -433,6 +434,7 @@ def main():
         all_streaming_tran = []
         all_offline_tran = []
         all_refs_text = []
+        all_laal = []
 
         with open(args.manifest_file, 'r') as f:
             for line in f:
@@ -454,11 +456,12 @@ def main():
             # import pdb; pdb.set_trace()
             canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
             canary_data.frame_chunk_size = asr_model.encoder.att_context_size[-1] + 1
+            canary_data.pred_tokens_alignment = []
             
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 logging.info(f'[orig_text]: {sample["text"]}')
-                streaming_tran, offline_tran = perform_streaming(
+                streaming_tran, offline_tran, predicted_token_ids = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
@@ -467,9 +470,21 @@ def main():
                     canary_data=canary_data,
                 )
                 all_streaming_tran.extend([streaming_tran])
+                sample["audio_length_ms"] = streaming_buffer.buffer.size(-1)*10
                 # if args.compare_vs_offline:
                 #     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
+
+                # comput decoding latency:
+                sample['text_token_ids'] = [asr_model.tokenizer.text_to_ids(sample["text"], "en")]
+                sample['text'] = [sample['text']]
+                # import pdb; pdb.set_trace()
+                if canary_data.decoding_policy == "waitk":
+                    laal = compute_waitk_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581")
+                else:
+                    laal = compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581")
+                all_laal.append(int(laal))
+                # import pdb; pdb.set_trace()
 
         # if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
         #     offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
@@ -478,7 +493,9 @@ def main():
         # import pdb; pdb.set_trace()
         if len(all_refs_text) == len(all_streaming_tran):
             streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
-            logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
+            logging.info(f"WER : {round(streaming_wer*100, 2)}%")
+            streaming_laal = int(np.mean(all_laal))
+            logging.info(f"LAAL: {streaming_laal}")
 
         end_time = time.time()
         logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
@@ -486,16 +503,16 @@ def main():
         # stores the results including the transcriptions of the streaming inference in a json file
         if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
             fname = (
-                "streaming_out_"
+                "streaming_"
                 + os.path.splitext(os.path.basename(args.manifest_file))[0]
                 + "_"
                 + f"att-cs{args.att_context_size}"
                 + "_"
-                + f"policy-{canary_data.decoding_policy}"
+                + f"{canary_data.decoding_policy}"
                 + "_"
-                + f"waitk-{canary_data.waitk}"
+                + f"wl-{canary_data.waitk_lagging}"
                 + "_"
-                + f"alignatt-thr_{canary_data.alignatt_thr}"
+                + f"at_{canary_data.alignatt_thr}"
                 + ".json"
             )
 
@@ -507,13 +524,92 @@ def main():
                         "pred_text": hyp,
                         "text": all_refs_text[i],
                         "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
+                        "laal": all_laal[i]
                     }
                     out_f.write(json.dumps(record) + '\n')
             
             scoring_fname = "scoring.wer"
             scoring_file = os.path.join(args.output_path, scoring_fname)
             with open(scoring_file, "w") as out_f:
-                out_f.write(f"Streaming WER: {round(streaming_wer*100, 2)}%")
+                out_f.write(f"Streaming WER : {round(streaming_wer*100, 2)}%\n")
+                out_f.write(f"Streaming LAAL: {streaming_laal}")
+
+
+
+def compute_laal(delays, source_length, target_length):
+    if delays[0] > source_length:
+        return delays[0]
+
+    LAAL = 0
+    gamma = max(len(delays), target_length) / source_length
+    tau = 0
+    for t_minus_1, d in enumerate(delays):
+        LAAL += d - t_minus_1 / gamma
+        tau = t_minus_1 + 1
+
+        if d >= source_length:
+            break
+    LAAL /= tau
+
+    return LAAL
+
+def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+    assert len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
+    target_length_word = [len(a.split()) for a in sample['text']]
+    # import pdb; pdb.set_trace()
+    for i, tokens in enumerate(predicted_token_ids):
+        # audio_signal_length = batch['audio_signal_length'][i] * 1000  # convert to ms
+        # audio_signal_length = audio_signal_length // strategy_args.get('sample_rate', 16000)
+        # audio_encoder_fs = strategy_args.get('audio_encoder_fs', 80)
+        audio_encoder_fs = 80
+        audio_signal_length = sample["audio_length_ms"]
+        # obtain lagging for alignatt
+        lagging = []
+        for cur_t, pred_idx in canary_data.pred_tokens_alignment:
+            cur_t = cur_t
+            eos_token = asr_model.tokenizer.vocab[asr_model.tokenizer.eos_id]
+            if (cur_t.startswith(BOW_PREFIX) and cur_t != BOW_PREFIX) or cur_t == eos_token:  # word boundary
+                lagging.append(pred_idx * audio_encoder_fs)
+            if cur_t == eos_token:
+                break
+        if len(lagging) == 0:
+            lagging.append(0)
+        laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
+        # if isinstance(laal, torch.Tensor):
+        #     laal = laal.tolist()
+        # if isinstance(al, torch.Tensor):
+        #     al = al.tolist()
+    return laal
+
+
+def compute_waitk_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+    waitk_lagging = canary_data.waitk_lagging
+    pre_decision_ratio = canary_data.frame_chunk_size
+    # target_length = [len(a) - a.count(asr_model.tokenizer.eos_id) + 1 for a in sample['text_token_ids']]
+    target_length_word = [len(a.split()) for a in sample['text']]
+    right_context = 0
+    # import pdb; pdb.set_trace()
+    for i, tokens in enumerate(predicted_token_ids):
+        lagging = []
+        # audio_signal_length = batch['audio_signal_length'][i] * 1000  # convert to ms
+        # audio_signal_length = audio_signal_length // strategy_args.get('sample_rate', 16000)
+        # audio_encoder_fs = strategy_args.get('audio_encoder_fs', 80)
+        audio_encoder_fs = 80
+        audio_signal_length = sample["audio_length_ms"]
+        for j, cur_t in enumerate(tokens):
+            cur_src_len = (j + waitk_lagging) * pre_decision_ratio + right_context
+            cur_src_len*=audio_encoder_fs # to ms
+            cur_src_len = min(audio_signal_length, cur_src_len)
+            spm = asr_model.tokenizer.vocab[cur_t]
+            # reach word boundary
+            if (spm.startswith(BOW_PREFIX) and spm != BOW_PREFIX) or cur_t == asr_model.tokenizer.eos_id:  # word boundary
+                lagging.append(cur_src_len)
+            if cur_t == asr_model.tokenizer.eos_id:
+                break
+        if len(lagging) == 0:
+            lagging.append(0)
+        laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
+    return laal
 
 
 

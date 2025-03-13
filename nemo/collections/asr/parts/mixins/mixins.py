@@ -755,7 +755,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 else:
                     canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
                 
-                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < canary_data.waitk:
+                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < canary_data.waitk_lagging:
                     # need to wait for more speech
                     if canary_data.debug_mode:
                         logging.warning(f"!!! need more initial speech according to the waitk policy !!!")
@@ -909,6 +909,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     canary_data.decoder_mems_list = decoder_mems_list
                     canary_data.decoding_step = i
                     canary_data.last_predicted_token = tgt[:, -1:]
+                    canary_data.pred_tokens_alignment.append([text_token[0], canary_data.encoded_speech.size(-2)])
                     canary_data.tgt = tgt
                     input_ids = tgt[:, -1:]
 
