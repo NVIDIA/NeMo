@@ -1775,7 +1775,11 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                 ]
             )
             torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group())
-            return loss_for_ub * cp_size, num_valid_tokens_in_ub.to(torch.int32), {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
+            return (
+                loss_for_ub * cp_size,
+                num_valid_tokens_in_ub.to(torch.int32),
+                {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu},
+            )
 
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
         return loss_for_ub * cp_size, num_valid_tokens_in_ub.to(torch.int32), {"avg": reduced_loss}
