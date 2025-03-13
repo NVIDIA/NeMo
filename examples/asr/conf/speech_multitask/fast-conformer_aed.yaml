@@ -14,7 +14,9 @@
 # |      canary-1b       |     1B     |        24         |                     24                |                        512                     |              1024             |             1024             |
 # |   canary-1b-flash    |    883M    |        32         |                     4                 |                       1024                     |              1024             |             1024             |
 # |  canary-180m-flash   |    182M    |        17         |                     4                 |                       1024                     |               512             |             1024             |
-
+#
+# a typical training manifest entry looks like this - 
+# {"audio_filepath": "/path/to/audio/file.wav", "duration": 16.192, "text": "Text spoken in the audio.", "source_lang": "en", "target_lang": "en", "taskname": "asr", "pnc": "yes"}
 
 name: "FastConformer-Transformer-MultiTask"
 
