@@ -49,6 +49,7 @@ class LoRA(LLMLoRA):
 
     freeze_language_model: bool = True
     freeze_vision_model: bool = True
+    freeze_vision_projection: bool = False
 
     def freeze_model(self, model: nn.Module) -> None:
         modules = []
@@ -56,6 +57,8 @@ class LoRA(LLMLoRA):
             modules.append(model.module.module.language_model)
         if self.freeze_vision_model and model.module.module.vision_model is not None:
             modules.append(model.module.module.vision_model)
+        if self.freeze_vision_projection and model.module.module.vision_projection is not None:
+            modules.append(model.module.module.vision_projection)
 
         for module in modules:
             for param in module.parameters():
