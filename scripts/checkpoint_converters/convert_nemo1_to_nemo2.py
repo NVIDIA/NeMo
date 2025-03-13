@@ -35,6 +35,14 @@ b. Convert a model weight directory.
 
 """
 
+"""
+python /lustre/fsw/portfolios/coreai/users/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
+    --input_path=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/nm5_56b_final/nm5_8b_phase3_zarr.nemo \
+    --output_path=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/nm5_final_checkpoints/nemo2_phase3_8k_base \
+    --tokenizer_vocab_file=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/nm5_56b_final/multiMixV8.gpt4o_nc_sd.500000.128k.vocab.json \
+    --tokenizer_library=tiktoken \
+    --model_id=nemotron5-hybrid8b \
+"""
 import os
 import shutil
 import tempfile

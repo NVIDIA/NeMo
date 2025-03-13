@@ -138,7 +138,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     fp16: bool = False
     bf16: bool = True
     num_layers: int = 2
-    mamba_ssm_ngroups: int = 8
+    mamba_num_groups: int = 8
     num_attention_heads: int = 1
     hybrid_attention_ratio: float = 0.0
     hybrid_mlp_ratio: float = 0.0
@@ -176,7 +176,6 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             mamba_stack_spec=mamba_stack_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
-            # mamba_ssm_ngroups=self.mamba_ssm_ngroups,
             hybrid_attention_ratio=self.hybrid_attention_ratio,
             hybrid_mlp_ratio=self.hybrid_mlp_ratio,
             hybrid_override_pattern=self.hybrid_override_pattern,
@@ -433,7 +432,7 @@ class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", MambaModel])
             num_attention_heads=source.num_attention_heads,
             layernorm_epsilon=source.layer_norm_epsilon,
             num_query_groups=source.num_key_value_heads,
-            mamba_ssm_ngroups=source.n_groups,
+            mamba_num_groups=source.n_groups,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
@@ -518,8 +517,11 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "Nemotron5ForCausalLM"])
 
         return HFNemotron5Config(
             hybrid_override_pattern=source.hybrid_override_pattern,
-            n_groups=source.mamba_ssm_ngroups,
+            n_groups=source.mamba_num_groups,
             num_hidden_layers=source.num_layers,
+            mamba_head_dim=source.mamba_head_dim,
+            mamba_num_heads=source.hidden_size * 2 // source.mamba_head_dim,
+            mamba_state_size=source.mamba_state_dim,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
@@ -630,7 +632,7 @@ class BaseMambaConfig130M(SSMConfig):
     num_layers: int = 24
     seq_length: int = 2048
     hidden_size: int = 768
-    mamba_ssm_ngroups: int = 1
+    mamba_num_groups: int = 1
     ffn_hidden_size: int = 768
     make_vocab_size_divisible_by: int = 16
     tokenizer_library: str = 'huggingface'
@@ -644,7 +646,7 @@ class BaseMambaConfig370M(SSMConfig):
     num_layers: int = 48
     seq_length: int = 2048
     hidden_size: int = 1024
-    mamba_ssm_ngroups: int = 1
+    mamba_num_groups: int = 1
     ffn_hidden_size: int = 1024
     make_vocab_size_divisible_by: int = 16
     tokenizer_library: str = 'huggingface'
@@ -658,7 +660,7 @@ class BaseMambaConfig780M(SSMConfig):
     num_layers: int = 48
     seq_length: int = 2048
     hidden_size: int = 1536
-    mamba_ssm_ngroups: int = 1
+    mamba_num_groups: int = 1
     ffn_hidden_size: int = 1536
     make_vocab_size_divisible_by: int = 16
     tokenizer_library: str = 'huggingface'
@@ -672,7 +674,7 @@ class BaseMambaConfig1_3B(SSMConfig):
     num_layers: int = 48
     seq_length: int = 2048
     hidden_size: int = 2048
-    mamba_ssm_ngroups: int = 1
+    mamba_num_groups: int = 1
     ffn_hidden_size: int = 2048
     make_vocab_size_divisible_by: int = 16
     tokenizer_library: str = 'huggingface'
@@ -686,7 +688,7 @@ class BaseMambaConfig2_7B(SSMConfig):
     num_layers: int = 64
     seq_length: int = 2048
     hidden_size: int = 2560
-    mamba_ssm_ngroups: int = 1
+    mamba_num_groups: int = 1
     ffn_hidden_size: int = 2560
     make_vocab_size_divisible_by: int = 16
     tokenizer_library: str = 'huggingface'
@@ -701,7 +703,7 @@ class NVIDIAMambaConfig8B(SSMConfig):
     num_layers: int = 56
     seq_length: int = 4096
     hidden_size: int = 4096
-    mamba_ssm_ngroups: int = 8
+    mamba_num_groups: int = 8
     ffn_hidden_size: int = 4096
     make_vocab_size_divisible_by: int = 128
     tokenizer_library: str = 'megatron'
@@ -715,7 +717,7 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
     num_layers: int = 56
     seq_length: int = 4096
     hidden_size: int = 4096
-    mamba_ssm_ngroups: int = 8
+    mamba_num_groups: int = 8
     ffn_hidden_size: int = 16384
     num_attention_heads: int = 32
     num_query_groups: int = 8

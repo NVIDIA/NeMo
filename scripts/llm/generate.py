@@ -32,7 +32,14 @@ torchrun --nproc-per-node=8 /lustre/fsw/portfolios/coreai/users/ataghibakhsh/NeM
     --num_tokens_to_generate=40 \
     --temperature=0.01 \
     --fp8
-    
+
+torchrun --nproc-per-node=1 /lustre/fsw/portfolios/coreai/users/ataghibakhsh/NeMo/scripts/llm/generate.py \
+    --model_path=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/final_nm5/final_algined_8b_nemo2 \
+    --tp=1 \
+    --devices=1 \
+    --num_tokens_to_generate=40 \
+    --temperature=0.01 \
+    --fp8
 """
 
 def get_args():
@@ -167,6 +174,30 @@ if __name__ == "__main__":
         ),
     )
     prompts=args.prompts
+    ############################
+    # from nemo.collections.llm.inference import chat_utils
+
+    # prompts=[{"role": "system", "content": ""}, 
+    #         {"role": "user","content":"Write a limerick about the wonders of GPU computing."},
+    #         {"role": "assistant", "content": "There once was a chip full of might, \
+    #           That made data dance day and night. \
+    #           With GPUs so grand, \
+    #           Tasks were done on demand, \
+    #           Turning code into speed and delight!"},
+    #         {"role": "user", "content": "Can you change it to use the word NVIDIA?"}]
+    
+    # prompts = prompts + [
+    #         {'role': 'assistant', 'content': ''}
+    #     ]  # adding trailing assistant message so that prompt ends with Assistant tag.
+    # special_tokens = chat_utils.NM5_CHAT_PROMPT_TOKENS
+    # nemo_source = chat_utils.convert_messages(prompts)
+    # header, conversation, data_type, mask_role = chat_utils.get_header_conversation_type_mask_role(
+    #     nemo_source, special_tokens
+    # )
+    # len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
+    # prompts = [conversation[:-len_strip]]*8
+
+    ############################
     results = api.generate(
         path=args.model_path,
         prompts=prompts,
