@@ -67,12 +67,12 @@ def get_tcp_store() -> dist.Store:
     )
 
 
-def get_prefix_store(store: dist.Store, call_wrapper: inprocess.CallWrapper) -> dist.Store:
+def get_prefix_store(store: dist.Store, call_wrapper: "inprocess.CallWrapper") -> dist.Store:
     iteration = call_wrapper.iteration
     return dist.PrefixStore(str(iteration), store)
 
 
-def get_finalize_fns(config: InProcessRestartConfig) -> List[inprocess.finalize.ThreadedFinalize]:
+def get_finalize_fns(config: InProcessRestartConfig) -> List["inprocess.finalize.ThreadedFinalize"]:
     finalize_fns = [
         inprocess.finalize.ThreadedFinalize(
             timeout=timedelta(seconds=10),
@@ -96,7 +96,7 @@ def _destroy_mcore_global_state() -> None:
     destroy_rerun_state_machine()
 
 
-def get_rank_assignment_layers(config: InProcessRestartConfig) -> List[inprocess.rank_assignment.Layer]:
+def get_rank_assignment_layers(config: InProcessRestartConfig) -> List["inprocess.rank_assignment.Layer"]:
     layers = [
         inprocess.rank_assignment.Layer(
             min_ranks=config.active_world_size,
