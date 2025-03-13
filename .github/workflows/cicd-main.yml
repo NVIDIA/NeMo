@@ -147,8 +147,7 @@ jobs:
       TIMEOUT: 20
       # TODO: remove this hack
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_ASR.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_ASR.sh
 
   L0_Unit_Tests_GPU_Audio:
     needs: [pre-flight, cicd-test-container-build]
@@ -158,8 +157,7 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_Audio.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Audio.sh
 
   L0_Unit_Tests_GPU_Common:
     needs: [pre-flight, cicd-test-container-build]
@@ -168,8 +166,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_Common.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Common.sh
 
   L0_Unit_Tests_GPU_LLM:
     needs: [pre-flight, cicd-test-container-build]
@@ -178,8 +175,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_LLM.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_LLM.sh
 
   L0_Unit_Tests_GPU_Multimodal:
     needs: [pre-flight, cicd-test-container-build]
@@ -188,8 +184,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_Multimodal.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Multimodal.sh
 
   L0_Unit_Tests_GPU_TTS:
     needs: [pre-flight, cicd-test-container-build]
@@ -198,8 +193,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_TTS.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_TTS.sh
 
   L0_Unit_Tests_GPU_Core:
     needs: [pre-flight, cicd-test-container-build]
@@ -209,8 +203,7 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_Core.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Core.sh
 
   L0_Unit_Tests_GPU_Hydra:
     needs: [pre-flight, cicd-test-container-build]
@@ -219,8 +212,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_Hydra.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Hydra.sh
 
   L0_Unit_Tests_GPU_Lightning:
     needs: [pre-flight, cicd-test-container-build]
@@ -229,8 +221,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_Lightning.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Lightning.sh
 
   L0_Unit_Tests_GPU_Others:
     needs: [pre-flight, cicd-test-container-build]
@@ -239,8 +230,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_GPU_Others.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Others.sh
 
   # L0: CPU unit tests
   L0_Unit_Tests_CPU_ASR:
@@ -251,8 +241,7 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_ASR.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_ASR.sh
 
   L0_Unit_Tests_CPU_Audio:
     needs: [pre-flight, cicd-test-container-build]
@@ -261,8 +250,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_Audio.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Audio.sh
 
   L0_Unit_Tests_CPU_Common:
     needs: [pre-flight, cicd-test-container-build]
@@ -272,8 +260,7 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_Common.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Common.sh
 
   L0_Unit_Tests_CPU_LLM:
     needs: [pre-flight, cicd-test-container-build]
@@ -282,8 +269,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_LLM.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_LLM.sh
 
   L0_Unit_Tests_CPU_Multimodal:
     needs: [pre-flight, cicd-test-container-build]
@@ -292,8 +278,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_Multimodal.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Multimodal.sh
 
   L0_Unit_Tests_CPU_TTS:
     needs: [pre-flight, cicd-test-container-build]
@@ -302,8 +287,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_TTS.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_TTS.sh
 
   L0_Unit_Tests_CPU_Core:
     needs: [pre-flight, cicd-test-container-build]
@@ -313,8 +297,7 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_Core.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Core.sh
 
   L0_Unit_Tests_CPU_Hydra:
     needs: [pre-flight, cicd-test-container-build]
@@ -323,8 +306,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_Hydra.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Hydra.sh
 
   L0_Unit_Tests_CPU_Lightning:
     needs: [pre-flight, cicd-test-container-build]
@@ -333,8 +315,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_Lightning.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Lightning.sh
 
   L0_Unit_Tests_CPU_Others:
     needs: [pre-flight, cicd-test-container-build]
@@ -343,8 +324,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Unit_Tests_CPU_Others.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Others.sh
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
@@ -353,8 +333,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L0_Setup_Test_Data_And_Models.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Setup_Test_Data_And_Models.sh
 
   # L2: Community llava multimodal Checkpoints tests
   L2_Community_vita_Checkpoints_tests_Llama3:
@@ -364,7 +343,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }} 
+        RUN_ID=${{ github.run_id }} 
         bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3.sh
 
   # L2: ASR dev run
@@ -375,7 +354,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }} 
+        RUN_ID=${{ github.run_id }} 
         bash tests/functional_tests/ASR_dev_run_Speech_to_Text.sh
 
   ASR_dev_run_Speech_to_Text_WPE_CitriNet:
@@ -385,7 +364,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }} 
+        RUN_ID=${{ github.run_id }} 
         bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_CitriNet.sh
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
@@ -395,8 +374,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/ASR_dev_run_Speech_Pre-training_-_CitriNet.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_Pre-training_-_CitriNet.sh
 
   Optional_ASR_dev_run_Speech_To_Text_Finetuning:
     needs: [pre-flight, cicd-test-container-build]
@@ -405,8 +383,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/Optional_ASR_dev_run_Speech_To_Text_Finetuning.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Optional_ASR_dev_run_Speech_To_Text_Finetuning.sh
       IS_OPTIONAL: true
 
   Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning:
@@ -416,8 +393,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning.sh
       IS_OPTIONAL: true
 
   ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
@@ -427,8 +403,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_-_Conformer.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_-_Conformer.sh
 
   # L2: ASR dev run - part two
   ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
@@ -438,8 +413,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer.sh
 
   L2_Speech_to_Text_EMA:
     needs: [pre-flight, cicd-test-container-build]
@@ -448,8 +422,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_to_Text_EMA.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_to_Text_EMA.sh
 
   L2_Speech_to_Text_AED:
     needs: [pre-flight, cicd-test-container-build]
@@ -458,8 +431,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_to_Text_AED.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_to_Text_AED.sh
 
   # L2: Speaker dev run
   L2_Speaker_dev_run_Speaker_Recognition:
@@ -469,8 +441,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Recognition.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Recognition.sh
 
   L2_Speaker_dev_run_Speaker_Diarization:
     needs: [pre-flight, cicd-test-container-build]
@@ -479,8 +450,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Diarization.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Diarization.sh
 
   L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
     needs: [pre-flight, cicd-test-container-build]
@@ -489,8 +459,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer.sh
 
   L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -499,8 +468,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference.sh
 
   L2_Speaker_dev_run_Speech_to_Label:
     needs: [pre-flight, cicd-test-container-build]
@@ -509,8 +477,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_Speech_to_Label.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speech_to_Label.sh
 
   L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -519,8 +486,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference.sh
 
   L2_Speaker_dev_run_Clustering_Diarizer_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -529,8 +495,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_Clustering_Diarizer_Inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Clustering_Diarizer_Inference.sh
 
   L2_Speaker_dev_run_Neural_Diarizer_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -539,8 +504,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_Neural_Diarizer_Inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Neural_Diarizer_Inference.sh
 
   L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
     needs: [pre-flight, cicd-test-container-build]
@@ -549,8 +513,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation.sh
 
   # L2: ASR Multi-dataloader dev run
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
@@ -560,8 +523,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader.sh
 
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
     needs: [pre-flight, cicd-test-container-build]
@@ -570,8 +532,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader.sh
 
   # L2: ASR Adapters
   L2_ASR_Adapters_Linear_Adapters:
@@ -581,8 +542,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_ASR_Adapters_Linear_Adapters.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Adapters_Linear_Adapters.sh
 
   L2_ASR_Adapters_RelPos_MHA_Adapters:
     needs: [pre-flight, cicd-test-container-build]
@@ -591,8 +551,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_ASR_Adapters_RelPos_MHA_Adapters.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Adapters_RelPos_MHA_Adapters.sh
 
   # L2: OOMptimizer
   L2_Speech_Estimate_Duration_Bins:
@@ -602,8 +561,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_Estimate_Duration_Bins.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Estimate_Duration_Bins.sh
 
   # L2: OOMptimizer
   L2_Speech_Batch_Size_OOMptimizer:
@@ -613,8 +571,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_Batch_Size_OOMptimizer.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Batch_Size_OOMptimizer.sh
 
   # L2: OOMptimizer Canary (has a different batch schema)
   Optional_L2_Speech_Batch_Size_OOMptimizer_Canary:
@@ -624,8 +581,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/Optional_L2_Speech_Batch_Size_OOMptimizer_Canary.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Optional_L2_Speech_Batch_Size_OOMptimizer_Canary.sh
       IS_OPTIONAL: true
 
   # L2: Speech Transcription
@@ -636,8 +592,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_Transcription_Speech_to_Text_Transcribe.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Speech_to_Text_Transcribe.sh
 
   # L2: Speech Transcription
   L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
@@ -647,8 +602,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_Full_Manifest.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_Full_Manifest.sh
       AFTER_SCRIPT: |
         rm -rf /tmp/preds.json transcribe.log
 
@@ -659,8 +613,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_With_Prompt.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_With_Prompt.sh
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
 
@@ -671,8 +624,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_Audio_Dir.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_Audio_Dir.sh
       AFTER_SCRIPT: |
         rm -rf preds.json
       IS_OPTIONAL: true
@@ -685,8 +637,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav.sh
 
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
     needs: [pre-flight, cicd-test-container-build]
@@ -695,8 +646,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3.sh
 
   # L2: G2P Models
   L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference:
@@ -706,8 +656,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference.sh
 
     # TODO: pleasefixme @redoctopus
     # - name: ByT5G2P training, evaluation and inference
@@ -742,8 +691,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference.sh
 
   # TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
   # is in the release container
@@ -755,8 +703,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN.sh
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/nmt_results
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN:
@@ -766,8 +713,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN.sh
 
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation:
     needs: [pre-flight, cicd-test-container-build]
@@ -776,8 +722,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation.sh
 
   # L2: NMT Attention is All You Need Inference
   L2_NMT_Attention_is_All_You_Need_Inference:
@@ -787,8 +732,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Inference.sh
 
   # L2: NMT Attention is All You Need Finetuning
   L2_NMT_Attention_is_All_You_Need_Finetuning:
@@ -798,8 +742,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Finetuning.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Finetuning.sh
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/nmt_finetune
 
@@ -811,8 +754,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation.sh
 
   L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation:
     needs: [pre-flight, cicd-test-container-build]
@@ -821,8 +763,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation.sh
 
   L2_Megatron_NMT_Training_TP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -831,8 +772,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Megatron_NMT_Training_TP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Megatron_NMT_Training_TP2.sh
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/megatron_nmt_results
 
@@ -843,8 +783,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -855,8 +794,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT_FSDP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT_FSDP2.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -867,8 +805,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT_4bit.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT_4bit.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -879,8 +816,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_VLM_HF_Transformer_SFT_FSDP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_SFT_FSDP2.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -891,8 +827,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PEFT_notebook.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_notebook.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -903,8 +838,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PEFT.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -915,8 +849,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PEFT_nemorun.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_nemorun.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -927,8 +860,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -939,8 +871,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2.sh
 
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
@@ -952,8 +883,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_nemorun.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_nemorun.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -964,8 +894,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -976,8 +905,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_FSDP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_FSDP2.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -988,8 +916,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_nemorun.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_nemorun.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1000,8 +927,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1012,8 +938,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_FSDP2_2gpu.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_FSDP2_2gpu.sh
 
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
@@ -1025,8 +950,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PT_2gpu.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_2gpu.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1037,8 +961,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PT_2gpu_nemorun.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_2gpu_nemorun.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1049,8 +972,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PT.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1061,8 +983,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PT_nemorun.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_nemorun.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1073,8 +994,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_notebook.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_notebook.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1085,8 +1005,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1097,8 +1016,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_nemorun.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_nemorun.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1109,8 +1027,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SFT_TE_Acceleration.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_TE_Acceleration.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
       IS_OPTIONAL: true
@@ -1122,8 +1039,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_PT_TE_Acceleration.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_TE_Acceleration.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1135,8 +1051,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_HF_Transformer_SpeechLM_SFT_2gpu.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SpeechLM_SFT_2gpu.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1148,8 +1063,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_Tacotron_2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_Tacotron_2.sh
 
   L2_TTS_Fast_dev_runs_1_WaveGlow:
     needs: [pre-flight, cicd-test-container-build]
@@ -1158,8 +1072,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_WaveGlow.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_WaveGlow.sh
 
   L2_TTS_Fast_dev_runs_1_FastPitch:
     needs: [pre-flight, cicd-test-container-build]
@@ -1168,8 +1081,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_FastPitch.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_FastPitch.sh
 
   # OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS:
   #   needs: [pre-flight, cicd-test-container-build]
@@ -1220,8 +1132,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_Hifigan.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_Hifigan.sh
 
   # L2: NeRF
   # L2_NeRF_DreamFusion:
@@ -1260,8 +1171,7 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/Speech_Checkpoints_tests.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Speech_Checkpoints_tests.sh
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
@@ -1272,8 +1182,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_Stable_Diffusion_Training.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Stable_Diffusion_Training.sh
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
@@ -1284,8 +1193,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_Pretraining_no_transformer_engine.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_Pretraining_no_transformer_engine.sh
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/gpt_pretrain_results
         rm -rf tests/collections/llm/gpt_index_mappings
@@ -1297,8 +1205,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_llama3_pretraining_recipe.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_llama3_pretraining_recipe.sh
 
   L2_NeMo_2_llama3_fault_tolerance_plugin:
     needs: [pre-flight, cicd-test-container-build]
@@ -1307,8 +1214,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_llama3_fault_tolerance_plugin.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_llama3_fault_tolerance_plugin.sh
 
   L2_NeMo_2_llama3_straggler_detection:
     needs: [pre-flight, cicd-test-container-build]
@@ -1317,8 +1223,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_llama3_straggler_detection.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_llama3_straggler_detection.sh
 
   L2_NeMo_2_GPT_DDP_Param_Parity_check:
     needs: [pre-flight, cicd-test-container-build]
@@ -1327,8 +1232,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_DDP_Param_Parity_check.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_DDP_Param_Parity_check.sh
 
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/gpt_pretrain_results
@@ -1341,8 +1245,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure # Assume runner has 2 GPUs
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Hyena_DDP_Pretraining_Test.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Hyena_DDP_Pretraining_Test.sh
 
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/hyena_pretrain_results/${{ github.run_id }}
@@ -1354,8 +1257,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_SSM_Pretraining.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_SSM_Pretraining.sh
 
   L2_NeMo_2_SSM_Finetuning:
     needs: [pre-flight, cicd-test-container-build]
@@ -1364,8 +1266,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_SSM_Finetuning.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_SSM_Finetuning.sh
 
   L2_NeMo_2_HF_MODEL_IMPORT:
     needs: [pre-flight, cicd-test-container-build]
@@ -1374,8 +1275,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_HF_MODEL_IMPORT.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_HF_MODEL_IMPORT.sh
 
       AFTER_SCRIPT: |
         rm -rf ~/.cache/nemo/models
@@ -1387,8 +1287,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_jit_callback.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_jit_callback.sh
 
   L2_NeMo_2_T5_Pretraining:
     needs: [pre-flight, cicd-test-container-build]
@@ -1397,8 +1296,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_T5_Pretraining.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_Pretraining.sh
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
         rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
@@ -1410,8 +1308,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_T5_Finetuning.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_Finetuning.sh
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
 
@@ -1422,8 +1319,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_T5_LoRA.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_LoRA.sh
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_peft_results/${{ github.run_id }}
 
@@ -1434,8 +1330,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2.sh
 
   L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1444,8 +1339,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2.sh
 
   L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1454,8 +1348,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2.sh
 
   L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1464,8 +1357,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2.sh
 
   L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1474,8 +1366,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2.sh
 
   L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1484,8 +1375,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2.sh
 
   L2_NeMo_2_NEVA_LOAD_GENERATE:
     needs: [pre-flight, cicd-test-container-build]
@@ -1494,8 +1384,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NEVA_LOAD_GENERATE.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_LOAD_GENERATE.sh
 
   L2_NEMO_2_MLLAMA_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -1504,8 +1393,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NEMO_2_MLLAMA_Inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_MLLAMA_Inference.sh
 
   L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1514,8 +1402,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2.sh
 
   L2_NeMo_2_Mixtral_Pretraining:
     needs: [pre-flight, cicd-test-container-build]
@@ -1524,8 +1411,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mixtral_Pretraining.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_Pretraining.sh
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -1534,8 +1420,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS1.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS1.sh
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1544,8 +1429,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS2.sh
 
   L2_NeMo_2_GPT_SFT_TP1PP2_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1554,8 +1438,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP2_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP2_MBS2.sh
 
   L2_NeMo_2_GPT_SFT_TP2PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1564,8 +1447,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP2PP1_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP2PP1_MBS2.sh
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED:
     needs: [pre-flight, cicd-test-container-build]
@@ -1574,8 +1456,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED.sh
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -1584,8 +1465,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1.sh
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1594,8 +1474,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2.sh
 
   L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1604,8 +1483,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2.sh
 
   L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1614,8 +1492,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2.sh
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED:
     needs: [pre-flight, cicd-test-container-build]
@@ -1624,8 +1501,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED.sh
 
   L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED:
     needs: [pre-flight, cicd-test-container-build]
@@ -1634,8 +1510,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED.sh
 
   L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED:
     needs: [pre-flight, cicd-test-container-build]
@@ -1644,8 +1519,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED.sh
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat:
     needs: [pre-flight, cicd-test-container-build]
@@ -1654,8 +1528,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat.sh
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude:
     needs: [pre-flight, cicd-test-container-build]
@@ -1664,8 +1537,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude.sh
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1674,8 +1546,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2.sh
 
   L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -1684,8 +1555,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1.sh
 
   L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -1694,8 +1564,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1.sh
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -1704,8 +1573,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1.sh
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude:
     needs: [pre-flight, cicd-test-container-build]
@@ -1714,8 +1582,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude.sh
 
   L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -1724,8 +1591,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1.sh
 
   L2_NEMO_2_LoRA_MERGE:
     needs: [pre-flight, cicd-test-container-build]
@@ -1734,8 +1600,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NEMO_2_LoRA_MERGE.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_LoRA_MERGE.sh
 
   L2_NEMO_2_LoRA_Export:
     needs: [pre-flight, cicd-test-container-build]
@@ -1744,8 +1609,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NEMO_2_LoRA_Export.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_LoRA_Export.sh
 
   L2_NEMO_2_LoRA_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -1754,8 +1618,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NEMO_2_LoRA_Inference.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_LoRA_Inference.sh
 
   L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:
     needs: [pre-flight, cicd-test-container-build]
@@ -1764,8 +1627,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact.sh
 
   L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
     needs: [pre-flight, cicd-test-container-build]
@@ -1774,8 +1636,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_PTQ_Llama2_FP8_trtllm.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_PTQ_Llama2_FP8_trtllm.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -1788,8 +1649,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_PTQ_Llama2_FP8_nemo.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_PTQ_Llama2_FP8_nemo.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -1802,8 +1662,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Distill_Llama3_TP1PP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Distill_Llama3_TP1PP2.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -1816,8 +1675,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Prune_Llama_TP1PP2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Prune_Llama_TP1PP2.sh
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt /tmp/pruned-llama
 
@@ -1828,8 +1686,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Export_In_Framework.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Export_In_Framework.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt /tmp/lambada.json
@@ -1841,8 +1698,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_llava_next_results
@@ -1854,8 +1710,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_VLLM_EXPORT.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_VLLM_EXPORT.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/llama_head64
@@ -1869,8 +1724,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_EVAL.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_EVAL.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/trtllm_dir
@@ -1882,8 +1736,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124.sh
       AFTER_SCRIPT: |
         rm -rf examples/llm/auto_configurator/auto_conf_logs
 
@@ -1894,8 +1747,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        export RUN_ID=${{ github.run_id }}
-        bash tests/functional_tests/L2_SpeechLM_LoRA_TP1PP1_MBS2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_SpeechLM_LoRA_TP1PP1_MBS2.sh
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_speechlm_lora/${{ github.run_id }}
