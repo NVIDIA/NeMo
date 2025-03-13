@@ -4,9 +4,12 @@ from typing import Any, Dict, Optional
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from megatron.core.dist_checkpointing.mapping import apply_factories
+from megatron.core.dist_checkpointing.serialization import get_default_save_sharded_strategy
 from megatron.core.dist_checkpointing.state_dict_transformation import save_preprocess
 from megatron.core.dist_checkpointing.strategies.async_utils import AsyncRequest, debug_time
 from megatron.core.dist_checkpointing.strategies.fully_parallel import FullyParallelSaveStrategyWrapper
+from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.parallel_state import get_data_parallel_group
 from torch.distributed.checkpoint._async_process_executor import _CheckpointRequestIdentifier
 
 from nemo.utils import logging
@@ -14,11 +17,6 @@ from nemo.utils._ckpt_utils import TorchCompatiblePersistentAsyncCaller
 from nemo.utils._state_dict_utils import _copy_state_dict, _create_cpu_state_dict, _offload_state_dict_to_cpu
 from nemo.utils.callbacks.daemon_strategies import DaemonTorchDistSaveShardedStrategy
 from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
-from megatron.core.dist_checkpointing.validation import StrictHandling
-from megatron.core.dist_checkpointing.serialization import (
-    get_default_save_sharded_strategy,
-)
-from megatron.core.parallel_state import get_data_parallel_group
 
 logger = getLogger(__name__)
 
@@ -54,6 +52,7 @@ class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
         parallel_load (bool, optional):
             Enables loading operations in a parallel/distributed manner. Defaults to False.
     """
+
     def __init__(
         self,
         save_ckpt_format: str,
@@ -159,8 +158,7 @@ class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
         else:
             torch_dist_kwargs = dict(thread_count=self.torch_dist_multiproc)
         if self.save_ckpt_format == "torch_dist" and torch_dist_kwargs:
-            save_strategy = DaemonTorchDistSaveShardedStrategy(
-                self.save_ckpt_format, 1, **torch_dist_kwargs)
+            save_strategy = DaemonTorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
             save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
 

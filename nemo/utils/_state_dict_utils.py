@@ -18,13 +18,15 @@ def _identity_func(
     device: Optional[torch.device],
     companion_obj: Any,
 ) -> torch.Tensor:
-    """ noop """
+    """noop"""
     return obj
 
 
 class CompanionMismatch(Exception):
     """ """
+
     ...
+
 
 def _iterate_state_dict(
     iter_object: Any,

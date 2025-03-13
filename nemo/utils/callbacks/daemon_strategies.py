@@ -32,8 +32,9 @@ from torch.distributed.checkpoint.storage import WriteResult
 
 logger = getLogger(__name__)
 
+
 class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
-    """ An asynchronous strategy for saving PyTorch sharded state dictionaries in a dist env.
+    """An asynchronous strategy for saving PyTorch sharded state dictionaries in a dist env.
 
     This class extends TorchDistSaveShardedStrategy and provides methods to:
     1. Translate MCore sharded state dictionaries to PyTorch's native format.
@@ -74,6 +75,7 @@ class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
             and caches checkpoint structures if enabled. Returns an AsyncRequest containing
             the necessary asynchronous callbacks for finalization.
     """
+
     def __init__(
         self,
         backend: str,
@@ -163,9 +165,10 @@ class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
 
 
 class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
-    """ DaemonFileSystemWriterAsync
-        TODO
+    """DaemonFileSystemWriterAsync
+    TODO
     """
+
     def __init__(self, *args, separation_hint: Optional[str] = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.separation_hint = separation_hint

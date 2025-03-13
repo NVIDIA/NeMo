@@ -137,10 +137,7 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                     )
                     tracer.start()
 
-                    logger.info("Started profile in subprocess for checkpointing step {}.".format(
-                            global_step
-                        )
-                    )
+                    logger.info("Started profile in subprocess for checkpointing step {}.".format(global_step))
 
                 # Call the actual save function
                 obj.async_fn(*obj.async_fn_args)
@@ -153,16 +150,11 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                         )
                     )
 
-                    logger.info(
-                        "Finished profile in subprocess for checkpointing step {}.".format(
-                            global_step
-                        )
-                    )
+                    logger.info("Finished profile in subprocess for checkpointing step {}.".format(global_step))
 
                 send.put(obj.call_idx)
-                logger.info("Submitted checkpoint save request for checkpoint_id={}".format(
-                    obj.call_idx
-                    )
+                logger.info(
+                    "Submitted checkpoint save request for checkpoint_id={}".format(obj.call_idx)
                 )  # noqa: G004
         except BaseException as e:
             logger.error("Checkpoint background process encountered an exception: {}".format(e))  # noqa: G004
@@ -174,7 +166,7 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
 
 
 class TorchCompatiblePersistentAsyncCaller(_MegatronCompatibleAsyncCheckpointProcess, PersistentAsyncCaller):
-    """ Initializes a Torch-compatible persistent asynchronous caller.
+    """Initializes a Torch-compatible persistent asynchronous caller.
 
     This constructor first checks that a distributed process group is
     initialized (via torch.distributed). It then calls the base class
@@ -196,6 +188,7 @@ class TorchCompatiblePersistentAsyncCaller(_MegatronCompatibleAsyncCheckpointPro
         - Defines the process function (self.process) to be used for handling
         async checkpoint saving tasks.
     """
+
     def __init__(self, profile_dir: Optional[str] = None):
         assert dist.is_initialized(), "Process group must be initialized"
         _MegatronCompatibleAsyncCheckpointProcess.__init__(self, _ProcessGroupInitInfo(), profile_dir)

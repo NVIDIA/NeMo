@@ -16,7 +16,7 @@ logger = getLogger(__name__)
 
 
 class PersistentCheckpointProcessIO(AsyncFinalizableCheckpointIO):
-    """ A checkpoint I/O handler that schedules and runs checkpoint-saving operations asynchronously,
+    """A checkpoint I/O handler that schedules and runs checkpoint-saving operations asynchronously,
     ensuring persistence and optional performance profiling.
 
     This class inherits from AsyncFinalizableCheckpointIO and wraps an underlying
@@ -47,6 +47,7 @@ class PersistentCheckpointProcessIO(AsyncFinalizableCheckpointIO):
         >>> # Use persistent_io.save_checkpoint in place of the underlying checkpoint_io.save_checkpoint
         >>> persistent_io.save_checkpoint(checkpoint_data, "/path/to/checkpoint")
     """
+
     def __init__(
         self,
         checkpoint_io: AsyncCompatibleCheckpointIO,
