@@ -122,6 +122,7 @@ def default_finetune_trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
+        ckpt_load_strictness="log_all",
     )
 
     trainer = run.Config(
@@ -150,6 +151,20 @@ def default_finetune_log(
     tensorboard_logger: Optional[run.Config['TensorBoardLogger']] = None,
     wandb_logger: Optional[run.Config['WandbLogger']] = None,
 ) -> run.Config[nl.NeMoLogger]:
+    """
+    Create a default fine-tuning logger for any model.
+
+    This function sets up a template for ModelCheckpoint and NeMoLogger.
+
+    Args:
+        See docstrings of ModelCheckpoint and NeMoLogger.
+
+    Returns:
+        run.Config: Config for a finetuning NeMoLogger.
+
+    See usages of this in recipes for further details.
+    """
+
     ckpt = run.Config(
         nl.ModelCheckpoint,
         save_last="link",
