@@ -1620,8 +1620,17 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
     def get_input_tokens(self, sample: dict):
         if self.asr_model.prompt_format == "canary":
             expected_slots = {"source_lang", "target_lang", "taskname", "pnc"}
+            default_slot_values = {}
         elif self.asr_model.prompt_format == "canary2":
             expected_slots = {"source_lang", "target_lang"}
+            default_slot_values = {
+                "decodercontext": "",
+                "emotion": "<|emo:undefined|>",
+                "itn": "<|noitn|>",
+                "timestamp": "<|notimestamp|>",
+                "diarize": "<|nodiarize|>",
+                "pnc": "<|pnc|>",  # consistent with canary1
+            }
         else:
             raise ValueError(f"Unknown prompt format: {self.asr_model.prompt_format}")
         
@@ -1633,7 +1642,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             )
         
         # fill optional slots
-        for k, v in self.asr_model.prompt.get_default_slot_values().items():
+        for k, v in default_slot_values.items():
             sample[k] = sample.get(k, v)
         tokens = self.asr_model.prompt.encode_dialog(
             turns=[
