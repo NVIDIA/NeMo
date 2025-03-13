@@ -324,8 +324,6 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))
         target = self.init(torch_dtype_from_mcore_config(source.config))
-
-        breakpoint()
         target = self.convert_state(source, target)
 
         target = target.cpu()
