@@ -16,6 +16,37 @@ logger = getLogger(__name__)
 
 
 class PersistentCheckpointProcessIO(AsyncFinalizableCheckpointIO):
+    """ A checkpoint I/O handler that schedules and runs checkpoint-saving operations asynchronously,
+    ensuring persistence and optional performance profiling.
+
+    This class inherits from AsyncFinalizableCheckpointIO and wraps an underlying
+    AsyncCompatibleCheckpointIO to delegate the actual checkpoint saving. By default,
+    it uses an AsyncCallsQueue with persistence enabled, allowing checkpoint operations
+    to be queued and executed asynchronously—even across multiple process lifetimes if needed.
+
+    The queue has a persistent caller (TorchCompatiblePersistentAsyncCaller) that manages
+    queued operations and creates profiling data when a profile directory is provided.
+
+    Args:
+        checkpoint_io (AsyncCompatibleCheckpointIO): The underlying checkpoint I/O object
+            that produces asynchronous requests. Must be an instance (or subclass) of
+            AsyncCompatibleCheckpointIO.
+        profile_dir (Optional[str]): An optional directory in which to store performance
+            profiling information. If None, no profiling data is captured.
+
+    Attributes:
+        async_calls_queue (AsyncCallsQueue): The queue that stores and manages asynchronous
+            checkpoint-saving calls. Configured with "persistent=True" to maintain state
+            across processes.
+        profile_dir (Optional[str]): Directory to store profiling data, if provided.
+
+    Example:
+        >>> # Initialize an AsyncCompatibleCheckpointIO (not shown), e.g. "my_checkpoint_io"
+        >>> # Then wrap it with PersistentCheckpointProcessIO
+        >>> persistent_io = PersistentCheckpointProcessIO(my_checkpoint_io, "/tmp/profiles")
+        >>> # Use persistent_io.save_checkpoint in place of the underlying checkpoint_io.save_checkpoint
+        >>> persistent_io.save_checkpoint(checkpoint_data, "/path/to/checkpoint")
+    """
     def __init__(
         self,
         checkpoint_io: AsyncCompatibleCheckpointIO,

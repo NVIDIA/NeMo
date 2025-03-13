@@ -23,7 +23,7 @@ def _identity_func(
 
 
 class CompanionMismatch(Exception): ...
-
+    """ """
 
 def _iterate_state_dict(
     iter_object: Any,
