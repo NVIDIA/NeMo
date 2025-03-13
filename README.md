@@ -320,7 +320,27 @@ installation methods more suitable.
 - [NGC NeMo container](#ngc-nemo-container): Ready-to-go solution of NeMo-Framework
   - Perfect for customers that seek highest performance.
   - Insides all dependencies and NeMo libraries such as NeMo-Aligner, NeMo-Curator, and more.
-  
+
+### Support matrix
+
+NeMo-Framework provides tiers of support based on OS / Platform and mode of installation. Please refer the following overview of support levels:
+
+- Fully supported: Max performance and feature-completeness.
+- Limited supported: Perfect to explore NeMo.
+- No support yet: In development.
+- Deprecated: Support has reached end of life.
+
+Please refer to the following table for current support levels:
+
+| OS / Platform          | Pip-install     | Source into NGC container |
+|------------------------|-----------------|---------------------------|
+| linux - amd64/x84_64   | Limited support | Full support              |
+| linux - arm64          | Limited support | Limited support           |
+| darwin - amd64/x64_64  | Deprecated      | Deprecated                |
+| darwin - arm64         | Limited support | Limited support           |
+| windows - amd64/x64_64 | No support yet  | No support yet            |
+| windows - arm64        | No support yet  | No support yet            |
+
 ### Conda / Pip
 
 Install NeMo in a fresh Conda environment:
