@@ -238,9 +238,9 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
                 i += tgt_len-1
                 input_ids = tgt[:, -1:]
 
-            logging.warning(f"Step {i}")
-            logging.warning(f"tgt: {tgt}")
-            logging.warning(f"input_ids: {input_ids}")
+            # logging.warning(f"Step {i}")
+            # logging.warning(f"tgt: {tgt}")
+            # logging.warning(f"input_ids: {input_ids}")
             # if i == 14:
             #     raise ValueError("Stop here")
             
@@ -427,10 +427,10 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
-        logging.warning(f"Step {0}")
-        logging.warning(f"decoder_input_ids:   {decoder_input_ids}")
-        logging.warning(f"tgt:   {tgt}")
-        logging.warning(f"prefixes[:, -1:]: {prefixes[:, -1:]}")
+        # logging.warning(f"Step {0}")
+        # logging.warning(f"decoder_input_ids:   {decoder_input_ids}")
+        # logging.warning(f"tgt:   {tgt}")
+        # logging.warning(f"prefixes[:, -1:]: {prefixes[:, -1:]}")
 
         # repeat init target prefixes and cached memory states beam_size times
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)
@@ -459,8 +459,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         for i in range(tgt_len, max_generation_length + tgt_len):
 
             # import pdb; pdb.set_trace()
-            logging.warning(f"Step {i}")
-            logging.warning(f"prefixes[:, -1:]: {prefixes[:, -1:]}")
+            # logging.warning(f"Step {i}")
+            # logging.warning(f"prefixes[:, -1:]: {prefixes[:, -1:]}")
             # raise ValueError("Stop here")
             # mask all finished hypotheses to exclude them from beam
             pad_mask = pad_profile.repeat(1, self.beam_size)

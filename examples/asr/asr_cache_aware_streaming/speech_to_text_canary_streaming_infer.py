@@ -108,8 +108,12 @@ class CanaryData():
     decoding_step: int = -1
     decoder_mems_list: list = None
     alignatt_thr: int = 4
+    waitk: int = 4
+    exclude_sink_frames: int = 8
     max_generation_length: int = 10
     is_last_speech_chunk: bool = False
+    decoding_policy: str = "waitk" # "alignatt" or "waitk"
+    debug_mode: bool = False
 
     
 
@@ -139,32 +143,33 @@ def perform_streaming(
     asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False, canary_data=None
 ):
     batch_size = len(streaming_buffer.streams_length)
-    if compare_vs_offline:
-        # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
-        # the output of the model in the offline and streaming mode should be exactly the same
-        # import pdb; pdb.set_trace()
+    # if compare_vs_offline:
+    #     # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
+    #     # the output of the model in the offline and streaming mode should be exactly the same
+    #     # import pdb; pdb.set_trace()
         
-        with torch.inference_mode():
-            with autocast:
-                processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
-                with torch.no_grad():
-                    (
-                        pred_out_offline,
-                        transcribed_texts,
-                        cache_last_channel_next,
-                        cache_last_time_next,
-                        cache_last_channel_len,
-                        best_hyp,
-                    ) = asr_model.conformer_stream_step(
-                        processed_signal=processed_signal,
-                        processed_signal_length=processed_signal_length,
-                        return_transcription=True,
-                        canary_data=canary_data,
-                    )
-        final_offline_tran = extract_transcriptions(transcribed_texts)
-        logging.info(f" Final offline transcriptions:   {final_offline_tran}")
-    else:
-        final_offline_tran = None
+    #     with torch.inference_mode():
+    #         with autocast:
+    #             processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
+    #             with torch.no_grad():
+    #                 (
+    #                     pred_out_offline,
+    #                     transcribed_texts,
+    #                     cache_last_channel_next,
+    #                     cache_last_time_next,
+    #                     cache_last_channel_len,
+    #                     best_hyp,
+    #                 ) = asr_model.conformer_stream_step(
+    #                     processed_signal=processed_signal,
+    #                     processed_signal_length=processed_signal_length,
+    #                     return_transcription=True,
+    #                     canary_data=canary_data,
+    #                 )
+    #     final_offline_tran = extract_transcriptions(transcribed_texts)
+    #     logging.info(f"[pred_text]:   {final_offline_tran}")
+    # else:
+    #     final_offline_tran = None
+    final_offline_tran = None
 
     cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
         batch_size=batch_size
@@ -212,23 +217,26 @@ def perform_streaming(
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
 
     # final_streaming_tran = extract_transcriptions(transcribed_texts)
-    final_streaming_tran = asr_model.tokenizer.ids_to_text(pred_out_stream[0].tolist())
-    logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
+    if torch.is_tensor(pred_out_stream):
+        final_streaming_tran = asr_model.tokenizer.ids_to_text(pred_out_stream[0].tolist()).strip()
+    else:
+        final_streaming_tran = ""
+    logging.info(f"[pred_text]: {final_streaming_tran}")
 
-    if compare_vs_offline:
-        # calculates and report the differences between the predictions of the model in offline mode vs streaming mode
-        # Normally they should be exactly the same predictions for streaming models
-        pred_out_stream_cat = torch.cat(pred_out_stream)
-        pred_out_offline_cat = torch.cat(pred_out_offline)
-        if pred_out_stream_cat.size() == pred_out_offline_cat.size():
-            diff_num = torch.sum(pred_out_stream_cat != pred_out_offline_cat).cpu().numpy()
-            logging.info(
-                f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode."
-            )
-        else:
-            logging.info(
-                f"The shape of the outputs of the model in streaming mode ({pred_out_stream_cat.size()}) is different from offline mode ({pred_out_offline_cat.size()})."
-            )
+    # if compare_vs_offline:
+    #     # calculates and report the differences between the predictions of the model in offline mode vs streaming mode
+    #     # Normally they should be exactly the same predictions for streaming models
+    #     pred_out_stream_cat = torch.cat(pred_out_stream)
+    #     pred_out_offline_cat = torch.cat(pred_out_offline)
+    #     if pred_out_stream_cat.size() == pred_out_offline_cat.size():
+    #         diff_num = torch.sum(pred_out_stream_cat != pred_out_offline_cat).cpu().numpy()
+    #         logging.info(
+    #             f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode."
+    #         )
+    #     else:
+    #         logging.info(
+    #             f"The shape of the outputs of the model in streaming mode ({pred_out_stream_cat.size()}) is different from offline mode ({pred_out_offline_cat.size()})."
+    #         )
 
     return final_streaming_tran, final_offline_tran
 
@@ -440,12 +448,16 @@ def main():
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])
+            logging.info("================"*10)
             logging.info(f'Added this sample to the buffer: {sample["audio_filepath"]}')
 
             # import pdb; pdb.set_trace()
+            canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
+            canary_data.frame_chunk_size = asr_model.encoder.att_context_size[-1] + 1
             
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
+                logging.info(f'[orig_text]: {sample["text"]}')
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
@@ -454,14 +466,16 @@ def main():
                     pad_and_drop_preencoded=args.pad_and_drop_preencoded,
                     canary_data=canary_data,
                 )
-                all_streaming_tran.extend(streaming_tran)
-                if args.compare_vs_offline:
-                    all_offline_tran.extend(offline_tran)
+                all_streaming_tran.extend([streaming_tran])
+                # if args.compare_vs_offline:
+                #     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
 
-        if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
-            offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
-            logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
+        # if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
+        #     offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
+        #     logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
+        
+        # import pdb; pdb.set_trace()
         if len(all_refs_text) == len(all_streaming_tran):
             streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
             logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
@@ -473,9 +487,15 @@ def main():
         if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
             fname = (
                 "streaming_out_"
-                + os.path.splitext(os.path.basename(args.asr_model))[0]
-                + "_"
                 + os.path.splitext(os.path.basename(args.manifest_file))[0]
+                + "_"
+                + f"att-cs{args.att_context_size}"
+                + "_"
+                + f"policy-{canary_data.decoding_policy}"
+                + "_"
+                + f"waitk-{canary_data.waitk}"
+                + "_"
+                + f"alignatt-thr_{canary_data.alignatt_thr}"
                 + ".json"
             )
 
@@ -489,6 +509,12 @@ def main():
                         "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
                     }
                     out_f.write(json.dumps(record) + '\n')
+            
+            scoring_fname = "scoring.wer"
+            scoring_file = os.path.join(args.output_path, scoring_fname)
+            with open(scoring_file, "w") as out_f:
+                out_f.write(f"Streaming WER: {round(streaming_wer*100, 2)}%")
+
 
 
 if __name__ == '__main__':
