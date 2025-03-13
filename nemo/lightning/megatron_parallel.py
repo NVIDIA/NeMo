@@ -1742,7 +1742,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
     def forward(
         self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
-    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 ."""  # pylint: disable=line-too-long
         from megatron.core import parallel_state
 
