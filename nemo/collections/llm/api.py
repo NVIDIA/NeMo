@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import os
 import warnings
 from copy import deepcopy
+from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
@@ -52,11 +54,23 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.import_utils import safe_import
+from nemo.utils.inprocess_restart import (
+    InProcessRestartConfig,
+    get_finalize_fns,
+    get_rank_assignment_layers,
+    get_tcp_store,
+    maybe_set_torch_cpp_log_level_error,
+)
+
+inprocess, HAVE_RES = safe_import('nvidia_resiliency_ext.inprocess')
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
     from megatron.core.inference.inference_request import InferenceRequest
 
+    if HAVE_RES:
+        from nvidia_resiliency_ext.inprocess import CallWrapper
 
 TokenizerType = Any
 AnyPath = Union[Path, str]
@@ -136,6 +150,7 @@ def pretrain(
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
+    inprocess_restart: Annotated[Optional[InProcessRestartConfig], run.Config[InProcessRestartConfig]] = None,
 ) -> Path:
     """
     Pretrains a model using the specified data and trainer, with optional logging, resuming, and optimization.
@@ -151,6 +166,7 @@ def pretrain(
         resume (Optional[AutoResume]): Resume training from a checkpoint.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default
             optimizer from the model will be used.
+        inprocess_restart (Optional[InProcessRestartConfig]): Settings to configure in-process restart for resiliency.
 
     Returns:
         Path: The directory path where pretraining artifacts are saved.
@@ -167,15 +183,57 @@ def pretrain(
     """
     _validate_config(model, data, trainer, log=log, resume=resume, optim=optim)
 
-    return train(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=log,
-        resume=resume,
-        optim=optim,
-        tokenizer="data",
+    use_inprocess_restart = inprocess_restart is not None and inprocess_restart.enabled
+    if not use_inprocess_restart:
+        return train(
+            model=model,
+            data=data,
+            trainer=trainer,
+            log=log,
+            resume=resume,
+            optim=optim,
+            tokenizer="data"
+        )
+
+    assert HAVE_RES, "nvidia-resiliency-ext.inprocess is required to use in process restart."
+    # Validate strategy used supports in process restart
+    strategy_supports_inprocess = hasattr(trainer.strategy, "inprocess_call_wrapper") and hasattr(
+        trainer.strategy, "store"
     )
+    assert strategy_supports_inprocess, "Strategy does not support in process restart"
+
+    maybe_set_torch_cpp_log_level_error()
+    store = get_tcp_store()
+    finalize_fns = get_finalize_fns(inprocess_restart)
+    layers = get_rank_assignment_layers(inprocess_restart)
+
+    @inprocess.Wrapper(
+        store_kwargs={'port': int(os.getenv("MASTER_PORT", "29500")) + 2},
+        initialize=inprocess.initialize.RetryController(min_world_size=inprocess_restart.active_world_size),
+        health_check=inprocess.health_check.CudaHealthCheck(
+            timeout=timedelta(seconds=inprocess_restart.cuda_health_check_timeout)
+        ),
+        rank_assignment=inprocess.rank_assignment.Tree(layers=layers),
+        finalize=inprocess.Compose(*finalize_fns),
+        heartbeat_interval=timedelta(seconds=inprocess_restart.heartbeat_interval),
+        heartbeat_timeout=timedelta(seconds=inprocess_restart.heartbeat_timeout),
+        barrier_timeout=timedelta(seconds=inprocess_restart.barrier_timeout),
+        completion_timeout=timedelta(seconds=inprocess_restart.completion_timeout),
+        monitor_process_interval=timedelta(seconds=inprocess_restart.monitor_process_interval),
+        monitor_thread_interval=timedelta(seconds=inprocess_restart.monitor_thread_interval),
+        progress_watchdog_interval=timedelta(seconds=inprocess_restart.progress_watchdog_interval),
+        last_call_wait=timedelta(seconds=inprocess_restart.last_call_wait),
+        soft_timeout=timedelta(seconds=inprocess_restart.soft_timeout),
+        hard_timeout=timedelta(seconds=inprocess_restart.hard_timeout),
+        termination_grace_time=timedelta(seconds=inprocess_restart.termination_grace_time),
+        enabled=inprocess_restart.enabled,
+    )
+    def _train(call_wrapper: Optional["CallWrapper"] = None) -> Path:
+        trainer.strategy.inprocess_restart_call_wrapper = call_wrapper
+        trainer.strategy.store = store
+        return train(model=model, data=data, trainer=trainer, log=log, resume=resume, optim=optim, tokenizer="data")
+
+    return _train()
 
 
 @run.cli.entrypoint(namespace="llm")
