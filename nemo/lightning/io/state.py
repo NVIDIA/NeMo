@@ -384,6 +384,9 @@ class StateDictTransform(Generic[F]):
             return self.transform(ctx, *args, **kwargs)
 
         return self.transform(*args, **kwargs)
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.transform.__module__}.{self.transform.__name__})"
 
 
 def _match_keys(keys: List[str], pattern: str) -> np.ndarray:

@@ -392,7 +392,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Setups the strategy"""
         assert self.accelerator is not None
         self.accelerator.setup(trainer)
-        self.trainer = trainer
+        self.trainer = trainer        
 
         try:
             self.model.optim.lr_scheduler.max_steps = trainer.max_steps
@@ -498,7 +498,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def setup_distributed(self) -> None:
         """Setups dist env"""
-        setup_parallel_ranks(self)
+        if not getattr(self, "megatron_parallel", False):
+            setup_parallel_ranks(self)
+        else:
+            print("Auto model already setup")
 
         # Implementation from superclass copied below in order to pass the store to the process group init
         reset_seed()
@@ -531,8 +534,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             f"All distributed processes registered. Starting with {world_size} processes\n"
             f"{'-' * 100}\n"
         )
-        init_model_parallel(self.model)
-
+        if not getattr(self, "megatron_parallel", False):
+            init_model_parallel(self.model)
+        
         if self.data_sampler:
             assert isinstance(self.cluster_environment, ClusterEnvironment), "Cluster environment not initialized"
             self.data_sampler.setup(self.cluster_environment.global_rank())
@@ -549,25 +553,28 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Configures megatron parallel"""
         assert self.model is not None, "Model is not set"
 
-        convert_module_fn = None
-        if hasattr(self.precision_plugin, "convert_module"):
-            convert_module_fn = self.precision_plugin.convert_module
+        if not hasattr(self, "megatron_parallel"):
+            convert_module_fn = None
+            if hasattr(self.precision_plugin, "convert_module"):
+                convert_module_fn = self.precision_plugin.convert_module
 
-        self.megatron_parallel = MegatronParallel(
-            self.model,
-            precision_plugin=self.precision_plugin,
-            vp_size=self.virtual_pipeline_model_parallel_size,
-            cpu=isinstance(trainer.accelerator, CPUAccelerator),
-            ddp_config=self.ddp_config,
-            convert_module_fn=convert_module_fn,
-        )
+            self.megatron_parallel = MegatronParallel(
+                self.model,
+                precision_plugin=self.precision_plugin,
+                vp_size=self.virtual_pipeline_model_parallel_size,
+                cpu=isinstance(trainer.accelerator, CPUAccelerator),
+                ddp_config=self.ddp_config,
+                convert_module_fn=convert_module_fn,
+            )
 
-        # Assign trainer to megatron_parallel before init_model_parallel as its required to check stage of trainer
-        # (TESTING or not) in init_model_parallel.
+            if self._init_model_parallel:
+                self.init_model_parallel()
+        else:
+            print("Auto model already setup")
+            print(self.megatron_parallel)
+
         self.megatron_parallel.trainer = trainer
-
-        if self._init_model_parallel:
-            self.init_model_parallel()
+        # self.lightning_module.trainer = trainer
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)
@@ -636,7 +643,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             _optimizers = [*self.optimizers]
             _optimizers[0] = self.precision_plugin.convert_optimizer(self.optimizers[0])
             self.optimizers = _optimizers
-
+        
         _optimizers_to_device(self.optimizers, self.root_device)
 
     @override

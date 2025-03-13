@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, nullcontext
 from datetime import timedelta
+from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -91,6 +92,7 @@ class FabricMegatronStrategy(DDPStrategy):
         pipeline_dtype: Optional[torch.dtype] = None,
         init_model_parallel: bool = True,
         use_tp_pp_dp_mapping: bool = False,
+        meta: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -123,6 +125,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
+        self.meta = meta
         if megatron_callbacks:
             self.megatron_callbacks.add(megatron_callbacks)
         self.output_data_idx = output_data_idx
@@ -234,10 +237,21 @@ class FabricMegatronStrategy(DDPStrategy):
             if self.ddp_config:
                 self.precision.convert_config(self.ddp_config)
 
-        # Call configure_model if it's overridden (relevant for LightningModules with lazy initialization)
+        # Call configure_model if it's overridden (relevant for LightningModules with lazy initialization)        
         if hasattr(module, "configure_model"):
-            module.configure_model()
+            if self.meta:
+                print("Using meta context")
+                ctx = self.module_init_context(empty_init=True, config=module.config)
+            elif isinstance(self.accelerator, CPUAccelerator):
+                print("Using cpu context")
+                ctx = _strategy_lib.megatron_cpu_init_context(module.config)
+            else:
+                ctx = nullcontext()
+            
+            with ctx:
+                module.configure_model()
 
+        # Print device of module
         megatron_parallel = MegatronParallel(
             module,
             precision_plugin=self.precision,
@@ -276,9 +290,10 @@ class FabricMegatronStrategy(DDPStrategy):
 
         return megatron_parallel
 
-    def module_init_context(self, empty_init: Optional[bool] = None) -> ContextManager:
+    def module_init_context(self, empty_init: Optional[bool] = None, config=None) -> ContextManager:
         precision_init_ctx = self.precision.module_init_context()
-        module_sharded_ctx = self.megatron_context()
+        # module_sharded_ctx = self.megatron_context()
+        module_sharded_ctx = _strategy_lib.megatron_lazy_init_context(config)
         stack = ExitStack()
         if empty_init:
             # Materialization happens in `setup`. When modules get wrapped by FSDP, the sequence of operations is:
@@ -299,7 +314,7 @@ class FabricMegatronStrategy(DDPStrategy):
         path: _PATH,
         state: Dict[str, Union[Module, Optimizer, Any]],
         storage_options: Optional[Any] = None,
-        filter_dict: Optional[Dict[str, Callable[[str, Any], bool]]] = None,
+        filter: Optional[Dict[str, Callable[[str, Any], bool]]] = None,
     ) -> None:
         """Save model, optimizer, and other state as a checkpoint file.
 
@@ -311,11 +326,66 @@ class FabricMegatronStrategy(DDPStrategy):
             filter: An optional dictionary containing filter callables that return a boolean indicating whether the
                 given item should be saved (``True``) or filtered out (``False``). Each filter key should match a
                 state key, where its filter will be applied to the ``state_dict`` generated.
-
         """
-        state = self._convert_stateful_objects_in_state(state, filter=(filter_dict or {}))
-        self.checkpoint_io.save_checkpoint(checkpoint=state, path=path, storage_options=storage_options)
-
+        # Handle parameter sync for distributed optimizer if needed
+        if (
+            isinstance(self.ddp_config, DistributedDataParallelConfig)
+            and self.ddp_config.use_distributed_optimizer
+            and self.ddp_config.overlap_param_gather
+            and any(isinstance(m, MegatronParallel) for m in state.values())
+        ):
+            # Find the MegatronParallel model and force param sync
+            for model in state.values():
+                if isinstance(model, MegatronParallel):
+                    model.force_param_sync()
+                    break
+        
+        # Convert stateful objects first
+        converted_state = self._convert_stateful_objects_in_state(state, filter=(filter or {}))
+        
+        # Create a checkpoint dictionary with sharded state dictionaries
+        checkpoint = {}
+        
+        # Handle model state dict
+        for key, value in state.items():
+            if isinstance(value, Module):
+                # Separate handling for MegatronParallel module
+                if isinstance(value, MegatronParallel):
+                    # Store empty OrderedDict for state_dict, will be replaced by sharded version
+                    checkpoint["state_dict"] = OrderedDict([])
+                    checkpoint["sharded_state_dict"] = value.sharded_state_dict()
+                else:
+                    # For other modules, use their sharded_state_dict method if available
+                    if hasattr(value, "sharded_state_dict"):
+                        checkpoint["state_dict"] = OrderedDict([])
+                        checkpoint["sharded_state_dict"] = value.sharded_state_dict()
+                    else:
+                        # Fall back to converted state which has the regular state_dict
+                        checkpoint[key] = converted_state[key]
+            elif isinstance(value, Optimizer):
+                # Get the model that this optimizer is associated with
+                model = None
+                for k, v in state.items():
+                    if isinstance(v, Module):
+                        model = v
+                        break
+                
+                if model is not None and hasattr(model, "sharded_state_dict"):
+                    # Use optimizer_sharded_state_dict helper for distributed optimizer
+                    checkpoint["optimizer"] = [_strategy_lib.optimizer_sharded_state_dict(
+                        model, value, is_loading=False, 
+                        sharding_type="fully_sharded_model_space" if getattr(self, "parallel_save_optim", True) else "dp_zero_gather_scatter"
+                    )]
+                else:
+                    # Fall back to regular optimizer state dict from converted state
+                    checkpoint[key] = converted_state[key]
+            else:
+                # For non-Module, non-Optimizer objects, copy from converted state
+                checkpoint[key] = converted_state[key]
+        
+        # Save the checkpoint using the checkpoint IO
+        self.checkpoint_io.save_checkpoint(checkpoint=checkpoint, path=path, storage_options=storage_options)
+    
     def load_checkpoint(
         self,
         path: _PATH,

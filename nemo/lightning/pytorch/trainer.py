@@ -91,7 +91,7 @@ class Trainer(pl.Trainer, IOMixin):
                 strategy = fdl.build(strategy)
 
             strategy = to_fabric(strategy)
-        if hasattr(self.__io__, "plugins"):
+        if getattr(self.__io__, "plugins", None):
             plugins = self.__io__.plugins
             if isinstance(plugins, fdl.Config):
                 plugins = fdl.build(plugins)
