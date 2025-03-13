@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 import nemo_run as run
 import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
-from nemo_run.config import NEMORUN_HOME
+from nemo_run.config import get_nemorun_home
 from numpy import nan
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
@@ -31,7 +31,7 @@ from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
-
+NEMORUN_HOME = get_nemorun_home()
 
 def slurm_executor(
     account: str,
@@ -202,6 +202,8 @@ def set_primary_perf_configs(
     vp_size: int,
     ep_size: int,
     etp_size: Optional[int] = None,
+    num_distributed_optimizer_instances: Optional[int] = 1,
+    cu_global_batch_splits: Optional[List[int]] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -220,8 +222,10 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None if vp_size == 1 else vp_size
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
-
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+    recipe.trainer.strategy.num_distributed_optimizer_instances = num_distributed_optimizer_instances
+    if cu_global_batch_splits is not None:
+        recipe.data.cu_global_batch_splits = cu_global_batch_splits
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)

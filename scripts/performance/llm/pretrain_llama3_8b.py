@@ -59,6 +59,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_distributed_optimizer_instances=args.num_distributed_optimizer_instances,
+        cu_global_batch_splits=args.cu_global_batch_splits,
     )
 
     # data module configs

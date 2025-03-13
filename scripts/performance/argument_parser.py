@@ -14,10 +14,7 @@
 
 import argparse
 
-from nemo_run.config import NEMORUN_HOME
-
-from .utils import DEFAULT_NEMO_HOME
-
+from .utils import DEFAULT_NEMO_HOME, NEMORUN_HOME
 
 def parse_cli_args():
     """
@@ -257,6 +254,13 @@ def parse_cli_args():
         required=False,
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
     )
+    parser.add_argument(
+        "--num_distributed_optimizer_instances",
+        type=int,
+        help="Number of distributed optimizer instances. Defaults to 1",
+        required=False,
+        default=1,
+    )
 
     def list_of_strings(arg):
         return arg.split(',')
@@ -268,6 +272,17 @@ def parse_cli_args():
         help="Comma separated string of mounts",
         required=False,
         default=[],
+    )
+
+    def list_of_ints(arg):
+        return [int(x) for x in arg.split(',')]
+
+    parser.add_argument(
+        "--cu_global_batch_splits",
+        type=list_of_ints,
+        help="Comma separated string of cu_global_batch_splits",
+        required=False,
+        default=None,
     )
 
     return parser

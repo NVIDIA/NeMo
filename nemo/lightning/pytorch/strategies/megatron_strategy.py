@@ -336,6 +336,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
 
+        if isinstance(self.ddp_config, DistributedDataParallelConfig):
+            self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
+
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
 
