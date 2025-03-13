@@ -149,17 +149,11 @@ def main():
 
     wandb = None
     if args.wandb_project is not None:
-        model = args.model.split('/')[-1]  # '_'.join(args.model.split('/')[-2:])
-        name = (
-            f'{model}_LoRA_{args.devices}GPUs_{args.strategy}_{"fp8" if args.fp8 else ""}'
-            f'mbs{args.batch_size}_gbs{args.batch_size * args.devices * args.accumulate_grad_batches}'
-            f'_steps{args.max_steps}_pyt'
-        )
+        model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=name,
+            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
-        args.ckpt_folder = args.ckpt_folder + '/' + name
 
     callbacks = []
     if args.use_torch_jit:
