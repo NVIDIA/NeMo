@@ -274,8 +274,8 @@ class DuplexS2SModel(LightningModule):
 
         B = inputs["input_embeds"].shape[0]
         self.log("val_loss", loss, on_epoch=True, sync_dist=True, batch_size=B)
-        self.log("val_text_loss", loss, on_epoch=True, sync_dist=True, batch_size=B)
-        self.log("val_audio_loss", loss, on_epoch=True, sync_dist=True, batch_size=B)
+        self.log("val_text_loss", text_loss, on_epoch=True, sync_dist=True, batch_size=B)
+        self.log("val_audio_loss", audio_loss, on_epoch=True, sync_dist=True, batch_size=B)
 
         # ASR BLEU
         import torchaudio
