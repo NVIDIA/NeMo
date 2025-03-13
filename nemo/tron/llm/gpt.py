@@ -24,8 +24,6 @@ from nemo.tron.llm.utils import get_batch_on_this_tp_rank
 from nemo.tron.losses import masked_next_token_loss
 from nemo.tron.state import GlobalState
 
-SPIKY_LOSS_FACTOR = 10
-
 
 def get_batch(data_iterator, cfg: ConfigContainer):
     """Generate a batch."""

@@ -12,12 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import partial
 import torch
 from megatron.core import parallel_state
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 
+SPIKY_LOSS_FACTOR = 10
 
-def masked_next_token_loss(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
+
+def masked_next_token_loss(
+    loss_mask: torch.Tensor,
+    output_tensor: torch.Tensor,
+    check_for_nan_in_loss: bool = True,
+    check_for_spiky_loss: bool = False,
+):
     """Loss function.
 
     Args:
@@ -38,6 +46,37 @@ def masked_next_token_loss(loss_mask: torch.Tensor, output_tensor: torch.Tensor)
 
     if parallel_state.get_context_parallel_world_size() > 1:
         torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+
+    # Check individual rank losses are not NaN prior to DP all-reduce.
+    rerun_state_machine = get_rerun_state_machine()
+    if check_for_nan_in_loss:
+        rerun_state_machine.validate_result(
+            result=loss[0],
+            rejection_func=torch.isnan,
+            message="found NaN in local forward loss calculation",
+            tolerance=0.0,  # forward pass calculations are determinisic
+            fatal=True,
+        )
+        rerun_state_machine.validate_result(
+            result=loss[0],
+            rejection_func=torch.isinf,
+            message="found Inf in local forward loss calculation",
+            tolerance=0.0,  # forward pass calculations are determinisic
+            fatal=True,
+        )
+    # Check for spiky loss
+    if check_for_spiky_loss:
+        rerun_state_machine.validate_result(
+            result=loss[0],
+            rejection_func=partial(
+                rerun_state_machine.is_unexpectedly_large,
+                threshold=SPIKY_LOSS_FACTOR,
+                context="loss",
+            ),
+            message="Spiky loss",
+            tolerance=0.0,  # forward pass calculations are determinisic
+            fatal=False,
+        )
 
     # Reduce loss for logging.
     reporting_loss = loss.clone().detach()
