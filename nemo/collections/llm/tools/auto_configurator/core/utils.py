@@ -17,15 +17,13 @@ from dataclasses import dataclass
 
 GPT_BASED_MODELS = [
     "gpt3",
-    "bert",
     "llama",
-    "baichuan2",
-    "chatglm",
-    "qwen2",
+    "qwen",
     "mixtral",
     "mistral",
     "gemma",
     "nemotron",
+    "starcoder",
 ]
 
 
@@ -361,15 +359,14 @@ def generic_base_config(config) -> dict:
         )
         params.init_params()
 
-        if config.model_type in GPT_BASED_MODELS:
-            base_cfg.model.config.num_layers = params.layers
-            base_cfg.model.config.hidden_size = params.hs
-            base_cfg.model.config.num_attention_heads = params.att_h
-            base_cfg.model.config.kv_channels = params.kv
-            if not params.ffn:
-                base_cfg.model.config.ffn_hidden_size = params.hs * 4
-            else:
-                base_cfg.model.config.ffn_hidden_size = params.ffn
+        base_cfg.model.config.num_layers = params.layers
+        base_cfg.model.config.hidden_size = params.hs
+        base_cfg.model.config.num_attention_heads = params.att_h
+        base_cfg.model.config.kv_channels = params.kv
+        if not params.ffn:
+            base_cfg.model.config.ffn_hidden_size = params.hs * 4
+        else:
+            base_cfg.model.config.ffn_hidden_size = params.ffn
 
     config.model_size_in_b = model_size_in_b
 
@@ -414,12 +411,8 @@ def modify_cfg(
         dict: dictionary containing the updated model configuration parameters.
     """
 
-    if model_name in GPT_BASED_MODELS:
-        att_heads = base_cfg.model.config.num_attention_heads
-        num_layers = base_cfg.model.config.num_layers
-    else:
-        att_heads = base_cfg.model.config.encoder.num_attention_heads
-        num_layers = base_cfg.model.config.encoder.num_layers
+    att_heads = base_cfg.model.config.num_attention_heads
+    num_layers = base_cfg.model.config.num_layers
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
@@ -428,11 +421,7 @@ def modify_cfg(
 
     new_cfg = {}  # dict(run=base_cfg.run)
     if act is not None:
-        if model_name in GPT_BASED_MODELS:
-            new_cfg["activations_checkpoint_num_layers"] = act
-        else:
-            new_cfg["encoder"]["activations_checkpoint_num_layers"] = act // 2
-            new_cfg["decoder"]["activations_checkpoint_num_layers"] = act // 2
+        new_cfg["activations_checkpoint_num_layers"] = act
 
     if num_mbs_act is not None and model_name in GPT_BASED_MODELS:
         new_cfg["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act

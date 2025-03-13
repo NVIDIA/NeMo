@@ -92,7 +92,18 @@ def _estimate_model_size(
     """
 
     model_penalty = 0.87 if model_name == "mt5" else 1.0
-    valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral", "gemma", "nemotron"]
+    valid_models = valid_models = [
+        "gpt3",
+        "t5", "mt5",
+        "bert",
+        "llama",
+        "mixtral",
+        "mistral",
+        "gemma",
+        "nemotron",
+        "starcoder",
+        "qwen"
+    ]
     try:
         if model_name in valid_models:
             return round(
@@ -137,7 +148,18 @@ def _estimate_training_time(
     """
 
     model_penalty = 1.15 if model_name == "mt5" else 1.0
-    valid_models = ["gpt3", "t5", "mt5", "bert", "llama", "mixtral", "mistral", "gemma", "nemotron"]
+    valid_models = [
+        "gpt3",
+        "t5", "mt5",
+        "bert",
+        "llama",
+        "mixtral",
+        "mistral",
+        "gemma",
+        "nemotron",
+        "starcoder",
+        "qwen"
+    ]
     try:
         if model_name in valid_models:
             return round(

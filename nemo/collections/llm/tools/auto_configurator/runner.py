@@ -16,6 +16,7 @@ import copy
 import os
 import re
 from typing import List, Optional
+from collections import OrderedDict
 
 from nemo.collections.llm import GPTModel
 from nemo.collections.llm.api import pretrain
@@ -24,14 +25,21 @@ from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils import logging
 
-SUPPORTED_MODELS = [
-    "gpt3",
-    "llama",
-    "mixtral",
-    "mistral",
-    "gemma",
-    "nemotron",
-]
+
+SUPPORTED_MODELS = OrderedDict(
+    [
+        ("gpt3", "GPT"),
+        ("bert", "Bert"),
+        ("t5", "T5"),
+        ("llama", "Llama"),
+        ("mixtral", "Mixtral"),
+        ("mistral", "Mistral"),
+        ("gemma", "Gemma"),
+        ("nemotron", "Nemotron"),
+        ("starcoder", "Starcoder"),
+        ("qwen", "Qwen"),
+    ]
+)
 
 
 class AutoConfigurator:
@@ -84,14 +92,19 @@ class AutoConfigurator:
         logging.info(self._get_message(config))
 
         model_type = self._get_model_type(recipe.model.config)
-        assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {SUPPORTED_MODELS}."
-        assert recipe.data.seq_length in [
-            2048,
-            4096,
-            8192,
-            16384,
-            32768,
-        ], "Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768]."
+        assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {list(SUPPORTED_MODELS.keys())}."
+
+        if model_type in ["bert", "t5"]:
+            assert recipe.data.seq_length <= 2048, \
+            "seq_length higher than 2048 is not supported for bert and t5 models."
+        else:
+            assert recipe.data.seq_length in [
+                2048,
+                4096,
+                8192,
+                16384,
+                32768,
+            ], "Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768]."
         assert path_to_logs, f"path_to_logs parameter must be specified."
 
         self.num_gpus = recipe.trainer.devices
@@ -138,24 +151,11 @@ class AutoConfigurator:
             str: model type.
         """
 
-        match = re.search(r"\w+\d+[MB]", str(model))
-        if match:
-            model = match.group(0)
-
-        if "GPT" in model:
-            return "gpt3"
-        elif "Llama" in model:
-            return "llama"
-        elif "Mixtral" in model:
-            return "mixtral"
-        elif "Mistral" in model:
-            return "mistral"
-        elif "Gemma" in model:
-            return "gemma"
-        elif "Nemotron" in model:
-            return "nemotron"
-        else:
-            return None
+        for k, v in SUPPORTED_MODELS.items():
+            if v in str(model):
+                return k
+        
+        return None
 
     def _get_model_size(self, model: Config) -> int:
         """

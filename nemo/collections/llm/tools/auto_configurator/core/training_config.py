@@ -22,13 +22,12 @@ GPT_BASED_MODELS = [
     "gpt3",
     "bert",
     "llama",
-    "baichuan2",
-    "chatglm",
-    "qwen2",
+    "qwen",
     "mixtral",
     "mistral",
     "gemma",
     "nemotron",
+    "starcoder",
 ]
 
 
@@ -55,16 +54,9 @@ def generate_grid_search_configs(
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
 
     seq_length = base_cfg.model.config.seq_length
-    num_layers = (
-        base_cfg.model.config.num_layers
-        if model_name in GPT_BASED_MODELS
-        else base_cfg.model.config.encoder.num_layers
-    )
+    num_layers = base_cfg.model.config.num_layers
 
-    if model_name in GPT_BASED_MODELS:
-        act_method = None
-    else:
-        act_method = base_cfg.model.config.encoder.activations_checkpoint_method
+    act_method = None
 
     params = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
@@ -85,12 +77,8 @@ def generate_grid_search_configs(
                     for mbs in params.mbs:
                         num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
                         base_cfg.data.global_batch_size = params.gbs
-                        if model_name in GPT_BASED_MODELS:
-                            att_heads = base_cfg.model.config.num_attention_heads
-                            num_layers = base_cfg.model.config.num_layers
-                        else:
-                            att_heads = base_cfg.model.config.encoder.num_attention_heads
-                            num_layers = base_cfg.model.config.encoder.num_layers
+                        att_heads = base_cfg.model.config.num_attention_heads
+                        num_layers = base_cfg.model.config.num_layers
                         model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
                         mod_gbs = params.gbs % (mbs * num_gpus / model_parallelism)
                         mod_att_heads = att_heads % tp
@@ -892,4 +880,5 @@ def _calculate_tp_pp_mbs_grid(
         params.min_model_parallel = min_model_parallel_size
     if max_model_parallel_size is not None and max_model_parallel_size != "auto":
         params.max_model_parallel = max_model_parallel_size
+    
     return params
