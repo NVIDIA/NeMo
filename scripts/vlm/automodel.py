@@ -112,7 +112,9 @@ if __name__ == '__main__':
             devices=args.devices,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
-            strategy=make_strategy(args.strategy, model, args.devices, args.num_nodes, adapter_only=False),
+            # save only adapters weights if peft is used
+            strategy=make_strategy(args.strategy, model, args.devices, args.num_nodes,
+                                   adapter_only=True if peft is not None else False),
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
@@ -127,5 +129,6 @@ if __name__ == '__main__':
         #  config, so we need to build the object from the config.
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=nemo_logger,
+        # Peft can be lora or none
         peft=peft,
     )
