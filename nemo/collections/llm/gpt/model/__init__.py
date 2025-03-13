@@ -99,6 +99,8 @@ from nemo.collections.llm.gpt.model.ssm import (
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
     Nemotron5HybridConfig8B,
+    Nemotron5HybridConfig47B,
+    Nemotron5HybridConfig56B,
     SSMConfig,
     MambaModel,
 )
@@ -188,6 +190,8 @@ __all__ = [
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
     "Nemotron5HybridConfig8B",
+    "Nemotron5HybridConfig47B",
+    "Nemotron5HybridConfig56B",
     "MambaModel",
     "MaskedTokenLossReduction",
     "gpt_data_step",

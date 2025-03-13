@@ -680,7 +680,7 @@ def generate(
     input_dataset: Optional[Union[pl.LightningDataModule, str]] = None,
     params_dtype: torch.dtype = torch.bfloat16,
     add_BOS: bool = False,
-    max_batch_size: int = 4,
+    max_batch_size: int = 8,
     random_seed: Optional[int] = None,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,

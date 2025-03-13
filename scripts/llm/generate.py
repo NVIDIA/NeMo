@@ -24,12 +24,37 @@ from megatron.core.inference.common_inference_params import CommonInferenceParam
 import nemo.lightning as nl
 from nemo.collections.llm import api
 
+"""
+torchrun --nproc-per-node=8 /lustre/fsw/portfolios/coreai/users/ataghibakhsh/NeMo/scripts/llm/generate.py \
+    --model_path=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/final_nm5/nm5_56b_base_8k \
+    --tp=8 \
+    --devices=8 \
+    --num_tokens_to_generate=40 \
+    --temperature=0.01 \
+    --fp8
+    
+"""
 
 def get_args():
     """
     Parse the command line arguments.
     """
     parser = ArgumentParser(description="""Run generation on a few sample prompts given the checkpoint path.""")
+    parser.add_argument(
+        "--prompts",
+        type=str,
+        nargs="+",
+        default=["Q: How are you?",
+                 "Q: How big is the universe?",
+                 "Q: How is the weather?",
+                 "Q: How many stars are there?",
+                 "Paris is know for its ",
+                 "In a hot sunny day, you should ",
+                 "the biggest ocean on Earth is called ",
+                 "Q: How old are you?",
+                 ],
+        help="List of prompt strings",
+    )
     parser.add_argument(
         "--model_path",
         type=str,
@@ -79,12 +104,33 @@ def get_args():
         help="""top_k to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
     )
     parser.add_argument(
+        "--add_BOS",
+        action="store_true",
+        help="""Whether to add BOS token to the prompt""",
+    )
+    parser.add_argument(
         "--num_tokens_to_generate",
         type=int,
-        default=4,
+        default=25,
         help="""Number of tokens to generate per prompt""",
     )
-
+    parser.add_argument(
+        "--fp8",
+        action="store_true",
+        help="""Whether to run inference in FP8 precision""",
+    )
+    parser.add_argument(
+        "--max_batch_size",
+        type=int,
+        default=8,
+        help="""Maximum batch size for inference""",
+    )
+    parser.add_argument(
+        "--random_seed",
+        type=int,
+        default=1234,
+        help="""Random seed for generation""",
+    )
     args = parser.parse_args()
     return args
 
@@ -92,6 +138,9 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()
 
+    if args.fp8:
+        assert len(args.prompts) % 8 == 0, "Batch size should be divisible by 8 for FP8 inference"
+    
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
@@ -112,17 +161,17 @@ if __name__ == "__main__":
             pipeline_dtype=torch.bfloat16,
             autocast_enabled=False,
             grad_reduce_in_fp32=False,
+            fp8="hybrid" if args.fp8 else None,
+            fp8_amax_history_len=1,
+            fp8_amax_compute_algo="max",
         ),
     )
-    prompts = [
-        "Hello, how are you?",
-        "How many r's are in the word 'strawberry'?",
-        "Which number is bigger? 10.119 or 10.19?",
-    ]
+    prompts=args.prompts
     results = api.generate(
         path=args.model_path,
         prompts=prompts,
         trainer=trainer,
+        add_BOS=args.add_BOS,
         inference_params=CommonInferenceParams(
             temperature=args.temperature,
             top_p=args.top_p,
@@ -130,6 +179,8 @@ if __name__ == "__main__":
             num_tokens_to_generate=args.num_tokens_to_generate,
         ),
         text_only=True,
+        max_batch_size=args.max_batch_size,
+        random_seed=args.random_seed,
     )
     if torch.distributed.get_rank() == 0:
         for i, r in enumerate(results):

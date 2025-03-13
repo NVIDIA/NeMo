@@ -71,9 +71,18 @@ def dist_ckpt_handler(checkpoint_dir):
     state_dict.pop('args')
     state_dict.pop('checkpoint_version')
     state_dict.pop('iteration')
-    state_dict.pop('opt_param_scheduler')
-    state_dict.pop('num_floating_point_operations_so_far')
-
+    try:
+        state_dict.pop('opt_param_scheduler')
+    except:
+        pass
+    try:
+        state_dict.pop('num_floating_point_operations_so_far')
+    except:
+        pass
+    try:
+        state_dict.pop('rerun_state_machine')
+    except:
+        pass
     for i, symbol in enumerate(dist_ckpt_args.hybrid_override_pattern):
         if symbol == 'M':
             state_dict[f'decoder.layers.{i}.mixer.in_proj.weight'] = torch.cat(
@@ -167,7 +176,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             mamba_stack_spec=mamba_stack_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
-            mamba_ssm_ngroups=self.mamba_ssm_ngroups,
+            # mamba_ssm_ngroups=self.mamba_ssm_ngroups,
             hybrid_attention_ratio=self.hybrid_attention_ratio,
             hybrid_mlp_ratio=self.hybrid_mlp_ratio,
             hybrid_override_pattern=self.hybrid_override_pattern,
@@ -721,7 +730,9 @@ class Nemotron5HybridConfig8B(SSMConfig):
     num_layers: int = 52
     seq_length: int = 8192
     hidden_size: int = 4096
-    mamba_ssm_ngroups: int = 8
+    mamba_num_groups: int = 8
+    mamba_state_dim: int = 128
+    mamba_head_dim: int = 64
     ffn_hidden_size: int = 21504
     num_attention_heads: int = 32
     num_query_groups: int = 8
@@ -735,6 +746,58 @@ class Nemotron5HybridConfig8B(SSMConfig):
     persist_layer_norm: bool = True
     attention_softmax_in_fp32: bool = False
     vocab_size: int = 131072
+    first_last_layers_bf16: bool = True
+    is_hybrid_model: bool = True
+
+@dataclass
+class Nemotron5HybridConfig47B(SSMConfig):
+    hybrid_override_pattern: str = "M-M-M-M-M-M-M-M-M*-M-M-M-M-M-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-M-M---MM---M-M*-M-M-M-M-M-"
+    num_layers: int = 98
+    seq_length: int = 8192
+    hidden_size: int = 8192
+    mamba_num_groups: int = 8
+    mamba_state_dim: int = 256
+    mamba_head_dim: int = 64
+    ffn_hidden_size: int = 30720
+    num_attention_heads: int = 64
+    num_query_groups: int = 8
+    make_vocab_size_divisible_by: int = 128
+    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
+    tokenizer_library: str = 'tiktoken'
+    tokenizer_name: str = "TiktokenTokenizer"
+    mapping_type: str = "nvidia-hybrid-nemotron5"
+    masked_softmax_fusion: bool = True
+    apply_query_key_layer_scaling: bool = False
+    persist_layer_norm: bool = True
+    attention_softmax_in_fp32: bool = False
+    vocab_size: int = 131072
+    first_last_layers_bf16: bool = True
+    is_hybrid_model: bool = True
+
+@dataclass
+class Nemotron5HybridConfig56B(SSMConfig):
+    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    num_layers: int = 118
+    seq_length: int = 8192
+    hidden_size: int = 8192
+    mamba_num_groups: int = 8
+    mamba_state_dim: int = 256
+    mamba_head_dim: int = 64
+    ffn_hidden_size: int = 32768
+    num_attention_heads: int = 64
+    num_query_groups: int = 8
+    make_vocab_size_divisible_by: int = 128
+    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
+    tokenizer_library: str = 'tiktoken'
+    tokenizer_name: str = "TiktokenTokenizer"
+    mapping_type: str = "nvidia-hybrid-nemotron5"
+    masked_softmax_fusion: bool = True
+    apply_query_key_layer_scaling: bool = False
+    persist_layer_norm: bool = True
+    attention_softmax_in_fp32: bool = False
+    vocab_size: int = 131072
+    first_last_layers_bf16: bool = True
+    is_hybrid_model: bool = True
 
 __all__ = [
     "SSMConfig",
@@ -746,4 +809,6 @@ __all__ = [
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
     "Nemotron5HybridConfig8B",
+    "Nemotron5HybridConfig47B",
+    "Nemotron5HybridConfig56B"
 ]
