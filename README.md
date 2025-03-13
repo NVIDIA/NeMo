@@ -343,7 +343,7 @@ If a more specific version is desired, we recommend a Pip-VCS install. From [NVI
 To install nemo_toolkit from this Git reference `$REF`, use the following installation method:
 
 ```bash
-pip install git+https://github.com/NVIDIA/NeMo@$REF
+pip install git+https://github.com/NVIDIA/NeMo@${REF:-'main'}
 ```
 
 #### Install a specific Domain
