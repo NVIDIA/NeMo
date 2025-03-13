@@ -106,7 +106,7 @@ def get_results(
     result = []
     errors = []
     training_logs = os.path.abspath(training_logs)
-    error_files = find_tb_logs(training_logs, "nemo_error")
+    error_files = find_tb_logs(training_logs, "log-")
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
 
