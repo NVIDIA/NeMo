@@ -36,7 +36,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, batch_size, pad_seq_len_divisible=None):
+def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -60,7 +60,7 @@ def make_squad_hf_dataset(tokenizer, batch_size, pad_seq_len_divisible=None):
         micro_batch_size=batch_size,
         pad_token_id=tokenizer.eos_id or 0,
         global_batch_size=batch_size,
-        pad_seq_len_divisible=pad_seq_len_divisible,
+        pad_seq_len_divisible=16 if fp8 else None, # FP8 training requires seq length to be divisible by 16.
     )
     datamodule.map(
         formatting_prompts_func,
@@ -187,14 +187,9 @@ def main():
         else None
     )
 
-    if args.fp8:
-        # FP8 training requires Seq length to be divisible by 16.
-        data = make_squad_hf_dataset(model.tokenizer, args.batch_size, 16)
-    else:
-        data = make_squad_hf_dataset(model.tokenizer, args.batch_size)
     llm.api.finetune(
         model=model,
-        data=data,
+        data=make_squad_hf_dataset(model.tokenizer, args.batch_size, args.fp8),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
