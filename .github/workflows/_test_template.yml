@@ -96,7 +96,7 @@ jobs:
         id: create
         run: |
 
-          FILENAME=$(echo "$SCRIPT" | grep -oP '(?<=bash ).*')
+          FILENAME=$(echo "$SCRIPT" | grep -Eo 'bash [^ ]+' | cut -d' ' -f2)
 
           # Read the file content
           if [[ -f "$FILENAME" ]]; then
