@@ -233,8 +233,10 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
     def config(self) -> Gemma2Config:
         """ """
         from transformers import GemmaConfig as HFGemmaConfig
+        from transformers import GenerationConfig
 
         source = HFGemmaConfig.from_pretrained(str(self))
+        generation_config = GenerationConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
@@ -262,6 +264,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            generation_config=generation_config,
         )
 
         return output
@@ -299,7 +302,7 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
-            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.pre_feedforward_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc2.post_layernorm.weight": (
                 "model.layers.*.post_feedforward_layernorm.weight"
             ),

@@ -120,7 +120,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AutoTokenizer: The tokenizer associated with the model.
         """
         if self._tokenizer is None:
-            self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(self.model_name, self.trust_remote_code)
+            self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(
+                self.model_name, trust_remote_code=self.trust_remote_code
+            )
         return self._tokenizer
 
     @tokenizer.setter
@@ -202,6 +204,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
         self.model.train()
+
+        # Ugly hack for PEFT: adapters are added here so that can be wrapped correctly with DDP.
+        if getattr(self, 'model_transform', None) is not None:
+            self.model_transform(self)
+            self.model_transform.__num_calls__ = 0
 
     def forward(self, batch):
         """
