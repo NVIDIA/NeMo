@@ -65,6 +65,11 @@ dataset_meta_info = {
         'feature_dir' : '/Data/LibriTTS',
         'tokenizer_names': ['chartokenizer'],
     },
+    'grpo_valset': {
+        'manifest_path' : '/Data/DPOPairsInputDatav2/text_context_pairs_grpo_val_unseenspeakers.json',
+        'audio_dir' : '/',
+        'feature_dir' : '/',
+    },
     'libri_unseen_test_shehzeen_sp': {
         'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
         'audio_dir' : '/Data/LibriTTS',

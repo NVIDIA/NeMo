@@ -452,6 +452,9 @@ class MagpieTTSDataset(TextToSpeechDataset):
             example['audio_codes'] = audio_codes
             example['audio_codes_len'] = audio_codes_len
             example['audio_filepath'] = audio_codes_path
+            if 'audio_filepath' in data.manifest_entry:
+                # If audio_filepath is available, then use the actual audio file path.
+                example['audio_filepath'] = data.manifest_entry['audio_filepath']
         else:
             # Only load audio if codes are not available
             audio_array, _, audio_filepath_rel = load_audio(
@@ -604,6 +607,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
             example["align_prior"] = align_prior
 
         example['raw_text'] = data.text
+        example['language'] = data.manifest_entry.get('language', 'en')
 
         if "reward" in data.manifest_entry:
             example["reward"] = data.manifest_entry["reward"]
@@ -631,10 +635,12 @@ class MagpieTTSDataset(TextToSpeechDataset):
         context_has_text_context_list = []
         reward_list = []
         raw_text_list = []
+        language_list = []
         for example in batch:
             dataset_name_list.append(example["dataset_name"])
             audio_filepath_list.append(example["audio_filepath"])
             raw_text_list.append(example["raw_text"])
+            language_list.append(example["language"])
 
             token_list.append(example["tokens"])
             token_len_list.append(example["text_len"])
@@ -677,6 +683,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
         batch_dict = {
             "dataset_names": dataset_name_list,
             "raw_texts": raw_text_list,
+            "languages": language_list,
             "audio_filepaths": audio_filepath_list,
             "text": batch_tokens,
             "text_lens": batch_token_len,

@@ -39,7 +39,9 @@ def run_inference(
         use_cfg, 
         cfg_scale, 
         batch_size, 
-        num_repeats=1, 
+        sv_model, 
+        asr_model_name, 
+        num_repeats=1
         apply_attention_prior=False,
         attention_prior_epsilon=1e-3,
         attention_prior_lookahead_window=10,
@@ -68,7 +70,7 @@ def run_inference(
 
     # Load weights from checkpoint file
     print("Loading weights from checkpoint")
-    ckpt = torch.load(checkpoint_file)
+    ckpt = torch.load(checkpoint_file, weights_only=False)
     model.load_state_dict(ckpt['state_dict'])
     print("Loaded weights.")
     model.cuda()
@@ -76,7 +78,7 @@ def run_inference(
     # import ipdb; ipdb.set_trace()
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}".format(
+    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_sv_{}".format(
         checkpoint_name, 
         temperature, 
         topk, 
@@ -88,7 +90,8 @@ def run_inference(
         start_prior_after_n_audio_steps,
         "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
         "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
-        use_local_transformer
+        use_local_transformer,
+        sv_model
     )
     dataset_meta_info = evalset_config.dataset_meta_info
     for dataset in datasets:
@@ -206,6 +209,8 @@ def run_inference(
                 dataset_meta[dataset]['audio_dir'],
                 pred_audio_dir,
                 language=language,
+                sv_model_type=sv_model,
+                asr_model_name=asr_model_name,
             )
             metrics_n_repeated.append(metrics)
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:
@@ -264,7 +269,9 @@ def main():
     parser.add_argument('--apply_prior_to_layers', type=str, default=None)
     parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=10)
     parser.add_argument('--topk', type=int, default=80)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
+    parser.add_argument('--asr_model_name', type=str, default="stt_en_conformer_transducer_large") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     args = parser.parse_args()
@@ -294,6 +301,8 @@ def main():
                 use_cfg=args.use_cfg,
                 cfg_scale=args.cfg_scale,
                 batch_size=args.batch_size,
+                sv_model=args.sv_model,
+                asr_model_name=args.asr_model_name,
                 num_repeats=args.num_repeats,
                 apply_attention_prior=args.apply_attention_prior,
                 attention_prior_epsilon=args.attention_prior_epsilon,
@@ -354,6 +363,8 @@ def main():
                 use_cfg=args.use_cfg,
                 cfg_scale=args.cfg_scale,
                 batch_size=args.batch_size,
+                sv_model=args.sv_model,
+                asr_model_name=args.asr_model_name,
                 num_repeats=args.num_repeats,
                 apply_attention_prior=args.apply_attention_prior,
                 attention_prior_epsilon=args.attention_prior_epsilon,
