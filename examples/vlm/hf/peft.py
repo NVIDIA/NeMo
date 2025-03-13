@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import fiddle as fdl
+import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
-import lightning.pytorch as pl
 from nemo.collections import llm, vlm
 
 
@@ -74,7 +74,6 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
     )
 
 
-
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -93,6 +92,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
+
 
 if __name__ == '__main__':
     import argparse
