@@ -8,8 +8,8 @@ from time import time
 from typing import Callable, List, Optional, Tuple, Union
 
 import torch
-from megatron.core.dist_checkpointing.strategies.async_utils import AsyncRequest
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.dist_checkpointing.strategies.async_utils import AsyncRequest
 from megatron.core.dist_checkpointing.strategies.filesystem_async import (
     FileSystemWriterAsync,
     WriteBucket,
@@ -18,9 +18,7 @@ from megatron.core.dist_checkpointing.strategies.filesystem_async import (
     _split_by_separation_hint,
     _split_by_size_and_type,
 )
-from megatron.core.dist_checkpointing.strategies.state_dict_saver import (
-    save_state_dict_async_plan,
-)
+from megatron.core.dist_checkpointing.strategies.state_dict_saver import save_state_dict_async_plan
 from megatron.core.dist_checkpointing.strategies.torch import (
     MCoreSavePlanner,
     TorchDistSaveShardedStrategy,
@@ -28,11 +26,7 @@ from megatron.core.dist_checkpointing.strategies.torch import (
     mcore_to_pyt_state_dict,
 )
 from torch import multiprocessing as mp
-from torch.distributed.checkpoint.filesystem import (
-    DEFAULT_SUFFIX,
-    _StoragePrefix,
-    _write_item,
-)
+from torch.distributed.checkpoint.filesystem import DEFAULT_SUFFIX, _StoragePrefix, _write_item
 from torch.distributed.checkpoint.planner import SavePlan, SavePlanner, WriteItemType
 from torch.distributed.checkpoint.storage import WriteResult
 
@@ -60,16 +54,12 @@ class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
 
     def save(self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path):
         """Each async strategy can be trivially used as a sync strategy."""
-        write_results_or_exc = async_request = self.async_save(
-            sharded_state_dict, checkpoint_dir
-        )
+        write_results_or_exc = async_request = self.async_save(sharded_state_dict, checkpoint_dir)
         async_request.async_fn(*async_request.async_fn_args)
         for finalize_fn in async_request.finalize_fns:
             finalize_fn()
 
-    def async_save(
-        self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path
-    ) -> AsyncRequest:
+    def async_save(self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path) -> AsyncRequest:
         """Translates MCore ShardedTensors to PyT ShardedTensors & saves in PyT Distributed format.
 
         Args:
@@ -79,10 +69,8 @@ class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
         Returns: None
         """
         # Translate the state dict
-        (sharded_state_dict, flat_mapping, rename_mapping) = (
-            _replace_state_dict_keys_with_sharded_keys(
-                sharded_state_dict, self.keep_only_main_replica
-            )
+        (sharded_state_dict, flat_mapping, rename_mapping) = _replace_state_dict_keys_with_sharded_keys(
+            sharded_state_dict, self.keep_only_main_replica
         )
         pyt_state_dict = mcore_to_pyt_state_dict(sharded_state_dict, False)
         # Use PyT saving mechanism
@@ -115,9 +103,7 @@ class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
             writer,
             None,
             coordinator,
-            planner=MCoreSavePlanner(
-                dedup_replicated_tensors=not self.keep_only_main_replica
-            ),
+            planner=MCoreSavePlanner(dedup_replicated_tensors=not self.keep_only_main_replica),
             cached_ckpt_structure=args_cached_plans,
         )
         rank = torch.distributed.get_rank()
@@ -125,15 +111,11 @@ class DaemonTorchDistSaveShardedStrategy(TorchDistSaveShardedStrategy):
             if self.validated_cache_reuse:
                 logger.debug(f"rank: {rank}, cache validated")
                 if save_state_dict_ret[1]:  # when global_metadata is not cached
-                    self.cached_global_metadata = save_state_dict_ret[
-                        1
-                    ]  # Cache Metadata
+                    self.cached_global_metadata = save_state_dict_ret[1]  # Cache Metadata
                 # Only Coordinator rank holds cached global_metadata
                 # (None is returned for global_metadata)
                 elif coordinator == rank:
-                    logger.debug(
-                        f"rank: {rank}, reuse metadata, {save_state_dict_ret[1]}"
-                    )
+                    logger.debug(f"rank: {rank}, reuse metadata, {save_state_dict_ret[1]}")
                     save_state_dict_ret = list(save_state_dict_ret)
                     save_state_dict_ret[1] = self.cached_global_metadata
 
@@ -160,14 +142,8 @@ class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
         start = time()
         logger.debug(f"thread_count: {self.thread_count}, time: {start}")
         if self.separation_hint:
-            assert (
-                self.thread_count > 1
-            ), "thread_count must be at least 2 if separation_hint is provided"
-        bins = (
-            self.thread_count // 2
-            if self.separation_hint is not None
-            else self.thread_count
-        )
+            assert self.thread_count > 1, "thread_count must be at least 2 if separation_hint is provided"
+        bins = self.thread_count // 2 if self.separation_hint is not None else self.thread_count
         item_buckets = _split_by_size_and_type(bins, plan.items, self.separation_hint)
         logger.debug(f"bucket_prep, time: {time() - start}")
 
@@ -184,30 +160,22 @@ class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
 
         # Prepare bytes / tensor data in each bucket, which will be assigned to each writer process
         self.write_buckets = []
-        for group_name, group_buckets in _split_by_separation_hint(
-            item_buckets, self.separation_hint
-        ).items():
+        for group_name, group_buckets in _split_by_separation_hint(item_buckets, self.separation_hint).items():
             for bucket in group_buckets:
                 bytes_data = [
-                    (item, planner.resolve_data(item))
-                    for item in bucket
-                    if item.type == WriteItemType.BYTE_IO
+                    (item, planner.resolve_data(item)) for item in bucket if item.type == WriteItemType.BYTE_IO
                 ]
                 tensor_data = [
                     (
                         item,
-                        planner.resolve_data(item)
-                        .detach()
-                        .to("cpu", non_blocking=True),
+                        planner.resolve_data(item).detach().to("cpu", non_blocking=True),
                     )
                     for item in bucket
                     if item.type != WriteItemType.BYTE_IO
                 ]
                 if len(bytes_data) > 0 or len(tensor_data) > 0:
                     file_name = gen_file(prefix=group_name)
-                    self.write_buckets.append(
-                        (self.path / file_name, file_name, (bytes_data, tensor_data))
-                    )
+                    self.write_buckets.append((self.path / file_name, file_name, (bytes_data, tensor_data)))
 
         end = time()
         logger.debug(f"D2H and push, time: {end - start}")
@@ -287,34 +255,23 @@ class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
                     local_proc_idx, local_results_or_exc = local_results_queue.get()
                 except queue.Empty:
                     write_results_or_exc = RuntimeError(
-                        f"Unexpected empty `local_results_queue`"
-                        f" (got only {proc_idx}/{len(write_buckets)} items)"
+                        f"Unexpected empty `local_results_queue`" f" (got only {proc_idx}/{len(write_buckets)} items)"
                     )
                     break
                 else:
                     if isinstance(local_results_or_exc, Exception):
-                        err_msg = (
-                            f"Local process {local_proc_idx} encountered"
-                            f" an error: {local_results_or_exc}"
-                        )
+                        err_msg = f"Local process {local_proc_idx} encountered" f" an error: {local_results_or_exc}"
                         logger.error(err_msg)
                         write_results_or_exc = local_results_or_exc
                         break
                     else:
-                        assert isinstance(local_results_or_exc, list), type(
-                            local_results_or_exc
-                        )
+                        assert isinstance(local_results_or_exc, list), type(local_results_or_exc)
                         write_results_or_exc[local_proc_idx] = local_results_or_exc
 
-            logger.debug(
-                "DaemonFileSystemWriterAsync: collected worker results successfully"
-            )
+            logger.debug("DaemonFileSystemWriterAsync: collected worker results successfully")
 
         w_end = time()
-        logger.debug(
-            f"{w_end}, rank: {torch.distributed.get_rank()},"
-            f" write(sync,parallel): {w_end - w_start}"
-        )
+        logger.debug(f"{w_end}, rank: {torch.distributed.get_rank()}," f" write(sync,parallel): {w_end - w_start}")
 
         write_results_or_exc_bucket.append(write_results_or_exc)
 
@@ -345,15 +302,11 @@ class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
             file_name, storage_key, (bytes_data, tensor_data) = write_bucket
             with open(file_name, "wb") as stream:
                 for write_item, data in bytes_data:
-                    local_results.append(
-                        _write_item(stream, data, write_item, storage_key)
-                    )
+                    local_results.append(_write_item(stream, data, write_item, storage_key))
 
                 for write_item, tensor in tensor_data:
                     assert tensor.is_cpu
-                    local_results.append(
-                        _write_item(stream, tensor, write_item, storage_key)
-                    )
+                    local_results.append(_write_item(stream, tensor, write_item, storage_key))
 
                 if use_fsync:
                     os.fsync(stream.fileno())
@@ -365,8 +318,7 @@ class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
 
         mem_after = _process_memory()
         logger.debug(
-            f"{local_proc_idx} consumed: {mem_after - mem_before},"
-            f" before: {mem_before}, after: {mem_after}"
+            f"{local_proc_idx} consumed: {mem_after - mem_before}," f" before: {mem_before}, after: {mem_after}"
         )
 
     def retrieve_write_results(self) -> List[WriteResult]:
@@ -381,9 +333,7 @@ class DaemonFileSystemWriterAsync(FileSystemWriterAsync):
         write_results_or_exc = self.write_results_or_exc_bucket.pop()
 
         if isinstance(write_results_or_exc, Exception):
-            raise RuntimeError(
-                f"Worker failure: {write_results_or_exc}"
-            ) from write_results_or_exc
+            raise RuntimeError(f"Worker failure: {write_results_or_exc}") from write_results_or_exc
         write_results: dict = write_results_or_exc
         if len(write_results) != len(self.write_buckets):
             raise RuntimeError(

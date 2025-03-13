@@ -5,14 +5,6 @@ from typing import Callable, Optional, Tuple, Union
 
 import torch
 import torch.distributed as dist
-from megatron.core.dist_checkpointing.strategies.async_utils import AsyncRequest, PersistentAsyncCaller
-from torch.distributed.checkpoint._async_process_executor import (
-    _AsyncCheckpointProcess,
-    _CheckpointRequestIdentifier,
-    _CheckpointSaveProcessControlOpts,
-    _ProcessGroupInitInfo,
-)
-from torch.distributed.checkpoint.logger import _init_logger
 from megatron.core.dist_checkpointing.core import CheckpointingConfig, save_config
 from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
 from megatron.core.dist_checkpointing.mapping import (
@@ -26,6 +18,7 @@ from megatron.core.dist_checkpointing.serialization import (
     get_default_save_common_strategy,
     get_default_save_sharded_strategy,
 )
+from megatron.core.dist_checkpointing.strategies.async_utils import AsyncRequest, PersistentAsyncCaller
 from megatron.core.dist_checkpointing.strategies.base import (
     AsyncSaveShardedStrategy,
     SaveCommonStrategy,
@@ -33,10 +26,15 @@ from megatron.core.dist_checkpointing.strategies.base import (
     StrategyAction,
     get_default_strategy,
 )
-from megatron.core.dist_checkpointing.validation import (
-    validate_sharded_objects_handling,
-)
+from megatron.core.dist_checkpointing.validation import validate_sharded_objects_handling
 from torch import multiprocessing as mp
+from torch.distributed.checkpoint._async_process_executor import (
+    _AsyncCheckpointProcess,
+    _CheckpointRequestIdentifier,
+    _CheckpointSaveProcessControlOpts,
+    _ProcessGroupInitInfo,
+)
+from torch.distributed.checkpoint.logger import _init_logger
 from torch.distributed.checkpoint.metadata import STATE_DICT_TYPE
 from torch.distributed.checkpoint.planner import SavePlanner
 from torch.distributed.checkpoint.storage import StorageWriter
@@ -105,9 +103,7 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
             os.environ["RANK"] = str(pg_init_info.global_rank)
             os.environ["WORLD_SIZE"] = str(pg_init_info.world_size)
 
-            logger.info(
-                "Initializing dist.ProcessGroup in checkpoint background process"
-            )
+            logger.info("Initializing dist.ProcessGroup in checkpoint background process")
             # NOTE: GLOO backend is enforced here.
             dist.init_process_group(backend=dist.Backend.GLOO)
             dist.barrier()
@@ -126,9 +122,7 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                     logger.info("Terminating the checkpoint background process.")
                     return
                 assert isinstance(obj, AsyncRequest)
-                logger.info(
-                    f"Received async checkpoint request with id={obj.call_idx}"  # noqa: G004
-                )
+                logger.info(f"Received async checkpoint request with id={obj.call_idx}")  # noqa: G004
 
                 if profile_dir is not None and dist.get_rank() == 0:
                     from custom_callbacks.profile import MAX_TRACE_ENTRIES
@@ -143,9 +137,7 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                     )
                     tracer.start()
 
-                    logger.info(
-                        f"Started profile in subprocess for checkpointing step {global_step}."
-                    )
+                    logger.info(f"Started profile in subprocess for checkpointing step {global_step}.")
 
                 # Call the actual save function
                 obj.async_fn(*obj.async_fn_args)
@@ -156,18 +148,12 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
                         output_file=f"{profile_dir}/profile/ckpt_subproc_rank{dist.get_rank()}_step{global_step}_trace.json"
                     )
 
-                    logger.info(
-                        f"Finished profile in subprocess for checkpointing step {global_step}."
-                    )
+                    logger.info(f"Finished profile in subprocess for checkpointing step {global_step}.")
 
                 send.put(obj.call_idx)
-                logger.info(
-                    f"Submitted checkpoint save request for checkpoint_id={obj.call_idx}"  # noqa: G004
-                )
+                logger.info(f"Submitted checkpoint save request for checkpoint_id={obj.call_idx}")  # noqa: G004
         except BaseException as e:
-            logger.error(
-                f"Checkpoint background process encountered an exception: {e}"  # noqa: G004
-            )
+            logger.error(f"Checkpoint background process encountered an exception: {e}")  # noqa: G004
             send.put(e)
             raise
         finally:
@@ -175,14 +161,10 @@ class _MegatronCompatibleAsyncCheckpointProcess(_AsyncCheckpointProcess):
             dist.destroy_process_group()
 
 
-class TorchCompatiblePersistentAsyncCaller(
-    _MegatronCompatibleAsyncCheckpointProcess, PersistentAsyncCaller
-):
+class TorchCompatiblePersistentAsyncCaller(_MegatronCompatibleAsyncCheckpointProcess, PersistentAsyncCaller):
     def __init__(self, profile_dir: Optional[str] = None):
         assert dist.is_initialized(), "Process group must be initialized"
-        _MegatronCompatibleAsyncCheckpointProcess.__init__(
-            self, _ProcessGroupInitInfo(), profile_dir
-        )
+        _MegatronCompatibleAsyncCheckpointProcess.__init__(self, _ProcessGroupInitInfo(), profile_dir)
         self.queue = self._mp_queue_send
         self.comp_q = self._mp_queue_recv
         self.cur_item = None
@@ -196,9 +178,7 @@ def save(
     sharded_strategy: Union[SaveShardedStrategy, Tuple[str, int], None] = None,
     common_strategy: Union[SaveCommonStrategy, Tuple[str, int], None] = None,
     async_sharded_save: bool = False,
-    preprocess_common_before_consistancy_check: Callable[
-        [CommonStateDict], StateDict
-    ] = None,
+    preprocess_common_before_consistancy_check: Callable[[CommonStateDict], StateDict] = None,
 ) -> Optional[AsyncRequest]:
     """Saving entrypoint.
 
@@ -249,14 +229,10 @@ def save(
 
     if torch.distributed.get_rank() == 0:
         if not checkpoint_dir.exists():
-            raise CheckpointingException(
-                f"Checkpoint destination directory does not exist: {checkpoint_dir}"
-            )
+            raise CheckpointingException(f"Checkpoint destination directory does not exist: {checkpoint_dir}")
 
         if next(checkpoint_dir.iterdir(), None) is not None:
-            raise CheckpointingException(
-                f"Checkpoint destination directory ({checkpoint_dir}) is not empty"
-            )
+            raise CheckpointingException(f"Checkpoint destination directory ({checkpoint_dir}) is not empty")
 
     if common_strategy is not None:
         raise NotImplementedError("The only supported common strategy is torch")
@@ -265,17 +241,13 @@ def save(
         sharded_strategy = get_default_save_sharded_strategy()
     if not isinstance(sharded_strategy, SaveShardedStrategy):
         assert isinstance(sharded_strategy, tuple), type(sharded_strategy)
-        sharded_strategy = get_default_strategy(
-            StrategyAction.SAVE_SHARDED, *sharded_strategy
-        )
+        sharded_strategy = get_default_strategy(StrategyAction.SAVE_SHARDED, *sharded_strategy)
 
     if common_strategy is None:
         common_strategy = get_default_save_common_strategy()
     if not isinstance(common_strategy, SaveCommonStrategy):
         assert isinstance(common_strategy, tuple), type(common_strategy)
-        common_strategy = get_default_strategy(
-            StrategyAction.SAVE_COMMON, *common_strategy
-        )
+        common_strategy = get_default_strategy(StrategyAction.SAVE_COMMON, *common_strategy)
 
     common_state_dict = sharded_state_dict.pop("common")
     common_strategy.save_common(common_state_dict, checkpoint_dir)
@@ -301,9 +273,7 @@ def save(
         return
 
     if not isinstance(sharded_strategy, AsyncSaveShardedStrategy):
-        raise CheckpointingException(
-            f"Cannot apply async_save to non-async strategy {sharded_strategy}"
-        )
+        raise CheckpointingException(f"Cannot apply async_save to non-async strategy {sharded_strategy}")
 
     async_request = sharded_strategy.async_save(sharded_state_dict, checkpoint_dir)
     async_request.finalize_fns.append(metadata_finalize_fn)

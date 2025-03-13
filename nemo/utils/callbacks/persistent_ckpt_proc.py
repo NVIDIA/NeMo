@@ -2,15 +2,15 @@ import logging
 from logging import getLogger
 from typing import Any, Dict, Optional
 
-from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, debug_time
 from lightning.fabric.utilities.types import _PATH
+from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, debug_time
+
+from nemo.uitls._ckpt_utils import TorchCompatiblePersistentAsyncCaller
 from nemo.utils.callbacks.dist_ckpt_io import (
     AsyncCompatibleCheckpointIO,
     AsyncFinalizableCheckpointIO,
     _WrappingCheckpointIO,
 )
-
-from nemo.uitls._ckpt_utils import TorchCompatiblePersistentAsyncCaller
 
 logger = getLogger(__name__)
 
@@ -50,20 +50,14 @@ class PersistentCheckpointProcessIO(AsyncFinalizableCheckpointIO):
         """
 
         external_finalize_fn = (storage_options or {}).pop("finalize_fn", None)
-        assert isinstance(self.checkpoint_io, AsyncCompatibleCheckpointIO), type(
-            self.checkpoint_io
-        )
+        assert isinstance(self.checkpoint_io, AsyncCompatibleCheckpointIO), type(self.checkpoint_io)
 
         if self.async_calls_queue.persistent_caller is None:
-            self.async_calls_queue.persistent_caller = (
-                TorchCompatiblePersistentAsyncCaller(self.profile_dir)
-            )
+            self.async_calls_queue.persistent_caller = TorchCompatiblePersistentAsyncCaller(self.profile_dir)
 
         self.maybe_finalize_save_checkpoint(blocking=True)
 
-        async_req = self.checkpoint_io.save_checkpoint(
-            checkpoint, path, storage_options
-        )
+        async_req = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
         if external_finalize_fn is not None:
             async_req.add_finalize_fn(external_finalize_fn)
 

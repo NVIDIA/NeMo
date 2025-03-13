@@ -1,25 +1,19 @@
 from logging import getLogger
 from typing import Any, Dict, Optional
 
-from megatron.core.dist_checkpointing.strategies.async_utils import AsyncRequest, debug_time
-from torch.distributed.checkpoint._async_process_executor import _CheckpointRequestIdentifier
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from megatron.core.dist_checkpointing.mapping import apply_factories
 from megatron.core.dist_checkpointing.state_dict_transformation import save_preprocess
-from megatron.core.dist_checkpointing.strategies.fully_parallel import (
-    FullyParallelSaveStrategyWrapper,
-)
-from nemo.utils import logging
-from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
+from megatron.core.dist_checkpointing.strategies.async_utils import AsyncRequest, debug_time
+from megatron.core.dist_checkpointing.strategies.fully_parallel import FullyParallelSaveStrategyWrapper
+from torch.distributed.checkpoint._async_process_executor import _CheckpointRequestIdentifier
 
+from nemo.utils import logging
 from nemo.utils._ckpt_utils import TorchCompatiblePersistentAsyncCaller
-from nemo.utils._state_dict_utils import (
-    _copy_state_dict,
-    _create_cpu_state_dict,
-    _offload_state_dict_to_cpu,
-)
+from nemo.utils._state_dict_utils import _copy_state_dict, _create_cpu_state_dict, _offload_state_dict_to_cpu
 from nemo.utils.callbacks.daemon_strategies import DaemonTorchDistSaveShardedStrategy
+from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
 logger = getLogger(__name__)
 
@@ -68,24 +62,18 @@ class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
         fs = get_filesystem(path)
         fs.makedirs(path, exist_ok=True)
 
-        validate_sharding_integrity = not (
-            self.validated_consistency and self.assume_constant_structure
-        )
+        validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
         apply_factories(checkpoint)
-        sharded_state_dict, common_state_dict = save_preprocess(
-            checkpoint, validate_sharding_integrity, None
-        )
+        sharded_state_dict, common_state_dict = save_preprocess(checkpoint, validate_sharding_integrity, None)
 
         # TODO: Pin tensors to further improve d2h time
         common_state_dict = _offload_state_dict_to_cpu(common_state_dict)
 
         staged_state_dict = self._staged_state_dict
         if staged_state_dict is None:
-            staged_state_dict = _create_cpu_state_dict(
-                sharded_state_dict, pin_memory=True, share_memory=True
-            )
+            staged_state_dict = _create_cpu_state_dict(sharded_state_dict, pin_memory=True, share_memory=True)
 
         _copy_state_dict(sharded_state_dict, staged_state_dict, False)
 
@@ -128,19 +116,11 @@ class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
             )
 
         if self.async_save and self.save_ckpt_format != "torch_dist":
-            raise ValueError(
-                "Async dist-ckpt save supported only for torch_dist format"
-            )
+            raise ValueError("Async dist-ckpt save supported only for torch_dist format")
 
-        torch_dist_kwargs = (
-            {}
-            if self.torch_dist_multiproc is None
-            else dict(thread_count=self.torch_dist_multiproc)
-        )
+        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
         if self.save_ckpt_format == "torch_dist" and torch_dist_kwargs:
-            save_strategy = DaemonTorchDistSaveShardedStrategy(
-                self.save_ckpt_format, 1, **torch_dist_kwargs
-            )
+            save_strategy = DaemonTorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
             save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
 
@@ -150,9 +130,7 @@ class MinCkptOverheadCheckpointIO(DistributedCheckpointIO):
 
         if self.parallel_save:
             parallelization_group = (
-                get_data_parallel_group(with_context_parallel=True)
-                if self.parallel_save_within_dp
-                else None
+                get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
             )
             save_strategy = FullyParallelSaveStrategyWrapper(
                 save_strategy, parallelization_group, self.assume_constant_structure

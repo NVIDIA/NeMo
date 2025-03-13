@@ -67,21 +67,13 @@ def _iterate_state_dict(
         ret = dtensor_func(iter_object, pg, device, companion_obj)
     elif isinstance(iter_object, torch.Tensor):
         ret = tensor_func(iter_object, pg, device, companion_obj)
-    elif (
-        isinstance(iter_object, (int, float, str, bytes, io.BytesIO))
-        or iter_object is None
-    ):
+    elif isinstance(iter_object, (int, float, str, bytes, io.BytesIO)) or iter_object is None:
         ret = iter_object
     elif isinstance(iter_object, dict):
         if companion_obj is not None and (
-            not isinstance(companion_obj, dict)
-            or set(companion_obj.keys()) != set(iter_object.keys())
+            not isinstance(companion_obj, dict) or set(companion_obj.keys()) != set(iter_object.keys())
         ):
-            msg = (
-                ""
-                if isinstance(companion_obj, dict)
-                else f"{set(companion_obj.keys())=} {set(iter_object.keys())=}"
-            )
+            msg = "" if isinstance(companion_obj, dict) else f"{set(companion_obj.keys())=} {set(iter_object.keys())=}"
             raise CompanionMismatch(msg)
 
         ret = {
@@ -102,8 +94,7 @@ def _iterate_state_dict(
         }
     elif isinstance(iter_object, (list, tuple)):
         if companion_obj is not None and (
-            not isinstance(companion_obj, (list, tuple))
-            or len(companion_obj) != len(iter_object)
+            not isinstance(companion_obj, (list, tuple)) or len(companion_obj) != len(iter_object)
         ):
             raise CompanionMismatch
 
@@ -126,21 +117,14 @@ def _iterate_state_dict(
         if isinstance(iter_object, tuple):
             ret = tuple(ret)
     # Logic for Megatron ShardedTensor and ShardedObject abstractions
-    elif any(
-        _ in str(type(iter_object))
-        for _ in ["mapping.ShardedTensor", "mapping.ShardedObject"]
-    ):
+    elif any(_ in str(type(iter_object)) for _ in ["mapping.ShardedTensor", "mapping.ShardedObject"]):
         if hasattr(iter_object, "data"):
             if isinstance(iter_object.data, torch.Tensor):
                 ret_data = tensor_func(iter_object.data, pg, device, companion_obj)
             else:
                 ret_data = copy.deepcopy(iter_object.data)
             ret = copy.copy(iter_object)
-            ret_dict = {
-                k: copy.deepcopy(v)
-                for k, v in iter_object.__dict__.items()
-                if k != "data"
-            }
+            ret_dict = {k: copy.deepcopy(v) for k, v in iter_object.__dict__.items() if k != "data"}
             ret.__dict__.update(ret_dict)
             ret.data = ret_data
         else:
@@ -161,27 +145,17 @@ def _iterate_state_dict(
                 ret = companion_obj
 
         # Logic for Megatron ShardedTensor and ShardedObject abstractions
-        elif any(
-            _ in str(type(iter_object))
-            for _ in ["mapping.ShardedTensor", "mapping.ShardedObject"]
-        ):
+        elif any(_ in str(type(iter_object)) for _ in ["mapping.ShardedTensor", "mapping.ShardedObject"]):
             if cpu_offload and companion_obj is None:
                 ret.data = ret.data.detach().to(cpu_device)
 
             if companion_obj is not None:
-                companion_obj_dict = {
-                    k: copy.deepcopy(v) for k, v in ret.__dict__.items() if k != "data"
-                }
+                companion_obj_dict = {k: copy.deepcopy(v) for k, v in ret.__dict__.items() if k != "data"}
                 companion_obj.__dict__.update(ret_dict)
                 if isinstance(companion_obj.data, torch.Tensor):
                     if ret.data.requires_grad:
-                        companion_obj.data.copy_(
-                            ret.data.detach(), non_blocking=non_blocking
-                        )
-                    elif (
-                        not companion_obj.data.requires_grad
-                        and not ret.data.requires_grad
-                    ):
+                        companion_obj.data.copy_(ret.data.detach(), non_blocking=non_blocking)
+                    elif not companion_obj.data.requires_grad and not ret.data.requires_grad:
                         companion_obj.data.copy_(ret.data, non_blocking=non_blocking)
                     else:
                         raise ValueError("Incompatible requires_grad values")
@@ -278,9 +252,7 @@ def _create_cpu_state_dict(
 
                 def unpin_memory(t):
                     succ = int(torch.cuda.cudart().cudaHostUnregister(t.data_ptr()))
-                    assert (
-                        succ == 0
-                    ), f"Unpinning shared memory failed with error-code: {succ}"
+                    assert succ == 0, f"Unpinning shared memory failed with error-code: {succ}"
 
                 weakref.finalize(t, unpin_memory, t)
                 succ = int(
@@ -290,9 +262,7 @@ def _create_cpu_state_dict(
                         1,  # lines up with 'cudaHostRegisterPortable'
                     )
                 )
-                assert (
-                    succ == 0
-                ), f"Pinning shared memory failed with error-code: {succ}"
+                assert succ == 0, f"Pinning shared memory failed with error-code: {succ}"
             return t
         elif pin_memory:
             return torch.empty(*tuple(obj.size()), dtype=obj.dtype).pin_memory()
