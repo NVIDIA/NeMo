@@ -118,6 +118,13 @@ def main():
         choices=['auto', 'ddp', 'fsdp2'],
         help='Training strategy e.g. ddp/fsdp2/single-gpu',
     )
+    parser.add_argument(
+        '--accelerator',
+        type=str,
+        default='gpu',
+        choices=['gpu', 'cpu'],
+        help='Device to use for training',
+    )
     parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
@@ -179,7 +186,7 @@ def main():
             devices=args.devices,
             num_nodes=args.num_nodes,
             max_steps=args.max_steps,
-            accelerator='gpu',
+            accelerator=args.accelerator,
             strategy=strategy,
             log_every_n_steps=1,
             limit_val_batches=0.0,
