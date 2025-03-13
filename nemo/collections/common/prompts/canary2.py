@@ -179,7 +179,6 @@ def canary2(cut: Cut, prompt: Canary2PromptFormatter) -> dict[str, torch.Tensor]
         "diarize": "<|nodiarize|>",
         "pnc": "<|pnc|>",  # consistent with canary1
     }
-
     slots = {slot: cut.custom[slot] for slot in expected_slots}
     slots[prompt.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
     for k, v in optional_slots.items():
