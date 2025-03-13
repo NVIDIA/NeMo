@@ -18,7 +18,7 @@ from typing import List, Tuple, Union, Optional
 import torch
 from megatron.core.packed_seq_params import PackedSeqParams
 
-from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig
+from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig, BaseConversationTemplateConfig
 
 
 @dataclass
@@ -82,5 +82,5 @@ class PackedImageTextRawBatch(ImageTextRawBatch):
 class MultiModalSampleConfig:
     image_token: ImageToken = field(default_factory=ImageToken)
     ignore_place_holder: int = -100
-    conversation_template_config: LLaVATemplateConfig = field(default_factory=LLaVATemplateConfig)
+    conversation_template_config: BaseConversationTemplateConfig = field(default_factory=LLaVATemplateConfig)
     image_following_text: bool = True

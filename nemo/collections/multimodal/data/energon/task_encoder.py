@@ -182,18 +182,26 @@ class MultiModalTaskEncoder(
                 loss_mask=sample.loss_mask,
                 position_ids=sample.position_ids,
                 packed_seq_params=sample.packed_seq_params,
+                num_image_tiles=sample.num_image_tiles,
             )
         else:
             keys, images, tokens, labels, loss_mask = [], [], [], [], []
+            batch_num_image_tiles = []
             for sample in samples:
                 keys.append(sample.__key__)
                 images.append(sample.images)
                 tokens.append(sample.tokens)
                 labels.append(sample.labels)
                 loss_mask.append(sample.loss_mask)
+                if sample.num_image_tiles is not None:
+                    batch_num_image_tiles.extend(sample.num_image_tiles)
+            if len(batch_num_image_tiles) == 0:
+                batch_num_image_tiles = None
 
             batch_keys = batch_list(keys)
             batch_images = batch_pad_stack(images)
+            if batch_images.ndim == 5:
+                batch_images = batch_images.reshape(-1, *batch_images.shape[2:])
             batch_prompt_tokens = batch_pad_stack(tokens)
             batch_labels = batch_pad_stack(labels)
             batch_loss_mask = batch_pad_stack(loss_mask)
@@ -203,6 +211,7 @@ class MultiModalTaskEncoder(
                 tokens=batch_prompt_tokens,
                 labels=batch_labels,
                 loss_mask=batch_loss_mask,
+                num_image_tiles=batch_num_image_tiles,
             )
 
     def encode_batch(self, batch_data: ImageTextRawBatch) -> dict:
@@ -222,6 +231,9 @@ class MultiModalTaskEncoder(
         if 'images' in batch_dict:
             batch_dict['media'] = batch_dict['images']
             del batch_dict['images']
+        if 'num_image_tiles' in batch_dict:
+            batch_dict['num_media_tiles'] = batch_dict['num_image_tiles']
+            del batch_dict['num_image_tiles']
         micro_batch_size, seq_length = batch_dict['tokens'].size()
         # Position ids.
         position_ids = torch.arange(seq_length, dtype=torch.long)
@@ -282,6 +294,12 @@ class MultiModalTaskEncoder(
             media_token_index=media_token_id,
             ignore_index=self.sample_config.ignore_place_holder,
         )
+        batch_num_image_tiles = []
+        for sample in samples:
+            if sample.num_image_tiles is not None:
+                batch_num_image_tiles.extend(sample.num_image_tiles)
+        if len(batch_num_image_tiles) == 0:
+            batch_num_image_tiles = None
 
         return PackedImageTextSample(
             __key__=",".join([s.__key__ for s in samples]),
@@ -292,4 +310,5 @@ class MultiModalTaskEncoder(
             position_ids=packed_position_ids,
             loss_mask=packed_loss_mask,
             packed_seq_params=packed_seq_params,
+            num_image_tiles=batch_num_image_tiles,
         )

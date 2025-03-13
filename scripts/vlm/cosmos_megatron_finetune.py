@@ -43,6 +43,7 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon.conversation import LLama3TemplateConfig
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm import ImageDataConfig
 from nemo.collections.vlm.vision.vision_transform import VisualProcessor
@@ -68,7 +69,6 @@ def main(args):
     language_transformer_config = llm.Llama31Config8B(
         make_vocab_size_divisible_by=512,
         seq_length=decoder_seq_length,
-        num_layers=2,
     )
 
     vision_transformer_config = vlm.RADIO_25_h_Config(
@@ -116,7 +116,7 @@ def main(args):
         # Data configuration
         data_config = ImageDataConfig(
             image_folder=args.image_folder,
-            conv_template="v1",
+            conv_template="llava_llama_3",
         )
 
         # Data module setup
@@ -138,7 +138,6 @@ def main(args):
         from nemo.collections.multimodal.data.energon import (
             EnergonMultiModalDataModule,
             ImageToken,
-            LLaVATemplateConfig,
             MultiModalSampleConfig,
         )
 
@@ -146,7 +145,7 @@ def main(args):
         config = MultiModalSampleConfig(
             image_token=ImageToken(token_str="<image>", token_id=-200),
             ignore_place_holder=-100,
-            conversation_template_config=LLaVATemplateConfig(),
+            conversation_template_config=LLama3TemplateConfig(),
         )
 
         # Initialize the data module

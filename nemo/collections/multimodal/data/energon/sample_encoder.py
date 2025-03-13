@@ -86,7 +86,10 @@ class BaseSampleEncoder(SampleEncoder):
             Defaults to MultiModalSampleConfig().
         """
         super().__init__()
-        self.tokenizer = tokenizer
+        if hasattr(tokenizer, "tokenizer"):
+            self.tokenizer = tokenizer.tokenizer
+        else:
+            self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.multimodal_sample_config = multimodal_sample_config
         self.ignore_place_holder = multimodal_sample_config.ignore_place_holder
@@ -105,9 +108,9 @@ class BaseSampleEncoder(SampleEncoder):
         Returns:
         torch.Tensor: A preprocessed and reshaped image tensor with dimensions (1, 1, channels, height, width).
         """
-        image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+        image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values']
         assert isinstance(image, torch.Tensor)
-        image = rearrange(image, "c h w -> 1 1 c h w")  # T F c h w
+        image = rearrange(image, "F c h w -> 1 F c h w")  # T F c h w
         return image
 
     def compute_loss_mask(self, labels: torch.Tensor) -> torch.Tensor:
@@ -278,6 +281,20 @@ class VQASampleEncoder(BaseSampleEncoder):
 
             # Find the start and end indices of the answer tokens in the prompt
             answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens, search_start_index)
+            if answer_start < 0:
+                logging.warning(
+                    "Unable to find a valid answer in the conversation. "
+                    "Details: "
+                    "\n- Messages: %s"
+                    "\n- Tokens: %s"
+                    "\n- Answer Tokens: %s"
+                    "\n- Search Start Index: %d",
+                    sample.answers,
+                    tokens,
+                    answer_tokens,
+                    search_start_index,
+                )
+                break
 
             # Label the answer tokens
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
@@ -310,12 +327,12 @@ class VQASampleEncoder(BaseSampleEncoder):
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
         logging.debug(f"task encoder encode_sample after tokenize prompt tokens {tokens}")
-        logging.debug(f"task encoder encode_sample lables {labels}")
+        logging.debug(f"task encoder encode_sample labels {labels}")
         loss_mask = self.compute_loss_mask(labels)
         processed_image = self.process_image(input_sample.image)
-        processed_image = processed_image.squeeze()
         output_sample.__key__ = input_sample.__key__
-        output_sample.images = processed_image
+        output_sample.num_image_tiles = [processed_image.shape[1]]
+        output_sample.images = processed_image.squeeze(0)
         output_sample.tokens = tokens
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
@@ -364,7 +381,6 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
             - A tensor with tokenized text and image token IDs.
             - A concatenated tensor of processed images.
         """
-        images = []
         # sample.sequence is a list consisting of text string or image tensor (only image modality supported for now)
         tokenized_chunks = []
         images = []
