@@ -54,9 +54,9 @@ class MALSDState:
     max_time: int  # maximum length of internal storage for time dimension
     batch_size: int  # (maximum) length of internal storage for batch dimension
     device: torch.device  # device to store preallocated tensors
-    beam_size: int
-    blank_index: int
-        
+    beam_size: int # (maximum) length of internal storage for beam dimension
+    blank_index: int # the index of the blank token
+    
     encoder_output_projected: torch.Tensor  # projected output from the encoder for decoding algorithm
     encoder_output_length: torch.Tensor  # length of the (projected) output from the encoder
 
@@ -65,7 +65,7 @@ class MALSDState:
     next_idx: torch.Tensor     # storage for next scores
 
     batch_indices: torch.Tensor  # indices of elements in batch (constant, range [0, batch_size-1])
-    beam_indices: torch.Tensor
+    beam_indices: torch.Tensor # indices of elements in batch (constant, range [0, beam_size-1])
 
     time_indices: torch.Tensor  # current time indices for each element in batch
     safe_time_indices: torch.Tensor  # current time indices, but guaranteed to be < encoder_output_length
@@ -259,7 +259,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         pruning_mode: Optional[str | PruningMode] = None,
         score_norm: bool = True,
-        allow_cuda_graphs: bool = True
+        allow_cuda_graphs: bool = True,
+        return_best_hypothesis: bool = True
     ):
         """
         Init method.
@@ -291,6 +292,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.score_norm = score_norm
         self.allow_cuda_graphs = allow_cuda_graphs
+        self.return_best_hypothesis = return_best_hypothesis
 
         assert not self.preserve_alignments, "Preserve aligments is not supported"
         assert not self.preserve_frame_confidence, "Preserve frame confidence is not supported"
@@ -568,7 +570,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
 
-        return batched_hyps.to_hyps_list(score_norm=self.score_norm)
+        if self.return_best_hypothesis:
+            return batched_hyps.to_hyps_list(score_norm=self.score_norm)
+        else:
+            return batched_hyps.to_nbest_hyps_list(score_norm=self.score_norm)
     
     def topk_lm(self, lm_scores, log_probs):
         if self.pruning_mode is PruningMode.LATE:
@@ -672,12 +677,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
-        return self.state.batched_hyps.to_hyps_list(score_norm=self.score_norm)[:current_batch_size]
-        # return (
-        #     self.state.batched_hyps,
-        #     self.state.alignments,
-        #     self.state.last_decoder_state,
-        # )
+        if self.return_best_hypothesis:
+            return self.state.batched_hyps.to_hyps_list(score_norm=self.score_norm)[:current_batch_size]
+        else:
+            return self.state.batched_hyps.to_nbest_hyps_list(score_norm=self.score_norm)[:current_batch_size]
 
     @classmethod
     def _create_loop_body_kernel(cls):
@@ -1100,7 +1103,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 self.state.batch_lm_states_candidates,
                 dim=-1,
                 index=last_labels_wb_blank_replaced.unsqueeze(-1),
-                out=self.state.batch_lm_states.squeeze(-1)
+                out=self.state.batch_lm_states.unsqueeze(-1)
             )
             torch.where(
                 preserve_state,

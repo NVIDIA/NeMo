@@ -239,7 +239,6 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             active_mask = time_indices <= last_timesteps
             
             step+=1
-
         return batched_hyps.to_hyps_list(score_norm=self.score_norm)
     
     def combine_scores(self, log_probs, lm_scores):

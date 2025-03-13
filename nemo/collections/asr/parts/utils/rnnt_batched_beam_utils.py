@@ -2,7 +2,7 @@ import torch
 from typing import Optional
 from nemo.utils.enum import PrettyStrEnum
 
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 
 # https://stackoverflow.com/a/77213071
 MULTIPLIER = 6364136223846793005
@@ -265,13 +265,37 @@ class BatchedBeamHyps:
         transcripts = transcripts.cpu().detach().numpy()
         hypotheses = [
             Hypothesis(
-                score=scores[i],
-                y_sequence=transcripts[i][transcripts[i] >= 0],
-                timestamp=timestamps[i][transcripts[i] >= 0],
+                score=scores[batch_idx],
+                y_sequence=transcripts[batch_idx][transcripts[batch_idx] >= 0],
+                timestamp=timestamps[batch_idx][transcripts[batch_idx] >= 0],
                 alignments=None,
                 dec_state=None,
             )
-            for i, _ in enumerate(range(self.batch_size))
+            for batch_idx, _ in enumerate(range(self.batch_size))
+        ]
+        return hypotheses
+    
+    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+        self.flatten_sort(score_norm)
+
+        scores = self.scores.tolist()
+        
+        max_idx = self.current_lengths_wb.max() - 1
+        transcripts = self.transcript_wb[..., : max_idx + 1]
+        timestamps = torch.cumsum(transcripts == self.blank_index, dim=-1).cpu().numpy()
+        transcripts = transcripts.cpu().detach().numpy()
+        hypotheses = [
+            NBestHypotheses(
+                [
+                    Hypothesis(
+                        score=scores[batch_idx][beam_idx],
+                        y_sequence=transcripts[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
+                        timestamp=timestamps[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
+                        alignments=None,
+                        dec_state=None,
+                ) for beam_idx in range(self.beam_size)]
+            )
+            for batch_idx in range(self.batch_size)
         ]
         return hypotheses
     
@@ -279,8 +303,6 @@ class BatchedBeamHyps:
         # add one for consistency with non-batched decodings, that use SOS.
         normalized_scores = self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
         normalized_scores, indices = torch.sort(normalized_scores, dim=-1, descending=True)
-                
-        scores = self.scores[indices].tolist()
         
         max_idx = self.current_lengths_wb.max() - 1
         tokens_list = []

@@ -1786,6 +1786,7 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             blank_lm_score_mode: Optional[str] = None,
             pruning_mode: Optional[str] = None,
             allow_cuda_graphs: Optional[str] = True,
+            return_best_hypothesis: Optional[str] = True,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -1816,7 +1817,8 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
                 blank_lm_score_mode=blank_lm_score_mode,
                 score_norm=score_norm,
                 pruning_mode=pruning_mode,
-                allow_cuda_graphs=allow_cuda_graphs
+                allow_cuda_graphs=allow_cuda_graphs,
+                return_best_hypothesis=return_best_hypothesis,
             )
         elif search_type == "maes_batch":
             self._decoding_computer = ModifiedAESBatchedRNNTComputer(
