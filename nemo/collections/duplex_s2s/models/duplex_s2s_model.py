@@ -20,7 +20,7 @@ from typing import Any
 import hydra
 import torch
 from lightning import LightningModule
-from omegaconf import OmegaConf, open_dict
+from omegaconf import open_dict
 from torch import Tensor
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
@@ -317,7 +317,10 @@ class DuplexS2SModel(LightningModule):
         )
         optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
         lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
-        return [optimizer], [lr_scheduler]
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": lr_scheduler, "interval": "step", "frequency": 1},
+        }
 
     @property
     def oomptimizer_schema(self) -> dict:
