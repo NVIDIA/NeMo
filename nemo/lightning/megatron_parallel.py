@@ -1755,12 +1755,15 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:
             loss_for_ub = masked_token_loss(forward_out, batch["loss_mask"])
+            num_valid_tokens_in_ub = batch["loss_mask"].sum()
         else:
             loss_for_ub = masked_token_loss_context_parallel(
-                forward_out, batch["loss_mask"], batch['num_valid_tokens_in_ub']
+                forward_out, batch["loss_mask"]
             )
+            num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
+        if num_valid_tokens_in_ub < 0.5:
+            num_valid_tokens_in_ub += 1.0
 
-        num_valid_tokens_in_ub = batch["loss_mask"].sum()
         if self.validation_step and not self.val_drop_last:
             if loss_for_ub.isnan():
                 assert batch["loss_mask"].count_nonzero() == 0, "Got NaN loss with non-empty input"
@@ -1828,15 +1831,12 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
     """
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
-    num_valid_tokens = loss_mask.sum()
-    if num_valid_tokens < 0.5:  # no valid tokens
-        num_valid_tokens += 1.0
     loss = torch.sum(losses.view(-1) * loss_mask)  # sequence level nll
 
     return loss
 
 
-def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_tokens_in_ub: int):
+def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor):
     """
     masked token loss for CP > 1 as a separate function for readability.
     """
@@ -1844,10 +1844,6 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
 
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
-    if num_valid_tokens_in_ub is None:
-        num_valid_tokens_in_ub = loss_mask.sum()
-    if num_valid_tokens_in_ub < 0.5:  # no valid tokens
-        num_valid_tokens_in_ub += 1.0
     loss = torch.sum(losses.view(-1) * loss_mask)  # sequence level nll
     torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
 
