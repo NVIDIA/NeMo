@@ -353,12 +353,12 @@ nemo_toolkit using the instructions listed above. Then, you run the
 following domain-specific commands:
 
 ```bash
-pip install nemo_toolkit['all'] # or pip install "git+https://github.com/NVIDIA/NeMo@$REF#egg=nemo_toolkit[all]"
+pip install nemo_toolkit['all'] # or pip install "git+https://github.com/NVIDIA/NeMo@${REF:-'main'}#egg=nemo_toolkit[all]"
 pip install nemo_toolkit['asr'] # or pip install "git+https://github.com/NVIDIA/NeMo@$REF#egg=nemo_toolkit[asr]"
-pip install nemo_toolkit['nlp'] # or pip install "git+https://github.com/NVIDIA/NeMo@$REF#egg=nemo_toolkit[nlp]"
-pip install nemo_toolkit['tts'] # or pip install "git+https://github.com/NVIDIA/NeMo@$REF#egg=nemo_toolkit[tts]"
-pip install nemo_toolkit['vision'] # or pip install "git+https://github.com/NVIDIA/NeMo@$REF#egg=nemo_toolkit[vision]"
-pip install nemo_toolkit['multimodal'] # or pip install "git+https://github.com/NVIDIA/NeMo@$REF#egg=nemo_toolkit[multimodal]"
+pip install nemo_toolkit['nlp'] # or pip install "git+https://github.com/NVIDIA/NeMo@${REF:-'main'}#egg=nemo_toolkit[nlp]"
+pip install nemo_toolkit['tts'] # or pip install "git+https://github.com/NVIDIA/NeMo@${REF:-'main'}#egg=nemo_toolkit[tts]"
+pip install nemo_toolkit['vision'] # or pip install "git+https://github.com/NVIDIA/NeMo@${REF:-'main'}#egg=nemo_toolkit[vision]"
+pip install nemo_toolkit['multimodal'] # or pip install "git+https://github.com/NVIDIA/NeMo@${REF:-'main'}#egg=nemo_toolkit[multimodal]"
 ```
 
 ### NGC PyTorch container
