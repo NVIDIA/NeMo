@@ -96,7 +96,17 @@ jobs:
         id: create
         run: |
 
-          SCRIPT=$(cat $SCRIPT)
+          FILENAME=$(echo "$SCRIPT" | grep -oP '(?<=bash ).*')
+
+          # Read the file content
+          if [[ -f "$FILENAME" ]]; then
+              FILE_CONTENT=$(cat "$FILENAME")
+          else
+              FILE_CONTENT=""
+          fi
+
+          # Replace `bash some_file.sh` with its contents
+          SCRIPT=$(echo "$SCRIPT" | sed "s|bash $FILENAME|$FILE_CONTENT|")
           SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
           SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
           [[ "${SCRIPT: -1}" == ";" ]] && SCRIPT="${SCRIPT::-1}"
