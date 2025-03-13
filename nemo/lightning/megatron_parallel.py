@@ -1757,9 +1757,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             loss_for_ub = masked_token_loss(forward_out, batch["loss_mask"])
             num_valid_tokens_in_ub = batch["loss_mask"].sum()
         else:
-            loss_for_ub = masked_token_loss_context_parallel(
-                forward_out, batch["loss_mask"]
-            )
+            loss_for_ub = masked_token_loss_context_parallel(forward_out, batch["loss_mask"])
             num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
         if num_valid_tokens_in_ub < 0.5:
             num_valid_tokens_in_ub += 1.0
