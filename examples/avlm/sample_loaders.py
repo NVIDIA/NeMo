@@ -238,7 +238,7 @@ def sample_loader_QA(raw: dict) -> dict:
         else:
             # process structure 2
             string = ""
-            types = [t.lower() for t in turn["type"].split(",")]
+            types = [t.strip().lower() for t in turn["type"].split(",")]
             values = turn["value"]
             if not isinstance(values, list):
                 values = [values]
@@ -256,7 +256,7 @@ def sample_loader_QA(raw: dict) -> dict:
                     string += raw_media
                 else:
                     string += QAMediaTokenTypeMapping[t]
-                    output_dict[t].append(raw_media)
+                    output_dict[t+'s'].append(raw_media)
 
         if turn["from"].lower() == "assistant" or turn["from"].lower() == "gpt":
             output_dict["answers"].append(string)
