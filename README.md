@@ -389,7 +389,7 @@ To install nemo_toolkit from this Git reference `$REF`, use the following instal
 cd /opt
 git clone https://github.com/NVIDIA/NeMo
 cd NeMo
-git checkout $REF
+git checkout ${REF:-'main'}
 bash reinstall.sh --library all
 ```
 
