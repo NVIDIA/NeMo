@@ -224,6 +224,24 @@ class WarmupHoldPolicy(WarmupPolicy):
 
         return self._get_lr(step)
 
+# REF: https://arxiv.org/html/2408.11029, with modification on enforcing min_lr
+class WarmupHoldAnnealOneMinusSquareRoot(WarmupHoldPolicy):
+    def __init__(self, optimizer, *, max_steps, last_epoch=-1, min_lr=0.0, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
+
+    def _get_lr(self, step):
+        mult = 1 - ((step - self.hold_steps) / (self.max_steps - self.hold_steps)) ** 0.5 # from 1 to 0
+        out_lr = [max(self.min_lr, initial_lr * mult) for initial_lr in self.base_lrs]
+        return out_lr
+
+class WarmupHoldAnnealLinear(WarmupHoldPolicy):
+    def __init__(self, optimizer, *, max_steps, last_epoch=-1, min_lr=0.0, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
+
+    def _get_lr(self, step):
+        ratio = ((step - self.hold_steps) / (self.max_steps - self.hold_steps)) # from 0 to 1
+        out_lr = [initial_lr - (initial_lr - self.min_lr) * ratio for initial_lr in self.base_lrs]
+        return out_lr
 
 class WarmupAnnealHoldPolicy(_LRScheduler):
     """Adds warmup kwargs and warmup logic to lr policy.
