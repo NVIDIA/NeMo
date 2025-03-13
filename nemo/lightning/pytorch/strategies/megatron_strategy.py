@@ -530,8 +530,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         torch.distributed.init_process_group(
             self._process_group_backend, rank=global_rank, world_size=world_size, store=store
         )
-        warmup_torch_dist(self.root_device)     
-        
+        warmup_torch_dist(self.root_device)
+
         if self._process_group_backend == "nccl":
             atexit.register(_destroy_dist_connection)
 

@@ -185,15 +185,7 @@ def pretrain(
 
     use_inprocess_restart = inprocess_restart is not None and inprocess_restart.enabled
     if not use_inprocess_restart:
-        return train(
-            model=model,
-            data=data,
-            trainer=trainer,
-            log=log,
-            resume=resume,
-            optim=optim,
-            tokenizer="data"
-        )
+        return train(model=model, data=data, trainer=trainer, log=log, resume=resume, optim=optim, tokenizer="data")
 
     assert HAVE_RES, "nvidia-resiliency-ext.inprocess is required to use in process restart."
     # Validate strategy used supports in process restart
