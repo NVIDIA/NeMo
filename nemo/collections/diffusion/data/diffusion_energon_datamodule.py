@@ -119,6 +119,7 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
             split_part=split,
             virtual_epoch_length=self.virtual_epoch_length,
             packing_buffer_size=self.packing_buffer_size,
+            auto_decode=False,
         )
         return _dataset
 

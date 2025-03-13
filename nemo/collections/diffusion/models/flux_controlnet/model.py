@@ -390,7 +390,6 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.autocast_dtype = torch.float
         else:
             self.autocast_dtype = torch.float32
-
         if self.image_precached:
             latents = batch['latents'].cuda(non_blocking=True)
             control_latents = batch['control_latents'].cuda(non_blocking=True)

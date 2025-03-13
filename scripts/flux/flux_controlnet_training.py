@@ -25,7 +25,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
 from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
-from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
+from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder, PrecachedCaptionWithImageMaskTaskEncoder
 from nemo.collections.diffusion.models.flux.model import ClipConfig, FluxConfig, FluxModelParams, T5Config
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
@@ -63,6 +63,23 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
         global_batch_size=1,
         image_precached=True,
         text_precached=True,
+    )
+    return data_module
+
+@run.cli.factory
+@run.autoconvert
+def brushnet_datamodule(dataset_dir) -> pl.LightningDataModule:
+    """Flux Datamodule Initialization"""
+    data_module = DiffusionDataModule(
+        dataset_dir,
+        seq_length=4096,
+        task_encoder=run.Config(
+            PrecachedCaptionWithImageMaskTaskEncoder,
+        ),
+        micro_batch_size=1,
+        global_batch_size=8,
+        num_workers=0,
+        use_train_split_for_val=True,
     )
     return data_module
 
@@ -142,6 +159,30 @@ def flux_controlnet_training() -> run.Partial:
         model_transform=None,
     )
 
+@run.cli.factory(target=llm.train)
+def datamodule_test() -> run.Partial:
+    '''
+    A convergence recipe with real data loader.
+    Image and text embedding calculated on the fly.
+    '''
+    recipe = flux_controlnet_training()
+    recipe.model.flux_params.t5_params = None
+    recipe.model.flux_params.clip_params = None
+    recipe.model.flux_params.vae_config = None
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig,
+        num_joint_layers=1,
+        num_single_layers=1,
+    )
+    # recipe.model.flux_params.device = 'cuda'
+    # recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/transformer', do_convert_from_hf=True)
+    recipe.trainer.devices = 1
+    recipe.data = brushnet_datamodule('/dataset')
+    recipe.data.global_batch_size = 1
+    recipe.model.flux_controlnet_config.num_single_layers = 0
+    recipe.model.flux_controlnet_config.num_joint_layers = 4
+    recipe.optim.config.lr = 5e-5
+    return recipe
 
 @run.cli.factory(target=llm.train)
 def convergence_test() -> run.Partial:
@@ -253,4 +294,4 @@ def unit_test() -> run.Partial:
 
 
 if __name__ == "__main__":
-    run.cli.main(llm.train, default_factory=unit_test)
+    run.cli.main(llm.train, default_factory=datamodule_test)

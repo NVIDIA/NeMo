@@ -479,17 +479,19 @@ class RawImageDiffusionTaskEncoder(DefaultTaskEncoder, IOMixin):
 
 
 def cook_image_masks_with_precached_captions(sample: dict) -> dict:
+
     return dict(
         **basic_sample_keys(sample),
-        images=sample['jpg'],
-        masks=sample['mask'],
+        image=sample['jpg'],
+        mask=sample['single_mask'],
         caption=sample['caption'],
-        text_id=sample['text_ids'],
-        prompt=sample['prompt'],
+        text_ids=sample['text_ids'],
+        prompt_embeds=sample['prompt_embeds'],
         pooled_prompt_embeds=sample['pooled_prompt_embeds'],
         new_caption=sample['new_caption'],
         aesthetic_score=sample['aesthetic_score'],
     )
+
 
 class PrecachedCaptionWithImageMaskTaskEncoder(DefaultTaskEncoder, IOMixin):
     '''
@@ -501,8 +503,25 @@ class PrecachedCaptionWithImageMaskTaskEncoder(DefaultTaskEncoder, IOMixin):
         Cooker(cook_image_masks_with_precached_captions),
     ]
 
+    def __init__(self):
+        super().__init__()
     @stateless(restore_seeds=True)
     def encode_sample(self, sample: dict) -> dict:
-        image = sample['jpg']
+        image = sample['image']
+        mask = sample['mask']
+        text_ids = sample['text_ids']
+        pooled_prompt_embeds = sample['pooled_prompt_embeds']
+        prompt_embeds = sample['prompt_embeds']
+        new_caption = sample['new_caption']
+        caption = sample['caption']
+        return dict(
+            image=image,
+            mask=mask,
+            text_ids=text_ids,
+            pooled_prompt_embeds=pooled_prompt_embeds,
+            prompt_embeds=prompt_embeds,
+            new_caption=new_caption,
+            caption=caption)
+
 
 
