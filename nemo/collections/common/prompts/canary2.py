@@ -108,6 +108,20 @@ class Canary2PromptFormatter(PromptFormatter):
         },
     }
 
+    # default slot values for optional slots
+    DEFAULT_SLOT_VALUES = {
+        "decodercontext": "",
+        "emotion": "<|emo:undefined|>",
+        "itn": "<|noitn|>",
+        "timestamp": "<|notimestamp|>",
+        "diarize": "<|nodiarize|>",
+        "pnc": "<|pnc|>",  # consistent with canary1
+    }
+
+    def get_default_slot_values(self) -> dict:
+        return self.DEFAULT_SLOT_VALUES.copy()
+
+
     def encode_turn(self, prompt_template: str, expected_slots: dict, slot_values: dict) -> list[int]:
         # This method handles a level of indirection for Canary.
         # It maps values provided in trcfg to the actual special tokens
@@ -171,14 +185,7 @@ def canary2(cut: Cut, prompt: Canary2PromptFormatter) -> dict[str, torch.Tensor]
             f"Please ensure that every utterance in the input manifests contains these keys."
         )
 
-    optional_slots = {
-        "decodercontext": "",
-        "emotion": "<|emo:undefined|>",
-        "itn": "<|noitn|>",
-        "timestamp": "<|notimestamp|>",
-        "diarize": "<|nodiarize|>",
-        "pnc": "<|pnc|>",  # consistent with canary1
-    }
+    optional_slots = prompt.get_default_slot_values()
     slots = {slot: cut.custom[slot] for slot in expected_slots}
     slots[prompt.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
     for k, v in optional_slots.items():
