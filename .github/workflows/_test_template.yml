@@ -96,10 +96,7 @@ jobs:
         id: create
         run: |
 
-          if [[ -f "$SCRIPT" ]]; then
-            SCRIPT=$(cat $SCRIPT)
-          fi
-
+          SCRIPT=$(cat $SCRIPT)
           SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
           SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
           [[ "${SCRIPT: -1}" == ";" ]] && SCRIPT="${SCRIPT::-1}"
