@@ -363,7 +363,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_vita_Checkpoints_tests_Llama3')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: export RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3.sh
+      SCRIPT: |
+        export RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3.sh
 
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
@@ -372,7 +373,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: export RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text.sh
+      SCRIPT: |
+        export RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text.sh
 
   ASR_dev_run_Speech_to_Text_WPE_CitriNet:
     needs: [pre-flight, cicd-test-container-build]
@@ -380,7 +382,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_CitriNet')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: export RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_CitriNet.sh
+      SCRIPT: |
+        export RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_CitriNet.sh
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
     needs: [pre-flight, cicd-test-container-build]
