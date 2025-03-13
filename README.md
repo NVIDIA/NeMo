@@ -332,14 +332,14 @@ NeMo-Framework provides tiers of support based on OS / Platform and mode of inst
 
 Please refer to the following table for current support levels:
 
-| OS / Platform          | Pip-install     | Source into NGC container |
-|------------------------|-----------------|---------------------------|
-| linux - amd64/x84_64   | Limited support | Full support              |
-| linux - arm64          | Limited support | Limited support           |
-| darwin - amd64/x64_64  | Deprecated      | Deprecated                |
-| darwin - arm64         | Limited support | Limited support           |
-| windows - amd64/x64_64 | No support yet  | No support yet            |
-| windows - arm64        | No support yet  | No support yet            |
+| OS / Platform              | Pip-install     | Source into NGC container |
+|----------------------------|-----------------|---------------------------|
+| `linux` - `amd64/x84_64`   | Limited support | Full support              |
+| `linux` - `arm64`          | Limited support | Limited support           |
+| `darwin` - `amd64/x64_64`  | Deprecated      | Deprecated                |
+| `darwin` - `arm64`         | Limited support | Limited support           |
+| `windows` - `amd64/x64_64` | No support yet  | No support yet            |
+| `windows` - `arm64`        | No support yet  | No support yet            |
 
 ### Conda / Pip
 
