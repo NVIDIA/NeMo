@@ -99,7 +99,7 @@ jobs:
           FILENAME=$(echo "$SCRIPT" | grep -Eo 'bash [^ ]+' | cut -d' ' -f2)
 
           # Read the file content
-          if [[ -f "$FILENAME" ]]; then
+          if docker exec nemo_container_${{ github.run_id }} test -f "$FILENAME"; then
               FILE_CONTENT=$(docker exec nemo_container_${{ github.run_id }} cat "$FILENAME")
           else
               FILE_CONTENT=""
