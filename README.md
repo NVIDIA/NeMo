@@ -383,7 +383,7 @@ docker run \
 ```
 
 From [NVIDIA/NeMo](github.com/NVIDIA/NeMo), fetch the commit/branch/tag that you want to install.  
-To install nemo_toolkit from this Git reference `$REF`, use the following installation method:
+To install nemo_toolkit including all of its dependencies from this Git reference `$REF`, use the following installation method:
 
 ```bash
 cd /opt
