@@ -64,10 +64,12 @@ def main(args):
     language_transformer_config = llm.Llama2Config7B(
         seq_length=decoder_seq_length,
     )
-    vision_transformer_config = vlm.HFCLIPVisionConfig(
-        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    )
-    # vision_transformer_config = vlm.CLIPViTL_14_336_Config()
+    # vision_transformer_config = vlm.HFCLIPVisionConfig(
+    #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    # )
+    # vision_model_from_pretrained = None
+    vision_transformer_config = vlm.CLIPViTL_14_336_Config()
+    vision_model_from_pretrained = "/root/.cache/nemo/models/openai/clip-vit-large-patch14"
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=vision_transformer_config.hidden_size,
@@ -121,12 +123,12 @@ def main(args):
         audio_transformer_config=audio_transformer_config,
         audio_projection_config=audio_projection_config,
         language_model_from_pretrained=args.language_model_path,
-        vision_model_from_pretrained=None,
+        vision_model_from_pretrained=vision_model_from_pretrained,
         audio_model_from_pretrained=None,
-        freeze_language_model=True,
-        freeze_vision_model=True,
+        freeze_language_model=False,
+        freeze_vision_model=False,
         freeze_vision_projection=False,
-        freeze_audio_model=True,
+        freeze_audio_model=False,
         freeze_audio_projection=False,
     )
     model = avlm.AVLMModel(avlm_config, tokenizer=data.tokenizer)
@@ -163,6 +165,29 @@ def main(args):
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
+    # # Debugging PP
+    # trainer = nl.Trainer(
+    #     num_nodes=args.num_nodes,
+    #     devices=args.devices,
+    #     max_steps=max_steps,
+    #     accelerator="gpu",
+    #     strategy=strategy,
+    #     plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+    #     callbacks=[checkpoint_callback, TimingCallback()],
+    #     val_check_interval=500,
+    #     limit_val_batches=gbs,
+    #     log_every_n_steps=1,
+    #     num_sanity_val_steps=0,
+    #     # accelerator="cpu",  # Force CPU to avoid GPU communication issues
+    #     # strategy="ddp_spawn",  # Try different strategies if this doesn't work
+    #     sync_batchnorm=False,
+    #     benchmark=False,
+    #     deterministic=True,
+    #     max_time={"seconds": 1},  # Set maximum time for operations
+    #     enable_progress_bar=False,
+    #     enable_model_summary=False
+    # )
+
 
     # Logger setup
     nemo_logger = nl.NeMoLogger(

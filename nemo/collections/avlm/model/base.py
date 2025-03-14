@@ -142,6 +142,7 @@ def avlm_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     return _batch
 
+
 def avlm_forward_step(model, batch) -> torch.Tensor:
     """AVLM Forward Step"""
     forward_args = {
@@ -160,6 +161,7 @@ def avlm_forward_step(model, batch) -> torch.Tensor:
     }
 
     return model(**forward_args)
+
 
 @dataclass
 class AVLMConfig(TransformerConfig, io.IOMixin):
@@ -380,7 +382,9 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 restore_model_weights(self.audio_model, config.audio_model_from_pretrained)
                 logging.info(f"Restored audio model weights from {config.audio_model_from_pretrained}")
 
-        # TODO - Add support for audio model
+        # # DEBUGGING
+        # print(stop_here)
+
         self.freeze(
             freeze_language_model=config.freeze_language_model,
             freeze_vision_model=config.freeze_vision_model,
@@ -399,19 +403,19 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
 
-        # DEBUGGING
-        if torch.distributed.get_rank() == 0:
-            def count_parameters(model):
-                if model is None:
-                    return 0
-                return sum(p.numel() for p in model.parameters())
-            print("Number of parameters:")
-            print(f"Vision model: {count_parameters(self.vision_model):,}")
-            print(f"Vision projection: {count_parameters(self.vision_projection):,}")
-            print(f"Audio model: {count_parameters(self.audio_model):,}")
-            print(f"Audio projection: {count_parameters(self.audio_projection):,}")
-            print(f"Language model: {count_parameters(self.language_model):,}")
-            print(stop_here)
+        # # DEBUGGING
+        # if torch.distributed.get_rank() == 0:
+        #     def count_parameters(model):
+        #         if model is None:
+        #             return 0
+        #         return sum(p.numel() for p in model.parameters())
+        #     print("Number of parameters:")
+        #     print(f"Vision model: {count_parameters(self.vision_model):,}")
+        #     print(f"Vision projection: {count_parameters(self.vision_projection):,}")
+        #     print(f"Audio model: {count_parameters(self.audio_model):,}")
+        #     print(f"Audio projection: {count_parameters(self.audio_projection):,}")
+        #     print(f"Language model: {count_parameters(self.language_model):,}")
+        #     print(stop_here)
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -428,7 +432,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
-    ) -> torch.Tensor:  
+    ) -> torch.Tensor:
         # pylint: disable=C0301
         """Forward function of the LLaVA model.
 
@@ -544,11 +548,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                         processed_signal_length = None, # what difference between input_signal and processed_signal?
                     ) 
 
-                    # # DEBUGGING
-                    # print("audio_embeddings.shape: ", audio_embeddings.shape)
-                    # print("audio_embedding_lens.shape: ", audio_embedding_lens.shape)
-                    # print("audio_embedding_lens: ", audio_embedding_lens)
-
                     # [num_audios, h_audio, audio_seq_len] -> [audio_seq_len, num_audios, h_audio]
                     # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
                     audio_embeddings = audio_embeddings.permute(2, 0, 1).contiguous() 
@@ -616,19 +615,19 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        # DEBUGGING
-        print(f"combined_embeddings[0]: {combined_embeddings[0]}")
-        print(f"final_labels[0].tolist(): {final_labels[0].tolist()}")
-        print(f"final_loss_mask[0].tolist(): {final_loss_mask[0].tolist()}")
-        print(f"final_attention_mask[0].tolist(): {final_attention_mask[0].tolist()}")
-        print(f"combined_embeddings.shape: {combined_embeddings.shape}")
-        print(f"final_labels.shape: {final_labels.shape}")
-        print(f"final_labels (non_negative_indices)[0].tolist(): {(final_labels[0]>=0).nonzero(as_tuple=True)[0].tolist()}")
-        print(f"final_loss_mask.shape: {final_loss_mask.shape}")
-        print(f"final_loss_mask (non_zero_indices)[0].tolist(): {(final_loss_mask[0]>0).nonzero(as_tuple=True)[0].tolist()}")
-        print(f"final_attention_mask.shape: {final_attention_mask.shape}")
-        print("-----------------")
-        print(stop_here)
+        # # DEBUGGING
+        # print(f"combined_embeddings[0]: {combined_embeddings[0]}")
+        # print(f"final_labels[0].tolist(): {final_labels[0].tolist()}")
+        # print(f"final_loss_mask[0].tolist(): {final_loss_mask[0].tolist()}")
+        # print(f"final_attention_mask[0].tolist(): {final_attention_mask[0].tolist()}")
+        # print(f"combined_embeddings.shape: {combined_embeddings.shape}")
+        # print(f"final_labels.shape: {final_labels.shape}")
+        # print(f"final_labels (non_negative_indices)[0].tolist(): {(final_labels[0]>=0).nonzero(as_tuple=True)[0].tolist()}")
+        # print(f"final_loss_mask.shape: {final_loss_mask.shape}")
+        # print(f"final_loss_mask (non_zero_indices)[0].tolist(): {(final_loss_mask[0]>0).nonzero(as_tuple=True)[0].tolist()}")
+        # print(f"final_attention_mask.shape: {final_attention_mask.shape}")
+        # print("-----------------")
+        # print(stop_here)
 
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
@@ -762,7 +761,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
         packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
 
-
         # Create indices for new text and label positions.
         with torch.no_grad():
 
@@ -863,32 +861,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 label_non_media_indices = non_media_indices - 1
                 valid_label_non_media_indices = label_non_media_indices >= 0
                 label_non_media_indices = label_non_media_indices[valid_label_non_media_indices]
-
-            # # Extract positions for image tokens.
-            # batch_indices_img, img_token_indices = torch.where(image_token_mask)
-            # image_position_ids = new_position_ids[batch_indices_img, img_token_indices]
-
-            # # Extract positions for audio tokens.
-            # batch_indices_audio, audio_token_indices = torch.where(audio_token_mask)
-            # audio_position_ids = new_position_ids[batch_indices_audio, audio_token_indices]
-
-            # # Create separate masks for image and audio embeddings.
-            # # Start with all positions set to False.
-            # images_mask = torch.full((batch_size, max_seq_len), False, dtype=torch.bool, device=input_ids.device)
-            # audios_mask = torch.full((batch_size, max_seq_len), False, dtype=torch.bool, device=input_ids.device)
-
-            # # Mark the positions where image embeddings will be inserted.
-            # images_mask[batch_indices_img, image_position_ids] = True
-            # # Mark the positions where audio embeddings will be inserted.
-            # audios_mask[batch_indices_audio, audio_position_ids] = True
-
-            # # Optionally, mask out padding positions beyond each sample's final length.
-            # # The last valid position for each sample is given by new_position_ids[:, -1],
-            # # so positions starting from first_padding_idx (last valid + 1) should be masked out.
-            # first_padding_idx = new_position_ids[:, -1] + 1
-            # all_positions = torch.arange(max_seq_len, device=first_padding_idx.device).unsqueeze(0).expand(batch_size, -1)
-            # images_mask[all_positions >= first_padding_idx.unsqueeze(1)] = False
-            # audios_mask[all_positions >= first_padding_idx.unsqueeze(1)] = False
 
             # get new position ids for the image/audios tokens (each position is the last position of the image/audio tokens in each sample)
             new_images_position_ids = []
@@ -1216,6 +1188,7 @@ class AVLMModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
 
         return self._validation_loss_reduction
+
 
 __all__ = [
     "AVLMModel",

@@ -32,7 +32,7 @@ from torch import nn
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 
-from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, AUDIO_TOKEN_INDEX
+from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -377,15 +377,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
         position_ids: torch.Tensor,
         loss_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: Optional[InferenceParams] = None,
         num_image_tiles: Optional[List[int]] = None,
         image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-        audios: Optional[torch.Tensor] = None,
-        num_image_tiles: Optional[List[int]] = None,
-        audio_token_index: Optional[int] = AUDIO_TOKEN_INDEX,
-        inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
+        image_token_mask: Optional[torch.Tensor] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         # pylint: disable=C0301
