@@ -72,7 +72,7 @@ class MegatronDataSampler(DataSampler):
         if self.cu_global_batch_splits is not None:
             # assume world size is evenly split into len(cu_global_batch_splits) ranges
             assert self.cu_global_batch_splits[0] == 0 and self.cu_global_batch_splits[-1] == self.global_batch_size, f"cu_global_batch_splits: {self.cu_global_batch_splits}, global_batch_size: {self.global_batch_size}!"
-            self.data_parallel_size = self.data_parallel_size // len(self.cu_global_batch_splits)
+            self.data_parallel_size = self.data_parallel_size // (len(self.cu_global_batch_splits) - 1)
             world_size_split_range_id = self.data_parallel_rank // self.data_parallel_size
             self.data_parallel_rank = self.data_parallel_rank % self.data_parallel_size
             self.global_batch_split_range = (
