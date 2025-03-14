@@ -16,7 +16,7 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm import MockDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 from nemo import lightning as nl
@@ -37,7 +37,7 @@ def override_recipe_configs(
     micro_batch_size: int = 1,
 ):
     """
-    Use MockdataModule for benchmarking purposes
+    Use HFMockdataModule for benchmarking purposes
 
     """
     model_name = "meta-llama/Meta-Llama-3-8B"
@@ -49,7 +49,7 @@ def override_recipe_configs(
     pretrain.trainer.val_check_interval = 100
     pretrain.log.ckpt.save_top_k = -1
     pretrain.data = run.Config(
-        MockDataModule,
+        HFMockDataModule,
         seq_length=seq_length,
         global_batch_size=global_batch_size,
         micro_batch_size=micro_batch_size,
