@@ -311,35 +311,34 @@ your needs. Depending on the domain, you may find one of the following
 installation methods more suitable.
 
 - [Conda / Pip](#conda--pip): Install NeMo-Framework with native Pip into a virtual environment.
-  - Perfect to explore NeMo on any supported platform.
+  - Used to explore NeMo on any supported platform.
   - This is the recommended method for ASR and TTS domains.
   - Limited feature-completeness for other domains.
 - [NGC PyTorch container](#ngc-pytorch-container): Install NeMo-Framework from source with feature-completeness into a highly optimized container.
-  - Perfect for customers that seek flexibility.
-  - Provides most flexibility for container of your choice.
+  - For users that want to install from source in a highly optimized container.
 - [NGC NeMo container](#ngc-nemo-container): Ready-to-go solution of NeMo-Framework
-  - Perfect for customers that seek highest performance.
-  - Insides all dependencies and NeMo libraries such as NeMo-Aligner, NeMo-Curator, and more.
+  - For users that seek highest performance.
+  - Contains all dependencies installed and tested for performance and convergence.
 
 ### Support matrix
 
 NeMo-Framework provides tiers of support based on OS / Platform and mode of installation. Please refer the following overview of support levels:
 
 - Fully supported: Max performance and feature-completeness.
-- Limited supported: Perfect to explore NeMo.
+- Limited supported: Used to explore NeMo.
 - No support yet: In development.
 - Deprecated: Support has reached end of life.
 
 Please refer to the following table for current support levels:
 
-| OS / Platform              | Pip-install     | Source into NGC container |
-|----------------------------|-----------------|---------------------------|
-| `linux` - `amd64/x84_64`   | Limited support | Full support              |
-| `linux` - `arm64`          | Limited support | Limited support           |
-| `darwin` - `amd64/x64_64`  | Deprecated      | Deprecated                |
-| `darwin` - `arm64`         | Limited support | Limited support           |
-| `windows` - `amd64/x64_64` | No support yet  | No support yet            |
-| `windows` - `arm64`        | No support yet  | No support yet            |
+| OS / Platform              | Install from PyPi | Source into NGC container |
+|----------------------------|-------------------|---------------------------|
+| `linux` - `amd64/x84_64`   | Limited support   | Full support              |
+| `linux` - `arm64`          | Limited support   | Limited support           |
+| `darwin` - `amd64/x64_64`  | Deprecated        | Deprecated                |
+| `darwin` - `arm64`         | Limited support   | Limited support           |
+| `windows` - `amd64/x64_64` | No support yet    | No support yet            |
+| `windows` - `arm64`        | No support yet    | No support yet            |
 
 ### Conda / Pip
 
@@ -356,14 +355,17 @@ NeMo-Framework publishes pre-built wheels with each release.
 To install nemo_toolkit from such a wheel, use the following installation method:
 
 ```bash
-pip install "nemo_toolkit"
+pip install "nemo_toolkit[all]"
 ```
 
 If a more specific version is desired, we recommend a Pip-VCS install. From [NVIDIA/NeMo](github.com/NVIDIA/NeMo), fetch the commit, branch, or tag that you would like to install.  
 To install nemo_toolkit from this Git reference `$REF`, use the following installation method:
 
 ```bash
-pip install git+https://github.com/NVIDIA/NeMo@${REF:-'main'}
+git clone https://github.com/NVIDIA/NeMo
+cd NeMo
+git checkout @${REF:-'main'}
+pip install '.[all]'
 ```
 
 #### Install a specific Domain
@@ -431,7 +433,7 @@ docker run \
   --shm-size=16g \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
-  nvcr.io/nvidia/pytorch:${NV_PYTORCH_TAG:-'nvcr.io/nvidia/nemo:24.12'}
+  nvcr.io/nvidia/pytorch:${NV_PYTORCH_TAG:-'nvcr.io/nvidia/nemo:25.02'}
 ```
 
 ## Future Work
