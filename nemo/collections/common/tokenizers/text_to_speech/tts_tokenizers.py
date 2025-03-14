@@ -52,14 +52,14 @@ class BaseTokenizer(ABC):
             oov: OOV token as string.
             sep: Separation token as string.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
-             if None then no blank in labels.
+                if None then no blank in labels.
         """
         super().__init__()
 
         tokens = list(tokens)
         # TODO @xueyang: in general, IDs of pad, sil, blank, and oov are preserved ahead instead of dynamically
-        #  assigned according to the number of tokens. The downside of using dynamical assignment leads to different IDs
-        #  for each.
+        #  assigned according to the number of tokens. The downside of using dynamical assignment leads to different
+        #  IDs for each.
         self.pad, tokens = len(tokens), tokens + [pad]  # Padding
 
         if add_blank_at is not None:
@@ -479,7 +479,10 @@ class ItalianPhonemesTokenizer(BaseCharsTokenizer):
              Currently, it only applies lower() function.
         """
 
-        it_ipa = "abcdefghijklmnopqrstuvwxyzàèéìòùóæɐɑɔəɚɜɬɹʌʔᵻðŋɛɡɣɪɲɾʃʊʎʒʝβθd͡'t͡'øɒɕɓçɖɘɝɞɟʄɡɠɢʛɦɧħɥʜɨɬɫɮʟɱɯɰɳɵɸœɶʘɺɻʀʁɽʂʈʧʉʋⱱɤʍχʏʑʐʔʡʕʢǀǁǂᵻʃ'ː"
+        it_ipa = (
+            "abcdefghijklmnopqrstuvwxyzàèéìòùóæɐɑɔəɚɜɬɹʌʔᵻðŋɛɡɣɪɲɾʃʊʎʒʝβθd͡'t͡'øɒɕɓçɖɘɝɞɟʄɡɠɢʛɦɧħɥʜɨɬɫɮʟɱɯɰɳɵɸœɶʘɺ"
+            "ɻʀʁɽʂʈʧʉʋⱱɤʍχʏʑʐʔʡʕʢǀǁǂᵻʃ'ː"
+        )
         super().__init__(
             chars=it_ipa,
             punct=punct,
@@ -562,18 +565,20 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
             stresses: Whether to use phonemes codes with stresses (0-2) or not.
-            chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return chars too.
+            chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return
+                chars too.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
             apostrophe: Whether to use apostrophe or not.
             oov: OOV token as string.
             sep: Separation token as string.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
-             if None then no blank in labels.
+                if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
-             Basically, it replaces all non-unicode characters with unicode ones.
-             Note that lower() function shouldn't be applied here, in case the text contains phonemes (it will be handled by g2p).
+                Basically, it replaces all non-unicode characters with unicode ones.
+                Note that lower() function shouldn't be applied here, in case the text contains phonemes (it will be
+                handled by g2p).
         """
 
         self.phoneme_probability = None
@@ -803,11 +808,11 @@ class IPATokenizer(BaseTokenizer):
         `self.text_preprocessing_func` and `self.g2p` functions
 
         Args:
-            g2p_text (List[str]): a sequence of tokens from G2P's output. It could be a sequence of phonemes, a sequence
-                of graphemes, or a mixture of both. For example, `['ˈ', 's', 'i', ' ', '#O', '#O', '#V']`, which is the
-                G2P's output of the text "see OOV", where '#' is prepended to each grapheme in order to distinguish
-                graphemes from phonemes if there are overlaps in between. The prefix '#' can be customized in
-                `nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p.grapheme_prefix`.
+            g2p_text (List[str]): a sequence of tokens from G2P's output. It could be a sequence of phonemes, a
+                sequence of graphemes, or a mixture of both. For example, `['ˈ', 's', 'i', ' ', '#O', '#O', '#V']`,
+                which is the G2P's output of the text "see OOV", where '#' is prepended to each grapheme in order to
+                distinguish graphemes from phonemes if there are overlaps in between. The prefix '#' can be customized
+                in `nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p.grapheme_prefix`.
             raw_text (str): the original text after calling `self.text_preprocessing_func`. It is optional. It is only
                 used to deliver a warning message that some graphemes from the original text are skipped.
 
@@ -887,11 +892,12 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
             apostrophe: Whether to use apostrophe or not.
             sep: Separation token as string.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
-             if None then no blank in labels.
+                if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
-             Basically, it replaces all non-unicode characters with unicode ones.
-             Note that lower() function shouldn't be applied here, in case the text contains phonemes (it will be handled by g2p).
+                Basically, it replaces all non-unicode characters with unicode ones.
+                Note that lower() function shouldn't be applied here, in case the text contains phonemes (it will be
+                handled by g2p).
         """
         tokens = []
         self.space, tokens = len(tokens), tokens + [space]  # Space
@@ -946,7 +952,8 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
             if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
             # Add next phoneme or tone or ascii letter or apostrophe.
-            elif (p.isalnum() or p == "'" or p in self.phoneme_list + self.tone_list + self.ascii_letter_list) and p in tokens:
+            elif ((p.isalnum() or p == "'" or p in self.phoneme_list + self.tone_list + self.ascii_letter_list) and
+                   p in tokens):
                 ps.append(p)
             # Add punctuation
             elif (p in self.PUNCT_LIST) and self.punct:
@@ -998,11 +1005,12 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
             apostrophe: Whether to use apostrophe or not.
             sep: Separation token as string.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
-             if None then no blank in labels.
+                if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
-             Basically, it replaces all non-unicode characters with unicode ones.
-             Note that lower() function shouldn't be applied here, in case the text contains phonemes (it will be handled by g2p).
+                Basically, it replaces all non-unicode characters with unicode ones.
+                Note that lower() function shouldn't be applied here, in case the text contains phonemes (it will be
+                handled by g2p).
         """
         tokens = []
         self.space, tokens = len(tokens), tokens + [space]  # Space
