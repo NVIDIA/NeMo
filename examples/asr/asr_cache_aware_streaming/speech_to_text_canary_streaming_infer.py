@@ -176,7 +176,7 @@ def compute_laal(delays, source_length, target_length):
 
 def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
     try:
-        len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
+        assert len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
     except:
         logging.warning("The alignment length does not match the predicted token length")
         return 5000
@@ -201,6 +201,8 @@ def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model
 
 
 def compute_waitk_lagging(sample, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+    if not torch.is_tensor(predicted_token_ids):
+        return 5000
     waitk_lagging = cfg.waitk_lagging
     pre_decision_ratio = canary_data.frame_chunk_size
     target_length_word = [len(a.split()) for a in sample['text']]

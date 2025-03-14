@@ -786,6 +786,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         max_generation_length = canary_data.max_generation_length
                     
                     for i in range(start_from, max_generation_length):
+                        if i != 0 and start_from == 0:
+                        # need to shift steps up to len of decoder_input_ids for correct position encoding
+                            i += canary_data.decoder_input_ids.size(-1)
                         # predict only one token per speech chunk
                         logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
                             input_ids,
