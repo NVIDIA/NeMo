@@ -46,7 +46,6 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
-    GPTModel,
     get_batch_on_this_context_parallel_rank,
     get_packed_seq_params,
 )
