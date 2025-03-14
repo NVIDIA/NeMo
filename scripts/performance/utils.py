@@ -217,8 +217,7 @@ def set_primary_perf_configs(
     # lightning.pytorch.LightningDataModule configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
-    if cu_global_batch_splits is not None:
-        recipe.data.cu_global_batch_splits = cu_global_batch_splits
+    recipe.data.cu_global_batch_splits = cu_global_batch_splits
 
     # parallelism configs
     recipe.trainer.strategy.tensor_model_parallel_size = tp_size
