@@ -392,13 +392,13 @@ def modify_cfg(
     path_to_logs: str,
     model_size,
 ) -> dict:
-    """Modify the base configuration for the model with the new parameters that are specific to the current model, 
+    """Modify the base configuration for the model with the new parameters that are specific to the current model,
         which the Auto Configurator tool heuristics selected.
 
     Args:
         base_cfg (dict): base configuration for the current model, which will be modified in this function.
         act (int): number of activation checkpointing layers to use for the model.
-        num_mbs_act (int): sets the number of micro-batches where only a partial number of Transformer layers 
+        num_mbs_act (int): sets the number of micro-batches where only a partial number of Transformer layers
             get checkpointed and recomputed within a window of micro-batches.
         act_per_pipe (int): sets the number of Transformer layers to skip checkpointing at later pipeline stages.
         tp (int): Tensor Parallelism (TP) value to be set for the model.
