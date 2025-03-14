@@ -70,8 +70,13 @@ class MegatronDataSampler(DataSampler):
         self.data_parallel_size = parallel_state.get_data_parallel_world_size()
         self.global_batch_split_range = None
         if self.cu_global_batch_splits is not None:
-            # assume world size is evenly split into len(cu_global_batch_splits) ranges
-            assert self.cu_global_batch_splits[0] == 0 and self.cu_global_batch_splits[-1] == self.global_batch_size, f"cu_global_batch_splits: {self.cu_global_batch_splits}, global_batch_size: {self.global_batch_size}!"
+            # assume GPU world size consists of len(cu_global_batch_splits) split ranges,
+            # and all ranges have same number of GPUs
+            assert (
+                self.cu_global_batch_splits[0] == 0 and self.cu_global_batch_splits[-1] == self.global_batch_size
+            ), f"cu_global_batch_splits: {self.cu_global_batch_splits} should start with 0 and end with {self.global_batch_size}!"
+
+            # calculate DP info and global batch split range for the split range where the current GPU belongs to
             self.data_parallel_size = self.data_parallel_size // (len(self.cu_global_batch_splits) - 1)
             world_size_split_range_id = self.data_parallel_rank // self.data_parallel_size
             self.data_parallel_rank = self.data_parallel_rank % self.data_parallel_size

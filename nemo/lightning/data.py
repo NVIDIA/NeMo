@@ -168,6 +168,8 @@ def add_megatron_sampler(
         dataloader (DataLoader): The original PyTorch DataLoader to wrap.
         micro_batch_size (int): The size of each micro-batch.
         global_batch_size (int): The effective size of the training batch across all data parallel devices.
+        global_batch_split_range (Optional[Tuple[int, int]]): The global batch size split for the world range
+            where the current GPU belongs to.
         rampup_batch_size (Optional[List[int]]): A list of target batch sizes for a gradual
             rampup schedule during training (optional).
         consumed_samples (int, optional): The number of samples consumed before
