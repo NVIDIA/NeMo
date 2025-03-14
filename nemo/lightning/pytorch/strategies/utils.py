@@ -30,6 +30,13 @@ from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.tensor.parallel import (
+    ColwiseParallel,
+    PrepareModuleInput,
+    RowwiseParallel,
+    SequenceParallel,
+    parallelize_module,
+)
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
@@ -447,8 +454,17 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
+    sequence_parallel: bool = True,
 ):
     """Apply parallelisms and activation checkpointing to the model.
+
+    Args:
+        model: The model to be parallelized.
+        device_mesh (DeviceMesh): The device mesh for distributed training.
+        mp_policy (MixedPrecisionPolicy): Mixed precision policy for model parallelism.
+        sequence_parallel (bool): Whether to use sequence parallelism when TP size > 1, defaults to True. Will be
+            set to False if the TP size is 1.
+
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
     the model must fit on GPU or CPU memory.
     NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
@@ -478,12 +494,66 @@ def fsdp2_strategy_parallelize(
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-    # assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
     dp_mesh = device_mesh["data_parallel"]
+    tp_mesh = device_mesh["tensor_parallel"]
+
+    print(model)
+    if tp_mesh.size() > 1:
+        # 1. Parallelize the first embedding and the last linear proj layer
+        # 2. Parallelize the root norm layer over the sequence dim
+        # 3. Shard the first transformer block's inputs
+
+        # Parallelize the first embedding and the last linear out projection
+        print(model)
+        plan = {
+            "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+            "lm_head": ColwiseParallel(output_layouts=Replicate()),
+            # "model.norm": SequenceParallel(),
+            # "model.layers.0": PrepareModuleInput(
+            #     input_layouts=(Replicate(), None),
+            #     desired_input_layouts=(Shard(1), None),
+            #     use_local_output=True,
+            # ),
+        }
+        model = parallelize_module(model, tp_mesh, plan)
+
+        # Parallelize each transformer block
+        for transformer_block in model.model.layers:
+            # print(transformer_block)
+            plan = {
+                # "self_attn": PrepareModuleInput(
+                #     input_layouts=(Shard(1), None),
+                #     desired_input_layouts=(Replicate(), None),
+                # ),
+                "self_attn.q_proj": ColwiseParallel(),
+                "self_attn.k_proj": ColwiseParallel(),
+                "self_attn.v_proj": ColwiseParallel(),
+                "self_attn.o_proj": RowwiseParallel(),
+                # "mlp": PrepareModuleInput(
+                #     input_layouts=(Shard(1),),
+                #     desired_input_layouts=(Replicate(),),
+                # ),
+                "mlp.gate_proj": ColwiseParallel(),
+                "mlp.up_proj": ColwiseParallel(),
+                "mlp.down_proj": RowwiseParallel(),
+                # "input_layernorm": SequenceParallel(),
+                # "post_attention_layernorm": SequenceParallel(),
+            }
+
+            # Adjust attention module to use the local number of heads
+            attn_layer = transformer_block.self_attn
+            attn_layer.config.num_attention_heads = attn_layer.config.num_attention_heads // tp_mesh.size()
+            attn_layer.config.num_key_value_heads = attn_layer.config.num_key_value_heads // tp_mesh.size()
+            attn_layer.config.hidden_size = attn_layer.config.hidden_size // tp_mesh.size()
+
+            # Apply the plan for the current transformer block
+            parallelize_module(transformer_block, tp_mesh, plan)
+        print(model)
+
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
-
         assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
+
         # Find transformer layers and apply parallelisms
         parallelize_helper(model, dp_mesh, mp_policy)
 

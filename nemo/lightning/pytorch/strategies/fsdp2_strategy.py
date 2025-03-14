@@ -68,6 +68,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
+        sequence_parallel: bool = False,
         data_sampler=None,
         checkpoint_io=None,
         mp_policy=None,
@@ -165,13 +166,14 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self._setup_distributed()
         if self._data_parallel_size == "auto":
             self._data_parallel_size = self.num_nodes
+
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
-        # No TP currently
+
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
-            mesh_shape=(self._data_parallel_size,),
-            mesh_dim_names=("data_parallel",),
+            mesh_shape=(self._data_parallel_size, self._tensor_parallel_size),
+            mesh_dim_names=("data_parallel", "tensor_parallel"),
         )
         self.lightning_module._device_mesh = self._device_mesh
 
@@ -189,6 +191,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # Parallelize model
         if getattr(self, '_init_model_parallel', True):
             self.parallelize()
+        # Corner case, as FSDP2 expected to be used multi-device.
+        if self._data_parallel_size == 1:
+            self._lightning_module = self._lightning_module.to(self.root_device)
         # setup optim
         if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
             super().setup_optimizers(trainer)

@@ -294,7 +294,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
-                group = device_mesh.get_group()
+                group = device_mesh['data_parallel'].get_group()
 
             def reduce_item(val, op, device, group, dtype):
                 """util function"""
