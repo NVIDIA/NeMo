@@ -70,6 +70,7 @@ from typing import Optional
 import torch
 import transcribe_speech
 from omegaconf import MISSING, OmegaConf, open_dict
+from sacrebleu import corpus_bleu
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.transcribe_utils import (
@@ -140,19 +141,19 @@ def main(cfg: EvaluationConfig):
         transcription_cfg = cfg
 
     ground_truth_text = []
+    answers_text = []
     predicted_text = []
     invalid_manifest = False
     with open(transcription_cfg.output_filename, 'r') as f:
         for line in f:
             data = json.loads(line)
-
             if "pred_text" not in data:
                 invalid_manifest = True
                 break
-
             ground_truth_text.append(data[cfg.gt_text_attr_name])
-
             predicted_text.append(data["pred_text"])
+            if "answer" in data:
+                answers_text.append(data["answer"])
 
     pc = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
     if cfg.text_processing.separate_punctuation:
@@ -199,6 +200,7 @@ def main(cfg: EvaluationConfig):
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
     wer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=False)
 
+
     if cfg.use_cer:
         metric_name = 'CER'
         metric_value = cer
@@ -213,6 +215,9 @@ def main(cfg: EvaluationConfig):
         logging.info(f'Got {metric_name} of {metric_value}. Tolerance was {cfg.tolerance}')
 
     logging.info(f"Dataset WER/CER {wer:.2%}/{cer:.2%}")
+    if answers_text:
+        bleu = corpus_bleu(predicted_text, [answers_text]).score
+        logging.info(f"Dataset BLEU {bleu:.2f}")
 
     if cfg.use_punct_er:
         dper_obj.print()

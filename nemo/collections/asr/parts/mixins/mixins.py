@@ -822,8 +822,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         canary_data.tgt = tgt
                         input_ids = tgt[:, -1:]
 
-                        if cfg.debug_mode:
-                            import pdb; pdb.set_trace()
+                        # if cfg.debug_mode:
+                        #     import pdb; pdb.set_trace()
 
                     greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
 
@@ -850,6 +850,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 decoder_mems_list = canary_data.decoder_mems_list
                 for i in range(start_from, canary_data.max_generation_length):
                     if i != 0 and start_from == 0:
+                        # need to shift steps up to len of decoder_input_ids for correct position encoding
                         i += canary_data.decoder_input_ids.size(-1)
                     logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
                         input_ids,
@@ -861,7 +862,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         return_xatt_scores=True,
                     )
                     # compute the most attended encoder token
-                    xatt_scores = xatt_scores_list[-2]
+                    # import pdb; pdb.set_trace()
+                    xatt_scores = xatt_scores_list[cfg.xatt_scores_layer]
                     xatt_scores = torch.mean(xatt_scores, 1)
                     if i == 0 and xatt_scores.shape[-1] < cfg.exclude_sink_frames:
                         exclude_sink_frames = xatt_scores.shape[-1] - 2
@@ -890,7 +892,14 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             logging.warning(f"!!! need more speech according to the alignatt policy !!!")
                         greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
                         break
+                    
+                    # prevent tokens hallucination (repetative predcitions)
+                    # TODO finde a example to test this condition (I noticed this on for ASR only Canary model)
+                    if i > 15 and next_tokens == tgt[:, -1] and next_tokens == tgt[:, -2] and next_tokens == tgt[:, -3]:
+                        logging.warning(f"Tokens hallucination detected: {next_tokens}, stop decoding")
+                        return None
 
+                    # prevent earlu stop if we still have speech to process
                     if next_tokens == self.tokenizer.eos or next_tokens == 16:
                         if not canary_data.is_last_speech_chunk:
                             if cfg.debug_mode:
@@ -1003,6 +1012,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         return_transcription=True,
                         return_log_probs=logprobs or return_hypotheses,
                     )
+                    # early stop (hallucinations detected)
+                    if not result:
+                        break
+                    
                     if logprobs or return_hypotheses:
                         (
                             pred_out_stream,

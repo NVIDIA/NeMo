@@ -366,6 +366,11 @@ class TranscriptionMixin(ABC):
                     dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
                 else:
                     dataloader = audio
+                
+                # logging.warning(f"transcribe_cfg._internal.primary_language: {transcribe_cfg._internal.primary_language}")
+                # logging.warning(f"audio: {audio}")
+                # logging.warning(f"dataloader iter: {dataloader.__iter__()}")
+                # raise KeyError
 
                 if hasattr(transcribe_cfg, 'verbose'):
                     verbose = transcribe_cfg.verbose

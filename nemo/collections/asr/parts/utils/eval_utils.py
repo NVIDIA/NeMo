@@ -228,9 +228,10 @@ def cal_write_wer(
     else:
         output_manifest_w_wer = output_filename
 
-    with open(output_manifest_w_wer, 'w') as fout:
+    with open(output_manifest_w_wer, 'w', encoding='utf-8') as fout:
         for sample in samples:
-            json.dump(sample, fout)
+            # json.dump(sample, fout)
+            fout.write(json.dumps(sample, ensure_ascii=False))
             fout.write('\n')
             fout.flush()
 

@@ -466,7 +466,8 @@ def write_transcription(
                         item['pred_lang_chars'] = transcription.langs_chars
                     if not cfg.decoding.beam.return_best_hypothesis:
                         item['beams'] = beams[idx]
-                f.write(json.dumps(item) + "\n")
+                # raise ValueError("Not implemented")
+                f.write(json.dumps(item, ensure_ascii=False) + "\n")
         else:
             with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
@@ -495,7 +496,9 @@ def write_transcription(
 
                         if not cfg.decoding.beam.return_best_hypothesis:
                             item['beams'] = beams[idx]
-                    f.write(json.dumps(item) + "\n")
+                    # logging.warning(f"item: {item}")
+                    # raise ValueError("Not implemented")
+                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     return cfg.output_filename, pred_text_attr_name
 

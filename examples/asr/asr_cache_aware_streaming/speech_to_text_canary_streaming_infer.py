@@ -92,6 +92,8 @@ from omegaconf import MISSING, OmegaConf, open_dict
 from dataclasses import dataclass, field, is_dataclass
 from typing import Optional
 from nemo.core.config import hydra_runner
+import tempfile
+from sacrebleu import corpus_bleu
 
 import numpy as np
 
@@ -102,6 +104,15 @@ from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreaming
 from nemo.utils import logging
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from examples.asr.transcribe_speech import TranscriptionConfig
+from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    compute_output_filename,
+    prepare_audio_data,
+    restore_transcription_order,
+    setup_model,
+    write_transcription,
+)
+from nemo.collections.common.data.utils import move_data_to_device
 
 
 @dataclass
@@ -119,9 +130,9 @@ class CanaryData():
 @dataclass
 class StreamingEvaluationConfig(TranscriptionConfig):
 
-    asr_model: Optional[str] = None  # Path to a .nemo file
+    model_path: Optional[str] = None  # Path to a .nemo file
 
-    manifest_file : Optional[str] = None # Path to a manifest file containing audio files to perform streaming
+    dataset_manifest : Optional[str] = None # Path to a manifest file containing audio files to perform streaming
     audio_file: Optional[str] = None # Path to an audio file to perform streaming
     output_path: Optional[str] = None # path to output file when manifest is used as input
 
@@ -129,9 +140,11 @@ class StreamingEvaluationConfig(TranscriptionConfig):
     att_context_size: Optional[list] = None # Sets the att_context_size for the models which support multiple lookaheads
 
     decoding_policy: str = "alignatt" # streaming decoding policy ["alignatt" or "waitk"]
-    alignatt_thr: int = 4 # The frame threshold to be used for alignatt decoding policy
     waitk_lagging: int = 3 # The frame lagging to be used for waitk decoding policy
-    exclude_sink_frames: int = 8 # The number of sink frames to be excluded from the output
+    alignatt_thr: int = 4 # The frame threshold to be used for alignatt decoding policy
+    xatt_scores_layer: int = -2 # The decoder layer to be used for alignatt decoding policy
+    exclude_sink_frames: int = 8 # The number of sink frames to be excluded from the xattention scores for alignatt decoding policy
+
 
     online_normalization: bool = False # Perform normalization on the run per chunk
     pad_and_drop_preencoded: bool = False # Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.
@@ -141,6 +154,76 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     debug_mode: bool = False # Whether to print more detail in the output
 
+
+
+def compute_laal(delays, source_length, target_length):
+    if delays[0] > source_length:
+        return delays[0]
+
+    LAAL = 0
+    gamma = max(len(delays), target_length) / source_length
+    tau = 0
+    for t_minus_1, d in enumerate(delays):
+        LAAL += d - t_minus_1 / gamma
+        tau = t_minus_1 + 1
+
+        if d >= source_length:
+            break
+    LAAL /= tau
+
+    return LAAL
+
+
+def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+    try:
+        len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
+    except:
+        logging.warning("The alignment length does not match the predicted token length")
+        return 5000
+    target_length_word = [len(a.split()) for a in sample['text']]
+    # import pdb; pdb.set_trace()
+    for i, tokens in enumerate(predicted_token_ids):
+        audio_encoder_fs = 80
+        audio_signal_length = sample["audio_length_ms"]
+        # obtain lagging for alignatt
+        lagging = []
+        for cur_t, pred_idx in canary_data.pred_tokens_alignment:
+            cur_t = cur_t
+            eos_token = asr_model.tokenizer.vocab[asr_model.tokenizer.eos_id]
+            if (cur_t.startswith(BOW_PREFIX) and cur_t != BOW_PREFIX) or cur_t == eos_token:  # word boundary
+                lagging.append(pred_idx * audio_encoder_fs)
+            if cur_t == eos_token:
+                break
+        if len(lagging) == 0:
+            lagging.append(0)
+        laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
+    return laal
+
+
+def compute_waitk_lagging(sample, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+    waitk_lagging = cfg.waitk_lagging
+    pre_decision_ratio = canary_data.frame_chunk_size
+    target_length_word = [len(a.split()) for a in sample['text']]
+    right_context = 0
+    # import pdb; pdb.set_trace()
+    for i, tokens in enumerate(predicted_token_ids):
+        lagging = []
+        audio_encoder_fs = 80
+        audio_signal_length = sample["audio_length_ms"]
+        for j, cur_t in enumerate(tokens):
+            cur_src_len = (j + waitk_lagging) * pre_decision_ratio + right_context
+            cur_src_len*=audio_encoder_fs # to ms
+            cur_src_len = min(audio_signal_length, cur_src_len)
+            spm = asr_model.tokenizer.vocab[cur_t]
+            # reach word boundary
+            if (spm.startswith(BOW_PREFIX) and spm != BOW_PREFIX) or cur_t == asr_model.tokenizer.eos_id:  # word boundary
+                lagging.append(cur_src_len)
+            if cur_t == asr_model.tokenizer.eos_id:
+                break
+        if len(lagging) == 0:
+            lagging.append(0)
+        laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
+    return laal
 
 
 def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
@@ -204,7 +287,7 @@ def perform_streaming(
         final_streaming_tran = asr_model.tokenizer.ids_to_text(pred_out_stream[0].tolist()).strip()
     else:
         final_streaming_tran = ""
-    logging.info(f"[pred_text]: {final_streaming_tran}")
+    logging.warning(f"[pred_text]: {final_streaming_tran}")
 
     return final_streaming_tran, pred_out_stream
 
@@ -212,22 +295,23 @@ def perform_streaming(
 @hydra_runner(config_name="StreamingEvaluationConfig", schema=StreamingEvaluationConfig)
 def main(cfg: StreamingEvaluationConfig):
     
+    
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
-    if (cfg.audio_file is None and cfg.manifest_file is None) or (
-        cfg.audio_file is not None and cfg.manifest_file is not None
+    if (cfg.audio_file is None and cfg.dataset_manifest is None) or (
+        cfg.audio_file is not None and cfg.dataset_manifest is not None
     ):
-        raise ValueError("One of the audio_file and manifest_file should be non-empty!")
+        raise ValueError("One of the audio_file and dataset_manifest should be non-empty!")
 
-    if cfg.asr_model.endswith('.nemo'):
-        logging.info(f"Using local ASR model from {cfg.asr_model}")
-        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=cfg.asr_model)
+    if cfg.model_path.endswith('.nemo'):
+        logging.warning(f"Using local ASR model from {cfg.model_path}")
+        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=cfg.model_path)
     else:
-        logging.info(f"Using NGC cloud ASR model {cfg.asr_model}")
-        asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=cfg.asr_model)
+        logging.warning(f"Using NGC cloud ASR model {cfg.model_path}")
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=cfg.model_path)
 
-    logging.info(asr_model.encoder.streaming_cfg)
+    logging.warning(asr_model.encoder.streaming_cfg)
 
     # setup att context size
     if cfg.att_context_size is not None:
@@ -247,11 +331,45 @@ def main(cfg: StreamingEvaluationConfig):
     # trcfg._internal.primary_language = self.tokenizer.langs[0]
     # override_cfg = asr_model.get_transcribe_config()
 
-    default_turns = asr_model.prompt.get_default_dialog_slots()
-    default_turns[0]["slots"]["prompt_language"] = "spl_tokens"
-    default_turns = [default_turns[0]]
-    decoder_input_ids = asr_model.prompt.encode_dialog(turns=default_turns)["context_ids"].unsqueeze(0).repeat(1, 1).to(cfg.device)
 
+    # setup lhotse dataloader
+    logging.warning(f"Setup lhotse dataloader from {cfg.dataset_manifest}")
+    filepaths, sorted_manifest_path = prepare_audio_data(cfg)
+    remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
+    filepaths = sorted_manifest_path if sorted_manifest_path is not None else filepaths
+    # cfg = compute_output_filename(cfg, model_name)
+
+
+    override_cfg = asr_model.get_transcribe_config()
+    override_cfg.batch_size = cfg.batch_size
+    override_cfg.num_workers = cfg.num_workers
+    override_cfg.return_hypotheses = cfg.return_hypotheses
+    override_cfg.channel_selector = cfg.channel_selector
+    override_cfg.augmentor = None
+    override_cfg.text_field = cfg.gt_text_attr_name
+    override_cfg.lang_field = cfg.gt_lang_attr_name
+    override_cfg.timestamps = cfg.timestamps
+    if hasattr(override_cfg, "prompt"):
+        override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
+    transcribe_cfg = override_cfg
+
+    asr_model._transcribe_on_begin(filepaths, transcribe_cfg)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        transcribe_cfg._internal.temp_dir = tmpdir
+        dataloader = asr_model._transcribe_input_processing(filepaths, transcribe_cfg)
+        batch_example = next(iter(dataloader))
+        batch_example = move_data_to_device(batch_example, transcribe_cfg._internal.device)
+        decoder_input_ids = batch_example.prompt
+    
+
+    # default_turns = asr_model.prompt.get_default_dialog_slots()
+
+    # import pdb; pdb.set_trace()
+
+    # default_turns[0]["slots"]["prompt_language"] = "spl_tokens"
+    # default_turns = [default_turns[0]]
+    # decoder_input_ids = asr_model.prompt.encode_dialog(turns=default_turns)["context_ids"].unsqueeze(0).repeat(1, 1).to(cfg.device)
 
     canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
 
@@ -281,14 +399,15 @@ def main(cfg: StreamingEvaluationConfig):
         samples = []
         all_streaming_tran = []
         all_refs_text = []
+        all_answer_text = []
         all_laal = []
 
-        with open(cfg.manifest_file, 'r') as f:
+        with open(cfg.dataset_manifest, 'r') as f:
             for line in f:
                 item = json.loads(line)
                 samples.append(item)
 
-        logging.info(f"Loaded {len(samples)} from the manifest at {cfg.manifest_file}.")
+        logging.warning(f"Loaded {len(samples)} from the manifest at {cfg.dataset_manifest}.")
 
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
@@ -297,8 +416,10 @@ def main(cfg: StreamingEvaluationConfig):
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])
-            logging.info("================"*10)
-            logging.info(f'Added this sample to the buffer: {sample["audio_filepath"]}')
+            if "answer" in sample:
+                all_answer_text.append(sample["answer"])
+            logging.warning("================"*10)
+            logging.warning(f'Added this sample to the buffer: {sample["audio_filepath"]}')
 
             # import pdb; pdb.set_trace()
             canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
@@ -306,8 +427,8 @@ def main(cfg: StreamingEvaluationConfig):
             canary_data.pred_tokens_alignment = []
             
             if (sample_idx + 1) % cfg.batch_size == 0 or sample_idx == len(samples) - 1:
-                logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
-                logging.info(f'[orig_text]: {sample["text"]}')
+                logging.warning(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
+                logging.warning(f'[orig_text]: {sample["text"]}')
                 streaming_tran, predicted_token_ids = perform_streaming(
                     cfg=cfg,
                     asr_model=asr_model,
@@ -334,18 +455,22 @@ def main(cfg: StreamingEvaluationConfig):
         # import pdb; pdb.set_trace()
         if len(all_refs_text) == len(all_streaming_tran):
             streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
-            logging.info(f"WER : {round(streaming_wer*100, 2)}%")
             streaming_laal = int(np.mean(all_laal))
-            logging.info(f"LAAL: {streaming_laal}")
+            if all_answer_text:
+                streaming_bleu = corpus_bleu(all_streaming_tran, [all_answer_text]).score
+                logging.warning(f"BLEU: {round(streaming_bleu, 2)}")
+            logging.warning(f"WER : {round(streaming_wer*100, 2)}%")
+            logging.warning(f"LAAL: {streaming_laal}")
+            
 
         end_time = time.time()
-        logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
+        logging.warning(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
 
         # stores the results including the transcriptions of the streaming inference in a json file
         if cfg.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
             fname = (
                 "streaming_"
-                + os.path.splitext(os.path.basename(cfg.manifest_file))[0]
+                + os.path.splitext(os.path.basename(cfg.dataset_manifest))[0]
                 + "_"
                 + f"att-cs{cfg.att_context_size}"
                 + "_"
@@ -361,85 +486,25 @@ def main(cfg: StreamingEvaluationConfig):
             os.makedirs(cfg.output_path, exist_ok=True)
             with open(hyp_json, "w") as out_f:
                 for i, hyp in enumerate(all_streaming_tran):
+                    # import pdb; pdb.set_trace()
+                    
                     record = {
                         "pred_text": hyp,
                         "text": all_refs_text[i],
                         "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
                         "laal": all_laal[i]
                     }
+                    if all_answer_text:
+                        streaming_bleu = round(corpus_bleu([hyp], [[all_answer_text[i]]]).score, 2)
+                        record["bleu"] = streaming_bleu
                     out_f.write(json.dumps(record) + '\n')
             
-            scoring_fname = "scoring.wer"
+            scoring_fname = f"{fname}scoring.wer"
             scoring_file = os.path.join(cfg.output_path, scoring_fname)
             with open(scoring_file, "w") as out_f:
                 out_f.write(f"Streaming WER : {round(streaming_wer*100, 2)}%\n")
                 out_f.write(f"Streaming LAAL: {streaming_laal}")
 
-
-
-def compute_laal(delays, source_length, target_length):
-    if delays[0] > source_length:
-        return delays[0]
-
-    LAAL = 0
-    gamma = max(len(delays), target_length) / source_length
-    tau = 0
-    for t_minus_1, d in enumerate(delays):
-        LAAL += d - t_minus_1 / gamma
-        tau = t_minus_1 + 1
-
-        if d >= source_length:
-            break
-    LAAL /= tau
-
-    return LAAL
-
-def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
-    assert len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
-    target_length_word = [len(a.split()) for a in sample['text']]
-    # import pdb; pdb.set_trace()
-    for i, tokens in enumerate(predicted_token_ids):
-        audio_encoder_fs = 80
-        audio_signal_length = sample["audio_length_ms"]
-        # obtain lagging for alignatt
-        lagging = []
-        for cur_t, pred_idx in canary_data.pred_tokens_alignment:
-            cur_t = cur_t
-            eos_token = asr_model.tokenizer.vocab[asr_model.tokenizer.eos_id]
-            if (cur_t.startswith(BOW_PREFIX) and cur_t != BOW_PREFIX) or cur_t == eos_token:  # word boundary
-                lagging.append(pred_idx * audio_encoder_fs)
-            if cur_t == eos_token:
-                break
-        if len(lagging) == 0:
-            lagging.append(0)
-        laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
-    return laal
-
-
-def compute_waitk_lagging(sample, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581"):
-    waitk_lagging = cfg.waitk_lagging
-    pre_decision_ratio = canary_data.frame_chunk_size
-    target_length_word = [len(a.split()) for a in sample['text']]
-    right_context = 0
-    # import pdb; pdb.set_trace()
-    for i, tokens in enumerate(predicted_token_ids):
-        lagging = []
-        audio_encoder_fs = 80
-        audio_signal_length = sample["audio_length_ms"]
-        for j, cur_t in enumerate(tokens):
-            cur_src_len = (j + waitk_lagging) * pre_decision_ratio + right_context
-            cur_src_len*=audio_encoder_fs # to ms
-            cur_src_len = min(audio_signal_length, cur_src_len)
-            spm = asr_model.tokenizer.vocab[cur_t]
-            # reach word boundary
-            if (spm.startswith(BOW_PREFIX) and spm != BOW_PREFIX) or cur_t == asr_model.tokenizer.eos_id:  # word boundary
-                lagging.append(cur_src_len)
-            if cur_t == asr_model.tokenizer.eos_id:
-                break
-        if len(lagging) == 0:
-            lagging.append(0)
-        laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
-    return laal
 
 
 
