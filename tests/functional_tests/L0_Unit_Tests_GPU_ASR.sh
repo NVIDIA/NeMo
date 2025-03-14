@@ -1,1 +1,1 @@
-coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/asr -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
+python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/asr -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
