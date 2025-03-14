@@ -201,13 +201,6 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
-        "-mb",
-        "--micro_batch_size",
-        type=int,
-        required=False,
-        default=None,
-    )
-    parser.add_argument(
         "-gb",
         "--global_batch_size",
         type=int,
@@ -277,6 +270,13 @@ def parse_cli_args():
     def list_of_ints(arg):
         return [int(x) for x in arg.split(',')]
 
+    parser.add_argument(
+        "-mb",
+        "--micro_batch_size",
+        type=list_of_ints,
+        required=False,
+        default=None,
+    )
     parser.add_argument(
         "--cu_global_batch_splits",
         type=list_of_ints,

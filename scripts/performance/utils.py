@@ -15,7 +15,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import nemo_run as run
 import pandas as pd
@@ -130,7 +130,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
     )
 
 
-def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
+def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[Union[int, List[int]]]:
     """
     Choose recommended configs tuned for performance from a csv file if available.
     User (command line) provided args override the recommended configs.
@@ -176,11 +176,14 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     etp_size = args.expert_tensor_parallel_size
     etp_size = config.get("etp_size") if etp_size is None else etp_size
 
+    if isinstance(mbs, list) and len(mbs) == 1:
+        mbs = mbs[0]
+
     enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [enable_cuda_graphs]
+    kwargs = [int(arg) if arg is not None and not isinstance(arg, list) else arg for arg in kwargs] + [enable_cuda_graphs]
 
     return kwargs
 
@@ -193,7 +196,7 @@ def set_primary_perf_configs(
     wandb_job_name: str,
     num_nodes: int,
     num_gpus_per_node: int,
-    mbs: int,
+    mbs: Union[int, List[int]],
     gbs: int,
     max_steps: int,
     tp_size: int,
@@ -214,6 +217,8 @@ def set_primary_perf_configs(
     # lightning.pytorch.LightningDataModule configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
+    if cu_global_batch_splits is not None:
+        recipe.data.cu_global_batch_splits = cu_global_batch_splits
 
     # parallelism configs
     recipe.trainer.strategy.tensor_model_parallel_size = tp_size
@@ -224,8 +229,6 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
     recipe.trainer.strategy.num_distributed_optimizer_instances = num_distributed_optimizer_instances
-    if cu_global_batch_splits is not None:
-        recipe.data.cu_global_batch_splits = cu_global_batch_splits
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
