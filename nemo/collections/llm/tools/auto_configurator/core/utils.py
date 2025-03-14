@@ -136,9 +136,9 @@ class ModelSizeParams:
             elif model_size_in_b <= 85.5:
                 self.hs, self.att_h, self.ffn = 6144, 96, 16384
             elif model_size_in_b <= 165.5:
-                self.hs, self.att_h, self.ffn, kv = 7680, 96, 20480, 128
+                self.hs, self.att_h, self.ffn = 7680, 96, 20480
             elif model_size_in_b <= 250:
-                self.hs, self.att_h, self.ffn, kv = 12288, 96, 32768, 128
+                self.hs, self.att_h, self.ffn = 12288, 96, 32768
             else:
                 raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
         elif model_name == "bert":
