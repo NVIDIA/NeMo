@@ -26,11 +26,6 @@ on:
         description: Failure will cancel all other tests if set to true
         required: false
         default: false
-      SAVE_COVERAGE_REPORT:
-        type: boolean
-        description: Upload .coverage file
-        required: false
-        default: false
     outputs:
       conclusion:
         description: Conclusion of main test step
@@ -106,7 +101,7 @@ jobs:
           fi
 
           # Replace `bash some_file.sh` with its contents
-          SCRIPT=$(echo "$SCRIPT" | sed "s|bash $FILENAME|$FILE_CONTENT|g" | tr -d '\n')
+          SCRIPT=$(echo "$SCRIPT" | sed "s|bash $FILENAME|$(printf '%s\n' "$FILE_CONTENT" | sed 's/[\/&]/\\&/g' | sed ':a;N;$!ba;s/\n/\\n/g')|g")
           SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
           SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
           [[ "${SCRIPT: -1}" == ";" ]] && SCRIPT="${SCRIPT::-1}"
@@ -152,7 +147,6 @@ jobs:
       - name: Check result
         id: check
         env:
-          SAVE_COVERAGE_REPORT: ${{ inputs.SAVE_COVERAGE_REPORT }}
           IS_OPTIONAL: ${{ inputs.IS_OPTIONAL }}
         run: |
           cat $DIR/err.log
