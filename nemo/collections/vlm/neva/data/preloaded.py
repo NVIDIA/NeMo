@@ -253,6 +253,7 @@ class LazySupervisedDataset(Dataset):
         data_config,
         tokenizer,
         image_processor,
+        image_tag_type=None,
     ):
         super().__init__()
         if data_path is not None:
@@ -274,6 +275,7 @@ class LazySupervisedDataset(Dataset):
         self.conv = supported_conv_templates[self.conv_template]
         self.image_process_mode = data_config.image_process_mode
         self.list_data_dict = list_data_dict
+        self.image_tag_type = image_tag_type
 
         image_folder = getattr(data_config, "image_folder", None)
         video_folder = getattr(data_config, "video_folder", None)
@@ -287,6 +289,11 @@ class LazySupervisedDataset(Dataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         source = self.list_data_dict[i]
         conversations = self._apply_prompt_templates(source, use_plain=self.conv_template == "plain")
+        if self.image_tag_type == "internvl":
+            # TODO(yuya): update hardcoded solution
+            conversations = conversations.replace("<image>", "<img><image></img>")
+        else:
+            assert self.image_tag_type is None, f"Not supported image_tag_type {self.image_tag_type}"
         tokens, labels = self._tokenize_and_label(conversations)
 
         media_tensors = self._process_images(source)
@@ -397,13 +404,14 @@ class NevaDataset(LazySupervisedDataset):
         image_processor,
         packed_sequence=False,
         num_image_embeddings_per_tile=576,
+        image_tag_type=None,
     ):
 
         if data_path.endswith(".json"):
-            super().__init__(data_path, data_config, tokenizer, image_processor)
+            super().__init__(data_path, data_config, tokenizer, image_processor, image_tag_type)
 
         elif data_path.endswith(".jsonl"):
-            super().__init__(None, data_config, tokenizer, image_processor)
+            super().__init__(None, data_config, tokenizer, image_processor, image_tag_type)
             logging.warning("Loading image inputs from SteerLM Dataset...")
             if data_config.media_type == 'image':
                 image_folder = data_config.image_folder
@@ -432,6 +440,7 @@ class NevaDataset(LazySupervisedDataset):
             raise ValueError(f"Formatting of {data_path} is not supported in Neva.")
         self.packed_sequence = packed_sequence
         self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
+        self.image_tag_type = image_tag_type
 
     def collate_fn(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         data_config = self.data_config
@@ -518,6 +527,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         packed_sequence: bool = False,
         num_image_embeddings_per_tile: int = 576,
         seed: int = 1234,
+        image_tag_type: Optional[str] = None,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple)):
@@ -547,6 +557,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         self.packed_sequence = packed_sequence
         self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
         self.init_global_step = 0
+        self.image_tag_type = image_tag_type
 
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor or tokenizer is not provided! Fall back to `{hf_processor_id}`.")
@@ -591,6 +602,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             self.image_processor,
             packed_sequence=self.packed_sequence,
             num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
+            image_tag_type=self.image_tag_type,
         )
         self._validation_ds = NevaDataset(
             self.paths[0],
@@ -599,6 +611,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             self.image_processor,
             packed_sequence=self.packed_sequence,
             num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
+            image_tag_type=self.image_tag_type,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:

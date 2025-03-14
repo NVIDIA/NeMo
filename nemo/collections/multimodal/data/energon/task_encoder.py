@@ -69,6 +69,7 @@ class MultiModalTaskEncoder(
         packed_sequence=False,
         packed_sequence_size=-1,
         num_image_embeddings_per_tile=576,
+        image_tag_type=None,
     ):
         """
         Initialize the MultiModalTaskEncoder with specific encoders for different sample types.
@@ -88,20 +89,24 @@ class MultiModalTaskEncoder(
         self.sample_config = multimodal_sample_config
         self.packed_sequence = packed_sequence
         self.num_image_embeddings_per_tile = num_image_embeddings_per_tile  # only used with seq packing
+        self.image_tag_type = image_tag_type
         self.packed_sequence_size = packed_sequence_size
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: VQASampleEncoder(
                 tokenizer=tokenizer,
                 image_processor=image_processor,
                 multimodal_sample_config=multimodal_sample_config,
+                image_tag_type=image_tag_type,
             ),
             InterleavedSample.__name__: InterleavedSampleEncoder(
                 tokenizer=tokenizer,
                 image_processor=image_processor,
                 multimodal_sample_config=multimodal_sample_config,
+                image_tag_type=image_tag_type,
             ),
             SimilarityInterleavedSample.__name__: SimilarityInterleavedEncoder(
-                tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config
+                tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config,
+                image_tag_type=image_tag_type,
             ),
         }
 

@@ -132,6 +132,7 @@ def main(args):
             num_workers=4,
             packed_sequence=args.use_packed_sequence,
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
+            image_tag_type="internvl"
         )
     elif args.data_type == "energon":
 
@@ -167,6 +168,7 @@ def main(args):
                 # it will go beyond max seq len, then it will need a truncation.
                 packed_sequence_size=int(decoder_seq_length * 0.9),
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
+                image_tag_type="internvl"
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
             image_decode="pil",
@@ -201,8 +203,6 @@ def main(args):
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
-            overlap_grad_reduce=False,
-            overlap_param_gather=False,
             average_in_collective=True,
         ),
         ckpt_load_strictness="log_all",
@@ -230,7 +230,11 @@ def main(args):
         callbacks=[
             checkpoint_callback,
             TimingCallback(),
-            MegatronCommOverlapCallback(tp_comm_overlap=False),
+            MegatronCommOverlapCallback(
+                tp_comm_overlap=False,
+                overlap_grad_reduce=False,
+                overlap_param_gather=False,
+            ),
         ],
         val_check_interval=500,
         limit_val_batches=gbs,
@@ -274,11 +278,13 @@ def main(args):
     if args.peft == 'lora':
         peft = vlm.peft.LoRA(
             target_modules=[
-                "linear_qkv",
-                "linear_proj",
-                "linear_fc1",
-                "linear_fc2",
-            ]
+                "*.language_model.*.linear_qkv",
+                "*.language_model.*.linear_proj",
+                "*.language_model.*.linear_fc1",
+                "*.language_model.*.linear_fc2",
+            ],
+            freeze_vision_model=False,
+            dim=32,
         )
     else:
         peft = None

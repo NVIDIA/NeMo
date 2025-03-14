@@ -75,7 +75,7 @@ class BaseSampleEncoder(SampleEncoder):
     image_token (Token): Token dataclass representing image placeholders in the tokenized sequence.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
         """
         Initialize the BaseSampleEncoder.
 
@@ -94,6 +94,7 @@ class BaseSampleEncoder(SampleEncoder):
         self.multimodal_sample_config = multimodal_sample_config
         self.ignore_place_holder = multimodal_sample_config.ignore_place_holder
         self.image_token = multimodal_sample_config.image_token
+        self.image_tag_type = image_tag_type
 
     def process_image(self, image: torch.Tensor) -> torch.Tensor:
         """
@@ -161,7 +162,7 @@ class VQASampleEncoder(BaseSampleEncoder):
     conversation_template_config (ConversationTemplateConfig): Configuration for conversation templates used in VQA.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
         """
         Initialize the VQASampleEncoder.
 
@@ -171,7 +172,7 @@ class VQASampleEncoder(BaseSampleEncoder):
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to MultiModalSampleConfig().
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        super().__init__(tokenizer, image_processor, multimodal_sample_config, image_tag_type)
         self.conversation_template_config = multimodal_sample_config.conversation_template_config
 
     def apply_prompt_template(self, input_text: VQASample, use_plain=False):
@@ -220,6 +221,11 @@ class VQASampleEncoder(BaseSampleEncoder):
 
         # Apply the conversation template to generate the prompt
         templated_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        if self.image_tag_type == "internvl":
+            # TODO(yuya): update hardcoded solution
+            templated_prompt = templated_prompt.replace("<image>", "<img><image></img>")
+        else:
+            assert self.image_tag_type is None, f"Not supported image_tag_type {self.image_tag_type}"
         logging.debug(f"apply prompt template templated_prompt {templated_prompt}")
         return templated_prompt
 
@@ -353,7 +359,7 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
     multimodal_sample_config (MultiModalSampleConfig): Configuration for multimodal samples, including tokens and placeholders.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
         """
         Initialize the InterleavedSampleEncoder.
 
@@ -363,7 +369,7 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to MultiModalSampleConfig().
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        super().__init__(tokenizer, image_processor, multimodal_sample_config, image_tag_type)
 
     def tokenize(self, sample) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -458,7 +464,7 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
     image_following_text (bool): A flag indicating whether images should follow the text they are related to.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
         """
         Initialize the SimilarityInterleavedEncoder.
 
@@ -468,7 +474,7 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to MultiModalSampleConfig().
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        super().__init__(tokenizer, image_processor, multimodal_sample_config, image_tag_type)
         self.image_following_text = multimodal_sample_config.image_following_text
 
     def tokenize(self, sample: SimilarityInterleavedSample) -> tuple[torch.Tensor, torch.Tensor]:
