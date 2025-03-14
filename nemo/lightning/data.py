@@ -407,12 +407,9 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
-        cu_global_batch_splits: Optional[List[int]] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
         seed: int = 0,
     ) -> None:
-        assert cu_global_batch_splits is None, "`MegatronPretrainingRandomSampler` does not support cu_global_batch_splits!"
-
         super().__init__(
             total_samples=total_samples,
             consumed_samples=consumed_samples,
