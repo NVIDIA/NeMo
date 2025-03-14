@@ -1020,6 +1020,8 @@ AVAILABLE_SCHEDULERS = {
     'CosineAnnealing': CosineAnnealing,
     'NoamAnnealing': NoamAnnealing,
     'NoamHoldAnnealing': NoamHoldAnnealing,
+    'WarmupHoldAnnealOneMinusSquareRoot': WarmupHoldAnnealOneMinusSquareRoot,
+    'WarmupHoldAnnealLinear': WarmupHoldAnnealLinear,
     'WarmupAnnealing': WarmupAnnealing,
     'InverseSquareRootAnnealing': InverseSquareRootAnnealing,
     'T5InverseSquareRootAnnealing': T5InverseSquareRootAnnealing,
