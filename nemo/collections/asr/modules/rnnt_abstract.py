@@ -282,6 +282,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         batch_size: int,
         beam_size: int,
         indices: torch.Tensor,
+        dst_states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ):
         raise NotImplementedError()
 

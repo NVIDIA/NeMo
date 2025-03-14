@@ -168,10 +168,12 @@ class MALSDState:
         self.batch_indices = (
             torch.arange(batch_size, dtype=torch.long, device=device)[:, None]
             .expand(batch_size, self.beam_size)
+            .clone()
         ) # size: batch_size x beam_size
         self.beam_indices = (
             torch.arange(self.beam_size, dtype=torch.long, device=self.device)[None, :, None]
             .expand(self.batch_size, -1, self.beam_size)
+            .clone()
         ) # size: batch_size x beam_size x beam_size
 
         self.time_indices = torch.zeros_like(self.batch_indices)
@@ -288,6 +290,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
+        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
         
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
@@ -871,7 +874,9 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 self._loop_update_decoder()
 
     def _before_loop(self):
-        """Clear state and compute initial active mask"""
+        """
+        Clears state and compute initial active mask
+        """
         self.state.batched_hyps.clear_()
 
         # initial state - lm
@@ -891,36 +896,28 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.state.time_indices.fill_(0)
         self.state.safe_time_indices.fill_(0)  # safe time indices: guaranteed to be < encoder_output_length
         
-        torch.sub(
-            self.state.encoder_output_length,
-            1,
-            out=self.state.last_timesteps
-        )
+        torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
 
         # masks for utterances in batch
         # same as: active_mask = self.encoder_output_length > 0
-        torch.greater(
-            self.state.encoder_output_length,
-            0,
-            out=self.state.active_mask
-        )
+        torch.greater(self.state.encoder_output_length, 0, out=self.state.active_mask)
 
-        # for storing the last state we need to know what elements became "inactive" on this step
         # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
         
+        # set decoder state and output to initial values
         self.state.decoder_output.copy_(self.state.init_decoder_output)
         self.state.decoder_state[0].copy_(self.state.init_decoder_state[0])
         self.state.decoder_state[1].copy_(self.state.init_decoder_state[1])
         
+        # set previous decoder state and output to initial values
         self.state.prev_decoder_output.fill_(0)
         self.state.prev_decoder_state[0].fill_(0)
         self.state.prev_decoder_state[1].fill_(0)
 
     def _loop_body(self):
-        """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
-        # stage 2: get joint output, iteratively seeking for non-blank labels
-        # blank label in `labels` tensor means "end of hypothesis" (for this index)
+        """Perform a single iteration of the batched RNN-T decoding loop."""
+        # step 1: get joint output + fuse with LM (if present)
         logits = (
             self.joint.joint_after_projection(
                 self.state.encoder_output_projected[
@@ -929,8 +926,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     ].unsqueeze(1),
                 self.state.decoder_output,
             )
-            .squeeze(1)
-            .squeeze(1)
+            .squeeze()
         )
         # same as: scores, labels = logits.max(-1)
         log_probs = F.log_softmax(logits, dim=-1).view(self.state.batch_size, self.beam_size, -1)  # [(B x Beam), V]
@@ -943,29 +939,27 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         # step 2: Make hyps candidates. Add new scores to hyps, force blank if necessary, recombine hyps, prune
         # step 2.1: hyps candidates
-        log_probs_blank = log_probs[..., self._blank_index]
-        # size: batch_size x beam_size x beam_size (k)
-        hyps_scores = self.state.batched_hyps.scores
-        hyps_candidates_prob = hyps_scores.unsqueeze(-1) + log_probs_top_k  # hyps from top-k (top-k-prev x top_k)
-        hyps_candidates_prob_forced_blank = (
-            hyps_scores + log_probs_blank
-        )  # hyps with forced blank (top-k-prev x blank)
-
-        # step 2.2 force add final hyps with the same score to the beam
-        # final hyps cannot be extended -> mask with minus inf, copy prev scores; label - set to -1
+        log_probs_blank = log_probs[..., self._blank_index]                 # blank scores              size: batch_size x beam_size
+        hyps_scores = self.state.batched_hyps.scores                        # previous hyp scores       size: batch_size x beam_size
+        hyps_candidates_prob = hyps_scores.unsqueeze(-1) + log_probs_top_k  # hyps with top-k labels    size: batch_size x beam_size x beam_size
+        hyps_candidates_prob_forced_blank = hyps_scores + log_probs_blank   # hyps with forced blank    size: batch_size x beam_size
+        
+        # step 2.2 force add final (fully decoded) hyps with to the beam (without updating the score)
+        # mask inactive (final) hyps with -inf
         torch.where(
             self.state.active_mask.unsqueeze(-1),
             hyps_candidates_prob,
             self.state.INACTIVE_SCORE,
             out=hyps_candidates_prob
         )
+        # keep inactive (final hypotheses) at the first position in beam
         torch.where(
             self.state.active_mask,
             hyps_candidates_prob[..., 0],
             hyps_scores,
             out=hyps_candidates_prob[..., 0]
         )
-        
+        # mark the labels corresponding to final hypotheses with negative label (e.g., -1)
         torch.where(
             self.state.active_mask.unsqueeze(-1),
             labels_top_k,
@@ -978,20 +972,21 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             force_blank = (self.state.batched_hyps.last_timestep_lasts >= self.max_symbols) & self.state.active_mask
         else:
             force_blank = torch.full_like(self.state.active_mask, fill_value=False)
-        # mask all extensions with -inf
+        # mask beams if forced blank 
         torch.where(
             force_blank.unsqueeze(-1),
             self.state.INACTIVE_SCORE,
             hyps_candidates_prob,
             out=hyps_candidates_prob
         )
-        # first element in beam - score for hyp with forced blank
+        # keep hypotheses with forced blank at the first position in beam
         torch.where(
             force_blank,
             hyps_candidates_prob_forced_blank,
             hyps_candidates_prob[..., 0],
             out=hyps_candidates_prob[..., 0]
         )
+        # change labels to blank if forced blank
         torch.where(
             force_blank.unsqueeze(-1),
             self.state.BLANK_TENSOR,
@@ -999,7 +994,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             out=labels_top_k
         )
 
-        # step 2.4: final pruning - get top-k from (top-k x top-k) hyps
+        # step 2.4: final pruning - get top-beam from (beam x beam) hyps
         next_hyps_prob, hyps_candidates_indices = torch.topk(
             hyps_candidates_prob.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True
         )
@@ -1008,13 +1003,13 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             dim=-1,
             index=hyps_candidates_indices,
             out=self.state.next_idx
-        )
+        ) # indices in beam extended with new label
         torch.gather(
             labels_top_k.reshape(self.state.batch_size, -1),
             dim=-1,
             index=hyps_candidates_indices,
             out=self.state.next_labels
-        )
+        ) # labels for extended hypotheses
         self.state.next_scores.copy_(next_hyps_prob)
        
         # step 3: store results
@@ -1029,10 +1024,16 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 self.state.next_labels,
                 self.state.next_scores)
         
+        # step 4: recombine hypotheses: sum probabilities of identical hypotheses.
         self.state.batched_hyps.recombine_hyps()
 
     def _loop_update_decoder(self):
-        # step 4: update decoder state + decoder output (+ lm state/scores)
+        """
+        Updates the decoder state, decoder output, and optionally the language model (LM) state
+        for the next iteration of the decoding loop in a batched RNNT (Recurrent Neural Network Transducer) setup.
+        """
+        # step 5: update decoder state + decoder output (+ lm state/scores)
+        # step 5.1: mask invalid value labels with blank to avoid errors (refer to step 2.2)
         torch.where(
             self.state.next_labels >= 0,
             self.state.next_labels,
@@ -1041,53 +1042,25 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         ) 
         preserve_state = self.state.last_labels_wb == self._blank_index
 
-         # update decoder + lm state
-        # decoder_output: [(B x Beam), 1, Dim]
+        # size: decoder_output [(B x Beam), 1, Dim]
+        # size: state tuple, each is of [Layers, (BxBeam), Dim]
+        # step 5.2: update decoder + lm state 
+        # step 5.2.1: storing current decoder output and states of extended hypotheses 
         torch.gather(
             self.state.decoder_output.view(self.state.batch_size, self.beam_size, 1, -1),
             dim=1,
             index=self.state.next_idx[:, :, None, None].expand(self.state.batch_size, self.beam_size, 1, self.state.decoder_output.shape[-1]),
             out=self.state.prev_decoder_output.view(self.state.batch_size, self.beam_size, 1, -1)
         )
-
-        # TODO: move state aggregation to decoder + support stateless decoder:
-        # self.decoder.batch_aggregate_states_beam(...)
-        # state: tuple, each is of [Layers, (BxBeam), Dim]
-        state_indices = self.state.next_idx[None, :, :, None].expand(
-                self.state.decoder_state[0].shape[0],
-                self.state.batch_size,
-                self.state.beam_size,
-                self.state.decoder_state[0].shape[-1]
-            )
-        torch.gather(
-            self.state.decoder_state[0].view(
-                self.state.decoder_state[0].shape[0],
-                self.state.batch_size,
-                self.state.beam_size,
-                -1),
-            dim=2,
-            index=state_indices,
-            out=self.state.prev_decoder_state[0].view(
-                self.state.decoder_state[1].shape[0], 
-                self.state.batch_size,
-                self.beam_size,
-                -1),
-        )
-        torch.gather(
-            self.state.decoder_state[1].view(
-                self.state.decoder_state[1].shape[0], 
-                self.state.batch_size,
-                self.beam_size,
-                -1),
-            dim=2,
-            index=state_indices,
-            out=self.state.prev_decoder_state[1].view(
-                self.state.decoder_state[1].shape[0], 
-                self.state.batch_size,
-                self.beam_size,
-                -1),
+        self.decoder.batch_aggregate_states_beam(
+            self.state.decoder_state, 
+            self.state.batch_size, 
+            self.beam_size, 
+            self.state.next_idx,
+            self.state.prev_decoder_state
         )
         
+        # step 5.2.2: get next decoder output and states for extended hypotheses 
         decoder_output, decoder_state, *_ = self.decoder.predict(
             self.state.last_labels_wb.view(-1, 1),
             self.state.prev_decoder_state,
@@ -1095,6 +1068,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             batch_size=self.state.batch_size * self.beam_size,
         )
         
+        # step 5.2.3: update decoder state and output only for non-blank and active hypotheses
         torch.where(
             preserve_state.view(-1)[:, None, None],
             self.state.prev_decoder_output,
@@ -1109,8 +1083,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         )
         
         if self.ngram_lm_batch is not None:
-            # batch_lm_states: [(BxBeam)]
-            # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
+            # batch_lm_states: size: [(batch_size x beam_size)]
+            # batch_lm_states_candidates: [(batch_size x beam_size) x V (without blank)]
             self.state.batch_lm_states_candidates.copy_(
                 torch.gather(
                     self.state.batch_lm_states_candidates,
@@ -1154,7 +1128,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates.view(self.state.batch_size, self.state.beam_size, -1))
             self.state.lm_scores.copy_(lm_scores)
 
-        # step 5: update time indices + active mask
+        # step 6: update time indices + active mask
         self.state.time_indices.copy_(self.state.batched_hyps.next_timestep)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less_equal(self.state.time_indices, self.state.last_timesteps, out=self.state.active_mask)

@@ -1041,20 +1041,24 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         batch_size: int,
         beam_size: int,
         indices: torch.Tensor,
+        dst_states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-         Aggregates decoder states based on the given indices.
-
+        Aggregates decoder states based on the given indices.
         Args:
-            src_states (Tuple[torch.Tensor, torch.Tensor]): Source states. ([L x Batch * Beam x H], [L x Batch * Beam x H])
-            batch_size (int): The batch size.
-            beam_size (int): The beam size.
-            indices (torch.Tensor): Indices used to aggregate the states. These indices determine which beam elements to select.
-
+            src_states (Tuple[torch.Tensor, torch.Tensor]): source states of 
+                shape `([L x (batch_size * beam_size, H)], [L x (batch_size * beam_size, H)])`
+            batch_size (int): The size of the batch.
+            beam_size (int): The size of the beam.
+            indices (torch.Tensor): A tensor of shape `(batch_size, beam_size)` containing
+                the indices in beam that map the source states to the destination states.
+            dst_states (Optional[Tuple[torch.Tensor, torch.Tensor]]): If provided, the method
+                updates these tensors in-place.
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: 
-                A tuple of two tensors representing the aggregated states. 
-                Each tensor has shape (L x Batch * Beam x H).
+        Note:
+            - The `indices` tensor is expanded to match the shape of the source states
+            during the gathering operation.
         """
         layers_num = src_states[0].shape[0]
         layers_dim = src_states[0].shape[-1]
@@ -1062,8 +1066,16 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         beam_shape = torch.Size((layers_num, batch_size, beam_size, layers_dim))
         flat_shape = torch.Size((layers_num, batch_size * beam_size, layers_dim))
         
+        # Expand indices to match the source states' shape
         indices_expanded = indices[None, :, :, None].expand(beam_shape)
         
+        if dst_states is not None:
+            # Perform in-place gathering into dst_states
+            torch.gather(src_states[0].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[0].view(beam_shape))
+            torch.gather(src_states[1].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[1].view(beam_shape))
+            return dst_states
+        
+        # Gather and reshape into the output format
         return (
             torch.gather(src_states[0].view(beam_shape), dim=2, index=indices_expanded).view(flat_shape),
             torch.gather(src_states[1].view(beam_shape), dim=2, index=indices_expanded).view(flat_shape),
