@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Prune utilities for using TensorRT Model Optimizer."""
 
-from nemo.collections.speechlm.utils.hydra_utils import get_object_list_from_config, to_dict_config
-from nemo.collections.speechlm.utils.io import get_nested_attr, import_ckpt, load_distributed_ckpt
-from nemo.collections.speechlm.utils.model_transform import SpeechToTextLLMPEFT
+from .pruner import PruningConfig, prune_gpt_model, save_pruned_model
+
+__all__ = ["PruningConfig", "prune_gpt_model", "save_pruned_model"]
