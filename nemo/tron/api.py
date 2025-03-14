@@ -28,6 +28,8 @@ def megatron_pretrain(
     forward_step_func: Callable,
     dataset_provider: Callable = train_valid_test_datasets_provider,
 ):
+    config.validate()
+
     ## SETUP ##
     setup_output = setup(config, dataset_provider)
     state = setup_output.state
@@ -63,7 +65,6 @@ def megatron_pretrain(
                 optimizer,
                 scheduler,
                 state.train_state.floating_point_operations_so_far,
-                config,
                 ckpt_context,
                 train_data_iterator=train_data_iterator,
             )

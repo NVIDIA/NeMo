@@ -23,6 +23,7 @@ from megatron.core.transformer.enums import ModelType
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
+from nemo.tron.container.container import ConfigContainer as Container
 from nemo.tron.utils.common_utils import get_world_size_safe
 
 
@@ -504,7 +505,7 @@ class StragglerDetectionConfig:
 
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
-class ConfigContainer:
+class ConfigContainer(Container):
     rng_config: RNGConfig = field(default_factory=RNGConfig)
     rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     train_config: TrainingConfig
@@ -521,7 +522,7 @@ class ConfigContainer:
     straggler_config: Optional[StragglerDetectionConfig] = None
     profiling_config: Optional[ProfilingConfig] = None
 
-    def __post_init__(self):
+    def validate(self):
         # Run validations
 
         # Distributed
@@ -547,7 +548,7 @@ class ConfigContainer:
         )
 
         # Make sure all functionality that requires Gloo process groups is disabled.
-        if not self.dist_config.enable_gloo_process_groups:
+        if not self.dist_config.use_gloo_process_groups:
             if self.optimizer_config.use_distributed_optimizer:
                 # If using distributed optimizer, must use distributed checkpointing.
                 # Legacy checkpointing uses Gloo process groups to collect full distributed
