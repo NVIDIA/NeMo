@@ -1755,13 +1755,10 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
         cp_size = parallel_state.get_context_parallel_world_size()
         loss_sum_for_ub = masked_token_loss(forward_out, batch["loss_mask"], cp_size)
-        if cp_size == 1:
+        if cp_size == 1 or batch['num_valid_tokens_in_ub'] is None:
             num_valid_tokens_in_ub = batch["loss_mask"].sum()
         else:
-            if batch['num_valid_tokens_in_ub'] is None:
-                num_valid_tokens_in_ub = batch["loss_mask"].sum()
-            else:
-                num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
+            num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
         if num_valid_tokens_in_ub < 0.5: # no valid tokens
             num_valid_tokens_in_ub += 1.0
         num_valid_tokens_in_ub = num_valid_tokens_in_ub.clone().detach().to(torch.int)
