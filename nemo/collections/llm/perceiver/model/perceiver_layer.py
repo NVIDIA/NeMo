@@ -147,32 +147,21 @@ class PerceiverLayer(MegatronModule):
             inference_params=inference_params,
         )
 
-        print(f"cross_attn_output shapes: {cross_attn_output[0].shape}, {cross_attn_output[1].shape}")
-        print("finished cross attention")
-
         with self.bias_dropout_add_exec_handler():
             latent_states = self.input_cross_attn_bda(
                 self.training, 
                 self.config.bias_dropout_fusion
             )(cross_attn_output, residual, self.hidden_dropout)
 
-        print(f"latent_states shapes: {latent_states.shape}")
-        print("finished input cross attention")
-
         # Self attention on latent array
         residual = latent_states
         norm_latents = self.latent_layernorm(latent_states)
-        
-        print(f"norm_latents shapes: {norm_latents.shape}")
-        print("finished latent layernorm")
 
         self_attn_output = self.self_attention(
             norm_latents,
             attention_mask=self_attention_mask,
             inference_params=inference_params,
         )
-
-        print(f"self_attn_output shapes: {self_attn_output[0].shape}, {self_attn_output[1].shape}")
 
         with self.bias_dropout_add_exec_handler():
             latent_states = self.self_attn_bda(
