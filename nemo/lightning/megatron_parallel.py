@@ -1757,7 +1757,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
         if num_valid_tokens_in_ub is None:
             num_valid_tokens_in_ub = batch["loss_mask"].sum()
-        if num_valid_tokens_in_ub < 0.5: # no valid tokens
+        if num_valid_tokens_in_ub < 0.5:  # no valid tokens
             num_valid_tokens_in_ub += 1.0
         num_valid_tokens_in_ub = num_valid_tokens_in_ub.clone().detach().to(torch.int)
 
