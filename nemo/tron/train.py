@@ -649,7 +649,6 @@ def save_checkpoint_and_time(
         optimizer,
         opt_param_scheduler,
         num_floating_point_operations_so_far,
-        cfg=state.cfg,
         checkpointing_context=checkpointing_context,
         non_persistent_ckpt=non_persistent_ckpt,
         train_data_iterator=train_data_iterator,
