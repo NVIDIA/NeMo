@@ -544,7 +544,7 @@ def fsdp2_strategy_parallelize(
             attn_layer = transformer_block.self_attn
             attn_layer.config.num_attention_heads = attn_layer.config.num_attention_heads // tp_mesh.size()
             attn_layer.config.num_key_value_heads = attn_layer.config.num_key_value_heads // tp_mesh.size()
-            attn_layer.config.hidden_size = attn_layer.config.hidden_size // tp_mesh.size()
+            # attn_layer.config.hidden_size = attn_layer.config.hidden_size // tp_mesh.size()
 
             # Apply the plan for the current transformer block
             parallelize_module(transformer_block, tp_mesh, plan)

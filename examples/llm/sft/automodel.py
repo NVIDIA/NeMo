@@ -203,7 +203,7 @@ def main():
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
             accumulate_grad_batches=args.accumulate_grad_batches,
-            gradient_clip_val=None,
+            gradient_clip_val=args.grad_clip,
             use_distributed_sampler=False,
             logger=wandb,
             callbacks=callbacks,
