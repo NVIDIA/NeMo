@@ -15,6 +15,9 @@
 import random
 from dataclasses import dataclass
 from typing import Any, List, Optional
+import io
+import json
+import numpy as np
 
 import torch
 import torch.nn.functional as F
@@ -25,6 +28,7 @@ from megatron.energon.task_encoder.cooking import Cooker, basic_sample_keys
 
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils.sequence_packing_utils import first_fit_decreasing
+from PIL import Image, ImageOps
 
 
 @dataclass
@@ -503,25 +507,49 @@ class PrecachedCaptionWithImageMaskTaskEncoder(DefaultTaskEncoder, IOMixin):
         Cooker(cook_image_masks_with_precached_captions),
     ]
 
-    def __init__(self):
+    def __init__(
+            self,
+            height: int = 1024,
+            width: int = 1024,
+    ):
         super().__init__()
+        self.new_height = height
+        self.new_width = width
     @stateless(restore_seeds=True)
     def encode_sample(self, sample: dict) -> dict:
         image = sample['image']
-        mask = sample['mask']
-        text_ids = sample['text_ids']
-        pooled_prompt_embeds = sample['pooled_prompt_embeds']
-        prompt_embeds = sample['prompt_embeds']
-        new_caption = sample['new_caption']
-        caption = sample['caption']
+        mask = json.loads(sample['mask'])
+        text_ids = torch.load(io.BytesIO(sample['text_ids']), map_location=torch.device('cpu'))
+        pooled_prompt_embeds = torch.load(io.BytesIO(sample['pooled_prompt_embeds']), map_location=torch.device('cpu'))
+        prompt_embeds = torch.load(io.BytesIO(sample['prompt_embeds']), map_location=torch.device('cpu'))
+        new_caption = sample['new_caption'].decode("utf-8")
+        caption = sample['caption'].decode("utf-8")
+
+        width, height = image.size
+        mask = Image.fromarray(self.decode_mask(mask, height, width))
+
+        image = image.resize((self.new_width, self.new_height), resample=Image.Resampling.BICUBIC)
+        mask = mask.resize((self.new_width, self.new_height), resample=Image.Resampling.BICUBIC)
+
+        mask = ImageOps.invert(mask)
+
+
+
         return dict(
-            image=image,
-            mask=mask,
+            images=image,
+            hint=mask,
             text_ids=text_ids,
             pooled_prompt_embeds=pooled_prompt_embeds,
             prompt_embeds=prompt_embeds,
-            new_caption=new_caption,
+            txt=new_caption,
             caption=caption)
 
-
-
+    def decode_mask(self, mask:list, height: int, width: int):
+        mask = np.array(mask)
+        starts, lengths = [np.asarray(x, dtype=int) for x in (mask[0:][::2], mask[1:][::2])]
+        starts -= 1
+        ends = starts + lengths
+        img = np.zeros(height*width, dtype=np.uint8)
+        for lo, hi in zip(starts, ends):
+            img[lo:hi] = 1
+        return np.clip(img.reshape((height, width), order='F') * 255, 0, 255)

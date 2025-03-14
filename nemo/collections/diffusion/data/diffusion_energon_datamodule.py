@@ -60,6 +60,8 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
         virtual_epoch_length: int = 1_000_000_000,  # a hack to avoid energon end of epoch warning
         packing_buffer_size: int | None = None,
         max_samples_per_sequence: int | None = None,
+        auto_decode = True,
+        image_decode = 'torchrgb',
     ) -> None:
         """
         Initialize the EnergonMultiModalDataModule.
@@ -90,6 +92,8 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
         self.num_workers_val = 1
         self.packing_buffer_size = packing_buffer_size
         self.max_samples_per_sequence = max_samples_per_sequence
+        self.auto_decode = auto_decode
+        self.image_decode = image_decode
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
         """
@@ -119,7 +123,8 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
             split_part=split,
             virtual_epoch_length=self.virtual_epoch_length,
             packing_buffer_size=self.packing_buffer_size,
-            auto_decode=False,
+            auto_decode=self.auto_decode,
+            image_decode=self.image_decode,
         )
         return _dataset
 

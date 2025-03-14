@@ -78,8 +78,10 @@ def brushnet_datamodule(dataset_dir) -> pl.LightningDataModule:
         ),
         micro_batch_size=1,
         global_batch_size=8,
-        num_workers=0,
+        num_workers=23,
         use_train_split_for_val=True,
+        image_decode='pil',
+        auto_decode=True,
     )
     return data_module
 
@@ -168,19 +170,16 @@ def datamodule_test() -> run.Partial:
     recipe = flux_controlnet_training()
     recipe.model.flux_params.t5_params = None
     recipe.model.flux_params.clip_params = None
-    recipe.model.flux_params.vae_config = None
-    recipe.model.flux_params.flux_config = run.Config(
-        FluxConfig,
-        num_joint_layers=1,
-        num_single_layers=1,
+    recipe.model.flux_params.vae_config = run.Config(
+        AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1, 2, 4, 4], attn_resolutions=[]
     )
-    # recipe.model.flux_params.device = 'cuda'
-    # recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/transformer', do_convert_from_hf=True)
-    recipe.trainer.devices = 1
+    recipe.model.flux_params.device = 'cuda'
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/nemo_flux_transformer.safetensors')
+    recipe.trainer.devices = 8
     recipe.data = brushnet_datamodule('/dataset')
-    recipe.data.global_batch_size = 1
-    recipe.model.flux_controlnet_config.num_single_layers = 0
-    recipe.model.flux_controlnet_config.num_joint_layers = 4
+    recipe.data.global_batch_size = 8
+    recipe.model.flux_controlnet_config.num_single_layers = 38
+    recipe.model.flux_controlnet_config.num_joint_layers = 19
     recipe.optim.config.lr = 5e-5
     return recipe
 
@@ -197,7 +196,7 @@ def convergence_test() -> run.Partial:
         AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1, 2, 4, 4], attn_resolutions=[]
     )
     recipe.model.flux_params.device = 'cuda'
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/transformer', do_convert_from_hf=True)
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/nemo_flux_transformer.safetensors')
     recipe.trainer.devices = 2
     recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
     recipe.data.global_batch_size = 2
