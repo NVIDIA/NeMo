@@ -1581,10 +1581,11 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
-  L2_HF_Transformer_SFT_FSDP2_cpu:
+  L2_HF_Transformer_SFT_DDP_cpu:
     needs: [pre-flight]
     runs-on: ubuntu-latest
-
+    env:
+      HF_HOME: ${{ github.run_id }}/HF
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -1599,7 +1600,13 @@ jobs:
 
       - name: Run test
         run: |
-          python3 examples/llm/sft/automodel.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy fsdp2 --accelerator=cpu
+          python3 examples/llm/sft/automodel.py --model google/gemma-2b --max-steps 10 --devices 2 --strategy ddp --accelerator=cpu
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: google/gemma-2b
+          path: ${{ env.HF_HOME }}
+          retention-days: 90
 
   L2_HF_Transformer_PT_2gpu:
     needs: [pre-flight, cicd-test-container-build]
