@@ -129,9 +129,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     them into smaller segments.
     """
     
-    assert not (cfg.compute_timestamps and cfg.chunk_len_in_secs != 10.0), (
-        "When compute_timestamps is True, use `chunk_len_in_secs=10.0` for optimal results."
-    )
+    if cfg.compute_timestamps and cfg.chunk_len_in_secs != 10.0:
+        logging.warning(
+            "When compute_timestamps is True, it's recommended to use `chunk_len_in_secs=10.0` for optimal results. "
+            "Setting `chunk_len_in_secs` to 10.0."
+        )
+        cfg.chunk_len_in_secs = 10.0
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
