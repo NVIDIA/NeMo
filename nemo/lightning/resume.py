@@ -141,13 +141,10 @@ class AutoResume:
             new_path = self._extract_path(
                 model=model,
                 path=self.restore_config.path,
-                adapter_path=self.restore_config.adapter_path,
+                adapter_path=None,
             )
-            if isinstance(new_path, AdapterPath):
-                self.restore_config.path = new_path.base_model_path
-                self.restore_config.adapter_path = str(new_path)
-            else:
-                self.restore_config.path = str(new_path)
+            assert not isinstance(new_path, AdapterPath), "AdapterPath is not supported for restore_config"
+            self.restore_config.path = str(new_path)
             trainer.strategy.restore_config = self.restore_config
             # Load artifacts
             if self.restore_config.load_artifacts:
