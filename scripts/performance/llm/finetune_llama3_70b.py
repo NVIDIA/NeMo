@@ -113,11 +113,7 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
-
-    if finetuning_scheme == "lora" and tp_size > 1:
+    if finetuning_scheme == "lora" and tp_size > 1 and args.compute_dtype.lower() == "fp8":
         tp_comm_overlap_cfg = (
             userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora
             if tp_size == 2
@@ -136,6 +132,14 @@ def override_recipe_configs(
 
             # Disable this overlap to allow skipping an all-gather which is redundant for LoRA
             recipe.model.config.tp_comm_overlap_disable_qkv = True
+
+            # Allow overlapping of dgrad reduce-scatter with dgrad GEMMs
+            # (instead of wgrad GEMMs which are not done when using LoRA)
+            recipe.model.config.tp_comm_bulk_dgrad = False
+            recipe.model.config.tp_comm_overlap_rs_dgrad = True
+
+    recipe.optim.config.use_distributed_optimizer = True
+    recipe.model.config.disable_parameter_transpose_cache = True
 
     return recipe
 
