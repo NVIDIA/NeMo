@@ -116,7 +116,7 @@ def main(args):
         # Data configuration
         data_config = ImageDataConfig(
             image_folder=args.image_folder,
-            conv_template="llava_llama_3",
+            conv_template="cosmos_megatron",
         )
 
         # Data module setup

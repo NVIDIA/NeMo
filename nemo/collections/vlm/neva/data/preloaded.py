@@ -424,7 +424,7 @@ class NevaDataset(LazySupervisedDataset):
 
                     record['image'] = []
                     for turn in record['conversations']:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                        matches = re.finditer(r"<img src=['\"]([^'\"]+)['\"]", turn['value'])
                         for match in matches:
                             image_name = match.group(1).split("/")[-1]
                             image_path = os.path.join(image_folder, image_name)
@@ -432,7 +432,7 @@ class NevaDataset(LazySupervisedDataset):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
                             record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
+                        turn['value'] = re.sub(r"<img src=['\"]([^'\"]+)['\"]", "<image>", turn['value'])
 
                     self.list_data_dict.append(record)
 
