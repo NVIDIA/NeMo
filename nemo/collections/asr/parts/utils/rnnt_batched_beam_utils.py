@@ -9,6 +9,12 @@ MULTIPLIER = 6364136223846793005
 INCREMENT = 1
 MODULUS = 2**64
 
+INACTIVE_SCORE = -float("inf")
+INIT_POINTER_VALUE = -1
+INIT_HASH_VALUE = 0
+INIT_PREFIX_HASH_VALUE = 0
+NON_EXISTENT_LABEL_VALUE = -1
+
 def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
     return prev_hash * MULTIPLIER + INCREMENT + add_labels
 
@@ -42,12 +48,12 @@ class BatchedBeamHyps:
         float_dtype: Optional[torch.dtype] = None,
         store_prefix_hashes: Optional[bool] = False
     ):
-        self.INACTIVE_SCORE = -float("inf")
-        self.INACTIVE_SCORE_TENSOR = torch.tensor(self.INACTIVE_SCORE, device=device, dtype=torch.float)
-        self.INIT_POINTER_VALUE = -1
-        self.INIT_HASH_VALUE = 0
-        self.INIT_PREFIX_HASH_VALUE = 0
-        self.NON_EXISTENT_LABEL_VALUE = -1
+        self.INACTIVE_SCORE = INACTIVE_SCORE
+        self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=torch.float)
+        self.INIT_POINTER_VALUE = INIT_POINTER_VALUE
+        self.INIT_HASH_VALUE = INIT_HASH_VALUE
+        self.INIT_PREFIX_HASH_VALUE = INIT_PREFIX_HASH_VALUE
+        self.NON_EXISTENT_LABEL_VALUE = NON_EXISTENT_LABEL_VALUE
         
         self.store_prefix_hashes = store_prefix_hashes
         self._max_length = init_length
