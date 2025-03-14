@@ -106,7 +106,7 @@ jobs:
           fi
 
           # Replace `bash some_file.sh` with its contents
-          SCRIPT=$(echo "$SCRIPT" | sed "s|bash $FILENAME|$FILE_CONTENT|")
+          SCRIPT=$(echo "$SCRIPT" | sed "s|bash $FILENAME|$FILE_CONTENT|g" | tr -d '\n')
           SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
           SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
           [[ "${SCRIPT: -1}" == ";" ]] && SCRIPT="${SCRIPT::-1}"
