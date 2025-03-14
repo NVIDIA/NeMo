@@ -407,9 +407,12 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
+        global_batch_split_range: Optional[Tuple[int, int]] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
         seed: int = 0,
     ) -> None:
+        assert global_batch_split_range is None, "`MegatronPretrainingRandomSampler` does not support global_batch_split_range!"
+
         super().__init__(
             total_samples=total_samples,
             consumed_samples=consumed_samples,
@@ -418,6 +421,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
             data_parallel_size=data_parallel_size,
             drop_last=drop_last,
             global_batch_size=global_batch_size,
+            global_batch_split_range=global_batch_split_range,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
         assert (
