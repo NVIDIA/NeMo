@@ -8,7 +8,7 @@ gdown
 h5py
 ijson
 jieba
-llama-index
+# llama-index==0.10.43
 markdown2
 matplotlib>=3.3.2
 megatron_core
