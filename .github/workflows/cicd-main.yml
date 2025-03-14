@@ -3272,7 +3272,7 @@ jobs:
       - L2_NeMo_2_VLLM_EXPORT
       - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
-      - L2_HF_Transformer_SFT_FSDP2_cpu
+      - L2_HF_Transformer_SFT_DDP_cpu
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     permissions: write-all
