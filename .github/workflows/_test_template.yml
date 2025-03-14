@@ -26,6 +26,11 @@ on:
         description: Failure will cancel all other tests if set to true
         required: false
         default: false
+      IS_UNIT_TEST:
+        type: boolean
+        description: Upload coverage as unit test
+        required: false
+        default: false
     outputs:
       conclusion:
         description: Conclusion of main test step
@@ -88,31 +93,11 @@ jobs:
         env:
           DIR: ${{ github.run_id }}
           SCRIPT: ${{ inputs.SCRIPT }}
+          IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
         id: create
         run: |
 
-          FILENAME=$(echo "$SCRIPT" | grep -Eo 'bash [^ ]+' | cut -d' ' -f2)
-
-          # Read the file content
-          if docker exec nemo_container_${{ github.run_id }} test -f "$FILENAME"; then
-              FILE_CONTENT=$(docker exec nemo_container_${{ github.run_id }} cat "$FILENAME")
-          else
-              FILE_CONTENT=""
-          fi
-
-          # Replace `bash some_file.sh` with its contents
-          SCRIPT=$(echo "$SCRIPT" | sed "s|bash $FILENAME|$(printf '%s\n' "$FILE_CONTENT" | sed 's/[\/&]/\\&/g' | sed ':a;N;$!ba;s/\n/\\n/g')|g")
-          SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
-          SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
-          [[ "${SCRIPT: -1}" == ";" ]] && SCRIPT="${SCRIPT::-1}"
-
-          if [[ "$SCRIPT" == *pytest* ]]; then
-              COVERAGE_PREFIX="unit-test"
-          else
-              COVERAGE_PREFIX="e2e"
-              SCRIPT=$(echo "$SCRIPT" | sed 's|python|coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo|g')
-
-          fi
+          COVERAGE_PREFIX=$([[ "$IS_UNIT_TEST" == "true" ]] && echo "unit-test" || echo "e2e")
           echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
 
           mkdir -p $DIR

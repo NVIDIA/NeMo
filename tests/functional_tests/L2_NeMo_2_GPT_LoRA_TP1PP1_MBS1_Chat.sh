@@ -1,4 +1,4 @@
-python tests/collections/llm/gpt_finetuning.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/gpt_finetuning.py \
     --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
     --devices 2 \
     --max_steps 3 \
@@ -9,7 +9,7 @@ python tests/collections/llm/gpt_finetuning.py \
     --mbs 1 \
     --dataset chat
 
-python tests/collections/llm/gpt_finetuning.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/gpt_finetuning.py \
     --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
     --devices 2 \
     --max_steps 6 \

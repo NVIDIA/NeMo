@@ -1,4 +1,4 @@
-python tests/collections/llm/gpt/model/test_hyena.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/gpt/model/test_hyena.py \
     --mock-data \
     --experiment-dir=tests/collections/llm/hyena_pretrain_results/$RUN_ID \
     --model-size=7b_nv \

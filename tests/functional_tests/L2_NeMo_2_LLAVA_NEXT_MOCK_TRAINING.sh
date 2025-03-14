@@ -1,4 +1,4 @@
-python tests/collections/vlm/test_llava_next_train.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/vlm/test_llava_next_train.py \
     --devices=1 \
     --max-steps=5 \
     --experiment-dir=/tmp/nemo2_llava_next_results/$RUN_ID

@@ -1,4 +1,4 @@
-python tests/collections/llm/megatron_t5_finetuning.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/megatron_t5_finetuning.py \
     --devices=2 \
     --max-steps=250 \
     --experiment-dir=tests/collections/llm/t5_finetune_results/$RUN_ID \

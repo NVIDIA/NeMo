@@ -1,6 +1,6 @@
-python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
-python scripts/llm/gpt_prune.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_prune.py \
   --restore_path /tmp/nemo2_ckpt \
   --legacy_ckpt \
   --tokenizer gpt2 \

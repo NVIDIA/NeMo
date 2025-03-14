@@ -145,6 +145,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
+      IS_UNIT_TEST: true
       # TODO: remove this hack
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_ASR.sh
@@ -156,6 +157,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Audio.sh
 
@@ -165,6 +167,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Common')
     with:
       RUNNER: self-hosted-azure-gpus-1
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Common.sh
 
@@ -174,6 +177,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_LLM')
     with:
       RUNNER: self-hosted-azure-gpus-1
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_LLM.sh
 
@@ -183,6 +187,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Multimodal')
     with:
       RUNNER: self-hosted-azure-gpus-1
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Multimodal.sh
 
@@ -192,6 +197,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_TTS')
     with:
       RUNNER: self-hosted-azure-gpus-1
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_TTS.sh
 
@@ -202,6 +208,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Core.sh
 
@@ -211,6 +218,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Hydra')
     with:
       RUNNER: self-hosted-azure-gpus-1
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Hydra.sh
 
@@ -220,6 +228,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Lightning')
     with:
       RUNNER: self-hosted-azure
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Lightning.sh
 
@@ -229,6 +238,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Others')
     with:
       RUNNER: self-hosted-azure-gpus-1
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Others.sh
 
@@ -240,6 +250,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_ASR.sh
 
@@ -249,6 +260,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Audio')
     with:
       RUNNER: self-hosted-azure-cpu
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Audio.sh
 
@@ -259,6 +271,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Common.sh
 
@@ -268,6 +281,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_LLM')
     with:
       RUNNER: self-hosted-azure-cpu
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_LLM.sh
 
@@ -277,6 +291,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Multimodal')
     with:
       RUNNER: self-hosted-azure-cpu
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Multimodal.sh
 
@@ -286,6 +301,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_TTS')
     with:
       RUNNER: self-hosted-azure-cpu
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_TTS.sh
 
@@ -296,6 +312,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Core.sh
 
@@ -305,6 +322,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Hydra')
     with:
       RUNNER: self-hosted-azure-cpu
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Hydra.sh
 
@@ -314,6 +332,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Lightning')
     with:
       RUNNER: self-hosted-azure-cpu
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Lightning.sh
 
@@ -323,6 +342,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Others')
     with:
       RUNNER: self-hosted-azure-cpu
+      IS_UNIT_TEST: true
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Others.sh
 

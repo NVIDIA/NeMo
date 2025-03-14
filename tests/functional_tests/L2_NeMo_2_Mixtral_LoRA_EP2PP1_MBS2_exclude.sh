@@ -1,8 +1,7 @@
-
-python tests/collections/llm/lora_mistralai.py \
---max-steps 3 \
---ep 1 \
---tp 2 \
---mbs 1 \
---model mixtral \
---use-exclude
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/lora_mistralai.py \
+    --max-steps 3 \
+    --ep 1 \
+    --tp 2 \
+    --mbs 1 \
+    --model mixtral \
+    --use-exclude

@@ -1,4 +1,4 @@
-python scripts/vlm/neva_pretrain.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/neva_pretrain.py \
     --devices=2 --data_type=mock --use_toy_model \
     --mbs=2 --gbs=4 --max_steps=4 \
     --pp=2 \

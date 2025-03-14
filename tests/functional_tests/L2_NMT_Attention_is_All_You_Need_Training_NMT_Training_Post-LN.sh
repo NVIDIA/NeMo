@@ -1,4 +1,4 @@
-python examples/nlp/machine_translation/enc_dec_nmt.py \
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/nlp/machine_translation/enc_dec_nmt.py \
   --config-path=conf \
   --config-name=aayn_base \
   do_testing=false \
@@ -25,8 +25,8 @@ python examples/nlp/machine_translation/enc_dec_nmt.py \
   trainer.precision=16 \
   +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
   +exp_manager.create_checkpoint_callback=true
-  
-python examples/nlp/machine_translation/enc_dec_nmt.py \
+
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/nlp/machine_translation/enc_dec_nmt.py \
   --config-path=conf \
   --config-name=aayn_base \
   do_testing=true \
