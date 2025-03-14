@@ -486,7 +486,7 @@ class CosineAnnealingScheduler(LRSchedulerModule):
             "monitor": self.monitor,
         }
 
-class WarmupHoldAnneal(LRSchedulerModule):
+class WarmupHoldAnnealScheduler(LRSchedulerModule):
     def __init__(
         self,
         warmup_ratio: Optional[float] = None,
