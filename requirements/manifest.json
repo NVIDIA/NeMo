@@ -11,7 +11,7 @@
         },
         "megatron-lm": {
             "repo": "https://github.com/NVIDIA/Megatron-LM",
-            "ref": "4827c5ee58a244a9dd80a87e3b49c6827c628c9f"
+            "ref": "aa6207e2da6bca789375f591c9124aa408d2509a"
         }
     },
     "pypi-dependencies": {}
