@@ -51,7 +51,7 @@ class T5TTS_Model_PrefDataGen(T5TTS_Model):
             topk = self.cfg.get('inference_topk', 80)
             use_cfg = self.cfg.get('inference_use_cfg', False)
             cfg_scale = self.cfg.get('inference_cfg_scale', 1.0)
-            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(
+            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, _ = self.infer_batch(
                 batch,
                 max_decoder_steps=self.cfg.get('max_decoder_steps', 500),
                 temperature=temperature,
@@ -466,7 +466,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
             use_cfg = random.random() < self.cfg.inference_cfg_prob
             cfg_scale = self.cfg.get('inference_cfg_scale', 1.0)
         print("use_cfg", use_cfg)
-        predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(
+        predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, _ = self.infer_batch(
             batch_repeated,
             max_decoder_steps=self.cfg.get('max_decoder_steps', 430),
             temperature=temperature,

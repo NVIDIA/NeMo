@@ -41,7 +41,7 @@ def run_inference(
         batch_size, 
         sv_model, 
         asr_model_name, 
-        num_repeats=1
+        num_repeats=1,
         apply_attention_prior=False,
         attention_prior_epsilon=1e-3,
         attention_prior_lookahead_window=10,
