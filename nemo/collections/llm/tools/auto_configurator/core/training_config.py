@@ -35,7 +35,8 @@ def generate_grid_search_configs(
     base_cfg: dict,
     train_cfg: dict,
 ) -> Tuple[dict, dict]:
-    """Generates the grid of all possible configurations for the given model, and stores each different configuration in a yaml file.
+    """Generates the grid of all possible configurations for the given model,
+        and stores each different configuration in a yaml file.
 
     Args:
         base_cfg (dict): base configuration of the model to be trained.
@@ -132,6 +133,8 @@ def generate_grid_search_configs(
                 "model_name": model_name,
                 "model_size": model_size_in_b,
             }
+
+            act_layers = None
             if act_ckpt_layers[0] is not None:
                 if act_layers is not None and act_layers != "auto":
                     act_ckpt_layers = act_layers
@@ -243,6 +246,8 @@ class GPT3GridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
+        """Initialize model parallelism parameters"""
+
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
@@ -557,9 +562,10 @@ class T5GridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
+        """Initialize model parallelism parameters"""
+
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
-        seq_length = self.seq_length
 
         if gpu_memory_gb == 80:
             if model_size_in_b <= 1.0:
@@ -697,9 +703,10 @@ class BertGridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
+        """Initialize model parallelism parameters"""
+
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
-        seq_length = self.seq_length
 
         if gpu_memory_gb == 80:
             if model_size_in_b <= 1.0:
@@ -813,7 +820,8 @@ def _calculate_tp_pp_mbs_grid(
     seq_length: int,
     train_cfg: dict,
 ) -> Tuple[int, int, int]:
-    """Selects grid search space for TP, PP, MBS parameters for any model, and calls the necessary heuristics function accordingly.
+    """Selects grid search space for TP, PP, MBS parameters for any model,
+        and calls the necessary heuristics function accordingly.
 
     Args:
         model_size_in_b (float): number of parameters in the model.

@@ -29,7 +29,8 @@ GPT_BASED_MODELS = [
 
 @dataclass
 class ModelSizeParams:
-    """Calculates the parameters that affect model_size: hidden size, attention heads, KV channels, and FFN size. It also calculates the learning rate.
+    """Calculates the parameters that affect model_size: hidden size, attention heads,
+        KV channels, and FFN size. It also calculates the learning rate.
 
     Args:
         model_size_in_b (float): number of parameters in the desired model config, in billions.
@@ -56,6 +57,7 @@ class ModelSizeParams:
     lr: float = None
 
     def init_params(self):
+        "Initialize model architecure."
         model_name = self.model_name
         model_size_in_b = self.model_size_in_b
         if model_name in GPT_BASED_MODELS:
@@ -390,12 +392,14 @@ def modify_cfg(
     path_to_logs: str,
     model_size,
 ) -> dict:
-    """Modify the base configuration for the model with the new parameters that are specific to the current model, which the Auto Configurator tool heuristics selected.
+    """Modify the base configuration for the model with the new parameters that are specific to the current model, 
+        which the Auto Configurator tool heuristics selected.
 
     Args:
         base_cfg (dict): base configuration for the current model, which will be modified in this function.
         act (int): number of activation checkpointing layers to use for the model.
-        num_mbs_act (int): sets the number of micro-batches where only a partial number of Transformer layers get checkpointed and recomputed within a window of micro-batches.
+        num_mbs_act (int): sets the number of micro-batches where only a partial number of Transformer layers 
+            get checkpointed and recomputed within a window of micro-batches.
         act_per_pipe (int): sets the number of Transformer layers to skip checkpointing at later pipeline stages.
         tp (int): Tensor Parallelism (TP) value to be set for the model.
         pp (int): Pipeline Parallelism (PP) value to be set for the model.
@@ -451,10 +455,12 @@ def modify_cfg(
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
         new_cfg["name"] = (
-            f"{model_name}_{str(model_size)}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}"
+            f"{model_name}_{str(model_size)}b_{num_nodes}nodes_"
+            f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}"
         )
         print(
-            f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, VP={virtual_pipelines}. Adding to directory."
+            f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, "
+            f"VP={virtual_pipelines}. Adding to directory."
         )
         return new_cfg
     return None

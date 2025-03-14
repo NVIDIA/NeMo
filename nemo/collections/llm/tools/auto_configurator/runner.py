@@ -18,7 +18,6 @@ import re
 from collections import OrderedDict
 from typing import List, Optional
 
-from nemo.collections.llm import GPTModel
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
 from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
@@ -68,13 +67,18 @@ class AutoConfigurator:
             recipe (Partial): recipe to be used for training.
             path_to_logs (str): path to the directory where the logs will be stored.
             gpu_memory_gb (Optional[int]): memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
-            tensor_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-            pipeline_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
-            micro_batch_sizes (Optional[List[int]]): set to "auto" to use our recommendation, or a list, such as [1, 2, 4, 8].
+            tensor_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
+                or a list, such as [1, 2, 4, 8].
+            pipeline_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
+                or a list, such as [1, 2, 4, 8].
+            micro_batch_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
+                or a list, such as [1, 2, 4, 8].
             context_parallel_sizes (Optional[List[int]]): model context parallel size. A list, such as [1, 2, 4, 8].
             expert_parallel_sizes (Optional[List[int]]): model expert parallel size. A list, such as [1, 2, 4, 8].
-            min_model_parallel_size (Optional[int]): set to "auto" to use our recommendation, or a value for the minimum desired parallelism.
-            max_model_parallel_size (Optional[int]): set to "auto" to use our recommendation, or a value for the maximum desired parallelism.
+            min_model_parallel_size (Optional[int]): set to "auto" to use our recommendation,
+                or a value for the minimum desired parallelism.
+            max_model_parallel_size (Optional[int]): set to "auto" to use our recommendation,
+                or a value for the maximum desired parallelism.
             num_tokens_in_b (Optional[int]): number of tokens in billions in train dataset.
             tflops_per_gpu (Optional[int]): estimated tflops per GPU.
             max_minutes_per_run (Optional[int]): maximum number of minutes per run for the grid search.
@@ -105,7 +109,7 @@ class AutoConfigurator:
                 16384,
                 32768,
             ], "Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768]."
-        assert path_to_logs, f"path_to_logs parameter must be specified."
+        assert path_to_logs, "path_to_logs parameter must be specified."
 
         self.num_gpus = recipe.trainer.devices
         self.num_nodes = recipe.trainer.num_nodes
