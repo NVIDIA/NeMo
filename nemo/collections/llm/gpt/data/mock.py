@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import lightning.pytorch as pl
 import numpy as np
@@ -35,7 +35,7 @@ class MockDataModule(pl.LightningDataModule):
         self,
         seq_length: int = 2048,
         tokenizer: Optional["TokenizerSpec"] = None,
-        micro_batch_size: int = 4,
+        micro_batch_size: Union[int, List[int]] = 4,
         global_batch_size: int = 8,
         cu_global_batch_splits: Optional[List[int]] = None,
         rampup_batch_size: Optional[List[int]] = None,

@@ -14,7 +14,7 @@
 
 import dataclasses
 import logging
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
@@ -37,7 +37,7 @@ class MegatronDataSampler(DataSampler):
     def __init__(
         self,
         seq_len: int,
-        micro_batch_size: int = 4,
+        micro_batch_size: Union[int, List[int]] = 4,
         global_batch_size: int = 8,
         cu_global_batch_splits: Optional[List[int]] = None,
         rampup_batch_size: Optional[List[int]] = None,
@@ -47,6 +47,19 @@ class MegatronDataSampler(DataSampler):
         output_log: bool = True,
         decoder_seq_len: Optional[int] = None,
     ):
+        """
+        Args:
+            micro_batch_size: int or list of ints, default is 4.
+                The size of the micro-batch to use for each GPU. An int config means the same value for all GPUs.
+                If a list is provided, the size will be different for each GPU. For example, in multi-dataceter
+                running, GPUs of each dataceter can have different micro-batch sizes.
+            cu_global_batch_splits: list of ints, default is None.
+                Cumulative global batch size splits for multiple GPU world ranges. This is to support cases where
+                GPU world size is split into multiple ranges, which are collection of same or different GPUs (e.g.,
+                multi-datacenters). Global batch size is split and assigned to each range.
+                For example, with 2 GPU ranges/datacenters and global_batch_size=16, cu_global_batch_splits can be
+                [0, 4, 16], or [0, 8, 16], etc. [0, 4, 16] means global batch split of 4 and 8 for each range.
+        """
         self.seq_len = seq_len
         self.decoder_seq_len = decoder_seq_len
         self.output_log = output_log
@@ -69,17 +82,28 @@ class MegatronDataSampler(DataSampler):
         self.data_parallel_rank = parallel_state.get_data_parallel_rank()
         self.data_parallel_size = parallel_state.get_data_parallel_world_size()
         self.global_batch_split_range = None
+        assert (
+            isinstance(self.micro_batch_size, int) or self.cu_global_batch_splits is not None
+        ), f"micro_batch_size: {self.micro_batch_size} can be a list only when cu_global_batch_splits is provided!"
+
         if self.cu_global_batch_splits is not None:
-            # assume GPU world size consists of len(cu_global_batch_splits) split ranges,
-            # and all ranges have same number of GPUs
+            # calculate DP info and global batch split range for the split range where the current GPU belongs to,
+            # GPU world size consists of len(cu_global_batch_splits) split ranges, assuming all ranges have same
+            # number of GPUs and same parallelism config.
+            num_world_size_split_ranges = len(self.cu_global_batch_splits) - 1
+            self.data_parallel_size = self.data_parallel_size // num_world_size_split_ranges
+            world_size_split_range_id = self.data_parallel_rank // self.data_parallel_size
+            self.data_parallel_rank = self.data_parallel_rank % self.data_parallel_size
+
+            if isinstance(self.micro_batch_size, list):
+                assert (
+                    len(self.micro_batch_size) == num_world_size_split_ranges
+                ), f"The length of micro_batch_size: {self.micro_batch_size} should be same as the number of world size split ranges: {num_world_size_split_ranges}!"
+                self.micro_batch_size = self.micro_batch_size[world_size_split_range_id]
+
             assert (
                 self.cu_global_batch_splits[0] == 0 and self.cu_global_batch_splits[-1] == self.global_batch_size
             ), f"cu_global_batch_splits: {self.cu_global_batch_splits} should start with 0 and end with {self.global_batch_size}!"
-
-            # calculate DP info and global batch split range for the split range where the current GPU belongs to
-            self.data_parallel_size = self.data_parallel_size // (len(self.cu_global_batch_splits) - 1)
-            world_size_split_range_id = self.data_parallel_rank // self.data_parallel_size
-            self.data_parallel_rank = self.data_parallel_rank % self.data_parallel_size
             self.global_batch_split_range = (
                 self.cu_global_batch_splits[world_size_split_range_id],
                 self.cu_global_batch_splits[world_size_split_range_id+1],
