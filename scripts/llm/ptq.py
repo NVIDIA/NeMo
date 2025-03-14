@@ -143,7 +143,7 @@ def main():
     )
 
     llm.ptq(
-        nemo_checkpoint=args.nemo_checkpoint,
+        model_path=args.nemo_checkpoint,
         export_config=export_config,
         calibration_tp=args.calibration_tp,
         calibration_pp=args.calibration_pp,

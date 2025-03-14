@@ -443,7 +443,7 @@ def distill(
 
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
-    nemo_checkpoint: str,
+    model_path: str,
     export_config: ExportConfig,
     calibration_tp: int = 1,
     calibration_pp: int = 1,
@@ -484,7 +484,7 @@ def ptq(
     ```
 
     Args:
-        nemo_checkpoint (str): The path to model to be quantized.
+        model_path (str): The path to model to be quantized.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         num_layers_in_first_pipeline_stage (int): Number of layers in the first pipeline stage.
@@ -510,18 +510,18 @@ def ptq(
         num_nodes = calibration_pp
 
     quantizer = Quantizer(quantization_config, export_config)
-    assert Path(nemo_checkpoint).exists(), f"Path {nemo_checkpoint} does not exist"
-    is_automodel = (Path(nemo_checkpoint) / 'config.json').exists()
+    assert Path(model_path).exists(), f"Path {model_path} does not exist"
+    is_automodel = (Path(model_path) / 'config.json').exists()
 
     trainer = None
     if is_automodel:
         assert export_config.export_format != "nemo", "Automodel PTQ does not support export format nemo"
-        model = HFAutoModelForCausalLM(model_name=nemo_checkpoint, trust_remote_code=trust_remote_code)
+        model = HFAutoModelForCausalLM(model_name=model_path, trust_remote_code=trust_remote_code)
         model.configure_model()
     else:
         assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
         model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
-            model_path=nemo_checkpoint,
+            model_path=model_path,
             tensor_model_parallel_size=calibration_tp,
             pipeline_model_parallel_size=calibration_pp,
             num_layers_in_first_pipeline_stage=num_layers_in_first_pipeline_stage,
@@ -537,7 +537,7 @@ def ptq(
         )
 
     model = quantizer.quantize(model, forward_loop)
-    quantizer.export(model, nemo_checkpoint, trainer)
+    quantizer.export(model, model_path, trainer)
 
     if is_global_rank_zero():
         console = Console()

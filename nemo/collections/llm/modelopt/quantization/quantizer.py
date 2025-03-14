@@ -50,7 +50,7 @@ if HAVE_MODELOPT:
         "int4_awq": mtq.INT4_AWQ_CFG,
         "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
         "int4": mtq.INT4_BLOCKWISE_WEIGHT_ONLY_CFG,
-        # "nvfp4": mtq.NVFP4_DEFAULT_CFG,
+        "nvfp4": mtq.NVFP4_DEFAULT_CFG,
     }
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
@@ -364,7 +364,6 @@ class Quantizer:
         elif self.export_config.export_format == "hf":
             assert is_automodel, "HF export is only supported for AutoModelForCausalLM"
             unwrapped_model = unwrap_for_modelopt_operations(model)
-            breakpoint()
             with torch.inference_mode():
                 export_hf_checkpoint(
                     unwrapped_model,
