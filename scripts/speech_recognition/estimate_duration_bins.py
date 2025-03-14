@@ -120,6 +120,5 @@ def main():
     print(f"\tmax_duration={observed_max_dur}")
 
 
-
 if __name__ == "__main__":
     main()

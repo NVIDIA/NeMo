@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 
-import os
 import hydra
 import torch
 from lightning.pytorch import Callback, Trainer
