@@ -105,10 +105,12 @@ geglu_fprop.register_autograd(backward, setup_context=setup_context)
 
 
 def geglu(x_and_gate):
-    if x_and_gate.is_cuda \
-            and x_and_gate.dtype == torch.float16 \
-            and x_and_gate.shape[-1] // 2 in [1280, 2560, 5120] \
-            and x_and_gate.is_contiguous():
+    if (
+        x_and_gate.is_cuda
+        and x_and_gate.dtype == torch.float16
+        and x_and_gate.shape[-1] // 2 in [1280, 2560, 5120]
+        and x_and_gate.is_contiguous()
+    ):
         return geglu_fprop(x_and_gate)
     else:
         warnings.warn("Fast GeGLU is not applied. Falling back to the PyTorch.", UserWarning)
