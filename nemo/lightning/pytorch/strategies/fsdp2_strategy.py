@@ -49,7 +49,9 @@ except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
     from torch.distributed._tensor.placement_types import Shard
 
-MixedPrecisionPolicy = safe_import_from("torch.distributed._composable.fsdp", "MixedPrecisionPolicy")
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
+)
 
 
 _logger = _logging.getLogger(__name__)
@@ -97,6 +99,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.checkpoint = None
         self.mp_policy = mp_policy
         if self.mp_policy is None:
+            assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
             self.mp_policy = MixedPrecisionPolicy(
                 param_dtype=torch.bfloat16,
                 reduce_dtype=torch.bfloat16,
@@ -186,6 +189,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # Parallelize model
         if getattr(self, '_init_model_parallel', True):
             self.parallelize()
+        # Corner case, as FSDP2 expected to be used multi-device.
+        if self._data_parallel_size == 1:
+            self._lightning_module = self._lightning_module.to(self.root_device)
+
         # setup optim
         if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
             super().setup_optimizers(trainer)
