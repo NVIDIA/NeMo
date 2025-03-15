@@ -51,8 +51,8 @@ jobs:
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
-  test-installs-linux-x86_64:
-    name: ${{ matrix.os }}-${{ matrix.image }}-${{ matrix.installer }}
+  test-installs-linux-amd:
+    name: ubuntu-22.04-amd-py${{ matrix.python }}-${{ matrix.installer }}
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -87,8 +87,8 @@ jobs:
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
-  test-installs-linux-arm64:
-    name: ${{ matrix.os }}-${{ matrix.image }}-${{ matrix.installer }}
+  test-installs-linux-arm:
+    name: ubuntu-22.04-arm-py${{ matrix.python }}-${{ matrix.installer }}
     runs-on: ubuntu-22.04-arm
     strategy:
       fail-fast: false
