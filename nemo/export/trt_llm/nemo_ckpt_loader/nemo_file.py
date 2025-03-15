@@ -43,6 +43,31 @@ except (ImportError, ModuleNotFoundError):
 LOGGER = logging.getLogger("NeMo")
 EXTRA_STATE = "extra_state"
 
+try:
+    from megatron.core.dist_checkpointing.strategies.torch import MCoreSavePlan
+except (ImportError, ModuleNotFoundError):
+    LOGGER.warning(
+        "Mocking megatron.core is not available, mocking megatron.core.dist_checkpointing.strategies.torch with dummy module"
+    )
+    import sys
+    import types
+
+    def dummy_getattr(name):
+        """Dummy getter for megatron.core."""
+
+        class _Dummy:
+            pass
+
+        return _Dummy
+
+    megatron = types.ModuleType('megatron')
+    megatron.__getattr__ = dummy_getattr
+    sys.modules['megatron'] = megatron
+    sys.modules['megatron.core'] = megatron
+    sys.modules['megatron.core.dist_checkpointing'] = megatron
+    sys.modules['megatron.core.dist_checkpointing.strategies'] = megatron
+    sys.modules['megatron.core.dist_checkpointing.strategies.torch'] = megatron
+
 
 def load_extra_state_from_bytes(val: Optional[Union[torch.Tensor, BytesIO]]) -> Optional[dict]:
     """Loads single extra_state from bytes storage.
