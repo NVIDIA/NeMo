@@ -1099,13 +1099,21 @@ def _validate_config(
         assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
     # Data validation
-    assert data.micro_batch_size > 0
     assert data.global_batch_size > 0
     assert data.seq_length > 0
-
-    assert (
-        data.global_batch_size % data.micro_batch_size == 0
-    ), "Global batch size must be divisible by micro batch size in data module."
+    if isinstance(data.micro_batch_size, list):
+        assert data.cu_global_batch_splits is not None
+        gbs_splits = data.cu_global_batch_splits[1:] - data.cu_global_batch_splits[:-1]
+        assert len(data.micro_batch_size) == len(gbs_splits)
+        for mbs, gbs_split in zip(data.micro_batch_size, gbs_splits):
+            assert mbs > 0
+            assert (gbs_split % mbs == 0), \
+                f"Global batch size split {gbs_split} must be divisible by its corresponding micro batch size {mbs}"
+    else:
+        assert data.micro_batch_size > 0
+        assert (
+            data.global_batch_size % data.micro_batch_size == 0
+        ), "Global batch size must be divisible by micro batch size in data module."
 
     # Trainer validation
 
@@ -1123,21 +1131,39 @@ def _validate_config(
             * trainer.strategy.context_parallel_size
         ) == 0, "Number of GPUs must be divisible by the product of all parallelism sizes for data parallel."
 
-        assert (
-            data.global_batch_size
-            % (
-                data.micro_batch_size
-                * (
-                    (trainer.num_devices * trainer.num_nodes)
-                    / (
-                        trainer.strategy.tensor_model_parallel_size
-                        * trainer.strategy.pipeline_model_parallel_size
-                        * trainer.strategy.context_parallel_size
+        if isinstance(data.micro_batch_size, list):
+            for mbs, gbs_split in zip(data.micro_batch_size, gbs_splits):
+                assert (
+                    gbs_split
+                    % (
+                        mbs
+                        * (
+                            (trainer.num_devices * trainer.num_nodes)
+                            / (
+                                trainer.strategy.tensor_model_parallel_size
+                                * trainer.strategy.pipeline_model_parallel_size
+                                * trainer.strategy.context_parallel_size
+                            )
+                        )
+                    )
+                    == 0
+                ), "Global batch size split must be divisible by the product of its corresponding micro batch size and data parallel size"
+        else:
+            assert (
+                data.global_batch_size
+                % (
+                    data.micro_batch_size
+                    * (
+                        (trainer.num_devices * trainer.num_nodes)
+                        / (
+                            trainer.strategy.tensor_model_parallel_size
+                            * trainer.strategy.pipeline_model_parallel_size
+                            * trainer.strategy.context_parallel_size
+                        )
                     )
                 )
-            )
-            == 0
-        ), "Global batch size must be divisible by the product of micro batch size and data parallel size"
+                == 0
+            ), "Global batch size must be divisible by the product of micro batch size and data parallel size"
 
         # TP/SP validation
         if trainer.strategy.tensor_model_parallel_size == 1:
