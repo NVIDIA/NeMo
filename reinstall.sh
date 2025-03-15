@@ -176,6 +176,7 @@ nemo() {
   fi
 
   DEPS=(
+    "cython"
     "sox"                                                                                      # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
     "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
     "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
@@ -189,7 +190,6 @@ nemo() {
   fi
 
   echo 'Installing dependencies of nemo'
-  pip install --no-cache-dir --upgrade cython
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
 
