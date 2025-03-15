@@ -48,6 +48,6 @@ EOF
 
 # Copy over NeMo code
 COPY --from=nemo-bump /opt/NeMo /opt/NeMo
-RUN /opt/NeMo && pip install -e '.[all]'
+RUN cd /opt/NeMo && pip install -e '.[all]'
 
 
