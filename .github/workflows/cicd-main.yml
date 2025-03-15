@@ -1596,7 +1596,7 @@ jobs:
         rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_DDP_cpu:
-    needs: [pre-flight, build-gpu-container]
+    needs: [pre-flight, build-cpu-container]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_FSDP2_2gpu')
     with:
