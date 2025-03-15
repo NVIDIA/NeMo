@@ -56,6 +56,7 @@ class AppState(metaclass=Singleton):
         self._encoder_pipeline_model_parallel_size = None
         self._pipeline_model_parallel_group = None
         self._pipeline_model_parallel_split_rank = None
+        self._pipeline_model_parallel_comm_backend = None
         self._is_megatron_initialized = False
         self._data_parallel_size = None
         self._data_parallel_group = None
@@ -239,6 +240,22 @@ class AppState(metaclass=Singleton):
             size (int):  Number of GPUs in each model parallel group.
         """
         self._pipeline_model_parallel_size = size
+
+    @property
+    def pipeline_model_parallel_comm_backend(self):
+        """Property returns the backend communication library of pipeline communication.
+        Returns:
+            Backend communication library of pipeline communication.
+        """
+        return self._pipeline_model_parallel_comm_backend
+
+    @pipeline_model_parallel_comm_backend.setter
+    def pipeline_model_parallel_comm_backend(self, backend):
+        """Property sets the backend communication library of pipeline communication.
+        Args:
+            backend (str): Backend communication library of pipeline communication.
+        """
+        self._pipeline_model_parallel_comm_backend = backend
 
     @property
     def encoder_tensor_model_parallel_size(self):
@@ -458,7 +475,8 @@ class AppState(metaclass=Singleton):
 
     @property
     def pipeline_model_parallel_split_rank(self):
-        """Property returns the rank at which Encoder and Decoder are split into different pipelines for Megatrron Encoder-Decoder models.
+        """Property returns the rank at which Encoder and Decoder are split into different pipelines for
+        Megatrron Encoder-Decoder models.
         Returns:
             Pipeline model parallel split rank.
         """
@@ -466,7 +484,8 @@ class AppState(metaclass=Singleton):
 
     @pipeline_model_parallel_split_rank.setter
     def pipeline_model_parallel_split_rank(self, rank):
-        """Property sets the rank at which Encoder and Decoder are split into different pipelines for Megatrron Encoder-Decoder models.
+        """Property sets the rank at which Encoder and Decoder are split into different pipelines for
+        Megatron Encoder-Decoder models.
         Args:
             rank (int): Model parallel split rank.
         """
