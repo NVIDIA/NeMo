@@ -73,13 +73,8 @@ jobs:
           INSTALLER: ${{ matrix.installer }}
         run: |
           if [ "$INSTALLER" = "pip-install" ]; then
-            pip install --upgrade pip pip-tools
-            echo "$(pwd)/.[all]" > req.in
-            echo "pyzmq==26.3.0" >> req.
-            
-            pip-compile -v -o req_out.txt req.in
-            cat req_out.txt
-            pip install -v ".[all]"
+            pip install --upgrade 
+            pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
             bash reinstall.sh --library all --mode install
