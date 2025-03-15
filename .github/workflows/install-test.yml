@@ -73,7 +73,7 @@ jobs:
           INSTALLER: ${{ matrix.installer }}
         run: |
           if [ "$INSTALLER" = "pip-install" ]; then
-            pip install --upgrade 
+            pip install --upgrade pip
             pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
