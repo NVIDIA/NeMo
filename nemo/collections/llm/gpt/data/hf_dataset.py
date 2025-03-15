@@ -463,6 +463,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
     def __init__(self, tokenizer, dataset_name="Rowan/hellaswag", *args, **kwargs):
         tokenizer = tokenizer.tokenizer
         tokenizer.pad_token = tokenizer.eos_token
+        self.pad_token_id = tokenizer.eos_token_id
         dataset = load_dataset(dataset_name)
         super().__init__(preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
 
@@ -489,6 +490,8 @@ class SquadHFDataModule(HFDatasetDataModule):
         """
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.pad_token_id = self.tokenizer.eos_token_id
 
     def formatting_prompts_func(self, example):
         """
