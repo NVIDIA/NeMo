@@ -143,6 +143,18 @@ jobs:
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
+  test-audio-collection:
+    uses: ./.github/workflows/cicd-main-audio.yml
+    needs: [pre-flight, cicd-test-container-build]
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  test-tts-collection:
+    uses: ./.github/workflows/cicd-main-tts.yml
+    needs: [pre-flight, cicd-test-container-build]
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
   test-others:
     uses: ./.github/workflows/cicd-main-others.yml
     needs: [pre-flight, cicd-test-container-build]
@@ -154,6 +166,8 @@ jobs:
       - pre-flight
       - cicd-import-tests
       - test-asr-collection
+      - test-audio-collection
+      - test-tts-collection
       - test-others
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
