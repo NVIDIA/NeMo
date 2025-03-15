@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.lightning.pytorch.callbacks.chakra import ChakraCallback
 from nemo.lightning.pytorch.callbacks.ddp_parity_checker import DdpParityChecker
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
@@ -32,6 +33,7 @@ __all__ = [
     "ModelTransform",
     "PEFT",
     "NsysCallback",
+    "ChakraCallback",
     "MegatronProgressBar",
     "ProgressPrinter",
     "PreemptionCallback",
