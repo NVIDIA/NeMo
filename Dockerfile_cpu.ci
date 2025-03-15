@@ -54,7 +54,6 @@ cd /opt/NeMo && pip install -e '.[all]'
 
 # Copy into workspace
 cp -a /opt/NeMo/. /workspace/
-cp -r /opt/Megatron-LM/ /workspace/
 
 # set permission
 chmod 777 -R /workspace
