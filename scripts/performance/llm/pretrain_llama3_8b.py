@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+from typing import List, Union
 
 import nemo_run as run
 
@@ -27,7 +28,7 @@ from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_prima
 def override_recipe_configs(
     args: str,
     num_nodes: int,
-    mbs: int,
+    mbs: Union[int, List[int]],
     gbs: int,
     tp_size: int,
     pp_size: int,
@@ -64,7 +65,7 @@ def override_recipe_configs(
     )
 
     # data module configs
-    recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
+    recipe.data.num_train_samples = args.max_steps * gbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
 
     # compute dtype configs
@@ -89,7 +90,11 @@ if __name__ == "__main__":
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{gbs}gbs"
+    if isinstance(mbs, int):
+        exp_config += f"_{mbs}mbs"
+    else:
+        exp_config += f"_{'-'.join(str(mbs) for mbs in mbs)}mbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
