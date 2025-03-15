@@ -104,17 +104,6 @@ jobs:
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Others.sh
 
-  # L0: CPU unit tests
-  L0_Unit_Tests_CPU_ASR:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_CPU_ASR')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 20
-      IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_ASR.sh
-
   L0_Unit_Tests_CPU_Audio:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_CPU_Audio')
@@ -215,68 +204,6 @@ jobs:
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} 
         bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3.sh
-
-  # L2: ASR dev run
-  ASR_dev_run_Speech_to_Text:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} 
-        bash tests/functional_tests/ASR_dev_run_Speech_to_Text.sh
-
-  ASR_dev_run_Speech_to_Text_WPE_CitriNet:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_CitriNet')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} 
-        bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_CitriNet.sh
-
-  ASR_dev_run_Speech_Pre-training_-_CitriNet:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_Pre-training_-_CitriNet')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_Pre-training_-_CitriNet.sh
-
-  Optional_ASR_dev_run_Speech_To_Text_Finetuning:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_Finetuning')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Optional_ASR_dev_run_Speech_To_Text_Finetuning.sh
-      IS_OPTIONAL: true
-
-  Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning.sh
-      IS_OPTIONAL: true
-
-  ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_-_Conformer')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_-_Conformer.sh
-
-  # L2: ASR dev run - part two
-  ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer.sh
 
   L2_Speech_to_Text_EMA:
     uses: ./.github/workflows/_test_template.yml
