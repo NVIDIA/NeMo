@@ -49,7 +49,9 @@ from nemo.lightning.pytorch.strategies.utils import (
     pyt_to_mcore_state_dict,
     setup_data_sampler,
     setup_parallel_ranks,
+    warmup_torch_dist,
 )
+from nemo.utils.inprocess_restart import get_prefix_store
 
 _logger = logging.getLogger(__name__)
 
@@ -88,7 +90,10 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
+
+        # Used for in process restart
         self.store: Optional[torch.distributed.Store] = None
+        self.inprocess_call_wrapper = None
 
     @override
     def setup_environment(self) -> None:
@@ -114,9 +119,16 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
         os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
         _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+
+        store = self.store
+        if self.inprocess_call_wrapper is not None:
+            assert self.store is not None
+            store = get_prefix_store(store, self.inprocess_call_wrapper)
+
         torch.distributed.init_process_group(
-            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=store
         )
+        warmup_torch_dist(self.root_device)
 
         if self._process_group_backend == "nccl":
             atexit.register(_destroy_dist_connection)
