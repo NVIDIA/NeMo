@@ -91,10 +91,10 @@ if __name__ == "__main__":
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{gbs}gbs"
-    if isinstance(mbs, int):
-        exp_config += f"_{mbs}mbs"
-    else:
+    if isinstance(mbs, list):
         exp_config += f"_{'-'.join(str(mbs) for mbs in mbs)}mbs"
+    else:
+        exp_config += f"_{mbs}mbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
