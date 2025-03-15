@@ -23,11 +23,11 @@ on:
 jobs:
   L0_Unit_Tests_GPU_ASR:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_ASR')
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
       IS_UNIT_TEST: true
+      NAME: L0_Unit_Tests_GPU_ASR
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_ASR.sh
 
@@ -38,6 +38,7 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
       IS_UNIT_TEST: true
+      NAME: L0_Unit_Tests_CPU_ASR
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_ASR.sh
 

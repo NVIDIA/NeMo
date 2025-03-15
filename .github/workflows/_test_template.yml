@@ -3,6 +3,10 @@ name: ~test template
 on:
   workflow_call:
     inputs:
+      NAME:
+        type: string
+        description: Name of test
+        required: false
       RUNNER:
         type: string
         description: Runner to use for test
@@ -43,6 +47,8 @@ on:
         value: ${{ jobs.main.outputs.potential_infra_failure }}
 jobs:
   main:
+    if: inputs.test_to_run == '' || contains(fromJSON(inputs.test_to_run), inputs.NAME)
+    name: ${{ inputs.NAME }}
     runs-on: ${{ inputs.RUNNER }}
     outputs:
       conclusion: ${{ steps.check.conclusion }}
