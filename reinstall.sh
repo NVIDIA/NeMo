@@ -189,6 +189,7 @@ nemo() {
   fi
 
   echo 'Installing dependencies of nemo'
+  pip install --no-cache-dir --upgrade cython
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
 
