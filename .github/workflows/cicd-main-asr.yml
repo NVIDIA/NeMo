@@ -116,3 +116,247 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer.sh
+
+  # L2: Community llava multimodal Checkpoints tests
+  L2_Community_vita_Checkpoints_tests_Llama3:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Community_vita_Checkpoints_tests_Llama3')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} 
+        bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3.sh
+
+  L2_Speech_to_Text_EMA:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_to_Text_EMA')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_to_Text_EMA.sh
+
+  L2_Speech_to_Text_AED:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_to_Text_AED')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_to_Text_AED.sh
+
+  # L2: Speaker dev run
+  L2_Speaker_dev_run_Speaker_Recognition:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Recognition')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Recognition.sh
+
+  L2_Speaker_dev_run_Speaker_Diarization:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Diarization.sh
+
+  L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer.sh
+
+  L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference.sh
+
+  L2_Speaker_dev_run_Speech_to_Label:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speech_to_Label')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speech_to_Label.sh
+
+  L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference.sh
+
+  L2_Speaker_dev_run_Clustering_Diarizer_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Clustering_Diarizer_Inference')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Clustering_Diarizer_Inference.sh
+
+  L2_Speaker_dev_run_Neural_Diarizer_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Neural_Diarizer_Inference')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Neural_Diarizer_Inference.sh
+
+  L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation.sh
+
+  # L2: ASR Multi-dataloader dev run
+  L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader.sh
+
+  L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader.sh
+
+  # L2: ASR Adapters
+  L2_ASR_Adapters_Linear_Adapters:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Adapters_Linear_Adapters')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Adapters_Linear_Adapters.sh
+
+  L2_ASR_Adapters_RelPos_MHA_Adapters:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Adapters_RelPos_MHA_Adapters')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_ASR_Adapters_RelPos_MHA_Adapters.sh
+
+  # L2: OOMptimizer
+  L2_Speech_Estimate_Duration_Bins:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Estimate_Duration_Bins')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Estimate_Duration_Bins.sh
+
+  # L2: OOMptimizer
+  L2_Speech_Batch_Size_OOMptimizer:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Batch_Size_OOMptimizer.sh
+
+  # L2: OOMptimizer Canary (has a different batch schema)
+  Optional_L2_Speech_Batch_Size_OOMptimizer_Canary:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'Optional_L2_Speech_Batch_Size_OOMptimizer_Canary')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Optional_L2_Speech_Batch_Size_OOMptimizer_Canary.sh
+      IS_OPTIONAL: true
+
+  # L2: Speech Transcription
+  L2_Speech_Transcription_Speech_to_Text_Transcribe:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Speech_to_Text_Transcribe')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Speech_to_Text_Transcribe.sh
+
+  # L2: Speech Transcription
+  L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_Full_Manifest.sh
+      AFTER_SCRIPT: |
+        rm -rf /tmp/preds.json transcribe.log
+
+  L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_With_Prompt.sh
+      AFTER_SCRIPT: |
+        rm -rf preds.json transcribe.log
+
+  L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Speech_Transcription_Canary_Transcribe_Audio_Dir.sh
+      AFTER_SCRIPT: |
+        rm -rf preds.json
+      IS_OPTIONAL: true
+
+  # L2: Segmentation Tool
+  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav.sh
+
+  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(inputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3')
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3.sh
