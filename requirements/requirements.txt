@@ -6,7 +6,6 @@ onnx>=1.7.0
 protobuf==4.24.4
 python-dateutil
 # nemo_run
-pyzmq>=26.3.0 # Required to make install of NeMo-Run and Nvidia-pytriton possible
 ruamel.yaml
 scikit-learn
 setuptools>=70.0.0
