@@ -23,22 +23,18 @@ on:
 jobs:
   L0_Unit_Tests_GPU_Audio:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_GPU_Audio')
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Audio.sh
+      SCRIPT: L0_Unit_Tests_GPU_Audio
 
   L0_Unit_Tests_CPU_Audio:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_CPU_Audio')
     with:
       RUNNER: self-hosted-azure-cpu
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Audio.sh
+      SCRIPT: L0_Unit_Tests_CPU_Audio
 
   Unit_Tests_AUDIO:
     needs: [L0_Unit_Tests_GPU_Audio, L0_Unit_Tests_CPU_Audio]

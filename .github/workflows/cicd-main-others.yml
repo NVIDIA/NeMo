@@ -23,49 +23,39 @@ on:
 jobs:
   L0_Unit_Tests_GPU_Common:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_GPU_Common')
     with:
       RUNNER: self-hosted-azure-gpus-1
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Common.sh
+      SCRIPT: L0_Unit_Tests_GPU_Common
 
   L0_Unit_Tests_GPU_LLM:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_GPU_LLM')
     with:
       RUNNER: self-hosted-azure-gpus-1
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_LLM.sh
+      SCRIPT: L0_Unit_Tests_GPU_LLM
 
   L0_Unit_Tests_GPU_Multimodal:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_GPU_Multimodal')
     with:
       RUNNER: self-hosted-azure-gpus-1
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Multimodal.sh
+      SCRIPT: L0_Unit_Tests_GPU_Multimodal
 
   L0_Unit_Tests_GPU_Core:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_GPU_Core')
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Core.sh
+      SCRIPT: L0_Unit_Tests_GPU_Core
 
   L0_Unit_Tests_GPU_Hydra:
     uses: ./.github/workflows/_test_template.yml
-    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_GPU_Hydra')
     with:
       RUNNER: self-hosted-azure-gpus-1
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Hydra.sh
+      SCRIPT: L0_Unit_Tests_GPU_Hydra
 
   L0_Unit_Tests_GPU_Lightning:
     uses: ./.github/workflows/_test_template.yml
@@ -73,8 +63,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Lightning.sh
+      SCRIPT: L0_Unit_Tests_GPU_Lightning
 
   L0_Unit_Tests_GPU_Others:
     uses: ./.github/workflows/_test_template.yml
@@ -82,8 +71,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_GPU_Others.sh
+      SCRIPT: L0_Unit_Tests_GPU_Others
 
   L0_Unit_Tests_CPU_Common:
     uses: ./.github/workflows/_test_template.yml
@@ -92,8 +80,7 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Common.sh
+      SCRIPT: L0_Unit_Tests_CPU_Common
 
   L0_Unit_Tests_CPU_LLM:
     uses: ./.github/workflows/_test_template.yml
@@ -101,8 +88,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_LLM.sh
+      SCRIPT: L0_Unit_Tests_CPU_LLM
 
   L0_Unit_Tests_CPU_Multimodal:
     uses: ./.github/workflows/_test_template.yml
@@ -110,8 +96,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Multimodal.sh
+      SCRIPT: L0_Unit_Tests_CPU_Multimodal
 
   L0_Unit_Tests_CPU_Core:
     uses: ./.github/workflows/_test_template.yml
@@ -120,8 +105,7 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Core.sh
+      SCRIPT: L0_Unit_Tests_CPU_Core
 
   L0_Unit_Tests_CPU_Hydra:
     uses: ./.github/workflows/_test_template.yml
@@ -129,8 +113,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Hydra.sh
+      SCRIPT: L0_Unit_Tests_CPU_Hydra
 
   L0_Unit_Tests_CPU_Lightning:
     uses: ./.github/workflows/_test_template.yml
@@ -138,8 +121,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Lightning.sh
+      SCRIPT: L0_Unit_Tests_CPU_Lightning
 
   L0_Unit_Tests_CPU_Others:
     uses: ./.github/workflows/_test_template.yml
@@ -147,8 +129,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       IS_UNIT_TEST: true
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Unit_Tests_CPU_Others.sh
+      SCRIPT: L0_Unit_Tests_CPU_Others
 
   Unit_Tests_OTHERS:
     needs:
@@ -177,8 +158,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L0_Setup_Test_Data_And_Models')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L0_Setup_Test_Data_And_Models.sh
+      SCRIPT: L0_Setup_Test_Data_And_Models
 
     # TODO: pleasefixme @redoctopus
     # - name: ByT5G2P training, evaluation and inference
@@ -215,8 +195,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN.sh
+      SCRIPT: L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/nmt_results
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN:
@@ -225,8 +204,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN.sh
+      SCRIPT: L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
 
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation:
     uses: ./.github/workflows/_test_template.yml
@@ -234,8 +212,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation.sh
+      SCRIPT: L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
 
   # L2: NMT Attention is All You Need Inference
   L2_NMT_Attention_is_All_You_Need_Inference:
@@ -244,8 +221,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Inference')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Inference.sh
+      SCRIPT: L2_NMT_Attention_is_All_You_Need_Inference
 
   # L2: NMT Attention is All You Need Finetuning
   L2_NMT_Attention_is_All_You_Need_Finetuning:
@@ -254,8 +230,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Finetuning')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Attention_is_All_You_Need_Finetuning.sh
+      SCRIPT: L2_NMT_Attention_is_All_You_Need_Finetuning
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/nmt_finetune
 
@@ -266,8 +241,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation.sh
+      SCRIPT: L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
 
   L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation:
     uses: ./.github/workflows/_test_template.yml
@@ -275,8 +249,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation.sh
+      SCRIPT: L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
 
   L2_Megatron_NMT_Training_TP2:
     uses: ./.github/workflows/_test_template.yml
@@ -284,8 +257,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_Megatron_NMT_Training_TP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Megatron_NMT_Training_TP2.sh
+      SCRIPT: L2_Megatron_NMT_Training_TP2
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/megatron_nmt_results
 
@@ -295,8 +267,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT.sh
+      SCRIPT: L2_VLM_HF_Transformer_PEFT
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -306,8 +277,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_FSDP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT_FSDP2.sh
+      SCRIPT: L2_VLM_HF_Transformer_PEFT_FSDP2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -317,8 +287,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_4bit')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_PEFT_4bit.sh
+      SCRIPT: L2_VLM_HF_Transformer_PEFT_4bit
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -328,8 +297,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_VLM_HF_Transformer_SFT_FSDP2.sh
+      SCRIPT: L2_VLM_HF_Transformer_SFT_FSDP2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -339,8 +307,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_notebook.sh
+      SCRIPT: L2_HF_Transformer_PEFT_notebook
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -350,8 +317,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PEFT')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT.sh
+      SCRIPT: L2_HF_Transformer_PEFT
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -361,8 +327,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PEFT_nemorun')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_nemorun.sh
+      SCRIPT: L2_HF_Transformer_PEFT_nemorun
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -372,8 +337,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu.sh
+      SCRIPT: L2_HF_Transformer_PEFT_2gpu
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -383,8 +347,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || inputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2.sh
+      SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2
 
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
@@ -395,8 +358,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_nemorun')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_nemorun.sh
+      SCRIPT: L2_HF_Transformer_PEFT_2gpu_nemorun
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -406,8 +368,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu.sh
+      SCRIPT: L2_HF_Transformer_SFT_2gpu
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -417,8 +378,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_FSDP2.sh
+      SCRIPT: L2_HF_Transformer_SFT_2gpu_FSDP2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -428,8 +388,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_nemorun.sh
+      SCRIPT: L2_HF_Transformer_SFT_2gpu_nemorun
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -439,8 +398,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2.sh
+      SCRIPT: L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -450,8 +408,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_FSDP2_2gpu')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_FSDP2_2gpu.sh
+      SCRIPT: L2_HF_Transformer_SFT_FSDP2_2gpu
 
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
@@ -462,8 +419,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PT_2gpu')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_2gpu.sh
+      SCRIPT: L2_HF_Transformer_PT_2gpu
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -473,8 +429,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PT_2gpu_nemorun')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_2gpu_nemorun.sh
+      SCRIPT: L2_HF_Transformer_PT_2gpu_nemorun
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -484,8 +439,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PT')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT.sh
+      SCRIPT: L2_HF_Transformer_PT
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -495,8 +449,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PT_nemorun')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_nemorun.sh
+      SCRIPT: L2_HF_Transformer_PT_nemorun
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -506,8 +459,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_notebook.sh
+      SCRIPT: L2_HF_Transformer_SFT_notebook
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -517,8 +469,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT.sh
+      SCRIPT: L2_HF_Transformer_SFT
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -528,8 +479,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_nemorun')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_nemorun.sh
+      SCRIPT: L2_HF_Transformer_SFT_nemorun
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -539,8 +489,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SFT_TE_Acceleration')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_TE_Acceleration.sh
+      SCRIPT: L2_HF_Transformer_SFT_TE_Acceleration
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
       IS_OPTIONAL: true
@@ -551,8 +500,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_PT_TE_Acceleration')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_PT_TE_Acceleration.sh
+      SCRIPT: L2_HF_Transformer_PT_TE_Acceleration
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -563,8 +511,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_HF_Transformer_SpeechLM_SFT_2gpu') || inputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SpeechLM_SFT_2gpu.sh
+      SCRIPT: L2_HF_Transformer_SpeechLM_SFT_2gpu
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -575,8 +522,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Tacotron_2')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_Tacotron_2.sh
+      SCRIPT: L2_TTS_Fast_dev_runs_1_Tacotron_2
 
   L2_TTS_Fast_dev_runs_1_WaveGlow:
     uses: ./.github/workflows/_test_template.yml
@@ -584,8 +530,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_WaveGlow')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_WaveGlow.sh
+      SCRIPT: L2_TTS_Fast_dev_runs_1_WaveGlow
 
   L2_TTS_Fast_dev_runs_1_FastPitch:
     uses: ./.github/workflows/_test_template.yml
@@ -593,8 +538,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_FastPitch')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_FastPitch.sh
+      SCRIPT: L2_TTS_Fast_dev_runs_1_FastPitch
 
   # OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS:
   #   needs: [pre-flight, cicd-test-container-build]
@@ -644,8 +588,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Hifigan')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_Hifigan.sh
+      SCRIPT: L2_TTS_Fast_dev_runs_1_Hifigan
 
   # L2: NeRF
   # L2_NeRF_DreamFusion:
@@ -683,8 +626,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/Speech_Checkpoints_tests.sh
+      SCRIPT: Speech_Checkpoints_tests
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
@@ -694,8 +636,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_Stable_Diffusion_Training')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Stable_Diffusion_Training.sh
+      SCRIPT: L2_Stable_Diffusion_Training
       AFTER_SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
@@ -705,8 +646,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_Pretraining_no_transformer_engine')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_Pretraining_no_transformer_engine.sh
+      SCRIPT: L2_NeMo_2_GPT_Pretraining_no_transformer_engine
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/gpt_pretrain_results
         rm -rf tests/collections/llm/gpt_index_mappings
@@ -717,8 +657,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_llama3_pretraining_recipe')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_llama3_pretraining_recipe.sh
+      SCRIPT: L2_NeMo_2_llama3_pretraining_recipe
 
   L2_NeMo_2_llama3_fault_tolerance_plugin:
     uses: ./.github/workflows/_test_template.yml
@@ -726,8 +665,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_llama3_fault_tolerance_plugin')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_llama3_fault_tolerance_plugin.sh
+      SCRIPT: L2_NeMo_2_llama3_fault_tolerance_plugin
 
   L2_NeMo_2_llama3_straggler_detection:
     uses: ./.github/workflows/_test_template.yml
@@ -735,8 +673,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_llama3_straggler_detection')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_llama3_straggler_detection.sh
+      SCRIPT: L2_NeMo_2_llama3_straggler_detection
 
   L2_NeMo_2_GPT_DDP_Param_Parity_check:
     uses: ./.github/workflows/_test_template.yml
@@ -744,8 +681,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_DDP_Param_Parity_check')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_DDP_Param_Parity_check.sh
+      SCRIPT: L2_NeMo_2_GPT_DDP_Param_Parity_check
 
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/gpt_pretrain_results
@@ -757,8 +693,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Hyena_DDP_Pretraining_Test')
     with:
       RUNNER: self-hosted-azure # Assume runner has 2 GPUs
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Hyena_DDP_Pretraining_Test.sh
+      SCRIPT: L2_NeMo_2_Hyena_DDP_Pretraining_Test
 
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/hyena_pretrain_results/${{ github.run_id }}
@@ -769,8 +704,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_SSM_Pretraining')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_SSM_Pretraining.sh
+      SCRIPT: L2_NeMo_2_SSM_Pretraining
 
   L2_NeMo_2_SSM_Finetuning:
     uses: ./.github/workflows/_test_template.yml
@@ -778,8 +712,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_SSM_Finetuning')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_SSM_Finetuning.sh
+      SCRIPT: L2_NeMo_2_SSM_Finetuning
 
   L2_NeMo_2_HF_MODEL_IMPORT:
     uses: ./.github/workflows/_test_template.yml
@@ -787,8 +720,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_HF_MODEL_IMPORT')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_HF_MODEL_IMPORT.sh
+      SCRIPT: L2_NeMo_2_HF_MODEL_IMPORT
 
       AFTER_SCRIPT: |
         rm -rf ~/.cache/nemo/models
@@ -799,8 +731,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_jit_callback')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_jit_callback.sh
+      SCRIPT: L2_NeMo_2_jit_callback
 
   L2_NeMo_2_T5_Pretraining:
     uses: ./.github/workflows/_test_template.yml
@@ -808,8 +739,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_T5_Pretraining')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_Pretraining.sh
+      SCRIPT: L2_NeMo_2_T5_Pretraining
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
         rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
@@ -820,8 +750,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_T5_Finetuning')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_Finetuning.sh
+      SCRIPT: L2_NeMo_2_T5_Finetuning
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
 
@@ -831,8 +760,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_T5_LoRA')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_LoRA.sh
+      SCRIPT: L2_NeMo_2_T5_LoRA
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_peft_results/${{ github.run_id }}
 
@@ -842,8 +770,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2.sh
+      SCRIPT: L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2
 
   L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2:
     uses: ./.github/workflows/_test_template.yml
@@ -851,8 +778,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2.sh
+      SCRIPT: L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2
 
   L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2:
     uses: ./.github/workflows/_test_template.yml
@@ -860,8 +786,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2.sh
+      SCRIPT: L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2
 
   L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2:
     uses: ./.github/workflows/_test_template.yml
@@ -869,8 +794,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2.sh
+      SCRIPT: L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2
 
   L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2:
     uses: ./.github/workflows/_test_template.yml
@@ -878,8 +802,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2.sh
+      SCRIPT: L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2
 
   L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2:
     uses: ./.github/workflows/_test_template.yml
@@ -887,8 +810,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2.sh
+      SCRIPT: L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2
 
   L2_NeMo_2_NEVA_LOAD_GENERATE:
     uses: ./.github/workflows/_test_template.yml
@@ -896,8 +818,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NEVA_LOAD_GENERATE')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_LOAD_GENERATE.sh
+      SCRIPT: L2_NeMo_2_NEVA_LOAD_GENERATE
 
   L2_NEMO_2_MLLAMA_Inference:
     uses: ./.github/workflows/_test_template.yml
@@ -905,8 +826,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NEMO_2_MLLAMA_Inference')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_MLLAMA_Inference.sh
+      SCRIPT: L2_NEMO_2_MLLAMA_Inference
 
   L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2:
     uses: ./.github/workflows/_test_template.yml
@@ -914,8 +834,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2.sh
+      SCRIPT: L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2
 
   L2_NeMo_2_Mixtral_Pretraining:
     uses: ./.github/workflows/_test_template.yml
@@ -923,8 +842,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mixtral_Pretraining')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_Pretraining.sh
+      SCRIPT: L2_NeMo_2_Mixtral_Pretraining
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1:
     uses: ./.github/workflows/_test_template.yml
@@ -932,8 +850,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS1.sh
+      SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS2:
     uses: ./.github/workflows/_test_template.yml
@@ -941,8 +858,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS2.sh
+      SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
 
   L2_NeMo_2_GPT_SFT_TP1PP2_MBS2:
     uses: ./.github/workflows/_test_template.yml
@@ -950,8 +866,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP2_MBS2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP2_MBS2.sh
+      SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
 
   L2_NeMo_2_GPT_SFT_TP2PP1_MBS2:
     uses: ./.github/workflows/_test_template.yml
@@ -959,8 +874,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP2PP1_MBS2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP2PP1_MBS2.sh
+      SCRIPT: L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED:
     uses: ./.github/workflows/_test_template.yml
@@ -968,8 +882,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED.sh
+      SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1:
     uses: ./.github/workflows/_test_template.yml
@@ -977,8 +890,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1.sh
+      SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2:
     uses: ./.github/workflows/_test_template.yml
@@ -986,8 +898,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2.sh
+      SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
 
   L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2:
     uses: ./.github/workflows/_test_template.yml
@@ -995,8 +906,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2.sh
+      SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
 
   L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2:
     uses: ./.github/workflows/_test_template.yml
@@ -1004,8 +914,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2.sh
+      SCRIPT: L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED:
     uses: ./.github/workflows/_test_template.yml
@@ -1013,8 +922,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED.sh
+      SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED:
     uses: ./.github/workflows/_test_template.yml
@@ -1022,8 +930,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED.sh
+      SCRIPT: L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED:
     uses: ./.github/workflows/_test_template.yml
@@ -1031,8 +938,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED.sh
+      SCRIPT: L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat:
     uses: ./.github/workflows/_test_template.yml
@@ -1040,8 +946,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat.sh
+      SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude:
     uses: ./.github/workflows/_test_template.yml
@@ -1049,8 +954,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude.sh
+      SCRIPT: L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     uses: ./.github/workflows/_test_template.yml
@@ -1058,8 +962,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2.sh
+      SCRIPT: L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
 
   L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1:
     uses: ./.github/workflows/_test_template.yml
@@ -1067,8 +970,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1.sh
+      SCRIPT: L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
 
   L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
     uses: ./.github/workflows/_test_template.yml
@@ -1076,8 +978,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1.sh
+      SCRIPT: L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
     uses: ./.github/workflows/_test_template.yml
@@ -1085,8 +986,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1.sh
+      SCRIPT: L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude:
     uses: ./.github/workflows/_test_template.yml
@@ -1094,8 +994,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude.sh
+      SCRIPT: L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude
 
   L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1:
     uses: ./.github/workflows/_test_template.yml
@@ -1103,8 +1002,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1.sh
+      SCRIPT: L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
 
   L2_NEMO_2_LoRA_MERGE:
     uses: ./.github/workflows/_test_template.yml
@@ -1112,8 +1010,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NEMO_2_LoRA_MERGE')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_LoRA_MERGE.sh
+      SCRIPT: L2_NEMO_2_LoRA_MERGE
 
   L2_NEMO_2_LoRA_Export:
     uses: ./.github/workflows/_test_template.yml
@@ -1121,8 +1018,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NEMO_2_LoRA_Export')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_LoRA_Export.sh
+      SCRIPT: L2_NEMO_2_LoRA_Export
 
   L2_NEMO_2_LoRA_Inference:
     uses: ./.github/workflows/_test_template.yml
@@ -1130,8 +1026,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NEMO_2_LoRA_Inference')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NEMO_2_LoRA_Inference.sh
+      SCRIPT: L2_NEMO_2_LoRA_Inference
 
   L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:
     uses: ./.github/workflows/_test_template.yml
@@ -1139,8 +1034,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact.sh
+      SCRIPT: L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
 
   L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
     uses: ./.github/workflows/_test_template.yml
@@ -1148,8 +1042,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_trtllm')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_PTQ_Llama2_FP8_trtllm.sh
+      SCRIPT: L2_NeMo_2_PTQ_Llama2_FP8_trtllm
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -1161,8 +1054,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_nemo')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_PTQ_Llama2_FP8_nemo.sh
+      SCRIPT: L2_NeMo_2_PTQ_Llama2_FP8_nemo
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -1174,8 +1066,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Distill_Llama3_TP1PP2') || inputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Distill_Llama3_TP1PP2.sh
+      SCRIPT: L2_NeMo_2_Distill_Llama3_TP1PP2
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
@@ -1187,8 +1078,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Prune_Llama_TP1PP2') || inputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Prune_Llama_TP1PP2.sh
+      SCRIPT: L2_NeMo_2_Prune_Llama_TP1PP2
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt /tmp/pruned-llama
 
@@ -1198,8 +1088,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Export_In_Framework')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Export_In_Framework.sh
+      SCRIPT: L2_NeMo_2_Export_In_Framework
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt /tmp/lambada.json
@@ -1210,8 +1099,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING.sh
+      SCRIPT: L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_llava_next_results
@@ -1222,8 +1110,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_VLLM_EXPORT')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_VLLM_EXPORT.sh
+      SCRIPT: L2_NeMo_2_VLLM_EXPORT
 
       AFTER_SCRIPT: |
         rm -rf /tmp/llama_head64
@@ -1236,8 +1123,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_EVAL')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_EVAL.sh
+      SCRIPT: L2_NeMo_2_EVAL
 
       AFTER_SCRIPT: |
         rm -rf /tmp/trtllm_dir
@@ -1248,8 +1134,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124.sh
+      SCRIPT: L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124
       AFTER_SCRIPT: |
         rm -rf examples/llm/auto_configurator/auto_conf_logs
 
@@ -1259,8 +1144,7 @@ jobs:
     # if: contains(fromJSON(inputs.test_to_run), 'L2_SpeechLM_LoRA_TP1PP1_MBS2') || inputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_SpeechLM_LoRA_TP1PP1_MBS2.sh
+      SCRIPT: L2_SpeechLM_LoRA_TP1PP1_MBS2
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_speechlm_lora/${{ github.run_id }}
