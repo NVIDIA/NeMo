@@ -23,7 +23,7 @@ on:
 jobs:
   L0_Unit_Tests_GPU_ASR:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_ASR')
+    # if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_ASR')
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
@@ -33,7 +33,7 @@ jobs:
 
   L0_Unit_Tests_CPU_ASR:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_CPU_ASR')
+    # if: contains(fromJSON(inputs.test_to_run), 'L0_Unit_Tests_CPU_ASR')
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
@@ -51,7 +51,7 @@ jobs:
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text')
+    # if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -61,7 +61,7 @@ jobs:
 
   ASR_dev_run_Speech_to_Text_WPE_CitriNet:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_CitriNet')
+    # if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_CitriNet')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -71,7 +71,7 @@ jobs:
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_Pre-training_-_CitriNet')
+    # if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_Pre-training_-_CitriNet')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -80,7 +80,7 @@ jobs:
 
   Optional_ASR_dev_run_Speech_To_Text_Finetuning:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_Finetuning')
+    # if: contains(fromJSON(inputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_Finetuning')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -90,7 +90,7 @@ jobs:
 
   Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning')
+    # if: contains(fromJSON(inputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -100,7 +100,7 @@ jobs:
 
   ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_-_Conformer')
+    # if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_-_Conformer')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -110,7 +110,7 @@ jobs:
   # L2: ASR dev run - part two
   ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer')
+    # if: contains(fromJSON(inputs.test_to_run), 'ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -120,7 +120,7 @@ jobs:
   # L2: Community llava multimodal Checkpoints tests
   L2_Community_vita_Checkpoints_tests_Llama3:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Community_vita_Checkpoints_tests_Llama3')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Community_vita_Checkpoints_tests_Llama3')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -130,7 +130,7 @@ jobs:
 
   L2_Speech_to_Text_EMA:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_to_Text_EMA')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_to_Text_EMA')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -139,7 +139,7 @@ jobs:
 
   L2_Speech_to_Text_AED:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_to_Text_AED')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_to_Text_AED')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -149,7 +149,7 @@ jobs:
   # L2: Speaker dev run
   L2_Speaker_dev_run_Speaker_Recognition:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Recognition')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Recognition')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -158,7 +158,7 @@ jobs:
 
   L2_Speaker_dev_run_Speaker_Diarization:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -167,7 +167,7 @@ jobs:
 
   L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -176,7 +176,7 @@ jobs:
 
   L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -185,7 +185,7 @@ jobs:
 
   L2_Speaker_dev_run_Speech_to_Label:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speech_to_Label')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speech_to_Label')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -194,7 +194,7 @@ jobs:
 
   L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -203,7 +203,7 @@ jobs:
 
   L2_Speaker_dev_run_Clustering_Diarizer_Inference:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Clustering_Diarizer_Inference')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Clustering_Diarizer_Inference')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -212,7 +212,7 @@ jobs:
 
   L2_Speaker_dev_run_Neural_Diarizer_Inference:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Neural_Diarizer_Inference')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Neural_Diarizer_Inference')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -221,7 +221,7 @@ jobs:
 
   L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -231,7 +231,7 @@ jobs:
   # L2: ASR Multi-dataloader dev run
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -240,7 +240,7 @@ jobs:
 
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -250,7 +250,7 @@ jobs:
   # L2: ASR Adapters
   L2_ASR_Adapters_Linear_Adapters:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Adapters_Linear_Adapters')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Adapters_Linear_Adapters')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -259,7 +259,7 @@ jobs:
 
   L2_ASR_Adapters_RelPos_MHA_Adapters:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Adapters_RelPos_MHA_Adapters')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_ASR_Adapters_RelPos_MHA_Adapters')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure-gpus-1
@@ -269,7 +269,7 @@ jobs:
   # L2: OOMptimizer
   L2_Speech_Estimate_Duration_Bins:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Estimate_Duration_Bins')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Estimate_Duration_Bins')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -279,7 +279,7 @@ jobs:
   # L2: OOMptimizer
   L2_Speech_Batch_Size_OOMptimizer:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -289,7 +289,7 @@ jobs:
   # L2: OOMptimizer Canary (has a different batch schema)
   Optional_L2_Speech_Batch_Size_OOMptimizer_Canary:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'Optional_L2_Speech_Batch_Size_OOMptimizer_Canary')
+    # if: contains(fromJSON(inputs.test_to_run), 'Optional_L2_Speech_Batch_Size_OOMptimizer_Canary')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -300,7 +300,7 @@ jobs:
   # L2: Speech Transcription
   L2_Speech_Transcription_Speech_to_Text_Transcribe:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Speech_to_Text_Transcribe')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Speech_to_Text_Transcribe')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -310,7 +310,7 @@ jobs:
   # L2: Speech Transcription
   L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -321,7 +321,7 @@ jobs:
 
   L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -332,7 +332,7 @@ jobs:
 
   L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -345,7 +345,7 @@ jobs:
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
@@ -354,7 +354,7 @@ jobs:
 
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(inputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3')
+    # if: contains(fromJSON(inputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3')
     needs: [Unit_Tests_ASR]
     with:
       RUNNER: self-hosted-azure
