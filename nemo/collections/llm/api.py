@@ -1103,10 +1103,10 @@ def _validate_config(
     assert data.seq_length > 0
     if isinstance(data.micro_batch_size, list):
         assert data.cu_global_batch_splits is not None
-        gbs_splits = data.cu_global_batch_splits[1:] - data.cu_global_batch_splits[:-1]
-        assert len(data.micro_batch_size) == len(gbs_splits)
-        for mbs, gbs_split in zip(data.micro_batch_size, gbs_splits):
+        assert len(data.micro_batch_size) == len(data.cu_global_batch_splits) - 1
+        for idx, mbs in enumerate(data.micro_batch_size):
             assert mbs > 0
+            gbs_split = data.cu_global_batch_splits[idx+1] - data.cu_global_batch_splits[idx]
             assert (gbs_split % mbs == 0), \
                 f"Global batch size split {gbs_split} must be divisible by its corresponding micro batch size {mbs}"
     else:
@@ -1132,7 +1132,8 @@ def _validate_config(
         ) == 0, "Number of GPUs must be divisible by the product of all parallelism sizes for data parallel."
 
         if isinstance(data.micro_batch_size, list):
-            for mbs, gbs_split in zip(data.micro_batch_size, gbs_splits):
+            for idx, mbs in enumerate(data.micro_batch_size):
+                gbs_split = data.cu_global_batch_splits[idx+1] - data.cu_global_batch_splits[idx]
                 assert (
                     gbs_split
                     % (
