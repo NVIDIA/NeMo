@@ -1603,7 +1603,7 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       IMAGE: nemo_cpu_container
       SCRIPT: |
-        python3 examples/llm/sft/automodel.py --model google/gemma-2b --max-steps 10 --devices 2 --strategy ddp --accelerator=cpu
+        python examples/llm/sft/automodel.py --model google/gemma-2b --max-steps 10 --devices 2 --strategy ddp --accelerator=cpu
 
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
