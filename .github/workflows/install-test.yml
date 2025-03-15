@@ -75,7 +75,9 @@ jobs:
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip pip-tools
             echo "$(pwd)/.[all]" > req.in
-            pip-compile -o req_out.txt req.in
+            echo "pyzmq==26.3.0" >> req.
+            
+            pip-compile -v -o req_out.txt req.in
             cat req_out.txt
             pip install -v ".[all]"
           else
