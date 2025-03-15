@@ -1581,6 +1581,26 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_SFT_FSDP2_cpu:
+    needs: [pre-flight]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install NeMo
+        run: |
+          pip install --no-cache-dir ".[all]"
+
+      - name: Run test
+        run: |
+          python3 examples/llm/sft/automodel.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy fsdp2 --accelerator=cpu
+
   L2_HF_Transformer_PT_2gpu:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2232,7 +2252,6 @@ jobs:
         --cp=2 --use_packed_sequence \
         --log_dir=/tmp/nemo2_neva_results/${{ github.run_id }}
 
-
   L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2279,7 +2298,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-         python scripts/vlm/neva_generate.py --load_from_hf
+        python scripts/vlm/neva_generate.py --load_from_hf
 
   L2_NEMO_2_MLLAMA_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -3246,7 +3265,7 @@ jobs:
       - L2_NeMo_2_VLLM_EXPORT
       - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
-
+      - L2_HF_Transformer_SFT_FSDP2_cpu
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     permissions: write-all
