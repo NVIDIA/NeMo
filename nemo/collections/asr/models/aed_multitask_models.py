@@ -1113,16 +1113,21 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             processed_signal_length=processed_signal_length,
         )
 
-        text = self.decoding.decode_predictions_tensor(
+        hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=batch.prompt,
             return_hypotheses=False,
         )
+
+        hypotheses  = process_aed_timestamp_outputs(
+            hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+        )
+
         if batch.cuts:
-            return list(zip(batch.cuts, text))
+            return list(zip(batch.cuts, hypotheses))
         else:
-            return text
+            return hypotheses
 
     @property
     def adapter_module_names(self) -> List[str]:

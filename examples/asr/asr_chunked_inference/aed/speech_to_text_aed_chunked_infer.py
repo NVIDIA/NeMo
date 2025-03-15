@@ -33,13 +33,16 @@ An example manifest line:
 Example Usage:
 python speech_to_text_aed_chunked_infer.py \
     model_path=null \
-    pretrained_name="nvidia/canary-1b" \
+    pretrained_name="nvidia/canary-1b-flash" \
     audio_dir="<(optional) path to folder of audio files>" \
     dataset_manifest="<(optional) path to manifest>" \
     output_filename="<(optional) specify output filename>" \
     chunk_len_in_secs=40.0 \
     batch_size=16 \
-    decoding.beam.beam_size=5
+    decoding.beam.beam_size=1
+
+To return word and segment level timestamps, add `compute_timestamps=True` to the above command, 
+and set `chunk_len_in_secs=10.0` for best results.
     
 """
 
@@ -125,6 +128,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     Transcribes the input audio and can be used to infer long audio files by chunking
     them into smaller segments.
     """
+    
+    if cfg.compute_timestamps and cfg.chunk_len_in_secs != 10.0:
+        logging.warning(
+            "When compute_timestamps is True, it's recommended to use `chunk_len_in_secs=10.0` for optimal results. "
+            "Setting `chunk_len_in_secs` to 10.0."
+        )
+        cfg.chunk_len_in_secs = 10.0
+
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
 
@@ -213,10 +224,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.device,
                 manifest,
                 filepaths,
+                compute_timestamps=cfg.compute_timestamps,
             )
 
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.compute_timestamps
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
