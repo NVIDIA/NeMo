@@ -141,13 +141,13 @@ jobs:
     uses: ./.github/workflows/cicd-main-asr.yml
     needs: [pre-flight, cicd-test-container-build]
     with:
-      test_to_run: ${{ pre-flight.outputs.test_to_run }}
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   OTHERS_SUTE:
     uses: ./.github/workflows/cicd-main-others.yml
     needs: [pre-flight, cicd-test-container-build]
     with:
-      test_to_run: ${{ pre-flight.outputs.test_to_run }}
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   Nemo_CICD_Test:
     needs:
