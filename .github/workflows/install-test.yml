@@ -74,7 +74,7 @@ jobs:
         run: |
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip pip-tools
-            echo '".[all]"' > req.in
+            echo "$(pwd)/.[all]" > req.in
             pip-compile -o req_out.txt req.in
             cat req_out.txt
             pip install -v ".[all]"
