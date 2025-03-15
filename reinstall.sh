@@ -198,11 +198,11 @@ echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
 
+echo 'Upgrading tools'
 ${PIP} install -U --no-cache-dir setuptools pybind11 wheel ${PIP}
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-
   echo "Will not install numba"
 
 else
