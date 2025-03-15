@@ -137,13 +137,13 @@ jobs:
             python tests/core_ptl/check_imports.py --domain nlp
             python tests/core_ptl/check_imports.py --domain tts        '
 
-  ASR_SUITE:
+  test-asr-collection:
     uses: ./.github/workflows/cicd-main-asr.yml
     needs: [pre-flight, cicd-test-container-build]
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  OTHERS_SUTE:
+  test-others:
     uses: ./.github/workflows/cicd-main-others.yml
     needs: [pre-flight, cicd-test-container-build]
     with:
@@ -153,9 +153,8 @@ jobs:
     needs:
       - pre-flight
       - cicd-import-tests
-      - ASR_SUITE
-      - OTHERS_SUTE
-
+      - test-asr-collection
+      - test-others
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     permissions: write-all
