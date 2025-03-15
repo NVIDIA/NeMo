@@ -7,6 +7,11 @@ on:
         type: string
         description: Runner to use for test
         required: true
+      IMAGE:
+        type: string
+        description: Image to start
+        required: false
+        default: nemo_container
       TIMEOUT:
         type: number
         description: Max runtime of test in minutes
