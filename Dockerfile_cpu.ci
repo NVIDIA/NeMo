@@ -42,11 +42,12 @@ RUN \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/README.md,target=/tmp/NeMo/README.md \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
-    pip install /tmp/NeMo/
+    cd /tmp/NeMo/
+    pip install '.[all]'
 EOF
 
 # Copy over NeMo code
 COPY --from=nemo-bump /opt/NeMo /opt/NeMo
-RUN pip install -e /opt/NeMo
+RUN /opt/NeMo && pip install -e '.[all]'
 
 
