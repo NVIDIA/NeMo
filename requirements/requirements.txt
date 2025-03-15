@@ -1,5 +1,5 @@
 huggingface_hub>=0.24
-nemo_run
+# nemo_run
 pyzmq>=26.3.0 # Required to make install of NeMo-Run and Nvidia-pytriton possible
 numba==0.61.0
 numpy>=1.22,<2.0.0
