@@ -176,7 +176,6 @@ nemo() {
   fi
 
   DEPS=(
-    "cython"
     "sox"                                                                                      # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
     "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
     "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
@@ -213,7 +212,7 @@ else
     echo 'Installing numba'
     conda install -y -c conda-forge numba
   else
-    pip install --no-cache-dir --no-deps torch
+    pip install --no-cache-dir --no-deps torch cython
   fi
 fi
 
