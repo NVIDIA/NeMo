@@ -69,7 +69,7 @@ model:
     emb_sizes: 192
 
   loss:
-    _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entrophy loss
+    _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entropy loss
     scale: 30
     margin: 0.2
 
