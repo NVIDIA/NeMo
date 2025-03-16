@@ -197,6 +197,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         # Initialize weights
         std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5
+        # TODO: turn off initialization 
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 

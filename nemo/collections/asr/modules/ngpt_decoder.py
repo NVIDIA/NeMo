@@ -22,7 +22,13 @@ import torch.nn as nn
 
 from nemo.collections.asr.modules.ngpt_encoder import GPTConfig
 from nemo.collections.asr.modules.transformer.transformer_modules import FixedPositionalEncoding, TransformerEmbedding
-from nemo.collections.asr.parts.submodules.ngpt_modules import AttentionBlock, MLPBlock, justnorm_fp32
+from nemo.collections.asr.parts.submodules.ngpt_modules import (
+    AttentionBlock,
+    MLPBlock,
+    apply_rotary_position_embeddings,
+    get_sinusoidal_embeddings,
+    justnorm_fp32,
+)
 
 
 @dataclass
@@ -148,14 +154,18 @@ class NGPTDecoderHead(nn.Module):
 
 class Embedding(nn.Module):
     # Embedding layer for the nGPT decoder for both tokens and positional encodings
-    def __init__(self, vocab_size=8192, n_embd=1024, max_sequence_length=1024, learn_pos_emb=True):
+    def __init__(self, vocab_size=8192, n_embd=1024, max_sequence_length=1024, learn_pos_emb=False):
         super().__init__()
         self.learn_pos_emb = learn_pos_emb
         self.token_embedding = nn.Embedding(vocab_size, n_embd, padding_idx=0)
+        # TODO: replace with RoPE
         if self.learn_pos_emb:
             self.position_embedding = nn.Parameter(torch.empty(max_sequence_length, n_embd))
         else:
             self.position_embedding = FixedPositionalEncoding(n_embd, max_sequence_length)
+
+        # RoPE positional embeddings
+
         self.base_scale = n_embd ** -0.5
         
         self.drop = nn.Dropout(0.1)
@@ -165,14 +175,19 @@ class Embedding(nn.Module):
     def forward(self, input_ids=None, start_pos=0):
         # Embedding layer
         x = self.token_embedding(input_ids)
-        if self.learn_pos_emb:
-            position_ids = self.position_embedding[start_pos: start_pos + x.size(1)]
-            x = x + position_ids
-        else:
-            position_ids = torch.arange(start_pos, start_pos + x.size(1), dtype=torch.long, device=x.device)
-            position_ids = position_ids.unsqueeze(0).repeat(x.size(0), 1)
-            x = x + self.position_embedding(position_ids)
+        # if self.learn_pos_emb:
+        #     position_ids = self.position_embedding[start_pos: start_pos + x.size(1)]
+        #     x = x + position_ids
+        # else:
+        #     position_ids = torch.arange(start_pos, start_pos + x.size(1), dtype=torch.long, device=x.device)
+        #     position_ids = position_ids.unsqueeze(0).repeat(x.size(0), 1)
+        #     x = x + self.position_embedding(position_ids)
         
+        # RoPE positional embeddings
+        # x -> B x T x C
+        sinusoidal_q = get_sinusoidal_embeddings(x.size(1), x.size(2), x.device)
+        x = apply_rotary_position_embeddings(sinusoidal_pos=sinusoidal_q, x=x)
+
         x = self.drop(x)
         return x
     
@@ -201,7 +216,7 @@ class NGPTDecoder(nn.Module):
         self._base_scale = base_scale if base_scale is not None else hidden_size ** -0.5
         self.return_mems = False
 
-        self._embedding = Embedding(vocab_size=self._vocab_size, n_embd=self._hidden_size, max_sequence_length=self._max_seq_len, learn_pos_emb=True)
+        self._embedding = Embedding(vocab_size=self._vocab_size, n_embd=self._hidden_size, max_sequence_length=self._max_seq_len, learn_pos_emb=False)
 
         config = NGPTDecoderConfig(
             vocab_size=self._vocab_size,

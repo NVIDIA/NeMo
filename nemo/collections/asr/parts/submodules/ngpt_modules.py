@@ -124,7 +124,7 @@ class AttentionBlock(nn.Module):
         sinusoidal_pos_q = get_sinusoidal_embeddings(Tq, self.config.n_embd // self.config.n_heads, device=q.device)
         sinusoidal_pos_k = get_sinusoidal_embeddings(Tk, self.config.n_embd // self.config.n_heads, device=k.device)
         
-        q = apply_rotary_position_embeddings(sinusoidal_pos_q, q.transpose(1, 2)).transpose(2, 1)
+        q = apply_rotary_position_embeddings(sinusoidal_pos_q, q.transpose(1, 2)).transpose(2, 1) # BxHxTxH_DIM -> BxTxHxH_DIM 
         k = apply_rotary_position_embeddings(sinusoidal_pos_k, k.transpose(1, 2)).transpose(2, 1)
 
         # Scale the query and key
