@@ -23,6 +23,7 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
@@ -268,16 +269,25 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
             "decoder.final_layernorm.weight": "transformer.encoder.final_layernorm.weight",
         }
 
+        transforms = [
+            _export_qkv_weight,
+            _export_qkv_bias,
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="transformer.embedding.word_embeddings.weight",
+                fn=TransformFns.prune_padding,
+            ),
+            io.state_transform(
+                source_key="output_layer.weight",
+                target_key="transformer.output_layer.weight",
+                fn=TransformFns.prune_padding,
+            ),
+        ]
         return io.apply_transforms(
             source,
             target,
             mapping=mapping,
-            transforms=[
-                _export_qkv_weight,
-                _export_qkv_bias,
-                _export_embedding,
-                _export_head,
-            ],
+            transforms=transforms,
         )
 
     @property
@@ -289,26 +299,6 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
             TokenizerSpec: Tokenizer from the NeMo model
         """
         return io.load_context(str(self)).model.tokenizer.tokenizer
-
-
-@io.state_transform(
-    source_key="embedding.word_embeddings.weight",
-    target_key="transformer.embedding.word_embeddings.weight",
-)
-def _export_embedding(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
-
-
-@io.state_transform(
-    source_key="output_layer.weight",
-    target_key="transformer.output_layer.weight",
-)
-def _export_head(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
 
 
 @io.state_transform(

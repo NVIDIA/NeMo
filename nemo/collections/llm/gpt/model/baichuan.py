@@ -23,6 +23,7 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
@@ -152,7 +153,15 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
+        transforms = [
+            _import_qkv,
+            io.state_transform(
+                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key="decoder.layers.*.mlp.linear_fc1.weight",
+                fn=TransformFns.merge_fc1,
+            )
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -275,7 +284,15 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+        transforms = [
+            _export_qkv,
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            )
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self):
@@ -350,25 +367,6 @@ def _export_qkv(ctx: io.TransformCTX, qkv_weights):
             qkv_weights[v_slice].reshape(-1, hidden_size),
         ]
     )
-
-
-@io.state_transform(
-    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight",
-)
-def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0)
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-)
-def _export_linear_fc1(linear_fc1):
-    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-    return gate_proj, up_proj
-
 
 __all__ = [
     "Baichuan2Config",

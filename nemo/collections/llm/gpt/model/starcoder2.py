@@ -23,6 +23,7 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
@@ -199,7 +200,27 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv_bias, _import_qkv_weight])
+        transforms = [
+            io.state_transform(
+                source_key=(
+                    "model.layers.*.self_attn.q_proj.weight",
+                    "model.layers.*.self_attn.k_proj.weight",
+                    "model.layers.*.self_attn.v_proj.weight",
+                ),
+                target_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                fn=TransformFns.merge_qkv,
+            ),
+            io.state_transform(
+                source_key=(
+                    "model.layers.*.self_attn.q_proj.bias",
+                    "model.layers.*.self_attn.k_proj.bias",
+                    "model.layers.*.self_attn.v_proj.bias",
+                ),
+                target_key="decoder.layers.*.self_attention.linear_qkv.bias",
+                fn=TransformFns.merge_qkv_bias,
+            ),
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -319,11 +340,41 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
             "decoder.final_layernorm.bias": "model.norm.bias",
         }
 
+        transforms = [
+            io.state_transform(
+                source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                target_key=(
+                    "model.layers.*.self_attn.q_proj.weight",
+                    "model.layers.*.self_attn.k_proj.weight",
+                    "model.layers.*.self_attn.v_proj.weight",
+                ),
+                fn=TransformFns.split_qkv,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.self_attention.linear_qkv.bias",
+                target_key=(
+                    "model.layers.*.self_attn.q_proj.bias",
+                    "model.layers.*.self_attn.k_proj.bias",
+                    "model.layers.*.self_attn.v_proj.bias",
+                ),
+                fn=TransformFns.split_qkv_bias,
+            ),
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="model.embed_tokens.weight",
+                fn=TransformFns.prune_padding,
+            ),
+            io.state_transform(
+                source_key="output_layer.weight",
+                target_key="lm_head.weight",
+                fn=TransformFns.prune_padding,
+            )
+        ]
         return io.apply_transforms(
             source,
             target,
             mapping=mapping,
-            transforms=[_export_qkv_weight, _export_qkv_bias, _export_embedding, _export_head],
+            transforms=transforms,
         )
 
     @property
@@ -371,168 +422,10 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
         )
 
 
-@io.state_transform(
-    source_key=(
-        "model.layers.*.self_attn.q_proj.weight",
-        "model.layers.*.self_attn.k_proj.weight",
-        "model.layers.*.self_attn.v_proj.weight",
-    ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-)
-def _import_qkv_weight(ctx: io.TransformCTX, q, k, v):
-    megatron_config = ctx.target.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-
-    old_tensor_shape = q.size()
-    new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
-    new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
-
-    q = q.view(*new_q_tensor_shape)
-    k = k.view(*new_kv_tensor_shape)
-    v = v.view(*new_kv_tensor_shape)
-
-    qkv_weights_l = []
-    for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i : i + 1, :, :])
-        qkv_weights_l.append(v[i : i + 1, :, :])
-
-    qkv_weights = torch.cat(qkv_weights_l)
-    assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
-    assert qkv_weights.shape[1] == head_size, qkv_weights.shape
-    assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
-
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
-
-    return qkv_weights
-
-
-@io.state_transform(
-    source_key=(
-        "model.layers.*.self_attn.q_proj.bias",
-        "model.layers.*.self_attn.k_proj.bias",
-        "model.layers.*.self_attn.v_proj.bias",
-    ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.bias",
-)
-def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
-    megatron_config = ctx.target.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    head_size = megatron_config.kv_channels
-
-    new_q_bias_tensor_shape = (head_num, head_size)
-    new_kv_bias_tensor_shape = (num_query_groups, head_size)
-
-    qb = qb.view(*new_q_bias_tensor_shape)
-    kb = kb.view(*new_kv_bias_tensor_shape)
-    vb = vb.view(*new_kv_bias_tensor_shape)
-
-    qkv_bias_l = []
-    for i in range(num_query_groups):
-        qkv_bias_l.append(qb[i * heads_per_group : (i + 1) * heads_per_group, :])
-        qkv_bias_l.append(kb[i : i + 1, :])
-        qkv_bias_l.append(vb[i : i + 1, :])
-
-    qkv_bias = torch.cat(qkv_bias_l)
-    qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups)])
-
-    return qkv_bias
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
-    target_key=(
-        "model.layers.*.self_attn.q_proj.weight",
-        "model.layers.*.self_attn.k_proj.weight",
-        "model.layers.*.self_attn.v_proj.weight",
-    ),
-)
-def _export_qkv_weight(ctx: io.TransformCTX, linear_qkv):
-    megatron_config = ctx.source.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = megatron_config.kv_channels
-    qkv_total_dim = head_num + 2 * num_query_groups
-
-    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
-    q_slice = torch.cat(
-        [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
-            for i in range(num_query_groups)
-        ]
-    )
-    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-
-    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
-    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
-    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
-
-    return q_proj, k_proj, v_proj
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.self_attention.linear_qkv.bias",
-    target_key=(
-        "model.layers.*.self_attn.q_proj.bias",
-        "model.layers.*.self_attn.k_proj.bias",
-        "model.layers.*.self_attn.v_proj.bias",
-    ),
-)
-def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
-    megatron_config = ctx.source.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    head_size = megatron_config.kv_channels
-    qkv_total_dim = head_num + 2 * num_query_groups
-
-    qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
-    q_slice = torch.cat(
-        [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
-            for i in range(num_query_groups)
-        ]
-    )
-    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-
-    q_bias = qkv_bias[q_slice].reshape(-1).cpu()
-    k_bias = qkv_bias[k_slice].reshape(-1).cpu()
-    v_bias = qkv_bias[v_slice].reshape(-1).cpu()
-
-    return q_bias, k_bias, v_bias
-
-
-@io.state_transform(
-    source_key="embedding.word_embeddings.weight",
-    target_key="model.embed_tokens.weight",
-)
-def _export_embedding(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
-
-
-@io.state_transform(
-    source_key="output_layer.weight",
-    target_key="lm_head.weight",
-)
-def _export_head(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
+__all__ = [
+    "Starcoder2Config",
+    "Starcoder2Config3B",
+    "Starcoder2Config7B",
+    "Starcoder2Config15B",
+    "Starcoder2Model",
+]

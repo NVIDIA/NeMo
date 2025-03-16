@@ -23,6 +23,7 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
@@ -290,7 +291,19 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
             "decoder.final_layernorm.bias": "transformer.ln_f.bias",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_embedding, _export_head])
+        transforms = [
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="transformer.wte.weight",
+                fn=TransformFns.prune_padding,
+            ),
+            io.state_transform(
+                source_key="output_layer.weight",
+                target_key="lm_head.weight",
+                fn=TransformFns.prune_padding,
+            ),
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self):
@@ -334,22 +347,8 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
             vocab_size=self.tokenizer.vocab_size,
         )
 
-
-@io.state_transform(
-    source_key="embedding.word_embeddings.weight",
-    target_key="transformer.wte.weight",
-)
-def _export_embedding(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
-
-
-@io.state_transform(
-    source_key="output_layer.weight",
-    target_key="lm_head.weight",
-)
-def _export_head(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
+__all__ = [
+    "StarcoderConfig",
+    "StarcoderConfig15B",
+    "StarcoderModel",
+]
