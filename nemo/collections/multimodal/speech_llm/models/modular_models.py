@@ -604,7 +604,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             output_tensor = model(
                 input_ids=None,
                 position_ids=None,
-                decoder_input=input_embeddings,
+                encoder_input=input_embeddings,
                 attention_mask=attention_mask,
                 **extra_arg,
             )
@@ -658,6 +658,12 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 modality_weights = self.cfg.get("modality_loss_weights")
 
                 for key, (output, loss_mask) in multimodal_output.items():
+                    if isinstance(output, torch.Tensor):
+                        pass
+                    elif isinstance(output, tuple):
+                        output = output[0]
+                    else:
+                        raise ValueError(f"Unexpected output type: {type(output)}")
                     cur_loss = self.loss_func(loss_mask.contiguous(), loss_mask.sum(), output.contiguous())
                     if modality_weights is not None:
                         assert (
