@@ -535,6 +535,15 @@ def to_cpu(v):
         return v
 
 
+def warmup_torch_dist(device: torch.device) -> None:
+    """Forces initialization of NCCL backend.
+    When using inprocess restart, torch.distributed.destroy_process group may not terminate NCCL kernels if the NCCL backend isn't fully initialized before additional subgroups are created.
+    """
+    tensor = torch.ones(128, device=device)
+    torch.distributed.all_reduce(tensor)
+    torch.cuda.synchronize()
+
+
 def _destroy_dist_connection() -> None:
     """Destroy process group."""
     # Don't allow Ctrl+C to interrupt this handler
