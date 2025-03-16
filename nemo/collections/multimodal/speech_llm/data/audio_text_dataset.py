@@ -306,7 +306,6 @@ class AudioTextDataset(TextProcessing, Dataset):
             context_key=context_key,
             answer_key=answer_key,
             end_string=end_string,
-            sample_alpha=sample_alpha,
             audio_locator=audio_locator,
             add_boa_eoa=add_boa_eoa,
             boa_string=boa_string,
@@ -710,7 +709,6 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
             context_key=context_key,
             answer_key=answer_key,
             end_string=end_string,
-            sample_alpha=sample_alpha,
         )
         self.is_megatron_iterable = True
         self.shard_manifests = shard_manifests
