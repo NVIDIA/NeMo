@@ -186,7 +186,7 @@ class Embedding(nn.Module):
         # RoPE positional embeddings
         # x -> B x T x C
         sinusoidal_q = get_sinusoidal_embeddings(x.size(1), x.size(2), x.device)
-        x = apply_rotary_position_embeddings(sinusoidal_pos=sinusoidal_q, x)
+        x = apply_rotary_position_embeddings(sinusoidal_pos=sinusoidal_q, tensor=x)
 
         x = self.drop(x)
         return x
