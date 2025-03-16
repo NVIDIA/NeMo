@@ -43,7 +43,8 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
 fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
 
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed.fsdp", "CPUOffloadPolicy")
-
+if not HAS_CPU_OFFLOAD_POLICY:
+    CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed._composable.fsdp", "CPUOffloadPolicy")
 
 @dataclass(kw_only=True)
 class RestoreConfig:
