@@ -2849,7 +2849,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT:
-        python scripts/llm/ptq.py -nc /home/TestData/nlp/megatron_llama/llama-ci-hf -algo fp8 -out /tmp/trtllm_quantized --ckpt_load_strictness log_all
+        python scripts/llm/ptq.py -nc /home/TestData/nlp/megatron_llama/llama-ci-hf -algo fp8 -out /tmp/trtllm_quantized
 
       AFTER_SCRIPT: |
         rm -rf /tmp/trtllm_quantized
