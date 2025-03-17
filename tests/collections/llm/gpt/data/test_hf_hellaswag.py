@@ -15,7 +15,6 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from functools import partial
 from nemo.collections.llm.gpt.data.hf_dataset import (
     HellaSwagHFDataModule
 )
