@@ -1140,6 +1140,7 @@ def _validate_config(
                         mbs
                         * (
                             (trainer.num_devices * trainer.num_nodes)
+                            / len(data.micro_batch_size)
                             / (
                                 trainer.strategy.tensor_model_parallel_size
                                 * trainer.strategy.pipeline_model_parallel_size
