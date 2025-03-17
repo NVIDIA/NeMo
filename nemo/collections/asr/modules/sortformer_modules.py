@@ -56,7 +56,7 @@ class SortformerModules(NeuralModule, Exportable):
         tf_d_model: int = 192,
         subsampling_factor: int = 8,
         mem_len: int = 188,
-        fifo_len: int = 0,  
+        fifo_len: int = 0,
         step_len: int = 376,
         mem_refresh_rate: int = 1,
         use_memory_pe: bool = False,
@@ -113,7 +113,7 @@ class SortformerModules(NeuralModule, Exportable):
         mask = arange.expand(batch_size, max_length) < lengths.unsqueeze(1)
         return mask
 
-    def streaming_feat_loader(self, feat_seq, feat_seq_length):
+    def streaming_feat_loader(self, feat_seq, feat_seq_length, feat_seq_offset):
         """
         Load a chunk of feature sequence for streaming inference.
 
@@ -131,9 +131,9 @@ class SortformerModules(NeuralModule, Exportable):
                 Dimension: (batch_size,)
         """
         feat_len = feat_seq.shape[2]
-#        num_chunks = math.ceil(feat_len / (self.step_len * self.subsampling_factor))
-#        if self.log:
-#            logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}, feat_seq_length={feat_seq_length}")
+        num_chunks = math.ceil(feat_len / (self.step_len * self.subsampling_factor))
+        if self.log:
+            logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}, feat_seq_length={feat_seq_length}, feat_seq_offset={feat_seq_offset}")
         stt_feat = 0
         end_feat = 0
         current_step_len = min(self.init_step_len, self.step_len)
@@ -143,7 +143,8 @@ class SortformerModules(NeuralModule, Exportable):
             end_feat = min(stt_feat + current_step_len * self.subsampling_factor, feat_len)
             right_offset = min(self.step_right_context * self.subsampling_factor, feat_len-end_feat)
             chunk_feat_seq = feat_seq[:, :, stt_feat-left_offset:end_feat+right_offset]
-            feat_lengths = (feat_seq_length - stt_feat + left_offset).clamp(0,chunk_feat_seq.shape[2])
+            feat_lengths = (feat_seq_length + feat_seq_offset - stt_feat + left_offset).clamp(0,chunk_feat_seq.shape[2])
+            feat_lengths = feat_lengths * (feat_seq_offset < end_feat)
             stt_feat = end_feat
             chunk_feat_seq_t = torch.transpose(chunk_feat_seq, 1, 2)
             if self.log:
@@ -175,6 +176,125 @@ class SortformerModules(NeuralModule, Exportable):
     
     def init_memory(self, batch_size, d_model=192, device=None):
         return torch.zeros(batch_size, 0, d_model).to(device)
+
+    def update_memory_FIFO_async(self, mem, mem_lengths, mem_preds, fifo, fifo_lengths, chunk, chunk_lengths, preds, spk_perm, chunk_left_offset=0, chunk_right_offset=0):
+        """
+        update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions
+        Args:
+            mem (torch.Tensor): memory buffer to save the embeddings from start
+                Dimension: (batch_size, mem_len, emb_dim)
+            mem_lengths (torch.Tensor): lengths of memory buffer
+                Dimension: (batch_size,)
+            mem_preds (torch.Tensor): speaker predictions for memory buffer
+                Dimension: (batch_size, mem_len, num_spk)
+            fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks.
+                Dimension: (batch_size, fifo_len, emb_dim)
+            fifo_lengths (torch.Tensor): lengths of FIFO queue
+                Dimension: (batch_size,)
+            chunk (torch.Tensor): chunk of embeddings to be predicted
+                Dimension: (batch_size, chunk_len, emb_dim)
+            chunk_lengths (torch.Tensor): lengths of current chunk
+                Dimension: (batch_size,)
+            preds (torch.Tensor): speaker predictions of the [mem + fifo + chunk] embeddings
+                Dimension: (batch_size, mem_len + fifo_len + chunk_len, num_spks)
+            spk_perm (torch.Tensor): indices of speaker permutation in memory, should be applied only for training
+                Dimension: (batch_size,)
+            chunk_left_offset and chunk_right_offset (int): left & right offset of the chunk,
+                only the chunk[:, chunk_left_offset:chunk_len+chunk_left_offset] is used for FIFO queue
+
+        Returns:
+            mem (torch.Tensor): updated memory buffer
+                Dimension: (batch_size, mem_len, emb_dim)
+            mem_lengths (torch.Tensor): unpated lengths of memory buffer
+                Dimension: (batch_size,)
+            fifo (torch.Tensor): updated FIFO queue
+                Dimension: (batch_size, fifo_len, emb_dim)
+            fifo_lengths (torch.Tensor): updated lengths of FIFO queue
+                Dimension: (batch_size,)
+            mem_preds (torch.Tensor): updated speaker predictions for memory buffer
+                Dimension: (batch_size, mem_len, num_spk)
+            fifo_preds (torch.Tensor): speaker predictions for FIFO queuer
+                Dimension: (batch_size, fifo_len, num_spk)
+            chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
+                Dimension: (batch_size, chunk_len, num_spks)
+            spk_perm (torch.Tensor): indices of speaker permutation in memory, should be applied only for training
+                Dimension: (batch_size,)
+        """
+
+        B, _, D = mem.shape
+        S = preds.shape[2]
+
+        lc, rc = chunk_left_offset, chunk_right_offset
+        max_mem_len, max_fifo_len, max_chunk_len = mem.shape[1], fifo.shape[1], chunk.shape[1] - lc - rc
+
+        if self.fifo_len == 0:
+            max_pop_out_len = max_chunk_len
+        elif self.mem_refresh_rate == 0:
+            max_pop_out_len = self.fifo_len
+        else:
+            max_pop_out_len = min(self.mem_refresh_rate * self.step_len, self.fifo_len)
+
+        if spk_perm is not None:
+            inv_spk_perm = torch.stack([torch.argsort(spk_perm[b]) for b in range(B)])
+            preds = torch.stack([preds[b, :, inv_spk_perm[b]] for b in range(B)])
+            spk_perm = None
+
+        fifo_preds = torch.zeros((B, max_fifo_len, S), device=preds.device)
+        chunk_preds = torch.zeros((B, max_chunk_len, S), device=preds.device)
+        chunk_lengths = (chunk_lengths - lc).clamp(min=0,max=max_chunk_len)
+        updated_fifo = torch.zeros((B, max_fifo_len + max_chunk_len, D), device=preds.device)
+        updated_fifo_preds = torch.zeros((B, max_fifo_len + max_chunk_len, S), device=preds.device)
+        updated_mem = torch.zeros((B, max_mem_len + max_pop_out_len, D), device=preds.device)
+        updated_mem_preds = torch.full((B, max_mem_len + max_pop_out_len, S), -0.1, device=preds.device)
+
+        for b in range(B):
+            mem_len = mem_lengths[b].item()
+            fifo_len = fifo_lengths[b].item()
+            chunk_len = chunk_lengths[b].item()
+            fifo_preds[b, :fifo_len, :] = preds[b, mem_len:mem_len+fifo_len, :]
+            chunk_preds[b, :chunk_len, :] = preds[b, mem_len+fifo_len+lc:mem_len+fifo_len+lc+chunk_len]
+            updated_mem[b, :mem_len, :] = mem[b, :mem_len, :]
+            updated_mem_preds[b, :mem_len, :] = mem_preds[b, :mem_len, :]
+            updated_fifo[b, :fifo_len, :] = fifo[b, :fifo_len, :]
+            updated_fifo_preds[b, :fifo_len, :] = fifo_preds[b, :fifo_len, :]
+
+            # append chunk to fifo
+            fifo_lengths[b] += chunk_len
+            updated_fifo[b, fifo_len:fifo_len+chunk_len, :] = chunk[b, lc:lc+chunk_len, :]
+            updated_fifo_preds[b, fifo_len:fifo_len+chunk_len, :] = chunk_preds[b, :chunk_len, :]
+            if fifo_len + chunk_len > max_fifo_len:
+                # move pop_out_len first frames of fifo to memory
+                pop_out_len = min(max_pop_out_len, fifo_len + chunk_len)
+                mem_lengths[b] += pop_out_len
+                updated_mem[b, mem_len:mem_len+pop_out_len, :] = updated_fifo[b, :pop_out_len, :]
+                if updated_mem_preds[b, 0, 0] >= 0:
+                    # memory already compressed at least once
+                    updated_mem_preds[b, mem_len:mem_len+pop_out_len, :] = updated_fifo_preds[b, :pop_out_len, :]
+                elif mem_len + pop_out_len > self.mem_len:
+                    # will compress memory for the first time
+                    updated_mem_preds[b, :mem_len, :] = preds[b, :mem_len, :]
+                    updated_mem_preds[b, mem_len:mem_len+pop_out_len, :] = updated_fifo_preds[b, :pop_out_len, :]
+                fifo_lengths[b] -= pop_out_len
+                new_fifo_len = fifo_lengths[b].item()
+                updated_fifo[b, :new_fifo_len, :] = updated_fifo[b, pop_out_len:pop_out_len+new_fifo_len, :]
+                updated_fifo[b, new_fifo_len:, :] = 0
+
+        fifo = updated_fifo[:, :max_fifo_len, :]
+
+        # update memory
+        need_compress = mem_lengths > self.mem_len
+        mem = updated_mem[:, :self.mem_len:, :]
+        mem_preds = updated_mem_preds[:, :self.mem_len:, :]
+
+        idx = torch.where(need_compress)[0]
+        if len(idx) > 0:
+            mem[idx], mem_preds[idx], spk_perm = self._compress_memory(updated_mem[idx], updated_mem_preds[idx])
+            mem_lengths[idx] = mem_lengths[idx].clamp(max=self.mem_len)
+
+        if self.log:
+            logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
+
+        return mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, chunk_preds, spk_perm
 
     def update_memory_FIFO(self, mem, mem_preds, fifo, chunk, preds, spk_perm, chunk_left_offset=0, chunk_right_offset=0):
         """
@@ -285,7 +405,7 @@ class SortformerModules(NeuralModule, Exportable):
         n_high_per_spk = (mem_len_per_spk - last_n_sil_per_spk) // 2
 
         #condition for frame being silence
-        is_sil = preds.sum(dim=2) < 0.2 # Shape: (B, n_frames)
+        is_sil = (preds.sum(dim=2) < 0.2) * (preds.sum(dim=2) > -0.1) # Shape: (B, n_frames)
         is_sil = is_sil.unsqueeze(-1) # Shape: (B, n_frames, 1)
         #get mean silence embedding tensor
         emb_seq_sil = torch.where(is_sil, emb_seq, torch.tensor(0.0)) # Shape: (B, n_frames, emb_dim)

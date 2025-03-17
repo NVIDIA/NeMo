@@ -46,6 +46,35 @@ from nemo.utils import logging
 
 __all__ = ['SortformerEncLabelModel']
 
+def concat_and_pad(embs, lengths):
+    """Concatenates lengths[i] first embeddings of embs[i], and pads the rest elements with zeros.
+    Args:
+        embs: List of embeddings Tensors of (B, T_i, D) shape
+        lengths: List of lengths Tensors of (B,) shape
+
+    Returns:
+        output: concatenated embeddings Tensor of (B, T, D) shape
+        total_lengths: output lengths Tensor of (B,) shape
+    """
+
+    assert len(embs) == len(lengths)
+    device = embs[0].device
+    dtype = embs[0].dtype
+    B, D = embs[0].shape[0], embs[0].shape[2]
+
+    total_lengths = torch.sum(torch.stack(lengths), dim=0)
+    max_length = total_lengths.max().item()
+
+    output = torch.zeros(B, max_length, D, device=device, dtype=dtype)
+    start_indices = torch.zeros(B, dtype=torch.int64, device=device)
+
+    for E, L in zip(embs, lengths):
+        end_indices = start_indices + L
+        for b in range(B):
+            output[b, start_indices[b]:end_indices[b]] = E[b, :L[b]]
+        start_indices = end_indices
+
+    return output, total_lengths
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixin):
     """
@@ -112,11 +141,16 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.eps = 1e-3
         self.loss = instantiate(self._cfg.loss)
 
+        self.pad_front = self._cfg.get("pad_front", False)
+        self.async_streaming = self._cfg.get("async_streaming", False)
+
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
         self._init_eval_metrics()
         speaker_inds = list(range(self._cfg.max_num_of_spks))
         self.speaker_permutations = torch.tensor(list(itertools.permutations(speaker_inds)))  # Get all permutations
+
+        self.concat_and_pad_script = torch.jit.script(concat_and_pad)
 
     def _init_loss_weights(self):
         pil_weight = self._cfg.get("pil_weight", 0.0)
@@ -416,6 +450,24 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             torch.cuda.empty_cache()
         return processed_signal, processed_signal_length
 
+    def shift_signal(
+        self,
+        processed_signal,
+        offsets,
+    ):
+        B, C, T = processed_signal.shape
+        shifted_signal = torch.stack([torch.cat([processed_signal[b, :, offsets[b].item():], processed_signal[b, :, :offsets[b].item()]], dim=1) for b in range(B)])
+        return shifted_signal
+
+    def shift_emb(
+        self,
+        emb_seq,
+        offsets,
+    ):
+        B, T, C = emb_seq.shape
+        shifted_emb = torch.stack([torch.cat([emb_seq[b, offsets[b].item():, :], emb_seq[b, :offsets[b].item(), :]], dim=0) for b in range(B)])
+        return shifted_emb
+
     def forward(
         self,
         audio_signal,
@@ -446,20 +498,75 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         return preds
 
     @property
-    def output_names(self):
-        # return ["processed_signal", "processed_signal_length"]
-        return ["preds"]
+    def input_names(self):
+        return ["chunk", "chunk_lengths", "mem", "mem_lengths", "fifo", "fifo_lengths"]
 
     @property
-    def input_names(self):
-        return ["processed_signal", "processed_signal_length"]
-        # return ["audio_signal", "audio_signal_length"]
+    def output_names(self):
+        return ["mem_fifo_chunk_preds", "chunk_pre_encode_embs", "chunk_pre_encode_lengths"]
 
-    def forward_for_export(self, processed_signal, processed_signal_length):
-        processed_signal = processed_signal[:, :, :processed_signal_length.max()]
-        emb_seq, emb_seq_length = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
-        preds = self.forward_infer(emb_seq, emb_seq_length)
-        return preds
+    def streaming_input_examples(self):
+        """
+        Input tensor examples for exporting streaming version of model.
+        """
+        bs = 4
+        chunk = torch.rand([bs, 120, 80]).to(self.device)
+        chunk_lengths = torch.tensor([120] * bs).to(self.device)
+        mem = torch.randn([bs, 188, 512]).to(self.device)
+        mem_lengths = torch.tensor([40, 188, 0, 68]).to(self.device)
+        fifo = torch.randn([bs, 188, 512]).to(self.device)
+        fifo_lengths = torch.tensor([50, 88, 0, 90]).to(self.device)
+        return chunk, chunk_lengths, mem, mem_lengths, fifo, fifo_lengths
+
+    def streaming_export(self, output: str):
+        input_example = self.streaming_input_examples()
+        export_out = self.export(output, input_example=input_example)
+        return export_out
+
+    def forward_for_export(self, chunk, chunk_lengths, mem, mem_lengths, fifo, fifo_lengths):
+        """
+        This forward pass is for ONNX model export.
+
+        Args:
+            chunk (torch.Tensor): tensor containing audio waveform
+                Dimension: (batch_size, feature frame count, dimension)
+            chunk_lengths (torch.Tensor): tensor containing lengths of audio waveforms
+                Dimension: (batch_size,)
+            mem (torch.Tensor): tensor containing memory for the embeddings from start
+                Dimension: (batch_size, mem_len, emb_dim)
+            mem_lengths (torch.Tensor): tensor containing lengths of memory embeddings
+                Dimension: (batch_size,)
+            fifo (torch.Tensor): tensor containing memory for the embeddings from latest chunks
+                Dimension: (batch_size, fifo_len, emb_dim)
+            fifo_lengths (torch.Tensor): tensor containing lengths of FIFO queue embeddings
+                Dimension: (batch_size,)
+
+        Returns:
+            mem_fifo_chunk_preds (torch.Tensor): Sorted tensor containing predicted speaker labels
+                Dimension: (batch_size, max. diar frame count, num_speakers)
+            chunk_pre_encode_embs (torch.Tensor): tensor containing pre-encoded embeddings from the chunk
+                Dimension: (batch_size, num_frames, emb_dim)
+            chunk_pre_encode_lengths (torch.Tensor): tensor containing lengths of pre-encoded embeddings from the chunk
+                Dimension: (batch_size,)
+        """
+        # pre-encode the chunk
+        chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=chunk, lengths=chunk_lengths)
+        chunk_pre_encode_lengths = chunk_pre_encode_lengths.to(torch.int64)
+        print(f"chunk_pre_encode_embs: {chunk_pre_encode_embs.shape}, chunk_pre_encode_lengths: {chunk_pre_encode_lengths}")
+
+        # concat the embeddings from the memory, FIFO and the chunk
+        mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = self.concat_and_pad_script([mem, fifo, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
+        print(f"mem_fifo_chunk_pre_encode_embs: {mem_fifo_chunk_pre_encode_embs.shape}, mem_fifo_chunk_pre_encode_lengths: {mem_fifo_chunk_pre_encode_lengths}")
+
+        # encode the concatenated embeddings
+        mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths  = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
+        print(f"mem_fifo_chunk_fc_encoder_embs: {mem_fifo_chunk_fc_encoder_embs.shape}, mem_fifo_chunk_fc_encoder_lengths: {mem_fifo_chunk_fc_encoder_lengths}")
+
+        # forward pass for inference
+        mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
+        print(f"mem_fifo_chunk_preds: {mem_fifo_chunk_preds.shape}")
+
+        return mem_fifo_chunk_preds, chunk_pre_encode_embs, chunk_pre_encode_lengths
 
     def forward_streaming(
         self,
@@ -481,12 +588,21 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         """
 
         MEM = None # memory to save the embeddings from start
+        MEM_LENS = None
         MEM_PREDS = None # memory predictions
         FIFO_QUEUE = None # memory to save the embedding from the latest chunks
+        FIFO_LENS = None
         total_pred = None
         spk_perm = None
 
         B, C, T = processed_signal.shape
+        if self.pad_front:
+            deltas = (T - processed_signal_length) % (self.sortformer_modules.step_len*self.sortformer_modules.subsampling_factor)
+            shifts = processed_signal_length + deltas
+            processed_signal = self.shift_signal(processed_signal, shifts)
+            processed_signal_offset = T - shifts
+        else:
+            processed_signal_offset = torch.zeros((B,), dtype=torch.long, device=self.device)
 
         if dist.is_available() and dist.is_initialized():
             local_tensor = torch.tensor([T], device=processed_signal.device)
@@ -515,12 +631,14 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         feat_len = processed_signal.shape[2]
         num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
-        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length), total=num_chunks, desc="Streaming Steps"):
-            MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred, spk_perm = self.forward_streaming_step(
+        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length, feat_seq_offset=processed_signal_offset), total=num_chunks, desc="Streaming Steps", disable=self.training):
+            MEM, MEM_LENS, FIFO_QUEUE, FIFO_LENS, MEM_PREDS, _, total_pred, spk_perm = self.forward_streaming_step(
                 processed_signal=chunk_feat_seq_t,
                 processed_signal_length=feat_lengths,
                 fifo_last_time=FIFO_QUEUE,
+                fifo_lengths=FIFO_LENS,
                 mem_last_time=MEM,
+                mem_lengths=MEM_LENS,
                 mem_preds_last_time=MEM_PREDS,
                 previous_pred_out=total_pred,
                 previous_spk_perm=spk_perm,
@@ -536,6 +654,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         if not self.training:
             torch.cuda.empty_cache()
 
+        if self.pad_front:
+            total_offset = processed_signal_offset // self.sortformer_modules.subsampling_factor
+            total_pred = self.shift_emb(total_pred, total_offset)
+
         if T < max_T: #discard preds corresponding to padding
             n_frames = math.ceil(T / self.encoder.subsampling_factor)
             total_pred = total_pred[:,:n_frames,:]
@@ -546,7 +668,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         processed_signal,
         processed_signal_length,
         fifo_last_time=None,
+        fifo_lengths=None,
         mem_last_time=None,
+        mem_lengths=None,
         mem_preds_last_time=None,
         previous_pred_out=None,
         previous_spk_perm=None,
@@ -587,32 +711,64 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         """
 
         B = processed_signal.shape[0]
-        if mem_last_time is None:
-            mem_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
-        if fifo_last_time is None:
-            fifo_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+
+        if self.async_streaming:
+            if mem_last_time is None:
+                mem_last_time = torch.zeros((B, self.sortformer_modules.mem_len, self.sortformer_modules.fc_d_model), device=self.device)
+                mem_preds_last_time = torch.full((B, self.sortformer_modules.mem_len, self.sortformer_modules.unit_n_spks), -0.1, device=self.device)
+                mem_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
+            if fifo_last_time is None:
+                fifo_last_time = torch.zeros((B, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
+                fifo_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
+        else:
+            if mem_last_time is None:
+                mem_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
+            if fifo_last_time is None:
+                fifo_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+
         if previous_pred_out is None:
             previous_pred_out = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.unit_n_spks, device=self.device)
 
         chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
 
-        mem_chunk_pre_encode_embs = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
-        mem_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
+        if self.async_streaming:
+            mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = concat_and_pad([mem_last_time, fifo_last_time, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
+        else:
+            mem_fifo_chunk_pre_encode_embs = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
+            mem_fifo_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
 
-        mem_chunk_fc_encoder_embs, mem_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_chunk_pre_encode_embs, processed_signal_length=mem_chunk_pre_encode_lengths, pre_encode_input=True)
+        mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
+        mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
 
-        mem_chunk_preds = self.forward_infer(mem_chunk_fc_encoder_embs, mem_chunk_fc_encoder_lengths)
+        B, T, C  = mem_fifo_chunk_preds.shape
+        preds_mask = torch.arange(T, device=self.device).view(1, -1, 1).expand(B,-1,C) < mem_fifo_chunk_fc_encoder_lengths.view(-1, 1, 1).expand(-1,T,C)
+        mem_fifo_chunk_preds = torch.where(preds_mask, mem_fifo_chunk_preds, torch.tensor(0.1))
 
-        mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_FIFO(
-            mem=mem_last_time,
-            mem_preds=mem_preds_last_time,
-            fifo=fifo_last_time,
-            chunk=chunk_pre_encode_embs,
-            preds=mem_chunk_preds,
-            spk_perm=previous_spk_perm,
-            chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
-            chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
-        )
+        if self.async_streaming:
+            mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_FIFO_async(
+                mem=mem_last_time,
+                mem_lengths=mem_lengths,
+                mem_preds=mem_preds_last_time,
+                fifo=fifo_last_time,
+                fifo_lengths=fifo_lengths,
+                chunk=chunk_pre_encode_embs,
+                chunk_lengths=chunk_pre_encode_lengths,
+                preds=mem_fifo_chunk_preds,
+                spk_perm=previous_spk_perm,
+                chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
+                chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
+            )
+        else:
+            mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_FIFO(
+                mem=mem_last_time,
+                mem_preds=mem_preds_last_time,
+                fifo=fifo_last_time,
+                chunk=chunk_pre_encode_embs,
+                preds=mem_fifo_chunk_preds,
+                spk_perm=previous_spk_perm,
+                chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
+                chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
+            )
 
         total_step_preds = torch.cat([previous_pred_out, chunk_preds], dim=1)
 
@@ -621,8 +777,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             self.fifo_preds_list.append(fifo_preds.detach().cpu().numpy())
             self.mem_preds_list.append(mem_preds.detach().cpu().numpy())
 
-        return mem, fifo, mem_preds, fifo_preds, total_step_preds, spk_perm
-
+        return mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, total_step_preds, spk_perm
 
     def _get_aux_train_evaluations(self, preds, targets, target_lens) -> dict:
         """
