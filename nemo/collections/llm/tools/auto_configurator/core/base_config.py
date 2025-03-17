@@ -93,7 +93,7 @@ def _estimate_model_size(
     """
 
     model_penalty = 0.87 if model_name == "mt5" else 1.0
-    valid_models = valid_models = [
+    valid_models = [
         "gpt3",
         "t5",
         "mt5",
