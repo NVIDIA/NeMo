@@ -163,6 +163,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 pipeline_dtype=torch.bfloat16,
                 autocast_enabled=False,
                 grad_reduce_in_fp32=False,
+                # fp8="hybrid", #TODO: @ataghibakhsh change this
+                # fp8_amax_history_len=1, #TODO: @ataghibakhsh change this
+                # fp8_amax_compute_algo="max", #TODO: @ataghibakhsh change this
             ),
         )
 
@@ -257,7 +260,8 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         return rendered_output
 
     def remove_eos_token(self, text):
-        eos_token = self.mcore_tokenizer.tokenizer.tokenizer.eos_token
+        # eos_token = self.mcore_tokenizer.tokenizer.tokenizer.eos_token
+        eos_token = "</s>" #TODO: @ataghibakhsh change this
         output = []
         for t in text:
             if eos_token in t:
@@ -298,13 +302,13 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         # try: The try execpt block here can obscure the actual error hence commenting
         prompts = str_ndarray2list(inputs.pop("prompts"))
         max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
-        random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
-        temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
-        top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
-        top_p = inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0
+        random_seed = 1234 #inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None TODO: @ataghibakhsh change this
+        temperature = 0.001 #inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0 TODO: @ataghibakhsh change this
+        top_k = 1 #inputs.pop("top_k")[0][0] if "top_k" in inputs else 1 TODO: @ataghibakhsh change this
+        top_p = 0.0 #inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0 TODO: @ataghibakhsh change this
         num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
         log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
-        apply_chat_template = inputs.pop("apply_chat_template")[0][0] if "apply_chat_template" in inputs else False
+        apply_chat_template = False #inputs.pop("apply_chat_template")[0][0] if "apply_chat_template" in inputs else False TODO: @ataghibakhsh change this
         text_only = True
         if apply_chat_template:
             # Deserialize the JSON string back to a dictionary
