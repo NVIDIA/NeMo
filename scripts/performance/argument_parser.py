@@ -14,14 +14,10 @@
 
 import argparse
 
-<<<<<<< HEAD
-from .utils import DEFAULT_NEMO_HOME, NEMORUN_HOME
-=======
 from nemo_run.config import get_nemorun_home
 
 from .utils import DEFAULT_NEMO_HOME
 
->>>>>>> main
 
 def parse_cli_args():
     """
