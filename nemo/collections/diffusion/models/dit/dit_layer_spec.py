@@ -18,26 +18,20 @@ from typing import Literal, Union
 
 import torch
 import torch.nn as nn
-from einops import rearrange
 from megatron.core.jit import jit_fuser
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer.attention import (
     CrossAttention,
     CrossAttentionSubmodules,
     SelfAttention,
     SelfAttentionSubmodules,
 )
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEColumnParallelLinear,
-    TEDotProductAttention,
-    TENorm,
-    TERowParallelLinear,
-)
+
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
@@ -48,21 +42,54 @@ from nemo.collections.diffusion.models.dit.dit_attention import (
     JointSelfAttentionSubmodules,
 )
 
+try:
+    from megatron.core.transformer.custom_layers.transformer_engine import (
+        TEColumnParallelLinear,
+        TEDotProductAttention,
+        TENorm,
+        TERowParallelLinear,
+    )
+except ImportError:
+    from nemo.utils import logging
 
+    logging.warning(
+        "Failed to import Transformer Engine dependencies. "
+        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
+        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
+    )
+
+
+# pylint: disable=C0116
 @dataclass
 class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
+    """
+    Submodules for DiT with AdaLN.
+    """
+
+    # pylint: disable=C0115
+
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 @dataclass
 class STDiTWithAdaLNSubmodules(TransformerLayerSubmodules):
+    """
+    Submodules for STDiT with AdaLN.
+    """
+
+    # pylint: disable=C0115
     spatial_self_attention: Union[ModuleSpec, type] = IdentityOp
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 class RMSNorm(nn.Module):
+    """
+    RMSNorm Module.
+    """
+
+    # pylint: disable=C0115
     def __init__(self, hidden_size: int, config, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
@@ -96,7 +123,15 @@ class AdaLN(MegatronModule):
             self.ln = norm(config.hidden_size, elementwise_affine=False, eps=self.config.layernorm_epsilon)
         self.n_adaln_chunks = n_adaln_chunks
         self.adaLN_modulation = nn.Sequential(
-            nn.SiLU(), nn.Linear(config.hidden_size, self.n_adaln_chunks * config.hidden_size, bias=modulation_bias)
+            nn.SiLU(),
+            ColumnParallelLinear(
+                config.hidden_size,
+                self.n_adaln_chunks * config.hidden_size,
+                config=config,
+                init_method=nn.init.normal_,
+                bias=modulation_bias,
+                gather_output=True,
+            ),
         )
         self.use_second_norm = use_second_norm
         if self.use_second_norm:
@@ -105,18 +140,21 @@ class AdaLN(MegatronModule):
 
         setattr(self.adaLN_modulation[-1].weight, "sequence_parallel", config.sequence_parallel)
 
+    @jit_fuser
     def forward(self, timestep_emb):
-        return self.adaLN_modulation(timestep_emb).chunk(self.n_adaln_chunks, dim=-1)
+        output, bias = self.adaLN_modulation(timestep_emb)
+        output = output + bias if bias else output
+        return output.chunk(self.n_adaln_chunks, dim=-1)
 
-    # @jit_fuser
+    @jit_fuser
     def modulate(self, x, shift, scale):
         return x * (1 + scale) + shift
 
-    # @jit_fuser
+    @jit_fuser
     def scale_add(self, residual, x, gate):
         return residual + gate * x
 
-    # @jit_fuser
+    @jit_fuser
     def modulated_layernorm(self, x, shift, scale, layernorm_idx=0):
         if self.use_second_norm and layernorm_idx == 1:
             layernorm = self.ln2
@@ -128,7 +166,7 @@ class AdaLN(MegatronModule):
         # DiT block specific
         return self.modulate(input_layernorm_output, shift, scale)
 
-    # @jit_fuser
+    @jit_fuser
     def scaled_modulated_layernorm(self, residual, x, gate, shift, scale, layernorm_idx=0):
         hidden_states = self.scale_add(residual, x, gate)
         shifted_pre_mlp_layernorm_output = self.modulated_layernorm(hidden_states, shift, scale, layernorm_idx)
@@ -136,6 +174,10 @@ class AdaLN(MegatronModule):
 
 
 class AdaLNContinuous(MegatronModule):
+    '''
+    A variant of AdaLN used for flux models.
+    '''
+
     def __init__(
         self,
         config: TransformerConfig,
@@ -191,7 +233,8 @@ class STDiTLayerWithAdaLN(TransformerLayer):
         )
 
         # Override Spatial Self Attention and Cross Attention to disable CP.
-        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to incorrect tensor shapes.
+        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to
+        # incorrect tensor shapes.
         sa_cp_override_config = copy.deepcopy(config)
         sa_cp_override_config.context_parallel_size = 1
         sa_cp_override_config.tp_comm_overlap = False
@@ -231,7 +274,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
         # timestep embedding
         timestep_emb = attention_mask
 
-        # ******************************************** spatial self attention ******************************************************
+        # ******************************************** spatial self attention *****************************************
 
         shift_sa, scale_sa, gate_sa = self.adaLN(timestep_emb)
 
@@ -246,7 +289,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['self_attention'],
         )
 
-        # ******************************************** full self attention *************************************************
+        # ******************************************** full self attention ********************************************
 
         shift_full, scale_full, gate_full = self.adaLN(timestep_emb)
 
@@ -265,7 +308,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['self_attention'],
         )
 
-        # ******************************************** cross attention *****************************************************
+        # ******************************************** cross attention ************************************************
 
         shift_ca, scale_ca, gate_ca = self.adaLN(timestep_emb)
 
@@ -285,7 +328,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['cross_attention'],
         )
 
-        # ******************************************** temporal self attention *********************************************
+        # ******************************************** temporal self attention ****************************************
 
         shift_ta, scale_ta, gate_ta = self.adaLN(timestep_emb)
 
@@ -303,7 +346,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['self_attention'],
         )
 
-        # ******************************************** mlp *****************************************************************
+        # ******************************************** mlp ************************************************************
 
         shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb)
 
@@ -359,7 +402,8 @@ class DiTLayerWithAdaLN(TransformerLayer):
         )
 
         # Override Cross Attention to disable CP.
-        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to incorrect tensor shapes.
+        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to
+        # incorrect tensor shapes.
         if submodules.cross_attention != IdentityOp:
             cp_override_config = copy.deepcopy(config)
             cp_override_config.context_parallel_size = 1
@@ -393,7 +437,7 @@ class DiTLayerWithAdaLN(TransformerLayer):
         # timestep embedding
         timestep_emb = attention_mask
 
-        # ******************************************** full self attention ******************************************************
+        # ******************************************** full self attention ********************************************
         if self.cross_attention:
             shift_full, scale_full, gate_full, shift_ca, scale_ca, gate_ca, shift_mlp, scale_mlp, gate_mlp = (
                 self.adaLN(timestep_emb)
@@ -413,7 +457,7 @@ class DiTLayerWithAdaLN(TransformerLayer):
         )
 
         if self.cross_attention:
-            # ******************************************** cross attention ******************************************************
+            # ******************************************** cross attention ********************************************
             # adaLN with scale + shift
             hidden_states, pre_cross_attn_layernorm_output_ada = self.adaLN.scaled_modulated_layernorm(
                 residual=hidden_states,
@@ -516,7 +560,7 @@ class DiTLayer(TransformerLayer):
 
 
 class MMDiTLayer(TransformerLayer):
-    """A single transformer layer.
+    """A multi-modal transformer layer.
 
     Transformer layer takes input with size [s, b, h] and returns an
     output of the same size.
@@ -538,18 +582,20 @@ class MMDiTLayer(TransformerLayer):
         self.adaln = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
 
         self.context_pre_only = context_pre_only
-        context_norm_type = "ada_norm_continous" if context_pre_only else "ada_norm_zero"
+        context_norm_type = "ada_norm_continuous" if context_pre_only else "ada_norm_zero"
 
-        if context_norm_type == "ada_norm_continous":
-            self.adaln_context = AdaLNContinous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
+        if context_norm_type == "ada_norm_continuous":
+            self.adaln_context = AdaLNContinuous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
         elif context_norm_type == "ada_norm_zero":
             self.adaln_context = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
         else:
             raise ValueError(
-                f"Unknown context_norm_type: {context_norm_type}, currently only support `ada_norm_continous`, `ada_norm_zero`"
+                f"Unknown context_norm_type: {context_norm_type}, "
+                f"currently only support `ada_norm_continous`, `ada_norm_zero`"
             )
         # Override Cross Attention to disable CP.
-        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to incorrect tensor shapes.
+        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to
+        # incorrect tensor shapes.
         cp_override_config = copy.deepcopy(config)
         cp_override_config.context_parallel_size = 1
         cp_override_config.tp_comm_overlap = False
@@ -621,6 +667,15 @@ class MMDiTLayer(TransformerLayer):
 
 
 class FluxSingleTransformerBlock(TransformerLayer):
+    """
+    Flux Single Transformer Block.
+
+    Single transformer layer mathematically equivalent to original Flux single transformer.
+
+    This layer is re-implemented with megatron-core and also altered in structure for better performance.
+
+    """
+
     def __init__(
         self,
         config: TransformerConfig,
@@ -631,14 +686,9 @@ class FluxSingleTransformerBlock(TransformerLayer):
         modulation_bias: bool = True,
     ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
-        hidden_size = config.hidden_size
         self.adaln = AdaLN(
             config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
         )
-        self.mlp_hidden_dim = int(hidden_size * mlp_ratio)
-        self.proj_in = nn.Linear(hidden_size, self.mlp_hidden_dim)
-        self.activation = nn.GELU(approximate="tanh")
-        self.proj_out = nn.Linear(hidden_size + self.mlp_hidden_dim, hidden_size)
 
     def forward(
         self,
@@ -657,15 +707,13 @@ class FluxSingleTransformerBlock(TransformerLayer):
 
         norm_hidden_states = self.adaln.modulated_layernorm(hidden_states, shift=shift, scale=scale)
 
-        mlp_hidden_states = self.activation(self.proj_in(norm_hidden_states))
+        mlp_hidden_states, mlp_bias = self.mlp(norm_hidden_states)
 
         attention_output = self.self_attention(
             norm_hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb
         )
 
-        hidden_states = torch.cat((attention_output, mlp_hidden_states), dim=2)
-
-        hidden_states = self.proj_out(hidden_states)
+        hidden_states = mlp_hidden_states + mlp_bias + attention_output
 
         hidden_states = self.adaln.scale_add(residual, x=hidden_states, gate=gate)
 
@@ -833,9 +881,16 @@ def get_flux_single_transformer_engine_spec() -> ModuleSpec:
                 submodules=SelfAttentionSubmodules(
                     linear_qkv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,
-                    q_layernorm=RMSNorm,
-                    k_layernorm=RMSNorm,
-                    linear_proj=IdentityOp,
+                    q_layernorm=TENorm,
+                    k_layernorm=TENorm,
+                    linear_proj=TERowParallelLinear,
+                ),
+            ),
+            mlp=ModuleSpec(
+                module=MLP,
+                submodules=MLPSubmodules(
+                    linear_fc1=TEColumnParallelLinear,
+                    linear_fc2=TERowParallelLinear,
                 ),
             ),
         ),
@@ -850,10 +905,10 @@ def get_flux_double_transformer_engine_spec() -> ModuleSpec:
                 module=JointSelfAttention,
                 params={"attn_mask_type": AttnMaskType.no_mask},
                 submodules=JointSelfAttentionSubmodules(
-                    q_layernorm=RMSNorm,
-                    k_layernorm=RMSNorm,
-                    added_q_layernorm=RMSNorm,
-                    added_k_layernorm=RMSNorm,
+                    q_layernorm=TENorm,
+                    k_layernorm=TENorm,
+                    added_q_layernorm=TENorm,
+                    added_k_layernorm=TENorm,
                     linear_qkv=TEColumnParallelLinear,
                     added_linear_qkv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,
@@ -869,3 +924,6 @@ def get_flux_double_transformer_engine_spec() -> ModuleSpec:
             ),
         ),
     )
+
+
+# pylint: disable=C0116

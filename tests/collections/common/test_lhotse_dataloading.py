@@ -21,17 +21,17 @@ import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, SupervisionSegment, compute_num_samples
+from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, compute_num_samples
 from lhotse.audio import AudioLoadingError
 from lhotse.cut import Cut, MixedCut, PaddingCut
-from lhotse.cut.text import TextPairExample
+from lhotse.dataset import RoundRobinSampler, ZipSampler
 from lhotse.shar import JsonlShardWriter
 from lhotse.testing.dummies import dummy_recording
+from lhotse.testing.random import deterministic_rng
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.common.data.lhotse.text_adapters import TextExample
+from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample, TextExample
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 
@@ -103,6 +103,21 @@ def nemo_manifest_path(cutset_path: Path):
 
 
 @pytest.fixture(scope="session")
+def nemo_manifest_with_skipme_path(nemo_manifest_path: Path) -> Path:
+    """Create a nemo manifest with last 2 utterances out of 10 with `_skipme` key enabled"""
+    from lhotse.serialization import load_jsonl, save_to_jsonl
+
+    all_items = list(load_jsonl(nemo_manifest_path))
+
+    for item in all_items[-2:]:
+        item['_skipme'] = True
+
+    p = nemo_manifest_path.parent / "nemo_manifest_with_skipme.json"
+    save_to_jsonl(all_items, p)
+    return p
+
+
+@pytest.fixture(scope="session")
 def mc_cutset_path(tmp_path_factory) -> Path:
     """10 two-channel utterances of length 1s as a Lhotse CutSet."""
     from lhotse import CutSet, MultiCut
@@ -167,6 +182,24 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
                 tar_writer.write(name, BytesIO(f.read()))
             mft_writer.write({**d, "audio_filepath": name, "shard_id": int(idx > 4)})
     return mft_writer.path, f"{root}/audios__OP_0..1_CL_.tar"
+
+
+@pytest.fixture(scope="session")
+def nemo_tarred_manifest_with_skipme_path(nemo_tarred_manifest_path: Path) -> Tuple[str, str]:
+    """Create a nemo tarred manifest with last 2 utterances out of 10 with `_skipme` key enabled."""
+    from lhotse.serialization import load_jsonl, save_to_jsonl
+
+    json_p, tar_p = nemo_tarred_manifest_path
+
+    all_items = list(load_jsonl(json_p))
+
+    for item in all_items[-2:]:
+        item['_skipme'] = True
+
+    p = json_p.parent / "tarred_audio_filepaths_with_skipme.jsonl"
+    save_to_jsonl(all_items, p)
+
+    return p, tar_p
 
 
 @pytest.fixture(scope="session")
@@ -1314,6 +1347,14 @@ Otra frase."""
     return es_path
 
 
+@pytest.fixture(scope="session")
+def questions_path(tmp_path_factory) -> str:
+    tmpdir = tmp_path_factory.mktemp("questions")
+    qp = tmpdir / "questions.txt"
+    qp.write_text("translate the following to spanish")
+    return str(qp)
+
+
 def test_text_file_input(txt_en_path, txt_es_path):
     config = OmegaConf.create(
         {
@@ -1349,7 +1390,7 @@ def test_text_file_input(txt_en_path, txt_es_path):
     assert all(c.language == "en" for c in b)
 
 
-def test_text_file_pairs_input(txt_en_path, txt_es_path):
+def test_text_file_pairs_input(txt_en_path, txt_es_path, questions_path):
     config = OmegaConf.create(
         {
             "input_cfg": [
@@ -1357,8 +1398,10 @@ def test_text_file_pairs_input(txt_en_path, txt_es_path):
                     "type": "txt_pair",
                     "source_paths": txt_en_path,
                     "target_paths": txt_es_path,
+                    "questions_path": questions_path,
                     "source_language": "en",
                     "target_language": "es",
+                    "questions_language": "en",
                 },
             ],
             "shuffle": True,
@@ -1377,13 +1420,13 @@ def test_text_file_pairs_input(txt_en_path, txt_es_path):
 
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
@@ -1403,7 +1446,7 @@ def txt_pair_paths_shards(tmp_path_factory, txt_en_path, txt_es_path):
     return f"{tmp_path}/en__OP_0..1_CL_.txt", f"{tmp_path}/es__OP_0..1_CL_.txt"
 
 
-def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str]):
+def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str], questions_path):
     en_paths, es_paths = txt_pair_paths_shards
 
     config = OmegaConf.create(
@@ -1413,8 +1456,10 @@ def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str]):
                     "type": "txt_pair",
                     "source_paths": en_paths,
                     "target_paths": es_paths,
+                    "questions_path": questions_path,
                     "source_language": "en",
                     "target_language": "es",
+                    "questions_language": "en",
                 },
             ],
             "shuffle": True,
@@ -1433,33 +1478,35 @@ def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str]):
 
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
 
 @pytest.fixture(scope="session")
-def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> TokenizerWrapper:
+def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> SentencePieceTokenizer:
     tmpdir = tmp_path_factory.mktemp("en_es_tokenizer")
     text_path = tmpdir / "text.txt"
     text_path.write_text(txt_en_path.read_text() + "\n" + txt_es_path.read_text())
     create_spt_model(text_path, vocab_size=128, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
-    return TokenizerWrapper(SentencePieceTokenizer(str(tmpdir / "tokenizer.model")))
+    return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
 
 def test_multimodal_text_audio_dataloading(
     txt_pair_paths_shards: tuple[str, str],
     nemo_tarred_manifest_path_multi: tuple[str, str],
-    en_es_tokenizer: TokenizerWrapper,
+    en_es_tokenizer: SentencePieceTokenizer,
+    questions_path: str,
 ):
     en_paths, es_paths = txt_pair_paths_shards
     manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 1024
     config = OmegaConf.create(
         {
             "input_cfg": [
@@ -1469,6 +1516,8 @@ def test_multimodal_text_audio_dataloading(
                     "target_paths": es_paths,
                     "source_language": "en",
                     "target_language": "es",
+                    "questions_path": questions_path,
+                    "questions_language": "en",
                     "tags": {
                         "modality": "text",
                     },
@@ -1485,7 +1534,8 @@ def test_multimodal_text_audio_dataloading(
             "shuffle": True,
             "num_workers": 0,
             "use_multimodal_sampling": True,
-            "batch_tokens": 1024,
+            "prompt_format": "plain",
+            "batch_tokens": BT,
             # How to set token equivalent duration in actual training?
             #   assuming fbank frames: 0.01 is the base due to frame shift;
             #       + subsampling x8 gives us 0.08
@@ -1493,7 +1543,7 @@ def test_multimodal_text_audio_dataloading(
             #       we'd get 0.02
             #   in this test we'll just use 0.1 for simplicity
             "token_equivalent_duration": 0.1,
-            "quadratic_factor": 50,
+            "quadratic_factor": QF,
             "seed": 0,
             "shard_seed": 0,
         }
@@ -1507,52 +1557,415 @@ def test_multimodal_text_audio_dataloading(
         tokenizer=en_es_tokenizer,
     )
 
+    b = next(iter(dl))
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b)
+    assert any(isinstance(ex, Cut) for ex in b)
+    assert any(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
+    for ex in b:
+        if isinstance(ex, Cut):
+            assert ex.modality == "audio"
+            assert isinstance(ex.load_audio(), np.ndarray)
+            assert isinstance(ex.supervisions[0].text, str)
+        if isinstance(ex, SourceTargetTextExample):
+            assert ex.modality == "text"
+            assert ex.source.language == "en"
+            assert ex.target.language == "es"
+            assert isinstance(ex.source.text, str)
+            assert isinstance(ex.target.text, str)
+            assert isinstance(ex.question.text, str)
+            assert torch.is_tensor(ex.input_ids)
+            assert torch.is_tensor(ex.context_ids)
+            assert torch.is_tensor(ex.answer_ids)
+            assert torch.is_tensor(ex.mask)
+
+
+def test_multimodal_text_audio_dataloading_zip_strategy(
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: SentencePieceTokenizer,
+    questions_path: str,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 64
+    config = OmegaConf.create(
+        {
+            "multi_config": True,
+            "sampler_fusion": "zip",  # <---- !!! this option is being tested here !!!
+            "seed": 0,
+            "shard_seed": 0,
+            "shuffle": True,
+            "num_workers": 0,
+            "audio": {
+                "input_cfg": [
+                    {
+                        "type": "nemo_tarred",
+                        "manifest_filepath": manifest_filepath,
+                        "tarred_audio_filepaths": tarred_audio_filepaths,
+                        "tags": {
+                            "modality": "audio",
+                        },
+                    },
+                ],
+                "prompt_format": "plain",
+                "use_multimodal_sampling": True,
+                "batch_tokens": BT,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": QF,
+            },
+            "text": {
+                "input_cfg": [
+                    {
+                        "type": "txt_pair",
+                        "source_paths": en_paths,
+                        "target_paths": es_paths,
+                        "source_language": "en",
+                        "target_language": "es",
+                        "questions_path": questions_path,
+                        "questions_language": "en",
+                        "tags": {
+                            "modality": "text",
+                        },
+                    },
+                ],
+                "use_multimodal_sampling": True,
+                "prompt_format": "plain",
+                "batch_tokens": 64,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": 50,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=en_es_tokenizer,
+    )
+
+    assert isinstance(dl.dataset.sampler, ZipSampler)
+
     # Note: we use islice here because the dataloader will be infinite.
     batches = [batch for batch in islice(dl, 2)]
 
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 48
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(574.0)
-    assert min(ex.num_tokens for ex in b) == pytest.approx(10)
-    assert max(ex.num_tokens for ex in b) == pytest.approx(16)
-    assert sum(isinstance(ex, Cut) for ex in b) == 29
-    assert sum(isinstance(ex, TextPairExample) for ex in b) == 19
+    assert len(b)
+    assert any(isinstance(ex, Cut) for ex in b)
+    assert any(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    # Note: zip samples stitches together two batches hence * 2
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT * 2
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
             assert isinstance(ex.load_audio(), np.ndarray)
             assert isinstance(ex.supervisions[0].text, str)
-        if isinstance(ex, TextPairExample):
+        if isinstance(ex, SourceTargetTextExample):
             assert ex.modality == "text"
             assert ex.source.language == "en"
             assert ex.target.language == "es"
-            assert isinstance(ex.source.text, str)
-            assert isinstance(ex.target.text, str)
-            assert isinstance(ex.source.tokens, np.ndarray)
-            assert isinstance(ex.target.tokens, np.ndarray)
+            assert torch.is_tensor(ex.input_ids)
+            assert torch.is_tensor(ex.context_ids)
+            assert torch.is_tensor(ex.answer_ids)
+            assert torch.is_tensor(ex.mask)
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 48
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(614.0)
-    assert min(ex.num_tokens for ex in b) == pytest.approx(10)
-    assert max(ex.num_tokens for ex in b) == pytest.approx(16)
-    assert sum(isinstance(ex, Cut) for ex in b) == 21
-    assert sum(isinstance(ex, TextPairExample) for ex in b) == 27
+    assert len(b)
+    assert any(isinstance(ex, Cut) for ex in b)
+    assert any(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    # Note: zip samples stitches together two batches hence * 2
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT * 2
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
             assert isinstance(ex.load_audio(), np.ndarray)
             assert isinstance(ex.supervisions[0].text, str)
-        if isinstance(ex, TextPairExample):
+        if isinstance(ex, SourceTargetTextExample):
             assert ex.modality == "text"
             assert ex.source.language == "en"
             assert ex.target.language == "es"
-            assert isinstance(ex.source.text, str)
-            assert isinstance(ex.target.text, str)
-            assert isinstance(ex.source.tokens, np.ndarray)
-            assert isinstance(ex.target.tokens, np.ndarray)
+            assert torch.is_tensor(ex.input_ids)
+            assert torch.is_tensor(ex.context_ids)
+            assert torch.is_tensor(ex.answer_ids)
+            assert torch.is_tensor(ex.mask)
+
+
+def test_multimodal_text_audio_dataloading_round_robin_strategy(
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: SentencePieceTokenizer,
+    questions_path: str,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 64
+    config = OmegaConf.create(
+        {
+            "multi_config": True,
+            "sampler_fusion": "round_robin",  # <---- !!! this option is being tested here !!!
+            "seed": 0,
+            "shard_seed": 0,
+            "shuffle": True,
+            "num_workers": 0,
+            "audio": {
+                "input_cfg": [
+                    {
+                        "type": "nemo_tarred",
+                        "manifest_filepath": manifest_filepath,
+                        "tarred_audio_filepaths": tarred_audio_filepaths,
+                        "tags": {
+                            "modality": "audio",
+                        },
+                    },
+                ],
+                "use_multimodal_sampling": True,
+                "prompt_format": "plain",
+                "batch_tokens": BT,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": QF,
+            },
+            "text": {
+                "input_cfg": [
+                    {
+                        "type": "txt_pair",
+                        "source_paths": en_paths,
+                        "target_paths": es_paths,
+                        "source_language": "en",
+                        "target_language": "es",
+                        "questions_path": questions_path,
+                        "questions_language": "en",
+                        "tags": {
+                            "modality": "text",
+                        },
+                    },
+                ],
+                "prompt_format": "plain",
+                "use_multimodal_sampling": True,
+                "batch_tokens": BT,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": QF,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=en_es_tokenizer,
+    )
+
+    assert isinstance(dl.dataset.sampler, RoundRobinSampler)
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    # Batch 0 is audio-only
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b)
+    assert all(isinstance(ex, Cut) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
+    for ex in b:
+        assert ex.modality == "audio"
+        assert isinstance(ex.load_audio(), np.ndarray)
+        assert isinstance(ex.supervisions[0].text, str)
+
+    # Batch 1 is text-only
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b)
+    assert all(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
+    for ex in b:
+        assert ex.modality == "text"
+        assert ex.source.language == "en"
+        assert ex.target.language == "es"
+        assert torch.is_tensor(ex.input_ids)
+        assert torch.is_tensor(ex.context_ids)
+        assert torch.is_tensor(ex.answer_ids)
+        assert torch.is_tensor(ex.mask)
+
+
+def test_multimodal_text_audio_dataloading_randomized_round_robin_strategy(
+    deterministic_rng,
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: SentencePieceTokenizer,
+    questions_path: str,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    QF, BT = 50, 64
+    config = OmegaConf.create(
+        {
+            "multi_config": True,
+            "sampler_fusion": "randomized_round_robin",  # <---- !!! this option is being tested here !!!
+            "sampler_weights": {
+                "audio": 0.5,
+                "text": 0.5,
+            },
+            "seed": 0,
+            "shard_seed": 0,
+            "shuffle": True,
+            "num_workers": 0,
+            "audio": {
+                "input_cfg": [
+                    {
+                        "type": "nemo_tarred",
+                        "manifest_filepath": manifest_filepath,
+                        "tarred_audio_filepaths": tarred_audio_filepaths,
+                        "tags": {
+                            "modality": "audio",
+                        },
+                    },
+                ],
+                "use_multimodal_sampling": True,
+                "prompt_format": "plain",
+                "batch_tokens": BT,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": QF,
+            },
+            "text": {
+                "input_cfg": [
+                    {
+                        "type": "txt_pair",
+                        "source_paths": en_paths,
+                        "target_paths": es_paths,
+                        "source_language": "en",
+                        "target_language": "es",
+                        "questions_path": questions_path,
+                        "questions_language": "en",
+                        "tags": {
+                            "modality": "text",
+                        },
+                    },
+                ],
+                "prompt_format": "plain",
+                "use_multimodal_sampling": True,
+                "batch_tokens": BT,
+                # How to set token equivalent duration in actual training?
+                #   assuming fbank frames: 0.01 is the base due to frame shift;
+                #       + subsampling x8 gives us 0.08
+                #   assuming discrete audio tokens, with frame rate 50Hz,
+                #       we'd get 0.02
+                #   in this test we'll just use 0.1 for simplicity
+                "token_equivalent_duration": 0.1,
+                "quadratic_factor": QF,
+            },
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=en_es_tokenizer,
+    )
+
+    assert isinstance(dl.dataset.sampler, RoundRobinSampler)
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    # Batch 0 is audio-only
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b)
+    assert all(isinstance(ex, Cut) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
+    for ex in b:
+        assert ex.modality == "audio"
+        assert isinstance(ex.load_audio(), np.ndarray)
+        assert isinstance(ex.supervisions[0].text, str)
+
+    # Batch 1 is text-only
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b)
+    assert all(isinstance(ex, SourceTargetTextExample) for ex in b)
+    # Batch tokens is not exceeded after applying the quadratic factor correction
+    assert sum(ex.num_tokens**2 / QF for ex in b) <= BT
+    for ex in b:
+        assert ex.modality == "text"
+        assert ex.source.language == "en"
+        assert ex.target.language == "es"
+        assert torch.is_tensor(ex.input_ids)
+        assert torch.is_tensor(ex.context_ids)
+        assert torch.is_tensor(ex.answer_ids)
+        assert torch.is_tensor(ex.mask)
+
+
+def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):
+    config = OmegaConf.create(
+        {
+            "cuts_path": str(cutset_path),
+            "noise_path": str(nemo_manifest_path),
+            "noise_mix_prob": 1.0,
+            "noise_snr": [-5.0, 5.0],
+            "batch_size": 2,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+    )
+    batch = next(iter(dl))
+    assert isinstance(batch, CutSet)
+    assert len(batch) == 2
+    cut = batch[0]
+    assert isinstance(cut, MixedCut)
+    assert -5.0 < cut.tracks[1].snr < 5.0
+    cut = batch[1]
+    assert isinstance(cut, MixedCut)
+    assert -5.0 < cut.tracks[1].snr < 5.0
 
 
 def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):
@@ -2012,6 +2425,46 @@ def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_p
     )
 
 
+def test_force_iterable_dataset(cutset_path: Path):
+    config = OmegaConf.create({"cuts_path": cutset_path, "batch_size": 2, "num_workers": 2})
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_map = [b for b in dl]
+
+    config = OmegaConf.create(
+        {"cuts_path": cutset_path, "batch_size": 2, "num_workers": 2, "force_iterable_dataset": True}
+    )
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_iter = [b for b in dl]
+
+    # 2x duplicated data due to iterable dataset lack of deduplication
+    assert len(batches_iter) == 2 * len(batches_map)
+    # assertion that this is in fact the same data (same ids)
+    assert set(c.id for b in batches_iter for c in b) == set(c.id for b in batches_map for c in b)
+
+
+def test_force_map_dataset(cutset_shar_path: Path):
+    config = OmegaConf.create({"shar_path": cutset_shar_path, "batch_size": 2, "num_workers": 2, "force_finite": True})
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_iter = [b for b in dl]
+
+    config = OmegaConf.create(
+        {
+            "shar_path": cutset_shar_path,
+            "batch_size": 2,
+            "num_workers": 2,
+            "force_map_dataset": True,
+            "force_finite": True,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches_map = [b for b in dl]
+
+    # 2x duplicated data due to iterable dataset lack of deduplication
+    assert len(batches_iter) == 2 * len(batches_map)
+    # assertion that this is in fact the same data (same ids)
+    assert set(c.id for b in batches_iter for c in b) == set(c.id for b in batches_map for c in b)
+
+
 def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset_path: tuple[str, str]):
     json_mft, tar_mft, subset_items = nemo_tarred_manifest_subset_path
     config = OmegaConf.create(
@@ -2049,3 +2502,50 @@ def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset
     seen_ids_set = set(seen_ids)
     assert len(seen_ids_set) == len(seen_ids), "Duplicate IDs found in the batch."
     assert seen_ids_set == expected_ids, "The set of IDs in the batches does not match the input JSON manifests."
+
+
+def test_dataloader_from_nemo_manifest_with_skipme(nemo_manifest_with_skipme_path: Path):
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": nemo_manifest_with_skipme_path,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            # lhotse specific
+            "use_bucketing": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    assert len(batches) == 8
+    assert not any(skipme_s)
+
+
+def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_with_skipme_path: tuple[Path, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_with_skipme_path
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            # lhotse specific
+            "use_bucketing": False,
+            "force_finite": True,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    assert len(batches) == 8
+    assert not any(skipme_s)

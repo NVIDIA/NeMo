@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
+
 import random
 import re
 import tarfile
@@ -20,7 +20,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
 
-import lhotse.serialization
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, MonoCut, Recording, SupervisionSegment
@@ -32,6 +31,8 @@ from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples, ifnone
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+from nemo.utils import logging
+from nemo.utils.data_utils import is_datastore_path
 
 
 class LazyNeMoIterator:
@@ -91,6 +92,7 @@ class LazyNeMoIterator:
         self.shuffle_shards = shuffle_shards
         self.shard_seed = shard_seed
         paths = expand_sharded_filepaths(path)
+
         if len(paths) == 1:
             self.source = LazyJsonlIterator(paths[0])
         else:
@@ -108,7 +110,7 @@ class LazyNeMoIterator:
         # Propagate the random seed
         extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
         for data in self.source:
-            audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path))
+            audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path), force_cache=False)
             duration = data.pop("duration")
             offset = data.pop("offset", None)
             cut = self._create_cut(
@@ -181,9 +183,11 @@ class LazyNeMoIterator:
     ) -> Recording:
         if sampling_rate is not None:
             # TODO(pzelasko): It will only work with single-channel audio in the current shape.
+
+            source_type = "url" if is_datastore_path(audio_path) else "file"
             return Recording(
                 id=audio_path,
-                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
+                sources=[AudioSource(type=source_type, channels=[0], source=audio_path)],
                 sampling_rate=sampling_rate,
                 num_samples=compute_num_samples(duration, sampling_rate),
                 duration=duration,
@@ -194,7 +198,7 @@ class LazyNeMoIterator:
 
 
 class LazyNeMoTarredIterator:
-    """
+    r"""
     ``LazyNeMoTarredIterator`` reads a NeMo tarred JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
 
@@ -222,6 +226,11 @@ class LazyNeMoTarredIterator:
     to indicate that we want to read tarred audio data from shards on an AIStore bucket.
     This can be used for other cloud storage APIs such as S3, GCS, etc.
     The same mechanism applies to ``manifest_path``.
+
+    If your data has been filtered so that the JSON manifests refer to just a subset of recordings,
+    set ``skip_missing_manifest_entries` to ``True``.
+    This will still read the tar files sequentially (very fast) and discard the audio files that
+    are not present in the corresponding manifest.
 
     The ``shard_seed`` argument is used to seed the RNG shuffling the shards.
     By default, it's ``trng`` which samples a seed number from OS-provided TRNG (see Python ``secrets`` module).
@@ -264,10 +273,10 @@ class LazyNeMoTarredIterator:
         shard_seed: int | Literal["trng", "randomized"] = "trng",
         text_field: str = "text",
         lang_field: str = "lang",
-        tarred_random_access: bool = False,
+        skip_missing_manifest_entries: bool = False,
         extra_fields: list[dict[str, str]] | None = None,
     ) -> None:
-        self.tarred_random_access = tarred_random_access
+        self.skip_missing_manifest_entries = skip_missing_manifest_entries
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
@@ -346,29 +355,21 @@ class LazyNeMoTarredIterator:
     def shard_ids(self) -> List[int]:
         return sorted(self.shard_id_to_manifest.keys())
 
-    def _iter_random_read(self, tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
-        with tarfile.open(fileobj=BytesIO(open_best(tar_path, mode="rb").read()), mode="r") as tar:
-            for data in shard_manifest:
-                try:
-                    tar_info = tar.getmember(data)
-                    raw_audio = tar.extractfile(tar_info).read()
-                    yield data, raw_audio, tar_info
-                except KeyError as e:
-                    raise RuntimeError(
-                        f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                        f"The following audio_filepath='{data['audio_filepath']}' was not found in the tar file."
-                    ) from e
-
     def _iter_sequential(self, tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
         with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
             for tar_info in tar:
-                assert tar_info.name in shard_manifest, (
-                    f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                    f"Cannot locate JSON entry for tar file '{tar_info.name}'"
-                )
-                data = shard_manifest[tar_info.name]
-                raw_audio = tar.extractfile(tar_info).read()
-                yield data, raw_audio, tar_info
+                try:
+                    data = shard_manifest[tar_info.name]
+                    raw_audio = tar.extractfile(tar_info).read()
+                    yield data, raw_audio, tar_info
+                except KeyError as e:
+                    if self.skip_missing_manifest_entries:
+                        continue
+                    else:
+                        raise RuntimeError(
+                            f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
+                            f"Cannot locate JSON entry for tar file '{tar_info.name}'"
+                        ) from e
 
     def __iter__(self) -> Generator[Cut, None, None]:
         shard_ids = self.shard_ids
@@ -384,7 +385,6 @@ class LazyNeMoTarredIterator:
         # They have multiple JSONL entries where audio paths end with '-sub1', '-sub2', etc. for each offset.
         offset_pattern = re.compile(r'^(?P<stem>.+)(?P<sub>-sub\d+)(?P<ext>\.\w+)?$')
 
-        iter_fn = self._iter_random_read if self.tarred_random_access else self._iter_sequential
         for sid in shard_ids:
             manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
 
@@ -398,7 +398,7 @@ class LazyNeMoTarredIterator:
             shard_manifest: dict[str, list[dict]] = groupby(basename, self.shard_id_to_manifest[sid])
             tar_path = self.shard_id_to_tar_path[sid]
             try:
-                for data, raw_audio, tar_info in iter_fn(tar_path, shard_manifest, manifest_path):
+                for data, raw_audio, tar_info in self._iter_sequential(tar_path, shard_manifest, manifest_path):
                     meta = soundfile.info(BytesIO(raw_audio))
                     recording = Recording(
                         id=tar_info.path,
@@ -433,7 +433,9 @@ class LazyNeMoTarredIterator:
                     del raw_audio
                     yield from cuts_for_recording
             except tarfile.ReadError:
-                logging.warning(f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=}")
+                logging.warning(
+                    f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=}",
+                )
 
     def __len__(self) -> int:
         return len(self.source)
@@ -461,7 +463,13 @@ def make_cut_with_subset_inmemory_recording(
         return cut
 
     # Otherwise, apply the memory optimization.
-    cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
+    try:
+        cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
+    except Exception as e:
+        raise RuntimeError(
+            f"Lhotse cut.truncate failed with offset={offset}, duration={duration}, recording={recording}: {e}"
+        ) from e
+
     audiobytes = BytesIO()
     LibsndfileBackend().save_audio(audiobytes, cut.load_audio(), sampling_rate=cut.sampling_rate, format="wav")
     audiobytes.seek(0)

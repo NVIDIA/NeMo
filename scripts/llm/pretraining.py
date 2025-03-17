@@ -14,7 +14,8 @@
 
 # NOTE: This script is only an example of using NeMo with NeMo-Run's APIs and is subject to change without notice.
 # This script is used for pretraining on local and slurm executors.
-# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
+# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and
+# NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
 from functools import partial
@@ -23,6 +24,7 @@ from typing import Any, Optional
 import nemo_run as run
 
 from nemo.collections import llm
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 
 
 def get_parser():
@@ -66,12 +68,13 @@ def slurm_executor(
     time: str = "01:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "nvcr.io/nvidia/nemo:24.09",
+    container_image: str = "nvcr.io/nvidia/nemo:dev",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
         raise RuntimeError(
-            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this function."
+            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
+            "function.",
         )
 
     mounts = []
@@ -79,11 +82,9 @@ def slurm_executor(
         mounts.extend(custom_mounts)
 
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
-        "NCCL_NVLS_ENABLE": "0",
-        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
-        "NVTE_ASYNC_AMAX_REDUCTION": "1",
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -116,12 +117,10 @@ def slurm_executor(
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
-        "NCCL_NVLS_ENABLE": "0",
-        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
-        "NVTE_ASYNC_AMAX_REDUCTION": "1",
-        "NVTE_FUSED_ATTN": "0",
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FUSED_ATTN": "1",  # Disable cuDNN fused attention
     }
 
     executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
@@ -149,9 +148,20 @@ def main():
 
     pretrain.trainer.val_check_interval = 400
     pretrain.log.ckpt.save_top_k = -1
-    pretrain.log.ckpt.every_n_train_steps = 400
 
     pretrain.trainer.max_steps = 1000
+
+    # Change here and add your files to custom_mounts
+    vocab_file = None
+    merges_file = None
+    pretrain.data = run.Config(
+        MockDataModule,
+        seq_length=pretrain.data.seq_length,
+        global_batch_size=pretrain.data.global_batch_size,
+        micro_batch_size=pretrain.data.micro_batch_size,
+        vocab_file=vocab_file,
+        merges_file=merges_file,
+    )
 
     executor: run.Executor
 
@@ -165,6 +175,7 @@ def main():
             partition="",
             nodes=pretrain.trainer.num_nodes,
             devices=pretrain.trainer.devices,
+            custom_mounts=[],
         )
     else:
         executor = local_executor_torchrun(nodes=pretrain.trainer.num_nodes, devices=pretrain.trainer.devices)

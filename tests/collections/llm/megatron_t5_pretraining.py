@@ -23,13 +23,14 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.api import train
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.t5.data import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.lr_scheduler import WarmupAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
 
 
 def get_args():
@@ -96,7 +97,7 @@ if __name__ == '__main__':
         every_n_train_steps=5000,
         save_optim_on_train_end=True,
     )
-    callbacks = [checkpoint_callback]
+    callbacks = [checkpoint_callback, AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()]
 
     resume = nl.AutoResume(
         resume_if_exists=True,
@@ -148,12 +149,11 @@ if __name__ == '__main__':
         wandb=wandb_logger,
     )
 
-    train(
+    pretrain(
         model=model,
         resume=resume,
         data=data,
         trainer=trainer,
         log=nemo_logger,
-        tokenizer='data',
         optim=opt,
     )

@@ -18,8 +18,7 @@ from nemo.utils.env_var_parsing import get_envint
 
 
 def is_global_rank_zero():
-    """ Helper function to determine if the current process is global_rank 0 (the main process)
-    """
+    """Helper function to determine if the current process is global_rank 0 (the main process)"""
     # Try to get the pytorch RANK env var
     # RANK is set by torch.distributed.launch
     rank = get_envint("RANK", None)
@@ -46,10 +45,16 @@ def is_global_rank_zero():
 
 
 def get_rank():
-    """ Helper function that returns torch.distributed.get_rank() if DDP has been initialized otherwise it returns 0.
-    """
+    """Helper function that returns torch.distributed.get_rank() if DDP has been initialized otherwise it returns 0."""
 
     if is_global_rank_zero():
         return 0
     else:
         return torch.distributed.get_rank()
+
+
+def get_last_rank() -> int:
+    """Get the last rank in the distributed group"""
+    if not torch.distributed.is_initialized():
+        return 0
+    return torch.distributed.get_world_size() - 1

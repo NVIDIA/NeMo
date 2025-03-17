@@ -20,7 +20,10 @@ import torch
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
+from transformers import AutoProcessor, LlavaNextConfig
 
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.vlm.llava_next.model.utils import get_number_of_features
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
@@ -77,20 +80,20 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
-
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
+        model_name = ''
+        processor = None
         if tokenizer is None or image_processor is None:
             logging.warning(
-                f"Processor or tokenizer are not provided! Fall back to `llava-hf/llava-v1.6-vicuna-7b-hf`."
+                "Processor or tokenizer are not provided! Fall back to `llava-hf/llava-v1.6-vicuna-7b-hf`."
             )
-            from transformers import AutoProcessor
-
-            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             model_name = "llava-hf/llava-v1.6-vicuna-7b-hf"
 
             processor = AutoProcessor.from_pretrained(model_name)
-            self.tokenizer = tokenizer or AutoTokenizer(model_name)
-            self.image_processor = image_processor or processor.image_processor
+        self.tokenizer = tokenizer or AutoTokenizer(model_name)
+        self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             decoder_seq_len=self.decoder_seq_len,
@@ -215,10 +218,9 @@ class _MockLlavaNextDataset(Dataset):
         self.length = num_samples
         self.seed = seed
 
-        self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
-        self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
         self.tokenizer = tokenizer
         self.image_processor = image_processor
+        self.hf_config = LlavaNextConfig()
 
     def __len__(self) -> int:
         """
@@ -255,11 +257,23 @@ class _MockLlavaNextDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
+        num_image_tokens = get_number_of_features(
+            self.image_height,
+            self.image_width,
+            self.image_height,
+            self.image_width,
+            self.hf_config.image_grid_pinpoints,
+            self.hf_config.vision_config.patch_size,
+        )
+        tokens = torch.concatenate([tokens[:2], torch.tensor([IMAGE_TOKEN_INDEX] * num_image_tokens), tokens[2:]], 0)
         labels = tokens.clone()
         images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
         tokens = tokens[:-1]
         labels = labels[1:]
+
+        seq_length = len(tokens)
+        loss_mask = torch.ones(seq_length, dtype=torch.float)
+        position_ids = torch.arange(seq_length, dtype=torch.int64)
 
         #  attention_mask, image_sizes, num_media_tiles required for llava-next. Neva model will ignore these
         attention_mask = torch.ones(len(tokens), dtype=torch.long)
@@ -270,8 +284,8 @@ class _MockLlavaNextDataset(Dataset):
             "media": image_array,
             "tokens": tokens,
             "labels": labels,
-            "loss_mask": self.loss_mask,
-            "position_ids": self.position_ids,
+            "loss_mask": loss_mask,
+            "position_ids": position_ids,
             "image_sizes": image_sizes,
             "num_media_tiles": num_media_tiles,
             "attention_mask": attention_mask,

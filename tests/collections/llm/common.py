@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from dataclasses import dataclass
 
 import lightning.pytorch as pl
 import nemo_run as run
@@ -76,6 +77,28 @@ class StopBeforeEnd(pl.Callback):
             # skip EarlyStopping validation unless val_check_interval met
             if trainer.global_step % trainer.val_check_interval != 0:
                 trainer.limit_val_batches = 0
+
+
+class AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays(pl.Callback):
+    """Sanity test weight decay settings in optimizer param groups.
+
+    Background:
+        The Megatron/NeMo optimizer splits parameters into groups by whether or not the parameter
+        should have weight decay applied. A typlical rule is that `bias` terms and `layer_norm`
+        terms for example should not have weight decay applied. This callback checks for the
+        existance of two distinct weight decay settings across optimizers and param groups related
+        to a bug adddressed in https://github.com/NVIDIA/NeMo/pull/12123.
+    """
+
+    def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        weight_decays = {}
+        for oi, optim in enumerate(trainer.optimizers):
+            for pi, param_group in enumerate(optim.param_groups):
+                key = f"opt{oi};pg{pi}"
+                weight_decays[key] = param_group['weight_decay']
+        assert (
+            len(set(weight_decays.values())) > 1
+        ), f"All weight decays in optimizer param groups should not be equal. Got: {weight_decays}"
 
 
 class MCoreModelAttributeValidator(pl.Callback):
@@ -191,3 +214,12 @@ def create_verify_precision(precision: torch.dtype):
         assert tensor.dtype == precision
 
     return verify_precision
+
+
+@dataclass
+class Llama3ConfigCI(llm.Llama3Config8B):
+    seq_length: int = 2048
+    num_layers: int = 2
+    hidden_size: int = 768
+    ffn_hidden_size: int = 3072
+    num_attention_heads: int = 8

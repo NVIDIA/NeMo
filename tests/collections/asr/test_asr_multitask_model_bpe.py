@@ -30,8 +30,9 @@ from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskMode
 from nemo.collections.asr.parts.submodules import multitask_beam_decoding as beam_decode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchMultiTaskAED
+from nemo.collections.asr.parts.utils.timestamp_utils import process_aed_timestamp_outputs
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter, canary
-from nemo.collections.common.prompts.canary2 import canary2
+from nemo.collections.common.prompts.canary2 import Canary2PromptFormatter, canary2
 from nemo.collections.common.tokenizers import CanaryTokenizer
 
 
@@ -238,7 +239,9 @@ class TestEncDecMultiTaskModel:
             c.target_lang = "en"
             c.task = "asr"
             c.pnc = "no"
-        dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+        dataset = PromptedAudioToTextLhotseDataset(
+            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+        )
         batch = dataset[cuts]
 
         ans = asr_model.training_step(batch, batch_nb=0)
@@ -282,7 +285,9 @@ class TestEncDecMultiTaskModel:
             c.target_lang = "en"
             c.task = "asr"
             c.pnc = "no"
-        dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+        dataset = PromptedAudioToTextLhotseDataset(
+            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+        )
         batch = dataset[cuts]
 
         with torch.no_grad():
@@ -446,7 +451,7 @@ class TestEncDecMultiTaskModel:
         # Numpy array test
         outputs = asr_model.transcribe(audio_file, batch_size=1)
         assert len(outputs) == 1
-        assert isinstance(outputs[0], str)
+        assert isinstance(outputs[0].text, str)
 
     @pytest.mark.unit
     def test_transcribe_single_file_translation(self, asr_model, test_data_dir):
@@ -455,7 +460,7 @@ class TestEncDecMultiTaskModel:
         # Numpy array test
         outputs = asr_model.transcribe(audio_file, batch_size=1, task="ast", source_lang='en', target_lang='de')
         assert len(outputs) == 1
-        assert isinstance(outputs[0], str)
+        assert isinstance(outputs[0].text, str)
 
     @pytest.mark.unit
     def test_transcribe_return_hypothesis(self, asr_model, test_data_dir):
@@ -482,7 +487,7 @@ class TestEncDecMultiTaskModel:
         # Numpy array test
         outputs = asr_model.transcribe(audio, batch_size=1)
         assert len(outputs) == 1
-        assert isinstance(outputs[0], str)
+        assert isinstance(outputs[0].text, str)
 
     @pytest.mark.unit
     def test_build_tokenizer(self, asr_model, test_data_dir):
@@ -512,7 +517,9 @@ class TestEncDecMultiTaskModel:
         c.target_lang = "en"
         c.task = "asr"
         c.pnc = "no"
-        dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+        dataset = PromptedAudioToTextLhotseDataset(
+            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+        )
         batch = dataset[cuts]
 
         # Numpy array test
@@ -521,7 +528,7 @@ class TestEncDecMultiTaskModel:
         assert len(outputs) == 1
         assert len(outputs[0]) == 2
         assert isinstance(outputs[0][0], MonoCut)
-        assert isinstance(outputs[0][1], str)
+        assert isinstance(outputs[0][1].text, str)
 
     @pytest.mark.unit
     def test_FrameBatchMultiTaskAED(self, asr_model, test_data_dir):
@@ -544,7 +551,9 @@ class TestEncDecMultiTaskModel:
 
 @pytest.mark.unit
 def test_prompted_dataset(asr_model):
-    dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+    dataset = PromptedAudioToTextLhotseDataset(
+        tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+    )
 
     cuts = DummyManifest(CutSet, begin_id=0, end_id=3, with_data=True)
 
@@ -635,7 +644,9 @@ def canary2_tokenizer(asr_model, tmp_path):
                     "<|notimestamp|>",
                     "<|emo:undefined|>",
                     "<|emo:happy|>",
-                ],
+                ]
+                # Timestamp frame special tokens
+                + [f"<|{i}|>" for i in range(900)],
                 tmp_path,
                 force_rebuild=False,
             ),
@@ -647,9 +658,11 @@ def canary2_tokenizer(asr_model, tmp_path):
 
 @pytest.mark.unit
 def test_prompted_dataset_canary2(canary2_tokenizer):
-    dataset = PromptedAudioToTextLhotseDataset(tokenizer=canary2_tokenizer, prompt_format_fn=canary2)
+    dataset = PromptedAudioToTextLhotseDataset(
+        tokenizer=canary2_tokenizer, prompt=Canary2PromptFormatter(canary2_tokenizer)
+    )
 
-    cuts = DummyManifest(CutSet, begin_id=0, end_id=3, with_data=True)
+    cuts = DummyManifest(CutSet, begin_id=0, end_id=4, with_data=True)
 
     # backward compatibility
     c = cuts[0]
@@ -683,11 +696,24 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
     c.emotion = "<|emo:happy|>"
     c.decodercontext = "some decoder context"
 
+    # transcript with timestamps
+    c = cuts[3]
+    c.supervisions[0].language = "en"
+    c.supervisions[0].text = "<|0|> hello <|3|> <|4|> world <|5|>"
+    c.source_lang = "en"
+    c.target_lang = "en"
+    c.pnc = "<|pnc|>"
+    c.itn = "<|noitn|>"
+    c.diarize = "<|diarize|>"
+    c.timestamp = "<|timestamp|>"
+    c.emotion = "<|emo:happy|>"
+    c.decodercontext = "some decoder context"
+
     batch = dataset[cuts]
 
     assert isinstance(batch, PromptedAudioToTextMiniBatch)
-    assert batch.audio.shape == (3, 16000)
-    assert batch.audio_lens.tolist() == [16000, 16000, 16000]
+    assert batch.audio.shape == (4, 16000)
+    assert batch.audio_lens.tolist() == [16000, 16000, 16000, 16000]
 
     # Test example 0
     i = 0
@@ -696,11 +722,11 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
         == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompt_lens[i] == 9
-    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'i##r##r##el##e##v##a##nt'
+    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'i##r##r##el##e##v##a##nt<pad><pad><pad><pad><pad>'
     assert batch.transcript_lens[i] == 8
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompted_transcript_lens[i] == 18
 
@@ -711,11 +737,14 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
         == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompt_lens[i] == 9
-    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'a##s##d<pad><pad><pad><pad><pad>'
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
     assert batch.transcript_lens[i] == 3
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompted_transcript_lens[i] == 13
 
@@ -726,10 +755,104 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
         == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>'
     )
     assert batch.prompt_lens[i] == 25
-    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'a##s##d<pad><pad><pad><pad><pad>'
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
     assert batch.transcript_lens[i] == 3
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>a##s##d<|endoftext|>'
+        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompted_transcript_lens[i] == 29
+
+    # Test example 3
+    i = 3
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompt[i])
+        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>'
+    )
+    assert batch.prompt_lens[i] == 25
+    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == '<|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|>'
+    assert batch.transcript_lens[i] == 13
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
+        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|><|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|><|endoftext|>'
+    )
+    assert batch.prompted_transcript_lens[i] == 39
+
+
+@pytest.mark.unit
+def test_aed_timestamp_processing():
+    # Create test hypothesis with timestamps
+    hyp = Hypothesis(
+        text="<|10|>hello<|15|> <|20|>world<|25|>",
+        y_sequence=None,
+        score=None,
+        alignments=None,
+        length=None,
+        timestamp={},
+    )
+
+    # Process timestamps with default parameters
+    processed = process_aed_timestamp_outputs(hyp)
+    assert isinstance(processed, list)
+    assert len(processed) == 1
+    assert processed[0].text == "hello world"
+
+    # Check word-level timestamps
+    word_timestamps = processed[0].timestamp['word']
+    assert len(word_timestamps) == 2
+
+    # Check first word "hello"
+    assert word_timestamps[0]['word'] == 'hello'
+    assert word_timestamps[0]['start_offset'] == 10
+    assert word_timestamps[0]['end_offset'] == 15
+    assert word_timestamps[0]['start'] == 0.1  # 10 * 0.01
+    assert word_timestamps[0]['end'] == 0.15  # 15 * 0.01
+
+    # Check second word "world"
+    assert word_timestamps[1]['word'] == 'world'
+    assert word_timestamps[1]['start_offset'] == 20
+    assert word_timestamps[1]['end_offset'] == 25
+    assert word_timestamps[1]['start'] == 0.2  # 20 * 0.01
+    assert word_timestamps[1]['end'] == 0.25  # 25 * 0.01
+
+    # Check segment-level timestamps
+    segments = processed[0].timestamp['segment']
+    assert len(segments) == 1
+    assert segments[0]['start_offset'] == 10
+    assert segments[0]['end_offset'] == 25
+    assert segments[0]['start'] == 0.1
+    assert segments[0]['end'] == 0.25
+
+    # Test with different window_stride and subsampling_factor
+    hyp = Hypothesis(
+        text="<|10|>hello<|15|> <|20|>world<|25|>",
+        y_sequence=None,
+        score=None,
+        alignments=None,
+        length=None,
+        timestamp={},
+    )
+    processed = process_aed_timestamp_outputs(hyp, subsampling_factor=2, window_stride=0.02)
+    word_timestamps = processed[0].timestamp['word']
+
+    # Check timing calculations with new parameters
+    assert word_timestamps[0]['start'] == 0.4  # 10 * 0.02 * 2
+    assert word_timestamps[0]['end'] == 0.6  # 15 * 0.02 * 2
+    assert word_timestamps[1]['start'] == 0.8  # 20 * 0.02 * 2
+    assert word_timestamps[1]['end'] == 1.0  # 25 * 0.02 * 2
+
+    # Test case when text doesn't contain timestamps
+    hyp = Hypothesis(text="hello world", y_sequence=None, score=None, alignments=None, length=None, timestamp={})
+
+    # Process timestamps with default parameters
+    processed = process_aed_timestamp_outputs(hyp)
+    assert isinstance(processed, list)
+    assert len(processed) == 1
+    assert processed[0].text == "hello world"
+
+    # Verify no timestamps were extracted
+    assert processed[0].timestamp['word'] == []
+    assert processed[0].timestamp['segment'] == []

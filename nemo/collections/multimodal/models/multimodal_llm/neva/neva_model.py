@@ -91,7 +91,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
@@ -112,7 +112,7 @@ except (ImportError, ModuleNotFoundError):
 
 def skip_fp8_load(x):
     if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
-        x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+        x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
     return x
 
 
@@ -1189,8 +1189,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
-        # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+        valid_tokens = loss_mask.sum()
+        if valid_tokens < 0.5:  # no valid tokens
+            valid_tokens += 1.0
+        loss = torch.sum(losses.view(-1) * loss_mask) / valid_tokens  # sequence level nll
         return loss
 
     def setup(self, stage=None):

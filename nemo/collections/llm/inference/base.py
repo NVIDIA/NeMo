@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import inspect
 import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional
 
 import lightning.pytorch as pl
 import torch
@@ -25,12 +25,7 @@ from megatron.core.inference.engines.mcore_engine import MCoreEngine
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
 )
-from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
-    EncoderDecoderTextGenerationController,
-)
-from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
-    SimpleTextGenerationController,
-)
+from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.core.transformer.module import MegatronModule
 
 import nemo.lightning as nl
@@ -40,6 +35,7 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+from nemo.utils import logging
 
 
 class MCoreTokenizerWrappper:
@@ -64,7 +60,10 @@ class MCoreTokenizerWrappper:
         Returns:
             str: The detokenized string.
         """
-        return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        if 'remove_special_tokens' in inspect.signature(self.tokenizer.ids_to_text).parameters:
+            return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        else:
+            return self.tokenizer.ids_to_text(tokens)
 
     def tokenize(self, prompt):
         """
@@ -110,7 +109,9 @@ class MCoreTokenizerWrappper:
 
 
 # TODO: Move to lightning Fabric API.
-def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule):
+def _setup_trainer_and_restore_model(
+    path: Path, trainer: nl.Trainer, model: pl.LightningModule, tokenizer: Any = None
+):
     """
     Sets up the trainer and restores the model from the given checkpoint path.
 
@@ -124,12 +125,18 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
         path (Path): The path to the checkpoint file.
         trainer (nl.Trainer): The trainer object.
         model (pl.LightningModule): The model object.
-
+        tokenizer (Any): The tokenizer object to override the tokenizer in the model.
     Returns:
         None
     """
     assert isinstance(trainer.strategy, MegatronStrategy), "Only MegatronStrategy is supported for trainer.strategy."
     assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
+
+    # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
+    from nemo.collections.llm.modelopt import set_modelopt_spec_if_exists_in_ckpt
+
+    set_modelopt_spec_if_exists_in_ckpt(model, path)
+
     if (adapter_meta_path := ckpt_to_weights_subdir(path, is_saving=False) / ADAPTER_META_FILENAME).exists():
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
@@ -145,10 +152,15 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
             load_optim_state=False,
         )
 
+    if tokenizer is not None:
+        logging.info(f"Overriding model.tokenizer to: {tokenizer}")
+        model.tokenizer = tokenizer
+
     trainer.strategy.restore_config = restore_config
     trainer.strategy._setup_optimizers = False
     trainer.ckpt_path = None
     trainer.strategy.connect(model)
+    model.trainer = trainer
     if trainer.strategy.launcher is not None:
         trainer.strategy.launcher.launch(lambda: None, trainer=trainer)
     trainer.strategy.setup_environment()
@@ -161,10 +173,11 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy.trainer = trainer
     trainer.strategy.selective_restore()
 
-    peft: Union[io.TrainerContext, PEFT] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
+    peft: Optional[PEFT] = model.model_transform
     if isinstance(peft, PEFT):
         model = peft(model)
-        adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}
+        sharded_state_dict = MegatronModule.sharded_state_dict(model)
+        adapter_sharded_state_dict = {k: v for k, v in sharded_state_dict.items() if ".adapter." in k}
         adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
             ckpt_to_weights_subdir(path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
         )
@@ -232,12 +245,16 @@ def generate(
     Returns:
         dict: A dictionary containing the generated results.
     """
+    from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
+        EncoderDecoderTextGenerationController,
+    )
+
     if encoder_prompts is not None:
         text_generation_controller = EncoderDecoderTextGenerationController(
             inference_wrapped_model=model, tokenizer=tokenizer
         )
     else:
-        text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+        text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(
         text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
     )

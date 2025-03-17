@@ -41,12 +41,12 @@ from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.timestamp_utils import process_aed_timestamp_outputs
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.collections.common.prompts.fn import get_prompt_format_fn
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
@@ -60,7 +60,6 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging, model_utils
-from nemo.utils.decorators import deprecated
 
 __all__ = ['EncDecMultiTaskModel']
 
@@ -133,14 +132,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         self.prompt_format = cfg.prompt_format
         self.sample_rate = cfg.sample_rate
         self._setup_tokenizer(cfg.tokenizer)
-
-        super().__init__(cfg=cfg, trainer=trainer)
-
         prompt_cls = PromptFormatter.resolve(self.prompt_format)
         self.prompt = prompt_cls(
             tokenizer=self.tokenizer,
             defaults=OmegaConf.to_container(pd) if (pd := cfg.get("prompt_defaults")) is not None else None,
         )
+
+        super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup audio preprocessor
         self.preprocessor = EncDecMultiTaskModel.from_config_dict(self.cfg.preprocessor)
@@ -311,7 +309,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
 
             if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+                raise ValueError('New tokenizer type must be either `bpe` or `wpe`')
 
             tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
 
@@ -501,8 +499,17 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files
         """
-        if timestamps:
-            raise NotImplementedError("Computing timestamps are not supported for this model yet.")
+        if timestamps is not None:
+            # TODO: Handle this key gracefully later
+
+            if timestamps is True:
+                timestamps = 'yes'
+            elif timestamps is False:
+                timestamps = 'no'
+            else:
+                timestamps = str(timestamps)
+                assert timestamps in ('yes', 'no', 'timestamp', 'notimestamp', '1', '0')
+            prompt['timestamp'] = timestamps
 
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(
@@ -537,7 +544,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             world_size=world_size,
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
-                prompt_format_fn=get_prompt_format_fn(self.prompt_format),
+                prompt=self.prompt,
             ),
             tokenizer=self.tokenizer,
         )
@@ -822,7 +829,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         if isinstance(audio, list):
             logging.debug(f"Found 'audio' to be a list of {len(audio)} items.")
-            logging.debug(f"Assuming each item in 'audio' is a path to audio file.")
+            logging.debug("Assuming each item in 'audio' is a path to audio file.")
 
             if isinstance(self.tokenizer, tokenizers.AggregateTokenizer):
                 if hasattr(trcfg, '_internal') and hasattr(trcfg._internal, 'primary_language'):
@@ -930,10 +937,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             decoder_input_ids=decoder_input_ids,
         )
 
-    @deprecated(
-        explanation='The return type of args will be updated in the upcoming release to ensure a consistent \
-        output format across all decoder types, such that a Hypothesis object is always returned.'
-    )
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
@@ -945,7 +948,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         Returns:
             The output can be a list of
-            objects, list of list of objects, tuple of objects, tuple of list of objects, or a dict of list of objects.
+            objects, list of list of objects.
             Its type is defined in `TranscriptionReturnType`.
         """
         log_probs = outputs.pop('log_probs')
@@ -956,7 +959,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         del log_probs, encoded_len
 
-        best_hypotheses, all_hypotheses = self.decoding.decode_predictions_tensor(
+        hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=decoder_input_ids,
@@ -964,9 +967,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
 
         del enc_states, enc_mask, decoder_input_ids
-        if all_hypotheses is None:
-            return best_hypotheses
-        return best_hypotheses, all_hypotheses
+
+        hypotheses = process_aed_timestamp_outputs(
+            hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+        )
+
+        return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
@@ -1050,7 +1056,26 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 raise ValueError(f"Expected str or dict, got {type(item)}")
             default_turn = [t for t in trcfg.prompt if t["role"] == "user"]
             default_turn = default_turn[0]["slots"] if default_turn else {}
-            for k, dv in (("source_lang", "en"), ("target_lang", "en"), ("taskname", "asr"), ("pnc", "yes")):
+
+            # check for prompt format
+            if self.prompt_format == 'canary':
+                if 'timestamp' in default_turn and default_turn['timestamp']:
+                    raise ValueError(
+                        "Timestamp feature is not supported in Canary prompt format. Please use latest canary-1b-flash or canary-180m-flash"
+                    )
+                if 'context' in default_turn and default_turn['context']:
+                    raise ValueError(
+                        "Context feature is not supported in Canary prompt format. Please use latest canary-1b-flash or canary-180m-flash"
+                    )
+
+            for k, dv in (
+                ("source_lang", "en"),
+                ("target_lang", "en"),
+                ("taskname", "asr"),
+                ("pnc", "yes"),
+                ("context", ""),
+                ("timestamp", 'notimestamp'),
+            ):
                 if k not in entry:
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
@@ -1093,7 +1118,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             encoder_input_mask=enc_mask,
             decoder_input_ids=batch.prompt,
             return_hypotheses=False,
-        )[0]
+        )
         if batch.cuts:
             return list(zip(batch.cuts, text))
         else:

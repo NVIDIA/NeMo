@@ -108,8 +108,12 @@ def load_config(args, llama_config):
         rope_type = llama_config['rope_scaling'].get('rope_type')
         if rope_type is None:
             rope_type = llama_config['rope_scaling'].get('type')
-        if rope_type in ('linear', 'llama3'):
+
+        if rope_type in ('linear',):
             nemo_config['seq_len_interpolation_factor'] = llama_config['rope_scaling']['factor']
+        elif rope_type == 'llama3':
+            # Llama3 in HF actually means rope scaling for llama 3.1+, which uses custom scaling
+            nemo_config['seq_len_interpolation_factor'] = None
         else:
             raise ValueError("Only linear rope scaling type is supported now")
     if llama_config['rope_theta'] is not None:
@@ -311,11 +315,11 @@ def convert(args):
     if 'tokenizer_model' not in hf_config:
         if args.llama31:
             if hf_config['num_hidden_layers'] == 32:
-                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-8B')
+                model.cfg.tokenizer.update(type='meta-llama/Llama-3.1-8B')
             elif hf_config['num_hidden_layers'] == 80:
-                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-70B')
+                model.cfg.tokenizer.update(type='meta-llama/Llama-3.1-70B')
             elif hf_config['num_hidden_layers'] == 126:
-                model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3.1-8B')  # 405B tokenizer is the same as 8B
+                model.cfg.tokenizer.update(type='meta-llama/Llama-3.1-8B')  # 405B tokenizer is the same as 8B
             else:
                 logging.warning("Unexpected model config for Llama3. Tokenizer config has not been modified.")
         else:

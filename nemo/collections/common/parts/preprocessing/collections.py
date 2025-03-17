@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from nemo.collections.common.parts.preprocessing import manifest, parsers
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, logging_mode
 
 
@@ -135,6 +136,7 @@ class AudioText(_Collection):
         """
 
         output_type = self.OUTPUT_TYPE
+        all_has_duration = True
         data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
         if index_by_file_id:
             self.mapping = {}
@@ -142,13 +144,15 @@ class AudioText(_Collection):
         for id_, audio_file, duration, offset, text, speaker, orig_sr, token_labels, lang in zip(
             ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, token_labels, langs
         ):
+            if duration is None:
+                all_has_duration = False
             # Duration filters.
-            if min_duration is not None and duration < min_duration:
+            if duration is not None and min_duration is not None and duration < min_duration:
                 duration_filtered += duration
                 num_filtered += 1
                 continue
 
-            if max_duration is not None and duration > max_duration:
+            if duration is not None and max_duration is not None and duration > max_duration:
                 duration_filtered += duration
                 num_filtered += 1
                 continue
@@ -175,7 +179,7 @@ class AudioText(_Collection):
                     num_filtered += 1
                     continue
 
-            total_duration += duration
+            total_duration += duration if duration is not None else 0.0
 
             data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang))
             if index_by_file_id:
@@ -196,7 +200,8 @@ class AudioText(_Collection):
 
         logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
         logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
-
+        if not all_has_duration:
+            logging.info(f"Not all audios have duration information, the total number of hours is inaccurate.")
         super().__init__(data)
 
 
@@ -1509,14 +1514,6 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
             # Training mode
-            rttm_labels = []
-            with open(item['rttm_file'], 'r') as f:
-                for index, rttm_line in enumerate(f.readlines()):
-                    rttm = rttm_line.strip().split()
-                    start = round(float(rttm[3]), round_digits)
-                    end = round(float(rttm[4]), round_digits) + round(float(rttm[3]), round_digits)
-                    speaker = rttm[7]
-                    rttm_labels.append('{} {} {}'.format(start, end, speaker))
             audio_files.append(item['audio_file'])
             uniq_ids.append(item['uniq_id'])
             durations.append(item['duration'])
@@ -1536,6 +1533,13 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
     def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
         """Parse each rttm file and save it to in Dict format"""
         item = json.loads(line)
+
+        if 'offset' not in item or item['offset'] is None:
+            item['offset'] = 0
+
+        # If the name `audio_file` is not present in the manifest file, replace it.
+        if 'audio_file' in item:
+            pass
         if 'audio_filename' in item:
             item['audio_file'] = item.pop('audio_filename')
         elif 'audio_filepath' in item:
@@ -1544,25 +1548,54 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
-        if isinstance(item['audio_file'], list):
-            item['audio_file'] = [os.path.expanduser(audio_file_path) for audio_file_path in item['audio_file']]
-        else:
-            item['audio_file'] = os.path.expanduser(item['audio_file'])
 
-        if not isinstance(item['audio_file'], list):
-            if 'uniq_id' not in item:
-                item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
-        elif 'uniq_id' not in item:
+        # Audio file handling depending on the types
+        if isinstance(item['audio_file'], list):
+            for single_audio_file in item['audio_file']:
+                audio_file_list.append(get_full_path(audio_file=single_audio_file, manifest_file=manifest_file))
+            item['audio_file'] = audio_file_list
+        elif isinstance(item['audio_file'], str):
+            item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+            if not os.path.exists(item['audio_file']):
+                raise FileNotFoundError(f"Audio file not found: {item['audio_file']}")
+        else:
+            raise ValueError(
+                f"Manifest file has invalid json line "
+                f"structure: {line} without proper audio file value: {item['audio_file']}."
+            )
+
+        # If the name `rttm_file` is not present in the manifest file, replace it or assign None.
+        if 'rttm_file' in item:
+            pass
+        elif 'rttm_filename' in item:
+            item['rttm_file'] = item.pop('rttm_filename')
+        elif 'rttm_filepath' in item:
+            item['rttm_file'] = item.pop('rttm_filepath')
+        else:
+            item['rttm_file'] = None
+
+        # If item['rttm_file'] is not None and the RTTM file exists, get the full path
+        if item['rttm_file'] is not None:
+            item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
+            if not os.path.exists(item['rttm_file']):
+                raise FileNotFoundError(f"RTTM file not found: {item['rttm_file']}")
+
+        # Handling `uniq_id` string
+        if 'uniq_id' not in item:
+            item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
+
+        if not isinstance(item['uniq_id'], str):
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper uniq_id key.")
 
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
+
         item = dict(
             audio_file=item['audio_file'],
             uniq_id=item['uniq_id'],
             duration=item['duration'],
-            rttm_file=item['rttm_filepath'],
-            offset=item.get('offset', None),
+            rttm_file=item['rttm_file'],
+            offset=item.get('offset', 0),
         )
         return item
 

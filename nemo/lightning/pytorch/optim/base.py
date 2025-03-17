@@ -164,8 +164,12 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
         raise NotImplementedError("The optimizers method should be implemented by subclasses.")
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx) -> None:
+        # pylint: disable=C0116
         if self._optimizers is not None:
-            lr = self._optimizers[0].param_groups[0]['lr']
+            if len(self._optimizers[0].param_groups) > 0:
+                lr = self._optimizers[0].param_groups[0]['lr']
+            else:
+                lr = 0.0
             pl_module.log('lr', lr, batch_size=1, prog_bar=True)
 
     def __call__(self, model: L.LightningModule, megatron_parallel=None) -> OptimizerLRScheduler:
@@ -184,7 +188,6 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
             callbacks.append(self)
         if self.lr_scheduler is not None and self.lr_scheduler not in callbacks:
             callbacks.append(self.lr_scheduler)
-
         self._optimizers = self.optimizers(_model)
 
         _opt = self._optimizers[0] if len(self._optimizers) == 1 else self._optimizers
