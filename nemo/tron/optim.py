@@ -19,7 +19,7 @@ from nemo.tron.config import ConfigContainer
 
 
 def setup_optimizer(cfg: ConfigContainer, model, no_weight_decay_cond=None, scale_lr_cond=None, lr_mult=1.0):
-    optimizer = get_megatron_optimizer(cfg.optimizer_config, model, no_weight_decay_cond, scale_lr_cond, lr_mult)
+    optimizer = get_megatron_optimizer(cfg.optimizer_config, model, no_weight_decay_cond, scale_lr_cond, lr_mult, use_gloo_process_groups=cfg.dist_config.use_gloo_process_groups)
     scheduler = _get_scheduler(cfg, optimizer)
 
     return optimizer, scheduler

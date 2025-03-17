@@ -212,6 +212,9 @@ class DistributedInitConfig:
     use_tp_pp_dp_mapping: bool = False
     """If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp. Make sure EP and CP aren't used with this option enabled"""
 
+    use_gloo_process_groups: bool = True
+    """If set, create Gloo process groups for communications."""
+
 
 @dataclass
 class ProfilingConfig:
@@ -542,6 +545,14 @@ class ConfigContainer:
         self.model_config.use_cpu_initialization = (
             self.model_config.use_cpu_initialization or self.dist_config.lazy_mpu_init
         )
+
+        # Make sure all functionality that requires Gloo process groups is disabled.
+        if not self.dist_config.enable_gloo_process_groups:
+            if self.optimizer_config.use_distributed_optimizer:
+                # If using distributed optimizer, must use distributed checkpointing.
+                # Legacy checkpointing uses Gloo process groups to collect full distributed
+                # optimizer state in the CPU memory of DP rank 0.
+                assert self.checkpoint_config.ckpt_format == "torch_dist"
 
         # Scheduler
         if self.scheduler_config.lr_decay_iters is None:
