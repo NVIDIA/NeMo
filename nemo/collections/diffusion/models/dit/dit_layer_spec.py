@@ -34,6 +34,7 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.cuda_graphs import CudaGraphManager
 from megatron.core.utils import make_viewless_tensor
 
 from nemo.collections.diffusion.models.dit.dit_attention import (
@@ -665,6 +666,9 @@ class MMDiTLayer(TransformerLayer):
 
         return hidden_states, encoder_hidden_states
 
+    def __call__(self, *args, **kwargs):
+        return super(MegatronModule, self).__call__(*args, **kwargs)
+
 
 class FluxSingleTransformerBlock(TransformerLayer):
     """
@@ -686,6 +690,11 @@ class FluxSingleTransformerBlock(TransformerLayer):
         modulation_bias: bool = True,
     ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
+        # enable cuda graph for FluxSingleTransformerBlock
+        if config.enable_cuda_graph:
+            config.use_te_rng_tracker = True
+            #print("Initializing CudaGraphManager in FluxSingleTransformerBlock")
+            self.cudagraph_manager = CudaGraphManager(config)
         self.adaln = AdaLN(
             config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
         )
@@ -717,7 +726,12 @@ class FluxSingleTransformerBlock(TransformerLayer):
 
         hidden_states = self.adaln.scale_add(residual, x=hidden_states, gate=gate)
 
-        return hidden_states
+        return hidden_states, None
+    
+    def __call__(self, *args, **kwargs):
+        if hasattr(self, 'cudagraph_manager'):
+            return self.cudagraph_manager(self, args, kwargs)
+        return super(MegatronModule, self).__call__(*args, **kwargs)
 
 
 def get_stdit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:

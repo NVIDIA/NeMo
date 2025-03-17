@@ -99,6 +99,8 @@ def flux_training() -> run.Partial:
                     data_parallel_sharding_strategy='optim_grads_params',
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
+                    overlap_param_gather=True,
+                    overlap_grad_reduce=True,
                 ),
             ),
             plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
@@ -183,9 +185,28 @@ def full_model_tp2_dp4_mock() -> run.Partial:
         None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
     recipe.model.flux_params.device = 'cuda'
-    recipe.trainer.strategy.tensor_model_parallel_size = 2
+    recipe.trainer.strategy.tensor_model_parallel_size = 1
     recipe.trainer.devices = 8
-    recipe.data.global_batch_size = 8
+    recipe.data.global_batch_size = 32
+    
+    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=5, num_single_layers=10) # not working when cuda graph is enabled
+    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, enable_cuda_graph=True) # not working when cuda graph is enabled
+    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, use_te_rng_tracker=True) # not working when cuda graph is enabled
+    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, cuda_graph_warmup_steps=3) # not working when cuda graph is enabled
+    recipe.trainer.strategy.ddp = run.Config(
+        DistributedDataParallelConfig,
+        use_custom_fsdp=False,
+        check_for_nan_in_grad=True,
+        grad_reduce_in_fp32=True,
+    )
+    from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MM_FLOPsMeasurementCallback,
+            model_name_config_dict={'flux': run.Config(FluxConfig, num_joint_layers=12, num_single_layers=24)},
+            data_config=recipe.data,
+        )
+    )
     return recipe
 
 
