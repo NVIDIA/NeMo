@@ -44,8 +44,12 @@ def masked_cross_entropy(logits, targets, mask=None):
     Returns:
         torch.Tensor: The computed loss as a scalar tensor.
     """
+    if targets.device != logits.device:
+        targets = targets.to(logits.device)
     if mask is not None:
         with torch.no_grad():
+            if mask.device != targets.device:
+                mask = mask.to(targets.device)
             targets.masked_fill_(mask.view(-1) == 0, -100)
             del mask
     return F.cross_entropy(logits, targets)
