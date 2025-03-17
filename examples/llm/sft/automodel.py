@@ -23,6 +23,7 @@ from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -120,6 +121,7 @@ def main():
     )
     parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
+    parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
         '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
@@ -128,6 +130,7 @@ def main():
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
+    parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
@@ -152,8 +155,18 @@ def main():
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
+    if args.use_te_optimizer:
+        # Use TE optimizer
+        # Faster convergence but may lead to memory issues
+        optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5))
+    else:
+        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=3e-4))
+
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=None, trust_remote_code=args.trust_remote_code
+        model_name=args.model,
+        model_accelerator=None,
+        trust_remote_code=args.trust_remote_code,
+        use_liger_kernel=args.liger,
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
@@ -185,7 +198,7 @@ def main():
             callbacks=callbacks,
             precision="bf16-mixed",
         ),
-        optim=fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5)),
+        optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
         resume=resume,
     )

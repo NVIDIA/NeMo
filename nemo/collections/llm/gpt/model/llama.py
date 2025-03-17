@@ -152,9 +152,9 @@ class Llama31Config(Llama3Config):
     including RoPE scaling parameters.
     """
 
-    scale_factor: int = 8
-    low_freq_factor: int = 1
-    high_freq_factor: int = 4
+    scale_factor: float = 8.0
+    low_freq_factor: float = 1.0
+    high_freq_factor: float = 4.0
     old_context_len: int = 8192
     init_method_std: float = 0.02
 
@@ -278,7 +278,7 @@ class Llama32Config1B(Llama31Config):
     2048 hidden size, and 32 attention heads (8 query groups).
     """
 
-    scale_factor: int = 32
+    scale_factor: float = 32.0
     share_embeddings_and_output_weights: bool = True
     rotary_base: int = 500_000
     num_layers: int = 16
@@ -531,6 +531,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             num_query_groups=source.num_key_value_heads,
+            seq_length=source.max_position_embeddings,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
@@ -581,7 +582,13 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         target = self.convert_state(source, target)
 
         target = target.cpu()
-        target.save_pretrained(output_path)
+        if self.config.tie_word_embeddings:
+            state_dict = target.state_dict()
+            state_dict.pop("lm_head.weight")
+            target.save_pretrained(output_path, state_dict=state_dict)
+        else:
+            target.save_pretrained(output_path)
+
         try:
             self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
@@ -643,6 +650,16 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
         from transformers import LlamaConfig as HFLlamaConfig
 
+        rope_scaling = None
+        # For Llama 3.1 and Llama 3.2, rope_scaling is used and thus needed to parsed to the config
+        if isinstance(source, Llama31Config):
+            rope_scaling = {
+                'factor': source.scale_factor,
+                'low_freq_factor': source.low_freq_factor,
+                'high_freq_factor': source.high_freq_factor,
+                'original_max_position_embeddings': source.old_context_len,
+                'rope_type': 'llama3',
+            }
         return HFLlamaConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
@@ -655,6 +672,9 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
             tie_word_embeddings=source.share_embeddings_and_output_weights,
+            rope_scaling=rope_scaling,
+            bos_token_id=self.tokenizer.bos_id,
+            eos_token_id=self.tokenizer.eos_id,
         )
 
 
@@ -1041,9 +1061,9 @@ def _export_linear_fc1(linear_fc1):
 
 def apply_rope_scaling(
     inv_freq,
-    factor: int = 8,
-    low_freq_factor: int = 1,
-    high_freq_factor: int = 4,
+    factor: float = 8.0,
+    low_freq_factor: float = 1.0,
+    high_freq_factor: float = 4.0,
     old_context_len: int = 8192,
 ):
     """Apply RoPE scaling for extending context length in Llama models.
