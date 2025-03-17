@@ -75,8 +75,8 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     """
 
     num_layers: int = 1  # dummy setting
-    num_joint_layers: int = 12
-    num_single_layers: int = 24
+    num_joint_layers: int = 1
+    num_single_layers: int = 40
     hidden_size: int = 3072
     num_attention_heads: int = 24
     activation_func: Callable = openai_gelu
@@ -96,7 +96,7 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     gradient_accumulation_fusion: bool = True
     enable_cuda_graph: bool = True
     use_te_rng_tracker: bool = True
-    cuda_graph_warmup_steps: int = 3
+    cuda_graph_warmup_steps: int = 2
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step

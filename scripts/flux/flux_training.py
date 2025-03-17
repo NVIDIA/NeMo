@@ -203,7 +203,7 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     recipe.trainer.callbacks.append(
         run.Config(
             MM_FLOPsMeasurementCallback,
-            model_name_config_dict={'flux': run.Config(FluxConfig, num_joint_layers=12, num_single_layers=24)},
+            model_name_config_dict={'flux': run.Config(FluxConfig)},
             data_config=recipe.data,
         )
     )
