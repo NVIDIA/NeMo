@@ -24,8 +24,7 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM, HFMockDataModule
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
@@ -129,6 +128,7 @@ def pretrain_recipe(
     fn=pretrain,
     model_name: str = '',
     max_steps: int = 100,
+    gradient_clip_val: float = 1.0,
 ) -> run.Partial:
     """
     Create a pre-training recipe for a HFAutoModelForCausalLM model.
@@ -162,8 +162,9 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
             max_steps=max_steps,
+            gradient_clip_val=gradient_clip_val,
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(HFMockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=pytorch_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
@@ -181,6 +182,7 @@ def finetune_recipe(
     max_steps: int = 100,
     trust_remote_code: bool = False,
     attn_implementation: str = 'sdpa',
+    gradient_clip_val: float = 1.0,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -227,6 +229,7 @@ def finetune_recipe(
             num_gpus_per_node=num_gpus_per_node,
             max_steps=max_steps,
             callbacks=[run.Config(TimingCallback)],
+            gradient_clip_val=gradient_clip_val,
         ),
         data=run.Config(
             SquadHFDataModule,
