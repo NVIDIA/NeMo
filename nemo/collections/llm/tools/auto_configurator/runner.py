@@ -15,12 +15,13 @@
 import copy
 import os
 import re
+import numpy as np
 from collections import OrderedDict
 from typing import List, Optional
 
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
-from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config
+from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config, _calculate_model_size
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils import logging
 
@@ -122,7 +123,7 @@ class AutoConfigurator:
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
 
         self.model_type = model_type
-        self.model_size_in_b = self._get_model_size(recipe.model.config)
+        self.model_size_in_b = self._get_model_size(recipe.model.config, model_type, config['vocab_size'])
         self.gpu_count = gpu_count
         self.seq_length = recipe.data.seq_length
         self.global_batch_size = recipe.data.global_batch_size
@@ -161,7 +162,7 @@ class AutoConfigurator:
 
         return None
 
-    def _get_model_size(self, model: Config) -> int:
+    def _get_model_size(self, model: Config, model_type: str, vocab_size: int) -> int:
         """
         Function that returns model size from model class name.
 
@@ -171,14 +172,28 @@ class AutoConfigurator:
         Returns:
             int: model size.
         """
-        match = re.search(r'(\d+)([BM])', str(model))
-        if match:
-            size = int(match.group(1))
-            measure = match.group(2)
-            if measure == 'B':
-                return size
-            elif measure == 'M':
-                return size / 1000  # Convert millions to billions
+        if model_type != "bert":
+            match = re.search(r'(\d+)([BM])', str(model))
+            if match:
+                size = int(match.group(1))
+                measure = match.group(2)
+                if measure == 'B':
+                    return size
+                elif measure == 'M':
+                    return size / 1000  # Convert millions to billions
+        elif model_type == "bert":
+            return np.round(
+                    _calculate_model_size(
+                        vocab_size=vocab_size,
+                        seq_length=model.seq_length,
+                        hidden_size=model.hidden_size,
+                        num_layers=model.num_layers,
+                        ffn_size=model.ffn_hidden_size,
+                        att_heads=model.num_attention_heads,
+                        model_name=model_type,
+                    ),
+                    3,
+                )
         return None
 
 
