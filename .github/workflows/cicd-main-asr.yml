@@ -1,0 +1,291 @@
+# Copyright (c) 2020-2021, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: ~asr suite
+
+on:
+  workflow_call:
+    inputs:
+      test_to_run:
+        type: string
+        description: Tests to run
+        required: true
+jobs:
+  L0_Unit_Tests_GPU_ASR:
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      TIMEOUT: 20
+      IS_UNIT_TEST: true
+      SCRIPT: L0_Unit_Tests_GPU_ASR
+
+  L0_Unit_Tests_CPU_ASR:
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure-cpu
+      TIMEOUT: 20
+      IS_UNIT_TEST: true
+      SCRIPT: L0_Unit_Tests_CPU_ASR
+
+  Unit_Tests_ASR:
+    needs: [L0_Unit_Tests_GPU_ASR, L0_Unit_Tests_CPU_ASR]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: exit 0
+
+  # L2: ASR dev run
+  ASR_dev_run_Speech_to_Text:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text
+
+  ASR_dev_run_Speech_to_Text_WPE_CitriNet:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: RUN_ID=${{ github.run_id }} bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_CitriNet
+
+  ASR_dev_run_Speech_Pre-training_-_CitriNet:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: ASR_dev_run_Speech_Pre-training_-_CitriNet
+
+  Optional_ASR_dev_run_Speech_To_Text_Finetuning:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: Optional_ASR_dev_run_Speech_To_Text_Finetuning
+      IS_OPTIONAL: true
+
+  Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning
+      IS_OPTIONAL: true
+
+  ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: ASR_dev_run_Speech_to_Text_WPE_-_Conformer
+
+  # L2: ASR dev run - part two
+  ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
+
+  # L2: Community llava multimodal Checkpoints tests
+  L2_Community_vita_Checkpoints_tests_Llama3:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3
+
+  L2_Speech_to_Text_EMA:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speech_to_Text_EMA
+
+  L2_Speech_to_Text_AED:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_Speech_to_Text_AED
+
+  # L2: Speaker dev run
+  L2_Speaker_dev_run_Speaker_Recognition:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_Speaker_dev_run_Speaker_Recognition
+
+  L2_Speaker_dev_run_Speaker_Diarization:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_Speaker_dev_run_Speaker_Diarization
+
+  L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
+
+  L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
+
+  L2_Speaker_dev_run_Speech_to_Label:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_Speaker_dev_run_Speech_to_Label
+
+  L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
+
+  L2_Speaker_dev_run_Clustering_Diarizer_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speaker_dev_run_Clustering_Diarizer_Inference
+
+  L2_Speaker_dev_run_Neural_Diarizer_Inference:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speaker_dev_run_Neural_Diarizer_Inference
+
+  L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
+
+  # L2: ASR Multi-dataloader dev run
+  L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
+
+  L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
+
+  # L2: ASR Adapters
+  L2_ASR_Adapters_Linear_Adapters:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_ASR_Adapters_Linear_Adapters
+
+  L2_ASR_Adapters_RelPos_MHA_Adapters:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: L2_ASR_Adapters_RelPos_MHA_Adapters
+
+  # L2: OOMptimizer
+  L2_Speech_Estimate_Duration_Bins:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speech_Estimate_Duration_Bins
+
+  # L2: OOMptimizer
+  L2_Speech_Batch_Size_OOMptimizer:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speech_Batch_Size_OOMptimizer
+
+  # L2: OOMptimizer Canary (has a different batch schema)
+  Optional_L2_Speech_Batch_Size_OOMptimizer_Canary:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
+      IS_OPTIONAL: true
+
+  # L2: Speech Transcription
+  L2_Speech_Transcription_Speech_to_Text_Transcribe:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speech_Transcription_Speech_to_Text_Transcribe
+
+  # L2: Speech Transcription
+  L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+      AFTER_SCRIPT: |
+        rm -rf /tmp/preds.json transcribe.log
+
+  L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+      AFTER_SCRIPT: |
+        rm -rf preds.json transcribe.log
+
+  L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
+      AFTER_SCRIPT: |
+        rm -rf preds.json
+      IS_OPTIONAL: true
+
+  # L2: Segmentation Tool
+  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
+
+  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
+    uses: ./.github/workflows/_test_template.yml
+    needs: [Unit_Tests_ASR]
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
