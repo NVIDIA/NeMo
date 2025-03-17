@@ -628,7 +628,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
 
             # step 6: update time indices + active mask
-            time_indices.copy_(batched_hyps.next_timestep)
+            time_indices.copy_(batched_hyps.next_timestamp)
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             torch.less_equal(time_indices, last_timesteps, out=active_mask)
 
@@ -1252,7 +1252,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             self.state.lm_scores.copy_(lm_scores)
 
         # step 6: update time indices + active mask
-        self.state.time_indices.copy_(self.state.batched_hyps.next_timestep)
+        self.state.time_indices.copy_(self.state.batched_hyps.next_timestamp)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less_equal(self.state.time_indices, self.state.last_timesteps, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)

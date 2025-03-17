@@ -4,18 +4,30 @@ from nemo.utils.enum import PrettyStrEnum
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 
-# https://stackoverflow.com/a/77213071
+# Constants used for hashing text sequences.
 MULTIPLIER = 6364136223846793005
 INCREMENT = 1
 MODULUS = 2**64
 
-INACTIVE_SCORE = -float("inf")
-INIT_POINTER_VALUE = -1
-INIT_HASH_VALUE = 0
-INIT_PREFIX_HASH_VALUE = 0
-NON_EXISTENT_LABEL_VALUE = -1
+# Constants used for initializing and managing beam search hypotheses.
+INACTIVE_SCORE = -float("inf")  # Represents the score of inactive hypotheses.
+INIT_POINTER_VALUE = -1         # Initial value for pointers in the hypothesis tree structure.
+INIT_HASH_VALUE = 0             # Initial hash value for transcript hashes.
+INIT_PREFIX_HASH_VALUE = 0      # Initial hash value for prefix hashes.
+NON_EXISTENT_LABEL_VALUE = -1   # Placeholder value for non-existent labels in hypotheses. Needs to be negative.
 
 def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
+    """
+    Computes a new hash value by updating previous hash tensor with added labels tensor.
+    Reference: https://stackoverflow.com/a/77213071
+    
+    Args:
+        prev_hash (torch.Tensor): A tensor representing the previous hash value.
+        add_labels (torch.Tensor): A tensor containing added labels.
+
+    Returns:
+        torch.Tensor: A tensor representing the updated hash value.
+    """
     return prev_hash * MULTIPLIER + INCREMENT + add_labels
 
 class BlankLMScoreMode(PrettyStrEnum):
@@ -36,18 +48,30 @@ class PruningMode(PrettyStrEnum):
     """Hyps are scored based on combined ASR and LM probs., then pruned"""
     
 class BatchedBeamHyps:
-    """Class to store batch of beam hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
+    """Class to store batch of beam hypotheses (labels, time_indices, scores) for efficient batched beam decoding"""
 
     def __init__(
         self,
         batch_size: int,
-        init_length: int,
         beam_size: int,
+        init_length: int,
         blank_index: int,
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
         store_prefix_hashes: Optional[bool] = False
     ):
+        """
+        Initializes the batched beam search utility for RNN-T decoding.
+        Args:
+            batch_size (int): Batch size.
+            beam_size (int): Beam size.
+            init_length (int): The initial maximum length of the hypotheses.
+            blank_index (int): The index representing the blank token in the vocabulary.
+            device (Optional[torch.device]): The device on which tensors will be allocated. Defaults to None.
+            float_dtype (Optional[torch.dtype]): The floating-point data type for scores. Defaults to None.
+            store_prefix_hashes (Optional[bool]): Whether to store prefix hashes for hypotheses. Defaults to False.
+        """
+        
         self.INACTIVE_SCORE = INACTIVE_SCORE
         self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=torch.float)
         self.INIT_POINTER_VALUE = INIT_POINTER_VALUE
@@ -65,7 +89,7 @@ class BatchedBeamHyps:
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long) # non-blank lengths
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long) # full lengths
         
-        # Initializing tree structure for hypothesis stpring
+        # Initializing tree structure for hypothesis storing
         self.transcript_wb = torch.zeros(
             (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
         ) # current labels
@@ -92,6 +116,10 @@ class BatchedBeamHyps:
             )
 
     def clear_(self):
+        """
+        Clears and resets the internal state of the object.
+        """
+        
         self.current_lengths_nb.fill_(0)
         self.current_lengths_wb.fill_(0)
         
@@ -110,6 +138,10 @@ class BatchedBeamHyps:
             self.transcript_prefix_hash.fill_(self.INIT_PREFIX_HASH_VALUE)
 
     def _allocate_more(self):
+        """
+        Dynamically allocates more memory for the internal buffers.
+        This method doubles the size of the following tensors: `transcript_wb`, `transcript_wb_prev_ptr`.
+        """
         self.transcript_wb = torch.cat((self.transcript_wb, torch.zeros_like(self.transcript_wb)), dim=-1)
         self.transcript_wb_prev_ptr = torch.cat(
             (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
@@ -123,6 +155,15 @@ class BatchedBeamHyps:
         next_labels,
         next_hyps_prob,
     ):
+        """
+        Updated batch of beam hypotheses with labels. If the maximum allowed length 
+        is exceeded, underlying memory is doubled.
+        Args:
+            hyps_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
+            next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
+        """
+        
         if (self.current_lengths_wb + 1).max() >= self._max_length:
             self._allocate_more()
             
@@ -138,6 +179,14 @@ class BatchedBeamHyps:
         next_labels,
         next_hyps_prob,
     ):
+        """
+        Updated batch of beam hypotheses with labels.
+        Args:
+            hyps_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
+            next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
+        """
+        
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(
             dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1)
@@ -179,6 +228,15 @@ class BatchedBeamHyps:
             )
 
     def recombine_hyps(self):
+        """
+        Recombines hypotheses in the beam search by merging equivalent hypotheses and updating their scores.
+        This method identifies hypotheses that are equivalent based on their transcript hash, last label, 
+        and current lengths. It then merges these equivalent hypotheses by computing a new score using 
+        log-sum-exp over their scores and updates the scores tensor accordingly.
+        Returns:
+            None: The method modifies the `self.scores` tensor in place to reflect the recombined hypotheses.
+        """
+        
         if self.beam_size <= 1:
             return
         
@@ -201,6 +259,18 @@ class BatchedBeamHyps:
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
     
     def remove_duplicates(self, labels, total_logps):
+        """
+        Removes duplicate hypotheses that may arise after updating beam hypotheses with labels during the beam search process.
+        Args:
+            labels (torch.Tensor): A tensor containing the labels for the current beam 
+                search step. Shape: [batch_size, beam_size, ...].
+            total_logps (torch.Tensor): A tensor containing the total log probabilities 
+                for the current beam search step. Shape: [batch_size, beam_size, ...].
+        Returns:
+            torch.Tensor: Updated total log probabilities with duplicates removed. 
+                Shape: [batch_size, beam_size, ...].
+        """
+        
         if self.beam_size <= 1:
             return total_logps
         
@@ -237,6 +307,16 @@ class BatchedBeamHyps:
         return total_logps
 
     def recombine_prefixes(self, label_logps: torch.Tensor, active_mask: torch.Tensor):
+        """
+        Recombines prefixes (prefix search) in the beam search process by updating scores for hypotheses
+        that share common prefixes. 
+        Args:
+            label_logps (torch.Tensor): A tensor of shape (batch_size, beam_size, vocab_size)
+                containing the log probabilities of the labels for each beam.
+            active_mask (torch.Tensor): A boolean tensor of shape (batch_size, beam_size)
+                indicating which beams are active.
+        """
+        
         if self.beam_size <= 1:
             return
         
@@ -262,6 +342,15 @@ class BatchedBeamHyps:
         self.scores = torch.where(to_update_mask, torch.logaddexp(self.scores, prefix_label_logps), self.scores)
 
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+        """
+        Converts the batched beam search results into a list of signle best hypotheses for each batch.
+        Args:
+            score_norm (bool):  If True, normalize the scores before sorting. Defaults to True.
+        Returns:
+            list[Hypothesis]: A list where each element corresponds to a batch and contains
+            best hypothesis.
+        """
+        
         self.flatten_sort(score_norm)
 
         scores = self.scores[self.batch_indices, 0].tolist()
@@ -282,7 +371,16 @@ class BatchedBeamHyps:
         ]
         return hypotheses
     
-    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[NBestHypotheses]:
+        """
+        Converts the batched beam search results into a list of N-best hypotheses for each batch.
+        Args:
+            score_norm (bool, optional): If True, normalize the scores before sorting. Defaults to True.
+        Returns:
+            list[NBestHypotheses]: A list where each element corresponds to a batch and contains 
+            N-best hypotheses.
+        """
+        
         self.flatten_sort(score_norm)
 
         scores = self.scores.tolist()
@@ -307,6 +405,21 @@ class BatchedBeamHyps:
         return hypotheses
     
     def flatten_sort(self, score_norm: bool = True) -> list[Hypothesis]:
+        """
+        Sorts and flattens the tree structure of hypotheses in a batched beam search decoding process.
+        Args:
+            score_norm (bool, optional): If True, normalizes the scores by dividing 
+                them by the current lengths of the hypotheses plus one. Defaults to True.
+        Returns:
+            list[Hypothesis]: A list of sorted and flattened hypotheses.
+        This method performs the following steps:
+        1. Normalizes the scores if `score_norm` is True.
+        2. Sorts the normalized scores in descending order and retrieves the corresponding indices.
+        3. Iteratively reconstructs the tokens and timestamps for each hypothesis in reverse order.
+        4. Updates the internal state of the object, including transcripts, timestamps, scores, 
+           lengths, labels, and other metadata, based on the sorted order.
+        """
+        
         # add one for consistency with non-batched decodings, that use SOS.
         normalized_scores = self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
         normalized_scores, indices = torch.sort(normalized_scores, dim=-1, descending=True)
@@ -336,17 +449,30 @@ class BatchedBeamHyps:
             self.transcript_prefix_hash.copy_(torch.gather(self.transcript_prefix_hash, dim=-1, index=indices))
     
 class BatchedBeamHypsTDT:
-    """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
+    """
+    Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding
+    """
 
     def __init__(
         self,
         batch_size: int,
-        init_length: int,
         beam_size: int,
+        init_length: int,
         blank_index: int,
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
     ):
+        """
+        Initializes the batched beam search utility for RNN-T decoding.
+        Args:
+            batch_size (int): Batch size.
+            beam_size (int): Beam size.
+            init_length (int): The initial maximum length of the hypotheses.
+            blank_index (int): The index representing the blank token in the vocabulary.
+            device (Optional[torch.device]): The device on which tensors will be allocated. Defaults to None.
+            float_dtype (Optional[torch.dtype]): The floating-point data type for scores. Defaults to None.
+        """
+        
         self.device=device
         self.INACTIVE_SCORE = -float("inf")
         self.INACTIVE_SCORE_TENSOR = torch.tensor(self.INACTIVE_SCORE, device=device, dtype=torch.float)
@@ -363,6 +489,8 @@ class BatchedBeamHypsTDT:
 
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
+        
+        # Initializing tree structure for hypothesis storing
         self.transcript_wb = torch.zeros(
             (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
         )
@@ -372,24 +500,30 @@ class BatchedBeamHypsTDT:
         self.transcript_wb_prev_ptr = torch.full(
             (batch_size, self.beam_size, self._max_length), fill_value=self.INIT_POINTER_VALUE, device=device, dtype=torch.long
         )
-        self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        self.transcript_prefix_hash = torch.full([batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=self.INIT_PREFIX_HASH_VALUE)
-        self.last_label = torch.full([batch_size, self.beam_size], fill_value=self.NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long)
         
-        self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
-        self.scores.fill_(self.INACTIVE_SCORE)
+        # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
+        self.scores = torch.full([batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=self.INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
-
-        self.next_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
+        
+        self.last_label = torch.full(
+            [batch_size, self.beam_size], fill_value=self.NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
+        )
+        self.next_timestamp = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-
+        
+        self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
+        
     def clear_(self):
+        """
+        Clears and resets the internal state of the object.
+        """
+        
         self.current_lengths_nb.fill_(0)
         self.current_lengths_wb.fill_(0)
         self.last_label.fill_(self.NON_EXISTENT_LABEL_VALUE)
         self.scores.fill_(self.INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
-        self.next_timestep.fill_(0)
+        self.next_timestamp.fill_(0)
         self.last_timestep_lasts.fill_(0)
         
         self.transcript_wb.fill_(0)
@@ -397,9 +531,13 @@ class BatchedBeamHypsTDT:
         self.transcript_wb_prev_ptr.fill_(self.INIT_POINTER_VALUE)
         
         self.transcript_hash.fill_(0)
-        self.transcript_prefix_hash.fill_(self.INIT_PREFIX_HASH_VALUE)
 
     def _allocate_more(self):
+        """
+        Dynamically allocates more memory for the internal buffers used in the beam search process.
+        This method doubles the size of the following tensors: `transcript_wb`, `timestamps`, `transcript_wb_prev_ptr`
+        """
+        
         self.transcript_wb = torch.cat((self.transcript_wb, torch.zeros_like(self.transcript_wb)), dim=-1)
         self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
         self.transcript_wb_prev_ptr = torch.cat(
@@ -415,6 +553,16 @@ class BatchedBeamHypsTDT:
         next_hyps_prob,
         next_label_durations,
     ):
+        """
+        Updated batch of beam hypotheses with labels. If the maximum allowed length 
+        is exceeded, underlying memory is doubled.
+        Args:
+            hyps_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
+            next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
+            next_label_durations (torch.Tensor): Durations associated with the next labels.
+        """
+        
         if (self.current_lengths_wb + 1).max() >= self._max_length:
             self._allocate_more()
             
@@ -432,7 +580,16 @@ class BatchedBeamHypsTDT:
         next_hyps_prob,
         next_label_durations
     ):
-        timesteps = torch.gather(self.next_timestep, dim=-1, index=hyps_indices)
+        """
+        Updated batch of beam hypotheses with labels.
+        Args:
+            hyps_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
+            next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
+            next_label_durations (torch.Tensor): Durations associated with the next labels.
+        """
+        
+        timesteps = torch.gather(self.next_timestamp, dim=-1, index=hyps_indices)
         
         self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
@@ -448,7 +605,7 @@ class BatchedBeamHypsTDT:
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
 
-        torch.where(next_labels >= 0, timesteps + next_label_durations, timesteps, out=self.next_timestep)
+        torch.where(next_labels >= 0, timesteps + next_label_durations, timesteps, out=self.next_timestamp)
         torch.where(
             next_label_durations>0,
             self.ZERO_TENSOR,
@@ -457,7 +614,6 @@ class BatchedBeamHypsTDT:
         )
 
         prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
-        prev_transcript_prefix_hash = torch.gather(self.transcript_prefix_hash, dim=-1, index=hyps_indices)
         last_labels=torch.gather(self.last_label, dim=-1, index=hyps_indices)
         # track last label
         torch.where(
@@ -474,14 +630,17 @@ class BatchedBeamHypsTDT:
             prev_transcript_hash,
             out=self.transcript_hash
         )
-        torch.where(
-            extended_with_label,
-            prev_transcript_hash,
-            prev_transcript_prefix_hash,
-            out=self.transcript_prefix_hash
-        )
 
     def recombine_hyps(self):
+        """
+        Recombines hypotheses in the beam search by merging equivalent hypotheses and updating their scores.
+        This method identifies hypotheses that are equivalent based on their transcript hash, last label, 
+        current lengths and current timestamps. It then merges these equivalent hypotheses by computing a new score using 
+        log-sum-exp over their scores and updates the scores tensor accordingly.
+        Returns:
+            None: The method modifies the `self.scores` tensor in place to reflect the recombined hypotheses.
+        """
+        
         if self.beam_size <= 1:
             return
         
@@ -489,7 +648,7 @@ class BatchedBeamHypsTDT:
             (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
             & (self.last_label[:, :, None] == self.last_label[:, None, :])
             & (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
-            & (self.next_timestep[:, :, None] == self.next_timestep[:, None, :])
+            & (self.next_timestamp[:, :, None] == self.next_timestamp[:, None, :])
         )
 
         scores_matrix = torch.where(
@@ -505,6 +664,15 @@ class BatchedBeamHypsTDT:
         torch.where(scores_to_keep, new_scores, self.INACTIVE_SCORE_TENSOR, out=self.scores)
     
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+        """
+        Converts the batched beam search results into a list of signle best hypotheses for each batch.
+        Args:
+            score_norm (bool):  If True, normalize the scores before sorting. Defaults to True.
+        Returns:
+            list[Hypothesis]: A list where each element corresponds to a batch and contains
+            best hypothesis.
+        """
+        
         self.flatten_sort(score_norm)
 
         scores = self.scores[self.batch_indices, 0].tolist()
@@ -523,8 +691,55 @@ class BatchedBeamHypsTDT:
             for batch_idx, _ in enumerate(range(self.batch_size))
         ]
         return hypotheses
+        
+    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+        """
+        Converts the batched beam search results into a list of N-best hypotheses for each batch.
+        Args:
+            score_norm (bool, optional): If True, normalize the scores before sorting. Defaults to True.
+        Returns:
+            list[NBestHypotheses]: A list where each element corresponds to a batch and contains 
+            N-best hypotheses.
+        """
+        
+        self.flatten_sort(score_norm)
+
+        scores = self.scores.tolist()
+        
+        max_idx = self.current_lengths_wb.max() - 1
+        transcripts = self.transcript_wb[..., : max_idx + 1].cpu().detach().numpy()
+        timestamps = self.timestamps[..., : max_idx + 1].cpu().detach().numpy()
+        hypotheses = [
+            NBestHypotheses(
+                [
+                    Hypothesis(
+                        score=scores[batch_idx][beam_idx],
+                        y_sequence=transcripts[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
+                        timestamp=timestamps[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
+                        alignments=None,
+                        dec_state=None,
+                ) for beam_idx in range(self.beam_size)]
+            )
+            for batch_idx in range(self.batch_size)
+        ]
+        return hypotheses
     
-    def flatten_sort(self, score_norm: bool = True) -> list[Hypothesis]:
+    def flatten_sort(self, score_norm: bool = True):
+        """
+        Sorts and flattens the tree structure of hypotheses in a batched beam search decoding process.
+        Args:
+            score_norm (bool, optional): If True, normalizes the scores by dividing 
+                them by the current lengths of the hypotheses plus one. Defaults to True.
+        Returns:
+            list[Hypothesis]: A list of sorted and flattened hypotheses.
+        This method performs the following steps:
+        1. Normalizes the scores if `score_norm` is True.
+        2. Sorts the normalized scores in descending order and retrieves the corresponding indices.
+        3. Iteratively reconstructs the tokens and timestamps for each hypothesis in reverse order.
+        4. Updates the internal state of the object, including transcripts, timestamps, scores, 
+           lengths, labels, and other metadata, based on the sorted order.
+        """
+        
         # add one for consistency with non-batched decodings, that use SOS.
         normalized_scores = self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
         normalized_scores, indices = torch.sort(normalized_scores, dim=-1, descending=True)
@@ -550,30 +765,7 @@ class BatchedBeamHypsTDT:
         self.current_lengths_wb.copy_(torch.gather(self.current_lengths_wb, dim=-1, index=indices))
         
         self.last_label.copy_(torch.gather(self.last_label, dim=-1, index=indices))
-        self.next_timestep.copy_(torch.gather(self.next_timestep, dim=-1, index=indices))
+        self.next_timestamp.copy_(torch.gather(self.next_timestamp, dim=-1, index=indices))
         self.last_timestep_lasts.copy_(torch.gather(self.last_timestep_lasts, dim=-1, index=indices))
         
         self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=indices))
-        
-    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
-        self.flatten_sort(score_norm)
-
-        scores = self.scores.tolist()
-        
-        max_idx = self.current_lengths_wb.max() - 1
-        transcripts = self.transcript_wb[..., : max_idx + 1].cpu().detach().numpy()
-        timestamps = self.timestamps[..., : max_idx + 1].cpu().detach().numpy()
-        hypotheses = [
-            NBestHypotheses(
-                [
-                    Hypothesis(
-                        score=scores[batch_idx][beam_idx],
-                        y_sequence=transcripts[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
-                        timestamp=timestamps[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
-                        alignments=None,
-                        dec_state=None,
-                ) for beam_idx in range(self.beam_size)]
-            )
-            for batch_idx in range(self.batch_size)
-        ]
-        return hypotheses
