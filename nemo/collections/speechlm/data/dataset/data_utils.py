@@ -49,29 +49,17 @@ def pad_or_trim_to_max_length(
     """
     Pad or trim a tensor to max_length
     Args:
-        inputs: tensor to pad or trim, shape=[batch, seq, hid_dim] or [batch, seq] or [seq]
+        inputs: tensor to pad or trim, shape=[batch, seq, hid_dim] or [batch, seq]
         max_length: length to pad or trim to
         pad_value: value to pad with
         ceil_to: pad to the nearest multiple of this number
     """
-    if ceil_to > 1:
-        # ceil max_length to the nearest multiple of ceil_to, used in context parallelism
-        max_length = ceil_to_nearest(max_length, ceil_to)
-
-    if inputs.dim() == 1:
-        if inputs.size(0) < max_length:
-            # pad
-            pad_size = max_length - inputs.size(0)
-            pad = torch.full((pad_size,), pad_value, dtype=inputs.dtype, device=inputs.device)
-            inputs = torch.cat([inputs, pad], dim=0)
-        elif inputs.size(0) > max_length:
-            # trim
-            inputs = inputs[:max_length]
-        return inputs
-
     if seq_dim != 1:
         # transpose to [B,T,D]
         inputs = inputs.transpose(seq_dim, 1)
+    if ceil_to > 1:
+        # ceil max_length to the nearest multiple of ceil_to, used in context parallelism
+        max_length = ceil_to_nearest(max_length, ceil_to)
 
     if inputs.size(1) < max_length:
         # pad

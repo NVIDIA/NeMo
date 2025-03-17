@@ -187,6 +187,10 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 is_train=(mode == 'train'),
             )
 
+        logging.warning(
+            "!!!You are using legacy dataset and dataloader, please switch to lhotse dataloader "
+            "for full functionality and best performance.!!!"
+        )
         setattr(self, f"_{mode}_names", data_cfg.get('name', None))
 
         # Notably, the data weights are controlled by either bucketing_weights

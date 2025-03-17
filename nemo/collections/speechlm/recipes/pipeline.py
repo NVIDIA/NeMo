@@ -26,6 +26,7 @@ from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTe
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
 from nemo.collections.speechlm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
+from nemo.collections.speechlm.utils.io import prepare_pretrained_llm_dist_ckpt
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.lightning import AutoResume
 from nemo.lightning.pytorch.callbacks import PreemptionCallback
@@ -88,6 +89,9 @@ def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None)
         resume_speech_model_from_path=cfg['model'].get('resume_speech_model_from_path', None),
         resume_modality_adapter_from_path=cfg['model'].get('resume_modality_adapter_from_path', None),
     )
+
+    if model_config.language_model_from_pretrained:
+        prepare_pretrained_llm_dist_ckpt(model_config)
 
     model = SpeechToTextLLM(config=model_config, tokenizer=tokenizer)
 

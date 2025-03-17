@@ -9,19 +9,21 @@ data:
     max_seq_length: 4096
     min_seq_length: 1
     sample_rate: 16000
-    end_string: null
-    context_key: 'context'
-    answer_key: 'answer'
-    prompt_format: null
-    prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt.
-    separate_prompt_and_response_with_newline: False
-    truncation_field: 'context'
-    add_eos: true
-    add_sep: false
-    add_bos: false
+    end_string: null  # additional end string other than <EOS>
+    context_key: 'context'  # what key in manifest to load for context
+    answer_key: 'answer'  # what key in manifest to load for answer
+    prompt_format: 'llama3'  # prompt formatter to use, set according to the chosen LLM and check for support in nemo/collections/common/prompts
     tokens_to_generate: 128
-    audio_locator: null
-    add_boa_eoa: false
+    add_boa_eoa: false  # whether to add <boa> and <eoa> strings before and after audio features
+
+    # below params are only used for non-lhotse dataloader, which are now DEPRECATED
+    audio_locator: null  # audio locator string in the context text for locating audios 
+    prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt.
+    separate_prompt_and_response_with_newline: False 
+    truncation_field: 'context' 
+    add_eos: true 
+    add_sep: false 
+    add_bos: false
 
   train_ds:
     # Example of how to specify paths to multiple datasets
