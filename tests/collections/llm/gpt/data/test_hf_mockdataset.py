@@ -14,11 +14,8 @@
 
 
 import pytest
-import re
 from unittest.mock import patch, MagicMock
-from functools import partial
 import torch
-from torch.utils.data import DataLoader
 from nemo.collections.llm.gpt.data.hf_dataset import (
     HFMockDataModule, _MockGPTDataset
 )
