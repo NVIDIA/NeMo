@@ -216,6 +216,9 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     use_te: bool = True
     to_upper: str = "normalized_weighted"  # choose between "weighted" and "normalized_weighted"
     use_short_conv_bias: bool = False
+    # Use this if you want to turn FP8 on for the linear layer in the mixer only. When using this, do not set
+    #  Fp8 in the mixed precision plugin.
+    vortex_style_fp8: bool = False
 
     def __post_init__(self):
         """
@@ -313,6 +316,7 @@ class Hyena1bConfig(HyenaConfig):
 
     hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*"
     num_layers: int = 25
+    recompute_num_layers: int = 5  # needs to be a multiple of num_layers
     seq_length: int = 8192
     hidden_size: int = 1920
     num_groups_hyena: int = 1920
