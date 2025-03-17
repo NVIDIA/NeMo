@@ -39,7 +39,9 @@ def clean_split(name):
         str: return partition name without any selector (e.g. "train").
     """
     if "[" in name:
-        return name.split("[")[0]
+        name = name.split("[")[0]
+    if '+' in name:
+        name = name.split('+')[0]
     return name
 
 
@@ -81,10 +83,13 @@ def make_dataset_splits(dataset, split, split_aliases):
         assert split_name in valid_split_names
         for alias in _split_aliases:
             alias_to_split[alias] = split_name
+    for name in valid_split_names:
+        alias_to_split[name] = name
 
     if isinstance(dataset, Dataset):
         assert isinstance(split, str), "Expected split to be a string, but got {}".format(type(split))
         split = clean_split(split)
+        split = alias_to_split[split]
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
         dataset_split_names = dataset.keys()
