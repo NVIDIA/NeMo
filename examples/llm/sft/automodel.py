@@ -183,6 +183,9 @@ def main():
         if args.auto_resume
         else None
     )
+    # WAR
+    if args.enable_cpu_offload:
+        args.grad_clip = 0.0
 
     llm.api.finetune(
         model=model,
