@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import math
 from typing import Dict, Optional, Tuple
-from omegaconf import DictConfig
 
+import numpy as np
 import torch.utils.data
 from lhotse.cut import Cut, CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
+from omegaconf import DictConfig
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -29,16 +29,16 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 
 class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
     """
-    This dataset processes the audio data and the corresponding text data to generate the ASR labels, 
-    along with EOU labels for each frame. The audios used in this dataset should only contain speech with 
-    NO precedding or following silence. The dataset also randomly pads non-speech frames before and after 
+    This dataset processes the audio data and the corresponding text data to generate the ASR labels,
+    along with EOU labels for each frame. The audios used in this dataset should only contain speech with
+    NO precedding or following silence. The dataset also randomly pads non-speech frames before and after
     the audio signal for training EOU prediction task.
 
-    To generate EOU labels, the first frame of the audio will be marked as "start of utterance" (labeled as `2`), 
-    while the last frame will be marked as "end of utterance" (labeled as `3`). The rest of the frames in between 
-    will be marked as "speech" (labeled as `1`). 
+    To generate EOU labels, the first frame of the audio will be marked as "start of utterance" (labeled as `2`),
+    while the last frame will be marked as "end of utterance" (labeled as `3`). The rest of the frames in between
+    will be marked as "speech" (labeled as `1`).
     The padded non-speech signals will be marked as "non-speech" (labeled as 0).
-    
+
     Returns:
         audio: torch.Tensor of audio signal
         audio_lens: torch.Tensor of audio signal length
@@ -50,9 +50,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
     Padding logic:
     0. Don't pad when `random_padding` is None or during validation/test
     1. randomly draw a probability to decide whether to apply padding
-    2. if not padding or audio duration is longer than the maximum duration, 
+    2. if not padding or audio duration is longer than the maximum duration,
         1) return the original audio and EOU labels
-    3. if apply padding, 
+    3. if apply padding,
         1) get the max padding duration based on the maximum total duration and the audio duration
         2) randomly draw a total padding duration based on the given distribution
         3) randomly split the total padding duration into pre-padding and post-padding
@@ -69,8 +69,8 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
         pad_normal_mean: 0.5  # mean of normal distribution for padding duration
         pad_normal_std: 2.0  # standard deviation of normal distribution for padding duration
-    ```    
-     
+    ```
+
     """
 
     @property
@@ -110,9 +110,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             eou_targets_i = self.get_frame_labels(cuts[i], audio_lens[i])
             text_tokens_i = self.get_text_tokens(cuts[i])
 
-            audio_i, audio_len_i, eou_targets_i = self.random_pad_audio(
-                audio[i], audio_lens[i], eou_targets_i
-            )
+            audio_i, audio_len_i, eou_targets_i = self.random_pad_audio(audio[i], audio_lens[i], eou_targets_i)
             audio_signals.append(audio_i)
             audio_lengths.append(audio_len_i)
             eou_targets.append(eou_targets_i)
@@ -124,11 +122,11 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         eou_targets = collate_vectors(eou_targets, padding_value=0)
         text_token_lens = torch.tensor([t.size(0) for t in text_tokens], dtype=torch.long)
         text_tokens = collate_vectors(text_tokens, padding_value=0)
-        
+
         if not self.return_eou_labels:
             return audio_signals, audio_lengths, text_tokens, text_token_lens
         return audio_signals, audio_lengths, eou_targets, eou_target_lens, text_tokens, text_token_lens
-    
+
     def _audio_len_to_frame_len(self, num_samples: int):
         """
         Convert the raw audio length to the number of frames after audio encoder.
@@ -147,37 +145,55 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         if not cut.has_custom("sou_time") or not cut.has_custom("eou_time"):
             # assume only single speech segment
-            eou_targets = torch.ones(hidden_length).long() # speech label
-            eou_targets[0] = 2 # start of utterance
-            eou_targets[-1] = 3 # end of utterance
+            eou_targets = torch.ones(hidden_length).long()  # speech label
+            eou_targets[0] = 2  # start of utterance
+            eou_targets[-1] = 3  # end of utterance
             return eou_targets
 
         sou_time = cut.custom["sou_time"]
         eou_time = cut.custom["eou_time"]
-
-        if not isinstance(sou_time, list) and not isinstance(eou_time, list):
-            # only single speech segment
+        if not isinstance(sou_time, list):
             sou_time = [sou_time]
+        if not isinstance(eou_time, list):
             eou_time = [eou_time]
 
-        assert len(sou_time) == len(eou_time), f"Number of SOU and EOU do not match: SOU ({len(sou_time)}) vs EOU ({len(eou_time)})"
+        assert len(sou_time) == len(
+            eou_time
+        ), f"Number of SOU and EOU do not match: SOU ({len(sou_time)}) vs EOU ({len(eou_time)})"
 
         eou_targets = torch.zeros(hidden_length).long()
         for i in range(len(sou_time)):
             sou_idx = self._audio_len_to_frame_len(int((sou_time[i] - cut.start) * self.cfg.sample_rate))
             seg_len_in_secs = eou_time[i] - sou_time[i]
             seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.cfg.sample_rate))
-            eou_targets[sou_idx:sou_idx+seg_len] = 1
+            eou_targets[sou_idx : sou_idx + seg_len] = 1
             eou_targets[sou_idx] = 2  # start of utterance
-            eou_targets[sou_idx+seg_len-1] = 3 # end of utterance
+            eou_targets[sou_idx + seg_len - 1] = 3  # end of utterance
 
         return eou_targets
 
     def get_text_tokens(self, cut: Cut):
-        text = cut.text
-        if getattr(cut, 'add_sou_eou', True):
-            text = f"{self.sou_token} {text} {self.eou_token}"
-        return torch.as_tensor(self.tokenizer(text))
+        if not cut.has_custom("sou_time") or not cut.has_custom("eou_time") or not cut.has_custom("utterances"):
+            # assume only single speech segment
+            utterances = [cut.supervisions[0].text]
+        else:
+            utterances = cut.custom["utterances"]
+            sou_time = cut.custom["sou_time"]
+            eou_time = cut.custom["eou_time"]
+            if not isinstance(utterances, list):
+                utterances = [utterances]
+            if not isinstance(sou_time, list):
+                sou_time = [sou_time]
+            if not isinstance(eou_time, list):
+                eou_time = [eou_time]
+
+        total_text = ""
+        for text in utterances:
+            if getattr(cut, 'add_sou_eou', True):
+                text = f"{self.sou_token} {text} {self.eou_token}"
+            total_text += text + " "
+        total_text = total_text.strip()
+        return torch.as_tensor(self.tokenizer(total_text))
 
     def random_pad_audio(self, audio: torch.Tensor, audio_len: torch.Tensor, eou_targets: torch.Tensor):
         """
@@ -195,7 +211,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         p = np.random.rand()
         if self.padding_cfg is None or not self.is_train or p > self.padding_cfg.padding_prob:
             return audio, audio_len, eou_targets, eou_targets.size(0)
-        
+
         duration = audio_len.item() / self.cfg.sample_rate
         # if already longer than the maximum duration, return the original audio
         if duration >= self.padding_cfg.max_total_duration:
@@ -212,11 +228,13 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         if self.padding_cfg.pad_distribution == 'uniform':
             total_padding_duration = np.random.uniform(min_padding_duration, max_padding_duration)
         elif self.padding_cfg.pad_distribution == 'normal':
-            total_padding_duration = np.random.normal(self.padding_cfg.pad_normal_mean, self.padding_cfg.pad_normal_std)
+            total_padding_duration = np.random.normal(
+                self.padding_cfg.pad_normal_mean, self.padding_cfg.pad_normal_std
+            )
             total_padding_duration = max(min_padding_duration, min(max_padding_duration, total_padding_duration))
         else:
             raise ValueError(f"Unknown padding distribution: {self.padding_cfg.pad_distribution}")
-        
+
         pre_padding_duration = np.random.uniform(0, total_padding_duration)
         post_padding_duration = total_padding_duration - pre_padding_duration
 
@@ -237,6 +255,3 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         padded_eou_targets = torch.cat((pre_padding_eou, eou_targets, post_padding_eou), dim=0)
 
         return padded_audio, padded_audio_len, padded_eou_targets
-
-
-
