@@ -44,7 +44,7 @@ except ImportError:
 
 class MALSDState:
     """
-    State for batched ALSD algorithm. Used only with CUDA graphs.
+    State for batched ALSD algorithm for RNN-T models. Used only with CUDA graphs.
     In initialization phase it is possible to assign values (tensors) to the state.
     For algorithm code the storage should be reused (prefer copy data instead of assigning tensors).
     """
@@ -112,12 +112,15 @@ class MALSDState:
         """
         Args:
             batch_size: batch size for encoder output storage
+            beam_size: beam size for decoder output storage
             max_time: maximum time for encoder output storage
             encoder_dim: last dimension for encoder output storage (projected encoder output)
             max_symbols: max symbols per step (to avoid infinite looping and pre-allocate storage)
             device: device to store tensors
             float_dtype: default float dtype for tensors (should match projected encoder output)
+            blank_index: index of the blank symbol
         """
+        
         self.device = device
         self.float_dtype = float_dtype
         self.batch_size = batch_size
@@ -151,6 +154,7 @@ class MALSDState:
             dtype=float_dtype,
             device=self.device
         )
+        
         self.last_labels_wb = torch.full(
                 [self.batch_size, self.beam_size],
                 device=self.device,
@@ -192,8 +196,6 @@ class MALSDState:
             device=device,
             float_dtype=float_dtype,
         )
-        
-        self.last_decoder_state = None
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
         """Check if need to reinit state: larger batch_size/max_time, or new device"""
@@ -218,6 +220,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         - does not prediction network caching
         - does not employ transcript length estimation, instead, limits the number of expansions for every frame.
     """
+    
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
     CUDA_PROGRAM_NAME = b"while_malsd_batch_conditional_rnnt.cu"
 
@@ -266,11 +269,14 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             pruning_mode: mode for pruning hypotheses with LM
             score_norm: whether to normalize scores before best hypothesis extraction
             allow_cuda_graphs: whether to allow CUDA graphs
+            return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
         """
+        
         super().__init__()
         self.decoder = decoder
         self.joint = joint
         self._blank_index = blank_index
+        
         self.beam_size = beam_size
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
@@ -290,7 +296,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
         
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
@@ -366,7 +371,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         encoder_output_length: torch.Tensor,
     ) -> Union[list[rnnt_utils.Hypothesis], list[rnnt_utils.NBestHypotheses]]:
         """
-        Pytorch implementation of the batched ALSD algorithm.
+        Pytorch implementation of the batched ALSD algorithm for RNN-T.
         Args:
             encoder_output (torch.Tensor): The output from the encoder network with shape 
                 [batch_size, max_time, encoder_dim].
@@ -401,12 +406,14 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         )
 
         batch_beam_indices = (
-            torch.arange(batch_size, device=device, dtype=torch.long)[:, None]
-            .repeat(1, self.beam_size)
+            torch.arange(batch_size, dtype=torch.long, device=device)[:, None]
+            .expand(batch_size, self.beam_size)
+            .clone()
         ) # size: batch_size x beam_size
         batch_beam_beam_indices = (
             torch.arange(self.beam_size, dtype=torch.long, device=device)[None, :, None]
             .expand(batch_size, -1, self.beam_size)
+            .clone()
         ) # size: batch_size x beam_size x beam_size
             
         time_indices = torch.zeros_like(batch_beam_indices)
@@ -429,7 +436,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             batch_size=batch_size * self.beam_size
         )
         # do not recalculate joint projection
-        decoder_output = self.joint.project_prednet(decoder_output)  # size: [(B x Beam), 1, Dim]
+        decoder_output = self.joint.project_prednet(decoder_output)  # size: [(batch_size x beam_size), 1, Dim]
 
         while active_mask.any():
             # step 1: get joint output + fuse with LM (if present)
@@ -496,7 +503,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 force_blank.unsqueeze(-1), self._blank_index, labels_top_k
             )
 
-            # step 2.4: final pruning - get top-beam from (beam x beam) hyps
+            # step 2.4: final pruning - get top-beam from (beam_size x beam_size) hyps
             next_hyps_prob, hyps_candidates_indices = torch.topk(
                 hyps_candidates_prob.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True
             )
@@ -608,6 +615,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 - log_probs_top_k: Top-k log probabilities, shape [batch_size, beam_size, beam_size].
                 - labels_top_k: Corresponding top-k labels, shape [batch_size, beam_size, beam_size].
         """
+        
         if self.pruning_mode is PruningMode.LATE:
             if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
                 log_probs[..., :-1] += lm_scores
@@ -680,6 +688,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 - If `return_best_hypothesis` is True, returns the best hypothesis for each batch.
                 - Otherwise, returns the N-best hypotheses for each batch.
         """
+        
         assert self.cuda_graphs_mode is not None
 
         # do not recalculate joint projection, project only once
@@ -745,6 +754,19 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         encoder_output_projected: torch.Tensor,
         encoder_output_length: torch.Tensor,
     ):
+        """
+        Reinitializes the graph state for the MALSD computation.
+        This method sets up the internal state required for the decoding process, including initializing
+        decoder outputs, decoder states, and optional n-gram language model states. It also handles CUDA
+        graph compilation based on the specified mode.
+        Args:
+            encoder_output_projected (torch.Tensor): The projected encoder output tensor of shape 
+                (batch_size, max_time, encoder_dim).
+            encoder_output_length (torch.Tensor): The lengths of the encoder outputs for each batch.
+        Raises:
+            NotImplementedError: If an unsupported CUDA graph mode is specified.
+        """
+        
         batch_size, max_time, encoder_dim = encoder_output_projected.shape
 
         self.state = MALSDState(
@@ -877,6 +899,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         """
         Clears state and compute initial active mask
         """
+        
         self.state.batched_hyps.clear_()
 
         # initial state - lm
@@ -928,8 +951,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             )
             .squeeze()
         )
-        # same as: scores, labels = logits.max(-1)
         log_probs = F.log_softmax(logits, dim=-1).view(self.state.batch_size, self.beam_size, -1)  # [(B x Beam), V]
+        
         if self.ngram_lm_batch is not None:
             log_probs_top_k, labels_top_k = self.topk_lm(self.state.lm_scores, log_probs)
         else:
@@ -1032,6 +1055,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         Updates the decoder state, decoder output, and optionally the language model (LM) state
         for the next iteration of the decoding loop in a batched RNNT (Recurrent Neural Network Transducer) setup.
         """
+        
         # step 5: update decoder state + decoder output (+ lm state/scores)
         # step 5.1: mask invalid value labels with blank to avoid errors (refer to step 2.2)
         torch.where(
