@@ -53,7 +53,7 @@ def slurm_executor(
     and fine-tuning experiments
     """
     err_msgs = []
-    if log_dir != NEMORUN_HOME:
+    if log_dir != get_nemorun_home():
         err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
     if len(err_msgs) > 0:
         logging.error("\n".join(err_msgs))
