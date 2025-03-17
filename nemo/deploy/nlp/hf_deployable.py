@@ -20,7 +20,7 @@ from typing import Any, List, Optional
 import numpy as np
 import torch
 import wrapt
-from transformers import AutoModel, AutoTokenizer, pipeline
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
@@ -43,6 +43,8 @@ except Exception:
     use_pytriton = False
 
 LOGGER = logging.getLogger("NeMo")
+
+SUPPORTED_TASKS = ["text-generation"]
 
 
 class HuggingFaceLLMDeploy(ITritonDeployable):
@@ -72,9 +74,10 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
     def __init__(
         self,
         hf_model_id_path: Optional[str] = None,
-        model: Optional[AutoModel] = None,
         tokenizer_id_path: Optional[str] = None,
-        task: Optional[str] = None,
+        model: Optional[AutoModel] = None,
+        tokenizer: Optional[AutoTokenizer] = None,
+        task: Optional[str] = "text-generation",
         trust_remote_code: bool = False,
         device_id: Optional[int] = None,
     ):
@@ -85,12 +88,14 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                 "hf_model_id_path will be ignored and the HuggingFace model " "set with model parameter will be used."
             )
 
+        assert task in SUPPORTED_TASKS, "Task {0} is not a support task.".format(task)
+
         self.hf_model_id_path = hf_model_id_path
         self.task = task
         self.model = model
+        self.tokenizer = tokenizer
         self.tokenizer_id_path = tokenizer_id_path
         self.trust_remote_code = trust_remote_code
-        self.pipe = None
         self.device_id = torch.cuda.current_device() if device_id is None else device_id
 
         if model is None:
@@ -107,11 +112,20 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             AssertionError: If task is not specified.
         """
         assert self.task is not None, "A task has to be given for the generation task."
-        self.pipe = pipeline(
-            self.task,
-            model=self.hf_model_id_path,
-            tokenizer=self.tokenizer_id_path,
-            device=self.device_id,
+
+        if self.task == "text-generation":
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.hf_model_id_path,
+                torch_dtype='auto',
+                device_map="cpu",
+                trust_remote_code=self.trust_remote_code,
+            )
+        else:
+            raise ValueError("Task {0} is not supported.".format(self.task))
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.hf_model_id_path,
+            trust_remote_code=self.trust_remote_code,
         )
 
     def generate(
@@ -140,11 +154,15 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         Raises:
             RuntimeError: If the pipeline is not initialized.
         """
-        if not self.pipe:
-            raise RuntimeError("Pipeline not initialized")
+        if not self.model:
+            raise RuntimeError("Model is not initialized")
 
-        output = self.pipe(**kwargs)
-        return [item[0]["generated_text"] for item in output]
+        inputs = self.tokenizer(kwargs["text_inputs"], return_tensors="pt")
+        kwargs = {**inputs, **kwargs}
+        kwargs.pop("text_inputs")
+        generated_ids = self.model.generate(**kwargs)
+        output = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        return output
 
     @property
     def get_triton_input(self):
@@ -171,14 +189,16 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         output_infer = {}
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
-            max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
-            random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
             temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
             top_k = int(inputs.pop("top_k")[0][0] if "top_k" in inputs else 1)
             top_p = inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0
             num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
             output_logits = inputs.pop("output_logits")[0][0] if "output_logits" in inputs else False
             output_scores = inputs.pop("output_scores")[0][0] if "output_scores" in inputs else False
+
+            return_dict_in_generate = False
+            if output_logits or output_scores:
+                return_dict_in_generate = True
 
             output = self.generate(
                 text_inputs=prompts,
@@ -187,9 +207,9 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                 top_p=top_p,
                 temperature=temperature,
                 max_new_tokens=num_tokens_to_generate,
-                return_full_text=False,
                 output_logits=output_logits,
                 output_scores=output_scores,
+                return_dict_in_generate=return_dict_in_generate,
             )
 
             output_infer = {"sentences": cast_output(output, np.bytes_)}

@@ -29,7 +29,7 @@ def get_args(argv):
         description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("-hmip", "--hf_model_id_path", type=str, help="Path or ID of a HF model")
-    parser.add_argument("-t", "--task", default="text-generation", type=str, help="Downstream task for the model")
+    parser.add_argument("-t", "--task", nargs='?', choices=['text-generation'], default="text-generation", type=str, help="Downstream task for the model")
     parser.add_argument("-did", "--device_id", default=0, type=int, help="Default device id")
     parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")

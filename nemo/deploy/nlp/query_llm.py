@@ -63,19 +63,19 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
     # names and optionality should exactly match the get_triton_input() results for MegatronGPTDeployable
     def query_llm(
         self,
-        prompts,
-        use_greedy: bool = None,
-        temperature: float = None,
-        top_k: int = None,
-        top_p: float = None,
-        repetition_penalty: float = None,
-        add_BOS: bool = None,
-        all_probs: bool = None,
-        compute_logprob: bool = None,
-        end_strings=None,
-        min_length: int = None,
-        max_length: int = None,
-        init_timeout=60.0,
+        prompts: List[str],
+        use_greedy: Optional[bool] = None,
+        temperature: Optional[float] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
+        add_BOS: Optional[bool] = None,
+        all_probs: Optional[bool] = None,
+        compute_logprob: Optional[bool] = None,
+        end_strings: Optional[List[str]] = None,
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        init_timeout: float = 60.0,
     ):
         """
         Query the Triton server synchronously and return a list of responses.
