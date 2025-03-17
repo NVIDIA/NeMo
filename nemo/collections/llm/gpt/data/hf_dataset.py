@@ -443,7 +443,6 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
     """A data module for handling the HellaSwag dataset using HFDatasetDataModule."""
 
     def __init__(self, tokenizer, dataset_name="Rowan/hellaswag", *args, **kwargs):
-        tokenizer = tokenizer.tokenizer
         tokenizer.pad_token = tokenizer.eos_token
         self.pad_token_id = tokenizer.eos_id
         dataset = load_dataset(dataset_name)
