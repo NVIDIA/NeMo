@@ -229,6 +229,7 @@ def _initialize_distributed(
                 ),
                 get_embedding_ranks=get_embedding_ranks,
                 get_position_embedding_ranks=get_position_embedding_ranks,
+                create_gloo_process_groups=cfg.dist_config.use_gloo_process_groups,
             )
             if get_rank_safe() == 0:
                 print(
