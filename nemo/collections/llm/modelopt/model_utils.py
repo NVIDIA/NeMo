@@ -13,6 +13,9 @@
 # limitations under the License.
 """Utility functions for loading models with modelopt layer spec."""
 
+from functools import partial
+from typing import Union
+
 import lightning.pytorch as L
 import torch
 from megatron.core.dist_checkpointing.validation import StrictHandling
@@ -27,22 +30,43 @@ from nemo.utils import logging
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
 
-def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Set model.config.transformer_layer_spec to modelopt spec."""
-    logging.info("Setting model.config.transformer_layer_spec to gpt_modelopt_spec")
-    assert isinstance(model_cfg, llm.GPTConfig), "model_cfg must be a GPTConfig"
-    try:
-        from functools import partial
+def _set_gpt_modelopt_spec(model_cfg: Union[llm.GPTConfig, llm.SSMConfig]) -> Union[llm.GPTConfig, llm.SSMConfig]:
+    """
+    Set the model layer spec to a modelopt spec variant. This function updates the model
+    config with the appropriate modelopt layer specification based on the model type.
 
-        from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+    Args:
+        model_cfg (Union[llm.GPTConfig, llm.SSMConfig]): The model config.
 
-        modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
-    except ImportError:
-        # Older spec: Will be deprecated, doesnt support DeepSeek
-        from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
+    Returns:
+        Union[llm.GPTConfig, llm.SSMConfig]: The model config updated for the modelopt layer specification.
+    """
+    logging.info("Setting model layer specification to the modelopt layer spec")
 
-        modelopt_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True)
-    model_cfg.transformer_layer_spec = modelopt_spec
+    if isinstance(model_cfg, llm.GPTConfig):
+        try:
+            from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+
+            modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
+        except ImportError:
+            # Older spec: Will be deprecated, doesnt support DeepSeek
+            from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
+
+            modelopt_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True)
+
+        model_cfg.transformer_layer_spec = modelopt_spec
+    elif isinstance(model_cfg, llm.SSMConfig):
+        try:
+
+            from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
+
+        except ImportError:
+            # Older spec: Will be deprecated
+            from megatron.core.inference.modelopt_support.mamba.model_specs import get_mamba_stack_modelopt_spec
+
+        model_cfg.mamba_stack_spec = partial(get_mamba_stack_modelopt_spec, remap_te_layernorm=True)
+    else:
+        raise ValueError(f"No modelopt layer spec supported for config type {type(model_cfg)}")
     return model_cfg
 
 
@@ -52,13 +76,13 @@ def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> 
     if not modelopt_state_path.exists() or hasattr(model, "module"):
         return
 
-    if isinstance(model, llm.GPTModel):
+    if isinstance(model, (llm.GPTModel, "llm.MambaModel")):
         _set_gpt_modelopt_spec(model.config)
 
         # Disable gradient accumulation fusion for QAT
         model.config.gradient_accumulation_fusion = False
     else:
-        logging.warning(f"{type(model)} is not a GPTModel. Modelopt state will not be loaded.")
+        logging.warning(f"{type(model)} is neither a GPTModel nor MambaModel. Modelopt state will not be loaded.")
 
 
 def setup_trainer_and_restore_model_with_modelopt_spec(
@@ -75,7 +99,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     strategy_kwargs: dict | None = None,
     trainer_kwargs: dict | None = None,
     model_config_overrides: dict | None = None,
-) -> tuple[llm.GPTModel, nl.Trainer]:
+) -> tuple[Union[llm.GPTModel, "llm.MambaModel"], nl.Trainer]:
     """Loads a GPT model from a NeMo 2.0 checkpoint using modelopt layer spec.
 
     Args:
@@ -94,7 +118,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
         model_config_overrides (Optional[dict]): keyword arguments to override model config.
 
     Returns:
-        llm.GPTModel: The loaded model with the specified configuration.
+        Union[llm.GPTModel, "llm.MambaModel"]: The loaded model with the specified configuration.
     """
     if strategy_kwargs is None:
         strategy_kwargs = {}
@@ -103,7 +127,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     if model_config_overrides is None:
         model_config_overrides = {}
 
-    logging.info(f"Loading GPT model from {model_path} with modelopt layer spec...")
+    logging.info(f"Loading model from {model_path} with modelopt layer spec...")
 
     # TODO: setting ddp="pytorch" and deleting model.optim is a hackish way to disable DDP initialization.
     # Needs a systematic solution.
