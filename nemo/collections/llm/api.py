@@ -31,6 +31,7 @@ from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
+    ParallelConfig,
     PruningConfig,
     QuantizationConfig,
     Quantizer,
@@ -445,12 +446,7 @@ def distill(
 def ptq(
     nemo_checkpoint: str,
     export_config: ExportConfig,
-    calibration_tp: int = 1,
-    calibration_pp: int = 1,
-    num_layers_in_first_pipeline_stage: int | None = None,
-    num_layers_in_last_pipeline_stage: int | None = None,
-    devices: int | None = None,
-    num_nodes: int | None = None,
+    parallel_config: Annotated[Optional[ParallelConfig], run.Config[ParallelConfig]] = None,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
     forward_loop: Callable | None = None,
     tokenizer_path: str | None = None,
@@ -465,32 +461,35 @@ def ptq(
     The function can be used through the NeMo CLI in the following way:
     ```bash
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-70B \
+    nemo llm ptq run.executor=torchrun run.executorrun.executor.ntasks_per_node=2 \
+        nemo_checkpoint=/models/Llama-3-70B \
         export_config.path=/models/Llama-3-70B-FP8 \
-        calibration_tp=8 \
         export_config.inference_tp=2
 
     # Choose different quantization method, for example, INT8 SmoothQuant
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+    nemo llm ptq run.executor=torchrun \
+        nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
 
     # Export as NeMo checkpoint instead
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+    nemo llm ptq run.executor=torchrun \
+        nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq \
         export_config.export_format=nemo
+
+    # Quantize HF AutoModel checkpoint
+    nemo llm ptq \
+        nemo_checkpoint=/models/Llama-3-8B-HF \
+        export_config.path=/models/Llama-3-8B-HF-FP8 \
+        export_config.export_format=hf
     ```
 
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
-        calibration_tp (int): Calibration tensor parallelism.
-        calibration_pp (int): Calibration pipeline parallelism.
-        num_layers_in_first_pipeline_stage (int): Number of layers in the first pipeline stage.
-        num_layers_in_last_pipeline_stage (int): Number of layers in the last pipeline stage.
         export_config (ExportConfig): Export configuration for output checkpoint.
-        devices (int): Number of devices to use for calibration. Default: calibration_tp.
-        num_nodes (int): Number of nodes to use for calibration. Default: calibration_pp.
+        parallel_config (ParallelConfig): Parallel configuration for calibration.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         forward_loop (Callable): Forward loop to use for calibration.
             If not provided, a forward loop will be created using the calibration dataset.
@@ -502,24 +501,17 @@ def ptq(
     """
     if not quantization_config:
         quantization_config = QuantizationConfig()
-    if devices is None:
-        devices = calibration_tp
-    if num_nodes is None:
-        num_nodes = calibration_pp
-
-    if export_config.path is None:
-        raise ValueError("The export_config.path needs to be specified, got None.")
-
-    quantizer = Quantizer(quantization_config, export_config)
+    if parallel_config is None:
+        parallel_config = ParallelConfig()
 
     model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
         model_path=nemo_checkpoint,
-        tensor_model_parallel_size=calibration_tp,
-        pipeline_model_parallel_size=calibration_pp,
-        num_layers_in_first_pipeline_stage=num_layers_in_first_pipeline_stage,
-        num_layers_in_last_pipeline_stage=num_layers_in_last_pipeline_stage,
-        devices=devices,
-        num_nodes=num_nodes,
+        tensor_model_parallel_size=parallel_config.calibration_tp,
+        pipeline_model_parallel_size=parallel_config.calibration_pp,
+        num_layers_in_first_pipeline_stage=parallel_config.num_layers_in_first_pipeline_stage,
+        num_layers_in_last_pipeline_stage=parallel_config.num_layers_in_last_pipeline_stage,
+        devices=parallel_config.devices,
+        num_nodes=parallel_config.num_nodes,
         inference_only=True,
         tokenizer_path=tokenizer_path,
         legacy_ckpt=legacy_ckpt,
@@ -528,8 +520,8 @@ def ptq(
         model_config_overrides={"sequence_parallel": False},
     )
 
+    quantizer = Quantizer(quantization_config, export_config)
     model = quantizer.quantize(model, forward_loop)
-
     quantizer.export(model, nemo_checkpoint, trainer)
 
     console = Console()

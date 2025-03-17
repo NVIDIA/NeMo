@@ -15,7 +15,7 @@
 import argparse
 
 from nemo.collections import llm
-from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
+from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig, ParallelConfig
 
 
 def get_args():
@@ -28,8 +28,8 @@ def get_args():
         "--tokenizer", type=str, help="Tokenizer to use. If not provided, model tokenizer will be used"
     )
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
-    parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
-    parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
+    parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=0)
+    parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=0)
     parser.add_argument(
         "--num_layers_in_first_pipeline_stage",
         type=int,
@@ -58,8 +58,8 @@ def get_args():
         default=1,
         help="TRT-LLM engine PP size. (Only used when `--export_format` is 'trtllm')",
     )
-    parser.add_argument("--devices", type=int, help="Number of GPUs to use per node")
-    parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used")
+    parser.add_argument("--devices", type=int, help="Number of GPUs to use per node", default=0)
+    parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used", default=0)
     parser.add_argument("-out", "--export_path", "--output_path", type=str, help="Path for the exported engine")
     parser.add_argument(
         "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as"
@@ -108,11 +108,6 @@ def get_args():
         else:
             args.export_path = f"./nemo_{args.algorithm}"
 
-    if args.devices is None:
-        args.devices = args.calibration_tp
-    if args.num_nodes is None:
-        args.num_nodes = args.calibration_pp
-
     return args
 
 
@@ -139,16 +134,19 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-
-    llm.ptq(
-        nemo_checkpoint=args.nemo_checkpoint,
-        export_config=export_config,
+    parallel_config = ParallelConfig(
         calibration_tp=args.calibration_tp,
         calibration_pp=args.calibration_pp,
         num_layers_in_first_pipeline_stage=args.num_layers_in_first_pipeline_stage,
         num_layers_in_last_pipeline_stage=args.num_layers_in_last_pipeline_stage,
         devices=args.devices,
         num_nodes=args.num_nodes,
+    )
+
+    llm.ptq(
+        nemo_checkpoint=args.nemo_checkpoint,
+        export_config=export_config,
+        parallel_config=parallel_config,
         quantization_config=quantization_config,
         tokenizer_path=args.tokenizer,
         legacy_ckpt=args.legacy_ckpt,
