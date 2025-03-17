@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
+
 import numpy as np
 import torch
 import wrapt
-
 from transformers import AutoModel, AutoTokenizer, pipeline
 
 from nemo.deploy import ITritonDeployable
@@ -46,25 +46,37 @@ LOGGER = logging.getLogger("NeMo")
 
 
 class HuggingFaceLLMDeploy(ITritonDeployable):
-    """
-    Triton inference server compatible deploy class for a HF model file
+    """A Triton inference server compatible wrapper for HuggingFace models.
+
+    This class provides a standardized interface for deploying HuggingFace models
+    in Triton inference server. It supports various NLP tasks and handles model
+    loading, inference, and deployment configurations.
 
     Args:
-        hf_model_id_path (str): path for the nemo checkpoint.
-        model (AutoModel): number of GPUs.
-        tokenizer : number of nodes.
-        task (str): Hugging Face tasks such as question-answering, text-classification, etc.
-        trust_remote_code (int): tensor parallelism.
+        hf_model_id_path: Path to the HuggingFace model or model identifier.
+            Can be a local path or a model ID from HuggingFace Hub.
+        model: Pre-loaded HuggingFace model. If provided, hf_model_id_path will be ignored.
+        tokenizer_id_path: Path to the tokenizer or tokenizer identifier.
+            If None, will use the same path as hf_model_id_path.
+        task: HuggingFace task type (e.g., "text-generation", "question-answering").
+            Required if hf_model_id_path is provided.
+        trust_remote_code: Whether to trust remote code when loading models.
+            Should be True for custom models with custom code.
+        device_id: GPU device ID to use. If None, uses current CUDA device.
+
+    Raises:
+        ValueError: If neither hf_model_id_path nor model is provided.
+        ValueError: If hf_model_id_path is provided but task is not specified.
     """
 
     def __init__(
         self,
-        hf_model_id_path: str = None,
-        model=None,
-        tokenizer_id_path=None,
-        task: str = None,
+        hf_model_id_path: Optional[str] = None,
+        model: Optional[AutoModel] = None,
+        tokenizer_id_path: Optional[str] = None,
+        task: Optional[str] = None,
         trust_remote_code: bool = False,
-        device_id=None,
+        device_id: Optional[int] = None,
     ):
         if hf_model_id_path is None and model is None:
             raise ValueError("hf_model_id_path or model parameters has to be passed.")
@@ -78,15 +90,24 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         self.model = model
         self.tokenizer_id_path = tokenizer_id_path
         self.trust_remote_code = trust_remote_code
-        self.pipeline = None
+        self.pipe = None
         self.device_id = torch.cuda.current_device() if device_id is None else device_id
 
         if model is None:
             self._load()
 
-    def _load(self):
+    def _load(self) -> None:
+        """Load the HuggingFace pipeline with the specified model and task.
+
+        This method initializes the HuggingFace pipeline using the provided model
+        configuration and task type. It handles the model and tokenizer loading
+        process.
+
+        Raises:
+            AssertionError: If task is not specified.
+        """
         assert self.task is not None, "A task has to be given for the generation task."
-        self.pipeline = pipeline(
+        self.pipe = pipeline(
             self.task,
             model=self.hf_model_id_path,
             tokenizer=self.tokenizer_id_path,
@@ -95,25 +116,35 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
 
     def generate(
         self,
-        **kwargs,
-    ):
-        """
-        Generates text based on the provided input prompts.
+        **kwargs: Any,
+    ) -> List[str]:
+        """Generate text based on the provided input prompts.
+
+        This method processes input prompts through the loaded pipeline and
+        generates text according to the specified parameters.
 
         Args:
-            prompts (List[str]): A list of input strings.
-            output_scores (bool): Whether to return output scores or not.
+            **kwargs: Generation parameters including:
+                - text_inputs: List of input prompts
+                - max_length: Maximum number of tokens to generate
+                - num_return_sequences: Number of sequences to generate per prompt
+                - temperature: Sampling temperature
+                - top_k: Number of highest probability tokens to consider
+                - top_p: Cumulative probability threshold for token sampling
+                - do_sample: Whether to use sampling
+                - return_full_text: Whether to return full text or only generated part
 
         Returns:
-            Dict: A list containing the generated results.
+            List[str]: A list of generated texts, one for each input prompt.
+
+        Raises:
+            RuntimeError: If the pipeline is not initialized.
         """
+        if not self.pipe:
+            raise RuntimeError("Pipeline not initialized")
 
-        output = self.pipeline(**kwargs)
-        generated_text = []
-        for o in output:
-            generated_text.append(o[0]["generated_text"])
-
-        return generated_text
+        output = self.pipe(**kwargs)
+        return [item[0]["generated_text"] for item in output]
 
     @property
     def get_triton_input(self):
@@ -126,6 +157,8 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="max_length", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="output_logits", shape=(-1,), dtype=np.bool_, optional=True),
+            Tensor(name="output_scores", shape=(-1,), dtype=np.bool_, optional=True),
         )
         return inputs
 
@@ -144,8 +177,8 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             top_k = int(inputs.pop("top_k")[0][0] if "top_k" in inputs else 1)
             top_p = inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0
             num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
-            log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
-            text_only = True
+            output_logits = inputs.pop("output_logits")[0][0] if "output_logits" in inputs else False
+            output_scores = inputs.pop("output_scores")[0][0] if "output_scores" in inputs else False
 
             output = self.generate(
                 text_inputs=prompts,
@@ -155,6 +188,8 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                 temperature=temperature,
                 max_new_tokens=num_tokens_to_generate,
                 return_full_text=False,
+                output_logits=output_logits,
+                output_scores=output_scores,
             )
 
             output_infer = {"sentences": cast_output(output, np.bytes_)}
