@@ -30,6 +30,14 @@ from nemo.collections.vlm import Llava15Config7B, LlavaModel
 from nemo.collections.vlm.inference import generate as vlm_generate
 from nemo.collections.vlm.inference import setup_inference_wrapper
 from nemo.utils import logging
+try:
+    import modelopt.torch.quantization as mtq
+
+    HAVE_MODELOPT = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MODELOPT = False
 
 
 def load_image(image_url: str) -> Image.Image:
@@ -203,6 +211,51 @@ def main(args) -> None:
         legacy_generate(model, processor, raw_image, args.prompt, args.num_tokens_to_generate)
     else:
         generate(model, processor, images=raw_image, text=args.prompt, params=params)
+    
+    if args.enable_quantization:
+        base_img_url = "http://images.cocodataset.org/val2017/"
+        images = [
+            "000000039769.jpg",
+            "000000002685.jpg",
+            "000000004495.jpg",
+            "000000005001.jpg",
+            "000000003845.jpg",
+            "000000011615.jpg",
+            "000000010977.jpg",
+            "000000010764.jpg",
+            "000000010707.jpg",
+            "000000010583.jpg",
+            "000000010363.jpg",
+            "000000010092.jpg",
+            "000000009914.jpg",
+            "000000009891.jpg",
+            "000000009769.jpg",
+            "000000009590.jpg",
+            "000000009483.jpg",
+            "000000009448.jpg",
+            "000000009378.jpg",
+            "000000008899.jpg"
+        ]
+        quantization_images_url = [ base_img_url+img_id for img_id in images]
+
+        def forward_loop():
+            for img_url in quantization_images_url:
+                raw_image = load_image(img_url)
+                response = generate(model, processor, images=raw_image, text="can you describe this image?", params=params)
+                print(img_url, "->", response)
+
+        if args.quant_alg == "int8_sq":
+            mtq_config = mtq.INT8_SMOOTHQUANT_CFG
+        elif args.quant_alg == "fp8":
+            mtq_config = mtq.FP8_DEFAULT_CFG
+        elif args.quant_alg == "awq":
+            mtq_config = mtq.INT4_AWQ_CFG
+        else:
+            raise ValueError(f"Unsupported quantization algorithm: {args.quantization.algorithm}")
+        
+        logging.info("-------- Start Quantization --------")
+        mtq.quantize(model, mtq_config, forward_loop)
+        logging.info("-------- End Quantization --------")
 
 
 if __name__ == "__main__":
@@ -258,6 +311,17 @@ if __name__ == "__main__":
         "--legacy_generate",
         action="store_true",
         help="Flag to indicate whether to use legacy generation function.",
+    )
+    parser.add_argument(
+        "--enable_quantization",
+        action="store_true",
+        help="Flag to indicate whether to enable quantization.",
+    )
+    parser.add_argument(
+        "--quant_alg",
+        type=str,
+        default="fp8",
+        help="Input prompt",
     )
     args = parser.parse_args()
 
