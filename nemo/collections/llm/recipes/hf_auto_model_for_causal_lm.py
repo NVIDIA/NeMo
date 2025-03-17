@@ -113,7 +113,7 @@ def trainer(
         num_sanity_val_steps=0,
         accumulate_grad_batches=10,
         callbacks=callbacks,
-        gradient_clip_val=gradient_clip_val,
+        gradient_clip_val=0.0,
         use_distributed_sampler=False,
     )
 
@@ -181,6 +181,7 @@ def finetune_recipe(
     max_steps: int = 100,
     trust_remote_code: bool = False,
     attn_implementation: str = 'sdpa',
+    gradient_clip_val: float = 1.0,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -227,6 +228,7 @@ def finetune_recipe(
             num_gpus_per_node=num_gpus_per_node,
             max_steps=max_steps,
             callbacks=[run.Config(TimingCallback)],
+            gradient_clip_val=gradient_clip_val,
         ),
         data=run.Config(
             SquadHFDataModule,
