@@ -492,21 +492,24 @@ def main(cfg: StreamingEvaluationConfig):
                     # import pdb; pdb.set_trace()
                     
                     record = {
-                        "pred_text": hyp,
                         "text": all_refs_text[i],
+                        "pred_text": hyp,
                         "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
                         "laal": all_laal[i]
                     }
                     if all_answer_text:
-                        streaming_bleu = round(corpus_bleu([hyp], [[all_answer_text[i]]]).score, 2)
-                        record["bleu"] = streaming_bleu
-                    out_f.write(json.dumps(record) + '\n')
+                        record["answer"] = all_answer_text[i]
+                        streaming_bleu_per_file = round(corpus_bleu([hyp], [[all_answer_text[i]]]).score, 2)
+                        record["bleu"] = streaming_bleu_per_file
+                    out_f.write(json.dumps(record, ensure_ascii=False) + '\n')
             
             scoring_fname = f"{fname}scoring.wer"
             scoring_file = os.path.join(cfg.output_path, scoring_fname)
             with open(scoring_file, "w") as out_f:
                 out_f.write(f"Streaming WER : {round(streaming_wer*100, 2)}%\n")
-                out_f.write(f"Streaming LAAL: {streaming_laal}")
+                out_f.write(f"Streaming LAAL: {streaming_laal}\n")
+                if all_answer_text:
+                    out_f.write(f"Streaming BLEU: {streaming_bleu:.2f}\n")
 
 
 

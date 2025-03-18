@@ -891,9 +891,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     
                     # prevent tokens hallucination (repetative predcitions)
                     # TODO finde a example to test this condition (I noticed this on for ASR only Canary model)
-                    if i > 15 and next_tokens == tgt[:, -1] and next_tokens == tgt[:, -2] and next_tokens == tgt[:, -3]:
-                        logging.warning(f"Tokens hallucination detected: {next_tokens}, stop decoding")
-                        return None
+                    # if i > 15 and next_tokens == tgt[:, -1] and next_tokens == tgt[:, -2] and next_tokens == tgt[:, -3]:
+                    #     logging.warning(f"Tokens hallucination detected: {next_tokens}, stop decoding")
+                    #     return None
 
                     # prevent earlu stop if we still have speech to process
                     if next_tokens == self.tokenizer.eos or next_tokens == 16:
