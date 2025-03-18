@@ -156,7 +156,7 @@ class TestPEFT:
         model.conv.requires_grad_(False)
         model.linear.requires_grad_(True)
 
-        # Call set_trainable_params
+        # Call set_params_to_save
         peft.set_params_to_save(trainer)
 
         # Expected trainable parameter names
@@ -188,7 +188,7 @@ class TestPEFT:
         # Freeze everything
         model.freeze()
 
-        # Call set_trainable_params
+        # Call set_params_to_save
         peft.set_params_to_save(trainer)
 
         # Expect BN buffers to be saved
