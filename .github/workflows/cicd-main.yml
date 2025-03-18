@@ -1713,6 +1713,18 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt /tmp/pruned-llama
 
+  L2_NeMo_2_Export_TRT_LLM:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Export_TRT_LLM')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Export_TRT_LLM.sh
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_ckpt
+
   L2_NeMo_2_Export_In_Framework:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2178,6 +2190,7 @@ jobs:
       - L2_NeMo_2_PTQ_Llama2_FP8_nemo
       - L2_NeMo_2_Distill_Llama3_TP1PP2
       - L2_NeMo_2_Prune_Llama_TP1PP2
+      - L2_NeMo_2_Export_TRT_LLM
       - L2_NeMo_2_Export_In_Framework
       - L2_NeMo_2_jit_callback
       - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
