@@ -23,7 +23,6 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import args_sanity_check, get_user_configs, set_primary_perf_configs, slurm_executor
-from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
 
 def override_recipe_configs(
     args: str,
@@ -68,17 +67,6 @@ def override_recipe_configs(
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
-    recipe.trainer.callbacks.append(run.Config(
-            MM_FLOPsMeasurementCallback,
-            model_name_config_dict={
-                "llama3": recipe.model.config.language_transformer_config, 
-                "hf_clip_vit_l": recipe.model.config.vision_transformer_config,
-                "neva_projection": recipe.model.config.vision_projection_config,
-            },
-            data_config=recipe.data,
-        )
-    )
 
     return recipe
 
