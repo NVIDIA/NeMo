@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 import torch
-import torch.distributed as dist
 from accelerate.hooks import remove_hook_from_module
 from datasets import load_dataset
 from tqdm import tqdm
