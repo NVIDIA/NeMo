@@ -1834,7 +1834,8 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
                 ngram_lm_alpha=ngram_lm_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
                 score_norm=score_norm,
-                pruning_mode=pruning_mode
+                pruning_mode=pruning_mode,
+                return_best_hypothesis=return_best_hypothesis,
             )
 
     @property
@@ -1877,12 +1878,6 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             self.timer.start(device=inseq.device)
             hyps = self._decoding_computer(x=inseq, out_len=logitlen)
             self.timer.stop(device=inseq.device)
-            # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
-            # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
-            #     hyp.dec_state = state
-
-            # Pack the hypotheses results
-            # packed_result = pack_hypotheses(hypotheses, logitlen)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)

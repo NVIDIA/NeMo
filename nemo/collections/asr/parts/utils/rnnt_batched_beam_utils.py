@@ -335,7 +335,7 @@ class BatchedBeamHyps:
         
         prefix_equal = self.transcript_hash[:, None, :] == prefix_hashes[:, :, None]
         
-        last_labels=torch.where(self.last_label == self.NON_EXISTENT_LABEL_VALUE, self.blank_index, self.last_label)
+        last_labels=torch.where(self.last_label == NON_EXISTENT_LABEL_VALUE, self.blank_index, self.last_label)
         prefix_labels = last_labels.unsqueeze(1).repeat((1, self.beam_size, 1))
         prefix_scores = self.scores.unsqueeze(1).repeat((1, self.beam_size, 1))
         

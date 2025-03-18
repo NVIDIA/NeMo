@@ -48,10 +48,7 @@ class MALSDState:
     In initialization phase it is possible to assign values (tensors) to the state.
     For algorithm code the storage should be reused (prefer copy data instead of assigning tensors).
     """
-
-    INACTIVE_HYPOTHESIS_SCORE = INACTIVE_SCORE
-    NON_EXISTENT_LABEL_VALUE = NON_EXISTENT_LABEL_VALUE
-    
+      
     max_time: int           # maximum length of internal storage for time dimension
     batch_size: int         # (maximum) length of internal storage for batch dimension
     device: torch.device    # device to store preallocated tensors
@@ -128,9 +125,9 @@ class MALSDState:
         self.max_time = max_time
         self.blank_index = blank_index
         
-        self.NON_EXISTENT_LABEL=torch.tensor(self.NON_EXISTENT_LABEL_VALUE, device=self.device, dtype=torch.long)
+        self.NON_EXISTENT_LABEL=torch.tensor(NON_EXISTENT_LABEL_VALUE, device=self.device, dtype=torch.long)
         self.BLANK_TENSOR=torch.tensor(self.blank_index, device=self.device, dtype=torch.long)
-        self.INACTIVE_SCORE=torch.tensor(self.INACTIVE_HYPOTHESIS_SCORE, device=self.device, dtype=float_dtype)
+        self.INACTIVE_SCORE=torch.tensor(INACTIVE_SCORE, device=self.device, dtype=float_dtype)
 
         self.encoder_output_projected = torch.zeros(
             (self.batch_size, self.max_time, encoder_dim),
@@ -163,7 +160,7 @@ class MALSDState:
             )
         self.hyp_scores = torch.full(
             [self.batch_size, self.beam_size],
-            fill_value=self.INACTIVE_HYPOTHESIS_SCORE,
+            fill_value=INACTIVE_SCORE,
             device=self.device,
             dtype=torch.float
         )
@@ -217,7 +214,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
     """
     Batched Alignment-Length Synchronous Decoding implementation. Callable.
     Based on https://ieeexplore.ieee.org/document/9053040 with the following modficiations:
-        - does not prediction network caching
+        - does not support prediction network caching
         - does not employ transcript length estimation, instead, limits the number of expansions for every frame.
     """
     
@@ -445,7 +442,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     encoder_output_projected[
                         batch_beam_indices.view(-1),
                         safe_time_indices.view(-1)
-                        ].unsqueeze(1),
+                    ].unsqueeze(1),
                     decoder_output,
                 )
                 .squeeze(1)
@@ -472,7 +469,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             hyps_candidates_prob = torch.where(
                 active_mask.unsqueeze(-1),
                 hyps_candidates_prob,
-                batched_hyps.INACTIVE_SCORE,
+                INACTIVE_SCORE,
             )
             # keep inactive (final hypotheses) at the first position in beam
             hyps_candidates_prob[..., 0] = torch.where(
@@ -481,7 +478,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 hyps_scores,
             )
             # mark the labels corresponding to final hypotheses with negative label (e.g., -1)
-            labels_top_k = torch.where(active_mask.unsqueeze(-1), labels_top_k, batched_hyps.NON_EXISTENT_LABEL_VALUE)
+            labels_top_k = torch.where(active_mask.unsqueeze(-1), labels_top_k, NON_EXISTENT_LABEL_VALUE)
 
             # step 2.3: force blank extension with respect to self.max_symbols
             if self.max_symbols is not None:
@@ -491,7 +488,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             # mask beams if forced blank 
             hyps_candidates_prob = torch.where(
                 force_blank.unsqueeze(-1),
-                batched_hyps.INACTIVE_SCORE,
+                INACTIVE_SCORE,
                 hyps_candidates_prob
             )
             # keep hypotheses with forced blank at the first position in beam
@@ -972,7 +969,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         torch.where(
             self.state.active_mask.unsqueeze(-1),
             hyps_candidates_prob,
-            self.state.INACTIVE_SCORE,
+            INACTIVE_SCORE,
             out=hyps_candidates_prob
         )
         # keep inactive (final hypotheses) at the first position in beam
@@ -998,7 +995,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         # mask beams if forced blank 
         torch.where(
             force_blank.unsqueeze(-1),
-            self.state.INACTIVE_SCORE,
+            INACTIVE_SCORE,
             hyps_candidates_prob,
             out=hyps_candidates_prob
         )
