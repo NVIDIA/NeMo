@@ -102,6 +102,7 @@ class TestFastNGramLM:
         sentences = [
             [25, 70, 12],
             [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999],
+            [],  # empty sentence
         ]
         last_states = []
         for sentence in sentences:
@@ -134,6 +135,7 @@ class TestFastNGramLM:
         sentences = [
             [25, 70, 12],
             [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999],
+            [],  # empty sentence
         ]
         # non-batched
         for sentence in sentences:
