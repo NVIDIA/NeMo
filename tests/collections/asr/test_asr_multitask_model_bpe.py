@@ -546,7 +546,7 @@ class TestEncDecMultiTaskModel:
         }
         model.read_audio_file(audio_file, delay=0.0, model_stride_in_secs=40.0, meta_data=meta)
         outputs = model.transcribe()
-        assert isinstance(outputs, str)
+        assert isinstance(outputs, Hypothesis)
 
 
 @pytest.mark.unit
