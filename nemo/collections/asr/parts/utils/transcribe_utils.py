@@ -188,7 +188,7 @@ def get_buffered_pred_feat_multitaskAED(
     manifest: str = None,
     filepaths: List[list] = None,
     delay: float = 0.0,
-    compute_timestamps: bool = False,
+    timestamps: bool = False,
 ) -> List[rnnt_utils.Hypothesis]:
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
@@ -218,7 +218,7 @@ def get_buffered_pred_feat_multitaskAED(
                 'target_lang': 'en',
                 'pnc': 'yes',
                 'answer': 'nothing',
-                'timestamp': 'yes' if compute_timestamps else 'no',
+                'timestamp': 'yes' if timestamps else 'no',
             }
             asr.reset()
             asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=meta)
@@ -233,7 +233,7 @@ def get_buffered_pred_feat_multitaskAED(
                 if not line:
                     continue
                 sample = json.loads(line)
-                if compute_timestamps:      # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
+                if timestamps:      # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
                     sample['timestamp'] = 'yes'
                 if 'text' in sample:
                     refs.append(sample['text'])

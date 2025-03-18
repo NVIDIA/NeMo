@@ -658,7 +658,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         python examples/asr/asr_chunked_inference/aed/speech_to_text_aed_chunked_infer.py \
-        pretrained_name=nvidia/canary-1b-flash \
+        model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
         audio_dir=/home/TestData/asr/longform/earnings22 \
         output_filename=preds.json
       AFTER_SCRIPT: |
@@ -673,7 +673,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         python examples/asr/asr_chunked_inference/aed/speech_to_text_aed_chunked_infer.py \
-        pretrained_name=nvidia/canary-1b-flash \
+        model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
         audio_dir=/home/TestData/asr/longform/earnings22 \
         output_filename=preds.json \
         compute_timestamps=True
@@ -689,7 +689,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         python examples/asr/asr_chunked_inference/aed/speech_to_text_aed_chunked_infer.py \
-        pretrained_name=nvidia/canary-1b-flash \
+        model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
         dataset_manifest=/home/TestData/asr/longform/earnings22_manifest_1sample.json \
         output_filename=preds.json
       AFTER_SCRIPT: |

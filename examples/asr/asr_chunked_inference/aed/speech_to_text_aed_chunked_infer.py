@@ -41,7 +41,7 @@ python speech_to_text_aed_chunked_infer.py \
     batch_size=16 \
     decoding.beam.beam_size=1
 
-To return word and segment level timestamps, add `compute_timestamps=True` to the above command, 
+To return word and segment level timestamps, add `timestamps=True` to the above command, 
 and set `chunk_len_in_secs=10.0` for best results.
     
 """
@@ -89,7 +89,7 @@ class TranscriptionConfig:
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
     # Set to True to output greedy timestamp information (only supported models)
-    compute_timestamps: bool = False
+    timestamps: bool = False
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -129,9 +129,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     them into smaller segments.
     """
     
-    if cfg.compute_timestamps and cfg.chunk_len_in_secs != 10.0:
+    if cfg.timestamps and cfg.chunk_len_in_secs != 10.0:
         logging.warning(
-            "When compute_timestamps is True, it's recommended to use `chunk_len_in_secs=10.0` for optimal results. "
+            "When `timestamps` is True, it's recommended to use `chunk_len_in_secs=10.0` for optimal results. "
             "Setting `chunk_len_in_secs` to 10.0."
         )
         cfg.chunk_len_in_secs = 10.0
@@ -224,11 +224,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.device,
                 manifest,
                 filepaths,
-                compute_timestamps=cfg.compute_timestamps,
+                timestamps=cfg.timestamps,
             )
 
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.compute_timestamps
+        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.timestamps
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 

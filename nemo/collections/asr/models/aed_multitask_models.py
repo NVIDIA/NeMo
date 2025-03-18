@@ -978,13 +978,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         Setup function for a temporary data loader which wraps the provided audio file.
         Args:
-            config: A python dictionary which contains the following keys:
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-                Recommended length per file is between 5 and 25 seconds.
-            batch_size: (int) batch size to use during inference. \
-                Bigger will result in better throughput performance but would use more memory.
-            temp_dir: (str) A temporary directory where the audio manifest is temporarily
-                stored.
+            config: A python dictionary which contains keys such as:
+                paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                    Recommended length per file is between 5 and 25 seconds.
+                batch_size: (int) batch size to use during inference. \
+                    Bigger will result in better throughput performance but would use more memory.
+                temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                    stored.
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
@@ -1001,7 +1001,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': min(batch_size, os.cpu_count() - 1),
+            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
             'use_lhotse': True,
             'use_bucketing': False,
