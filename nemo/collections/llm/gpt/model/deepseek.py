@@ -36,6 +36,7 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
     from transformers import AutoModelForCausalLM
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -330,8 +331,11 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
     @cached_property
     def config(self) -> DeepSeekConfig:
         from transformers import AutoConfig as HFAutoConfig
+        from transformers import GenerationConfig
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        generation_config = GenerationConfig.from_pretrained(str(self))
+
         n_moe_layers = source.num_hidden_layers - source.first_k_dense_replace
         is_v3 = source.scoring_func == "sigmoid"
         if is_v3:
@@ -357,10 +361,15 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             moe_router_group_topk=source.topk_group,
             moe_router_topk_scaling_factor=source.routed_scaling_factor,
             moe_aux_loss_coeff=source.aux_loss_alpha,
+            kv_lora_rank=source.kv_lora_rank,
+            qk_head_dim=source.qk_nope_head_dim,
+            qk_pos_emb_head_dim=source.qk_rope_head_dim,
+            v_head_dim=source.v_head_dim,
             make_vocab_size_divisible_by=1280 if is_v3 else 3200,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            generation_config=generation_config,
             **v3_kwargs,
         )
 
@@ -375,11 +384,14 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         with no_init_weights(True):
             # Since DeepSeek is not importable from transformers, we can only initialize the HF model
             # from a known checkpoint. The model_name will need to be passed in.
-            return AutoModelForCausalLM.from_pretrained(
+            hf_model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 trust_remote_code=True,
                 torch_dtype=dtype,
             )
+            # Register the AutoModel Hook so that the custom modeling files are saved during save_pretrained()
+            type(hf_model).register_for_auto_class("AutoModelForCausalLM")
+            return hf_model
 
     def ckpt_load(self, path: Path) -> Tuple[Dict, Dict]:
         """

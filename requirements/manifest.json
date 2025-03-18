@@ -7,11 +7,11 @@
         },
         "transformer_engine": {
             "repo": "https://github.com/NVIDIA/TransformerEngine",
-            "ref": "7d576ed25266a17a7b651f2c12e8498f67e0baea"
+            "ref": "3b2a7b00f336aea39000073547410e6ac3727fbf"
         },
         "megatron-lm": {
             "repo": "https://github.com/NVIDIA/Megatron-LM",
-            "ref": "59505b31eab8250a981adc96115387a1aa846159"
+            "ref": "aa6207e2da6bca789375f591c9124aa408d2509a"
         }
     },
     "pypi-dependencies": {}

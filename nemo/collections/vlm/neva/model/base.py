@@ -202,6 +202,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreNevaModel":
         # pylint: disable=C0115,C0116
+        self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -274,7 +275,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
         self.share_embeddings_and_output_weights = False
         if self.add_decoder:
-            language_transformer_config.scatter_embedding_sequence_parallel = False
             self.language_model = language_transformer_config.configure_model(
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
@@ -695,27 +695,33 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
 
+        # truncate final embedding
         if final_embedding is not None:
             # transpose final_embeddings to sbhd
+            # note this will also transpose thd, which is fine
             final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
             if final_embedding.shape[0] > self._language_max_sequence_length:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
-                if packed_sequence:
-                    truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
-                    final_seq_len_padded = (
-                        packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
-                    )
-                    final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
-                    final_padding = final_seq_len_padded - final_seq_len_unpadded
-                    truncate_len -= final_padding
-                    packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
-                    packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
-                    packed_seq_params.cu_seqlens_q[-1] -= truncate_len
-                    packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
-                    assert (
-                        packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
-                    ), "with packed sequence, the truncation can only truncate on the last sequence."
+
+        # packed seq param truncation
+        if packed_sequence and packed_seq_params.cu_seqlens_q_padded[-1] > self._language_max_sequence_length:
+            truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
+            final_seq_len_padded = (
+                packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
+            )
+            final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+            final_padding = final_seq_len_padded - final_seq_len_unpadded
+            truncate_len -= final_padding
+            packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
+            packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
+            # need to truncate the actual sequence as well
+            if truncate_len > 0:
+                packed_seq_params.cu_seqlens_q[-1] -= truncate_len
+                packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
+            assert (
+                packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
+            ), "with packed sequence, the truncation can only truncate on the last sequence."
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 

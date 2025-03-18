@@ -21,7 +21,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
+from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
 
 
 def override_recipe_configs(
@@ -34,6 +34,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    enable_cuda_graphs: bool,
 ):
     """
     llama3 8b pre-train recipe aimed at achieving best possible performance and faster
@@ -45,6 +46,9 @@ def override_recipe_configs(
     recipe = set_primary_perf_configs(
         recipe,
         args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -66,20 +70,22 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    enable_cuda_graph = bool(args.gpu.lower() in ["gb200"])
-    recipe.model.config.enable_cuda_graph = enable_cuda_graph
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
+    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
+    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
 
     return recipe
 
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
+    args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "8b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _ = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs
 
-    recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
+    recipe = override_recipe_configs(
+        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+    )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
@@ -92,10 +98,11 @@ if __name__ == "__main__":
         args.gpus_per_node,
         args.time_limit,
         args.container_image,
-        custom_mounts=[],
+        custom_mounts=args.custom_mounts,
         custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
+        wandb_key=args.wandb_key,
     )
 
     plugins = [
