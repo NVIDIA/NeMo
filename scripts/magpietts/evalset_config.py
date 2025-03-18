@@ -1,8 +1,8 @@
 dataset_meta_info = {
     'vctk': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
-        'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
-        'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
+        'manifest_path' : '/home/jasoli/data_prime/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
+        'audio_dir' : '/home/jasoli/data_prime/RIVA-TTS/en/',
+        'feature_dir' : '/home/jasoli/data_prime/codecs',
     },
     'riva_challenging': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',

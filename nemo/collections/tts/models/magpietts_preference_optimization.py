@@ -22,10 +22,10 @@ try:
 except ImportError:
     HAVE_TORCHAUDIO = False
 
-from nemo.collections.tts.models import T5TTS_Model
+from nemo.collections.tts.models import MagpieTTS_Model
 
 
-class T5TTS_Model_PrefDataGen(T5TTS_Model):
+class MagpieTTS_Model_PrefDataGen(MagpieTTS_Model):
     """Small override to save inference metrics, used for datagen in Offline PO"""
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
@@ -79,7 +79,7 @@ class T5TTS_Model_PrefDataGen(T5TTS_Model):
                 predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]]
                 torch.save(predicted_codes_torch, os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'))
                 predicted_audio_paths.append(audio_path)
-                
+
                 if not batch_invalid:
                     with torch.no_grad():
                         try:
@@ -114,7 +114,7 @@ class T5TTS_Model_PrefDataGen(T5TTS_Model):
 
                     spk_embedding_pred = pred_speaker_embeddings[idx].cpu().numpy()
                     spk_embedding_gt = gt_speaker_embeddings[idx].cpu().numpy()
-                    
+
                     spk_similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (
                         np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt)
                     )
@@ -138,7 +138,7 @@ class T5TTS_Model_PrefDataGen(T5TTS_Model):
                 with open(os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_metrics.json'), 'w') as f:
                     json.dump(item_metrics, f)
 
-class T5TTS_Model_OfflinePO(T5TTS_Model):
+class MagpieTTS_Model_OfflinePO(MagpieTTS_Model):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         # Copy cfg
@@ -146,14 +146,14 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
         with open_dict(ref_model_cfg):
             ref_model_cfg.train_ds = None
             ref_model_cfg.validation_ds = None
-        self._reference_model = T5TTS_Model(cfg=ref_model_cfg)
+        self._reference_model = MagpieTTS_Model(cfg=ref_model_cfg)
         print("Loading reference model from checkpoint")
         self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
         self.freeze_model(self._reference_model)
         self._reference_model.eval()
         self._reference_model._no_state_dict = True
         print("Reference model loaded and frozen")
-    
+
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         state_dict = super().state_dict(destination, prefix, keep_vars)
         keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model', '_reference_model']
@@ -161,7 +161,7 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
-        
+
 
     def _get_batch_logps(self, logits, labels, loss_mask, average_log_prob=False):
         """Compute the log probabilities of the given labels under the given logits.
@@ -252,13 +252,13 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
     def process_batch_dpo(self, batch_chosen_rejected):
         batch_chosen = batch_chosen_rejected['chosen']
         batch_rejected = batch_chosen_rejected['rejected']
-        
+
         model_output_chosen = self.process_batch(batch_chosen)
         model_output_rejected = self.process_batch(batch_rejected)
         with torch.no_grad():
             reference_model_output_chosen = self._reference_model.process_batch(batch_chosen)
             reference_model_output_rejected = self._reference_model.process_batch(batch_rejected)
-        
+
         chosen_policy_logprobs = None
         rejected_policy_logprobs = None
         chosen_ref_logprobs = None
@@ -280,7 +280,7 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
             with torch.no_grad():
                 ref_codebook_log_probs_chosen = self._get_batch_logps(ref_codebook_logits_chosen, codebook_labels_chosen, reference_model_output_chosen['loss_mask'])
                 ref_codebook_log_probs_rejected = self._get_batch_logps(ref_codebook_logits_rejected, codebook_labels_rejected, reference_model_output_rejected['loss_mask'])
-            
+
             if chosen_policy_logprobs is None:
                 chosen_policy_logprobs = codebook_log_probs_chosen
                 rejected_policy_logprobs = codebook_log_probs_rejected
@@ -291,10 +291,10 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
                 rejected_policy_logprobs += codebook_log_probs_rejected
                 chosen_ref_logprobs += ref_codebook_log_probs_chosen
                 rejected_ref_logprobs += ref_codebook_log_probs_rejected
-        
+
         rewards_chosen = batch_chosen['rewards']
         rewards_rejected = batch_rejected['rewards']
-        
+
         assert torch.all(rewards_chosen == 1)
         assert torch.all(rewards_rejected < 1)
 
@@ -311,7 +311,7 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
 
         pref_loss = pref_loss.mean()
         sft_loss = -chosen_policy_logprobs.mean()
-        
+
         pref_loss_weight = self.cfg.get('dpo_pref_loss_weight', 1.0)
         sft_loss_weight = self.cfg.get('dpo_sft_loss_weight', 0.0)
         loss = pref_loss_weight * pref_loss + sft_loss * sft_loss_weight
@@ -319,7 +319,7 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
         alignment_loss = model_output_chosen['alignment_loss']
         if alignment_loss is not None:
             loss += alignment_loss
-        
+
         return {
             'loss': loss,
             'pref_loss': pref_loss,
@@ -333,22 +333,22 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
         self.log('train_pref_loss', dpo_outputs['pref_loss'], prog_bar=True, sync_dist=True)
         self.log('train_sft_loss', dpo_outputs['sft_loss'], prog_bar=True, sync_dist=True)
         return dpo_outputs['loss']
-    
+
     def validation_step(self, batch, batch_idx):
         dpo_outputs = self.process_batch_dpo(batch)
-        
+
         val_loss = dpo_outputs['loss']
         val_pref_loss = dpo_outputs['pref_loss']
         val_sft_loss = dpo_outputs['sft_loss']
         val_alignment_loss = dpo_outputs['alignment_loss']
-        
+
         self.validation_step_outputs.append({
             'val_loss': val_loss,
             'val_pref_loss': val_pref_loss,
             'val_sft_loss': val_sft_loss,
             'val_alignment_loss': val_alignment_loss,
         })
-    
+
     def on_validation_epoch_end(self):
         def collect(key):
             values = []
@@ -371,7 +371,7 @@ class T5TTS_Model_OfflinePO(T5TTS_Model):
             self.log("val_alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()
 
-class T5TTS_Model_OnlinePO(T5TTS_Model):
+class MagpieTTS_Model_OnlinePO(MagpieTTS_Model):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         # Copy cfg
@@ -379,10 +379,10 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
         with open_dict(ref_model_cfg):
             ref_model_cfg.train_ds = None
             ref_model_cfg.validation_ds = None
-        
+
         self.reference_free = self.cfg.get('reference_free', False) # True means we dont use the reference model
         if not self.reference_free:
-            self._reference_model = T5TTS_Model(cfg=ref_model_cfg)
+            self._reference_model = MagpieTTS_Model(cfg=ref_model_cfg)
             print("Loading reference model from checkpoint")
             self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
             self.freeze_model(self._reference_model)
@@ -411,22 +411,22 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()
-        
+
         use_pesq = self.cfg.get('use_pesq', False)
         if use_pesq:
             # import ipdb; ipdb.set_trace()
             assert HAVE_TORCHAUDIO, "torchaudio is required for PESQ reward"
             self.squim_objective_model = SQUIM_OBJECTIVE.get_model()
-    
+
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         state_dict = super().state_dict(destination, prefix, keep_vars)
-        keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model', '_reference_model', 
+        keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model', '_reference_model',
                                       'eval_asr_model',  'eval_speaker_verification_model', 'whisper_model']
         for key in list(state_dict.keys()):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
-        
+
 
     def _get_per_token_logps(self, logits, labels, loss_mask):
         """Compute the log probabilities of the given labels under the given logits.
@@ -495,7 +495,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
             predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]] # C, T
             torch.save(predicted_codes_torch, os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'))
             predicted_audio_paths.append(audio_path)
-            
+
         with torch.no_grad():
             if self.cfg.get("reward_asr_model", "nemo") == "nemo":
                 pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))
@@ -507,10 +507,10 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
                     transcript = transcribe_with_whisper(audio_path, language, self.whisper_processor, self.whisper_model, self.device)
                     pred_transcripts.append(transcript)
                 pred_transcripts = [process_text_for_cer(transcript) for transcript in pred_transcripts]
-            
+
             pred_speaker_embeddings = get_speaker_embeddings_from_filepaths(predicted_audio_paths, self.eval_speaker_verification_model, self.device)
             gt_speaker_embeddings = get_speaker_embeddings_from_filepaths(batch_repeated['audio_filepaths'], self.eval_speaker_verification_model, self.device)
-            
+
 
         batch_metrics = []
         cer_reward_weight = self.cfg.get('cer_reward_weight', 0.5)
@@ -552,7 +552,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
             batch_metrics.append(item_metrics)
 
         num_groups = len(batch['audio_filepaths'])
-        
+
         best_ssim_achievable = self.cfg.get("best_ssim_achievable", 0.9) # Examples with this speaker similarity or higher will have SSIM reward of 1
         mean_cer_dataset = self.cfg.get("mean_cer_dataset", 0.1) # CER equal to this value will have reward of 0.5
         mean_ssim_dataset = self.cfg.get("mean_ssim_dataset", 0.6) # SSIM equal to this value will have reward of 0.5
@@ -584,7 +584,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
                     pesq_reward = 0.0
 
                 batch_metrics[idx]['reward'] = cer_reward * cer_reward_weight + spk_similarity_reward * ssim_reward_weight + pesq_reward * pesq_reward_weight
-                
+
                 if (batch_metrics[idx]['codes_len'] >= 425) or (batch_metrics[idx]['codes_len'] <= 3): # TODO: Remove hardcoded lengths
                     # This means it did not complete the sentence or generated an extremely short sentence
                     batch_metrics[idx]['reward'] = 0.0
@@ -594,7 +594,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
                 batch_metrics[idx]['pesq_reward'] = pesq_reward
                 mean_reward += batch_metrics[idx]['reward']
                 group_rewards.append(batch_metrics[idx]['reward'])
-            
+
             mean_reward /= num_generations_per_item
             std_reward = np.std(group_rewards)
             for idx in range(group_start_idx, group_end_idx):
@@ -612,20 +612,20 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
             'predicted_codes_lens': predicted_codes_lens,
             'advantages': advantages,
         }
-    
+
     def process_batch_online_po(self, batch, n_generations_per_item, mode='train'):
         use_kv_cache_during_online_po = self.cfg.get("use_kv_cache_during_online_po", False)
         if use_kv_cache_during_online_po:
             self.use_kv_cache_for_inference = True
-            self.t5_decoder.reset_cache(use_cache=True)
-        
+            self.decoder.reset_cache(use_cache=True)
+
         with torch.no_grad():
             generated_codes_and_metrics = self.generate_and_reward(batch, n_generations_per_item, mode)
-            
+
         if use_kv_cache_during_online_po:
             self.use_kv_cache_for_inference = False
-            self.t5_decoder.reset_cache(use_cache=False)
-        
+            self.decoder.reset_cache(use_cache=False)
+
         batch_repeated = generated_codes_and_metrics['batch_repeated']
         predicted_codes = generated_codes_and_metrics['predicted_codes'] # B, 8, T
         predicted_codes_lens = generated_codes_and_metrics['predicted_codes_lens'] # B
@@ -644,13 +644,13 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
             del batch_repeated['audio']
         if 'audio_lens' in batch_repeated:
             del batch_repeated['audio_lens']
-        
+
         policy_model_outputs = self.process_batch(batch_repeated)
 
         if not self.reference_free:
             with torch.no_grad():
                 reference_model_output = self._reference_model.process_batch(batch_repeated)
-        
+
         total_loss = None
         total_kl = None
         for codebook_idx in range(self.cfg.num_audio_codebooks):
@@ -660,7 +660,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
             codebook_labels = batch_repeated['audio_codes'][:,codebook_idx,1:]
             per_token_codebook_log_probs = self._get_per_token_logps(codebook_logits, codebook_labels, policy_model_outputs['loss_mask'])
             per_token_loss = -(torch.exp(per_token_codebook_log_probs - per_token_codebook_log_probs.detach()) * advantages.unsqueeze(1))
-            
+
 
             if not self.reference_free:
                 with torch.no_grad():
@@ -672,7 +672,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
                 codebook_kl_loss_mean = ((per_token_codebook_kl * policy_model_outputs['loss_mask']).sum(dim=1) / policy_model_outputs['loss_mask'].sum(dim=1)).mean()
             else:
                 codebook_kl_loss_mean = torch.tensor(0.0, device=self.device)
-            
+
             codebook_loss = ((per_token_loss * policy_model_outputs['loss_mask']).sum(dim=1) / policy_model_outputs['loss_mask'].sum(dim=1)).mean()
 
             if total_loss is None:
@@ -682,7 +682,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
                 total_loss += codebook_loss
                 total_kl += codebook_kl_loss_mean
 
-        
+
         total_loss /= self.cfg.num_audio_codebooks
         print("Total kl", total_kl, n_generations_per_item)
         return {
@@ -700,21 +700,21 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
         self.log('train_kl_loss', po_outputs['kl_loss'], prog_bar=True, sync_dist=True)
         self.log('train_mean_reward', po_outputs['mean_reward'], prog_bar=True, sync_dist=True)
         return po_outputs['loss']
-    
+
     def validation_step(self, batch, batch_idx):
         po_outputs = self.process_batch_online_po(batch, 1, mode='val')
         batch_metrics = po_outputs['batch_metrics']
         mean_reward = po_outputs['mean_reward']
         val_loss = po_outputs['loss']
         val_kl_loss = po_outputs['kl_loss']
-        
+
         self.validation_step_outputs.append({
             'mean_reward': mean_reward,
             'val_loss': val_loss,
             'val_kl_loss': val_kl_loss,
             'batch_metrics': batch_metrics,
         })
-    
+
     def on_validation_epoch_end(self):
         def collect(key):
             values = []
@@ -743,7 +743,7 @@ class T5TTS_Model_OnlinePO(T5TTS_Model):
                         if key not in mean_metrics:
                             mean_metrics[key] = []
                         mean_metrics[key].append(value)
-        
+
         for key, values in mean_metrics.items():
             mean_metrics[key] = np.mean(values)
             self.log(f"val_{key}", mean_metrics[key], prog_bar=True, sync_dist=True)
@@ -760,7 +760,7 @@ def process_text_for_cer(input_text):
     """
     # Convert text to lowercase
     lower_case_text = input_text.lower()
-    
+
     # Remove commas from text
     no_comma_text = lower_case_text.replace(",", "")
     # Replace "-" with spaces
@@ -768,7 +768,7 @@ def process_text_for_cer(input_text):
     no_dash_text = no_dash_text.replace("'", "")
     no_dash_text = no_dash_text.replace(";", "")
     no_dash_text = no_dash_text.replace(".", "")
-    
+
     # Replace double spaces with single space
     single_space_text = " ".join(no_dash_text.split())
 
@@ -790,16 +790,16 @@ def get_speaker_embeddings_from_filepaths(filepaths, speaker_verification_model,
             audio_tensor = torch.tensor(audio, dtype=torch.float32, device=device)
             audio_batch.append(audio_tensor)
             audio_lengths.append(audio_tensor.size(0))
-        
+
         batch_audio_lens = torch.tensor(audio_lengths, device=device).long()
         max_audio_len = int(batch_audio_lens.max().item())
         audio_batch = stack_tensors(audio_batch, max_lens=[max_audio_len])
 
         _, speaker_embeddings = speaker_verification_model.forward(
-            input_signal=audio_batch, 
+            input_signal=audio_batch,
             input_signal_length=batch_audio_lens
         )
-        
+
         return speaker_embeddings
 
 def transcribe_with_whisper(audio_filepath, language, whisper_processor, whisper_model, device):

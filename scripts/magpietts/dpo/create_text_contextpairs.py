@@ -36,7 +36,7 @@ def main():
     The resulting dataset is saved as a JSON manifest file.
 
     Example usage:
-    python scripts/t5tts/dpo/create_text_contextpairs.py \
+    python scripts/magpietts/dpo/create_text_contextpairs.py \
     --challenging_texts /Data/DPOPairsInputDatav2/challenging_with_short.txt \
     --regular_texts_for_audiocontext /Data/DPOPairsInputDatav2/regular_texts_for_audiocontext.txt \
     --regular_texts_for_textcontext /Data/DPOPairsInputDatav2/regular_texts_for_textcontext.txt \

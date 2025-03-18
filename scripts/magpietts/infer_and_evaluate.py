@@ -1,5 +1,5 @@
-from nemo.collections.tts.models import T5TTS_Model
-from nemo.collections.tts.data.text_to_speech_dataset import T5TTSDataset
+from nemo.collections.tts.models import MagpieTTS_Model
+from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
 from omegaconf.omegaconf import OmegaConf, open_dict
 import os
 import glob
@@ -29,18 +29,18 @@ def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0
     return metrics
 
 def run_inference(
-        hparams_file, 
-        checkpoint_file, 
-        datasets, 
-        out_dir, 
-        temperature, 
-        topk, 
-        codecmodel_path, 
-        use_cfg, 
-        cfg_scale, 
-        batch_size, 
-        sv_model, 
-        asr_model_name, 
+        hparams_file,
+        checkpoint_file,
+        datasets,
+        out_dir,
+        temperature,
+        topk,
+        codecmodel_path,
+        use_cfg,
+        cfg_scale,
+        batch_size,
+        sv_model,
+        asr_model_name,
         num_repeats=1,
         apply_attention_prior=False,
         attention_prior_epsilon=1e-3,
@@ -65,7 +65,7 @@ def run_inference(
         model_cfg.validation_ds = None
 
 
-    model = T5TTS_Model(cfg=model_cfg)
+    model = MagpieTTS_Model(cfg=model_cfg)
     model.use_kv_cache_for_inference = True
 
     # Load weights from checkpoint file
@@ -79,13 +79,13 @@ def run_inference(
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_sv_{}".format(
-        checkpoint_name, 
-        temperature, 
-        topk, 
-        use_cfg, 
-        cfg_scale, 
-        apply_attention_prior, 
-        attention_prior_epsilon, 
+        checkpoint_name,
+        temperature,
+        topk,
+        use_cfg,
+        cfg_scale,
+        apply_attention_prior,
+        attention_prior_epsilon,
         attention_prior_lookahead_window,
         start_prior_after_n_audio_steps,
         "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
@@ -114,7 +114,7 @@ def run_inference(
             if context_durration_min < 5.0 and context_durration_max > 5.0:
                 context_durration_min = 5.0
                 context_durration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
-            test_dataset = T5TTSDataset(
+            test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
                 sample_rate=model_cfg.sample_rate,
                 min_duration=0.5,
@@ -128,7 +128,7 @@ def run_inference(
                 audio_eos_id=model.audio_eos_id,
                 num_audio_codebooks=model_cfg.num_audio_codebooks,
                 prior_scaling_factor=None,
-                load_cached_codes_if_available=dataset_meta_info[dataset].get('load_cached_codes_if_available', True),
+                load_cached_codes_if_available=False,
                 dataset_type='test',
                 tokenizer_config=None,
                 load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
@@ -158,17 +158,17 @@ def run_inference(
                         batch_cuda[key] = batch[key].cuda()
                     else:
                         batch_cuda[key] = batch[key]
-                
+
                 import time
                 st = time.time()
                 predicted_audio, predicted_audio_lens, _, _, rtf_metrics, cross_attention_maps, _  = model.infer_batch(
-                    batch_cuda, 
-                    max_decoder_steps=440, 
-                    temperature=temperature, 
-                    topk=topk, 
-                    use_cfg=use_cfg, 
-                    cfg_scale=cfg_scale, 
-                    return_cross_attn_probs=True, 
+                    batch_cuda,
+                    max_decoder_steps=440,
+                    temperature=temperature,
+                    topk=topk,
+                    use_cfg=use_cfg,
+                    cfg_scale=cfg_scale,
+                    return_cross_attn_probs=True,
                     apply_attention_prior=apply_attention_prior,
                     prior_epsilon=attention_prior_epsilon,
                     lookahead_window_size=attention_prior_lookahead_window,
@@ -199,11 +199,11 @@ def run_inference(
                     if os.path.exists(target_audio_path):
                         shutil.copy(target_audio_path, os.path.join(audio_dir, f"target_audio_{item_idx}.wav"))
                     item_idx += 1
-            
+
             mean_rtf_metrics = {}
             for key in all_rtf_metrics[0]:
                 mean_rtf_metrics[key] = float(np.mean([m[key] for m in all_rtf_metrics]))
-            
+
             metrics, filewise_metrics = evaluate_generated_audio.evaluate(
                 dataset_meta[dataset]['manifest_path'],
                 dataset_meta[dataset]['audio_dir'],
@@ -215,11 +215,11 @@ def run_inference(
             metrics_n_repeated.append(metrics)
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:
                 json.dump(metrics, f, indent=4)
-            
+
             with open(os.path.join(eval_dir, f"{dataset}_filewise_metrics_{repeat_idx}.json"), "w") as f:
                 # Indent for better readability
                 json.dump(filewise_metrics, f, indent=4)
-            
+
             with open(os.path.join(eval_dir, f"{dataset}_rtf_metrics_{repeat_idx}.json"), "w") as f:
                 json.dump(mean_rtf_metrics, f, indent=4)
 
@@ -231,8 +231,8 @@ def run_inference(
                 f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']}\n")
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
 
-        metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative', 
-                       'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg', 
+        metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
+                       'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
                        'ssim_pred_gt_avg_alternate', 'ssim_pred_context_avg_alternate', 'ssim_gt_context_avg_alternate',
                        'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative'
                        ]
@@ -291,7 +291,7 @@ def main():
         assert len(hparam_files) == len(checkpoint_files), "Number of hparams files and checkpoint files should be the same."
         for hparams_file, checkpoint_file in zip(hparam_files, checkpoint_files):
             run_inference(
-                hparams_file=hparams_file, 
+                hparams_file=hparams_file,
                 checkpoint_file=checkpoint_file,
                 datasets=args.datasets.split(","),
                 out_dir=args.out_dir,
@@ -334,12 +334,12 @@ def main():
             except:
                 print(f"Skipping experiment {exp_name} as hparams or last checkpoint not found.")
                 continue
-            last_checkpoint_path_draco = last_checkpoint.replace(BASE_EXP_DIR, DRACO_EXP_DIR) 
+            last_checkpoint_path_draco = last_checkpoint.replace(BASE_EXP_DIR, DRACO_EXP_DIR)
             epoch_num = last_checkpoint.split("epoch=")[1].split("-")[0]
 
             checkpoint_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_epoch_{epoch_num}.ckpt")
             hparams_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_hparams.yaml")
-            
+
             scp_command = f"scp {args.server_address}:{last_checkpoint_path_draco} {checkpoint_copy_path}"
             print(f"Running command: {scp_command}")
             os.system(scp_command)
@@ -353,8 +353,8 @@ def main():
             print("Hparams file path: ", hparams_copy_path)
             print("Checkpoint file path: ", checkpoint_copy_path)
             run_inference(
-                hparams_copy_path, 
-                checkpoint_copy_path, 
+                hparams_copy_path,
+                checkpoint_copy_path,
                 datasets=args.datasets.split(","),
                 out_dir=args.out_dir,
                 temperature=args.temperature,
@@ -375,7 +375,7 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer
             )
-            
+
 
 if __name__ == '__main__':
     main()

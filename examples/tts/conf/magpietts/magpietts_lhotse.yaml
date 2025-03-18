@@ -1,4 +1,4 @@
-name: T5TTS
+name: Magpie-TTS-Lhotse
 
 max_steps: ???
 limit_val_batches: ???
@@ -50,7 +50,7 @@ model:
   alignment_encoder_loss_scale: 1.0
   binarize_prior_after_step: 10000 # Switch from beta-binomial prior to binarized prior after this step.
   binarize_attn_method: "nemo_binarize" # nemo_binarize or argmax.
-  prior_future_context: 2 # Future window of the binarized prior. 
+  prior_future_context: 2 # Future window of the binarized prior.
   prior_past_context: 2 # Past window of the binarized prior.
   prior_future_decay: 0.8 # Decay factor for future context
   prior_past_decay: 0.5 # Decay factor for past context
@@ -176,8 +176,8 @@ model:
       use_bucketing: false
       is_tarred: false
       batch_size: ${eval_batch_size}
-  
-  t5_encoder:
+
+  encoder:
     n_layers: 6
     d_model: 768
     d_ffn: 3072
@@ -190,7 +190,7 @@ model:
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
-  
+
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
     n_layers: 3
     d_model: 768
@@ -205,7 +205,7 @@ model:
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
 
-  t5_decoder:
+  decoder:
     n_layers: 12
     d_model: 768
     d_ffn: 3072
@@ -259,7 +259,7 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
-  create_checkpoint_callback: true 
+  create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: val_loss
     mode: min

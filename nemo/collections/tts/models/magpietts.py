@@ -35,7 +35,7 @@ from transformers import AutoTokenizer, T5Tokenizer
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer
-from nemo.collections.tts.data.text_to_speech_dataset_lhotse import build_lhotse_dataloader, T5TTSLhotseDataset
+from nemo.collections.tts.data.text_to_speech_dataset_lhotse import build_lhotse_dataloader, MagpieTTSLhotseDataset
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
@@ -176,11 +176,11 @@ class MagpieTTS_Model(ModelPT):
         self.final_proj = nn.Linear(cfg.decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook)
         if cfg.get('use_local_transformer', False):
             local_transformer_hidden_dim = cfg.get('local_transformer_hidden_dim', 256)
-            if local_transformer_hidden_dim != cfg.t5_decoder.d_model:
-                self.local_transformer_in_projection = nn.Linear(cfg.t5_decoder.d_model, local_transformer_hidden_dim)
+            if local_transformer_hidden_dim != cfg.decoder.d_model:
+                self.local_transformer_in_projection = nn.Linear(cfg.decoder.d_model, local_transformer_hidden_dim)
             else:
                 self.local_transformer_in_projection = nn.Identity()
-            self.local_transformer = t5tts_transformer.Transformer(
+            self.local_transformer = transformer_2501.Transformer(
                 n_layers=self.cfg.get('local_transformer_n_layers', 2),
                 d_model=local_transformer_hidden_dim,
                 d_ffn=local_transformer_hidden_dim*4,
@@ -731,10 +731,10 @@ class MagpieTTS_Model(ModelPT):
             # Convert prior to a list of tensors, one for each layer
             # Set None for layers not in ctc_prior_layer_ids
             if self.model_type == 'multi_encoder_context_tts':
-                text_attn_prior = [attn_prior[0] if layer_idx in ctc_prior_layer_ids else None for layer_idx in range(self.cfg.t5_decoder.n_layers) ]
+                text_attn_prior = [attn_prior[0] if layer_idx in ctc_prior_layer_ids else None for layer_idx in range(self.cfg.decoder.n_layers) ]
                 attn_prior = [text_attn_prior, attn_prior[1]]
             else:
-                attn_prior = [attn_prior if layer_idx in ctc_prior_layer_ids else None for layer_idx in range(self.cfg.t5_decoder.n_layers) ]
+                attn_prior = [attn_prior if layer_idx in ctc_prior_layer_ids else None for layer_idx in range(self.cfg.decoder.n_layers) ]
 
         return {
             'beta_binomial_attn_prior': batch.get('align_prior_matrix', None),
@@ -1269,7 +1269,7 @@ class MagpieTTS_Model(ModelPT):
                     _audio_codes_mask = audio_codes_mask
 
                 if apply_prior_to_layers is not None:
-                    attn_prior = [None for _ in range(self.cfg.t5_decoder.n_layers)]
+                    attn_prior = [None for _ in range(self.cfg.decoder.n_layers)]
                     for layer_idx in apply_prior_to_layers:
                         attn_prior[layer_idx] = _attn_prior
                 else:
@@ -1277,6 +1277,7 @@ class MagpieTTS_Model(ModelPT):
 
                 if self.model_type == 'multi_encoder_context_tts':
                     attn_prior = [attn_prior, None]
+
 
                 if use_cfg:
                     batch_size = audio_codes_embedded.size(0)
@@ -1304,6 +1305,10 @@ class MagpieTTS_Model(ModelPT):
                             dummy_addition_dec_mask
                         )
 
+                    # print(f"step {idx}")
+                    # print(f"use_cfg {use_cfg}")
+                    # print(f"shape {cfg_audio_codes_embedded.shape}")
+                    # print(f"use kv cahce? {self.use_kv_cache_for_inference}")
                     combined_logits, attn_probs, dec_out = self.forward(
                         dec_input_embedded=cfg_audio_codes_embedded,
                         dec_input_mask=cfg_audio_codes_mask,

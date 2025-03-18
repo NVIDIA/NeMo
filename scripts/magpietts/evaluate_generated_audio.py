@@ -22,7 +22,7 @@ def find_sample_audios(audio_dir):
     file_list.sort()
     file_list = [t[1] for t in file_list]
     return file_list
-            
+
 def read_manifest(manifest_path):
     records = []
     with open(manifest_path, 'r') as f:
@@ -35,18 +35,18 @@ def read_manifest(manifest_path):
 def process_text(input_text):
     # Convert text to lowercase
     lower_case_text = input_text.lower()
-    
+
     # Remove commas from text
     no_comma_text = lower_case_text.replace(",", "")
-    
+
     # Replace "-" with spaces
     no_dash_text = no_comma_text.replace("-", " ")
-    
+
     # Replace double spaces with single space
     single_space_text = " ".join(no_dash_text.split())
 
     single_space_text = single_space_text.translate(str.maketrans('', '', string.punctuation))
-    
+
     return single_space_text
 
 def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, language, device):
@@ -66,7 +66,7 @@ def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, langua
 
 def extract_embedding(model, extractor, audio_path, device, sv_model_type):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
-    
+
     if sv_model_type == "wavlm":
         inputs = extractor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_values.to(device)
         with torch.no_grad():
@@ -74,7 +74,7 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
     else:  # Titanet
         with torch.no_grad():
             embeddings = model.get_embedding(audio_path).squeeze()
-    
+
     return embeddings.squeeze()
 
 def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large"):
@@ -89,7 +89,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_large")
         elif asr_model_name == "nvidia/parakeet-ctc-0.6b":
             asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-ctc-0.6b")
-            
+
         # asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
         asr_model = asr_model.to(device)
         asr_model.eval()
@@ -104,15 +104,15 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         speaker_verification_model = WavLMForXVector.from_pretrained('microsoft/wavlm-base-plus-sv').to(device).eval()
     else:
         feature_extractor = None
-        speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large') 
+        speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
         speaker_verification_model = speaker_verification_model.to(device)
         speaker_verification_model.eval()
 
-    speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_small') 
+    speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_small')
     speaker_verification_model_alternate = speaker_verification_model_alternate.to(device)
     speaker_verification_model_alternate.eval()
 
-    
+
 
     filewise_metrics = []
     pred_texts = []
@@ -125,18 +125,14 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             gt_audio_filepath = os.path.join(audio_dir, gt_audio_filepath)
             if context_audio_filepath is not None:
                 context_audio_filepath = os.path.join(audio_dir, context_audio_filepath)
-        
+
         pred_audio_filepath = audio_file_lists[ridx]
         if language == "en":
             with torch.no_grad():
-                if asr_model_name == "stt_en_conformer_transducer_large":
-                    pred_text = asr_model.transcribe([pred_audio_filepath])[0][0]
-                    gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0][0]
-                else:
-                    pred_text = asr_model.transcribe([pred_audio_filepath])[0]
-                    gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0]
-
+                # import ipdb; ipdb.set_trace()
+                pred_text = asr_model.transcribe([pred_audio_filepath])[0].text
                 pred_text = process_text(pred_text)
+                gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
                 gt_audio_text = process_text(gt_audio_text)
         else:
             pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
@@ -148,15 +144,15 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             gt_text = process_text(record['normalized_text'])
         else:
             gt_text = process_text(record['text'])
-        
+
         detailed_cer = word_error_rate_detail(hypotheses=[pred_text], references=[gt_text], use_cer=True)
         detailed_wer = word_error_rate_detail(hypotheses=[pred_text], references=[gt_text], use_cer=False)
-        
+
         print("{} GT Text:".format(ridx), gt_text)
         print("{} Pr Text:".format(ridx), pred_text)
         # Format cer and wer to 2 decimal places
         print("CER:", "{:.4f} | WER: {:.4f}".format(detailed_cer[0], detailed_wer[0]))
-        
+
         pred_texts.append(pred_text)
         gt_texts.append(gt_text)
         gt_audio_texts.append(gt_audio_text)
@@ -181,8 +177,8 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
 
                 pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
                 gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
-                
-        
+
+
 
         filewise_metrics.append({
             'gt_text': gt_text,
@@ -202,12 +198,12 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             'pred_audio_filepath': pred_audio_filepath,
             'context_audio_filepath': context_audio_filepath
         })
-    
+
     filewise_metrics_keys_to_save = ['cer', 'wer', 'pred_context_ssim', 'pred_text', 'gt_text', 'gt_audio_filepath', 'pred_audio_filepath', 'context_audio_filepath']
     filtered_filewise_metrics = []
     for m in filewise_metrics:
         filtered_filewise_metrics.append({k: m[k] for k in filewise_metrics_keys_to_save})
-    
+
     # Sort filewise metrics by cer in reverse
     filewise_metrics.sort(key=lambda x: x['cer'], reverse=True)
 
@@ -244,10 +240,10 @@ def main():
         assert args.evalset in dataset_meta_info
         args.manifest_path = dataset_meta_info[args.evalset]['manifest_path']
         args.audio_dir = dataset_meta_info[args.evalset]['audio_dir']
-    
+
     evaluate(args.manifest_path, args.audio_dir, args.generated_audio_dir, args.whisper_language, sv_model_type="wavlm", asr_model_name="nvidia/parakeet-ctc-0.6b")
 
-    
+
 
 if __name__ == "__main__":
     main()
