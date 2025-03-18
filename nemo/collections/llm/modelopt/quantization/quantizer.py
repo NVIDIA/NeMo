@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 import torch
+from transformers import PreTrainedTokenizerBase
 from accelerate.hooks import remove_hook_from_module
 from datasets import load_dataset
 from tqdm import tqdm
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
 _, HAVE_MODELOPT = safe_import("modelopt")
 if HAVE_MODELOPT:
     import modelopt.torch.quantization as mtq
-    from modelopt.torch.export import export_hf_checkpoint, export_tensorrt_llm_checkpoint
+    from modelopt.torch.export import export_hf_checkpoint, export_tensorrt_llm_checkpoint, export_mcore_gpt_to_hf
 
     QUANT_CFG_CHOICES = {
         "int8": mtq.INT8_DEFAULT_CFG,
@@ -326,13 +327,14 @@ class Quantizer:
 
         is_automodel = isinstance(model, llm.HFAutoModelForCausalLM)
         if is_automodel:
-            if export_fmt != "hf":
-                export_dir = export_dir / "huggingface_tokenizer"
             model.tokenizer.save_pretrained(str(export_dir))
         else:
-            # Save the model context in order to restore its tokenizer later. The destination
-            # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-            shutil.copytree(
+            if export_fmt == "hf" and isinstance(model.tokenizer, PreTrainedTokenizerBase):
+                model.tokenizer.save_pretrained(str(export_dir))
+            else:
+                # Save the model context in order to restore its tokenizer later. The destination
+                # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
+                shutil.copytree(
                 ckpt_to_context_subdir(model_dir), os.path.join(export_dir, "nemo_context"), dirs_exist_ok=True
             )
 
@@ -355,13 +357,18 @@ class Quantizer:
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
         elif self.export_config.export_format == "hf":
-            assert is_automodel, "HF export is only supported for AutoModelForCausalLM"
             unwrapped_model = unwrap_for_modelopt_operations(model)
             with torch.inference_mode():
-                export_hf_checkpoint(
-                    unwrapped_model,
-                    export_dir=export_dir,
-                )
+                if is_automodel:
+                    export_hf_checkpoint(
+                        unwrapped_model,
+                        export_dir=export_dir,
+                    )
+                else:
+                    export_mcore_gpt_to_hf(
+                        unwrapped_model,
+                        export_dir=str(export_dir),
+                    )
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
