@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 from typing import Callable
 
 from nemo.tron.checkpointing import save_checkpoint
@@ -38,6 +39,15 @@ def megatron_pretrain(
     valid_data_iterator = setup_output.valid_data_iterator
     test_data_iterator = setup_output.test_data_iterator
     ckpt_context = setup_output.checkpointing_context
+
+    # Check num args to forward_step_func
+    num_fw_args = len(inspect.signature(forward_step_func).parameters)
+    fail_msg = f"""
+    forward_step_func has {num_fw_args} arguments. Only the following signatures are supported: 
+        2 args: forward_step_func(data_iterator: Iterable, model: GPTModel)
+        3 args: forward_step_func(state: GlobalState, data_iterator: Iterable, model: GPTModel)
+    """
+    assert num_fw_args in (2, 3), fail_msg
 
     ## TRAINING ##
     if not config.train_config.skip_train:
