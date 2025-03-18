@@ -202,7 +202,6 @@ def main(args) -> None:
         config = Llava15Config7B()
         new_transformer_layer_spec = get_gpt_modelopt_spec(config.language_transformer_config, local_core_attention=False, remap_te_layernorm=True)
         config.language_transformer_config.transformer_layer_spec = new_transformer_layer_spec
-        # config.language_transformer_config.transformer_layer_spec = your_custom_layerspec
         model = LlavaModel(config, tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
