@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
-from nemo.collections.llm.utils import torch_dtype_from_precision
+from nemo.collections.llm.utils import torch_dtype_from_precision, barrier
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
@@ -55,12 +55,6 @@ if HAVE_MODELOPT:
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 SUPPORTED_EXPORT_FMT = ["trtllm", "nemo", "hf"]
-
-
-def _barrier():
-    """Waits for all processes."""
-    if dist.is_initialized():
-        dist.barrier()
 
 
 @dataclass
@@ -357,7 +351,7 @@ class Quantizer:
             ), "NeMo export format can only be used with native NeMo checkpoints, not HuggingFace models"
             assert trainer is not None, "Trainer required for NeMo export."
             trainer.save_checkpoint(export_dir)
-            _barrier()
+            barrier()
             if is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
@@ -386,7 +380,7 @@ class Quantizer:
                     inference_pipeline_parallel=inference_pp,
                     use_nfs_workspace=use_nfs_workspace,
                 )
-            _barrier()
+            barrier()
             if is_global_rank_zero():
                 assert self._validate_quantized_checkpoint(export_dir, inference_tp)
 

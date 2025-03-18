@@ -31,7 +31,7 @@ import torch
 import torch.nn.functional as F
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
-from transformers import PreTrainedTokenizer, PreTrainedTokenizerBase, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerBase
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
@@ -513,8 +513,6 @@ class TensorRTLLM(ITritonDeployable):
                 # Copy SentencePiece tokenizer.model
                 for path in glob(os.path.join(tokenizer_path_nemo2, "*.model")):
                     shutil.copy(path, os.path.join(self.model_dir, "tokenizer.model"))
-            elif isinstance(self.tokenizer, (PreTrainedTokenizer, PreTrainedTokenizerFast)):
-                self.tokenizer.save_pretrained(self.model_dir)
             elif os.path.exists(vocab_path):
                 shutil.copy(vocab_path, os.path.join(self.model_dir, "vocab.json"))
 
