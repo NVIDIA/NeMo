@@ -31,7 +31,6 @@ from nemo.collections.llm.t5.model.t5 import T5Config
 def get_model_from_config(
     model_config: GPTConfig | T5Config,
     ddp_config: DistributedDataParallelConfig,
-    *,
     overlap_param_gather_with_optimizer_step: bool = False,
     use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
