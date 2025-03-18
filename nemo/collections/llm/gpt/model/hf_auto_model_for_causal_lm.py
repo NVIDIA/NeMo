@@ -180,7 +180,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             return auto_cls.from_pretrained(
                 self.model_name,
                 torch_dtype=torch.bfloat16,
-                device_map="cpu",
+                device_map=self.device,
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
                 attn_implementation=attn_implementation,
@@ -372,7 +372,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
 
-        outputs = self.forward(**batch)
+        outputs = self.forward(batch)
 
         logits = outputs.logits.float()
         n_cls = logits.shape[-1]
@@ -381,7 +381,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        return loss
 
     def save_pretrained(self, path, state_dict):
         """

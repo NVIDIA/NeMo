@@ -341,7 +341,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
-            self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            if reduced["avg"]:
+                self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
             return loss
 
     @override
@@ -444,15 +445,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Only returns a non-empty state dict on rank 0 if ``save_distributed_checkpoint=False``.
 
         """
-        from nemo.lightning.pytorch.strategies.utils import to_cpu
-
         assert self.lightning_module is not None
         state_dict = self.lightning_module.state_dict()
-
-        module_names = list(state_dict.keys())
-        for name in module_names:
-            param = state_dict.pop(name)
-            state_dict[name] = to_cpu(param)
         return state_dict
 
     @override
