@@ -64,6 +64,8 @@ def main(args):
             tokenizer=tokenizer.tokenizer,
             image_processor=processor.image_processor,
             multimodal_sample_config=multimodal_sample_config,
+            packed_sequence=args.use_packed_sequence,
+            packed_sequence_size=decoder_seq_length,
         )
         data = EnergonMultiModalDataModule(
             path=data_path,
@@ -74,6 +76,8 @@ def main(args):
             global_batch_size=gbs,
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
+            packing_buffer_size=200 if args.use_packed_sequence else None,
+            virtual_epoch_length=1000,
         )
 
     elif args.data_type == "mock":
@@ -119,7 +123,9 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
+        context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
+        # sequence_parallel=True if args.tp_size > 1 else False,
         sequence_parallel=False,
     )
 
@@ -223,6 +229,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=4)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
+    parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="llava_next_finetune")
@@ -231,6 +238,9 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-05, help="Learning rate")
-
+    parser.add_argument(
+        "--use_packed_sequence",
+        action="store_true",
+    )
     args = parser.parse_args()
     main(args)
