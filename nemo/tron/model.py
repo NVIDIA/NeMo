@@ -152,7 +152,8 @@ def get_model_from_config(
 
     return model
 
-def update_model_config(
+
+def update_model_config_sync_funcs(
     model: MegatronModule,
     model_config: GPTConfig | T5Config,
     ddp_config: DistributedDataParallelConfig,

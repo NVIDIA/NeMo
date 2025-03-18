@@ -26,7 +26,7 @@ from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.tron.config import ConfigContainer
 from nemo.tron.data.dataset import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
-from nemo.tron.model import get_model_from_config, update_model_config
+from nemo.tron.model import get_model_from_config, update_model_config_sync_funcs
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
@@ -145,15 +145,18 @@ def setup(
         use_torch_fsdp2=cfg.dist_config.use_torch_fsdp2,
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
         data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
-        align_grad_reduce=cfg.dist_config.align_grad_reduce,
     )
     cfg.model_config.timers = timers
     cfg.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(cfg, model)
     cfg.model_config.grad_scale_func = optimizer.scale_loss
+    update_model_config_sync_funcs(
+        model,
+        cfg.model_config,
+        cfg.ddp_config,
+        align_grad_reduce=cfg.dist_config.align_grad_reduce,
+    )
     timers("model-and-optimizer-setup").stop()
-
-    update_model_config(model, cfg.model_config, cfg.ddp_config, align_grad_reduce=cfg.dist_config.align_grad_reduce)
 
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
 
