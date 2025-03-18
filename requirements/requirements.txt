@@ -5,6 +5,7 @@ onnx>=1.7.0
 # Align with upstream PyTorch requirements
 protobuf==4.24.4
 python-dateutil
+# nemo_run
 ruamel.yaml
 scikit-learn
 setuptools>=70.0.0

@@ -128,12 +128,13 @@ def main():
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
-        '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over'
+        '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
+    parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
@@ -174,7 +175,7 @@ def main():
     else:
         model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=model_accelerator, trust_remote_code=args.trust_remote_code
+        model_name=args.model, model_accelerator=model_accelerator, trust_remote_code=args.trust_remote_code, use_liger_kernel=args.liger
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
 

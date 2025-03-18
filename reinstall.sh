@@ -15,9 +15,7 @@ export HEAVY_DEPS=${HEAVY_DEPS:-false}
 export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
-
-PIP=pip
-${PIP} install --no-cache-dir -U ${PIP} setuptools
+export PIP=pip
 
 te() {
   local mode="$1"
@@ -177,8 +175,9 @@ nemo() {
 
   DEPS=(
     "sox"                                                                                      # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
+    "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
     "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
+    "nemo_run"                                                                                 # Not compatible in Python 3.12
   )
 
   if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
@@ -190,6 +189,8 @@ nemo() {
   echo 'Installing dependencies of nemo'
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
+  # needs no-deps to avoid installing triton on top of pytorch-triton.
+  pip install --no-deps --no-cache-dir "liger-kernel==0.5.4; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
@@ -199,11 +200,11 @@ echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
 
-${PIP} install setuptools pybind11 wheel
+echo 'Upgrading tools'
+${PIP} install -U --no-cache-dir setuptools pybind11 wheel ${PIP}
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-
   echo "Will not install numba"
 
 else
@@ -211,7 +212,7 @@ else
     echo 'Installing numba'
     conda install -y -c conda-forge numba
   else
-    pip install --no-cache-dir --no-deps torch
+    pip install --no-cache-dir --no-deps torch cython
   fi
 fi
 

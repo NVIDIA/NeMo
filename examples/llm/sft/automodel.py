@@ -133,6 +133,8 @@ def main():
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
+    parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
+    parser.add_argument('--enable-grad-ckpt', action='store_true', help='Enables gradient checkpoint')
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
@@ -173,7 +175,11 @@ def main():
     else:
         model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=model_accelerator, trust_remote_code=args.trust_remote_code
+        model_name=args.model,
+        model_accelerator=model_accelerator,
+        trust_remote_code=args.trust_remote_code,
+        use_liger_kernel=args.liger,
+        enable_grad_ckpt=args.enable_grad_ckpt,
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
