@@ -15,7 +15,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal, Optional, Annotated
+from typing import Callable, Literal, Optional, Annotated
 
 import torch
 from torch import nn
@@ -37,7 +37,6 @@ try:
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
     from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
-    from megatron.core.ssm.mamba_config import HybridConfig
     from megatron.core.dist_checkpointing.serialization import load_plain_tensors
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.transformer.enums import AttnBackend
@@ -78,15 +77,15 @@ def dist_ckpt_handler(checkpoint_dir):
     state_dict.pop('iteration')
     try:
         state_dict.pop('opt_param_scheduler')
-    except:
+    except Exception:
         pass
     try:
         state_dict.pop('num_floating_point_operations_so_far')
-    except:
+    except Exception:
         pass
     try:
         state_dict.pop('rerun_state_machine')
-    except:
+    except Exception:
         pass
     for i, symbol in enumerate(dist_ckpt_args.hybrid_override_pattern):
         if symbol == 'M':
@@ -134,7 +133,7 @@ def dist_ckpt_handler(checkpoint_dir):
     return state_dict, dist_ckpt_args
 
 @dataclass
-class SSMConfig(HybridConfig, io.IOMixin):
+class SSMConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.mamba.mamba_model.MambaModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True

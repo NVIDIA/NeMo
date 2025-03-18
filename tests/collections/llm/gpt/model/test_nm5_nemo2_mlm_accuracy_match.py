@@ -1,10 +1,24 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from nemo.lightning import io
 import nemo.lightning as nl
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 import torch
 from megatron.core.models.mamba.mamba_model import MambaModel
-from megatron.training import get_args, get_model, get_tokenizer, print_rank_0
+from megatron.training import get_args, get_model, print_rank_0
 from megatron.core.transformer.spec_utils import import_module
 from megatron.training.arguments import core_transformer_config_from_args
 from megatron.training.checkpointing import load_checkpoint
@@ -148,16 +162,15 @@ if __name__ == "__main__":
         ),
     )
 
-    nemo_model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(args.nemo_model_path), subpath="model")
+    nemo_model: nl.io.TrainerContext = nl.io.load_context(path=ckpt_to_context_subdir(args.nemo_model_path), subpath="model")
     _setup_trainer_and_restore_model(path=args.nemo_model_path, trainer=trainer, model=nemo_model)
     nemo_model.eval()
     nemo_out = nemo_model.forward(input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask)
 
-    if abs(megatron_out - nemo_out).sum().item() == 0:
-        logging.info("*** SUCCESS The outputs of nemo and mcore models are bitwise similar! ***")
-    else:
-        logging.info("*** WARNING: The outputs of nemo and mcore models are NOT bitwise similar! ***")
-
+    assert (abs(megatron_out - nemo_out).sum().item() == 0), (
+                "ERROR: nemo and megatron lm outputs are NOT bitwise similar! "
+            )
+    logging.info("SUCCESS: The outputs of nemo and mcore models are bitwise similar!")
     ps.destroy_model_parallel()
     dist.destroy_process_group()
     
