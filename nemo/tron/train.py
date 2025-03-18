@@ -432,7 +432,7 @@ def train_step(
             2 args: forward_step_func(data_iterator: Iterable, model: GPTModel)
             3 args: forward_step_func(state: GlobalState, data_iterator: Iterable, model: GPTModel)
         """
-        assert num_fw_args in [2, 3], fail_msg
+        assert num_fw_args in (2, 3), fail_msg
 
         if num_fw_args == 3:
             # inject global_state
