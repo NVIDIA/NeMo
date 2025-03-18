@@ -247,6 +247,7 @@ def set_primary_perf_configs(
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
     recipe.trainer.val_check_interval = max_steps
+    recipe.trainer.limit_val_batches = 0
     recipe.trainer.log_every_n_steps = 1
 
     return recipe
