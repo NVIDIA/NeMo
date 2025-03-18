@@ -268,6 +268,10 @@ trainer:
   strategy:
     _target_: lightning.pytorch.strategies.DDPStrategy
     gradient_as_bucket_view: true
+    # To enable FSDP2 (PyTorch 2.6+), replace the 'strategy' contents with the following:
+    # _target_: lightning.pytorch.strategies.ModelParallelStrategy
+    # data_parallel_size: 8  # replace with total number of GPUs summed across all nodes
+    # tensor_parallel_size: 1  # not implemented for this setup, keep at 1
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   precision: bf16-mixed # Should be set to bf16-mixed/16-mixed for O1 and O2 to enable the AMP.

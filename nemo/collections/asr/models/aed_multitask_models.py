@@ -1128,6 +1128,40 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def adapter_module_names(self) -> List[str]:
         return ['', 'encoder', 'transf_encoder', 'transf_decoder']
 
+    def configure_model(self):
+        dm = self.device_mesh
+        if dm is None:
+            return
+
+        from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+
+        if (fsdp_mesh := dm["data_parallel"]).size() < 2:
+            return
+
+        cfg = {"mesh": fsdp_mesh, "mp_policy": MixedPrecisionPolicy(torch.bfloat16)}
+
+        def _apply(module):
+            if hasattr(module, "fully_shard"):
+                module.fully_shard(cfg)
+            else:
+                logging.warning(
+                    f"{type(module)=} doesn't implement fully_shard() method: "
+                    f"FSDP2 might be less effective than expected."
+                )
+
+        _apply(self.encoder)
+        self.encoder = fully_shard(self.encoder, **cfg)
+
+        if self.use_transf_encoder:
+            _apply(self.transf_encoder)
+            self.transf_encoder = fully_shard(self.transf_encoder, **cfg)
+
+        _apply(self.transf_decoder)
+        self.transf_decoder = fully_shard(self.transf_decoder, **cfg)
+
+        # "log_softmax" head of the model is small enough we don't need more granularity in sharding.
+        self.log_softmax = fully_shard(self.log_softmax, **cfg)
+
     @property
     def oomptimizer_schema(self) -> dict:
         """

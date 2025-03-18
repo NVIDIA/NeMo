@@ -313,6 +313,14 @@ class TransformerDecoderAdapter(TransformerDecoder, adapter_mixins.AdapterModule
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
         return cfg
 
+    def fully_shard(self, cfg: dict) -> "TransformerDecoder":
+        """Applies FSDP2 to each block in this module."""
+        from torch.distributed.fsdp import fully_shard
+
+        for idx, block in enumerate(self.layers):
+            self.layers[idx] = fully_shard(block, **cfg)
+        return self
+
 
 """
 Register any additional information
