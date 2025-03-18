@@ -32,7 +32,7 @@ from nemo.collections.vlm.inference import setup_inference_wrapper
 from nemo.utils import logging
 try:
     import modelopt.torch.quantization as mtq
-
+    from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
     HAVE_MODELOPT = True
 
 except (ImportError, ModuleNotFoundError):
@@ -194,11 +194,16 @@ def main(args) -> None:
 
     fabric = trainer.to_fabric()
 
+
     # Decide whether to import or load the model based on the input arguments
     if args.load_from_hf:
         model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
     else:
-        model = LlavaModel(Llava15Config7B(), tokenizer=hf_tokenizer)
+        config = Llava15Config7B()
+        new_transformer_layer_spec = get_gpt_modelopt_spec(config.language_transformer_config, local_core_attention=False, remap_te_layernorm=True)
+        config.language_transformer_config.transformer_layer_spec = new_transformer_layer_spec
+        # config.language_transformer_config.transformer_layer_spec = your_custom_layerspec
+        model = LlavaModel(config, tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
     params = CommonInferenceParams(
@@ -256,6 +261,7 @@ def main(args) -> None:
         logging.info("-------- Start Quantization --------")
         mtq.quantize(model, mtq_config, forward_loop)
         logging.info("-------- End Quantization --------")
+        print(model)
 
 
 if __name__ == "__main__":
