@@ -31,11 +31,11 @@ trtllm() {
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR" &&
       cd $(dirname "$TRTLLM_DIR") &&
-      git clone ${TRTLLM_REPO} &&
-      git lfs pull
+      git clone ${TRTLLM_REPO}
   fi &&
     pushd $TRTLLM_DIR &&
     git checkout -f $TRTLLM_TAG &&
+    git lfs pull &&
     popd
 
   if [[ "$mode" == "build" ]]; then
