@@ -222,7 +222,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 self.model.gradient_checkpointing_enable()
             else:
                 # TODO(@akoumparouli): custom logic goes here, but for now just a warning
-                logging.warning("Asked to use gradient checkpoint, but model does not import it")
+                logging.warning("Asked to use gradient checkpoint, but model does not support it")
 
         self.model.train()
 
