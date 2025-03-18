@@ -40,7 +40,7 @@ def get_batch(data_iterator, cfg: ConfigContainer):
     return batch.values()
 
 
-def forward_step(data_iterator: Iterable, model: GPTModel, state: GlobalState):
+def forward_step(state: GlobalState, data_iterator: Iterable, model: GPTModel):
     """Forward training step.
 
     Args:
