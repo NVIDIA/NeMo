@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import functools
 import inspect
+import logging as _logging
 import os
 import shutil
 from collections import OrderedDict
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
@@ -40,6 +42,8 @@ import torch
 import torch.distributed
 from lightning.fabric.plugins import CheckpointIO, ClusterEnvironment
 from lightning.fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from lightning.fabric.utilities.rank_zero import rank_zero_info
+from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
 from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
@@ -65,6 +69,7 @@ from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
+    _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -74,18 +79,16 @@ from nemo.lightning.pytorch.strategies.utils import (
 )
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizerCallback
+from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
 
-try:
-    from modelopt.torch.opt import ModeloptStateManager
-    from modelopt.torch.opt.plugins import restore_sharded_modelopt_state, save_sharded_modelopt_state
-
-    HAVE_MODELOPT = True
-except Exception:
-    HAVE_MODELOPT = False
+mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
+
+_logger = _logging.getLogger(__name__)
+
 
 ConfigT = TypeVar("ConfigT")
 
@@ -358,6 +361,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
 
+        self.store: Optional[torch.distributed.Store] = None
+
     @property
     def pipeline_dtype(self):
         """ """
@@ -524,7 +529,38 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def setup_distributed(self) -> None:
         """Setups dist env"""
         setup_parallel_ranks(self)
-        super().setup_distributed()
+
+        # Implementation from superclass copied below in order to pass the store to the process group init
+        reset_seed()
+        self.set_world_ranks()
+        self._process_group_backend = self._get_process_group_backend()
+        assert self.cluster_environment is not None
+
+        if not torch.distributed.is_available():
+            raise RuntimeError("torch.distributed is not available. Cannot initialize distributed process group")
+        if torch.distributed.is_initialized():
+            _logger.debug("torch.distributed is already initialized. Exiting early")
+            return
+
+        global_rank = self.cluster_environment.global_rank()
+        world_size = self.cluster_environment.world_size()
+        os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
+        os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+        torch.distributed.init_process_group(
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+        )
+
+        if self._process_group_backend == "nccl":
+            atexit.register(_destroy_dist_connection)
+
+        # On rank=0 let everyone know training is starting
+        rank_zero_info(
+            f"{'-' * 100}\n"
+            f"distributed_backend={self._process_group_backend}\n"
+            f"All distributed processes registered. Starting with {world_size} processes\n"
+            f"{'-' * 100}\n"
+        )
         init_model_parallel(self.model)
 
         if self.data_sampler:
@@ -848,14 +884,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if HAVE_MODELOPT:
             # Save ModelOpt state too, if it exists.
             core_model = unwrap_model(self.megatron_parallel)
-            if ModeloptStateManager.is_converted(core_model):
+            if mto.ModeloptStateManager.is_converted(core_model):
                 if self.async_save:
                     logging.warning("Model-Optimizer library in use. Async checkpoint saving is blocked.")
                     self.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
                 ckpt_io = self.checkpoint_io
                 if isinstance(ckpt_io, _WrappingCheckpointIO):
                     ckpt_io = ckpt_io.checkpoint_io
-                save_sharded_modelopt_state(
+                mto.plugins.save_sharded_modelopt_state(
                     [core_model],
                     ckpt_to_weights_subdir(filepath, is_saving=True),
                     sharded_strategy=ckpt_io.save_sharded_strategy,
@@ -880,12 +916,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if HAVE_MODELOPT:
             # If present, first restore and modify the model according to the ModelOpt state.
+            # Avoid quantizers being added to teacher model if model is a distillation model.
             core_model = unwrap_model(self.megatron_parallel)
-            restore_sharded_modelopt_state(
-                [core_model],
-                ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
-            )
-            if ModeloptStateManager.is_converted(core_model):
+            with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
+                mto.plugins.restore_sharded_modelopt_state(
+                    [core_model],
+                    ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
+                )
+            if mto.ModeloptStateManager.is_converted(core_model):
                 logging.info("Restored Model-Optimizer state from checkpoint.")
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
