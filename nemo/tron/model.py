@@ -18,22 +18,20 @@ from megatron.core.distributed import (
     DistributedDataParallel,
     DistributedDataParallelConfig,
     TorchFullyShardedDataParallel,
+    finalize_model_grads,
 )
 from megatron.core.enums import ModelType
-from megatron.core.transformer.module import Float16Module
+from megatron.core.transformer.module import Float16Module, MegatronModule
 from megatron.core.utils import is_float8tensor
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
 
 
-def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
-    return ModelType.encoder_and_decoder if isinstance(model_config, T5Config) else ModelType.encoder_or_decoder
-
-
 def get_model_from_config(
     model_config: GPTConfig | T5Config,
     ddp_config: DistributedDataParallelConfig,
+    *,
     overlap_param_gather_with_optimizer_step: bool = False,
     use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
@@ -153,3 +151,33 @@ def get_model_from_config(
                 model_module.broadcast_params()
 
     return model
+
+def update_model_config(
+    model: MegatronModule,
+    model_config: GPTConfig | T5Config,
+    ddp_config: DistributedDataParallelConfig,
+    *,
+    align_grad_reduce: bool = True
+) -> None:
+    """Update model config funcs based on initialized model."""
+    if isinstance(model[0], DistributedDataParallel) and ddp_config.overlap_grad_reduce:
+        assert model_config.no_sync_func is None, (
+            "When overlap_grad_reduce is True, config.no_sync_func must be None; "
+            "a custom no_sync_func is not supported when overlapping grad-reduce"
+        )
+    model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
+    if len(model) == 1:
+        model_config.no_sync_func = model_config.no_sync_func[0]
+    if align_grad_reduce:
+        model_config.grad_sync_func = [model_chunk.start_grad_sync for model_chunk in model]
+        if len(model) == 1:
+            model_config.grad_sync_func = model_config.grad_sync_func[0]
+    if ddp_config.overlap_param_gather and ddp_config.align_param_gather:
+        model_config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
+    if len(model) == 1:
+        model_config.param_sync_func = model_config.param_sync_func[0]
+    model_config.finalize_model_grads_func = finalize_model_grads
+
+
+def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
+    return ModelType.encoder_and_decoder if isinstance(model_config, T5Config) else ModelType.encoder_or_decoder
