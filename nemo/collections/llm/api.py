@@ -122,7 +122,7 @@ def train(
         tokenizer=tokenizer,
         model_transform=model_transform,
     )
-
+    print("-------", model)
     trainer.fit(model, data)
 
     return app_state.exp_dir
