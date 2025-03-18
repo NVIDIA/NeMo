@@ -20,8 +20,20 @@ from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+
+
+# Run this example with torchrun, for example:
+# torchrun --nproc-per-node=8 \
+#   examples/llm/peft/automodel.py \
+#   --strategy fsdp2 \
+#   --devices 8 \
+#   --model meta-llama/Llama-3.2-1B \
+#   --ckpt-folder "output"
+#
+# Note: ensure that the --nproc-per-node and --devices values match.
 
 
 def make_squad_hf_dataset(tokenizer, batch_size):
@@ -43,7 +55,7 @@ def make_squad_hf_dataset(tokenizer, batch_size):
         )
 
     datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad", split="train", batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0
+        "rajpurkar/squad", split="train", micro_batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0
     )
     datamodule.map(
         formatting_prompts_func,
@@ -98,18 +110,35 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
-    parser.add_argument('--devices', type=int, default=1)
-    parser.add_argument('--num-nodes', type=int, default=1)
-    parser.add_argument('--accelerator', type=str, default='gpu', choices=['gpu'])
-    parser.add_argument('--grad-clip', type=float, default=1.0)
-    parser.add_argument('--max-steps', type=int, default=100)
-    parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--use-torch-jit', action='store_true')
-    parser.add_argument('--auto-resume', action='store_true')
-    parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
-    parser.add_argument('--batch-size', default=1, type=int)
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B', help='Hugging Face model-id to use')
+    parser.add_argument(
+        '--strategy',
+        type=str,
+        default='auto',
+        choices=['auto', 'ddp', 'fsdp2'],
+        help='Training strategy e.g. ddp/fsdp2/single-gpu',
+    )
+    parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
+    parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
+    parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
+    parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
+    parser.add_argument(
+        '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
+    )
+    parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
+    parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
+    parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
+    parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
+    parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
+    parser.add_argument(
+        '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
+    )
+    parser.add_argument('--batch-size', default=1, type=int, help='Batch size to use for training')
+    parser.add_argument(
+        '--trust-remote-code',
+        action='store_true',
+        help='Enables trust_remote_code to load HF models with unverified sources',
+    )
     args = parser.parse_args()
 
     wandb = None
@@ -125,7 +154,16 @@ def main():
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, trust_remote_code=True)
+    if args.use_te_optimizer:
+        # Use TE optimizer
+        # Faster convergence but may lead to memory issues
+        optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5))
+    else:
+        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=3e-4))
+
+    model = llm.HFAutoModelForCausalLM(
+        model_name=args.model, trust_remote_code=args.trust_remote_code, use_liger_kernel=args.liger
+    )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
 
     resume = (
@@ -144,19 +182,19 @@ def main():
             devices=args.devices,
             num_nodes=args.num_nodes,
             max_steps=args.max_steps,
-            accelerator=args.accelerator,
+            accelerator='gpu',
             strategy=strategy,
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
+            accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
             use_distributed_sampler=False,
             logger=wandb,
             callbacks=callbacks,
             precision="bf16-mixed",
         ),
-        optim=fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5)),
+        optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
