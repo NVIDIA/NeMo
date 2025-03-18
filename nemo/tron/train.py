@@ -138,7 +138,7 @@ def train(
 
     start_iteration = global_state.train_state.step
     should_toggle_forward_pre_hook = (
-        config.optimizer_config.use_distributed_optimizer and ddp_config.overlap_param_gather
+        config.optimizer_config.use_distributed_optimizer and config.ddp_config.overlap_param_gather
     )
     # Disable forward pre-hook to start training to ensure that errors in checkpoint loading
     # or random initialization don't propagate to all ranks in first all-gather (which is a
