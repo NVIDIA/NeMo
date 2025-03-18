@@ -30,9 +30,11 @@ from nemo.collections.vlm import Llava15Config7B, LlavaModel
 from nemo.collections.vlm.inference import generate as vlm_generate
 from nemo.collections.vlm.inference import setup_inference_wrapper
 from nemo.utils import logging
+
 try:
     import modelopt.torch.quantization as mtq
     from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+
     HAVE_MODELOPT = True
 
 except (ImportError, ModuleNotFoundError):
@@ -194,13 +196,14 @@ def main(args) -> None:
 
     fabric = trainer.to_fabric()
 
-
     # Decide whether to import or load the model based on the input arguments
     if args.load_from_hf:
         model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
     else:
         config = Llava15Config7B()
-        new_transformer_layer_spec = get_gpt_modelopt_spec(config.language_transformer_config, local_core_attention=False, remap_te_layernorm=True)
+        new_transformer_layer_spec = get_gpt_modelopt_spec(
+            config.language_transformer_config, local_core_attention=False, remap_te_layernorm=True
+        )
         config.language_transformer_config.transformer_layer_spec = new_transformer_layer_spec
         model = LlavaModel(config, tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
@@ -215,7 +218,7 @@ def main(args) -> None:
         legacy_generate(model, processor, raw_image, args.prompt, args.num_tokens_to_generate)
     else:
         generate(model, processor, images=raw_image, text=args.prompt, params=params)
-    
+
     if args.enable_quantization:
         base_img_url = "http://images.cocodataset.org/val2017/"
         images = [
@@ -238,14 +241,16 @@ def main(args) -> None:
             "000000009483.jpg",
             "000000009448.jpg",
             "000000009378.jpg",
-            "000000008899.jpg"
+            "000000008899.jpg",
         ]
-        quantization_images_url = [ base_img_url+img_id for img_id in images]
+        quantization_images_url = [base_img_url + img_id for img_id in images]
 
         def forward_loop():
             for img_url in quantization_images_url:
                 raw_image = load_image(img_url)
-                response = generate(model, processor, images=raw_image, text="can you describe this image?", params=params)
+                response = generate(
+                    model, processor, images=raw_image, text="can you describe this image?", params=params
+                )
                 print(img_url, "->", response)
 
         if args.quant_alg == "int8_sq":
@@ -256,11 +261,10 @@ def main(args) -> None:
             mtq_config = mtq.INT4_AWQ_CFG
         else:
             raise ValueError(f"Unsupported quantization algorithm: {args.quantization.algorithm}")
-        
+
         logging.info("-------- Start Quantization --------")
         mtq.quantize(model, mtq_config, forward_loop)
         logging.info("-------- End Quantization --------")
-        print(model)
 
 
 if __name__ == "__main__":
