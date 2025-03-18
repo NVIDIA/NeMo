@@ -144,7 +144,7 @@ class KenLMBatchedWrapper:
 
         return lm_score, next_state
 
-    def score_sentence(self, sentence: list[int], bos=True) -> torch.Tensor:
+    def score_sentence(self, sentence: list[int], bos: bool = True, eos: bool = False) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in the sentence using N-Gram LM.
 
@@ -153,16 +153,18 @@ class KenLMBatchedWrapper:
             bos: start with BOS symbol
 
         Returns:
-            Tensor [L] with scores for the sentence
+            Tensor with scores for the sentence. Size: [L+1] if eos else [L]
         """
         state = self.get_init_state(bos=bos)
         scores = []
         for label in sentence:
             score, state = self.advance_single(state=state, label=label)
             scores.append(score)
+        if eos:
+            scores.append(self.get_final_single(state=state))
         return torch.FloatTensor(scores)
 
-    def score_sentences(self, sentences: list[list[int]], bos=True) -> torch.Tensor:
+    def score_sentences(self, sentences: list[list[int]], bos: bool = True, eos: bool = False) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in sentences using N-Gram LM.
 
@@ -171,9 +173,40 @@ class KenLMBatchedWrapper:
             bos: start with BOS symbol
 
         Returns:
-            Tensor [B, L] with scores for each sentence
+            Tensor with scores for each sentence. Size: [B, L+1] if eos else [B, L]
         """
-        return pad_sequence([self.score_sentence(sentence, bos=bos) for sentence in sentences], batch_first=True)
+        return pad_sequence(
+            [self.score_sentence(sentence, bos=bos, eos=eos) for sentence in sentences], batch_first=True
+        )
+
+    def get_final_single(self, state: "kenlm.State") -> float:
+        """
+        Get final score for the state
+
+        Args:
+            state: state
+
+        Returns:
+            final score
+        """
+        new_state = kenlm.State()  # needed for query, but we ignore it further since not needed in decoding
+        return _log_10_to_e(self.ngram_lm.BaseScore(state, "</s>", new_state))
+
+    def get_final(self, states: list["kenlm.State"]) -> torch.Tensor:
+        """
+        Get final scores for the states
+
+        Args:
+            states: list of states
+
+        Returns:
+            Tensor [B] with final scores
+        """
+        final_scores = torch.zeros(len(states))
+        for i, state in enumerate(states):
+            final_scores[i] = self.get_final_single(state)
+
+        return final_scores
 
 
 class NGram(NamedTuple):
@@ -453,7 +486,7 @@ class NGramLMConfig:
 
 class FastNGramLM(ModelPT):
     """
-    N-Gram LM supporting batched queries. Fast implementation for parallel queries for full vocabulary.
+    N-Gram LM (NGPULM) supporting batched queries. Fast implementation for parallel queries for full vocabulary.
     Supports autograd (differentiable weights).
     """
 
@@ -548,7 +581,7 @@ class FastNGramLM(ModelPT):
             use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
         """
         model = FastNGramLM.restore_from(restore_path=str(lm_path), map_location="cpu")
-        model.resolve_final()
+        model._resolve_final()
         assert model.vocab_size == vocab_size
         model.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
         if not model.use_triton:
@@ -678,7 +711,7 @@ class FastNGramLM(ModelPT):
             )
         )
         model._init_from_suffix_tree_np(suffix_tree_np=suffix_tree_np)
-        model.resolve_final()
+        model._resolve_final()
         return model
 
     @classmethod
@@ -788,49 +821,71 @@ class FastNGramLM(ModelPT):
         )
 
     def forward(
-        self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True
+        self,
+        labels: torch.Tensor,
+        labels_lengths: torch.Tensor | None = None,
+        bos: bool = True,
+        eos: bool = False,
     ) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in utterances using N-Gram LM.
 
         Args:
-            labels: label sequences [B x L]
+            labels: label sequences [B x L] if eos=False, [B x (L+1)] if eos=True
             labels_lengths (optional): lengths of the label sequences
             bos: start with BOS symbol
+            eos: add EOS score after the sentence
 
         Returns:
             Tensor [B x L] with scores for each label in the utterance
         """
-        return self.score_sentences(labels=labels, labels_lengths=labels_lengths, bos=bos)
+        return self.score_sentences(labels=labels, labels_lengths=labels_lengths, bos=bos, eos=eos)
 
     def score_sentences(
-        self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True
+        self,
+        labels: torch.Tensor,
+        labels_lengths: torch.Tensor | None = None,
+        bos: bool = True,
+        eos: bool = False,
     ) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in utterances using N-Gram LM.
 
         Args:
-            labels: label sequences [B x L]
+            labels: label sequences [B x L] if eos=False, [B x (L+1)] if eos=True
             labels_lengths (optional): lengths of the label sequences
             bos: start with BOS symbol
+            eos: add EOS score after the sentence
 
         Returns:
-            Tensor [B x L] with scores for each label in the utterance
+            Tensor [B x (L + 1) if eos else B x L] with scores for each label in the utterance
         """
         device = labels.device
         batch_size, max_length = labels.shape
         if labels_lengths is None:
             labels_lengths = torch.full([batch_size], fill_value=max_length, dtype=torch.int32, device=device)
-        scores = torch.zeros(labels.shape, device=device)
+        batch_size, max_length = labels.shape
+        scores = torch.zeros([batch_size, max_length + (1 if eos else 0)], device=device)
         states = self.get_init_states(batch_size=batch_size, bos=bos)
         # NB: It is possible to speedup this algorithm with a custom kernel (no need to retrieve all weights/labels)
         for i in range(max_length):
-            # TODO(vbataev): support differentiable implementation with Triton
+            # NB: _advance_triton is not differentiable (need to implement backward manually);
+            # for training _advance_pytorch only can be used
             step_scores, states = self._advance_pytorch(states)
             scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1) * (
                 i < labels_lengths
             )
+            # get next states, preserve last state if the utterance ended
+            # states = torch.where(
+            #     i < labels_lengths, states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1), states
+            # )
+            # prev_states = states
             states = states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1)
+            # states = torch.where(i < labels_lengths, states, prev_states)
+            # assert prev_states.shape == states.shape
+        if eos:
+            final_weights = self.get_final(states)
+            scores.scatter_(dim=1, index=labels_lengths.unsqueeze(-1).to(torch.int64), src=final_weights.unsqueeze(-1))
         return scores
 
     def advance(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -960,7 +1015,7 @@ class FastNGramLM(ModelPT):
         logging.warning("Final weights are not resolved; using slow implementation")
         return self._get_final_pytorch(states=states)
 
-    def resolve_final(self):
+    def _resolve_final(self):
         """Resolve final weights for all states by iterating over backoffs"""
         if self._final_resolved:
             return

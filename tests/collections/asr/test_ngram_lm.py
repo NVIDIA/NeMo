@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,7 +56,14 @@ class TestFastNGramLM:
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("batch_size", [1, 3])
     @pytest.mark.parametrize("bos", [True, False])
-    def test_initial_states(self, n_gpu_lm, kenlm_wrapper, bos: bool, batch_size: int, device: torch.device):
+    def test_initial_states(
+        self,
+        n_gpu_lm: FastNGramLM,
+        kenlm_wrapper: KenLMBatchedWrapper,
+        bos: bool,
+        batch_size: int,
+        device: torch.device,
+    ):
         n_gpu_lm = n_gpu_lm.to(device)
         init_states = n_gpu_lm.get_init_states(batch_size=batch_size, bos=bos)
         init_states_kenlm = kenlm_wrapper.get_init_states(batch_size=batch_size, bos=bos)
@@ -68,7 +75,7 @@ class TestFastNGramLM:
     @pytest.mark.unit
     @pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton is not available")
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-    def test_triton_vs_pytorch_random_states(self, n_gpu_lm, batch_size=2, num_iterations=100):
+    def test_triton_vs_pytorch_random_states(self, n_gpu_lm: FastNGramLM, batch_size=2, num_iterations=100):
         """Randomly initializes the states and compares the scores from Triton and PyTorch implementations."""
         torch.manual_seed(777)
         device = torch.device("cuda")
@@ -89,7 +96,40 @@ class TestFastNGramLM:
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("bos", [True, False])
-    def test_sentences(self, n_gpu_lm, kenlm_wrapper, bos: bool, device: torch.device):
+    def test_final(self, n_gpu_lm: FastNGramLM, kenlm_wrapper: KenLMBatchedWrapper, bos: bool, device: torch.device):
+        """Test final (eos) scores"""
+        n_gpu_lm = n_gpu_lm.to(device)
+        sentences = [
+            [25, 70, 12],
+            [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999],
+        ]
+        last_states = []
+        for sentence in sentences:
+            state = kenlm_wrapper.get_init_state(bos=bos)
+            for label in sentence:
+                _, state = kenlm_wrapper.advance_single(state=state, label=label)
+            last_states.append(state)
+        final_ref = kenlm_wrapper.get_final(states=last_states)
+
+        last_states = []
+        for sentence in sentences:
+            states = n_gpu_lm.get_init_states(batch_size=1, bos=bos)
+            for label in sentence:
+                _, states = n_gpu_lm.advance(states=states)
+                states = states[0, label].unsqueeze(0)
+            last_states.append(states)
+        final_lm = n_gpu_lm.get_final(states=torch.cat(last_states, dim=0))
+
+        assert torch.allclose(final_lm, final_ref), "Final scores do not match"
+
+    @pytest.mark.unit
+    @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("bos", [True, False])
+    @pytest.mark.parametrize("eos", [True, False])
+    def test_sentences(
+        self, n_gpu_lm: FastNGramLM, kenlm_wrapper: KenLMBatchedWrapper, bos: bool, eos: bool, device: torch.device
+    ):
         n_gpu_lm = n_gpu_lm.to(device)
         sentences = [
             [25, 70, 12],
@@ -97,19 +137,21 @@ class TestFastNGramLM:
         ]
         # non-batched
         for sentence in sentences:
-            scores_ref = kenlm_wrapper.score_sentences([sentence], bos=bos).to(device)
+            scores_ref = kenlm_wrapper.score_sentences([sentence], bos=bos, eos=eos).to(device)
             scores_lm = n_gpu_lm(
                 labels=torch.LongTensor([sentence]).to(device),
                 bos=bos,
+                eos=eos,
             )
             assert torch.allclose(scores_ref, scores_lm), "Non-batched scores do not match"
 
         # batched
-        scores_ref = kenlm_wrapper.score_sentences(sentences, bos=bos).to(device)
+        scores_ref = kenlm_wrapper.score_sentences(sentences, bos=bos, eos=eos).to(device)
         scores_lm = n_gpu_lm(
             labels=pad_sequence([torch.LongTensor(sentence) for sentence in sentences], batch_first=True).to(device),
             labels_lengths=torch.LongTensor([len(sentence) for sentence in sentences]).to(device),
             bos=bos,
+            eos=eos,
         )
         assert torch.allclose(scores_lm, scores_ref), "Batched scores do not match"
 
