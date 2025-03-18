@@ -24,6 +24,7 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 from ..argument_parser import parse_cli_args
 from ..utils import args_sanity_check, get_user_configs, set_primary_perf_configs, slurm_executor
 
+
 def override_recipe_configs(
     args: str,
     num_nodes: int,
