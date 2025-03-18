@@ -746,17 +746,17 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             greedy_predictions = []
             best_hyp = None
             encoder_input_mask = None
+
+            # prepare encoder embeddings for the decoding
+            enc_states = encoded.permute(0, 2, 1)
+            encoder_hidden_states = self.encoder_decoder_proj(enc_states)
+            if not torch.is_tensor(canary_data.encoded_speech):
+                canary_data.encoded_speech = encoder_hidden_states
+            else:
+                canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
             
             if cfg.decoding_policy == "waitk":
-                enc_states = encoded.permute(0, 2, 1)
-                encoder_hidden_states = self.encoder_decoder_proj(enc_states)
-
-                if not torch.is_tensor(canary_data.encoded_speech):
-                    canary_data.encoded_speech = encoder_hidden_states
-                else:
-                    canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
-                
-                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < cfg.waitk_lagging:
+                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < cfg.waitk_lagging and not canary_data.is_last_speech_chunk:
                     # need to wait for more speech
                     if cfg.debug_mode:
                         logging.warning(f"!!! need more initial speech according to the waitk policy !!!")
@@ -805,6 +805,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         if cfg.debug_mode:
                             logging.warning(f"-------------"*5)
                             logging.warning(f"decoding step: {i}")
+                            logging.warning(f"start_from: {start_from}")
+                            logging.warning(f"max_generation_length: {max_generation_length}")
                             logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
                             logging.warning(f"[predicted token]: {text_token}")
                             logging.warning(f"[predicted token id]: {next_tokens}")
@@ -832,15 +834,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
 
             elif cfg.decoding_policy == "alignatt":
-
-                enc_states = encoded.permute(0, 2, 1)
-                encoder_hidden_states = self.encoder_decoder_proj(enc_states)
-
-                if not torch.is_tensor(canary_data.encoded_speech):
-                    canary_data.encoded_speech = encoder_hidden_states
-                else:
-                    canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
-
                 if canary_data.decoding_step < 0:
                     # first decoding step
                     tgt, batch_size, canary_data.max_generation_length = self.decoding.decoding.greedy_search._prepare_for_search(canary_data.decoder_input_ids, canary_data.encoded_speech)

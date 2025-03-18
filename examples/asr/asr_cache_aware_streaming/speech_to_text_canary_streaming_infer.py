@@ -249,7 +249,7 @@ def perform_streaming(
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        if streaming_buffer.buffer_idx >= streaming_buffer.buffer.size(-1):
+        if streaming_buffer.buffer_idx >= streaming_buffer.buffer.size(-1) - streaming_buffer.sampling_frames[1]:
             canary_data.is_last_speech_chunk = True
         # import pdb; pdb.set_trace()
         with torch.inference_mode():
@@ -468,13 +468,14 @@ def main(cfg: StreamingEvaluationConfig):
         end_time = time.time()
         logging.warning(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
 
+        # import pdb; pdb.set_trace()
         # stores the results including the transcriptions of the streaming inference in a json file
         if cfg.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
             fname = (
                 "streaming_"
                 + os.path.splitext(os.path.basename(cfg.dataset_manifest))[0]
                 + "_"
-                + f"att-cs{cfg.att_context_size}"
+                + f"att-cs{cfg.att_context_size[0]}-{cfg.att_context_size[1]}"
                 + "_"
                 + f"{cfg.decoding_policy}"
                 + "_"
