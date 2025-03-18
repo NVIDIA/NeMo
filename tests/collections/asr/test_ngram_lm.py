@@ -40,7 +40,7 @@ def n_gpu_lm(test_data_dir):
 def kenlm_wrapper(test_data_dir):
     kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
     vocab_size = 1024
-    return KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
+    return KenLMBatchedWrapper.from_file(lm_path=kenlm_model_path, vocab_size=vocab_size)
 
 
 class TestFastNGramLM:

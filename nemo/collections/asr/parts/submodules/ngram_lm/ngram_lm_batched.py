@@ -72,6 +72,24 @@ class KenLMBatchedWrapper:
         self.token_offset = token_offset
         self.vocab_size = vocab_size
 
+    @classmethod
+    def from_file(
+        cls, lm_path: Path | str, vocab_size: int, token_offset: int = DEFAULT_TOKEN_OFFSET
+    ) -> "KenLMBatchedWrapper":
+        """
+        Constructor from KenLM (binary) or ARPA (text) model (same as `__init__`).
+        Useful for fast switching between FastNGramLM and this class.
+
+        Args:
+            lm_path: path to .nemo checkpoint or ARPA (text) file
+            vocab_size: model vocabulary size:
+            token_offset: offset for the tokens used for building ARPA LM
+
+        Returns:
+            KenLMBatchedWrapper instance
+        """
+        return cls(lm_path=lm_path, vocab_size=vocab_size, token_offset=token_offset)
+
     def get_init_state(self, bos=True) -> "kenlm.State":
         """
         Get initial state for the LM (KenLM)
