@@ -201,10 +201,11 @@ def main(args) -> None:
         model = fabric.import_model("hf://llava-hf/llava-1.5-7b-hf", LlavaModel)
     else:
         config = Llava15Config7B()
-        new_transformer_layer_spec = get_gpt_modelopt_spec(
-            config.language_transformer_config, local_core_attention=False, remap_te_layernorm=True
-        )
-        config.language_transformer_config.transformer_layer_spec = new_transformer_layer_spec
+        if args.enable_quantization:
+            new_transformer_layer_spec = get_gpt_modelopt_spec(
+                config.language_transformer_config, local_core_attention=False, remap_te_layernorm=True
+            )
+            config.language_transformer_config.transformer_layer_spec = new_transformer_layer_spec
         model = LlavaModel(config, tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
