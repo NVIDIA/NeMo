@@ -4,7 +4,6 @@ set -ex
 # List of all supported libraries (update this list when adding new libraries)
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
-  # "te"
   "trtllm"
   "mcore"
   "nemo"
