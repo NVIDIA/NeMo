@@ -5,6 +5,7 @@ set -ex
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
   # "te"
+  "trtllm"
   "mcore"
   "nemo"
   "vllm"
@@ -17,10 +18,46 @@ export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 export PIP=pip
 
+trtllm() {
+  local mode="$1"
+
+  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
+    apt-get install git-lfs &&
+    git lfs install &&
+    apt-get clean
+
+  TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
+  TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
+  TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
+  if [ ! -d "$TRTLLM_DIR/.git" ]; then
+    rm -rf "$TRTLLM_DIR" &&
+      cd $(dirname "$TRTLLM_DIR") &&
+      git clone ${TRTLLM_REPO}
+  fi &&
+    pushd $TRTLLM_DIR &&
+    git checkout -f $TRTLLM_TAG &&
+    popd
+
+  if [[ "$mode" == "build" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TRTLLM_DIR &&
+        . docker/common/install_tensorrt.sh &&
+        python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --python_bindings --benchmarks &&
+        pip wheel --wheel-dir $WHEELS_DIR/trtllm/ $TRTLLM_DIR
+    fi
+  else
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/trtllm/*.whl || true
+  fi
+}
+
 te() {
   local mode="$1"
 
-  TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
+  $(TE_)REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
   TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
   TE_DIR="$INSTALL_DIR/TransformerEngine"
   if [ ! -d "$TE_DIR/.git" ]; then
