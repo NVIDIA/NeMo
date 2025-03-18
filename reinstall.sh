@@ -5,9 +5,6 @@ set -ex
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
   "trtllm"
-  "mcore"
-  "nemo"
-  "vllm"
 )
 
 export INSTALL_OPTION=${1:-dev}
