@@ -62,6 +62,7 @@ class AutoConfigurator:
         max_training_days: Optional[int] = 2,
         max_steps_per_run: Optional[int] = 50,
         vocab_size: Optional[int] = 32000,
+        calculate_model_size: Optional[bool] = False,
     ):
         """
         Args:
@@ -86,6 +87,7 @@ class AutoConfigurator:
             max_training_days (Optional[int]): number of days expected model to be trained.
             max_steps_per_run (Optional[int]): maximum number of steps per run for the grid search.
             vocab_size (Optional[int]): size of tokenizer vocabulary.
+            calculate_model_size (Optional[bool]): whether the AutoConfigurator should calculate the model size or not.
         """
 
         # Print out the config
@@ -123,7 +125,12 @@ class AutoConfigurator:
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
 
         self.model_type = model_type
-        self.model_size_in_b = self._get_model_size(recipe.model.config, model_type, config['vocab_size'])
+        self.model_size_in_b = self._get_model_size(
+            recipe.model.config,
+            model_type,
+            config['vocab_size'],
+            config['calculate_model_size'],
+        )
         self.gpu_count = gpu_count
         self.seq_length = recipe.data.seq_length
         self.global_batch_size = recipe.data.global_batch_size
@@ -162,16 +169,29 @@ class AutoConfigurator:
 
         return None
 
-    def _get_model_size(self, model: Config, model_type: str, vocab_size: int) -> int:
+    def _get_model_size(
+        self,
+        model: Config,
+        model_type: str,
+        vocab_size: int,
+        calculate_model_size: bool,
+    ) -> int:
         """
         Function that returns model size from model class name.
 
         Args:
             model (Config): model class name.
+            model_type (str): model type.
+            vocab_size (int): vocab size.
+            calculate_model_size (bool): whether the AutoConfigurator should calculate the model size or not.
 
         Returns:
-            int: model size.
+            float: model size.
         """
+
+        if calculate_model_size:
+            return None
+
         if model_type != "bert":
             match = re.search(r'(\d+)([BM])', str(model))
             if match:
