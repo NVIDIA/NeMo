@@ -53,7 +53,7 @@ if __name__ == '__main__':
         peft_scheme='lora',
         max_steps=args.max_steps,
     )
-    recipe.trainer.val_check_interval = 50
+    recipe.trainer.val_check_interval = 0.0
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     recipe.data = run.Config(
         SquadHFDataModule,
@@ -65,4 +65,4 @@ if __name__ == '__main__':
     recipe.log = None
     recipe.trainer.enable_checkpointing = args.disable_ckpt
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
-    run.run(recipe, executor=executor)
+    run.run(recipe, executor=executor, direct=True)
