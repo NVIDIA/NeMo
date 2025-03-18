@@ -871,18 +871,15 @@ class FastNGramLM(ModelPT):
         for i in range(max_length):
             # NB: _advance_triton is not differentiable (need to implement backward manually);
             # for training _advance_pytorch only can be used
+            prev_states = states
             step_scores, states = self._advance_pytorch(states)
             scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1) * (
                 i < labels_lengths
             )
             # get next states, preserve last state if the utterance ended
-            # states = torch.where(
-            #     i < labels_lengths, states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1), states
-            # )
-            # prev_states = states
-            states = states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1)
-            # states = torch.where(i < labels_lengths, states, prev_states)
-            # assert prev_states.shape == states.shape
+            states = torch.where(
+                i < labels_lengths, states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1), prev_states
+            )
         if eos:
             final_weights = self.get_final(states)
             scores.scatter_(dim=1, index=labels_lengths.unsqueeze(-1).to(torch.int64), src=final_weights.unsqueeze(-1))
