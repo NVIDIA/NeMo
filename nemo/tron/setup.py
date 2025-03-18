@@ -16,6 +16,8 @@ import time
 from typing import Any, NamedTuple, Optional
 
 import torch
+from megatron.core.distributed import DistributedDataParallel as DDP
+from megatron.core.distributed import finalize_model_grads
 from megatron.core.optimizer import MegatronOptimizer
 from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
 from megatron.core.rerun_state_machine import RerunDataIterator
@@ -146,8 +148,30 @@ def setup(
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
         data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
     )
+    cfg.model_config.timers = timers
     cfg.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(cfg, model)
+    cfg.model_config.grad_scale_func = optimizer.scale_loss
+
+    model_config = cfg.model_config
+    ddp_config = cfg.ddp_config
+    if isinstance(model[0], DDP) and cfg.ddp_config.overlap_grad_reduce:
+        assert model_config.no_sync_func is None, (
+            "When overlap_grad_reduce is True, config.no_sync_func must be None; "
+            "a custom no_sync_func is not supported when overlapping grad-reduce"
+        )
+        model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
+        if len(model) == 1:
+            model_config.no_sync_func = model_config.no_sync_func[0]
+        if cfg.dist_config.align_grad_reduce:
+            model_config.grad_sync_func = [model_chunk.start_grad_sync for model_chunk in model]
+            if len(model) == 1:
+                model_config.grad_sync_func = model_config.grad_sync_func[0]
+    if ddp_config.overlap_param_gather and ddp_config.align_param_gather:
+        model_config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
+        if len(model) == 1:
+            model_config.param_sync_func = model_config.param_sync_func[0]
+    model_config.finalize_model_grads_func = finalize_model_grads
 
     timers("model-and-optimizer-setup").stop()
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
