@@ -14,9 +14,10 @@
 
 import os
 import re
-from typing import Optional
-
 import pandas as pd
+from typing import Optional
+from functools import partial
+
 from tensorboard.backend.event_processing import event_accumulator
 
 
@@ -34,17 +35,20 @@ GPT_BASED_MODELS = [
 
 
 def get_results(
-    base_config=None,
-    train_config=None,
+    base_config = None,
+    train_config = None,
     path_to_save: str = None,
     output_top_n: Optional[int] = 10,
+    log_file_prefix: Optional[str] = 'log-',
 ):
     """Generates performance results.
 
     Args:
-        config (AutoConfigurator): auto configurator runner config.
+        base_config (Partial): model base config.
+        train_config (AutoConfigurator): Auto Configurator runner config.
         path_to_save (str): path where to save performance results.
         output_top_n (Optional[int]): Number of configs to be printed out as best configs.
+        log_file_prefix: (Optional[str]): prefix of log files.
     """
 
     # Define needed variables
@@ -106,7 +110,7 @@ def get_results(
     result = []
     errors = []
     training_logs = os.path.abspath(training_logs)
-    error_files = find_tb_logs(training_logs, "log-")
+    error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
 
