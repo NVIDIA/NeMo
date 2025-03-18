@@ -72,12 +72,14 @@ class BatchedBeamHyps:
             store_prefix_hashes (Optional[bool]): Whether to store prefix hashes for hypotheses. Defaults to False.
         """
         
-        self.INACTIVE_SCORE = INACTIVE_SCORE
+        if beam_size <= 0:
+            raise ValueError("Beam size must be greater than 0.")
+        if batch_size <= 0:
+            raise ValueError("Batch size must be greater than 0.")
+        if init_length <= 0:
+            raise ValueError("Initial hypothesis lengths must be greater than 0.")
+        
         self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=torch.float)
-        self.INIT_POINTER_VALUE = INIT_POINTER_VALUE
-        self.INIT_HASH_VALUE = INIT_HASH_VALUE
-        self.INIT_PREFIX_HASH_VALUE = INIT_PREFIX_HASH_VALUE
-        self.NON_EXISTENT_LABEL_VALUE = NON_EXISTENT_LABEL_VALUE
         
         self.store_prefix_hashes = store_prefix_hashes
         self._max_length = init_length
@@ -90,29 +92,29 @@ class BatchedBeamHyps:
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long) # full lengths
         
         # Initializing tree structure for hypothesis storing
-        self.transcript_wb = torch.zeros(
-            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
+        self.transcript_wb = torch.full(
+            (batch_size, self.beam_size, self._max_length), fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
         ) # current labels
         self.transcript_wb_prev_ptr = torch.full(
-            (batch_size, self.beam_size, self._max_length), fill_value=self.INIT_POINTER_VALUE, device=device, dtype=torch.long
+            (batch_size, self.beam_size, self._max_length), fill_value=INIT_POINTER_VALUE, device=device, dtype=torch.long
         ) # links to prefices
         
         # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
-        self.scores = torch.full([batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=self.INACTIVE_SCORE)
+        self.scores = torch.full([batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
 
         self.last_label = torch.full(
-            (batch_size, self.beam_size), fill_value=self.NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
+            (batch_size, self.beam_size), fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
         )
         self.next_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         
         self.transcript_hash = torch.full(
-            [batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=self.INIT_HASH_VALUE
+            [batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=INIT_HASH_VALUE
         )
         if store_prefix_hashes:
             self.transcript_prefix_hash = torch.full(
-                [batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=self.INIT_PREFIX_HASH_VALUE
+                [batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=INIT_PREFIX_HASH_VALUE
             )
 
     def clear_(self):
@@ -124,27 +126,31 @@ class BatchedBeamHyps:
         self.current_lengths_wb.fill_(0)
         
         self.transcript_wb.fill_(0)
-        self.transcript_wb_prev_ptr.fill_(self.INIT_POINTER_VALUE)
+        self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
         
-        self.scores.fill_(self.INACTIVE_SCORE)
+        self.scores.fill_(INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
         
-        self.last_label.fill_(self.NON_EXISTENT_LABEL_VALUE)
+        self.last_label.fill_(NON_EXISTENT_LABEL_VALUE)
         self.next_timestep.fill_(0)
         self.last_timestep_lasts.fill_(0)
         
-        self.transcript_hash.fill_(self.INIT_HASH_VALUE)
+        self.transcript_hash.fill_(INIT_HASH_VALUE)
         if self.store_prefix_hashes:
-            self.transcript_prefix_hash.fill_(self.INIT_PREFIX_HASH_VALUE)
+            self.transcript_prefix_hash.fill_(INIT_PREFIX_HASH_VALUE)
 
     def _allocate_more(self):
         """
         Dynamically allocates more memory for the internal buffers.
         This method doubles the size of the following tensors: `transcript_wb`, `transcript_wb_prev_ptr`.
         """
-        self.transcript_wb = torch.cat((self.transcript_wb, torch.zeros_like(self.transcript_wb)), dim=-1)
+        self.transcript_wb = torch.cat(
+            (self.transcript_wb, torch.full_like(self.transcript_wb, fill_value=NON_EXISTENT_LABEL_VALUE)),
+            dim=-1
+        )
         self.transcript_wb_prev_ptr = torch.cat(
-            (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
+            (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)),
+            dim=-1
         )
         
         self._max_length *= 2
@@ -280,7 +286,7 @@ class BatchedBeamHyps:
         expansion_hashes = torch.where(non_blank_mask, expansion_hashes, self.transcript_hash.unsqueeze(-1)).view(self.batch_size, -1)
         
         # masking inactive hypotheses
-        inactive_hyps_mask = self.scores != self.INACTIVE_SCORE
+        inactive_hyps_mask = self.scores != INACTIVE_SCORE
         masked_hashes = torch.where(inactive_hyps_mask, self.transcript_hash, -1)
         
         init_expansions_equal = (
@@ -290,10 +296,10 @@ class BatchedBeamHyps:
         init_expansions_equal = torch.logical_and(non_blank_mask.view(self.batch_size, -1), init_expansions_equal)
         expansions_equal = expansion_hashes[:, :, None] == expansion_hashes[:, None, :]
         expansion_scores = total_logps.view(self.batch_size, -1)
-        expansion_scores = torch.where(init_expansions_equal, self.INACTIVE_SCORE, expansion_scores)
+        expansion_scores = torch.where(init_expansions_equal, INACTIVE_SCORE, expansion_scores)
         expansion_scores = expansion_scores[:, None, :].expand(expansions_equal.shape)
         
-        expansion_scores = torch.where(expansions_equal, expansion_scores, self.INACTIVE_SCORE)
+        expansion_scores = torch.where(expansions_equal, expansion_scores, INACTIVE_SCORE)
         expansion_scores, expansion_scores_argmax = expansion_scores.max(dim=-1)
         
         scores_range = torch.arange(
@@ -302,7 +308,7 @@ class BatchedBeamHyps:
             dtype=torch.long
         )
         scores_to_keep = scores_range[None, :] == expansion_scores_argmax
-        total_logps = torch.where(scores_to_keep, expansion_scores, self.INACTIVE_SCORE).view(self.batch_size, self.beam_size, -1)
+        total_logps = torch.where(scores_to_keep, expansion_scores, INACTIVE_SCORE).view(self.batch_size, self.beam_size, -1)
 
         return total_logps
 
@@ -335,10 +341,10 @@ class BatchedBeamHyps:
         
         prefix_label_logps = torch.gather(label_logps, dim=-1, index=prefix_labels)
         prefix_label_logps = prefix_scores + prefix_label_logps.transpose(dim0=-1, dim1=-2)
-        prefix_label_logps = torch.where(prefix_equal, prefix_label_logps, self.INACTIVE_SCORE)
+        prefix_label_logps = torch.where(prefix_equal, prefix_label_logps, INACTIVE_SCORE)
         prefix_label_logps = torch.logsumexp(prefix_label_logps, dim=-1)
 
-        to_update_mask = torch.logical_and(active_mask, self.scores != self.INACTIVE_SCORE)
+        to_update_mask = torch.logical_and(active_mask, self.scores != INACTIVE_SCORE)
         self.scores = torch.where(to_update_mask, torch.logaddexp(self.scores, prefix_label_logps), self.scores)
 
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
@@ -473,12 +479,15 @@ class BatchedBeamHypsTDT:
             float_dtype (Optional[torch.dtype]): The floating-point data type for scores. Defaults to None.
         """
         
+        if beam_size <= 0:
+            raise ValueError("Beam size must be greater than 0.")
+        if batch_size <= 0:
+            raise ValueError("Batch size must be greater than 0.")
+        if init_length <= 0:
+            raise ValueError("Initial hypothesis lengths must be greater than 0.")
+        
         self.device=device
-        self.INACTIVE_SCORE = -float("inf")
-        self.INACTIVE_SCORE_TENSOR = torch.tensor(self.INACTIVE_SCORE, device=device, dtype=torch.float)
-        self.INIT_POINTER_VALUE = -1
-        self.INIT_PREFIX_HASH_VALUE = 0
-        self.NON_EXISTENT_LABEL_VALUE = -1
+        self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=torch.float)
         self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)
                 
         self._max_length = init_length
@@ -491,22 +500,22 @@ class BatchedBeamHypsTDT:
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         
         # Initializing tree structure for hypothesis storing
-        self.transcript_wb = torch.zeros(
-            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
+        self.transcript_wb = torch.full(
+            (batch_size, self.beam_size, self._max_length), fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
         )
         self.timestamps = torch.zeros(
             (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
         )
         self.transcript_wb_prev_ptr = torch.full(
-            (batch_size, self.beam_size, self._max_length), fill_value=self.INIT_POINTER_VALUE, device=device, dtype=torch.long
+            (batch_size, self.beam_size, self._max_length), fill_value=INIT_POINTER_VALUE, device=device, dtype=torch.long
         )
         
         # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
-        self.scores = torch.full([batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=self.INACTIVE_SCORE)
+        self.scores = torch.full([batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
         
         self.last_label = torch.full(
-            [batch_size, self.beam_size], fill_value=self.NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
+            [batch_size, self.beam_size], fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
         )
         self.next_timestamp = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
@@ -520,15 +529,15 @@ class BatchedBeamHypsTDT:
         
         self.current_lengths_nb.fill_(0)
         self.current_lengths_wb.fill_(0)
-        self.last_label.fill_(self.NON_EXISTENT_LABEL_VALUE)
-        self.scores.fill_(self.INACTIVE_SCORE)
+        self.last_label.fill_(NON_EXISTENT_LABEL_VALUE)
+        self.scores.fill_(INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
         self.next_timestamp.fill_(0)
         self.last_timestep_lasts.fill_(0)
         
         self.transcript_wb.fill_(0)
         self.timestamps.fill_(0)
-        self.transcript_wb_prev_ptr.fill_(self.INIT_POINTER_VALUE)
+        self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
         
         self.transcript_hash.fill_(0)
 
@@ -538,10 +547,10 @@ class BatchedBeamHypsTDT:
         This method doubles the size of the following tensors: `transcript_wb`, `timestamps`, `transcript_wb_prev_ptr`
         """
         
-        self.transcript_wb = torch.cat((self.transcript_wb, torch.zeros_like(self.transcript_wb)), dim=-1)
+        self.transcript_wb = torch.cat((self.transcript_wb, torch.full_like(self.transcript_wb, fill_value=NON_EXISTENT_LABEL_VALUE)), dim=-1)
         self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
         self.transcript_wb_prev_ptr = torch.cat(
-            (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
+            (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)), dim=-1
         )
         
         self._max_length *= 2
@@ -589,25 +598,27 @@ class BatchedBeamHypsTDT:
             next_label_durations (torch.Tensor): Durations associated with the next labels.
         """
         
+        next_label_durations = torch.where(next_labels < 0, 0, next_label_durations)
         timesteps = torch.gather(self.next_timestamp, dim=-1, index=hyps_indices)
         
-        self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.timestamps.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=(timesteps + next_label_durations).unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(
             dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1)
         )
 
-        torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
         self.current_lengths_nb.copy_(
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
+        torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
+        
+        torch.where(extended_with_blank | extended_with_label, next_hyps_prob, self.scores, out=self.scores)
 
         torch.where(next_labels >= 0, timesteps + next_label_durations, timesteps, out=self.next_timestamp)
         torch.where(
-            next_label_durations>0,
+            (extended_with_blank | extended_with_label) & next_label_durations > 0,
             self.ZERO_TENSOR,
             torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
             out=self.last_timestep_lasts
@@ -617,18 +628,12 @@ class BatchedBeamHypsTDT:
         last_labels=torch.gather(self.last_label, dim=-1, index=hyps_indices)
         # track last label
         torch.where(
-            extended_with_label,
-            next_labels,
-            last_labels,
-            out=self.last_label,
+            extended_with_label, next_labels, last_labels, out=self.last_label,
         )
         
         # update hashes and prefix hashes
         torch.where(
-            extended_with_label,
-            hash_text(prev_transcript_hash, next_labels),
-            prev_transcript_hash,
-            out=self.transcript_hash
+            extended_with_label, hash_text(prev_transcript_hash, next_labels), prev_transcript_hash, out=self.transcript_hash
         )
 
     def recombine_hyps(self):
