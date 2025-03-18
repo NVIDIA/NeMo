@@ -116,6 +116,10 @@ from nemo.collections.llm.gpt.model.ssm import (
     BaseMambaConfig780M,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
+    Nemotron5HybridConfig8B,
+    Nemotron5HybridConfig47B,
+    Nemotron5HybridConfig56B,
+    MambaModel,
     SSMConfig,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
@@ -213,6 +217,10 @@ __all__ = [
     "BaseMambaConfig2_7B",
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
+    "Nemotron5HybridConfig8B",
+    "Nemotron5HybridConfig47B",
+    "Nemotron5HybridConfig56B",
+    "MambaModel",
     "DeepSeekModel",
     "DeepSeekV2Config",
     "DeepSeekV3Config",
