@@ -78,6 +78,7 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
 
     for idx, hyp in enumerate(outputs):
         timestamp, text = extract_words_with_timestamps(hyp.text, subsampling_factor, window_stride)
+        text = text.strip()     # remove leading and trailing whitespaces - training data artifact
         if timestamp is not None:
             if len(outputs[idx].timestamp) == 0:
                 outputs[idx].timestamp = {}
@@ -88,6 +89,7 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
             segments = segments_offset_to_time(segments, window_stride, subsampling_factor)
             outputs[idx].timestamp['segment'] = segments
         else:
+            outputs[idx].text = text
             outputs[idx].timestamp = {}
             outputs[idx].timestamp['word'] = []
             outputs[idx].timestamp['segment'] = []
