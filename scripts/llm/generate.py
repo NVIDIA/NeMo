@@ -25,12 +25,12 @@ import nemo.lightning as nl
 from nemo.collections.llm import api
 
 """
-torchrun --nproc-per-node=8 /lustre/fsw/portfolios/coreai/users/ataghibakhsh/NeMo/scripts/llm/generate.py \
+torchrun --nproc-per-node=8 /opt/NeMo/scripts/llm/generate.py \
     --model_path=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/final_nm5/nm5_8b_base_8k_phase3 \
     --tp=8 \
     --devices=8 \
     --num_tokens_to_generate=40 \
-    --temperature=0.01 \
+    --temperature=0.001 \
     --top_p=0.0 \
     --top_k=1 \
     --fp8

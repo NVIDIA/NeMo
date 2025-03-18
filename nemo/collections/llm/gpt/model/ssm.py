@@ -25,7 +25,7 @@ from nemo.lightning import get_vocab_size, io, teardown, OptimizerModule
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.collections.llm.utils import Config
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-# from transformers import Nemotron5Config, Nemotron5ForCausalLM, AutoTokenizer
+from transformers import Nemotron5Config, Nemotron5ForCausalLM, AutoTokenizer
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 
@@ -415,7 +415,7 @@ class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", MambaModel])
 
     @property
     def config(self) -> SSMConfig:
-        # from transformers import Nemotron5Config as HFNemotron5Config
+        from transformers import Nemotron5Config as HFNemotron5Config
 
         source = HFNemotron5Config.from_pretrained("/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_nemo_to_hf")
         source.torch_dtype = torch.bfloat16
@@ -446,10 +446,10 @@ class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", MambaModel])
 @io.model_exporter(MambaModel, "hf")
 class HFNemotron5Exporter(io.ModelConnector[MambaModel, "Nemotron5ForCausalLM"]):
     def init(self, dtype=torch.bfloat16) -> "Nemotron5ForCausalLM":
-        # from transformers.modeling_utils import no_init_weights
-        a = 1
-        # with no_init_weights(True):
-        #     return Nemotron5ForCausalLM(self.config)
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights(True):
+            return Nemotron5ForCausalLM(self.config)
 
     def apply(self, output_path: Path) -> Path:
         
@@ -505,34 +505,34 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "Nemotron5ForCausalLM"])
 
     @property
     def tokenizer(self):
-        # from transformers import AutoTokenizer
-        a = 1
-        # return AutoTokenizer.from_pretrained("nvidia/Mistral-NeMo-Minitron-8B-Instruct")
+        from transformers import AutoTokenizer
+
+        return AutoTokenizer.from_pretrained("nvidia/Mistral-NeMo-Minitron-8B-Instruct")
 
     
     @property
     def config(self) -> "Nemotron5Config":
-        # source: SSMConfig = io.load_context(str(self), subpath="model.config")
+        source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
-        # from transformers import Nemotron5Config as HFNemotron5Config
-        a = 1
-        # return HFNemotron5Config(
-        #     hybrid_override_pattern=source.hybrid_override_pattern,
-        #     n_groups=source.mamba_num_groups,
-        #     num_hidden_layers=source.num_layers,
-        #     mamba_head_dim=source.mamba_head_dim,
-        #     mamba_num_heads=source.hidden_size * 2 // source.mamba_head_dim,
-        #     mamba_state_size=source.mamba_state_dim,
-        #     hidden_size=source.hidden_size,
-        #     intermediate_size=source.ffn_hidden_size,
-        #     num_attention_heads=source.num_attention_heads,
-        #     max_position_embeddings=source.seq_length,
-        #     rms_norm_eps=source.layernorm_epsilon,
-        #     num_key_value_heads=source.num_query_groups,
-        #     vocab_size=source.vocab_size,
-        #     mlp_hidden_act='relu2',
-        #     mamba_hidden_act="silu",
-        # )
+        from transformers import Nemotron5Config as HFNemotron5Config
+
+        return HFNemotron5Config(
+            hybrid_override_pattern=source.hybrid_override_pattern,
+            n_groups=source.mamba_num_groups,
+            num_hidden_layers=source.num_layers,
+            mamba_head_dim=source.mamba_head_dim,
+            mamba_num_heads=source.hidden_size * 2 // source.mamba_head_dim,
+            mamba_state_size=source.mamba_state_dim,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            max_position_embeddings=source.seq_length,
+            rms_norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            vocab_size=source.vocab_size,
+            mlp_hidden_act='relu2',
+            mamba_hidden_act="silu",
+        )
 
 @io.state_transform(
     source_key=(
@@ -736,6 +736,7 @@ class Nemotron5HybridConfig8B(SSMConfig):
     mamba_num_groups: int = 8
     mamba_state_dim: int = 128
     mamba_head_dim: int = 64
+    mamba_nheads: int = 256
     ffn_hidden_size: int = 21504
     num_attention_heads: int = 32
     num_query_groups: int = 8
@@ -761,6 +762,7 @@ class Nemotron5HybridConfig47B(SSMConfig):
     mamba_num_groups: int = 8
     mamba_state_dim: int = 256
     mamba_head_dim: int = 64
+    mamba_nheads: int = 256
     ffn_hidden_size: int = 30720
     num_attention_heads: int = 64
     num_query_groups: int = 8
@@ -786,6 +788,7 @@ class Nemotron5HybridConfig56B(SSMConfig):
     mamba_num_groups: int = 8
     mamba_state_dim: int = 256
     mamba_head_dim: int = 64
+    mamba_nheads: int = 256
     ffn_hidden_size: int = 32768
     num_attention_heads: int = 64
     num_query_groups: int = 8
