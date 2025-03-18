@@ -31,7 +31,8 @@ trtllm() {
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR" &&
       cd $(dirname "$TRTLLM_DIR") &&
-      git clone ${TRTLLM_REPO}
+      git clone ${TRTLLM_REPO} &&
+      git lfs pull
   fi &&
     pushd $TRTLLM_DIR &&
     git checkout -f $TRTLLM_TAG &&
