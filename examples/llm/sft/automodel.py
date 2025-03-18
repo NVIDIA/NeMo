@@ -23,6 +23,7 @@ from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
@@ -67,7 +68,7 @@ def make_squad_hf_dataset(tokenizer, batch_size):
     return datamodule
 
 
-def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False):
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False, dp_size=None, tp_size=None, cp_size=None):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
             device='cuda:0',
@@ -83,10 +84,23 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
             from nemo.lightning.pytorch.strategies.fsdp2_strategy import HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
+        if cp_size is None:
+            cp_size = 1
+            if dp_size is None:
+                dp_size = devices * num_nodes
+            else:
+                assert dp_size == devices * num_nodes, "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
+        else:
+            if dp_size is None:
+                dp_size = 1
+                assert cp_size == devices * num_nodes, "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
+            else:
+                assert dp_size * cp_size == devices * num_nodes, "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
 
         return nl.FSDP2Strategy(
-            data_parallel_size=devices * num_nodes,
+            data_parallel_size=dp_size,
             tensor_parallel_size=1,
+            context_parallel_size=cp_size,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
         )
@@ -122,19 +136,22 @@ def main():
     parser.add_argument(
         '--strategy',
         type=str,
-        default='auto',
+        default='fsdp2',
         choices=['auto', 'ddp', 'fsdp2'],
         help='Training strategy e.g. ddp/fsdp2/single-gpu',
     )
-    parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
+    parser.add_argument('--devices', type=int, default=2, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
+    parser.add_argument('--dp-size', type=int, default=None, help='Data Parallel size; to be used with fsdp2')
+    parser.add_argument('--tp-size', type=int, default=None, help='Tensor Parallel size; to be used with fsdp2')
+    parser.add_argument('--cp-size', type=int, default=None, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
         '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
-    parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
+    parser.add_argument('--wandb-project', type=str, default="automodel-fsdp2", help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
@@ -182,7 +199,7 @@ def main():
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
-    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False, args.enable_cpu_offload)
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False, dp_size=args.dp_size, tp_size=args.tp_size, cp_size=args.cp_size)
 
     resume = (
         nl.AutoResume(
@@ -198,7 +215,7 @@ def main():
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer, args.batch_size),
+        data=HFMockDataModule(seq_length=2048, global_batch_size=32, micro_batch_size=1),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,

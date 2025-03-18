@@ -36,6 +36,8 @@ from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     create_checkpoint_io,
     fsdp2_strategy_parallelize,
+    create_context_parallel_ctx,
+    get_train_context,
 )
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
@@ -69,6 +71,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
+        context_parallel_size: Optional[int] = 1,
         offload_policy: 'CPUOffloadPolicy' = None,
         data_sampler=None,
         checkpoint_io=None,
@@ -79,8 +82,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """Initializes the FSDP2Strategy with specified parallelization settings.
 
         Args:
-            data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
-            tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
+            data_parallel_size (Union[Literal["auto"], int]): Size of data parallel. Defaults to "auto".
+            tensor_parallel_size (Union[Literal["auto"], int]): Size of tensor parallel. Defaults to "auto".
+            context_parallel_size (optional): Number of context-parallel groups. Defaults to 1.
             data_sampler (optional): Custom data sampler to process dataloaders.
             mp_policy (optional): Mixed precision policy for parameter and operation casting.
                 Defaults to:
@@ -97,6 +101,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
         self._checkpoint_io = checkpoint_io
+        self.context_parallel_size = context_parallel_size
         self.data_sampler = data_sampler
         self.checkpoint = None
         self.mp_policy = mp_policy
@@ -173,9 +178,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # No TP currently
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
-            mesh_shape=(self._data_parallel_size,),
-            mesh_dim_names=("data_parallel",),
+            mesh_shape=(self.context_parallel_size,),
+            mesh_dim_names=("dp_with_cp",),
         )
+        # self._device_mesh["data_parallel", "context_parallel"]._flatten(mesh_dim_name="dp_with_cp")
+        # print(f"Device mesh: {self._device_mesh}")
         self.lightning_module._device_mesh = self._device_mesh
 
     @override
@@ -310,7 +317,29 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert self.model is not None
 
-        loss = self.lightning_module.training_step(batch, batch_idx)
+        # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
+        context_parallel_ctx = None
+        print(self.lightning_module)
+        if self.context_parallel_size > 1:
+            tokens = batch["tokens"].to(self.model.device)
+            labels = batch["labels"].to(self.model.device)
+
+            context_parallel_ctx = create_context_parallel_ctx(
+                cp_mesh=self._device_mesh["dp_with_cp"],
+                cp_buffers=[tokens, labels],
+                cp_seq_dims=[1, 1],
+                cp_no_restore_buffers={tokens, labels},
+                cp_rotate_method="allgather", #TODO add "addtoall" option
+            )
+
+            train_context = get_train_context(
+                False,
+                False,
+            )
+
+        with train_context(context_parallel_ctx):
+            loss = self.lightning_module.training_step(batch, batch_idx)
+
         self.lightning_module.log(
             'global_step',
             self.trainer.global_step,
