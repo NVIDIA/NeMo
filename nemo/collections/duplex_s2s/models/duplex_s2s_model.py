@@ -22,6 +22,7 @@ import torch
 from lightning import LightningModule
 from omegaconf import open_dict
 from torch import Tensor
+from torch.distributed import init_device_mesh
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 from torch.distributed.tensor import Replicate, Shard
@@ -237,6 +238,7 @@ class DuplexS2SModel(LightningModule):
         WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
         # Setup a separate BLEU metric for each validation dataloader through CombinedLoader.
         # See: https://lightning.ai/docs/pytorch/LTS/guides/data.html#accessing-dataloaders-within-lightningmodule
+        self._partial_val_losses = []
         self.bleu = {}
         for name in self.trainer.val_dataloaders.keys():
             self.bleu[name] = SacreBLEUScore().to(self.device)
@@ -246,6 +248,9 @@ class DuplexS2SModel(LightningModule):
             self.log(f"val_asr_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
             bleu.reset()
         self.asr = None  # free up GPU memory
+        val_loss = torch.mean(torch.stack(self._partial_val_losses))
+        self._partial_val_losses = None
+        self.log("val_loss", val_loss, on_epoch=True, sync_dist=False)
         torch.cuda.memory.empty_cache()
 
     def validation_step(self, batch: dict, batch_idx: int):
@@ -271,6 +276,7 @@ class DuplexS2SModel(LightningModule):
                 ) / (num_frames * self._num_codebooks)
 
             loss = text_loss + audio_loss
+            self._partial_val_losses.append(loss)
 
             B = inputs["input_embeds"].shape[0]
             self.log(f"val_loss_{name}", loss, on_epoch=True, sync_dist=True, batch_size=B)
