@@ -37,7 +37,7 @@ from ..utils import (
     set_primary_perf_configs,
     slurm_executor,
 )
-
+from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 
 def override_recipe_configs(
     args: str,
@@ -108,6 +108,14 @@ def override_recipe_configs(
 
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+
+    recipe.trainer.callbacks.append(run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="gpt3",
+        )
+    )
 
     return recipe
 

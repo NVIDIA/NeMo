@@ -22,6 +22,7 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
+from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 
 
 def override_recipe_configs(
@@ -72,6 +73,14 @@ def override_recipe_configs(
 
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+
+    recipe.trainer.callbacks.append(run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="llama3",
+        )
+    )
 
     return recipe
 
