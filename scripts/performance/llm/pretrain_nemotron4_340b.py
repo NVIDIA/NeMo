@@ -74,7 +74,7 @@ def override_recipe_configs(
     gpu_type = args.gpu.lower()
 
     # data module configs
-    recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
+    recipe.data.num_train_samples = args.max_steps * gbs  # ensure only 1 epoch for whole run
 
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000

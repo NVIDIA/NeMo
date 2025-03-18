@@ -64,7 +64,7 @@ def override_recipe_configs(
     )
 
     # data module configs
-    recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
+    recipe.data.num_train_samples = args.max_steps * gbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x7B-v0.1")
 
     # compute dtype configs
