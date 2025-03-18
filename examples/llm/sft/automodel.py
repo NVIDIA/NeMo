@@ -149,6 +149,9 @@ def main():
     )
 
     args = parser.parse_args()
+    # CPUOffload WA for known issue
+    if args.enable_cpu_offload and args.use_te_optimizer:
+        args.use_te_optimizer = False
 
     wandb = None
     if args.wandb_project is not None:
@@ -183,7 +186,7 @@ def main():
         if args.auto_resume
         else None
     )
-    # WAR
+    # CPUOffload WA
     if args.enable_cpu_offload:
         args.grad_clip = 0.0
 
