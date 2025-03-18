@@ -109,7 +109,7 @@ class TestFastNGramLM:
             for label in sentence:
                 _, state = kenlm_wrapper.advance_single(state=state, label=label)
             last_states.append(state)
-        final_ref = kenlm_wrapper.get_final(states=last_states)
+        final_ref = kenlm_wrapper.get_final(states=last_states).to(device=device)
 
         last_states = []
         for sentence in sentences:
