@@ -36,7 +36,7 @@ NAME = "hf_auto_model_for_causal_lm"
 
 @run.cli.factory(name=NAME)
 def model(
-    model_name, load_pretrained_weights, trust_remote_code=False, attn_implementation="sdpa"
+    model_name, load_pretrained_weights, trust_remote_code=False, attn_implementation="sdpa", enable_grad_ckpt=False
 ) -> run.Config[pl.LightningModule]:
     """
     Factory function to create HFAutoModelForCausalLM model configurations.
@@ -61,6 +61,7 @@ def model(
         load_pretrained_weights=load_pretrained_weights,
         trust_remote_code=trust_remote_code,
         attn_implementation=attn_implementation,
+        enable_grad_ckpt=enable_grad_ckpt
     )
 
 
@@ -181,6 +182,7 @@ def finetune_recipe(
     max_steps: int = 100,
     trust_remote_code: bool = False,
     attn_implementation: str = 'sdpa',
+    enable_grad_ckpt: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -221,6 +223,7 @@ def finetune_recipe(
             load_pretrained_weights=True,
             trust_remote_code=trust_remote_code,
             attn_implementation=attn_implementation,
+            enable_grad_ckpt=enable_grad_ckpt,
         ),
         trainer=trainer(
             num_nodes=num_nodes,
