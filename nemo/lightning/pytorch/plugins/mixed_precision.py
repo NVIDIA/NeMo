@@ -17,10 +17,11 @@
 
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
-from typing import Generator, Literal, TypeVar, Union
+from typing import Generator, Literal, Optional, TypeVar, Union
 
 import torch
 from lightning.pytorch.plugins.precision import Precision
+from megatron.core.enum import Fp8Recipe as McoreFp8Recipe
 from torch.nn import Module
 from torch.optim import Optimizer
 
@@ -69,6 +70,8 @@ class DtypeConfig:
     grad_reduce_in_fp32: bool = True
     # fp8 related
     fp8: str = None
+    fp8_recipe: Optional[str] = None
+    first_last_layers_bf16: bool = False
     fp8_margin: int = 0
     fp8_amax_history_len: int = 1
     fp8_amax_compute_algo: str = "most_recent"
@@ -82,6 +85,21 @@ class DtypeConfig:
     min_loss_scale: float = (None,)
     loss_scale_window: float = (None,)
     hysteresis: float = (None,)
+
+
+def get_fp8_recipe(fp8_recipe: str) -> McoreFp8Recipe:
+    """Get the te fp8 recipe object from the fp8_recipe argument."""
+    te_recipe, HAVE_TE = safe_import("transformer_engine.common.recipe")
+    assert HAVE_TE, "Configuring FP8 recipe requires transformer engine."
+
+    if fp8_recipe == McoreFp8Recipe.delayed:
+        return te_recipe.DelayedScaling()
+    elif fp8_recipe == McoreFp8Recipe.tensorwise:
+        return te_recipe.Float8CurrentScaling()
+    elif fp8_recipe == McoreFp8Recipe.mxfp8:
+        return te_recipe.MXFP8BlockScaling()
+    else:
+        raise ValueError(f"Invalid FP8 recipe: {fp8_recipe}.")
 
 
 class MegatronMixedPrecision(Precision):
@@ -101,6 +119,8 @@ class MegatronMixedPrecision(Precision):
         grad_reduce_in_fp32: bool = True,
         # fp8 related,
         fp8: str = None,
+        fp8_recipe: Optional[str] = None,
+        first_last_layers_bf16: bool = False,
         fp8_margin: int = 0,
         fp8_amax_history_len: int = 1,
         fp8_amax_compute_algo: str = "most_recent",
@@ -124,11 +144,10 @@ class MegatronMixedPrecision(Precision):
             assert HAVE_TE, "FP8 precision requires transformer engine."
             if fp8_params:
                 te_fp8.FP8GlobalStateManager.FP8_PARAMETERS = True
-                # Explicitly set the recipe to delayed scaling.
-                # Otherwise TE v2.0 will assume the default, which is mxfp8 recipe.
-                te_recipe, _ = safe_import("transformer_engine.common.recipe")
-                te_fp8.FP8GlobalStateManager.FP8_RECIPE = te_recipe.DelayedScaling()
                 fp8_param_gather = True
+            # Explicitly set the recipe to delayed scaling.
+            # Otherwise TE v2.0 will assume the default, which is mxfp8 recipe.
+            te_fp8.FP8GlobalStateManager.FP8_RECIPE = get_fp8_recipe(fp8_recipe)
 
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
         self.dtype_config = DtypeConfig(
@@ -141,6 +160,8 @@ class MegatronMixedPrecision(Precision):
             autocast_enabled=autocast_enabled,
             grad_reduce_in_fp32=grad_reduce_in_fp32,
             fp8=fp8,
+            fp8_recipe=fp8_recipe,
+            first_last_layers_bf16=first_last_layers_bf16,
             fp8_margin=fp8_margin,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,

@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import nullcontext
 from dataclasses import dataclass
-from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Union
 
 import lightning.pytorch as L
@@ -34,7 +32,6 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.utils.te_utils import te_version
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -322,7 +319,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
-        # Set FP8 recipe to DelayedScaling to initialize model with float8 precision.
         model = MCoreGPTModel(
             self,
             transformer_layer_spec=transformer_layer_spec,

@@ -16,7 +16,7 @@
 # pylint: disable=missing-function-docstring
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Generator, Literal, TypeVar
+from typing import TYPE_CHECKING, Generator, Literal, Optional, TypeVar
 
 import torch
 from lightning.fabric.plugins.precision import MixedPrecision
@@ -27,6 +27,7 @@ from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.pytorch.plugins.mixed_precision import (
     DtypeConfig,
     MegatronMixedPrecision,
+    get_fp8_recipe,
     get_optim_config,
     update_config_with_dtype_overrides,
 )
@@ -56,6 +57,8 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         grad_reduce_in_fp32: bool = True,
         # fp8 related,
         fp8: str = None,
+        fp8_recipe: Optional[str] = None,
+        first_last_layers_bf16: bool = False,
         fp8_margin: int = 0,
         fp8_amax_history_len: int = 1,
         fp8_amax_compute_algo: str = "most_recent",
@@ -78,11 +81,11 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             assert HAVE_TE, "FP8 precision requires transformer engine."
             if fp8_params:
                 te_fp8.FP8GlobalStateManager.FP8_PARAMETERS = True
-                # Explicitly set the recipe to delayed scaling.
-                # Otherwise TE v2.0 will assume the default, which is mxfp8 recipe.
-                te_recipe, _ = safe_import("transformer_engine.common.recipe")
-                te_fp8.FP8GlobalStateManager.FP8_RECIPE = te_recipe.DelayedScaling()
                 fp8_param_gather = True
+
+            # Explicitly set the recipe to delayed scaling.
+            # Otherwise TE v2.0 will assume the default, which is mxfp8 recipe.
+            te_fp8.FP8GlobalStateManager.FP8_RECIPE = get_fp8_recipe(fp8_recipe)
 
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
         self.dtype_config = DtypeConfig(
@@ -95,6 +98,8 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             autocast_enabled=autocast_enabled,
             grad_reduce_in_fp32=grad_reduce_in_fp32,
             fp8=fp8,
+            fp8_recipe=fp8_recipe,
+            first_last_layers_bf16=first_last_layers_bf16,
             fp8_margin=fp8_margin,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
