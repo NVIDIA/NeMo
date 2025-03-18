@@ -75,9 +75,6 @@ class DuplexS2SModel(LightningModule):
         self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.llm.config.vocab_size)
         self.audio_head = torch.nn.Linear(self.llm.config.hidden_size, self._codebook_size * self._num_codebooks)
 
-        # metrics
-        self.bleu = SacreBLEUScore()
-
     def forward(
         self,
         input_embeds: Tensor,
@@ -144,12 +141,6 @@ class DuplexS2SModel(LightningModule):
                 audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
             )
             target_codes = target_codes.transpose(1, 2)
-            # print(target_codes)
-            # print("target_codes", target_codes.min().item(), target_codes.max().item())
-            # if self.local_rank == 0:
-            #     breakpoint()
-            # else:
-            #     import time; time.sleep(3600)
 
         # Note: Because we are using separate models for source and target representations,
         #       despite best-effort attempt to align their frame rates, they may be off by a few frames.
@@ -242,58 +233,65 @@ class DuplexS2SModel(LightningModule):
         # be quite fragmented and close to the limit after observing many
         # dynamic shapes during the training epoch.
         torch.cuda.memory.empty_cache()
-        self.asr = ASRModel.from_pretrained(self.cfg.pretrained_asr).to(torch.bfloat16).eval()
+        self.asr = ASRModel.from_pretrained(self.cfg.scoring_asr).to(torch.bfloat16).eval()
         WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
+        # Setup a separate BLEU metric for each validation dataloader through CombinedLoader.
+        # See: https://lightning.ai/docs/pytorch/LTS/guides/data.html#accessing-dataloaders-within-lightningmodule
+        self.bleu = {}
+        for name in self.trainer.val_dataloaders.keys():
+            self.bleu[name] = SacreBLEUScore().to(self.device)
 
     def on_validation_epoch_end(self) -> None:
-        self.log("val_asr_bleu", self.bleu.compute(), on_epoch=True, sync_dist=True)
-        self.bleu.reset()
+        for name, bleu in self.bleu.items():
+            self.log(f"val_asr_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
+            bleu.reset()
         self.asr = None  # free up GPU memory
         torch.cuda.memory.empty_cache()
 
     def validation_step(self, batch: dict, batch_idx: int):
-        inputs = self.prepare_inputs(batch)
-        forward_outputs = self(inputs["input_embeds"])
-        num_frames = inputs["input_lens"].sum()
-        with loss_parallel():
-            text_loss = (
-                torch.nn.functional.cross_entropy(
-                    forward_outputs["text_logits"].transpose(1, 2),
-                    inputs["text_labels"],
+        for name, dataset_batch in batch.items():
+            if dataset_batch is None:
+                continue  # some dataset is exhausted
+            inputs = self.prepare_inputs(dataset_batch)
+            forward_outputs = self(inputs["input_embeds"])
+            num_frames = inputs["input_lens"].sum()
+            with loss_parallel():
+                text_loss = (
+                    torch.nn.functional.cross_entropy(
+                        forward_outputs["text_logits"].transpose(1, 2),
+                        inputs["text_labels"],
+                        reduction="sum",
+                    )
+                    / num_frames
+                )
+                audio_loss = torch.nn.functional.cross_entropy(
+                    forward_outputs["audio_logits"].transpose(1, 2),
+                    inputs["audio_labels"],
                     reduction="sum",
+                ) / (num_frames * self._num_codebooks)
+
+            loss = text_loss + audio_loss
+
+            B = inputs["input_embeds"].shape[0]
+            self.log(f"val_loss_{name}", loss, on_epoch=True, sync_dist=True, batch_size=B)
+            self.log(f"val_text_loss_{name}", text_loss, on_epoch=True, sync_dist=True, batch_size=B)
+            self.log(f"val_audio_loss_{name}", audio_loss, on_epoch=True, sync_dist=True, batch_size=B)
+
+            # ASR BLEU
+            import torchaudio
+
+            with torch.inference_mode():
+                predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=2).transpose(1, 2)
+                with _safe_audio_codec_inference():
+                    predicted_audio, predicted_audio_lens = self._audio_codec.decode(
+                        tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
+                    )
+                ans = self.asr.transcribe(
+                    list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
+                    batch_size=predicted_audio.shape[0],
+                    verbose=False,
                 )
-                / num_frames
-            )
-            audio_loss = torch.nn.functional.cross_entropy(
-                forward_outputs["audio_logits"].transpose(1, 2),
-                inputs["audio_labels"],
-                reduction="sum",
-            ) / (num_frames * self._num_codebooks)
-
-        loss = text_loss + audio_loss
-
-        B = inputs["input_embeds"].shape[0]
-        self.log("val_loss", loss, on_epoch=True, sync_dist=True, batch_size=B)
-        self.log("val_text_loss", text_loss, on_epoch=True, sync_dist=True, batch_size=B)
-        self.log("val_audio_loss", audio_loss, on_epoch=True, sync_dist=True, batch_size=B)
-
-        # ASR BLEU
-        import torchaudio
-
-        with torch.inference_mode():
-            predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=2).transpose(1, 2)
-            with _safe_audio_codec_inference():
-                predicted_audio, predicted_audio_lens = self._audio_codec.decode(
-                    tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
-                )
-            ans = self.asr.transcribe(
-                list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
-                batch_size=predicted_audio.shape[0],
-                verbose=False,
-            )
-        self.bleu.update([hyp.text for hyp in ans], [[tt] for tt in batch["target_texts"]])
-
-        return {"loss": loss}
+            self.bleu[name].update([hyp.text for hyp in ans], [[tt] for tt in dataset_batch["target_texts"]])
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()

@@ -13,7 +13,8 @@
 # limitations under the License.
 import torch
 from lightning import LightningDataModule
-from omegaconf import open_dict
+from lightning.pytorch.utilities import CombinedLoader
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers import TokenizerSpec
@@ -44,30 +45,52 @@ class S2SDataModule(LightningDataModule):
         )
 
     def val_dataloader(self):
-        # TODO(pzelasko): multi-dataloader
         if "validation_ds" not in self.cfg:
             return None
-        return get_lhotse_dataloader_from_config(
-            config=self.cfg.validation_ds,
-            global_rank=self._get_dp_rank(),
-            world_size=self._get_world_size(),
-            dataset=self.dataset,
-            tokenizer=self.tokenizer,
-        )
+        cfg = self.cfg.validation_ds
+        return self._build_test_dataloader(cfg)
 
     def test_dataloader(self):
-        # TODO(pzelasko): multi-dataloader
         if "test_ds" not in self.cfg:
             return None
-        self.cfg.test_ds.force_finite = True
-        self.cfg.test_ds.force_map_dataset = True
-        return get_lhotse_dataloader_from_config(
-            config=self.cfg.test_ds,
-            global_rank=self._get_dp_rank(),
-            world_size=self._get_world_size(),
-            dataset=self.dataset,
-            tokenizer=self.tokenizer,
-        )
+        cfg = self.cfg.test_ds
+        return self._build_test_dataloader(cfg)
+
+    def _build_test_dataloader(self, cfg: DictConfig) -> torch.utils.data.DataLoader | CombinedLoader:
+        # Single validation/test dataloader.
+        # This is internal-only: the config has to specify multiple dataloaders via "datasets" key,
+        # even for a single validation/test set.
+        if "datasets" not in cfg:
+            with open_dict(cfg):
+                cfg.force_finite = True
+                cfg.force_map_dataset = True
+            return get_lhotse_dataloader_from_config(
+                config=cfg,
+                global_rank=self._get_dp_rank(),
+                world_size=self._get_world_size(),
+                dataset=self.dataset,
+                tokenizer=self.tokenizer,
+            )
+
+        # Multiple validation/test dataloaders.
+        # Config looks like:
+        #
+        # validation_ds:
+        #   batch_size: ...
+        #   datasets:
+        #     easy_benchmark:
+        #       shar_path: ...
+        #     hard_benchmark:
+        #       shar_path: ...
+        base_cfg = cfg.copy()
+        with open_dict(base_cfg):
+            del base_cfg.datasets
+        dloaders = {}
+        for name, item in cfg.datasets.items():
+            with open_dict(base_cfg):
+                item = OmegaConf.merge(base_cfg, item)
+            dloaders[name] = self._build_test_dataloader(item)
+        return CombinedLoader(dloaders, mode="max_size")
 
     def _get_dp_rank(self):
         if torch.distributed.is_available() and torch.distributed.is_initialized():
