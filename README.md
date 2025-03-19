@@ -19,7 +19,7 @@
 
 <details open>
   <summary><b>Training on Blackwell using Nemo</b></summary>
-      Nemo Framework has added Blackwell support, with 25.02 focusing on functional parity for B200 and more optimizations in the upcoming releases.
+      NeMo Framework has added Blackwell support, with 25.02 focusing on functional parity for B200. More optimizations to come in the upcoming releases.
 </details>
 
 
