@@ -66,7 +66,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     seq_length: int = 4096
     rotary_base: float = 10000.0
     make_vocab_size_divisible_by: int = 3200
-    num_mtp_layers: Optional[int] = None
+    mtp_num_layers: Optional[int] = None
     mtp_loss_scaling_factor: Optional[float] = None
 
     # Regularization
@@ -96,16 +96,19 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     layernorm_epsilon: float = 1e-6
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
-    async_tensor_model_parallel_allreduce = True
-    attention_softmax_in_fp32 = False
-    persist_layer_norm = True
+    async_tensor_model_parallel_allreduce: bool = True
+    attention_softmax_in_fp32: bool = False
+    persist_layer_norm: bool = True
+    num_layers_in_first_pipeline_stage: Optional[int] = None
+    num_layers_in_last_pipeline_stage: Optional[int] = None
+    account_for_embedding_in_pipeline_split: bool = False
+    account_for_loss_in_pipeline_split: bool = False
 
     # fusions
-    apply_rope_fusion = True
-    bias_activation_fusion = True
-    bias_dropout_fusion = True
-    masked_softmax_fusion = True
-    gradient_accumulation_fusion = True
+    bias_activation_fusion: bool = True
+    bias_dropout_fusion: bool = True
+    masked_softmax_fusion: bool = True
+    gradient_accumulation_fusion: bool = True
 
 
 @dataclass
@@ -240,7 +243,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
     def _add_mtp_to_source(self, source: nn.Module | _ModelState) -> None:
         # Load MTP weights from disk, since it is not in HF model
         mtp_hf_layer_low = self.config.num_layers  # 61 if DeepSeek V3
-        mtp_hf_layer_high = self.config.num_layers + self.config.num_mtp_layers - 1  # 61 if DeepSeek V3
+        mtp_hf_layer_high = self.config.num_layers + self.config.mtp_num_layers - 1  # 61 if DeepSeek V3
         # Identify which file to load
         with open(self / "model.safetensors.index.json", 'r') as file:
             manifest = json.load(file)
@@ -344,7 +347,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         ]
 
         # Convert MTP weights
-        if getattr(self.config, "num_mtp_layers", None) and self.convert_mtp:
+        if getattr(self.config, "mtp_num_layers", None) and self.convert_mtp:
             self._add_mtp_to_source(source)
             mapping.update(
                 {
@@ -385,7 +388,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             v3_kwargs = {
                 "moe_router_score_function": "sigmoid",
                 "moe_router_enable_expert_bias": True,
-                "num_mtp_layers": source.num_nextn_predict_layers,
+                "mtp_num_layers": source.num_nextn_predict_layers,
             }
         else:
             v3_kwargs = {}

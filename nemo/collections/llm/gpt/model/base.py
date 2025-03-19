@@ -211,8 +211,8 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
         return local_layer_spec(config)
 
 
-def mtp_layer_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
-    """Pass in the MTP layer spec if model has MTP layers.
+def mtp_block_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
+    """Pass in the MTP block spec if model has MTP layers.
 
     Args:
         config: GPT configuration object
@@ -220,7 +220,7 @@ def mtp_layer_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
     Returns:
         ModuleSpec: The MTP module specification
     """
-    if getattr(config, "num_mtp_layers", None):
+    if getattr(config, "mtp_num_layers", None):
         from megatron.core.models.gpt.gpt_layer_specs import get_mtp_layer_with_transformer_engine_spec
 
         if isinstance(config.transformer_layer_spec, Callable):
@@ -360,8 +360,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         with build_model_context():
             import inspect
 
-            if 'mtp_layer_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
-                kwargs = {"mtp_layer_spec": mtp_layer_spec(self)}
+            if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
+                kwargs = {"mtp_layer_spec": mtp_block_spec(self)}
             else:
                 kwargs = {}
             model = MCoreGPTModel(
