@@ -100,7 +100,7 @@ def setup(
 
     print_rank_0("time to initialize megatron (seconds): {:.3f}".format(time.time() - state.start_time))
     barrier_and_log("after megatron is initialized")
-    
+
     # Context used for persisting some state between checkpoint saves.
     checkpointing_context = _init_checkpointing_context(cfg)
 
