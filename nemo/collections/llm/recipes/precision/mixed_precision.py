@@ -65,7 +65,6 @@ def bf16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = Fp8Recipe.delayed
-    cfg.first_last_layers_bf16 = False
     cfg.fp8_margin = 0
     cfg.fp8_amax_history_len = 1024
     cfg.fp8_amax_compute_algo = "max"
@@ -84,7 +83,6 @@ def fp16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = Fp8Recipe.delayed
-    cfg.first_last_layers_bf16 = False
     cfg.fp8_margin = 0
     cfg.fp8_amax_history_len = 1024
     cfg.fp8_amax_compute_algo = "max"
@@ -101,7 +99,6 @@ def bf16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = Fp8Recipe.mxfp8
-    cfg.first_last_layers_bf16 = False
     cfg.fp8_params = False
     return cfg
 
@@ -115,7 +112,6 @@ def fp16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = Fp8Recipe.mxfp8
-    cfg.first_last_layers_bf16 = False
     cfg.fp8_params = False
     return cfg
 
@@ -131,7 +127,7 @@ def bf16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = Fp8Recipe.tensorwise
-    cfg.first_last_layers_bf16 = True
+    cfg.first_last_layers_bf16 = 1
     cfg.fp8_params = False
     return cfg
 
@@ -147,6 +143,6 @@ def fp16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = Fp8Recipe.tensorwise
-    cfg.first_last_layers_bf16 = True
+    cfg.first_last_layers_bf16 = 1
     cfg.fp8_params = False
     return cfg

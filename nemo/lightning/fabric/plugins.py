@@ -58,7 +58,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         # fp8 related,
         fp8: str = None,
         fp8_recipe: Optional[str] = None,
-        first_last_layers_bf16: bool = False,
+        first_last_layers_bf16: int = 0,
         fp8_margin: int = 0,
         fp8_amax_history_len: int = 1,
         fp8_amax_compute_algo: str = "most_recent",
