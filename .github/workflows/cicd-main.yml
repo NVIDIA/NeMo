@@ -897,7 +897,6 @@ jobs:
           --devices 2 \
           --strategy fsdp2 --liger
 
-
   L2_HF_Transformer_PEFT_2gpu_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -1787,7 +1786,7 @@ jobs:
         rm -rf /tmp/nemo2_speechlm_lora/${{ github.run_id }}
 
   L2_NeMo_2_Conversion_Test_Baichuan2:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Baichuan2') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1806,7 +1805,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_ChatGLM:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_ChatGLM') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1824,7 +1823,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_DeepSeek:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_DeepSeek') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1842,7 +1841,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Gemma:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Gemma') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1859,7 +1858,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Gemma2:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Gemma2') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1876,7 +1875,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Mistral:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Mistral') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1893,7 +1892,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Llama:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Llama') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1910,7 +1909,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Nemotron:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Nemotron') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1927,7 +1926,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Phi3Mini:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Phi3Mini') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1944,7 +1943,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Qwen2:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Qwen2') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1961,7 +1960,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Starcoder:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Starcoder') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -1978,7 +1977,7 @@ jobs:
         rm -rf /tmp/output_hf_ckpt
 
   L2_NeMo_2_Conversion_Test_Starcoder2:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Starcoder2') || needs.pre-flight.outputs.all == 'true'
     with:
@@ -2349,3 +2348,11 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
           flags: ${{ matrix.flag }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.flag }}-aggregated
+          path: |
+            .coverage
+          include-hidden-files: true
