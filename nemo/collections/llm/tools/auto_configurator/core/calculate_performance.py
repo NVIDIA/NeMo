@@ -33,8 +33,8 @@ GPT_BASED_MODELS = [
 
 
 def get_results(
-    base_config = None,
-    train_config = None,
+    base_config=None,
+    train_config=None,
     path_to_save: str = None,
     output_top_n: Optional[int] = 10,
     log_file_prefix: Optional[str] = 'log-',
