@@ -18,7 +18,6 @@ from megatron.core.distributed import (
     DistributedDataParallel,
     DistributedDataParallelConfig,
     TorchFullyShardedDataParallel,
-    finalize_model_grads,
 )
 from megatron.core.enums import ModelType
 from megatron.core.transformer.module import Float16Module, MegatronModule
@@ -151,36 +150,7 @@ def get_model_from_config(
             for model_module in model:
                 model_module.broadcast_params()
     
-    _update_model_config_sync_funcs(model, model_config, ddp_config, align_grad_reduce=align_grad_reduce)
-
     return model
-
-
-def _update_model_config_sync_funcs(
-    model: MegatronModule,
-    model_config: GPTConfig | T5Config,
-    ddp_config: DistributedDataParallelConfig,
-    *,
-    align_grad_reduce: bool = True
-) -> None:
-    """Update model config sync funcs based on initialized model."""
-    if isinstance(model[0], DistributedDataParallel) and ddp_config.overlap_grad_reduce:
-        assert model_config.no_sync_func is None, (
-            "When overlap_grad_reduce is True, config.no_sync_func must be None; "
-            "a custom no_sync_func is not supported when overlapping grad-reduce"
-        )
-    model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
-    if len(model) == 1:
-        model_config.no_sync_func = model_config.no_sync_func[0]
-    if align_grad_reduce:
-        model_config.grad_sync_func = [model_chunk.start_grad_sync for model_chunk in model]
-        if len(model) == 1:
-            model_config.grad_sync_func = model_config.grad_sync_func[0]
-    if ddp_config.overlap_param_gather and ddp_config.align_param_gather:
-        model_config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
-    if len(model) == 1:
-        model_config.param_sync_func = model_config.param_sync_func[0]
-    model_config.finalize_model_grads_func = finalize_model_grads
 
 
 def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
