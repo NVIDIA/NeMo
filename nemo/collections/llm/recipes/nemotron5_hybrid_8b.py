@@ -27,7 +27,7 @@ from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed_current_scaling
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
@@ -74,8 +74,8 @@ def trainer(
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
-    sequence_parallelism: bool = False,
-    num_nodes: int = 1,
+    sequence_parallelism: bool = True,
+    num_nodes: int = 32,
     num_gpus_per_node: int = 8,
     max_steps: int = 100,
     val_check_interval: int = 100,
@@ -104,7 +104,7 @@ def trainer(
         CLI usage:
             $ nemo llm pretrain trainer=nemotron5_hybrid_8b ...
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
+            >>> trainer_config = trainer(num_nodes=32, num_gpus_per_node=1)
             >>> print(trainer_config)
     Note:
         For more information on distributed training strategies, refer to the
@@ -138,7 +138,7 @@ def trainer(
         devices=num_gpus_per_node,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_mixed(),
+        plugins=bf16_with_fp8_mixed_current_scaling(),
         strategy=strategy,
         use_distributed_sampler=False,
         val_check_interval=val_check_interval,
@@ -158,7 +158,7 @@ def pretrain_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     tensor_parallelism: int = 2,
-    sequence_parallelism: bool = False,
+    sequence_parallelism: bool = True,
     pipeline_parallelism: int = 1,
     max_steps: int = 100,
     val_check_interval: int = 100,
@@ -186,9 +186,9 @@ def pretrain_recipe(
     Examples:
         CLI usage:
             $ nemo llm pretrain --factory nemotron5_hybrid_8b
-            $ nemo llm pretrain --factory "nemotron5_hybrid_8b(num_nodes=1, name='my_pretrain')"
+            $ nemo llm pretrain --factory "nemotron5_hybrid_8b(num_nodes=32, name='my_pretrain')"
         Python API usage:
-            >>> recipe = pretrain_recipe(name="nemotron5_hybrid_8b_pretrain", num_nodes=1)
+            >>> recipe = pretrain_recipe(name="nemotron5_hybrid_8b_pretrain", num_nodes=32)
             >>> print(recipe)
     Note:
         For more details on pre-training LLMs with NeMo, see the pre-training
@@ -234,9 +234,9 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    tensor_model_parallel_size: int = 2,
-    sequence_parallelism: bool = False,
-    pipeline_model_parallel_size: int = 1,
+    tensor_parallelism: int = 2,
+    sequence_parallelism: bool = True,
+    pipeline_parallelism: int = 1,
     seq_length: int = 8192,
     max_steps: int = 100,
     val_check_interval: int = 100,
@@ -266,7 +266,7 @@ def finetune_recipe(
         CLI usage:
             $ nemo llm finetune --factory nemotron5_hybrid_8b
         Python API usage:
-            >>> recipe = finetune_recipe(name="nemotron5_hybrid_8b_finetune", num_nodes=1)
+            >>> recipe = finetune_recipe(name="nemotron5_hybrid_8b_finetune", num_nodes=32)
             >>> print(recipe)
     Note:
         This recipe uses the SQuAD dataset for fine-tuning. For more information
@@ -283,43 +283,24 @@ def finetune_recipe(
         nl.AutoResume,
         restore_config=run.Config(nl.RestoreConfig, path=resume_path),
     )
-    strategy = run.Config(
-        nl.MegatronStrategy,
-        tensor_model_parallel_size=tensor_model_parallel_size,
-        pipeline_model_parallel_size=pipeline_model_parallel_size,
-        sequence_parallelism=sequence_parallelism,
-        gradient_as_bucket_view=True,
-        ckpt_load_optimizer=True,
-        ckpt_save_optimizer=True,
-        ckpt_async_save=True,
-    )
-    checkpoint_callback = run.Config(
-        nl.ModelCheckpoint,
-        every_n_train_steps=10,
-        dirpath=dir,
-    )
-    trainer = run.Config(
-        nl.Trainer,
-        accelerator="gpu",
-        accumulate_grad_batches=1,
-        devices=num_gpus_per_node,
-        max_steps=max_steps,
-        val_check_interval=val_check_interval,
-        limit_test_batches=limit_test_batches,
-        limit_val_batches=limit_val_batches,
-        log_every_n_steps=log_every_n_steps,
-        num_nodes=num_nodes,
-        plugins=bf16_mixed(),
-        callbacks=[checkpoint_callback],
-        strategy=strategy,
-        use_distributed_sampler=False,
-    )
     recipe = run.Partial(
         llm.finetune,
         model=model(vocab_file=vocab_file),
-        trainer=trainer,
+        trainer=trainer(
+            max_steps=max_steps,
+            num_nodes=num_nodes,
+            tensor_parallelism=tensor_parallelism,
+            pipeline_parallelism=pipeline_parallelism,
+            sequence_parallelism=sequence_parallelism,
+            num_gpus_per_node=num_gpus_per_node,
+            val_check_interval=val_check_interval,
+            limit_test_batches=limit_test_batches,
+            limit_val_batches=limit_val_batches,
+            log_every_n_steps=log_every_n_steps,
+            callbacks=[run.Config(TimingCallback)],
+        ),
         data=run.Config(
-            llm.SquadDataModule,
+            MockDataModule,
             seq_length=seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
