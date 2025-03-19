@@ -405,6 +405,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
             device = next(asr_model.parameters()).device
             for run_step in range(cfg.warmup_steps + cfg.run_steps):
+                if run_step < cfg.warmup_steps:
+                    logging.info(f"Running warmup step {run_step}")
                 # reset timer
                 timer.reset()
                 timer.start(device=device)
@@ -412,9 +414,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 transcriptions = asr_model.transcribe(
                     audio=filepaths,
                     override_config=override_cfg,
-                    timestamps=None,  # default timestamps=False results in re-instantiating decoder for hybrid models
                 )
-                # TODO: fix timestamps for hybrid models
                 # stop timer, log time
                 timer.stop(device=device)
                 logging.info(f"Model time for iteration {run_step}: {timer.total_sec():.3f}")
@@ -480,7 +480,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if cfg.calculate_rtfx:
         rtfx_measurements = total_duration / model_measurements_np
         logging.info(
-            f"Model RTFx on Dataset: {rtfx_measurements.mean():.3f}"
+            f"Model RTFx on the dataset: {rtfx_measurements.mean():.3f}"
             + (f" (std: {rtfx_measurements.std():.3f})" if cfg.run_steps > 1 else "")
         )
 
