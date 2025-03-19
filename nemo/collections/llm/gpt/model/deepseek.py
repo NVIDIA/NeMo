@@ -27,7 +27,8 @@ from megatron.core.transformer.transformer_config import MLATransformerConfig
 from safetensors.torch import load_file
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel, torch_dtype_from_dict_config
+from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel, torch_dtype_from_dict_config, \
+    gpt_data_step
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
@@ -110,6 +111,10 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     masked_softmax_fusion: bool = True
     gradient_accumulation_fusion: bool = True
 
+    def __post_init__(self):
+        super().__post_init__()
+        if self.mtp_num_layers is not None:
+            self.data_step_fn = partial(gpt_data_step, use_mtp=True)
 
 @dataclass
 class DeepSeekV2Config(DeepSeekConfig):
