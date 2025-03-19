@@ -1751,6 +1751,18 @@ jobs:
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/vllm_from_nemo2
 
+  L2_ONNX_TRT_LLM_Embedding_Export:
+    needs: [ pre-flight, cicd-test-container-build ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ONNX_TRT_LLM_Embedding_Export')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python tests/export/test_export_onnx.py --hf_model_path /home/TestData/llm/models/llama-3.2-nv-embedqa-1b-v2 
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/onnx_model /tmp/trt_model
+
   L2_NeMo_2_EVAL:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2184,6 +2196,7 @@ jobs:
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
+      - L2_ONNX_TRT_LLM_Embedding_Export
       - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
 
