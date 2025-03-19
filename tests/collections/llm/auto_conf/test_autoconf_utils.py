@@ -93,7 +93,7 @@ class TestUtils:
             "qwen",
         )
         assert model_size == 27.65, f"expected model_size is 27.65 but got {model_size}."
-        
+
         # Starcoder
         model_size = calculate_model_size(
             8,
@@ -104,7 +104,7 @@ class TestUtils:
             "starcoder",
         )
         assert model_size == 0.09, f"expected model_size is 27.65 but got {model_size}."
-            
+
         # T5
         model_size = calculate_model_size(
             1024,
