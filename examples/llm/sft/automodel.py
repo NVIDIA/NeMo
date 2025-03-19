@@ -99,7 +99,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
                 assert cp_size == devices * num_nodes, "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
             else:
                 assert dp_size * cp_size == devices * num_nodes, "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
-
+        print(f"Using FSDP2 with DP={dp_size}, TP={1}, CP={cp_size}")
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=1,

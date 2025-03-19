@@ -486,7 +486,7 @@ def fsdp2_strategy_parallelize(
                 parallelize_helper(sub_module, mesh, mp_policy)
 
     # assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
-    dp_mesh = device_mesh["dp_with_cp"]
+    dp_mesh = device_mesh["data_parallel"]
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
@@ -560,16 +560,12 @@ def create_context_parallel_ctx(
     cp_no_restore_buffers: Set[torch.Tensor],
     cp_rotate_method: str,
 ):
-    try:
-        from torch.distributed.tensor.experimental import context_parallel
-        from torch.distributed.tensor.experimental._attention import set_rotate_method
-    except ImportError:
-        print(
-            f"PyTorch version {torch.__version__} does not include the experimental "
-            "Context Parallel API. Please update to a newer version."
-        )
+    from torch.distributed.tensor.experimental import context_parallel
 
+    # TODO: uncomment this when torch.distributed.tensor.experimental._attention.set_rotate_method is available
+    # from torch.distributed.tensor.experimental._attention import set_rotate_method
     # set_rotate_method(cp_rotate_method)
+    
     return context_parallel(
         cp_mesh,
         buffers=cp_buffers,
