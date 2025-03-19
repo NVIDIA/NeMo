@@ -676,7 +676,7 @@ jobs:
         model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
         audio_dir=/home/TestData/asr/longform/earnings22 \
         output_filename=preds.json \
-        compute_timestamps=True
+        timestamps=True
       AFTER_SCRIPT: |
         rm -rf preds.json
 
