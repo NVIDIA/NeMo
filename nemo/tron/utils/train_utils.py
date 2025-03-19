@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 from datetime import datetime
+from functools import partial
+from typing import Callable
 
 import torch
 from megatron.core import parallel_state
@@ -509,3 +512,12 @@ def reduce_aux_losses_tracker_across_ranks():
             torch.distributed.all_reduce(values, group=tracker[name].get("reduce_group"))
         if tracker[name].get("avg_group") is not None:
             torch.distributed.all_reduce(values, group=tracker[name]["avg_group"], op=torch.distributed.ReduceOp.AVG)
+
+
+def maybe_inject_state(forward_step_func: Callable, state: GlobalState) -> Callable:
+    num_fw_args = len(inspect.signature(forward_step_func).parameters)
+    if num_fw_args == 3:
+        # inject global_state
+        return partial(forward_step_func, state)
+    else:
+        return forward_step_func

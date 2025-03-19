@@ -15,14 +15,11 @@
 import inspect
 import os
 from datetime import datetime
-from functools import partial
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import torch.distributed
 from megatron.core import DistributedDataParallel as DDP
 from megatron.core.transformer.module import Float16Module
-
-from nemo.tron.state import GlobalState
 
 try:
     from megatron.core.distributed import TorchFullyShardedDataParallel as torch_FSDP
@@ -172,12 +169,3 @@ def dump_dataclass_to_yaml(obj: Any, filename: Optional[str] = None):
             f.write(result)
 
     return result
-
-
-def maybe_inject_state(forward_step_func: Callable, state: GlobalState) -> Callable:
-    num_fw_args = len(inspect.signature(forward_step_func).parameters)
-    if num_fw_args == 3:
-        # inject global_state
-        return partial(forward_step_func, state)
-    else:
-        return forward_step_func

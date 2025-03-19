@@ -43,16 +43,11 @@ from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import flop_utils
 from nemo.tron.utils.async_utils import maybe_finalize_async_save
-from nemo.tron.utils.common_utils import (
-    append_to_progress_log,
-    barrier_and_log,
-    get_world_size_safe,
-    maybe_inject_state,
-    print_rank_0,
-)
+from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, get_world_size_safe, print_rank_0
 from nemo.tron.utils.train_utils import (
     calc_params_l2_norm,
     logical_and_across_model_parallel_group,
+    maybe_inject_state,
     reduce_max_stat_across_model_parallel_group,
     training_log,
 )

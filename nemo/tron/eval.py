@@ -24,7 +24,8 @@ from megatron.core.utils import get_model_config
 
 from nemo.tron import fault_tolerance
 from nemo.tron.state import GlobalState
-from nemo.tron.utils.common_utils import is_last_rank, maybe_inject_state, print_rank_0, print_rank_last
+from nemo.tron.utils.common_utils import is_last_rank, print_rank_0, print_rank_last
+from nemo.tron.utils.train_utils import maybe_inject_state
 
 
 def evaluate(
