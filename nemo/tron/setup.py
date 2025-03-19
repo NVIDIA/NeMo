@@ -124,7 +124,6 @@ def setup(
         use_torch_fsdp2=cfg.dist_config.use_torch_fsdp2,
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
         data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
-        align_grad_reduce=cfg.dist_config.align_grad_reduce,
     )
     cfg.model_config.timers = timers
     cfg.optimizer_config.timers = timers
