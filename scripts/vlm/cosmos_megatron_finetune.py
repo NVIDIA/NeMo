@@ -61,14 +61,15 @@ def main(args):
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 4096
-    if args.use_packed_sequence:
-        decoder_seq_length = 8192
+    decoder_seq_length = 16384
 
     # Submodules configurations
     language_transformer_config = llm.Llama31Config8B(
         make_vocab_size_divisible_by=512,
         seq_length=decoder_seq_length,
+        recompute_granularity="full",
+        recompute_method="block",
+        recompute_num_layers=16,
     )
 
     vision_transformer_config = vlm.RADIO_25_h_Config(
@@ -88,7 +89,10 @@ def main(args):
         freeze_language_model=False,
         freeze_vision_model=True,
     )
-    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile
+    num_image_embeddings_per_tile = (
+            vision_transformer_config.num_image_embeddings_per_tile
+            - vision_transformer_config.class_token_len * neva_config.drop_vision_class_token
+    )
 
     from nemo.collections.common.tokenizers import AutoTokenizer
     tokenizer = AutoTokenizer("meta-llama/Llama-3.1-8B-Instruct")
@@ -185,7 +189,8 @@ def main(args):
             num_workers=4,
             packed_sequence=args.use_packed_sequence,
             pixel_shuffle_ratio=0.5,
-            num_tiles_per_image=12,
+            num_image_embeddings_per_tile=num_image_embeddings_per_tile,
+            num_tiles_per_image=5,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")

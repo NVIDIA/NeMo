@@ -23,10 +23,9 @@ import re
 import requests
 import torch
 from PIL import Image
-from transformers import AutoProcessor
 
 import nemo.lightning as nl
-from nemo.collections.vlm import Llava15Config7B, LlavaModel
+from nemo.collections.vlm import CosmosMegatronRadioLlama8BConfig
 from nemo.collections.vlm.neva.model.cosmos_megatron import CosmosMegatronModel
 from nemo.utils import logging
 
@@ -80,7 +79,7 @@ def main(args) -> None:
     if args.load_from_hf:
         model = fabric.import_model("pyt:////lustre/fsw/coreai_dlalgo_genai/yuya/cosmos-megatron/checkpoints/sft_llama_3p1_8b_radio_v13_0227_tp_1/checkpoints/iter_0010658/mp_rank_00/model_optim_rng.pt", CosmosMegatronModel)
     else:
-        model = CosmosMegatronModel(Llava15Config7B(), tokenizer=hf_tokenizer)
+        model = CosmosMegatronModel(CosmosMegatronRadioLlama8BConfig(), tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
     model = model.module.cuda()
@@ -94,9 +93,9 @@ def main(args) -> None:
             "content": f"<img><image></img>\nProvide a one-sentence caption for provided image.",
         },
     ]
+    hf_tokenizer.tokenizer.chat_template = """{{- bos_token }}\n{%- if custom_tools is defined %}\n    {%- set tools = custom_tools %}\n{%- endif %}\n{%- if not tools_in_user_message is defined %}\n    {%- set tools_in_user_message = true %}\n{%- endif %}\n{%- if not date_string is defined %}\n    {%- set date_string = \"26 Jul 2024\" %}\n{%- endif %}\n{%- if not tools is defined %}\n    {%- set tools = none %}\n{%- endif %}\n\n{#- This block extracts the system message, so we can slot it into the right place. #}\n{%- if messages[0]['role'] == 'system' %}\n    {%- set system_message = messages[0]['content']|trim %}\n    {%- set messages = messages[1:] %}\n{%- else %}\n    {%- set system_message = none %}\n{%- endif %}\n\n{%- if system_message is not none %}{#- System message + builtin tools #}\n{{- \"<|start_header_id|>system<|end_header_id|>\\n\\n\" }}\n{%- if builtin_tools is defined or tools is not none %}\n    {{- \"Environment: ipython\\n\" }}\n{%- endif %}\n{%- if builtin_tools is defined %}\n    {{- \"Tools: \" + builtin_tools | reject('equalto', 'code_interpreter') | join(\", \") + \"\\n\\n\"}}\n{%- endif %}{%- if tools is not none and not tools_in_user_message %}\n    {{- \"You have access to the following functions. To call a function, please respond with JSON for a function call.\" }}\n    {{- 'Respond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.' }}\n    {{- \"Do not use variables.\\n\\n\" }}\n    {%- for t in tools %}\n        {{- t | tojson(indent=4) }}\n        {{- \"\\n\\n\" }}\n    {%- endfor %}\n{%- endif %}\n{{- system_message }}\n{{- \"<|eot_id|>\" }}\n\n{%-endif %}{#- Custom tools are passed in a user message with some extra guidance #}\n{%- if tools_in_user_message and not tools is none %}\n    {#- Extract the first user message so we can plug it in here #}\n    {%- if messages | length != 0 %}\n        {%- set first_user_message = messages[0]['content']|trim %}\n        {%- set messages = messages[1:] %}\n    {%- else %}\n        {{- raise_exception(\"Cannot put tools in the first user message when there's no first user message!\") }}\n{%- endif %}\n    {{- '<|start_header_id|>user<|end_header_id|>\\n\\n' -}}\n    {{- \"Given the following functions, please respond with a JSON for a function call \" }}\n    {{- \"with its proper arguments that best answers the given prompt.\\n\\n\" }}\n    {{- 'Respond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.' }}\n    {{- \"Do not use variables.\\n\\n\" }}\n    {%- for t in tools %}\n        {{- t | tojson(indent=4) }}\n        {{- \"\\n\\n\" }}\n    {%- endfor %}\n    {{- first_user_message + \"<|eot_id|>\"}}\n{%- endif %}\n\n{%- for message in messages %}\n    {%- if not (message.role == 'ipython' or message.role == 'tool' or 'tool_calls' in message) %}\n        {{- '<|start_header_id|>' + message['role'] + '<|end_header_id|>\\n\\n'+ message['content'] | trim + '<|eot_id|>' }}\n    {%- elif 'tool_calls' in message %}\n        {%- if not message.tool_calls|length == 1 %}\n            {{- raise_exception(\"This model only supports single tool-calls at once!\") }}\n        {%- endif %}\n        {%- set tool_call = message.tool_calls[0].function %}\n        {%- if builtin_tools is defined and tool_call.name in builtin_tools %}\n            {{- '<|start_header_id|>assistant<|end_header_id|>\\n\\n' -}}\n            {{- \"<|python_tag|>\" + tool_call.name + \".call(\" }}\n            {%- for arg_name, arg_val in tool_call.arguments | items %}\n                {{- arg_name + '=\"' + arg_val + '\"' }}\n                {%- if not loop.last %}\n                    {{- \", \" }}\n                {%- endif %}\n                {%- endfor %}\n            {{- \")\" }}\n        {%- else  %}\n            {{- '<|start_header_id|>assistant<|end_header_id|>\\n\\n' -}}\n            {{- '{\"name\": \"' + tool_call.name + '\", ' }}\n            {{- '\"parameters\": ' }}\n            {{- tool_call.arguments | tojson }}\n            {{- \"}\" }}\n        {%- endif %}\n        {%- if builtin_tools is defined %}\n            {#- This means we're in ipython mode #}\n            {{- \"<|eom_id|>\" }}\n        {%- else %}\n            {{- \"<|eot_id|>\" }}\n        {%- endif %}\n    {%- elif message.role == \"tool\" or message.role == \"ipython\" %}\n        {{- \"<|start_header_id|>ipython<|end_header_id|>\\n\\n\" }}\n        {%- if message.content is mapping or message.content is iterable %}\n            {{- message.content | tojson }}\n        {%- else %}\n            {{- message.content }}\n        {%- endif %}\n        {{- \"<|eot_id|>\" }}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|start_header_id|>assistant<|end_header_id|>\\n\\n' }}\n{%- endif %}\n"""
     prompt = hf_tokenizer.tokenizer.apply_chat_template(conversation, add_generation_prompt=True, tokenize=False)
-    prompt = re.sub(r"Cutting Knowledge Date:.*\n\n", "", prompt)
-    input_ids = hf_tokenizer.tokenizer(prompt, return_tensors='pt')['input_ids'].cuda()
+    input_ids = hf_tokenizer.tokenizer(prompt, return_tensors='pt', add_special_tokens=False)['input_ids'].cuda()
 
     img = Image.open(img_file)
     from image_processing import get_visual_transform
@@ -113,10 +112,6 @@ def main(args) -> None:
     images = torch.stack(imgs).cuda()
     num_image_tiles = torch.tensor([len(imgs)], dtype=torch.int).cuda()
 
-    # inputs = torch.load("inputs.pt")
-    # images = inputs["images"]
-    # input_ids = inputs["tokens"]
-    # num_image_tiles = inputs["num_image_tiles"]
 
     generated_ids = input_ids.clone()
     position_ids = (
@@ -125,7 +120,7 @@ def main(args) -> None:
         .expand_as(input_ids)
     )
     # Greedy generation loop
-    for _ in range(20):
+    for _ in range(100):
         with torch.no_grad():
             output = model(
                 images=images,

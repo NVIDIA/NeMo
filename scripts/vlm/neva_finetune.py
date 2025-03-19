@@ -84,7 +84,10 @@ def main(args):
         freeze_language_model=False,
         freeze_vision_model=True,
     )
-    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile
+    num_image_embeddings_per_tile = (
+            vision_transformer_config.num_image_embeddings_per_tile
+            - vision_transformer_config.class_token_len * neva_config.drop_vision_class_token
+    )
 
     if args.data_type == "llava":
         # Data configuration
