@@ -15,7 +15,7 @@
 """
 Example:
   python scripts/vlm/neva_generate.py --load_from_hf
-  python scripts/vlm/neva_generate.py --enable_quantization
+  python scripts/vlm/neva_generate.py --local_model_path <PATH_TO_MODEL> --enable_quantization
 """
 
 import argparse
