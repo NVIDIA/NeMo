@@ -13,14 +13,11 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pathlib import Path
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
@@ -340,8 +337,6 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     """
 
-    ngram_lm_batch: Optional[FastNGramLM]
-
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -365,8 +360,6 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         compute_timestamps: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        ngram_lm_model: Optional[str | Path] = None,
-        ngram_lm_alpha: float = 0.0,
     ):
         super().__init__()
 
@@ -378,14 +371,6 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # set confidence calculation method
         self._init_confidence_method(confidence_method_cfg)
-
-        # init ngram lm
-        if ngram_lm_model is not None:
-            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
-        else:
-            self.ngram_lm_batch = None
-        self.ngram_lm_alpha = ngram_lm_alpha
-        self._repeated_symbols_allowed = True
 
     @typecheck()
     def forward(
@@ -422,15 +407,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         decoder_lengths = decoder_lengths.to(decoder_output.device)
 
         if decoder_output.ndim == 2:
-            if self.ngram_lm_batch is not None:
-                raise NotImplementedError
             hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
         else:
-            if self.ngram_lm_batch is None:
-                hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
-            else:
-                self.ngram_lm_batch.to(decoder_output.device)
-                hypotheses = self._greedy_decode_logprobs_batched_lm(decoder_output, decoder_lengths)
+            hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
         packed_result = pack_hypotheses(hypotheses, input_decoder_lengths)
         return (packed_result,)
 
@@ -536,109 +515,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         return hypotheses
 
-    @torch.no_grad()
-    def _greedy_decode_logprobs_batched_lm(self, x: torch.Tensor, out_len: torch.Tensor):
-        # x: [B, T, D]
-        # out_len: [B]
-
-        batch_size = x.shape[0]
-        max_time = x.shape[1]
-
-        device = x.device
-        log_probs = x
-        float_dtype = log_probs.dtype
-
-        batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
-        batch_indices = torch.arange(batch_size, device=device, dtype=torch.long)
-        predictions_labels = torch.zeros([batch_size, max_time], device=device, dtype=torch.long)
-        last_labels = torch.full([batch_size], fill_value=self.blank_id, device=device, dtype=torch.long)
-        predictions_logprobs = torch.zeros([batch_size, max_time], device=device, dtype=float_dtype)
-        for i in range(max_time):
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
-            lm_scores = lm_scores.to(dtype=float_dtype)
-
-            labels = torch.argmax(log_probs[:, i], dim=-1)
-            # lm_scores[batch_indices[last_labels != self.blank_id], last_labels[last_labels != self.blank_id]] = 0.0
-            labels_w_lm = (log_probs[:, i, :-1] + self.ngram_lm_alpha * lm_scores).argmax(dim=-1)
-            if self._repeated_symbols_allowed:
-                # is_blank = (labels == self.blank_id)
-                # torch.where(is_blank, labels, labels_w_lm, out=labels)
-                blank_or_repeated = ((labels == self.blank_id) | (labels == last_labels) | (labels_w_lm == last_labels))
-                torch.where(blank_or_repeated, labels, labels_w_lm, out=labels)
-                blank_or_repeated = (labels == self.blank_id) | (labels == last_labels)
-                torch.where(
-                    blank_or_repeated,
-                    batch_lm_states,
-                    batch_lm_states_candidates[batch_indices, labels * ~blank_or_repeated],
-                    out=batch_lm_states,
-                )
-            else:
-                blank_mask = labels == self.blank_id
-                torch.where(blank_mask, labels, labels_w_lm, out=labels)
-                torch.where(
-                    blank_mask,
-                    batch_lm_states,
-                    batch_lm_states_candidates[batch_indices, labels * ~blank_mask],
-                    out=batch_lm_states,
-                )
-            predictions_labels[:, i] = labels
-            # TODO: logprobs
-            last_labels = labels
-
-        # In CTC greedy decoding, each output maximum likelihood token
-        # is calculated independent of the other tokens.
-        # predictions_logprobs, predictions_labels = predictions.max(dim=-1)
-
-        # Since predictions_logprobs is a padded matrix in the time
-        # dimension, we consider invalid timesteps to be "blank".
-        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
-        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1))
-        # Sum the non-blank labels to compute the score of the
-        # transcription. This follows from Eq. (3) of "Connectionist
-        # Temporal Classification: Labelling Unsegmented Sequence Data
-        # with Recurrent Neural Networks".
-        scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
-
-        scores = scores.cpu()
-        predictions_labels = predictions_labels.cpu()
-        out_len = out_len.cpu()
-
-        predictions = log_probs
-        if self.preserve_alignments or self.preserve_frame_confidence:
-            predictions = predictions.cpu()
-
-        hypotheses = []
-
-        # This mimics the for loop in GreedyCTCInfer::forward.
-        for i in range(batch_size):
-            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
-            hypothesis.score = scores[i]
-
-            prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
-
-            assert predictions_labels.dtype == torch.int64
-            hypothesis.y_sequence = prediction_labels_no_padding
-
-            if self.preserve_alignments:
-                hypothesis.alignments = (
-                    predictions[i, : out_len[i], :].clone(),
-                    predictions_labels[i, : out_len[i]].clone(),
-                )
-            if self.compute_timestamps:
-                # TOOD: Could do this in a vectorized manner... Would
-                # prefer to have nonzero_static, though, for sanity.
-                # Or do a prefix sum on out_len
-                hypothesis.timestep = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
-            if self.preserve_frame_confidence:
-                hypothesis.frame_confidence = self._get_confidence(predictions[i, : out_len[i], :])
-
-            hypotheses.append(hypothesis)
-
-        return hypotheses
-
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
-
 
 
 @dataclass
@@ -647,9 +525,6 @@ class GreedyCTCInferConfig:
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
-
-    ngram_lm_model: Optional[str] = None
-    ngram_lm_alpha: float = 0.0
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed

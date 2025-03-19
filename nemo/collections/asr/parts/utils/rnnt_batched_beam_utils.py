@@ -404,7 +404,7 @@ class BatchedBeamHyps:
                         timestamp=timestamps[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
                         alignments=None,
                         dec_state=None,
-                ) for beam_idx in range(self.beam_size)]
+                ) for beam_idx in range(self.beam_size) if scores[batch_idx][beam_idx] > float('-inf')]
             )
             for batch_idx in range(self.batch_size)
         ]
@@ -723,7 +723,7 @@ class BatchedBeamHypsTDT:
                         timestamp=timestamps[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
                         alignments=None,
                         dec_state=None,
-                ) for beam_idx in range(self.beam_size)]
+                ) for beam_idx in range(self.beam_size) if scores[batch_idx][beam_idx] > float('-inf')]
             )
             for batch_idx in range(self.batch_size)
         ]

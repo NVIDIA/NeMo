@@ -253,6 +253,7 @@ class TestRNNTDecoding:
             {"search_type": "malsd_batch", "beam_size": 4},
             {"search_type": "maes_batch", "beam_size": 2},
             {"search_type": "maes_batch", "beam_size": 4},
+            {"search_type": "maes_batch", "beam_size": 4, "maes_expansion_gamma": 2, "maes_expansion_beta": 4},
         ]
     )
     def test_rnnt_beam_decoding_return_nbest(self, test_data_dir, beam_config):
@@ -276,7 +277,7 @@ class TestRNNTDecoding:
             assert type(hyps[0]) == rnnt_utils.NBestHypotheses
             
             assert len(hyps) == 1
-            assert len(hyps[0].n_best_hypotheses) == beam_size
+            
             assert hasattr(hyps[0].n_best_hypotheses[0], "y_sequence")
             assert hasattr(hyps[0].n_best_hypotheses[0], "score")
             assert hasattr(hyps[0].n_best_hypotheses[0], "timestamp")
