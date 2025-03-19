@@ -13,17 +13,24 @@
 # limitations under the License.
 
 import time
-from typing import Any, NamedTuple, Optional
+from typing import Any, Dict, NamedTuple, Optional
 
 import torch
+from megatron.core.distributed import (
+    DistributedDataParallel,
+    DistributedDataParallelConfig,
+    finalize_model_grads,
+)
 from megatron.core.optimizer import MegatronOptimizer
 from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
 from megatron.core.rerun_state_machine import RerunDataIterator
 from megatron.core.transformer import MegatronModule
 
+from nemo.collections.llm.gpt.model.base import GPTConfig
+from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
-from nemo.tron.config import ConfigContainer
+from nemo.tron.config import CheckpointConfig, ConfigContainer
 from nemo.tron.data.dataset import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
@@ -95,35 +102,7 @@ def setup(
     barrier_and_log("after megatron is initialized")
 
     # Context used for persisting some state between checkpoint saves.
-    if cfg.checkpoint_config.non_persistent_ckpt_type == "local":
-        if HAVE_RESIL:
-            from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import (
-                LocalCheckpointManager,
-            )
-            from nvidia_resiliency_ext.checkpointing.local.replication.strategies import (
-                CliqueReplicationStrategy,
-            )
-        else:
-            raise RuntimeError(
-                "The 'nvidia_resiliency_ext' module is required for local "
-                "checkpointing but was not found. Please ensure it is installed."
-            )
-        if cfg.checkpoint_config.replication:
-            repl_strategy = CliqueReplicationStrategy.from_replication_params(
-                cfg.checkpoint_config.replication_jump,
-                cfg.checkpoint_config.replication_factor,
-            )
-        else:
-            repl_strategy = None
-
-        checkpointing_context = {
-            "local_checkpoint_manager": LocalCheckpointManager(
-                cfg.checkpoint_config.non_persistent_local_ckpt_dir,
-                repl_strategy=repl_strategy,
-            )
-        }
-    else:
-        checkpointing_context = {}
+    checkpointing_context = _init_checkpointing_context(cfg.checkpoint_config)
 
     # Tokenizer
     timers("tokenizer-setup", log_level=0).start(barrier=True)
@@ -146,9 +125,16 @@ def setup(
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
         data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
     )
+    cfg.model_config.timers = timers
     cfg.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(cfg, model)
-
+    _update_model_config_funcs(
+        model, 
+        cfg.model_config,
+        cfg.ddp_config,
+        optimizer,
+        align_grad_reduce=cfg.dist_config.align_grad_reduce,
+    )
     timers("model-and-optimizer-setup").stop()
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
 
@@ -199,3 +185,65 @@ def setup(
         test_data_iterator,
         checkpointing_context,
     )
+
+def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> Dict[str, Any]:
+    # Context used for persisting some state between checkpoint saves.
+    if checkpoint_config.non_persistent_ckpt_type != "local":
+        return {}
+    
+    if not HAVE_RESIL:
+        raise RuntimeError(
+            "The 'nvidia_resiliency_ext' module is required for local "
+            "checkpointing but was not found. Please ensure it is installed."
+        )
+         
+    from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import (
+        LocalCheckpointManager,
+    )
+    from nvidia_resiliency_ext.checkpointing.local.replication.strategies import (
+        CliqueReplicationStrategy,
+    )
+    if checkpoint_config.replication:
+        repl_strategy = CliqueReplicationStrategy.from_replication_params(
+            checkpoint_config.replication_jump,
+            checkpoint_config.replication_factor,
+        )
+    else:
+        repl_strategy = None
+
+    checkpointing_context = {
+        "local_checkpoint_manager": LocalCheckpointManager(
+            checkpoint_config.non_persistent_local_ckpt_dir,
+            repl_strategy=repl_strategy,
+        )
+    }
+    return checkpointing_context
+
+
+def _update_model_config_funcs(
+    model: MegatronModule,
+    model_config: GPTConfig | T5Config,
+    ddp_config: DistributedDataParallelConfig,
+    optimizer: MegatronOptimizer,
+    *,
+    align_grad_reduce: bool = True
+) -> None:
+    """Update model config sync funcs based on initialized model."""
+    if isinstance(model[0], DistributedDataParallel) and ddp_config.overlap_grad_reduce:
+        assert model_config.no_sync_func is None, (
+            "When overlap_grad_reduce is True, config.no_sync_func must be None; "
+            "a custom no_sync_func is not supported when overlapping grad-reduce"
+        )
+    model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
+    if len(model) == 1:
+        model_config.no_sync_func = model_config.no_sync_func[0]
+    if align_grad_reduce:
+        model_config.grad_sync_func = [model_chunk.start_grad_sync for model_chunk in model]
+        if len(model) == 1:
+            model_config.grad_sync_func = model_config.grad_sync_func[0]
+    if ddp_config.overlap_param_gather and ddp_config.align_param_gather:
+        model_config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
+    if len(model) == 1:
+        model_config.param_sync_func = model_config.param_sync_func[0]
+    model_config.finalize_model_grads_func = finalize_model_grads
+    model_config.grad_scale_func = optimizer.scale_loss

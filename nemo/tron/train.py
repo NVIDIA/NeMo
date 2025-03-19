@@ -23,7 +23,6 @@ from typing import Callable
 import torch
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as DDP
-from megatron.core.distributed import finalize_model_grads
 from megatron.core.num_microbatches_calculator import (
     get_current_global_batch_size,
     get_current_running_global_batch_size,
@@ -84,27 +83,6 @@ def train(
 
     num_floating_point_operations_so_far = global_state.train_state.floating_point_operations_so_far
     num_floating_point_operations_since_last_log_event = 0.0
-    model_config.grad_scale_func = optimizer.scale_loss
-    model_config.timers = timers
-
-    ddp_config = config.ddp_config
-    if isinstance(model[0], DDP) and ddp_config.overlap_grad_reduce:
-        assert model_config.no_sync_func is None, (
-            "When overlap_grad_reduce is True, config.no_sync_func must be None; "
-            "a custom no_sync_func is not supported when overlapping grad-reduce"
-        )
-        model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
-        if len(model) == 1:
-            model_config.no_sync_func = model_config.no_sync_func[0]
-        if config.dist_config.align_grad_reduce:
-            model_config.grad_sync_func = [model_chunk.start_grad_sync for model_chunk in model]
-            if len(model) == 1:
-                model_config.grad_sync_func = model_config.grad_sync_func[0]
-    if ddp_config.overlap_param_gather and ddp_config.align_param_gather:
-        model_config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
-        if len(model) == 1:
-            model_config.param_sync_func = model_config.param_sync_func[0]
-    model_config.finalize_model_grads_func = finalize_model_grads
 
     timers("interval-time", log_level=0).start(barrier=True)
     report_memory_flag = True
@@ -160,7 +138,7 @@ def train(
 
     start_iteration = global_state.train_state.step
     should_toggle_forward_pre_hook = (
-        config.optimizer_config.use_distributed_optimizer and ddp_config.overlap_param_gather
+        config.optimizer_config.use_distributed_optimizer and config.ddp_config.overlap_param_gather
     )
     # Disable forward pre-hook to start training to ensure that errors in checkpoint loading
     # or random initialization don't propagate to all ranks in first all-gather (which is a
