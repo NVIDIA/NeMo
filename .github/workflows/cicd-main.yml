@@ -1793,7 +1793,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Baichuan2.sh
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/baichuan2_toy \
+          NEMO_MODEL_TYPE=Baichuan2Model \
+          NEMO_MODEL_CONFIG=Baichuan2Config7B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
+          add-model-name
 
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
@@ -1806,8 +1812,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_ChatGLM.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/chatglm_toy \
+          NEMO_MODEL_TYPE=ChatGLMModel \
+          NEMO_MODEL_CONFIG=ChatGLM3Config6B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
+          add-model-name
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1819,8 +1830,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_DeepSeek.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/deekseek-v3_toy \
+          NEMO_MODEL_TYPE=DeepSeekModel \
+          NEMO_MODEL_CONFIG=DeepSeekV3Config \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
+          add-model-name
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1832,8 +1848,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Gemma.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/gemma_toy \
+          NEMO_MODEL_TYPE=GemmaModel \
+          NEMO_MODEL_CONFIG=GemmaConfig2B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1845,8 +1865,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Gemma2.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/gemma2_toy \
+          NEMO_MODEL_TYPE=Gemma2Model \
+          NEMO_MODEL_CONFIG=Gemma2Config2B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1858,8 +1882,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Mistral.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/mistral_toy \
+          NEMO_MODEL_TYPE=MistralModel \
+          NEMO_MODEL_CONFIG=MistralConfig7B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1871,8 +1899,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Llama.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/llama_31_toy \
+          NEMO_MODEL_TYPE=LlamaModel \
+          NEMO_MODEL_CONFIG=Llama31Config8B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1884,8 +1916,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Nemotron.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/nemotron_toy \
+          NEMO_MODEL_TYPE=NemotronModel \
+          NEMO_MODEL_CONFIG=NemotronConfig \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1897,8 +1933,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Phi3Mini.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/phi3mini_toy \
+          NEMO_MODEL_TYPE=Phi3Model \
+          NEMO_MODEL_CONFIG=Phi3ConfigMini \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1910,8 +1950,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Qwen2.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/qwen2_toy \
+          NEMO_MODEL_TYPE=Qwen2Model \
+          NEMO_MODEL_CONFIG=Qwen2Config500M \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1923,8 +1967,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Starcoder.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/starcoder_toy \
+          NEMO_MODEL_TYPE=StarcoderModel \
+          NEMO_MODEL_CONFIG=StarcoderConfig15B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
@@ -1936,8 +1984,12 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Starcoder2.sh
-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/starcoder2_toy \
+          NEMO_MODEL_TYPE=Starcoder2Model \
+          NEMO_MODEL_CONFIG=Starcoder2Config15B \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
       AFTER_SCRIPT: |
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
