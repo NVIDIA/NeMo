@@ -27,10 +27,6 @@ from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
 
 
-def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
-    return ModelType.encoder_and_decoder if isinstance(model_config, T5Config) else ModelType.encoder_or_decoder
-
-
 def get_model_from_config(
     model_config: GPTConfig | T5Config,
     ddp_config: DistributedDataParallelConfig,
@@ -151,5 +147,8 @@ def get_model_from_config(
         if data_parallel_random_init:
             for model_module in model:
                 model_module.broadcast_params()
-
     return model
+
+
+def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
+    return ModelType.encoder_and_decoder if isinstance(model_config, T5Config) else ModelType.encoder_or_decoder
