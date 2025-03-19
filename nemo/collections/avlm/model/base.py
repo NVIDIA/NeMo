@@ -32,7 +32,7 @@ from torch import nn
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 
-from nemo.collections.avlm.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, AUDIO_TOKEN_INDEX
+from nemo.collections.multimodal.data.energon.config import AudioToken, ImageToken, MultiModalSampleConfig
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -381,10 +381,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 self.audio_projection = audio_projection_config.configure_model()
                 restore_model_weights(self.audio_model, config.audio_model_from_pretrained)
                 logging.info(f"Restored audio model weights from {config.audio_model_from_pretrained}")
-
-        # # DEBUGGING
-        # print(stop_here)
-
         self.freeze(
             freeze_language_model=config.freeze_language_model,
             freeze_vision_model=config.freeze_vision_model,
@@ -403,19 +399,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
 
-        # # DEBUGGING
-        # if torch.distributed.get_rank() == 0:
-        #     def count_parameters(model):
-        #         if model is None:
-        #             return 0
-        #         return sum(p.numel() for p in model.parameters())
-        #     print("Number of parameters:")
-        #     print(f"Vision model: {count_parameters(self.vision_model):,}")
-        #     print(f"Vision projection: {count_parameters(self.vision_projection):,}")
-        #     print(f"Audio model: {count_parameters(self.audio_model):,}")
-        #     print(f"Audio projection: {count_parameters(self.audio_projection):,}")
-        #     print(f"Language model: {count_parameters(self.language_model):,}")
-        #     print(stop_here)
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -425,10 +408,10 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         labels: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         num_image_tiles: Optional[List[int]] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        image_token_index: Optional[int] = ImageToken.token_id,
         audios: Optional[torch.Tensor] = None,
         audio_lengths: Optional[List[int]] = None,
-        audio_token_index: Optional[int] = AUDIO_TOKEN_INDEX,
+        audio_token_index: Optional[int] = AudioToken.token_id,
         inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
@@ -459,23 +442,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 otherwise logits of shape [b, s, vocab_size].
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
-
-        # # DEBUGGING
-        # print("[Forward step]")
-        # print("[Forward step] input_ids.shape: ", input_ids.shape)
-        # print("[Forward step] position_ids.shape: ", position_ids.shape)
-        # print("[Forward step] loss_mask.shape: ", loss_mask.shape)
-        # print("[Forward step] attention_mask.shape: ", attention_mask.shape)
-        # print("[Forward step] labels.shape: ", labels.shape)
-        # print("[Forward step] images.shape: ", images.shape)
-        # print("[Forward step] num_image_tiles.shape: ", num_image_tiles.shape)
-        # print("[Forward step] image_token_index: ", image_token_index)
-        # print("[Forward step] audios.shape: ", audios.shape)
-        # print("[Forward step] audio_lengths.shape: ", audio_lengths.shape)
-        # print("[Forward step] audio_token_index: ", audio_token_index)
-        # print("----------------------")
-        # print(stop_here)
-
 
         # TODO: not sure what to do with this?
         use_inference_kv_cache = (
@@ -570,11 +536,12 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             else:
                 audio_embeddings = None
         else:
-            image_embeddings, audio_embeddings = self.encoder_hidden_state
-
-        # # DEBUGGING
-        # print("image_embeddings.shape: ", image_embeddings.shape)
-        # print("audio_embeddings.shape: ", audio_embeddings.shape)
+            # only need image_embeddings, audio_embeddings if this is the first stage of LLM
+            if self.pre_process:
+                image_embeddings, audio_embeddings = self.encoder_hidden_state
+            else:
+                image_embeddings, audio_embeddings = None, None
+                audio_embedding_lens = self.audio_embedding_lens
 
         if not self.add_decoder:
             return image_embeddings, audio_embeddings
@@ -615,21 +582,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        # # DEBUGGING
-        # print(f"combined_embeddings[0]: {combined_embeddings[0]}")
-        # print(f"final_labels[0].tolist(): {final_labels[0].tolist()}")
-        # print(f"final_loss_mask[0].tolist(): {final_loss_mask[0].tolist()}")
-        # print(f"final_attention_mask[0].tolist(): {final_attention_mask[0].tolist()}")
-        # print(f"combined_embeddings.shape: {combined_embeddings.shape}")
-        # print(f"final_labels.shape: {final_labels.shape}")
-        # print(f"final_labels (non_negative_indices)[0].tolist(): {(final_labels[0]>=0).nonzero(as_tuple=True)[0].tolist()}")
-        # print(f"final_loss_mask.shape: {final_loss_mask.shape}")
-        # print(f"final_loss_mask (non_zero_indices)[0].tolist(): {(final_loss_mask[0]>0).nonzero(as_tuple=True)[0].tolist()}")
-        # print(f"final_attention_mask.shape: {final_attention_mask.shape}")
-        # print("-----------------")
-        # print(stop_here)
-
-
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
             if self.context_parallel_lm > 1:
                 # _process_embedding_token_parallel expects input in shape bshd for cp
@@ -653,7 +605,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         )
 
         if labels is None or loss_mask is None:
-            return output
+            return output, audio_embedding_lens
 
         return output, final_loss_mask.contiguous()
 
@@ -822,16 +774,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             # Build a tensor of contributions: text tokens (non-media) contribute 0 extra,
             # while each media token contributes its media-specific extra length.
             media_token_mask_lens = torch.zeros_like(input_ids, dtype=torch.int32)
-            # DEBUGGING
-            # print("num_image_tiles type: ", type(num_image_tiles))
-            # print("num_image_tiles[0] type: ", type(num_image_tiles[0]))
-            # print("num_image_tiles: ", num_image_tiles)
-            # print("img_seq_len type: ", type(self._img_seq_len))
-            # print("image_token_mask type: ", type(image_token_mask))
-            # print("image_token_mask[0] type: ", type(image_token_mask[0]))
-            # print("media_token_mask_lens type: ", type(media_token_mask_lens))
-            # print("media_token_mask_lens tensor type: ", media_token_mask_lens.dtype)
-            # print("----------------------")
             media_token_mask_lens[image_token_mask] = ((num_image_tiles * img_seq_len) - 1).to(torch.int32)
             media_token_mask_lens[audio_token_mask] = (audio_embedding_lens - 1).to(torch.int32)
 
@@ -840,11 +782,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             # and for media tokens, it gives a step equal to its extra length + 1),
             # then subtract 1 to adjust for zero-based indexing.
             new_position_ids = torch.cumsum((media_token_mask_lens + 1), dim=-1) - 1
-
-            # # DEBUGGING
-            # print("media_token_mask_lens[0]: ", media_token_mask_lens[0].tolist())
-            # print("new_position_ids[0]: ", new_position_ids[0].tolist())
-            # # print(stop_here)
 
             # Extract text token positions (non-media tokens).
             text_position_ids = new_position_ids[batch_indices, non_media_indices]
@@ -869,12 +806,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 new_images_position_ids.append(new_position_ids[i][image_token_mask[i]])
                 new_audios_position_ids.append(new_position_ids[i][audio_token_mask[i]])
 
-            # # DEBUGGING
-            # print("new_images_position_ids: ", new_images_position_ids)
-            # print("new_audios_position_ids: ", new_audios_position_ids)
-            # # print(stop_here)
-
-
         # Create the final input embedding (if this is the first language model stage).
         final_embedding = None
         if self.pre_process:
@@ -889,13 +820,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
             # Put text embeddings to the text positions in the result tensor.
             final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_media_indices]
-
-            # # DEBUGGING
-            # print("images_mask.shape: ", images_mask.shape)
-            # print("final_embedding.shape: ", final_embedding.shape)
-            # print("image_embeddings.shape: ", image_embeddings.shape)
-            # print("image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous().shape: ", image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous().shape)
-            # print("final_embedding[images_mask].shape: ", final_embedding[images_mask].shape)
 
             # # Put image and audio embeddings to image and audios positions.
             # # NOTE: final_embedding [batch_size, max_seq_len, embed_dim]
@@ -912,12 +836,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     current_image_seq_len = num_image_tiles[image_pointer]*img_seq_len
                     current_image_tokens_end_idx = new_images_position_ids[i][j]
                     current_image_tokens_start_idx = current_image_tokens_end_idx - current_image_seq_len
-
-                    # # DEBUGGING
-                    # print("final_embedding.shape: ", final_embedding.shape)
-                    # print("image_embeddings.shape: ", image_embeddings.shape)
-                    # print("final_embedding[i][current_image_tokens_start_idx:current_image_tokens_end_idx].shape: ", final_embedding[i][current_image_tokens_start_idx:current_image_tokens_end_idx].shape)
-                    # print("image_embeddings[tile_pointer : (tile_pointer + current_image_seq_len)].shape: ", image_embeddings[tile_pointer : (tile_pointer + current_image_seq_len)].shape)
 
                     final_embedding[i][current_image_tokens_start_idx:current_image_tokens_end_idx] = image_embeddings[tile_pointer : (tile_pointer + current_image_seq_len)]
                     images_mask[i][current_image_tokens_start_idx:current_image_tokens_end_idx] = True
@@ -936,12 +854,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     current_audio_tokens_end_idx = new_audios_position_ids[i][j]
                     current_audio_tokens_start_idx = current_audio_tokens_end_idx - current_audio_seq_len
 
-                    # # DEBUGGING
-                    # print("final_embedding.shape: ", final_embedding.shape)
-                    # print("audio_embeddings.shape: ", audio_embeddings.shape)
-                    # print("final_embedding[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx].shape: ", final_embedding[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx].shape)
-                    # print("audio_embeddings[audio_pointer][:current_audio_seq_len].shape: ", audio_embeddings[audio_pointer][:current_audio_seq_len].shape)
-
                     final_embedding[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx] = audio_embeddings[audio_pointer][:current_audio_seq_len]
                     audios_mask[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx] = True
                     audio_pointer += 1
@@ -952,7 +864,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         final_labels, final_loss_mask = None, None
         if has_labels:
             final_labels = torch.full(
-                (batch_size, max_seq_len), IGNORE_INDEX, dtype=labels.dtype, device=labels.device
+                (batch_size, max_seq_len), MultiModalSampleConfig.ignore_place_holder, dtype=labels.dtype, device=labels.device
             )
             final_loss_mask = torch.full((batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device)
 
@@ -1124,11 +1036,11 @@ class AVLMModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         labels: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         num_image_tiles: Optional[List[int]] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        image_token_index: Optional[int] = ImageToken.token_id,
         # image_token_mask: Optional[torch.Tensor] = None,
         audios: Optional[torch.Tensor] = None,
         audio_lengths: Optional[List[int]] = None,
-        audio_token_index: Optional[int] = AUDIO_TOKEN_INDEX,
+        audio_token_index: Optional[int] = AudioToken.token_id,
         inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,

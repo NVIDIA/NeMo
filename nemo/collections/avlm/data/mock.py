@@ -23,7 +23,9 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoProcessor
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.avlm.data.multimodal_tokens import IMAGE_TOKEN_INDEX, AUDIO_TOKEN_INDEX
+# DEBUGGING
+# from nemo.collections.avlm.data.multimodal_tokens import IMAGE_TOKEN_INDEX, AUDIO_TOKEN_INDEX
+from nemo.collections.multimodal.data.energon.config import ImageToken, AudioToken
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
@@ -83,8 +85,8 @@ class MockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
-        model_name = "llava-hf/llava-v1.6-vicuna-7b-hf"
-        self.tokenizer = AutoTokenizer(model_name)
+        self.tokenizer = tokenizer
+        model_name = "llava-hf/llava-1.5-7b-hf"
         self.image_processor = AutoProcessor.from_pretrained(model_name).image_processor
         self.audio_processor = audio_processor
         self.data_sampler = MegatronDataSampler(
@@ -257,10 +259,10 @@ class _MockAVLMDataset(Dataset):
         num_images = 2
         num_audios = 2
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        tokens[5] = IMAGE_TOKEN_INDEX  # ImageToken token index
-        tokens[10] = AUDIO_TOKEN_INDEX  # ImageToken token index
-        tokens[15] = IMAGE_TOKEN_INDEX  # ImageToken token index
-        tokens[20] = AUDIO_TOKEN_INDEX  # ImageToken token index
+        tokens[5] = ImageToken.token_id  # ImageToken token index
+        tokens[10] = AudioToken.token_id  # ImageToken token index
+        tokens[15] = ImageToken.token_id  # ImageToken token index
+        tokens[20] = AudioToken.token_id  # ImageToken token index
         labels = tokens.clone()
         tokens = tokens[:-1]
         labels = labels[1:]
@@ -276,7 +278,8 @@ class _MockAVLMDataset(Dataset):
             processed_image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
             processed_images.append(processed_image)
             num_image_tiles.append(processed_image.shape[0])
-        processed_images = torch.concat(processed_images, dim=0)
+        # processed_images = torch.concat(processed_images, dim=0)
+        processed_images = torch.stack(processed_images)
         num_image_tiles = torch.tensor(num_image_tiles, dtype=torch.long)
         image_sizes = torch.tensor(num_images*[[self.image_height, self.image_width]], dtype=torch.long)
 

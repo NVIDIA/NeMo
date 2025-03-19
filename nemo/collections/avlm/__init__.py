@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-<<<<<<< HEAD
 
-# LLAVA_NEXT
 from nemo.collections.avlm.data import AVLMMockDataModule
 from nemo.collections.avlm.model.base import AVLMConfig, AVLMModel
 
@@ -22,5 +20,3 @@ __all__ = [
     "AVLMConfig",
     "AVLMModel",
 ]
-=======
->>>>>>> fork/main

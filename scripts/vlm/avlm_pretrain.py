@@ -34,6 +34,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 def main(args):
@@ -42,20 +43,42 @@ def main(args):
     # Global and micro batch sizes
     gbs = args.gbs
     mbs = args.mbs
+    num_workers = args.num_workers
     max_steps = args.max_steps
     decoder_seq_length = 4096
 
     if args.data_type == "energon":
-        pass
+        from nemo.collections.avlm.data.energon import AVLMDataModule
+        from nemo.collections.avlm.data.energon import AVLMSampleConfig
+        from nemo.collections.avlm.data.energon import AVLMTaskEncoder
+
+        data_path = args.data_path
+
+        avlm_sample_config = AVLMSampleConfig()
+        # Setting system prompt to empty string
+        avlm_sample_config.conversation_template_config.system = ''
+
+        task_encoder = AVLMTaskEncoder(
+            multimodal_sample_config=avlm_sample_config,
+        )
+        data = AVLMDataModule(
+            path=data_path,
+            num_workers=num_workers,
+            micro_batch_size=mbs,
+            global_batch_size=gbs,
+            tokenizer=AutoTokenizer("llava-hf/llava-1.5-7b-hf"),
+            multimodal_sample_config=avlm_sample_config,
+            task_encoder=task_encoder,
+        )
     elif args.data_type == "mock":
         data = avlm.data.AVLMMockDataModule(
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
-            tokenizer=None,
+            tokenizer=AutoTokenizer("llava-hf/llava-1.5-7b-hf"),
             image_processor=None,
             audio_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -125,10 +148,10 @@ def main(args):
         language_model_from_pretrained=args.language_model_path,
         vision_model_from_pretrained=vision_model_from_pretrained,
         audio_model_from_pretrained=None,
-        freeze_language_model=False,
-        freeze_vision_model=False,
+        freeze_language_model=True,
+        freeze_vision_model=True,
         freeze_vision_projection=False,
-        freeze_audio_model=False,
+        freeze_audio_model=True,
         freeze_audio_projection=False,
     )
     model = avlm.AVLMModel(avlm_config, tokenizer=data.tokenizer)
@@ -160,7 +183,7 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=500,
+        val_check_interval=args.val_check_interval,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -248,8 +271,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
-    parser.add_argument("--max_steps", type=int, required=False, default=2100)
-    parser.add_argument("--tp_size", type=int, required=False, default=1)
+    parser.add_argument("--max_steps", type=int, required=False, default=2000)
+    parser.add_argument("--val_check_interval", type=int, required=False, default=500)
+    parser.add_argument("--tp_size", type=int, required=False, default=1)   
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
@@ -257,6 +281,7 @@ if __name__ == "__main__":
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--gbs", type=int, required=False, default=32, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
+    parser.add_argument("--num_workers", type=int, required=False, default=32, help="Number of workers for data loading")
     parser.add_argument("--lr", type=float, required=False, default=0.001, help="Learning rate")
 
     args = parser.parse_args()

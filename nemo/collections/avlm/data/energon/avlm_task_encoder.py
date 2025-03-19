@@ -611,7 +611,8 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         logging.debug(f"Multimodal dataloader encode interleaved sample tokenized chunks {tokenized_chunks}")
 
         if processed_audios:
-            processed_audio_tensor = torch.concatenate(processed_audios)
+            processed_audio_tensor = processed_audios
+
             processed_audio_lengths_tensor = torch.tensor(processed_audio_lengths)
         if processed_images:
             processed_image_tensor = torch.concatenate(processed_images)  # T c h w
@@ -646,7 +647,6 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         output_sample.images = media_dict["images"]
         output_sample.num_image_tiles = media_dict["num_image_tiles"]
         output_sample.image_sizes = media_dict["image_sizes"]
-        output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
 
         labels = self.compute_labels(tokens, input_sample)
         tokens = tokens[:-1].contiguous()
@@ -654,7 +654,8 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
         logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
-        
+        output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
+
         output_sample.__key__ = input_sample.__key__
         output_sample.tokens = tokens
         output_sample.labels = labels
@@ -785,6 +786,7 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         rawBatch.loss_mask = batch_pad_stack(loss_mask)
 
         if audios:
+            audios = [audio for audio_list in audios for audio in audio_list]
             # get the audio samples' maximum length and pad all samples to that length
             rawBatch.audios = pad_sequence(audios, batch_first=True)
             if audio_lengths:                

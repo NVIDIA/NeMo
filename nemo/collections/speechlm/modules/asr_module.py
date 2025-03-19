@@ -99,6 +99,10 @@ class HFWrappedPreprocessor(nn.Module):
         self.sample_rate = sample_rate
 
     def forward(self, input_signal: torch.Tensor, length: torch.Tensor):
+
+        # DEBUGGING
+        input_signal = input_signal.to(torch.float32)
+
         processed = self.preprocessor(
             input_signal.cpu().numpy(), sampling_rate=self.sample_rate, return_tensors="pt"
         )  # type: transformers.feature_extraction_utils.BatchFeature
@@ -107,6 +111,10 @@ class HFWrappedPreprocessor(nn.Module):
         processed_signal_len = torch.tensor(
             [processed_signal.shape[2]] * processed_signal.shape[0], device=length.device, dtype=length.dtype
         )  # [batch]
+
+        # DEBUGGING
+        processed_signal = processed_signal.to(torch.bfloat16)
+
         return processed_signal, processed_signal_len
 
     def __call__(self, *args, **kwargs):
@@ -126,6 +134,10 @@ class HFWrappedEncoder(nn.Module):
         encoded = output["last_hidden_state"]  # [batch, time, hidden]
         encoded = encoded.transpose(1, 2)  # [batch, hidden, time]
         encoded_len = torch.tensor([encoded.shape[2]] * encoded.shape[0], device=encoded.device).long()  # [batch]
+
+        # DEBUGGING
+        encoded = encoded.to(torch.bfloat16)
+
         return encoded, encoded_len
 
     def __call__(self, *args, **kwargs):
