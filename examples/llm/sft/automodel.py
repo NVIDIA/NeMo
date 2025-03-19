@@ -69,7 +69,7 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     return datamodule
 
 
-def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
             device='cuda:0',
@@ -80,10 +80,17 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'fsdp2':
+        offload_policy = None
+        if enable_cpu_offload:
+            from nemo.lightning.pytorch.strategies.fsdp2_strategy import HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy
+            assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
+            offload_policy = CPUOffloadPolicy()
+
         return nl.FSDP2Strategy(
             data_parallel_size=devices * num_nodes,
             tensor_parallel_size=1,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            offload_policy=offload_policy,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -131,6 +138,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
+    parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
     parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
     parser.add_argument('--enable-grad-ckpt', action='store_true', help='Enables gradient checkpoint')
@@ -145,7 +153,11 @@ def main():
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
     parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
+
     args = parser.parse_args()
+    # CPUOffload WA for known issue
+    if args.enable_cpu_offload and args.use_te_optimizer:
+        args.use_te_optimizer = False
 
     wandb = None
     if args.wandb_project is not None:
@@ -180,7 +192,7 @@ def main():
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
-    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False, args.enable_cpu_offload)
 
     resume = (
         nl.AutoResume(
@@ -190,6 +202,9 @@ def main():
         if args.auto_resume
         else None
     )
+    # CPUOffload WA
+    if args.enable_cpu_offload:
+        args.grad_clip = 0.0
 
     llm.api.finetune(
         model=model,
