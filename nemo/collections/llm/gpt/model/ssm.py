@@ -94,7 +94,6 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             mamba_stack_spec=mamba_stack_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
-            mamba_num_groups=self.mamba_num_groups,
             hybrid_attention_ratio=self.hybrid_attention_ratio,
             hybrid_mlp_ratio=self.hybrid_mlp_ratio,
             hybrid_override_pattern=self.hybrid_override_pattern,
