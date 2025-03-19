@@ -31,7 +31,6 @@ from omegaconf import DictConfig
 import lightning.pytorch as plt
 from lightning.pytorch import Trainer
 
-from nemo.collections.audio.losses.maxine.losses_combined import CombinedLoss
 from nemo.collections.audio.models.audio_to_audio import AudioToAudioModel
 from nemo.collections.audio.parts.utils.maxine import apply_weight_norm_lstm, remove_weight_norm_lstm
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -159,10 +158,6 @@ class _Seasr(plt.LightningModule):
         self.apply(_remove_weight_norm)
 
 
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-from torch import optim
-
-
 class BNR2(AudioToAudioModel):
     """Implementation of the BNR 2 model"""
 
@@ -240,7 +235,7 @@ class BNR2(AudioToAudioModel):
 
         predicted_audio = self.forward(input_signal=input_signal)
 
-        loss = self.loss(target=target_signal, estimate=predicted_audio, input_length=batch.input_length)
+        loss = self.loss(target=target_signal, estimate=predicted_audio, input_length=input_length)
 
         self.log('train_loss', loss)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
@@ -265,7 +260,7 @@ class BNR2(AudioToAudioModel):
         processed_signal = self(input_signal=input_signal)
 
         # Calculate the loss
-        loss = self.loss(target=target_signal, estimate=processed_signal, input_length=batch.input_length)
+        loss = self.loss(target=target_signal, estimate=processed_signal, input_length=input_length)
 
         # Update metrics
         if hasattr(self, 'metrics') and tag in self.metrics:

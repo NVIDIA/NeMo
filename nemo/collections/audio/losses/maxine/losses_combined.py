@@ -17,9 +17,9 @@ import torch
 from nemo.core import Typing, Loss, typecheck
 from nemo.core.neural_types import NeuralType, VoidType, LengthsType, LossType
 from .sisnr_loss import sisnr_loss
-from typing import List, Optional
+from typing import Optional
 from torchaudio.transforms import MelSpectrogram
-from torchaudio.functional import compute_deltas, resample
+from torchaudio.functional import resample
 
 import hashlib
 from pathlib import Path

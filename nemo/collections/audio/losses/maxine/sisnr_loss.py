@@ -38,7 +38,6 @@
 # SOFTWARE.
 
 from itertools import permutations
-from typing import List
 
 import torch
 
@@ -53,7 +52,6 @@ def sisnr_loss(source: torch.Tensor, estimate_source: torch.Tensor, source_lengt
         source_lengths: [B]
     """
     max_snr, perms, max_snr_idx, snr_set = cal_si_snr_with_pit(source, estimate_source, source_lengths)
-    B, C, T = estimate_source.shape
     loss = 0 - torch.mean(max_snr)
 
     return loss
