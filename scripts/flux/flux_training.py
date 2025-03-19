@@ -189,21 +189,30 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     recipe.trainer.devices = 8
     recipe.data.global_batch_size = 32
     
-    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=5, num_single_layers=10) # not working when cuda graph is enabled
-    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, enable_cuda_graph=True) # not working when cuda graph is enabled
-    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, use_te_rng_tracker=True) # not working when cuda graph is enabled
-    #recipe.model.flux_params.flux_config = run.Config(FluxConfig, cuda_graph_warmup_steps=3) # not working when cuda graph is enabled
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=5, num_single_layers=10)
+    recipe.model.flux_params.flux_config.enable_cuda_graph = True
+    recipe.model.flux_params.flux_config.use_te_rng_tracker = True
+    recipe.model.flux_params.flux_config.cuda_graph_warmup_steps = 3
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
         use_custom_fsdp=False,
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
     )
+    from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
+    recipe.trainer.callbacks.append(
+        run.Config(
+            NsysCallback,
+            start_step=10,
+            end_step=11,
+            gen_shape=True,
+        )
+    )
     from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
     recipe.trainer.callbacks.append(
         run.Config(
             MM_FLOPsMeasurementCallback,
-            model_name_config_dict={'flux': run.Config(FluxConfig)},
+            model_name_config_dict={'flux': recipe.model.flux_params.flux_config},
             data_config=recipe.data,
         )
     )
