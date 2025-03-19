@@ -101,6 +101,8 @@ def setup(
     print_rank_0("time to initialize megatron (seconds): {:.3f}".format(time.time() - state.start_time))
     barrier_and_log("after megatron is initialized")
 
+    checkpointing_context = _init_checkpointing_context(cfg)
+
     # Tokenizer
     timers("tokenizer-setup", log_level=0).start(barrier=True)
     tokenizer = build_tokenizer(
@@ -135,8 +137,6 @@ def setup(
     )
     timers("model-and-optimizer-setup").stop()
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
-
-    checkpointing_context = _init_checkpointing_context(cfg)
 
     # Load checkpoint if applicable
     if (cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None) and (
