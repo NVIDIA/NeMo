@@ -43,7 +43,13 @@ from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import flop_utils
 from nemo.tron.utils.async_utils import maybe_finalize_async_save
-from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, get_world_size_safe, print_rank_0
+from nemo.tron.utils.common_utils import (
+    append_to_progress_log,
+    barrier_and_log,
+    get_world_size_safe,
+    maybe_inject_state,
+    print_rank_0,
+)
 from nemo.tron.utils.train_utils import (
     calc_params_l2_norm,
     logical_and_across_model_parallel_group,
@@ -426,12 +432,7 @@ def train_step(
         optimizer.zero_grad()
 
         # Optionally inject state into forward step
-        num_fw_args = len(inspect.signature(forward_step_func).parameters)
-        if num_fw_args == 3:
-            # inject global_state
-            wrapped_forward_step = partial(forward_step_func, global_state)
-        else:
-            wrapped_forward_step = forward_step_func
+        wrapped_forward_step = maybe_inject_state(forward_step_func, global_state)
 
         # Forward pass.
         forward_backward_func = get_forward_backward_func()
