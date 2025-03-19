@@ -83,6 +83,50 @@ class TestUtils:
         )
         assert model_size == 82.94, f"expected model_size is 82.94 but got {model_size}."
 
+        # Qwen
+        model_size = calculate_model_size(
+            128,
+            2,
+            None,
+            1000,
+            100,
+            "qwen",
+        )
+        assert model_size == 27.65, f"expected model_size is 27.65 but got {model_size}."
+        
+        # Starcoder
+        model_size = calculate_model_size(
+            8,
+            1,
+            None,
+            10,
+            10,
+            "starcoder",
+        )
+        assert model_size == 0.09, f"expected model_size is 27.65 but got {model_size}."
+            
+        # T5
+        model_size = calculate_model_size(
+            1024,
+            14,
+            None,
+            1400,
+            340,
+            "t5",
+        )
+        assert model_size == 637.53, f"expected model_size is 637.53 but got {model_size}."
+
+        # Bert
+        model_size = calculate_model_size(
+            512,
+            7,
+            None,
+            140,
+            100,
+            "bert",
+        )
+        assert model_size == 54.19, f"expected model_size is 54.19 but got {model_size}."
+
     def test_calculate_train_time(self):
         # GPT
         train_time = _estimate_training_time(
@@ -143,3 +187,44 @@ class TestUtils:
             "nemotron",
         )
         assert train_time == 540.12, f"expected train_time is 540.12 but got {train_time}."
+
+        # Qwen
+        train_time = _estimate_training_time(
+            7,
+            64,
+            512,
+            1000,
+            "qwen",
+        )
+
+        assert train_time == 19.78, f"expected train_time is 19.78 but got {train_time}."
+
+        # Starcoder
+        train_time = _estimate_training_time(
+            77,
+            128,
+            1000,
+            1000,
+            "starcoder",
+        )
+        assert train_time == 55.7, f"expected train_time is 19.78 but got {train_time}."
+
+        # Bert
+        train_time = _estimate_training_time(
+            0.123,
+            8,
+            100,
+            1000,
+            "bert",
+        )
+        assert train_time == 14.24, f"expected train_time is 14.24 but got {train_time}."
+
+        # T5
+        train_time = _estimate_training_time(
+            0.01,
+            1,
+            32,
+            346,
+            "t5",
+        )
+        assert train_time == 10.01, f"expected train_time is 10.01 but got {train_time}."
