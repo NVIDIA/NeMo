@@ -38,7 +38,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: sstep-security/changed-files@v45.0.1
+        uses: sstep-security/changed-files@v45.0.0
         with:
           files: |
             **.py
