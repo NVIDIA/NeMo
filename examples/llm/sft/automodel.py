@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import tempfile
-from functools import partial
 
 import fiddle as fdl
 import lightning.pytorch as pl
@@ -169,9 +168,9 @@ def main():
         optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
 
     if args.fp8:
-        from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
 
-        model_accelerator = partial(te_accelerate, fp8_autocast=True)
+        model_accelerator = TEConfig(fp8_autocast=True)
     else:
         model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
