@@ -160,15 +160,13 @@ class TestPEFT:
         peft.set_params_to_save(trainer)
 
         # Expected trainable parameter names
-        expected_trainable = {
-            'linear.weight',
-            'linear.bias'
-        }
+        expected_trainable = {'linear.weight', 'linear.bias'}
 
         # Check that params_to_save contains exactly the expected parameters
         assert hasattr(peft, 'params_to_save'), "params_to_save not set"
-        assert peft.params_to_save == expected_trainable, \
-            f"Expected trainable params {expected_trainable}, but got {peft.params_to_save}"
+        assert (
+            peft.params_to_save == expected_trainable
+        ), f"Expected trainable params {expected_trainable}, but got {peft.params_to_save}"
 
         # Verify that the parameters marked as trainable actually require gradients
         for name, param in model.named_parameters():
@@ -200,8 +198,9 @@ class TestPEFT:
 
         # Check that params_to_save contains exactly the expected parameters
         assert hasattr(peft, 'params_to_save'), "params_to_save not set"
-        assert peft.params_to_save == expected_trainable, \
-            f"Expected trainable params {expected_trainable}, but got {peft.params_to_save}"
+        assert (
+            peft.params_to_save == expected_trainable
+        ), f"Expected trainable params {expected_trainable}, but got {peft.params_to_save}"
 
         # Verify that the parameters marked as trainable actually require gradients
         for name, param in model.named_parameters():
