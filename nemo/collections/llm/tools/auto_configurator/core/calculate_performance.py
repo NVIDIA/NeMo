@@ -14,12 +14,10 @@
 
 import os
 import re
-import pandas as pd
 from typing import Optional
 
-
+import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
-
 
 GPT_BASED_MODELS = [
     "gpt3",
