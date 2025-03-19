@@ -21,9 +21,14 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
-from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
-
+from ..utils import (
+    args_sanity_check,
+    get_user_configs,
+    hf_tokenizer,
+    set_primary_perf_configs,
+    slurm_executor,
+    set_exp_logging_configs,
+)
 
 def override_recipe_configs(
     args: str,
@@ -46,10 +51,7 @@ def override_recipe_configs(
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
-        args.tensorboard,
-        args.wandb,
-        args.wandb_prj_name,
-        args.wandb_job_name,
+        "pre_train",
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -60,27 +62,19 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        enable_cuda_graphs,
+    )
+    recipe = set_exp_logging_configs(
+        recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
     # data module configs
-    recipe.data.num_train_samples = args.max_steps * gbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-
-    recipe.trainer.callbacks.append(run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="llama3",
-        )
-    )
 
     return recipe
 

@@ -28,6 +28,7 @@ from ..utils import (
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
+    set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
 )
@@ -67,12 +68,10 @@ def override_recipe_configs(
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=2048)
     else:
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
+
     recipe = set_primary_perf_configs(
         recipe,
-        args.tensorboard,
-        args.wandb,
-        args.wandb_prj_name,
-        args.wandb_job_name,
+        finetuning_scheme,
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -83,6 +82,10 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        enable_cuda_graphs,
+    )
+    recipe = set_exp_logging_configs(
+        recipe, finetuning_scheme, "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
     # data module configs
@@ -95,10 +98,6 @@ def override_recipe_configs(
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
 
     return recipe
 

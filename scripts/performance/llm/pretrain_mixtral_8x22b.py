@@ -22,7 +22,14 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
+from ..utils import (
+    args_sanity_check,
+    get_user_configs,
+    hf_tokenizer,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+    slurm_executor,
+)
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 
 def override_recipe_configs(
@@ -46,10 +53,7 @@ def override_recipe_configs(
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
-        args.tensorboard,
-        args.wandb,
-        args.wandb_prj_name,
-        args.wandb_job_name,
+        "pre_train",
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -61,10 +65,13 @@ def override_recipe_configs(
         vp_size,
         ep_size,
         etp_size,
+        enable_cuda_graphs,
+    )
+    recipe = set_exp_logging_configs(
+        recipe, "pre_train", "llm", "mixtral", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
     # data module configs
-    recipe.data.num_train_samples = args.max_steps * gbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x22B-v0.1")
 
     # compute dtype configs
@@ -76,17 +83,6 @@ def override_recipe_configs(
     # under scenario average_in_collective=True and tp_size != etp_size, disabling average_in_collective.
     if etp_size is not None and etp_size != tp_size:
         recipe.trainer.strategy.ddp.average_in_collective = False
-
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-
-    recipe.trainer.callbacks.append(run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="mixtral",
-        )
-    )
 
     return recipe
 
