@@ -48,7 +48,7 @@ def forward_step(state: GlobalState, data_iterator: Iterable, model: GPTModel):
         model (GPTModel): The GPT Model
     """
 
-    timers = state.cfg.model_config.timers
+    timers = state.timers
     straggler_timer = state.straggler_timer
 
     timers("batch-generator", log_level=2).start()
