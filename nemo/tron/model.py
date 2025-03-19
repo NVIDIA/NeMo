@@ -30,12 +30,10 @@ from nemo.collections.llm.t5.model.t5 import T5Config
 def get_model_from_config(
     model_config: GPTConfig | T5Config,
     ddp_config: DistributedDataParallelConfig,
-    *,
     overlap_param_gather_with_optimizer_step: bool = False,
     use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
     data_parallel_random_init: bool = True,
-    align_grad_reduce: bool = True,
 ):
     # This method should only be called after `init_distributed()`.
     # model_provider_func is equivalent to llm.gpt.GPTConfig.configure_model()
@@ -149,7 +147,6 @@ def get_model_from_config(
         if data_parallel_random_init:
             for model_module in model:
                 model_module.broadcast_params()
-    
     return model
 
 
