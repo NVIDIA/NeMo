@@ -220,6 +220,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.enable_grad_ckpt:
             if getattr(self.model, 'supports_gradient_checkpointing', False):
                 self.model.gradient_checkpointing_enable()
+                logging.info("Enabled gradient checkpointing")
             else:
                 # TODO(@akoumparouli): custom logic goes here, but for now just a warning
                 logging.warning("Asked to use gradient checkpoint, but model does not support it")
@@ -270,7 +271,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         loss_mask = batch.pop('loss_mask', None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
+        if 'input_ids' not in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
 
@@ -355,7 +356,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         loss_mask = batch.pop('loss_mask', None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
+        if 'input_ids' not in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
 
