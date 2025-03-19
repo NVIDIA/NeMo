@@ -517,6 +517,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         pruning_mode=self.cfg.beam.get('pruning_mode', None),
                         score_norm=self.cfg.beam.get('score_norm', True),
                         allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                     )    
         elif self.cfg.strategy == 'maes_batch':
             if self.big_blank_durations is None or self.big_blank_durations == []:

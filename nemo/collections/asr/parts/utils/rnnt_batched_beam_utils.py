@@ -79,7 +79,7 @@ class BatchedBeamHyps:
         if init_length <= 0:
             raise ValueError("Initial hypothesis lengths must be greater than 0.")
         
-        self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=torch.float)
+        self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
         
         self.store_prefix_hashes = store_prefix_hashes
         self._max_length = init_length

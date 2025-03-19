@@ -1578,6 +1578,7 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
                 blank_lm_score_mode=blank_lm_score_mode,
                 score_norm=score_norm,
                 pruning_mode=pruning_mode,
+                allow_cuda_graphs=allow_cuda_graphs,
                 return_best_hypothesis=return_best_hypothesis,
             )
 

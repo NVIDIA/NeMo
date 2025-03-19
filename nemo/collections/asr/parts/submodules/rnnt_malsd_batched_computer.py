@@ -55,6 +55,10 @@ class MALSDState:
     beam_size: int          # (maximum) length of internal storage for beam dimension
     blank_index: int        # the index of the blank token
     
+    NON_EXISTENT_LABEL: torch.Tensor # tensor for non existent label constant
+    BLANK_TENSOR: torch.Tensor # tensor for non blank constant
+    INACTIVE_SCORE: torch.Tensor # tensor for inactive score constant
+    
     encoder_output_projected: torch.Tensor  # projected output from the encoder for decoding algorithm
     encoder_output_length: torch.Tensor     # length of the (projected) output from the encoder
 

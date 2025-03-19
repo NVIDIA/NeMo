@@ -17,6 +17,7 @@ from typing import Optional, Tuple
 import torch
 from omegaconf import DictConfig
 
+from nemo.utils import logging
 from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
@@ -53,6 +54,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         pruning_mode: Optional[str | PruningMode] = None,
         score_norm: bool = True,
+        allow_cuda_graphs: bool = False,
         return_best_hypothesis: bool = True,
     ):
         """
@@ -107,6 +109,9 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         
         assert not self.preserve_alignments
         assert not self.preserve_frame_confidence
+        
+        if allow_cuda_graphs:
+            logging.info("Cuda Graphs is not supported for decoding strategy `maes_batch`")
         
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1

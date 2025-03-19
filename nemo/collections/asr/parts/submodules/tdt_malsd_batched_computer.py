@@ -49,15 +49,17 @@ class MALSDState:
     For algorithm code the storage should be reused (prefer copy data instead of assigning tensors).
     """
 
-    INACTIVE_HYPOTHESIS_SCORE = INACTIVE_SCORE
-    NON_EXISTENT_LABEL_VALUE = NON_EXISTENT_LABEL_VALUE
-
     durations: torch.Tensor # durations from the model
     max_time: int           # maximum length of internal storage for time dimension
     batch_size: int         # (maximum) length of internal storage for batch dimension
     device: torch.device    # device to store preallocated tensors
     beam_size: int          # (maximum) length of internal storage for beam dimension
     blank_index: int        # the index of the blank token
+    
+    ONE_TENSOR: torch.Tensor # constant tensor storing value 1
+    NON_EXISTENT_LABEL: torch.Tensor # tensor for non existent label constant
+    BLANK_TENSOR: torch.Tensor # tensor for non blank constant
+    INACTIVE_SCORE: torch.Tensor # tensor for inactive score constant
         
     encoder_output_projected: torch.Tensor  # projected output from the encoder for decoding algorithm
     encoder_output_length: torch.Tensor     # length of the (projected) output from the encoder
@@ -133,9 +135,9 @@ class MALSDState:
         self.blank_index = blank_index
 
         self.ONE_TENSOR=torch.tensor(1, device=self.device, dtype=torch.long)
-        self.NON_EXISTENT_LABEL=torch.tensor(self.NON_EXISTENT_LABEL_VALUE, device=self.device, dtype=torch.long)
+        self.NON_EXISTENT_LABEL=torch.tensor(NON_EXISTENT_LABEL_VALUE, device=self.device, dtype=torch.long)
         self.BLANK_TENSOR=torch.tensor(self.blank_index, device=self.device, dtype=torch.long)
-        self.INACTIVE_SCORE=torch.tensor(self.INACTIVE_HYPOTHESIS_SCORE, device=self.device, dtype=float_dtype)
+        self.INACTIVE_SCORE=torch.tensor(INACTIVE_SCORE, device=self.device, dtype=float_dtype)
 
         self.encoder_output_projected = torch.zeros(
             (self.batch_size, self.max_time, encoder_dim),
@@ -173,7 +175,7 @@ class MALSDState:
             )
         self.hyp_scores = torch.full(
             [self.batch_size, self.beam_size],
-            fill_value=self.INACTIVE_HYPOTHESIS_SCORE,
+            fill_value=self.INACTIVE_SCORE,
             device=self.device,
             dtype=torch.float
         )
@@ -497,7 +499,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             hyps_candidates_prob = torch.where(
                 active_mask.unsqueeze(-1),
                 hyps_candidates_prob,
-                batched_hyps.INACTIVE_SCORE,
+                INACTIVE_SCORE,
             )
             # keep inactive (final hypotheses) at the first position in beam
             hyps_candidates_prob[..., 0] = torch.where(
@@ -516,7 +518,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             # mask beams if forced blank 
             hyps_candidates_prob = torch.where(
                 force_blank.unsqueeze(-1),
-                batched_hyps.INACTIVE_SCORE,
+                INACTIVE_SCORE,
                 hyps_candidates_prob
             )
             # keep hypotheses with forced blank at the first position in beam

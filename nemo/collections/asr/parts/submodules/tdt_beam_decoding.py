@@ -832,7 +832,8 @@ class Best1BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             ngram_lm_alpha: float = 0.0,
             blank_lm_score_mode: Optional[str] = None,
             pruning_mode: Optional[str] = None,
-            allow_cuda_graphs: bool = True
+            allow_cuda_graphs: bool = True,
+            return_best_hypothesis: Optional[str] = True,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -865,7 +866,8 @@ class Best1BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
                 blank_lm_score_mode=blank_lm_score_mode,
                 score_norm=score_norm,
                 pruning_mode=pruning_mode,
-                allow_cuda_graphs=allow_cuda_graphs
+                allow_cuda_graphs=allow_cuda_graphs,
+                return_best_hypothesis=return_best_hypothesis,
             )
         else:
             raise Exception(f"Decoding strategy {search_type} nor implemented.")

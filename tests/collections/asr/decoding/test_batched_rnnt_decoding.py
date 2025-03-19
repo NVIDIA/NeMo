@@ -30,6 +30,12 @@ from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConf
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
+from nemo.core.utils.optional_libs import KENLM_AVAILABLE
+
+DEVICES = [torch.device("cpu")]
+
+if torch.cuda.is_available():
+    DEVICES.append(torch.device('cuda'))
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
@@ -78,14 +84,14 @@ def get_rnnt_joint(vocab_size, vocabulary=None, encoder_output_size=4, decoder_o
 
 
 @lru_cache(maxsize=1)
-def get_model_encoder_output(data_dir, model_name):
+def get_model_encoder_output(data_dir, model_name, device=torch.device("cpu")):
     # Import inside function to avoid issues with dependencies
     import librosa
 
     audio_filepath = os.path.join(data_dir, 'asr', 'test', 'an4', 'wav', 'cen3-fjlp-b.wav')
 
     with torch.no_grad():
-        model = ASRModel.from_pretrained(model_name)  # type: ASRModel
+        model = ASRModel.from_pretrained(model_name, map_location=device)  # type: ASRModel
         model.preprocessor.featurizer.dither = 0.0
         model.preprocessor.featurizer.pad_to = 0
         model.eval()
@@ -100,7 +106,7 @@ def get_model_encoder_output(data_dir, model_name):
     return model, encoded, encoded_len
 
 
-def decode_text_from_greedy_hypotheses(hyps, decoding):
+def decode_text_from_hypotheses(hyps, decoding):
     decoded_hyps = decoding.decode_hypothesis(hyps)  # type: List[str]
 
     return decoded_hyps
@@ -148,94 +154,68 @@ def check_beam_decoding_rnnt(test_data_dir, beam_config):
             print("Timesteps", hyp_.timestamp)
             print()
 
-# def check_beam_decoding_rnnt(test_data_dir, beam_config):
-#     beam_size = beam_config.pop("beam_size", 1)
-#     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/stt_en_fastconformer_tdt_large')
-
-#     model_config = model.to_config_dict()
-#     durations = list(model_config["model_defaults"]["tdt_durations"])
-
-#     beam = tdt_beam_decoding.BeamTDTInfer(
-#         model.decoder,
-#         model.joint,
-#         beam_size=beam_size,
-#         return_best_hypothesis=False,
-#         durations=durations,
-#         **beam_config,
-#     )
-
-#     enc_out = encoded
-#     enc_len = encoded_len
-
-#     with torch.no_grad():
-#         hyps: rnnt_utils.Hypothesis = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0]
-#         _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
-#         all_hyps = all_hyps[0]
-
-#         print("Beam search algorithm :", beam_config['search_type'])
-#         for idx, hyp_ in enumerate(all_hyps):
-#             print("Hyp index", idx + 1, "text :", hyp_.text)
-
-#             assert len(hyp_.timestamp) > 0
-#             print("Timesteps", hyp_.timestamp)
-#             print()
-
-
 class TestRNNTDecoding:
-#     @pytest.mark.skipif(
-#         not NUMBA_RNNT_LOSS_AVAILABLE,
-#         reason='RNNTLoss has not been compiled with appropriate numba version.',
-#     )
-#     @pytest.mark.with_downloads
-#     @pytest.mark.unit
-#     @pytest.mark.parametrize(
-#         "beam_config",
-#         [
-#             {"search_type": "malsd_batch", "beam_size": 2, "allow_cuda_graphs": False},
-#             {"search_type": "malsd_batch", "beam_size": 4, "allow_cuda_graphs": False},
-#             {"search_type": "malsd_batch", "beam_size": 2},
-#             {"search_type": "malsd_batch", "beam_size": 4},
-#             {"search_type": "maes_batch", "beam_size": 2},
-#             {"search_type": "maes_batch", "beam_size": 4},
-#         ]
-#     )
-#     def test_rnnt_beam_decoding_return_best_hypothesis(self, test_data_dir, beam_config):
-#         beam_size = beam_config.pop("beam_size", 1)
-#         model, encoder_output, encoded_lengths = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
-#         vocab_size = model.tokenizer.vocab_size
-#         decoding = Best1BeamBatchedInfer(
-#             model.decoder,
-#             model.joint,
-#             blank_index=vocab_size,
-#             beam_size=beam_size,
-#             score_norm=True,
-#             return_best_hypothesis=True,
-#             **beam_config,
-#         )
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "beam_size": 2, "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "beam_size": 4, "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "beam_size": 2},
+            {"search_type": "malsd_batch", "beam_size": 4},
+            {"search_type": "maes_batch", "beam_size": 2},
+            {"search_type": "maes_batch", "beam_size": 4},
+        ]
+    )
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_rnnt_beam_decoding_return_best_hypothesis(self, test_data_dir, beam_config, device):
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_data_dir,
+            'stt_en_conformer_transducer_small',
+            device
+        )
         
-#         with torch.no_grad():
-#             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-#             assert type(hyps) == list
-#             assert type(hyps[0]) == rnnt_utils.Hypothesis
+        beam_size = beam_config.pop("beam_size", 1)
+        vocab_size = model.tokenizer.vocab_size
+        decoding = Best1BeamBatchedInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            **beam_config,
+        )
+        
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
             
-#             assert len(hyps) == 1
-#             assert hasattr(hyps[0], "y_sequence")
-#             assert hasattr(hyps[0], "score")
-#             assert hasattr(hyps[0], "timestamp")
+            assert len(hyps) == 1
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
             
-#             assert len(hyps[0].y_sequence) > 0
-#             assert len(hyps[0].timestamp) > 0
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
             
-#             hyps = decode_text_from_greedy_hypotheses(hyps, model.decoding)
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
             
-#             print()
+            print()
             
-#             print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}")
-#             print("Decoded text: ", hyps[0].text)
-#             print("Score: ", hyps[0].score)
-#             print("Transcript", hyps[0].y_sequence)
-#             print("Timesteps", hyps[0].timestamp)
-#             print()
+            print(f"Decoding device: {encoder_output.device}")
+            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}")
+            print("Decoded text: ", hyps[0].text)
+            print("Score: ", hyps[0].score)
+            print("Transcript", hyps[0].y_sequence)
+            print("Timesteps", hyps[0].timestamp)
+            print()
           
             
     @pytest.mark.skipif(
@@ -256,9 +236,15 @@ class TestRNNTDecoding:
             {"search_type": "maes_batch", "beam_size": 4, "maes_expansion_gamma": 2, "maes_expansion_beta": 4},
         ]
     )
-    def test_rnnt_beam_decoding_return_nbest(self, test_data_dir, beam_config):
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_rnnt_beam_decoding_return_nbest(self, test_data_dir, beam_config, device):
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_data_dir,
+            'stt_en_conformer_transducer_small',
+            device
+        )
+        
         beam_size = beam_config.pop("beam_size", 1)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
         vocab_size = model.tokenizer.vocab_size
         decoding = Best1BeamBatchedInfer(
             model.decoder,
@@ -289,7 +275,8 @@ class TestRNNTDecoding:
             all_hyps = all_hyps[0]
 
             print()
-            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}")
+            print(f"Decoding device: {encoder_output.device}")
+            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}")
             for idx, hyp_ in enumerate(all_hyps):
                 print("Hyp index", idx + 1, "text :", hyp_.text)
                 print("Score: ", hyp_.score)
@@ -298,3 +285,431 @@ class TestRNNTDecoding:
                 print("Transcripts: ", hyp_.y_sequence)
                 print("Timesteps: ", hyp_.timestamp)
                 print()
+    
+    
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "maes_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "maes_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "maes_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "maes_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+        ]
+    )
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device):
+        kenlm_model_path = os.path.join(
+            test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        )
+        beam_config["ngram_lm_model"] = kenlm_model_path
+        
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_data_dir,
+            'stt_en_conformer_transducer_small',
+            device=device
+        )
+        
+        beam_size = beam_config.pop("beam_size", 1)
+        vocab_size = model.tokenizer.vocab_size
+        decoding = Best1BeamBatchedInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            **beam_config,
+        )
+        
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
+            
+            assert len(hyps) == 1
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
+            
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
+            
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
+            
+            print()
+            
+            print(f"Decoding device: {encoder_output.device}")
+            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}")
+            print("Decoded text: ", hyps[0].text)
+            print("Score: ", hyps[0].score)
+            print("Transcript", hyps[0].y_sequence)
+            print("Timesteps", hyps[0].timestamp)
+            
+            print()
+
+
+class TestTDTDecoding:
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "beam_size": 2, "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "beam_size": 4, "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "beam_size": 2},
+            {"search_type": "malsd_batch", "beam_size": 4},
+        ]
+    )
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_tdt_beam_decoding_return_best_hypothesis(self, test_data_dir, beam_config, device):
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_data_dir,
+            'nvidia/parakeet-tdt_ctc-110m',
+            device
+        )
+        
+        model_config = model.to_config_dict()
+        durations = list(model_config["model_defaults"]["tdt_durations"])
+        
+        beam_size = beam_config.pop("beam_size", 1)
+        vocab_size = model.tokenizer.vocab_size
+        decoding = Best1BeamBatchedTDTInfer(
+            model.decoder,
+            model.joint,
+            durations=durations,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            **beam_config,
+        )
+        
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
+            
+            assert len(hyps) == 1
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
+            
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
+            
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
+            
+            print()
+            
+            print(f"Decoding device: {encoder_output.device}")
+            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}")
+            print("Decoded text: ", hyps[0].text)
+            print("Score: ", hyps[0].score)
+            print("Transcript", hyps[0].y_sequence)
+            print("Timesteps", hyps[0].timestamp)
+            print()
+          
+            
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "beam_size": 2, "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "beam_size": 4, "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "beam_size": 2},
+            {"search_type": "malsd_batch", "beam_size": 4},
+        ]
+    )
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_tdt_beam_decoding_return_nbest(self, test_data_dir, beam_config, device):
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_data_dir,
+            'nvidia/parakeet-tdt_ctc-110m',
+            device
+        )
+        
+        model_config = model.to_config_dict()
+        durations = list(model_config["model_defaults"]["tdt_durations"])
+        
+        beam_size = beam_config.pop("beam_size", 1)
+        vocab_size = model.tokenizer.vocab_size
+        decoding = Best1BeamBatchedTDTInfer(
+            model.decoder,
+            model.joint,
+            durations=durations,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=False,
+            **beam_config,
+        )
+        
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.NBestHypotheses
+            
+            assert len(hyps) == 1
+            
+            assert hasattr(hyps[0].n_best_hypotheses[0], "y_sequence")
+            assert hasattr(hyps[0].n_best_hypotheses[0], "score")
+            assert hasattr(hyps[0].n_best_hypotheses[0], "timestamp")
+            
+            assert len(hyps[0].n_best_hypotheses[0].y_sequence) > 0
+            assert len(hyps[0].n_best_hypotheses[0].timestamp) > 0
+            
+            _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
+            all_hyps = all_hyps[0]
+
+            print()
+            print(f"Decoding device: {encoder_output.device}")
+            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}")
+            for idx, hyp_ in enumerate(all_hyps):
+                print("Hyp index", idx + 1, "text :", hyp_.text)
+                print("Score: ", hyp_.score)
+
+                assert len(hyp_.timestamp) > 0
+                print("Transcripts: ", hyp_.y_sequence)
+                print("Timesteps: ", hyp_.timestamp)
+                print()
+    
+    
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "no_score"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "early",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+            {
+                "search_type": "malsd_batch",
+                "beam_size": 4,
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+                "pruning_mode": "late",
+                "blank_lm_score_mode": "lm_weighted_full"
+            },
+        ]
+    )
+    @pytest.mark.parametrize("device", DEVICES)
+    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device):
+        kenlm_model_path = os.path.join(
+            test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        )
+        beam_config["ngram_lm_model"] = kenlm_model_path
+        
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_data_dir,
+            'nvidia/parakeet-tdt_ctc-110m',
+            device=device
+        )
+        
+        model_config = model.to_config_dict()
+        durations = list(model_config["model_defaults"]["tdt_durations"])
+        
+        beam_size = beam_config.pop("beam_size", 1)
+        vocab_size = model.tokenizer.vocab_size
+        decoding = Best1BeamBatchedTDTInfer(
+            model.decoder,
+            model.joint,
+            durations=durations,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            **beam_config,
+        )
+        
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
+            
+            assert len(hyps) == 1
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
+            
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
+            
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
+            
+            print()
+            
+            print(f"Decoding device: {encoder_output.device}")
+            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}")
+            print("Decoded text: ", hyps[0].text)
+            print("Score: ", hyps[0].score)
+            print("Transcript", hyps[0].y_sequence)
+            print("Timesteps", hyps[0].timestamp)
+            
+            print()
