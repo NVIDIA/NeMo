@@ -39,7 +39,6 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from glob import glob
-from pathlib import Path
 from typing import List
 
 from omegaconf import MISSING
@@ -70,7 +69,6 @@ class TrainKenlmConfig:
     kenlm_bin_path: str = MISSING  # The path to the bin folder of KenLM.
 
     preserve_arpa: bool = False  # Whether to preserve the intermediate ARPA file.
-    save_nemo: bool = False
     ngram_prune: List[int] = field(
         default_factory=lambda: [0]
     )  # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation
@@ -109,8 +107,6 @@ def main(args: TrainKenlmConfig):
     ] + [str(n) for n in args.ngram_prune]
 
     if args.cache_path:
-        if args.add_all_unigrams:
-            raise NotImplementedError("Adding all unigrams is not supported with cache_path")
         if not os.path.exists(args.cache_path):
             os.makedirs(args.cache_path, exist_ok=True)
 

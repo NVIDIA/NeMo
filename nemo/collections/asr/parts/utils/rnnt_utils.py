@@ -109,9 +109,6 @@ class Hypothesis:
     last_token: Optional[torch.Tensor] = None
     token_duration: Optional[List[int]] = None
     last_frame: Optional[int] = None
-    
-    fast_ngram_lm_state_candidates: Optional[torch.Tensor] = None
-    fast_ngram_lm_state: Optional[torch.Tensor] = None
 
     @property
     def non_blank_frame_confidence(self) -> List[float]:

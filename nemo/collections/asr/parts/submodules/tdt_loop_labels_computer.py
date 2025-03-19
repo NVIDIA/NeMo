@@ -16,7 +16,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Tuple, Union
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -35,7 +34,6 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 
 try:
     from cuda import cudart
@@ -1122,4 +1120,5 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
+
         return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
