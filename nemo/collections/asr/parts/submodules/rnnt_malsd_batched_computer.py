@@ -160,7 +160,7 @@ class MALSDState:
             )
         self.hyp_scores = torch.full(
             [self.batch_size, self.beam_size],
-            fill_value=INACTIVE_SCORE,
+            fill_value=self.INACTIVE_SCORE,
             device=self.device,
             dtype=torch.float
         )
@@ -969,7 +969,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         torch.where(
             self.state.active_mask.unsqueeze(-1),
             hyps_candidates_prob,
-            INACTIVE_SCORE,
+            self.state.INACTIVE_SCORE,
             out=hyps_candidates_prob
         )
         # keep inactive (final hypotheses) at the first position in beam
@@ -995,7 +995,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         # mask beams if forced blank 
         torch.where(
             force_blank.unsqueeze(-1),
-            INACTIVE_SCORE,
+            self.state.INACTIVE_SCORE,
             hyps_candidates_prob,
             out=hyps_candidates_prob
         )

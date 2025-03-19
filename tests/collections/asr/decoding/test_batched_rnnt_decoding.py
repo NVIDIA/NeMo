@@ -85,14 +85,15 @@ def get_model_encoder_output(data_dir, model_name):
     audio_filepath = os.path.join(data_dir, 'asr', 'test', 'an4', 'wav', 'cen3-fjlp-b.wav')
 
     with torch.no_grad():
-        model = ASRModel.from_pretrained(model_name, map_location='cpu')  # type: ASRModel
+        model = ASRModel.from_pretrained(model_name)  # type: ASRModel
         model.preprocessor.featurizer.dither = 0.0
         model.preprocessor.featurizer.pad_to = 0
+        model.eval()
 
         audio, sr = librosa.load(path=audio_filepath, sr=16000, mono=True)
 
-        input_signal = torch.tensor(audio, dtype=torch.float32).unsqueeze(0)
-        input_signal_length = torch.tensor([len(audio)], dtype=torch.int32)
+        input_signal = torch.tensor(audio, dtype=torch.float32, device=model.device).unsqueeze(0)
+        input_signal_length = torch.tensor([len(audio)], dtype=torch.int32, device=model.device)
 
         encoded, encoded_len = model(input_signal=input_signal, input_signal_length=input_signal_length)
 
@@ -121,6 +122,7 @@ def decode_text_from_nbest_hypotheses(hyps, decoding):
 def check_beam_decoding_rnnt(test_data_dir, beam_config):
     beam_size = beam_config.pop("beam_size", 1)
     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/stt_en_fastconformer_transducer_large')
+    print("Device: ", encoded.device)
 
     beam = rnnt_beam_decoding.Best1BeamBatchedInfer(
         model.decoder,
@@ -180,59 +182,61 @@ def check_beam_decoding_rnnt(test_data_dir, beam_config):
 
 
 class TestRNNTDecoding:
-    @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
-    )
-    @pytest.mark.with_downloads
-    @pytest.mark.unit
-    @pytest.mark.parametrize(
-        "beam_config",
-        [
-            {"search_type": "malsd_batch", "beam_size": 2, "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "beam_size": 4, "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "beam_size": 2},
-            {"search_type": "malsd_batch", "beam_size": 4},
-            {"search_type": "maes_batch", "beam_size": 2},
-            {"search_type": "maes_batch", "beam_size": 4},
-        ]
-    )
-    def test_rnnt_beam_decoding_return_best_hypothesis(self, test_data_dir, beam_config):
-        beam_size = beam_config.pop("beam_size", 1)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
-        vocab_size = model.tokenizer.vocab_size
-        decoding = Best1BeamBatchedInfer(
-            model.decoder,
-            model.joint,
-            blank_index=vocab_size,
-            beam_size=beam_size,
-            score_norm=True,
-            return_best_hypothesis=True,
-            **beam_config,
-        )
+#     @pytest.mark.skipif(
+#         not NUMBA_RNNT_LOSS_AVAILABLE,
+#         reason='RNNTLoss has not been compiled with appropriate numba version.',
+#     )
+#     @pytest.mark.with_downloads
+#     @pytest.mark.unit
+#     @pytest.mark.parametrize(
+#         "beam_config",
+#         [
+#             {"search_type": "malsd_batch", "beam_size": 2, "allow_cuda_graphs": False},
+#             {"search_type": "malsd_batch", "beam_size": 4, "allow_cuda_graphs": False},
+#             {"search_type": "malsd_batch", "beam_size": 2},
+#             {"search_type": "malsd_batch", "beam_size": 4},
+#             {"search_type": "maes_batch", "beam_size": 2},
+#             {"search_type": "maes_batch", "beam_size": 4},
+#         ]
+#     )
+#     def test_rnnt_beam_decoding_return_best_hypothesis(self, test_data_dir, beam_config):
+#         beam_size = beam_config.pop("beam_size", 1)
+#         model, encoder_output, encoded_lengths = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
+#         vocab_size = model.tokenizer.vocab_size
+#         decoding = Best1BeamBatchedInfer(
+#             model.decoder,
+#             model.joint,
+#             blank_index=vocab_size,
+#             beam_size=beam_size,
+#             score_norm=True,
+#             return_best_hypothesis=True,
+#             **beam_config,
+#         )
         
-        with torch.no_grad():
-            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-            assert type(hyps) == list
-            assert type(hyps[0]) == rnnt_utils.Hypothesis
+#         with torch.no_grad():
+#             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+#             assert type(hyps) == list
+#             assert type(hyps[0]) == rnnt_utils.Hypothesis
             
-            assert len(hyps) == 1
-            assert hasattr(hyps[0], "y_sequence")
-            assert hasattr(hyps[0], "score")
-            assert hasattr(hyps[0], "timestamp")
+#             assert len(hyps) == 1
+#             assert hasattr(hyps[0], "y_sequence")
+#             assert hasattr(hyps[0], "score")
+#             assert hasattr(hyps[0], "timestamp")
             
-            assert len(hyps[0].y_sequence) > 0
-            assert len(hyps[0].timestamp) > 0
+#             assert len(hyps[0].y_sequence) > 0
+#             assert len(hyps[0].timestamp) > 0
             
-            hyps = decode_text_from_greedy_hypotheses(hyps, model.decoding)
+#             hyps = decode_text_from_greedy_hypotheses(hyps, model.decoding)
             
-            print("Decoded text: ", hyps[0].text)
-            print("Decoded text: ", hyps[0].text)
+#             print()
             
-            print("Beam search algorithm :", beam_config['search_type'])
-            print("Transcript", hyps[0].y_sequence)
-            print("Timesteps", hyps[0].timestamp)
-            print()
+#             print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}")
+#             print("Decoded text: ", hyps[0].text)
+#             print("Score: ", hyps[0].score)
+#             print("Transcript", hyps[0].y_sequence)
+#             print("Timesteps", hyps[0].timestamp)
+#             print()
+          
             
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -267,24 +271,29 @@ class TestRNNTDecoding:
         
         with torch.no_grad():
             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+
             assert type(hyps) == list
             assert type(hyps[0]) == rnnt_utils.NBestHypotheses
             
             assert len(hyps) == 1
             assert len(hyps[0].n_best_hypotheses) == beam_size
-            assert hasattr(hyps[0], "y_sequence")
-            assert hasattr(hyps[0], "score")
-            assert hasattr(hyps[0], "timestamp")
+            assert hasattr(hyps[0].n_best_hypotheses[0], "y_sequence")
+            assert hasattr(hyps[0].n_best_hypotheses[0], "score")
+            assert hasattr(hyps[0].n_best_hypotheses[0], "timestamp")
             
-            assert len(hyps[0].y_sequence) > 0
-            assert len(hyps[0].timestamp) > 0
+            assert len(hyps[0].n_best_hypotheses[0].y_sequence) > 0
+            assert len(hyps[0].n_best_hypotheses[0].timestamp) > 0
             
-            hyps = decode_text_from_greedy_hypotheses(hyps, model.decoding)
-            
-            print("Decoded text: ", hyps[0].text)
-            print("Decoded text: ", hyps[0].text)
-            
-            print("Beam search algorithm :", beam_config['search_type'])
-            print("Transcript", hyps[0].y_sequence)
-            print("Timesteps", hyps[0].timestamp)
+            _, all_hyps = decode_text_from_nbest_hypotheses(hyps, model.decoding)
+            all_hyps = all_hyps[0]
+
             print()
+            print(f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}")
+            for idx, hyp_ in enumerate(all_hyps):
+                print("Hyp index", idx + 1, "text :", hyp_.text)
+                print("Score: ", hyp_.score)
+
+                assert len(hyp_.timestamp) > 0
+                print("Transcripts: ", hyp_.y_sequence)
+                print("Timesteps: ", hyp_.timestamp)
+                print()

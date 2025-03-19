@@ -29,9 +29,9 @@
 import copy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
-from pathlib import Path
 
 import numpy as np
+from pathlib import Path
 import torch
 from tqdm import tqdm
 
@@ -42,20 +42,16 @@ from nemo.collections.asr.parts.utils.rnnt_utils import (
     NBestHypotheses,
     is_prefix,
     select_k_expansions,
+    BlankLMScoreMode,
+    PruningMode
 )
-from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
-from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
-from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
-from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
-
-from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
 from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
+from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+from nemo.core.classes import Typing, typecheck
+from nemo.utils import logging
 
-from nemo.utils.timers import SimpleTimer
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 
 try:
     import kenlm
@@ -276,8 +272,6 @@ class BeamRNNTInfer(Typing):
         ngram_lm_alpha: float = 0.0,
         hat_subtract_ilm: bool = False,
         hat_ilm_weight: float = 0.0,
-        use_kenlm: bool = True,
-        pruning_mode: rnnt_utils.PruningMode = rnnt_utils.PruningMode('early')
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -293,7 +287,6 @@ class BeamRNNTInfer(Typing):
         self.beam_size = beam_size
         self.score_norm = score_norm
         self.max_candidates = beam_size
-        self.timer = SimpleTimer()
 
         if self.beam_size == 1:
             logging.info("Beam size of 1 was used, switching to sample level `greedy_search`")
@@ -308,12 +301,7 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError("`nsc` (Constrained Beam Search) has not been implemented.")
             # self.search_algorithm = self.nsc_beam_search
         elif search_type == "maes":
-            if use_kenlm:
-                print("#"*100)
-                print(use_kenlm)
-                self.search_algorithm = self.modified_adaptive_expansion_search
-            else:
-                self.search_algorithm = self.modified_adaptive_expansion_search_gpu_lm
+            self.search_algorithm = self.modified_adaptive_expansion_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
@@ -370,22 +358,15 @@ class BeamRNNTInfer(Typing):
         self.token_offset = 0
 
         if ngram_lm_model:
-            if use_kenlm:
-                if KENLM_AVAILABLE:
-                    self.ngram_lm = kenlm.Model(ngram_lm_model)
-                    self.ngram_lm_alpha = ngram_lm_alpha
-                else:
-                    raise ImportError(
-                        "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
-                    )
-            else:
-                self.ngram_lm = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank)
+            if KENLM_AVAILABLE:
+                self.ngram_lm = kenlm.Model(ngram_lm_model)
                 self.ngram_lm_alpha = ngram_lm_alpha
+            else:
+                raise ImportError(
+                    "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
+                )
         else:
             self.ngram_lm = None
-            
-        self.use_kenlm = use_kenlm
-        self.pruning_mode = rnnt_utils.PruningMode(pruning_mode)
 
         if hat_subtract_ilm:
             assert hasattr(self.joint, "return_hat_ilm")
@@ -422,7 +403,6 @@ class BeamRNNTInfer(Typing):
             return_hat_ilm_default = self.joint.return_hat_ilm
             self.joint.return_hat_ilm = self.hat_subtract_ilm
 
-        self.timer.start(device=encoder_output.device)
         with torch.inference_mode():
             # Apply optional preprocessing
             encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
@@ -467,7 +447,6 @@ class BeamRNNTInfer(Typing):
                         best_hypothesis = NBestHypotheses(nbest_hyps)  # type: NBestHypotheses
                     hypotheses.append(best_hypothesis)
 
-        self.timer.stop(device=encoder_output.device)
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
         if self.hat_subtract_ilm:
@@ -485,12 +464,6 @@ class BeamRNNTInfer(Typing):
             hyps: sorted list of hypotheses
         """
         if self.score_norm:
-            # p = sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
-            # print("Final")
-            # print("Sequence: ", p[0].y_sequence)
-            # print("Timesteps: ", p[0].timestep)
-            # print("Score: ", p[0].score)
-            # print()
             return sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
@@ -1001,8 +974,6 @@ class BeamRNNTInfer(Typing):
                     # Update the current batch states with the sub-batch states (in the correct indices)
                     # These indices are specified by sub_batch_ids, the ids of samples which were updated.
                     if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
-                        if max(sub_batch_ids) > len(beam_state)-1:
-                            beam_state = list(range(beam))
                         # LSTM decoder, state is [layer x batch x hidden]
                         index = 0
                         for sub_batch_id in sub_batch_ids:
@@ -1122,204 +1093,6 @@ class BeamRNNTInfer(Typing):
                         del h.alignments[-1]
 
             return B
-        
-    def modified_adaptive_expansion_search_gpu_lm(
-        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
-    ) -> List[Hypothesis]:
-        """
-        Based on/modified from https://ieeexplore.ieee.org/document/9250505
-
-        Args:
-            h: Encoded speech features (1, T_max, D_enc)
-
-        Returns:
-            nbest_hyps: N-best decoding results
-        """
-        if partial_hypotheses is not None:
-            raise NotImplementedError("`partial_hypotheses` support is not supported")
-
-        h = h[0]  # [T, D]
-        device = h.device
-        self.ngram_lm.to(device)
-
-        labels = torch.arange(self.vocab_size, device=h.device).unsqueeze(0)
-
-        # prepare the batched beam states
-        beam = min(self.beam_size, self.vocab_size)
-        beam_state = self.decoder.initialize_state(
-            torch.zeros(1, device=h.device, dtype=h.dtype)
-        )  # [L, B, H], [L, B, H] for LSTMS
-
-        # Initialize first hypothesis for the beam (blank)
-        init_tokens = [
-            Hypothesis(
-                y_sequence=[self.blank],
-                score=0.0,
-                dec_state=self.decoder.batch_select_state(beam_state, 0),
-                timestep=[-1],
-                length=0,
-            )
-        ]
-
-        cache = {}
-
-        # Decode a batch of beam states and scores
-        beam_dec_out, beam_state = self.decoder.batch_score_hypothesis(init_tokens, cache)
-        state = beam_state[0]
-
-        # Initialize first hypothesis for the beam (blank) for kept hypotheses
-        kept_hyps = [
-            Hypothesis(
-                y_sequence=[self.blank],
-                score=0.0,
-                dec_state=state,
-                dec_out=[beam_dec_out[0]],
-                timestep=[-1],
-                length=0,
-            )
-        ]
-
-        # Setup ngram LM:
-        if self.ngram_lm:
-            init_lm_state = self.ngram_lm.get_init_states(batch_size=1, bos=True)
-            kept_hyps[0].ngram_lm_state = init_lm_state
-
-        for t in range(encoded_lengths):
-            enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
-
-            # Perform prefix search to obtain hypothesis
-            hyps = self.prefix_search(
-                sorted(kept_hyps, key=lambda x: len(x.y_sequence), reverse=True),
-                enc_out_t,
-                prefix_alpha=self.maes_prefix_alpha,
-            )  # type: List[Hypothesis]
-            kept_hyps = []
-            
-            # print("Frame idx: ", t)
-            # for hyp1 in hyps:
-            #     print("Sequence: ", hyp1.y_sequence)
-            #     print("Timesteps: ", hyp1.timestep)
-            #     print("Score: ", hyp1.score)
-            #     print()
-
-            # Prepare output tensor
-            beam_enc_out = enc_out_t
-
-            # List that contains the blank token emisions
-            list_b = []
-            duplication_check = [hyp.y_sequence for hyp in hyps]
-
-            # Repeat for number of mAES steps
-            for n in range(self.maes_num_steps):
-                # Pack the decoder logits for all current hypothesis
-                beam_dec_out = torch.stack([h.dec_out[-1] for h in hyps])  # [H, 1, D]
-
-                # Extract the log probabilities
-                ytm, ilm_ytm = self.resolve_joint_output(beam_enc_out, beam_dec_out)
-                total_logps = ytm[:, 0, 0, :]
-                
-                if self.ngram_lm:
-                    lm_next_states_list = []
-                    lm_scores_list = []
-                    for h1 in hyps:
-                        lm_score, lm_state_candidates = self.ngram_lm(states=h1.ngram_lm_state)
-                        lm_next_states = torch.gather(lm_state_candidates, dim=1, index=labels).flatten()
-                        
-                        lm_next_states_list.append(lm_next_states)
-                        lm_scores_list.append(lm_score.flatten())
-                    lm_scores = torch.stack(lm_scores_list)
-                    lm_next_states = torch.stack(lm_next_states_list)
-                    
-                    if self.pruning_mode is rnnt_utils.PruningMode.LATE:
-                        total_logps[..., :-1] += lm_scores * self.ngram_lm_alpha
-                    
-                beam_logp, beam_idx = total_logps.topk(self.max_candidates, dim=-1)
-                
-                # Compute k expansions for all the current hypotheses
-                k_expansions = select_k_expansions(
-                    hyps, beam_idx, beam_logp, self.maes_expansion_gamma, self.maes_expansion_beta
-                )
-                        
-                # List that contains the hypothesis after prefix expansion
-                list_exp = []
-                for i, hyp in enumerate(hyps):  # For all hypothesis
-                    for k, new_score in k_expansions[i]:  # for all expansion within these hypothesis
-                        new_hyp = Hypothesis(
-                            y_sequence=hyp.y_sequence[:],
-                            score=new_score,
-                            dec_out=hyp.dec_out[:],
-                            dec_state=hyp.dec_state,
-                            timestep=hyp.timestep[:],
-                            length=t,
-                        )
-                        
-                        if self.ngram_lm:
-                            new_hyp.ngram_lm_state = hyp.ngram_lm_state
-
-                        # If the expansion was for blank
-                        if k == self.blank:
-                            list_b.append(new_hyp)
-                        else:
-                            # If the expansion was a token
-                            # new_hyp.y_sequence.append(int(k))
-                            if (new_hyp.y_sequence + [int(k)]) not in duplication_check:
-                                new_hyp.y_sequence.append(int(k))
-                                new_hyp.timestep.append(t)
-                                
-                                if self.ngram_lm:
-                                    new_hyp.ngram_lm_state = lm_next_states[i, k].unsqueeze(-1)
-
-                                # Setup ngram LM:
-                                if self.ngram_lm:
-                                    if self.pruning_mode is rnnt_utils.PruningMode.EARLY:
-                                        new_hyp.score += self.ngram_lm_alpha * lm_scores[i, k]
-
-                                list_exp.append(new_hyp)
-
-                # If there were no token expansions in any of the hypotheses,
-                # Early exit
-                if not list_exp:
-                    kept_hyps = sorted(list_b, key=lambda x: x.score, reverse=True)[:beam]
-                    
-                    # Early exit
-                    break
-
-                else:
-                    # Decode a batch of beam states and scores
-                    beam_dec_out, beam_state = self.decoder.batch_score_hypothesis(
-                        list_exp,
-                        cache,
-                        # self.language_model is not None,
-                    )
-
-                    # If this isnt the last mAES step
-                    if n < (self.maes_num_steps - 1):
-                        # For all expanded hypothesis
-                        for i, hyp in enumerate(list_exp):
-                            # Preserve the decoder logits for the current beam
-                            hyp.dec_out.append(beam_dec_out[i])
-                            hyp.dec_state = beam_state[i]
-
-                        # Copy the expanded hypothesis
-                        hyps = list_exp[:]
-                    else:
-                        # Extract the log probabilities
-                        beam_logp, _ = self.resolve_joint_output(beam_enc_out, torch.stack(beam_dec_out))
-                        beam_logp = beam_logp[:, 0, 0, :]
-
-                        # For all expansions, add the score for the blank label
-                        for i, hyp in enumerate(list_exp):
-                            hyp.score += float(beam_logp[i, self.blank])
-
-                            # Preserve the decoder's output and state
-                            hyp.dec_out.append(beam_dec_out[i])
-                            hyp.dec_state = beam_state[i]
-
-                        # Finally, update the kept hypothesis of sorted top Beam candidates
-                        kept_hyps = sorted(list_b + list_exp, key=lambda x: x.score, reverse=True)[:beam]
-
-        # Sort the hypothesis with best scores
-        return self.sort_nbest(kept_hyps)
 
     def modified_adaptive_expansion_search(
         self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
@@ -1409,14 +1182,6 @@ class BeamRNNTInfer(Typing):
         for t in range(encoded_lengths):
             enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
 
-            # print("Frame idx: ", t)
-            # print("Before")
-            # for hyp1 in sorted(kept_hyps, key = lambda x: x.score, reverse=True):
-            #     print("Sequence: ", hyp1.y_sequence)
-            #     print("Timesteps: ", hyp1.timestep)
-            #     print("Score: ", hyp1.score)
-            #     print()
-                
             # Perform prefix search to obtain hypothesis
             hyps = self.prefix_search(
                 sorted(kept_hyps, key=lambda x: len(x.y_sequence), reverse=True),
@@ -1425,13 +1190,6 @@ class BeamRNNTInfer(Typing):
             )  # type: List[Hypothesis]
             kept_hyps = []
 
-            # print("Frame idx: ", t)
-            # print("After")
-            # for hyp1 in sorted(hyps, key = lambda x: x.score, reverse=True):
-            #     print("Sequence: ", hyp1.y_sequence)
-            #     print("Timesteps: ", hyp1.timestep)
-            #     print("Score: ", hyp1.score)
-            #     print()
             # Prepare output tensor
             beam_enc_out = enc_out_t
 
@@ -1621,14 +1379,6 @@ class BeamRNNTInfer(Typing):
                                 if int(label) == self.blank:
                                     h_i.alignments.append([])  # blank buffer for next timestep
 
-        # print("-"*20)
-        # print("Final")
-        # for hyp1 in sorted(kept_hyps, key = lambda x: x.score, reverse=True):
-        #     print("Sequence: ", hyp1.y_sequence)
-        #     print("Timesteps: ", hyp1.timestep)
-        #     print("Score: ", hyp1.score)
-        #     print()
-        # print("-"*20)
         # Remove trailing empty list of alignments
         if self.preserve_alignments:
             for h in kept_hyps:
@@ -1722,27 +1472,23 @@ class BeamRNNTInfer(Typing):
                             else:
                                 curr_score += self.ngram_lm_alpha * lm_score
 
-                    hyp_j.score = np.logaddexp(float(hyp_j.score), float(curr_score))
+                    hyp_j.score = np.logaddexp(hyp_j.score, curr_score)
 
         return hypotheses
 
-    def compute_ngram_score(self, current_lm_state: kenlm.State, label: int) -> Tuple[float, "kenlm.State"]:
+    def compute_ngram_score(self, current_lm_state: "kenlm.State", label: int) -> Tuple[float, "kenlm.State"]:
         """
         Score computation for kenlm ngram language model.
         """
-        if self.use_kenlm and KENLM_AVAILABLE:
-            if self.token_offset:
-                label = chr(label + self.token_offset)
-            else:
-                label = str(label)
-            next_state = kenlm.State()
-            lm_score = self.ngram_lm.BaseScore(current_lm_state, label, next_state)
-            lm_score *= 1.0 / np.log10(np.e)
+
+        if self.token_offset:
+            label = chr(label + self.token_offset)
         else:
-            lm_score, batch_lm_state_candidates = self.ngram_lm(states=current_lm_state)
-            next_state = torch.gather(batch_lm_state_candidates, dim=1, index=torch.tensor(label, device=lm_score.device).unsqueeze(-1).unsqueeze(-1)).flatten()
-            lm_score = float(lm_score[:, label])
-            
+            label = str(label)
+        next_state = kenlm.State()
+        lm_score = self.ngram_lm.BaseScore(current_lm_state, label, next_state)
+        lm_score *= 1.0 / np.log10(np.e)
+
         return lm_score, next_state
 
     def set_decoding_type(self, decoding_type: str):
@@ -1756,7 +1502,6 @@ class BeamRNNTInfer(Typing):
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
             self.token_offset = DEFAULT_TOKEN_OFFSET
-
 
 class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
     @property
@@ -1776,15 +1521,15 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             beam_size: int,
             search_type: str = 'malsd_batch',
             score_norm: bool = True,
-            maes_num_steps: Optional[int] = None,
-            maes_expansion_gamma: Optional[float] = None,
-            maes_expansion_beta: Optional[int] = None,
-            malsd_max_symbols_per_step: Optional[int] = None,
+            maes_num_steps: Optional[int] = 2,
+            maes_expansion_gamma: Optional[float] = 2.3,
+            maes_expansion_beta: Optional[int] = 2,
+            malsd_max_symbols_per_step: Optional[int] = 10,
             preserve_alignments: bool = False,
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
-            blank_lm_score_mode: Optional[str] = None,
-            pruning_mode: Optional[str] = None,
+            blank_lm_score_mode: Optional[str] = BlankLMScoreMode.LM_WEIGHTED_FULL,
+            pruning_mode: Optional[str] = PruningMode.EARLY,
             allow_cuda_graphs: Optional[str] = True,
             return_best_hypothesis: Optional[str] = True,
     ):
@@ -1801,7 +1546,6 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
         self.max_symbols = malsd_max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
-        self.timer = SimpleTimer()
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
             # switch between more efficient batch decoding technique
@@ -1851,8 +1595,8 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             self,
             encoder_output: torch.Tensor,
             encoded_lengths: torch.Tensor,
-            partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
-    ) -> Tuple[list[rnnt_utils.Hypothesis]]:
+            partial_hypotheses: Optional[list[Hypothesis]] = None,
+    ) -> Tuple[list[Hypothesis]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-regressively.
         Args:
@@ -1875,9 +1619,7 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             self.joint.eval()
 
             inseq = encoder_output  # [B, T, D]
-            self.timer.start(device=inseq.device)
             hyps = self._decoding_computer(x=inseq, out_len=logitlen)
-            self.timer.stop(device=inseq.device)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
