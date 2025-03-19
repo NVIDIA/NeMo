@@ -21,9 +21,9 @@ import torch.nn.functional as F
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
-from nemo.collections.llm.gpt.model.llama import _export_embedding, _export_head
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
@@ -36,6 +36,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class Qwen2Config(GPTConfig):
+    """
+    Base config for Qwen 2 Models
+    """
+
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
     gated_linear_unit: bool = True
@@ -54,6 +58,10 @@ class Qwen2Config(GPTConfig):
 
 @dataclass
 class Qwen2Config500M(Qwen2Config):
+    """
+    Config for Qwen 2 0.5B: https://huggingface.co/Qwen/Qwen2-0.5B
+    """
+
     num_layers: int = 24
     hidden_size: int = 896
     num_attention_heads: int = 14
@@ -63,6 +71,10 @@ class Qwen2Config500M(Qwen2Config):
 
 @dataclass
 class Qwen2Config1P5B(Qwen2Config):
+    """
+    Config for Qwen 2 1.5B: https://huggingface.co/Qwen/Qwen2-1.5B
+    """
+
     num_layers: int = 28
     hidden_size: int = 1536
     num_attention_heads: int = 12
@@ -72,6 +84,10 @@ class Qwen2Config1P5B(Qwen2Config):
 
 @dataclass
 class Qwen2Config7B(Qwen2Config):
+    """
+    Config for Qwen 2 7B: https://huggingface.co/Qwen/Qwen2-7B
+    """
+
     num_layers: int = 28
     hidden_size: int = 3584
     num_attention_heads: int = 28
@@ -82,6 +98,10 @@ class Qwen2Config7B(Qwen2Config):
 
 @dataclass
 class Qwen2Config72B(Qwen2Config):
+    """
+    Config for Qwen 2 72B: https://huggingface.co/Qwen/Qwen2-72B
+    """
+
     num_layers: int = 80
     hidden_size: int = 8192
     num_attention_heads: int = 64
@@ -89,10 +109,13 @@ class Qwen2Config72B(Qwen2Config):
     ffn_hidden_size: int = 29568
     vocab_size: int = 152064
     layernorm_epsilon: float = 1e-5
-    vocab_size: int = 152064
 
 
 class Qwen2Model(GPTModel):
+    """
+    Base model for Qwen 2
+    """
+
     def __init__(
         self,
         config: Annotated[Optional[Qwen2Config], Config[Qwen2Config]] = None,
@@ -105,6 +128,7 @@ class Qwen2Model(GPTModel):
 
 @io.model_importer(Qwen2Model, "hf")
 class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
+    # pylint: disable=C0115,C0116
     def init(self) -> Qwen2Model:
         return Qwen2Model(self.config, tokenizer=self.tokenizer)
 
@@ -135,8 +159,33 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             "lm_head.weight": "output_layer.weight",
         }
 
+        transforms = [
+            io.state_transform(
+                source_key=(
+                    "model.layers.*.self_attn.q_proj.weight",
+                    "model.layers.*.self_attn.k_proj.weight",
+                    "model.layers.*.self_attn.v_proj.weight",
+                ),
+                target_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                fn=TransformFns.merge_qkv,
+            ),
+            io.state_transform(
+                source_key=(
+                    "model.layers.*.self_attn.q_proj.bias",
+                    "model.layers.*.self_attn.k_proj.bias",
+                    "model.layers.*.self_attn.v_proj.bias",
+                ),
+                target_key="decoder.layers.*.self_attention.linear_qkv.bias",
+                fn=TransformFns.merge_qkv_bias,
+            ),
+            io.state_transform(
+                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key="decoder.layers.*.mlp.linear_fc1.weight",
+                fn=TransformFns.merge_fc1,
+            ),
+        ]
         return io.apply_transforms(
-            source, target, mapping=mapping, transforms=[_import_qkv, _import_qkv_bias, _import_linear_fc1]
+            source, target, mapping=mapping, transforms=transforms
         )
 
     @property
@@ -148,8 +197,10 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
     @property
     def config(self) -> Qwen2Config:
         from transformers import AutoConfig as HFAutoConfig
+        from transformers import GenerationConfig
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        generation_config = GenerationConfig.from_pretrained(str(self))
 
         output = Qwen2Config(
             num_layers=source.num_hidden_layers,
@@ -163,9 +214,12 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             make_vocab_size_divisible_by=128,
             rotary_base=source.rope_theta,
             share_embeddings_and_output_weights=False,
+            vocab_size=source.vocab_size,
+            seq_length=source.max_position_embeddings,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            generation_config=generation_config,
         )
 
         return output
@@ -173,6 +227,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
 
 @io.model_exporter(Qwen2Model, "hf")
 class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
+    # pylint: disable=C0115,C0116
     def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
@@ -200,11 +255,46 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
 
+        transforms = [
+            io.state_transform(
+                source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                target_key=(
+                    "model.layers.*.self_attn.q_proj.weight",
+                    "model.layers.*.self_attn.k_proj.weight",
+                    "model.layers.*.self_attn.v_proj.weight",
+                ),
+                fn=TransformFns.split_qkv,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.self_attention.linear_qkv.bias",
+                target_key=(
+                    "model.layers.*.self_attn.q_proj.bias",
+                    "model.layers.*.self_attn.k_proj.bias",
+                    "model.layers.*.self_attn.v_proj.bias",
+                ),
+                fn=TransformFns.split_qkv_bias,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ),
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="model.embed_tokens.weight",
+                fn=TransformFns.prune_padding,
+            ),
+            io.state_transform(
+                source_key="output_layer.weight",
+                target_key="lm_head.weight",
+                fn=TransformFns.prune_padding,
+            )
+        ]
         return io.apply_transforms(
             source,
             target,
             mapping=mapping,
-            transforms=[_export_qkv, _export_qkv_bias, _export_linear_fc1, _export_embedding, _export_head],
+            transforms=transforms,
         )
 
     @property
@@ -231,172 +321,6 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             sliding_window=source.seq_length,
             tie_word_embeddings=False,
         )
-
-
-@io.state_transform(
-    source_key=(
-        "model.layers.*.self_attn.q_proj.weight",
-        "model.layers.*.self_attn.k_proj.weight",
-        "model.layers.*.self_attn.v_proj.weight",
-    ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-)
-def _import_qkv(ctx: io.TransformCTX, q, k, v):
-    megatron_config = ctx.target.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-
-    old_tensor_shape = q.size()
-    new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
-    new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
-
-    q = q.view(*new_q_tensor_shape)
-    k = k.view(*new_kv_tensor_shape)
-    v = v.view(*new_kv_tensor_shape)
-
-    qkv_weights_l = []
-    for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i : i + 1, :, :])
-        qkv_weights_l.append(v[i : i + 1, :, :])
-    qkv_weights = torch.cat(qkv_weights_l)
-    assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
-    assert qkv_weights.shape[1] == head_size, qkv_weights.shape
-    assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
-
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
-
-    return qkv_weights
-
-
-@io.state_transform(
-    source_key=(
-        "model.layers.*.self_attn.q_proj.bias",
-        "model.layers.*.self_attn.k_proj.bias",
-        "model.layers.*.self_attn.v_proj.bias",
-    ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.bias",
-)
-def _import_qkv_bias(ctx: io.TransformCTX, q, k, v):
-    megatron_config = ctx.target.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-
-    new_q_tensor_shape = (head_num, head_size)
-    new_kv_tensor_shape = (num_query_groups, head_size)
-
-    q = q.view(*new_q_tensor_shape)
-    k = k.view(*new_kv_tensor_shape)
-    v = v.view(*new_kv_tensor_shape)
-
-    qkv_bias = torch.empty((0, head_size)).type_as(q)
-    for i in range(num_query_groups):
-        qkv_bias = torch.cat((qkv_bias, q[i * heads_per_group : (i + 1) * heads_per_group, :]))
-        qkv_bias = torch.cat((qkv_bias, k[i : i + 1, :]))
-        qkv_bias = torch.cat((qkv_bias, v[i : i + 1, :]))
-    qkv_bias = qkv_bias.reshape(
-        [
-            head_size * (head_num + 2 * num_query_groups),
-        ]
-    )
-    return qkv_bias
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
-    target_key=(
-        "model.layers.*.self_attn.q_proj.weight",
-        "model.layers.*.self_attn.k_proj.weight",
-        "model.layers.*.self_attn.v_proj.weight",
-    ),
-)
-def _export_qkv(ctx: io.TransformCTX, linear_qkv):
-    megatron_config = ctx.source.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-    qkv_total_dim = head_num + 2 * num_query_groups
-
-    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
-    q_slice = torch.cat(
-        [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
-            for i in range(num_query_groups)
-        ]
-    )
-    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-
-    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
-    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
-    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
-
-    return q_proj, k_proj, v_proj
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.self_attention.linear_qkv.bias",
-    target_key=(
-        "model.layers.*.self_attn.q_proj.bias",
-        "model.layers.*.self_attn.k_proj.bias",
-        "model.layers.*.self_attn.v_proj.bias",
-    ),
-)
-def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
-    megatron_config = ctx.source.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-    qkv_total_dim = head_num + 2 * num_query_groups
-
-    qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
-    q_slice = torch.cat(
-        [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
-            for i in range(num_query_groups)
-        ]
-    )
-    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-
-    q_bias = qkv_bias[q_slice].reshape(-1).cpu()
-    k_bias = qkv_bias[k_slice].reshape(-1).cpu()
-    v_bias = qkv_bias[v_slice].reshape(-1).cpu()
-
-    return q_bias, k_bias, v_bias
-
-
-@io.state_transform(
-    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight",
-)
-def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0)
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-)
-def _export_linear_fc1(linear_fc1):
-    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-    return gate_proj, up_proj
 
 
 __all__ = [

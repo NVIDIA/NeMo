@@ -45,6 +45,13 @@ if TYPE_CHECKING:
 # your own needs, in particular: seq_length and rotary_base.
 @dataclass
 class LlamaConfig(GPTConfig):
+    """Configuration class for Llama models.
+
+    Extends GPTConfig with specific settings optimized for Llama architectures.
+    Includes configurations for normalization, activation functions, and various
+    architecture-specific options.
+    """
+
     # configs that are common across model sizes
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
@@ -65,6 +72,12 @@ class LlamaConfig(GPTConfig):
 
 @dataclass
 class Llama2Config7B(LlamaConfig):
+    """Configuration for a 7B parameter Llama 2 model.
+
+    Specific configuration for the 7B Llama 2 model with 32 layers,
+    4096 hidden size, and 32 attention heads.
+    """
+
     num_layers: int = 32
     hidden_size: int = 4096
     num_attention_heads: int = 32
@@ -74,6 +87,12 @@ class Llama2Config7B(LlamaConfig):
 
 @dataclass
 class Llama2Config13B(LlamaConfig):
+    """Configuration for a 13B parameter Llama 2 model.
+
+    Specific configuration for the 13B Llama 2 model with 40 layers,
+    5120 hidden size, and 40 attention heads.
+    """
+
     num_layers: int = 40
     hidden_size: int = 5120
     num_attention_heads: int = 40
@@ -83,6 +102,12 @@ class Llama2Config13B(LlamaConfig):
 
 @dataclass
 class Llama2Config70B(LlamaConfig):
+    """Configuration for a 70B parameter Llama 2 model.
+
+    Specific configuration for the 70B Llama 2 model with 80 layers,
+    8192 hidden size, and 64 attention heads with 8 query groups.
+    """
+
     num_layers: int = 80
     hidden_size: int = 8192
     num_attention_heads: int = 64
@@ -92,6 +117,13 @@ class Llama2Config70B(LlamaConfig):
 
 @dataclass
 class Llama3Config(LlamaConfig):
+    """Configuration for Llama 3 models.
+
+    Base configuration for Llama 3 architecture with common settings
+    across different model sizes, including group query attention (GQA)
+    and architecture-specific settings.
+    """
+
     num_query_groups: int = 8
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
@@ -114,13 +146,31 @@ class Llama3Config(LlamaConfig):
 
 @dataclass
 class Llama31Config(Llama3Config):
-    scale_factor: int = 8
-    low_freq_factor: int = 1
-    high_freq_factor: int = 4
+    """Configuration for Llama 3.1 models.
+
+    Extends Llama3Config with specific settings for Llama 3.1 models,
+    including RoPE scaling parameters.
+    """
+
+    scale_factor: float = 8.0
+    low_freq_factor: float = 1.0
+    high_freq_factor: float = 4.0
     old_context_len: int = 8192
     init_method_std: float = 0.02
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+        """Configure and instantiate a Megatron Core Llama 3.1 model.
+
+        Extends the base configuration with Llama 3.1 specific RoPE scaling.
+
+        Args:
+            tokenizer: Tokenizer used with the model
+            pre_process: Whether to include pre-processing in the model
+            post_process: Whether to include post-processing in the model
+
+        Returns:
+            MCoreGPTModel: Configured Megatron Core GPT model instance
+        """
         model = super().configure_model(tokenizer, pre_process, post_process)
         # Apply rope scaling for Llama3.1 model
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
@@ -135,6 +185,12 @@ class Llama31Config(Llama3Config):
 
 @dataclass
 class Llama3Config8B(Llama3Config):
+    """Configuration for an 8B parameter Llama 3 model.
+
+    Specific configuration for the 8B Llama 3 model with 32 layers,
+    4096 hidden size, and 32 attention heads.
+    """
+
     rotary_base: int = 500_000
     seq_length: int = 8192
     num_layers: int = 32
@@ -145,6 +201,12 @@ class Llama3Config8B(Llama3Config):
 
 @dataclass
 class Llama3Config70B(Llama3Config):
+    """Configuration for a 70B parameter Llama 3 model.
+
+    Specific configuration for the 70B Llama 3 model with 80 layers,
+    8192 hidden size, and 64 attention heads.
+    """
+
     rotary_base: int = 500_000
     seq_length: int = 8192
     num_layers: int = 80
@@ -157,6 +219,13 @@ class Llama3Config70B(Llama3Config):
 
 @dataclass
 class Llama31Config8B(Llama31Config):
+    """Configuration for an 8B parameter Llama 3.1 model.
+
+    Specific configuration for the 8B Llama 3.1 model with 32 layers,
+    4096 hidden size, and 32 attention heads, supporting a longer context
+    length of 131K tokens.
+    """
+
     rotary_base: int = 500_000
     seq_length: int = 131072
     num_layers: int = 32
@@ -167,6 +236,13 @@ class Llama31Config8B(Llama31Config):
 
 @dataclass
 class Llama31Config70B(Llama31Config):
+    """Configuration for a 70B parameter Llama 3.1 model.
+
+    Specific configuration for the 70B Llama 3.1 model with 80 layers,
+    8192 hidden size, and 64 attention heads, supporting a longer context
+    length of 131K tokens.
+    """
+
     rotary_base: int = 500_000
     seq_length: int = 131072
     num_layers: int = 80
@@ -178,6 +254,13 @@ class Llama31Config70B(Llama31Config):
 
 @dataclass
 class Llama31Config405B(Llama31Config):
+    """Configuration for a 405B parameter Llama 3.1 model.
+
+    Specific configuration for the 405B Llama 3.1 model with 126 layers,
+    16384 hidden size, and 128 attention heads, supporting a longer context
+    length of 131K tokens.
+    """
+
     rotary_base: int = 500_000
     seq_length: int = 131072
     num_layers: int = 126
@@ -189,7 +272,13 @@ class Llama31Config405B(Llama31Config):
 
 @dataclass
 class Llama32Config1B(Llama31Config):
-    scale_factor: int = 32
+    """Configuration for a 1B parameter Llama 3.2 model.
+
+    Specific configuration for the 1B Llama 3.2 model with 16 layers,
+    2048 hidden size, and 32 attention heads (8 query groups).
+    """
+
+    scale_factor: float = 32.0
     share_embeddings_and_output_weights: bool = True
     rotary_base: int = 500_000
     num_layers: int = 16
@@ -202,6 +291,12 @@ class Llama32Config1B(Llama31Config):
 
 @dataclass
 class Llama32Config3B(Llama31Config):
+    """Configuration for a 3B parameter Llama 3.2 model.
+
+    Specific configuration for the 3B Llama 3.2 model with 28 layers,
+    3072 hidden size, and 24 attention heads (8 query groups).
+    """
+
     scale_factor: int = 32
     share_embeddings_and_output_weights: bool = True
     rotary_base: int = 500_000
@@ -215,18 +310,36 @@ class Llama32Config3B(Llama31Config):
 
 @dataclass
 class CodeLlamaConfig7B(Llama2Config7B):
+    """Configuration for a 7B parameter CodeLlama model.
+
+    Extends Llama2Config7B with modified settings specifically for code generation,
+    including longer context length and different rotary base.
+    """
+
     rotary_base: int = 1_000_000
     seq_length: int = 16384
 
 
 @dataclass
 class CodeLlamaConfig13B(Llama2Config13B):
+    """Configuration for a 13B parameter CodeLlama model.
+
+    Extends Llama2Config13B with modified settings specifically for code generation,
+    including longer context length and different rotary base.
+    """
+
     rotary_base: int = 1_000_000
     seq_length: int = 16384
 
 
 @dataclass
 class CodeLlamaConfig34B(LlamaConfig):
+    """Configuration for a 34B parameter CodeLlama model.
+
+    Specific configuration for the 34B CodeLlama model with 48 layers,
+    8192 hidden size, and 64 attention heads (8 query groups).
+    """
+
     num_layers: int = 48
     hidden_size: int = 8192
     num_attention_heads: int = 64
@@ -238,10 +351,21 @@ class CodeLlamaConfig34B(LlamaConfig):
 
 @dataclass
 class CodeLlamaConfig70B(Llama2Config70B):
+    """Configuration for a 70B parameter CodeLlama model.
+
+    Extends Llama2Config70B with settings specifically for code generation.
+    """
+
     pass
 
 
 class LlamaModel(GPTModel):
+    """Llama model implementation based on the GPT model architecture.
+
+    This class provides a high-level interface for Llama models,
+    implementing the specific architecture and settings needed for Llama models.
+    """
+
     def __init__(
         self,
         config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
@@ -253,8 +377,11 @@ class LlamaModel(GPTModel):
 
 
 class MLPerfLoRALlamaModel(LlamaModel):
-    """
-    This class wraps LlamaModel and adds context managers around configure_model to reduce memory consumption.
+    """Memory-optimized Llama model implementation for MLPerf LoRA fine-tuning.
+
+    This class wraps LlamaModel and adds context managers around configure_model
+    to reduce memory consumption during initialization. It applies techniques like
+    avoiding unnecessary gradients and using FP8 parameter initialization.
 
     Changes made here are experimental, proceed with caution.
     """
@@ -274,6 +401,11 @@ class MLPerfLoRALlamaModel(LlamaModel):
         assert HAVE_TE, "TransformerEngine is required for MLPerfLoRALlamaModel."
 
     def configure_model(self):
+        """Configure the model with memory optimization.
+
+        Applies context managers to reduce memory by avoiding unnecessary gradients
+        and requesting that Transformer Engine initialize params as FP8.
+        """
         # Apply context managers to reduce memory by (1) avoiding unnecessary gradients
         # and (2) requesting that TE initialize params as FP8. See:
         # https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html#transformer_engine.pytorch.fp8_model_init
@@ -285,10 +417,30 @@ class MLPerfLoRALlamaModel(LlamaModel):
 
 @io.model_importer(LlamaModel, "hf")
 class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
+    """Importer for converting Hugging Face Llama models to NeMo format.
+
+    This class handles the conversion of Hugging Face's LlamaForCausalLM models
+    to NeMo's LlamaModel format, including weight mapping and configuration translation.
+    """
+
     def init(self) -> LlamaModel:
+        """Initialize a NeMo LlamaModel instance.
+
+        Returns:
+            LlamaModel: Initialized NeMo Llama model with the appropriate configuration
+                        and tokenizer.
+        """
         return LlamaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        """Apply the conversion from HF to NeMo format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved NeMo model
+        """
         from transformers import LlamaForCausalLM
 
         source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
@@ -305,6 +457,18 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         return output_path
 
     def convert_state(self, source, target):
+        """Convert state dict from HF format to NeMo format.
+
+        Maps the weights from the HF model to the NeMo model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source HF model
+            target: Target NeMo model
+
+        Returns:
+            The result of applying the transforms
+        """
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -318,19 +482,51 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             # llama 3.2 1B and 3B models have no shared input output embeddings
             del mapping["lm_head.weight"]
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
+        transforms = [
+            io.state_transform(
+                source_key=(
+                    "model.layers.*.self_attn.q_proj.weight",
+                    "model.layers.*.self_attn.k_proj.weight",
+                    "model.layers.*.self_attn.v_proj.weight",
+                ),
+                target_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                fn=TransformFns.merge_qkv,
+            ),
+            io.state_transform(
+                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key="decoder.layers.*.mlp.linear_fc1.weight",
+                fn=TransformFns.merge_fc1,
+            ),
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """Get the tokenizer for the HF model.
+
+        Returns:
+            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+        """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> LlamaConfig:
+        """Create a NeMo LlamaConfig from the HF model config.
+
+        Translates the HF configuration parameters to the equivalent NeMo
+        configuration.
+
+        Returns:
+            LlamaConfig: NeMo configuration for Llama models
+        """
+        from transformers import GenerationConfig
         from transformers import LlamaConfig as HFLlamaConfig
 
         source = HFLlamaConfig.from_pretrained(str(self))
+        generation_config = GenerationConfig.from_pretrained(str(self))
+        print(generation_config)
 
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
@@ -351,6 +547,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             num_query_groups=source.num_key_value_heads,
+            seq_length=source.max_position_embeddings,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
@@ -358,6 +555,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            generation_config=generation_config,
         )
 
         return output
@@ -365,7 +563,21 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
 
 @io.model_exporter(LlamaModel, "hf")
 class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
+    """Exporter for converting NeMo Llama models to Hugging Face format.
+
+    This class handles the conversion of NeMo's LlamaModel to Hugging Face's
+    LlamaForCausalLM format, including weight mapping and configuration translation.
+    """
+
     def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
+        """Initialize a HF LlamaForCausalLM instance.
+
+        Args:
+            dtype: Data type for model parameters
+
+        Returns:
+            LlamaForCausalLM: Initialized HF Llama model
+        """
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -373,12 +585,26 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
+        """Apply the conversion from NeMo to HF format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved HF model
+        """
         source, _ = self.nemo_load(str(self))
         target = self.init(torch_dtype_from_mcore_config(source.config))
         target = self.convert_state(source, target)
 
         target = target.cpu()
-        target.save_pretrained(output_path)
+        if self.config.tie_word_embeddings:
+            state_dict = target.state_dict()
+            state_dict.pop("lm_head.weight")
+            target.save_pretrained(output_path, state_dict=state_dict)
+        else:
+            target.save_pretrained(output_path)
+
         try:
             self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
@@ -387,6 +613,18 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target):
+        """Convert state dict from NeMo format to HF format.
+
+        Maps the weights from the NeMo model to the HF model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source NeMo model
+            target: Target HF model
+
+        Returns:
+            The target model with weights transferred from source
+        """
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
@@ -394,9 +632,36 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
-        transforms = [_export_qkv, _export_linear_fc1, _export_embedding]
+
+        transforms = [
+            io.state_transform(
+                source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                target_key=(
+                    "model.layers.*.self_attn.q_proj.weight",
+                    "model.layers.*.self_attn.k_proj.weight",
+                    "model.layers.*.self_attn.v_proj.weight",
+                ),
+                fn=TransformFns.split_qkv,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ),
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="model.embed_tokens.weight",
+                fn=TransformFns.prune_padding,
+            ),
+        ]
         if not self.config.tie_word_embeddings:
-            transforms.append(_export_head)
+            transforms.append(
+                io.state_transform(
+                    source_key="output_layer.weight",
+                    target_key="lm_head.weight",
+                    fn=TransformFns.prune_padding,
+                )
+            )
 
         return io.apply_transforms(
             source,
@@ -407,14 +672,37 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
     @property
     def tokenizer(self) -> "TokenizerSpec":
+        """Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
         return io.load_context(str(self), subpath="model").tokenizer
 
     @property
     def config(self) -> "HFLlamaConfig":
+        """Create a HF LlamaConfig from the NeMo model config.
+
+        Translates the NeMo configuration parameters to the equivalent HF
+        configuration.
+
+        Returns:
+            HFLlamaConfig: HF configuration for Llama models
+        """
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
 
         from transformers import LlamaConfig as HFLlamaConfig
 
+        rope_scaling = None
+        # For Llama 3.1 and Llama 3.2, rope_scaling is used and thus needed to parsed to the config
+        if isinstance(source, Llama31Config):
+            rope_scaling = {
+                'factor': source.scale_factor,
+                'low_freq_factor': source.low_freq_factor,
+                'high_freq_factor': source.high_freq_factor,
+                'original_max_position_embeddings': source.old_context_len,
+                'rope_type': 'llama3',
+            }
         return HFLlamaConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
@@ -427,12 +715,29 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
             tie_word_embeddings=source.share_embeddings_and_output_weights,
+            rope_scaling=rope_scaling,
+            bos_token_id=self.tokenizer.bos_id,
+            eos_token_id=self.tokenizer.eos_id,
         )
 
 
 @io.model_exporter(LlamaModel, "hf-peft")
 class HFLlamaPEFTExporter(HFLlamaExporter):
+    """Exporter for converting NeMo Llama models with PEFT adapters to Hugging Face format.
+
+    This class extends HFLlamaExporter to handle Parameter-Efficient Fine-Tuning (PEFT)
+    adapters, specifically LoRA and DoRA adapters.
+    """
+
     def init(self, dtype=torch.bfloat16) -> "AutoPeftModelForCausalLM":
+        """Initialize a HF PEFT model.
+
+        Args:
+            dtype: Data type for model parameters
+
+        Returns:
+            AutoPeftModelForCausalLM: Initialized HF PEFT model
+        """
         from peft import get_peft_model
 
         model = super().init(dtype=dtype)
@@ -446,6 +751,14 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         return get_peft_model(model, self.peft_config, autocast_adapter_dtype=False)
 
     def apply(self, output_path: Path) -> Path:
+        """Apply the conversion from NeMo PEFT model to HF format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved HF PEFT model
+        """
         from nemo.collections.llm.peft import CanonicalLoRA, DoRA, LoRA
 
         self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self)).model.model_transform
@@ -459,6 +772,18 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         return output_path
 
     def convert_state(self, source, target):
+        """Convert state dict from NeMo PEFT model to HF PEFT format.
+
+        Maps the weights from the NeMo model to the HF model according to
+        the appropriate mapping scheme for PEFT adapters.
+
+        Args:
+            source: Source NeMo model with PEFT adapters
+            target: Target HF model
+
+        Returns:
+            The target model with weights transferred from source
+        """
         from nemo.collections.llm.peft import CanonicalLoRA
 
         # nemo and HF prefixes
@@ -551,14 +876,22 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
 
     @property
     def peft_config(self) -> "PeftConfig":
+        """Create a PEFT config for the HF model.
+
+        Translates the NeMo PEFT configuration to the equivalent HF PEFT
+        configuration.
+
+        Returns:
+            PeftConfig: HF PEFT configuration
+        """
         from peft import LoraConfig
 
         from nemo.collections.llm.peft import DoRA
 
         assert (
             not self.peft_obj.dropout
-            or self.peft_obj.dropout_position == 'pre' "LoRA dropout_position must be 'pre' to convert to HF."
-        )
+            or self.peft_obj.dropout_position == 'pre'
+        ), "LoRA dropout_position must be 'pre' to convert to HF."
 
         NEMO2HF = {
             'linear_q': ['q_proj'],
@@ -586,127 +919,28 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         )
 
 
-@io.state_transform(
-    source_key=(
-        "model.layers.*.self_attn.q_proj.weight",
-        "model.layers.*.self_attn.k_proj.weight",
-        "model.layers.*.self_attn.v_proj.weight",
-    ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-)
-def _import_qkv(ctx: io.TransformCTX, q, k, v):
-    megatron_config = ctx.target.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-
-    old_tensor_shape = q.size()
-    new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
-    new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
-
-    q = q.view(*new_q_tensor_shape)
-    k = k.view(*new_kv_tensor_shape)
-    v = v.view(*new_kv_tensor_shape)
-
-    qkv_weights_l = []
-    for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i : i + 1, :, :])
-        qkv_weights_l.append(v[i : i + 1, :, :])
-    qkv_weights = torch.cat(qkv_weights_l)
-    assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
-    assert qkv_weights.shape[1] == head_size, qkv_weights.shape
-    assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
-
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
-
-    return qkv_weights
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
-    target_key=(
-        "model.layers.*.self_attn.q_proj.weight",
-        "model.layers.*.self_attn.k_proj.weight",
-        "model.layers.*.self_attn.v_proj.weight",
-    ),
-)
-def _export_qkv(ctx: io.TransformCTX, linear_qkv):
-    megatron_config = ctx.source.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-    qkv_total_dim = head_num + 2 * num_query_groups
-
-    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
-    q_slice = torch.cat(
-        [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
-            for i in range(num_query_groups)
-        ]
-    )
-    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-
-    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
-    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
-    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
-
-    return q_proj, k_proj, v_proj
-
-
-@io.state_transform(
-    source_key="embedding.word_embeddings.weight",
-    target_key="model.embed_tokens.weight",
-)
-def _export_embedding(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
-
-
-@io.state_transform(
-    source_key="output_layer.weight",
-    target_key="lm_head.weight",
-)
-def _export_head(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
-
-
-@io.state_transform(
-    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight",
-)
-def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0)
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-)
-def _export_linear_fc1(linear_fc1):
-    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-    return gate_proj, up_proj
-
-
 def apply_rope_scaling(
     inv_freq,
-    factor: int = 8,
-    low_freq_factor: int = 1,
-    high_freq_factor: int = 4,
+    factor: float = 8.0,
+    low_freq_factor: float = 1.0,
+    high_freq_factor: float = 4.0,
     old_context_len: int = 8192,
 ):
+    """Apply RoPE scaling for extending context length in Llama models.
+
+    This implements the NTK-aware RoPE scaling method used in Llama 3.1 models to
+    extend context length beyond the original training length.
+
+    Args:
+        inv_freq: Original inverse frequency tensor
+        factor: Scaling factor for context length extension
+        low_freq_factor: Factor for low frequency components
+        high_freq_factor: Factor for high frequency components
+        old_context_len: Original context length
+
+    Returns:
+        torch.Tensor: Modified inverse frequency tensor for extended context
+    """
     logging.info(
         f"Apply rope scaling with factor={factor}, low_freq_factor={low_freq_factor}, "
         f"high_freq_factor={high_freq_factor}, old_context_len={old_context_len}."

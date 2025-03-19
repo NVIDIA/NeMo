@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Module with guards for optional libraries, that cannot be listed in `requirements.txt`.
+Provides helper constants and decorators to check if the library is available in the system.
+"""
+
 __all__ = ["KENLM_AVAILABLE", "K2_AVAILABLE", "TRITON_AVAILABLE", "kenlm_required", "k2_required", "triton_required"]
 
 import importlib.util
@@ -36,7 +41,7 @@ TRITON_INSTALLATION_MESSAGE = "Try installing triton with `pip install triton`"
 
 
 try:
-    from nemo.core.utils.k2_guard import k2 as _
+    from nemo.core.utils.k2_guard import k2 as _  # noqa: F401
 
     K2_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -52,6 +57,8 @@ def _lib_required(is_available: bool, name: str, message: str | None = None):
     """
     Decorator factory. Returns identity decorator if lib `is_available`,
     otherwise returns a decorator which returns a function that raises an error when called.
+    Such decorator can be used for conditional checks for optional libraries in functions and methods
+    with zero computational overhead.
     """
     if is_available:
         return identity_decorator
