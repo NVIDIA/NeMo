@@ -134,27 +134,36 @@ class FluxInferencePipeline(nn.Module):
         """
         super().__init__()
         self.device = params.device
-        params.clip_params.device = self.device
-        params.t5_params.device = self.device
+        if params.clip_params is not None:
+            if clip is None:
+                params.clip_params.device = self.device
+                self.clip_encoder = (
+                    FrozenCLIPEmbedder(
+                        version=params.clip_params.version,
+                        max_length=params.clip_params.max_length,
+                        always_return_pooled=params.clip_params.always_return_pooled,
+                        device=params.clip_params.device,
+                    )
+                )
+        else:
+            self.clip_encoder = clip
+        if params.t5_params is not None:
+            if t5 is None:
+                params.t5_params.device = self.device
+                self.t5_encoder = (
+                    FrozenT5Embedder(
+                        params.t5_params.version, max_length=params.t5_params.max_length, device=params.t5_params.device
+                    )
+                )
+        else:
+            self.t5_encoder = t5
 
-        self.vae = AutoEncoder(params.vae_config).to(self.device).eval() if vae is None else vae
-        self.clip_encoder = (
-            FrozenCLIPEmbedder(
-                version=params.clip_params.version,
-                max_length=params.clip_params.max_length,
-                always_return_pooled=params.clip_params.always_return_pooled,
-                device=params.clip_params.device,
-            )
-            if clip is None
-            else clip
-        )
-        self.t5_encoder = (
-            FrozenT5Embedder(
-                params.t5_params.version, max_length=params.t5_params.max_length, device=params.t5_params.device
-            )
-            if t5 is None
-            else t5
-        )
+        if params.vae_config is not None:
+            self.vae = AutoEncoder(params.vae_config).to(self.device).eval() if vae is None else vae
+        else:
+            raise ValueError('VAE model must be provided for inference pipeline.')
+
+
         self.transformer = Flux(params.flux_config).to(self.device).eval() if flux is None else flux
         self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
         self.scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=scheduler_steps)
@@ -235,10 +244,11 @@ class FluxInferencePipeline(nn.Module):
         if prompt is not None:
             batch_size = len(prompt)
         elif prompt_embeds is not None:
-            batch_size = prompt_embeds.shape[0]
+            batch_size = prompt_embeds.shape[1]
+            prompt_embeds = prompt_embeds.transpose(1, 0)
         else:
             raise ValueError("Either prompt or prompt_embeds must be provided.")
-        if device == 'cuda' and self.t5_encoder.device != device:
+        if device == 'cuda' and self.t5_encoder is not None and self.t5_encoder.device != device:
             self.t5_encoder.to(device)
         if prompt_embeds is None:
             prompt_embeds = self.t5_encoder(prompt, max_sequence_length=max_sequence_length)
@@ -246,7 +256,7 @@ class FluxInferencePipeline(nn.Module):
         prompt_embeds = prompt_embeds.repeat(1, num_images_per_prompt, 1)
         prompt_embeds = prompt_embeds.view(batch_size * num_images_per_prompt, seq_len, -1).to(dtype=dtype)
 
-        if device == 'cuda' and self.clip_encoder.device != device:
+        if device == 'cuda' and self.clip_encoder is not None and self.clip_encoder.device != device:
             self.clip_encoder.to(device)
         if pooled_prompt_embeds is None:
             _, pooled_prompt_embeds = self.clip_encoder(prompt)
@@ -558,8 +568,8 @@ class FluxInferencePipeline(nn.Module):
             prompt = [prompt]
         elif prompt is not None and isinstance(prompt, list):
             batch_size = len(prompt)
-        elif prompt_embeds is not None and isinstance(prompt_embeds, torch.FloatTensor):
-            batch_size = prompt_embeds.shape[0]
+        elif prompt_embeds is not None and isinstance(prompt_embeds, torch.Tensor):
+            batch_size = prompt_embeds.shape[1]
         else:
             raise ValueError("Either prompt or prompt_embeds must be provided.")
 
@@ -869,8 +879,8 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
             prompt = [prompt]
         elif prompt is not None and isinstance(prompt, list):
             batch_size = len(prompt)
-        elif prompt_embeds is not None and isinstance(prompt_embeds, torch.FloatTensor):
-            batch_size = prompt_embeds.shape[0]
+        elif prompt_embeds is not None and isinstance(prompt_embeds, torch.Tensor):
+            batch_size = prompt_embeds.shape[1]
         else:
             raise ValueError("Either prompt or prompt_embeds must be provided.")
 
@@ -954,7 +964,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
                     guidance = None
 
                 conditioning_scale = controlnet_keep[i] * controlnet_conditioning_scale
-
+                print(latents.shape, control_image.shape, prompt_embeds.shape, pooled_prompt_embeds.shape, latent_image_ids.shape, text_ids.shape, timestep.shape)
                 with torch.autocast(device_type='cuda', dtype=latents.dtype):
                     controlnet_double_block_samples, controlnet_single_block_samples = self.flux_controlnet(
                         img=latents,

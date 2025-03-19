@@ -517,12 +517,29 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
             pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
             log_images = pipe(
-                latents=latents,
                 control_image=control_latents,
                 prompt_embeds=prompt_embeds,
                 pooled_prompt_embeds=pooled_prompt_embeds,
                 height=latents.shape[2] * self.vae_scale_factor,
                 width=latents.shape[3] * self.vae_scale_factor,
+                num_inference_steps=30,
+                num_images_per_prompt=1,
+                guidance_scale=7.0,
+                dtype=self.autocast_dtype,
+                save_to_disk=False,
+            )
+            log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}.png")
+        elif not self.image_precached and self.text_precached:
+            img = batch['images'].cuda(non_blocking=True)
+            hint = batch['hint'].cuda(non_blocking=True)
+            prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
+            pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
+            log_images = pipe(
+                control_image=hint,
+                prompt_embeds=prompt_embeds,
+                pooled_prompt_embeds=pooled_prompt_embeds,
+                height=img.shape[2],
+                width=img.shape[3],
                 num_inference_steps=30,
                 num_images_per_prompt=1,
                 guidance_scale=7.0,

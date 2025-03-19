@@ -25,6 +25,7 @@ from einops import rearrange
 from megatron.energon import DefaultTaskEncoder, Sample, SkipSample
 from megatron.energon.task_encoder.base import stateless
 from megatron.energon.task_encoder.cooking import Cooker, basic_sample_keys
+from torchvision import transforms
 
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils.sequence_packing_utils import first_fit_decreasing
@@ -531,8 +532,11 @@ class PrecachedCaptionWithImageMaskTaskEncoder(DefaultTaskEncoder, IOMixin):
         image = image.resize((self.new_width, self.new_height), resample=Image.Resampling.BICUBIC)
         mask = mask.resize((self.new_width, self.new_height), resample=Image.Resampling.BICUBIC)
 
-        mask = ImageOps.invert(mask)
+        mask = ImageOps.invert(mask).convert('RGB')
 
+        to_tensor = transforms.ToTensor()
+        image = to_tensor(image)
+        mask = to_tensor(mask)
 
 
         return dict(
