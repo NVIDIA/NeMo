@@ -543,9 +543,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 self.deferred_ckpts_to_remove.append([])
             else:
                 storage_options = None
-            logging.info(
-                f'Checkpoint save for step {trainer.global_step} started at {time.time()}.'
-            )
+            logging.info(f'Checkpoint save for step {trainer.global_step} started at {time.time()}.')
             trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
             if self.async_save:
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
@@ -578,7 +576,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 return
 
             logging.info(
-                f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully at {time.time()}.')
+                f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully at {time.time()}.'
+            )
 
             # Remove checkpoints marked for removal by `self._remove_checkpoint`
             # For each finalization there is exactly one entry in self.deferred_ckpts_to_remove
