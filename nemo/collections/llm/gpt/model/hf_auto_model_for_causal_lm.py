@@ -45,8 +45,12 @@ def masked_cross_entropy(logits, targets, mask=None):
     Returns:
         torch.Tensor: The computed loss as a scalar tensor.
     """
+    if targets.device != logits.device:
+        targets = targets.to(logits.device)
     if mask is not None:
         with torch.no_grad():
+            if mask.device != targets.device:
+                mask = mask.to(targets.device)
             targets.masked_fill_(mask.view(-1) == 0, -100)
             del mask
     return F.cross_entropy(logits, targets)
@@ -73,6 +77,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         load_in_4bit=False,
         attn_implementation="sdpa",
         use_liger_kernel=False,
+        enable_grad_ckpt=False,
     ):
         """
         Initialize the HFAutoModelForCausalLM.
@@ -90,6 +95,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             load_in_4bit (bool, optional): Whether to load the model in 4-bit precision. Defaults to False.
             attn_implementation (str, optional): Attention implementation to use. Defaults to "sdpa".
             use_liger_kernel (bool, optional): Enables custom kernels from the Liger-Kernel Library. Defaults to False.
+            enable_grad_ckpt (bool, optional): Enables gradient checkpoints. Defaults to False.
         """
         super().__init__()
         self.save_hyperparameters()
@@ -110,6 +116,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.loss_buffer = []
         self.n_tok = 0
         self.timestamp = None
+        self.enable_grad_ckpt = enable_grad_ckpt
 
     @property
     def tokenizer(self):
@@ -214,6 +221,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
+        if self.enable_grad_ckpt:
+            if getattr(self.model, 'supports_gradient_checkpointing', False):
+                self.model.gradient_checkpointing_enable()
+            else:
+                # TODO(@akoumparouli): custom logic goes here, but for now just a warning
+                logging.warning("Asked to use gradient checkpoint, but model does not support it")
+
         self.model.train()
 
         # Ugly hack for PEFT: adapters are added here so that can be wrapped correctly with DDP.
@@ -308,10 +322,19 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = device_mesh.get_group()
 
             def reduce_item(val, op, device, group, dtype):
-                """util function"""
-                val = torch.tensor([val], device=device, dtype=dtype).detach()
-                dist.all_reduce(val, group=group, op=op)
-                return val.item()
+                 """util function"""
+                 divide_by_world_size = False
+                 if torch.distributed.get_backend(group) == "gloo" and op == dist.ReduceOp.AVG:
+                     # GLOO does not support the `ReduceOp.AVG` operation
+                     op = dist.ReduceOp.SUM
+                     divide_by_world_size = True
+
+                 val = torch.tensor([val], device=device, dtype=dtype).detach()
+                 dist.all_reduce(val, group=group, op=op)
+                 val = val.item()
+                 if divide_by_world_size:
+                     val /= dist.get_world_size(group)
+                 return val
 
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
