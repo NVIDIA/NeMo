@@ -233,7 +233,9 @@ def get_buffered_pred_feat_multitaskAED(
                 if not line:
                     continue
                 sample = json.loads(line)
-                if timestamps:      # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
+                if (
+                    timestamps
+                ):  # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
                     sample['timestamp'] = 'yes'
                 if 'text' in sample:
                     refs.append(sample['text'])
@@ -251,7 +253,7 @@ def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     """Wrap transcription to the expected format in func write_transcription"""
     if isinstance(hyps[0], rnnt_utils.Hypothesis):
         return hyps
-    
+
     wrapped_hyps = []
     for hyp in hyps:
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)

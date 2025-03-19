@@ -570,7 +570,7 @@ class TestEncDecMultiTaskModel:
             'answer': 'nothing',
             'timestamp': 'yes',
         }
-        model_stride_in_secs = 0.01 * 8 # feature_stride in sec * model_stride
+        model_stride_in_secs = 0.01 * 8  # feature_stride in sec * model_stride
         model.read_audio_file(audio_file, delay=0.0, model_stride_in_secs=model_stride_in_secs, meta_data=meta)
         outputs = model.transcribe()
 
@@ -583,6 +583,7 @@ class TestEncDecMultiTaskModel:
         # check timestamps
         assert outputs.timestamp['segment'][0]['start'] == pytest.approx(5.68)
         assert outputs.timestamp['segment'][0]['end'] == pytest.approx(9.68)
+
 
 @pytest.mark.unit
 def test_prompted_dataset(asr_model):

@@ -128,7 +128,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     Transcribes the input audio and can be used to infer long audio files by chunking
     them into smaller segments.
     """
-    
+
     if cfg.timestamps and cfg.chunk_len_in_secs != 10.0:
         logging.warning(
             "When `timestamps` is True, it's recommended to use `chunk_len_in_secs=10.0` for optimal results. "

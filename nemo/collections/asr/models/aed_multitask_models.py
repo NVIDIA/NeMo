@@ -1120,7 +1120,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             return_hypotheses=False,
         )
 
-        hypotheses  = process_aed_timestamp_outputs(
+        hypotheses = process_aed_timestamp_outputs(
             hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
         )
 

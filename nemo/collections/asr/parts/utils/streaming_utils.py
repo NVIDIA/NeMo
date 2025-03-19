@@ -1611,12 +1611,16 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
         super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
         self.window_stride = asr_model._cfg.preprocessor.window_stride
         self.subsampling_factor = asr_model._cfg.encoder.subsampling_factor
-        self.chunk_offsets = [0,]     # chunk offsets in terms of num frames before subsampling
+        self.chunk_offsets = [
+            0,
+        ]  # chunk offsets in terms of num frames before subsampling
 
     def reset(self):
         super().reset()
-        self.chunk_offsets = [0,]
-    
+        self.chunk_offsets = [
+            0,
+        ]
+
     def get_input_tokens(self, sample: dict):
         if self.asr_model.prompt_format == "canary":
             expected_slots = {"source_lang", "target_lang", "taskname", "pnc"}
@@ -1633,14 +1637,14 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             }
         else:
             raise ValueError(f"Unknown prompt format: {self.asr_model.prompt_format}")
-        
+
         missing_keys = [k for k in expected_slots if k not in sample]
         if missing_keys:
             raise RuntimeError(
                 f"We found sample that is missing the following keys: {missing_keys}"
                 f"Please ensure that every utterance in the input manifests contains these keys. Sample: {sample}"
             )
-        
+
         # fill optional slots
         for k, v in default_slot_values.items():
             sample[k] = sample.get(k, v)
@@ -1700,7 +1704,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
         """
         self.infer_logits(keep_logits)
 
-        # join hypotheses 
+        # join hypotheses
         hypothesis = self._join_hypotheses(self.all_preds)
 
         if not keep_logits:
@@ -1708,7 +1712,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
 
         print("keep_logits=True is not supported for MultiTaskAEDFrameBatchInfer. Returning empty logits.")
         return hypothesis, []
-    
+
     def _join_hypotheses(self, hypotheses):
         if len(hypotheses) == 1:
             return hypotheses[0]
@@ -1721,7 +1725,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                 'char': [],
                 'word': [],
                 'segment': [],
-            }
+            },
         )
 
         # join
@@ -1734,27 +1738,29 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
     def _join_text(self, merged_hypothesis, hypotheses):
         merged_hypothesis.text = " ".join([h.text for h in hypotheses])
         return merged_hypothesis
-    
+
     def _join_y_sequence(self, merged_hypothesis, hypotheses):
         merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
         return merged_hypothesis
-    
+
     def _join_timestamp(self, merged_hypothesis, hypotheses):
         # word level
         cumulative_offset = 0
         for i, h in enumerate(hypotheses):
-            cumulative_offset += self.chunk_offsets[i]      # self.chunk_offsets starts with 0, 
-            
+            cumulative_offset += self.chunk_offsets[i]  # self.chunk_offsets starts with 0,
+
             # update frame numbers
             updated_timestamps = [
                 {
                     **word,
-                    'start_offset': word['start_offset'] + cumulative_offset // self.subsampling_factor,     # dividing here to avoid error accumulation over long audios
-                    'end_offset': word['end_offset'] + cumulative_offset // self.subsampling_factor
+                    'start_offset': word['start_offset']
+                    + cumulative_offset
+                    // self.subsampling_factor,  # dividing here to avoid error accumulation over long audios
+                    'end_offset': word['end_offset'] + cumulative_offset // self.subsampling_factor,
                 }
                 for word in h.timestamp['word']
-            ] 
-            
+            ]
+
             # update times
             updated_timestamps = [
                 {
@@ -1763,10 +1769,10 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                     'end': word['end_offset'] * self.window_stride * self.subsampling_factor,
                 }
                 for word in updated_timestamps
-            ] 
+            ]
 
             merged_hypothesis.timestamp['word'].extend(updated_timestamps)
-        
+
         # segment level
         cumulative_offset = 0
         for i, h in enumerate(hypotheses):
@@ -1777,7 +1783,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                 {
                     **segment,
                     'start_offset': segment['start_offset'] + cumulative_offset // self.subsampling_factor,
-                    'end_offset': segment['end_offset'] + cumulative_offset // self.subsampling_factor
+                    'end_offset': segment['end_offset'] + cumulative_offset // self.subsampling_factor,
                 }
                 for segment in h.timestamp['segment']
             ]
@@ -1795,7 +1801,6 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             merged_hypothesis.timestamp['segment'].extend(updated_timestamps)
 
         return merged_hypothesis
-
 
 
 class FrameBatchChunkedRNNT(FrameBatchASR):
