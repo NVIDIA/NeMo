@@ -761,8 +761,10 @@ def import_ckpt(
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary importer functionality.
     """
-    if output_path and not isinstance(output_path, Path):
+    if output_path:
         output_path = Path(output_path)
+        if output_path.exists() and any(output_path.iterdir()) and not overwrite:
+            raise ValueError(f"Output path {output_path} is not empty. Use overwrite=True to force overwrite.")
 
     output = io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite)
 

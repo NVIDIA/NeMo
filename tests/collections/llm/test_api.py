@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tempfile
+from pathlib import Path
+
 import nemo_run as run
 import pytest
 import torch
@@ -172,3 +175,18 @@ class TestValidateConfig:
             model.config.num_moe_experts = 3
             trainer.strategy.expert_model_parallel_size = 2
             _validate_config(model, data, trainer)
+
+
+class TestImportCkpt:
+
+    def test_output_path_non_empty_no_overwrite(self):
+        """Test that an error is raised when the output path is not empty and overwrite is False."""
+
+        with pytest.raises(ValueError), tempfile.TemporaryDirectory() as output_path:
+            Path(output_path).joinpath("file.txt").touch()
+            llm.import_ckpt(
+                model="llama32_1b",
+                source="hf://meta-llama/Llama-3.2-1B",
+                output_path=output_path,
+                overwrite=False,
+            )
