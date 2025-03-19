@@ -28,6 +28,8 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
+from nemo.collections.asr.parts.submodules.ngpt_modules import AttentionBlock, MLPBlock
+
 try:
     from flash_attn import flash_attn_func
 except ImportError:
@@ -244,6 +246,27 @@ def justnorm(x, fp32: bool = False, idim: int = -1):
 def justnorm_fp32(x, idim: int = -1):
     return justnorm(x, idim=idim, fp32=True)
 
+class EncoderBlock(nn.Module):
+    # Decoder block of the nGPT decoder
+
+    def __init__(self, config, iblock):
+        super().__init__()
+
+        self.attn = AttentionBlock(config)
+        self.mlp = MLPBlock(config)
+
+    def normalize_matrices(self):
+        self.attn.normalize_matrices()
+        self.mlp.normalize_matrices()
+
+    def forward(self, decoder_query, mask):
+        # Decoder block
+        # order: SA -> Norm -> CA -> Norm -> MLP -> Norm
+        # decoder_mask
+        h = self.attn(decoder_query, decoder_query, decoder_query, mask=False)
+        h = self.mlp(h)
+
+        return h
 
 class Block(nn.Module):
 
@@ -407,13 +430,18 @@ class GPT(nn.Module):
         super().__init__()
         self.config = config
 
-        self.transformer = nn.ModuleDict(
-            dict(
-                # wte=nn.Embedding(config.vocab_size, config.n_embd),
-                # drop=nn.Dropout(config.dropout),
-                h=nn.ModuleList([Block(config, il) for il in range(config.n_layers)])
-            )
-        )
+        # self.transformer = nn.ModuleDict(
+        #     dict(
+        #         # wte=nn.Embedding(config.vocab_size, config.n_embd),
+        #         # drop=nn.Dropout(config.dropout),
+        #         h=nn.ModuleList([Block(config, il) for il in range(config.n_layers)])
+        #     )
+        # )
+
+        self.transformer = nn.ModuleDict({
+            'h': nn.ModuleList([EncoderBlock(config, il) for il in range(config.n_layers)])
+        })
+
         # self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         # with weight tying when using torch.compile() some warnings get generated:
         # "UserWarning: functional_call was passed multiple values for tied weights.
@@ -455,8 +483,7 @@ class GPT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.config.base_scale)
 
     def forward(self, x, mask=None):
-
-        for idx, block in enumerate(self.transformer.h):
+        for idx, block in enumerate(self.transformer['h']):
             x = block(x, mask=mask)
 
         if self.config.use_nGPT == 0:
@@ -500,15 +527,8 @@ class GPT(nn.Module):
         module = self
 
         for layer_idx in range(0, module.config.n_layers):
-            block = transformer["h"][layer_idx]
-
-            block.query.weight.data.copy_(justnorm_fp32(block.query.weight.data, 1))  # n_proj, n_embd
-            block.key.weight.data.copy_(justnorm_fp32(block.key.weight.data, 1))  # n_proj, n_embd
-            block.value.weight.data.copy_(justnorm_fp32(block.value.weight.data, 1))  # n_proj, n_embd
-            block.att_c_proj.weight.data.copy_(justnorm_fp32(block.att_c_proj.weight.data, 0))  # n_embd, n_proj
-
-            block.c_fc.weight.data.copy_(justnorm_fp32(block.c_fc.weight.data, 1))  # n_proj, n_embd
-            block.mlp_c_proj.weight.data.copy_(justnorm_fp32(block.mlp_c_proj.weight.data, 0))  # n_embd, n_proj
+            block = transformer['h'][layer_idx]
+            block.normalize_matrices()
 
 
 class NGPTHead(NeuralModule):
