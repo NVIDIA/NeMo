@@ -381,7 +381,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     )
                 total_duration += item["duration"]
 
-        if cfg.warmup_stes == 0:
+        if cfg.warmup_steps == 0:
             logging.warning(
                 "RTFx measurement enabled, but warmup_steps=0. "
                 "At least one warmup step is recommended to measure RTFx"
