@@ -37,20 +37,23 @@ if TYPE_CHECKING:
     from nemo.lightning import Trainer
     from nemo.lightning.megatron_parallel import MegatronParallel
 
-_, HAVE_MODELOPT = safe_import("modelopt")
-if HAVE_MODELOPT:
-    import modelopt.torch.quantization as mtq
-    from modelopt.torch.export import export_tensorrt_llm_checkpoint
+try:
+    _, HAVE_MODELOPT = safe_import("modelopt")
+    if HAVE_MODELOPT:
+        import modelopt.torch.quantization as mtq
+        from modelopt.torch.export import export_tensorrt_llm_checkpoint
 
-    QUANT_CFG_CHOICES = {
-        "int8": mtq.INT8_DEFAULT_CFG,
-        "int8_sq": mtq.INT8_SMOOTHQUANT_CFG,
-        "fp8": mtq.FP8_DEFAULT_CFG,
-        "int4_awq": mtq.INT4_AWQ_CFG,
-        "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
-        "int4": mtq.INT4_BLOCKWISE_WEIGHT_ONLY_CFG,
-        "nvfp4": mtq.NVFP4_DEFAULT_CFG,
-    }
+        QUANT_CFG_CHOICES = {
+            "int8": mtq.INT8_DEFAULT_CFG,
+            "int8_sq": mtq.INT8_SMOOTHQUANT_CFG,
+            "fp8": mtq.FP8_DEFAULT_CFG,
+            "int4_awq": mtq.INT4_AWQ_CFG,
+            "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
+            "int4": mtq.INT4_BLOCKWISE_WEIGHT_ONLY_CFG,
+            "nvfp4": mtq.NVFP4_DEFAULT_CFG,
+        }
+except Exception:
+    HAVE_MODELOPT=None
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 SUPPORTED_EXPORT_FMT = ["trtllm", "nemo"]

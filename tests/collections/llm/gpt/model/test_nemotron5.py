@@ -32,6 +32,8 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils.exp_manager import TimingCallback
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 
 model_options: dict[str, Type[llm.SSMConfig]] = {
     "8B": llm.Nemotron5HybridConfig8B,
