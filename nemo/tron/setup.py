@@ -30,7 +30,7 @@ from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
-from nemo.tron.config import ConfigContainer
+from nemo.tron.config import CheckpointConfig, ConfigContainer
 from nemo.tron.data.dataset import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
@@ -102,7 +102,7 @@ def setup(
     barrier_and_log("after megatron is initialized")
 
     # Context used for persisting some state between checkpoint saves.
-    checkpointing_context = _init_checkpointing_context(cfg)
+    checkpointing_context = _init_checkpointing_context(cfg.checkpoint_config)
 
     # Tokenizer
     timers("tokenizer-setup", log_level=0).start(barrier=True)
@@ -186,9 +186,9 @@ def setup(
         checkpointing_context,
     )
 
-def _init_checkpointing_context(cfg: ConfigContainer) -> Dict[str, Any]:
+def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> Dict[str, Any]:
     # Context used for persisting some state between checkpoint saves.
-    if cfg.checkpoint_config.non_persistent_ckpt_type != "local":
+    if checkpoint_config.non_persistent_ckpt_type != "local":
         return {}
     
     if not HAVE_RESIL:
@@ -203,17 +203,17 @@ def _init_checkpointing_context(cfg: ConfigContainer) -> Dict[str, Any]:
     from nvidia_resiliency_ext.checkpointing.local.replication.strategies import (
         CliqueReplicationStrategy,
     )
-    if cfg.checkpoint_config.replication:
+    if checkpoint_config.replication:
         repl_strategy = CliqueReplicationStrategy.from_replication_params(
-            cfg.checkpoint_config.replication_jump,
-            cfg.checkpoint_config.replication_factor,
+            checkpoint_config.replication_jump,
+            checkpoint_config.replication_factor,
         )
     else:
         repl_strategy = None
 
     checkpointing_context = {
         "local_checkpoint_manager": LocalCheckpointManager(
-            cfg.checkpoint_config.non_persistent_local_ckpt_dir,
+            checkpoint_config.non_persistent_local_ckpt_dir,
             repl_strategy=repl_strategy,
         )
     }

@@ -20,7 +20,7 @@ from megatron.core.distributed import (
     TorchFullyShardedDataParallel,
 )
 from megatron.core.enums import ModelType
-from megatron.core.transformer.module import Float16Module, MegatronModule
+from megatron.core.transformer.module import Float16Module
 from megatron.core.utils import is_float8tensor
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
