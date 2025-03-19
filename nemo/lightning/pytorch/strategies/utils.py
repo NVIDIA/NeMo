@@ -567,7 +567,6 @@ def create_context_parallel_ctx(
     # TODO: uncomment this when torch.distributed.tensor.experimental._attention.set_rotate_method is available
     # from torch.distributed.tensor.experimental._attention import set_rotate_method
     # set_rotate_method(cp_rotate_method)
-
     return context_parallel(
         cp_mesh,
         buffers=cp_buffers,
