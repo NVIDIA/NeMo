@@ -85,7 +85,14 @@ def override_recipe_configs(
         enable_cuda_graphs,
     )
     recipe = set_exp_logging_configs(
-        recipe, finetuning_scheme, "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        finetuning_scheme,
+        "llm",
+        "llama3",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
 
     # data module configs

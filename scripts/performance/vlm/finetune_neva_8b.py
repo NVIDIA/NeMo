@@ -22,7 +22,13 @@ from nemo.collections.vlm.recipes.neva_llama3_8b import finetune_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import args_sanity_check, get_user_configs, set_primary_perf_configs, set_exp_logging_configs, slurm_executor
+from ..utils import (
+    args_sanity_check,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+    slurm_executor,
+)
 
 
 def override_recipe_configs(
@@ -60,7 +66,14 @@ def override_recipe_configs(
         enable_cuda_graphs,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "vlm", "neva_llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        "pre_train",
+        "vlm",
+        "neva_llama3",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
 
     recipe.data.tokenizer = run.Config(
@@ -82,7 +95,9 @@ if __name__ == "__main__":
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "neva_llama3", "8b", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs
 
-    recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs)
+    recipe = override_recipe_configs(
+        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+    )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"

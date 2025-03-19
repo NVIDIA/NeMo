@@ -24,8 +24,8 @@ from nemo_run.config import get_nemorun_home
 from numpy import nan
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
@@ -242,6 +242,7 @@ def set_primary_perf_configs(
     recipe.data.packed_sequence_specs.pad_cu_seqlens = bool(enable_cuda_graphs and (task == "none" or task == "lora"))
 
     return recipe
+
 
 def set_exp_logging_configs(
     recipe,
