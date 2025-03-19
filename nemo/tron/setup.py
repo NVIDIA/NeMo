@@ -188,7 +188,7 @@ def setup(
 
 def _init_checkpointing_context(cfg: ConfigContainer) -> Dict[str, Any]:
     # Context used for persisting some state between checkpoint saves.
-    if cfg.checkpoint_config.non_persistent_ckpt_type == "local":
+    if cfg.checkpoint_config.non_persistent_ckpt_type != "local":
         return {}
     
     if not HAVE_RESIL:
