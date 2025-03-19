@@ -16,12 +16,22 @@
 # limitations under the License.
 
 
-import pytest
-from unittest.mock import MagicMock
-import torch
 import re
 from dataclasses import dataclass, field
-from nemo.lightning.pytorch.callbacks.jit_transform import JitConfig, JitTransform, extract_module_attr_name, get_modules_from_selector, listify, compile_module
+from unittest.mock import MagicMock
+
+import pytest
+import torch
+
+from nemo.lightning.pytorch.callbacks.jit_transform import (
+    JitConfig,
+    JitTransform,
+    compile_module,
+    extract_module_attr_name,
+    get_modules_from_selector,
+    listify,
+)
+
 
 def test_extract_module_attr_name_with_module():
     mock_pl_module = MagicMock(spec=[])
