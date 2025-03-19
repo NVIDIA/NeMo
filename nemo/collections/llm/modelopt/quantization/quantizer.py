@@ -53,7 +53,7 @@ try:
             "nvfp4": mtq.NVFP4_DEFAULT_CFG,
         }
 except Exception:
-    HAVE_MODELOPT=None
+    HAVE_MODELOPT = None
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 SUPPORTED_EXPORT_FMT = ["trtllm", "nemo"]

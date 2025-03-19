@@ -29,8 +29,8 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed_current_scaling
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "nemotron5_hybrid_8b"
 
@@ -226,6 +226,7 @@ def pretrain_recipe(
         recipe = performance_optimizations(recipe)
     return recipe
 
+
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     resume_path,
@@ -318,6 +319,7 @@ def finetune_recipe(
     if performance_mode:
         recipe = performance_optimizations(recipe)
     return recipe
+
 
 def performance_optimizations(recipe: run.Partial) -> run.Partial:
     """

@@ -13,20 +13,22 @@
 # limitations under the License.
 
 
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-import nemo.lightning as nl
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+import random
+
+import megatron.core.parallel_state as ps
 import torch
+import torch.distributed as dist
 from megatron.core.models.mamba.mamba_model import MambaModel
-from megatron.training import get_args, get_model, print_rank_0
 from megatron.core.transformer.spec_utils import import_module
+from megatron.training import get_args, get_model, print_rank_0
 from megatron.training.arguments import core_transformer_config_from_args
 from megatron.training.checkpointing import load_checkpoint
 from megatron.training.initialize import initialize_megatron
+
+import nemo.lightning as nl
+from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
-import torch.distributed as dist
-import megatron.core.parallel_state as ps
-import random
 
 """
 This works on 1 device with no parallelism. With model parallelism, forward pass is not deterministic.
@@ -45,14 +47,10 @@ torchrun --nproc-per-node 1 /opt/NeMo/tests/collections/llm/gpt/model/test_nm5_n
             --sequence-length 512
 """
 
+
 def add_test_args(parser):
     group = parser.add_argument_group(title='more test args')
-    group.add_argument(
-        "--nemo-model-path", 
-        type=str, 
-        required=True, 
-        help='Path to the NeMo2 checkpoint.'
-        )
+    group.add_argument("--nemo-model-path", type=str, required=True, help='Path to the NeMo2 checkpoint.')
     group.add_argument(
         "--sequence-length",
         type=int,
@@ -61,6 +59,7 @@ def add_test_args(parser):
     )
 
     return parser
+
 
 def megatron_model_provider(pre_process=True, post_process=True) -> MambaModel:
     """Builds the model.
@@ -105,6 +104,7 @@ def megatron_model_provider(pre_process=True, post_process=True) -> MambaModel:
 
     return model
 
+
 if __name__ == "__main__":
 
     initialize_megatron(
@@ -134,7 +134,9 @@ if __name__ == "__main__":
 
     megatron_model = megatron_model[0]
     megatron_model.eval()
-    megatron_out = megatron_model.forward(input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask)
+    megatron_out = megatron_model.forward(
+        input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask
+    )
 
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
@@ -162,15 +164,16 @@ if __name__ == "__main__":
         ),
     )
 
-    nemo_model: nl.io.TrainerContext = nl.io.load_context(path=ckpt_to_context_subdir(args.nemo_model_path), subpath="model")
+    nemo_model: nl.io.TrainerContext = nl.io.load_context(
+        path=ckpt_to_context_subdir(args.nemo_model_path), subpath="model"
+    )
     _setup_trainer_and_restore_model(path=args.nemo_model_path, trainer=trainer, model=nemo_model)
     nemo_model.eval()
     nemo_out = nemo_model.forward(input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask)
 
-    assert (abs(megatron_out - nemo_out).sum().item() == 0), (
-                "ERROR: nemo and megatron lm outputs are NOT bitwise similar! "
-            )
+    assert (
+        abs(megatron_out - nemo_out).sum().item() == 0
+    ), "ERROR: nemo and megatron lm outputs are NOT bitwise similar! "
     logging.info("SUCCESS: The outputs of nemo and mcore models are bitwise similar!")
     ps.destroy_model_parallel()
     dist.destroy_process_group()
-    

@@ -114,12 +114,12 @@ from nemo.collections.llm.gpt.model.ssm import (
     BaseMambaConfig130M,
     BaseMambaConfig370M,
     BaseMambaConfig780M,
-    NVIDIAMambaConfig8B,
-    NVIDIAMambaHybridConfig8B,
+    MambaModel,
     Nemotron5HybridConfig8B,
     Nemotron5HybridConfig47B,
     Nemotron5HybridConfig56B,
-    MambaModel,
+    NVIDIAMambaConfig8B,
+    NVIDIAMambaHybridConfig8B,
     SSMConfig,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel

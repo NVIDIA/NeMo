@@ -63,7 +63,9 @@ def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(
-        llm.MambaModel, config=run.Config(llm.BaseMambaConfig130M), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
+        llm.MambaModel,
+        config=run.Config(llm.BaseMambaConfig130M),
+        tokenizer=tokenizer(tokenizer_model=tokenizer_model),
     )
 
 

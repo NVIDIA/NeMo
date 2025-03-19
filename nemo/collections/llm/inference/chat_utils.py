@@ -27,13 +27,15 @@ TYPE_INSTRUCTION = {
     'VALUE_TO_TEXT': '',
 }
 
-NM5_CHAT_PROMPT_TOKENS={
-  "system_turn_start": "<SPECIAL_10>",
-  "turn_start": "<SPECIAL_11>",
-  "label_start": "<SPECIAL_12>",
-  "end_of_turn": "\n",
-  "end_of_name": "\n"
+NM5_CHAT_PROMPT_TOKENS = {
+    "system_turn_start": "<SPECIAL_10>",
+    "turn_start": "<SPECIAL_11>",
+    "label_start": "<SPECIAL_12>",
+    "end_of_turn": "\n",
+    "end_of_name": "\n",
 }
+
+
 def response_value_formater(label, label_start, end_signal):
     if isinstance(label, str):
         return label_start + label + end_signal
@@ -41,6 +43,7 @@ def response_value_formater(label, label_start, end_signal):
         return ''
     else:
         raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
+
 
 def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
     TURN_TOKEN = special_tokens['turn_start']
@@ -97,6 +100,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
             conversation += TURN_TOKEN
     return conversation
 
+
 def get_header_conversation_type_mask_role(source, special_tokens):
     END_SIGNAL = special_tokens['end_of_turn']
     END_NAME_SIGNAL = special_tokens['end_of_name']
@@ -116,28 +120,29 @@ def get_header_conversation_type_mask_role(source, special_tokens):
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     return header, conversation, data_type, mask_role
 
+
 def convert_messages(input_list):
-        output_dict = {
-            'system': '',
-            'conversations': [],
-            'mask': 'User',
-            'type': 'VALUE_TO_TEXT',
-        }
+    output_dict = {
+        'system': '',
+        'conversations': [],
+        'mask': 'User',
+        'type': 'VALUE_TO_TEXT',
+    }
 
-        # Extract the system message
-        for msg in input_list:
-            if msg['role'] == 'system':
-                output_dict['system'] = msg['content']
-                break  # Assuming only one system message
+    # Extract the system message
+    for msg in input_list:
+        if msg['role'] == 'system':
+            output_dict['system'] = msg['content']
+            break  # Assuming only one system message
 
-        # Build the conversations list
-        for msg in input_list:
-            if msg['role'] != 'system':
-                conversation_entry = {
-                    'from': msg['role'].capitalize(),  # Capitalize 'user' and 'assistant'
-                    'value': msg['content'],
-                    'label': None,
-                }
-                output_dict['conversations'].append(conversation_entry)
+    # Build the conversations list
+    for msg in input_list:
+        if msg['role'] != 'system':
+            conversation_entry = {
+                'from': msg['role'].capitalize(),  # Capitalize 'user' and 'assistant'
+                'value': msg['content'],
+                'label': None,
+            }
+            output_dict['conversations'].append(conversation_entry)
 
-        return output_dict
+    return output_dict

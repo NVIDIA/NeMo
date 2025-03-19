@@ -14,7 +14,9 @@
 
 import argparse
 from typing import Type
+
 import torch
+import torch._dynamo
 from lightning.pytorch.callbacks import LearningRateMonitor, RichModelSummary
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -32,7 +34,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils.exp_manager import TimingCallback
-import torch._dynamo
+
 torch._dynamo.config.suppress_errors = True
 
 model_options: dict[str, Type[llm.SSMConfig]] = {
@@ -40,6 +42,7 @@ model_options: dict[str, Type[llm.SSMConfig]] = {
     "47B": llm.Nemotron5HybridConfig47B,
     "56B": llm.Nemotron5HybridConfig56B,
 }
+
 
 def parse_args():
     """Parse arguments for NM5 model training."""
