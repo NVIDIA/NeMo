@@ -204,17 +204,17 @@ class AutoConfigurator:
                     return size / 1000  # Convert millions to billions
         elif model_type == "bert":
             return np.round(
-                    _calculate_model_size(
-                        vocab_size=vocab_size,
-                        seq_length=model.seq_length,
-                        hidden_size=model.hidden_size,
-                        num_layers=model.num_layers,
-                        ffn_size=model.ffn_hidden_size,
-                        att_heads=model.num_attention_heads,
-                        model_name=model_type,
-                    ),
-                    3,
-                )
+                _calculate_model_size(
+                    vocab_size=vocab_size,
+                    seq_length=model.seq_length,
+                    hidden_size=model.hidden_size,
+                    num_layers=model.num_layers,
+                    ffn_size=model.ffn_hidden_size,
+                    att_heads=model.num_attention_heads,
+                    model_name=model_type,
+                ),
+                3,
+            )
         return None
 
 
