@@ -66,6 +66,7 @@ MODEL_CONFIG_ATTR = [
     'seq_length',
 ]
 
+
 def restore_model_weights(model, checkpoint_path, strict=False):
     """
     Restores model weights from a checkpoint.
@@ -584,7 +585,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
                 packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
                 packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
-
 
             batch_indices, non_image_indices = torch.where(input_ids != image_token_index)
 
