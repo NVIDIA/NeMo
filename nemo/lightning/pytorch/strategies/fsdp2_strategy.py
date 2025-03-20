@@ -36,8 +36,8 @@ from nemo.lightning.pytorch.strategies.utils import (
     _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
-    fsdp2_strategy_parallelize,
     create_context_parallel_ctx,
+    fsdp2_strategy_parallelize,
     get_train_context,
 )
 from nemo.utils import logging
@@ -54,9 +54,11 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
 )
 
-CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
-    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
-)
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed.fsdp", "CPUOffloadPolicy")
+if not HAS_CPU_OFFLOAD_POLICY:
+    CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+        "torch.distributed._composable.fsdp", "CPUOffloadPolicy"
+    )
 
 _logger = _logging.getLogger(__name__)
 

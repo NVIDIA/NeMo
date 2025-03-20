@@ -17,7 +17,7 @@ import io
 import signal
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple, Union, cast, Set
+from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Tuple, Union, cast
 
 import lightning.pytorch as pl
 import torch
@@ -37,15 +37,16 @@ from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinte
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
-
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
 )
 fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
 
-CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
-    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
-)
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed.fsdp", "CPUOffloadPolicy")
+if not HAS_CPU_OFFLOAD_POLICY:
+    CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+        "torch.distributed._composable.fsdp", "CPUOffloadPolicy"
+    )
 
 
 @dataclass(kw_only=True)
@@ -552,6 +553,7 @@ def _destroy_dist_connection() -> None:
         torch.distributed.destroy_process_group()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
+
 # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/distributed/utils.py#L113
 def create_context_parallel_ctx(
     cp_mesh: DeviceMesh,
@@ -565,7 +567,7 @@ def create_context_parallel_ctx(
     # TODO: uncomment this when torch.distributed.tensor.experimental._attention.set_rotate_method is available
     # from torch.distributed.tensor.experimental._attention import set_rotate_method
     # set_rotate_method(cp_rotate_method)
-    
+
     return context_parallel(
         cp_mesh,
         buffers=cp_buffers,
@@ -583,20 +585,14 @@ def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool
                 stack.enter_context(torch.distributed.tensor.parallel.loss_parallel())
 
             if enable_compiled_autograd:
-                stack.enter_context(
-                    torch._dynamo.utils.maybe_enable_compiled_autograd(True)
-                )
+                stack.enter_context(torch._dynamo.utils.maybe_enable_compiled_autograd(True))
 
             if cp_context is not None:
-                from torch.nn.attention import sdpa_kernel, SDPBackend
+                from torch.nn.attention import SDPBackend, sdpa_kernel
 
                 # currently we only support these two SDP backends.
                 # TODO (xilunwu): support cuDNN backend
-                stack.enter_context(
-                    sdpa_kernel(
-                        [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]
-                    )
-                )
+                stack.enter_context(sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]))
                 stack.enter_context(cp_context)
 
             yield
