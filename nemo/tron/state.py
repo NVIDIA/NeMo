@@ -104,13 +104,6 @@ class FaultToleranceState:
 
 # replacement for Megatron's global variables, except mbs calc and parallel state
 class GlobalState:
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self):
         # Prevent reinitialization in subsequent instantiations.
         if getattr(self, "_initialized", False):

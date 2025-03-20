@@ -40,9 +40,9 @@ from megatron.core.dist_checkpointing.strategies.fully_parallel import (
     FullyParallelLoadStrategyWrapper,
     FullyParallelSaveStrategyWrapper,
 )
+from megatron.core.fp8_utils import is_float8tensor
 from megatron.core.num_microbatches_calculator import update_num_microbatches
 from megatron.core.rerun_state_machine import get_rerun_state_machine
-from megatron.core.utils import is_float8tensor
 
 from nemo.tron import fault_tolerance
 from nemo.tron.config import ConfigContainer
