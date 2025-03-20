@@ -13,16 +13,13 @@
 # limitations under the License.
 
 import math
-from functools import partial
 
 import torch
 import torch.distributed
-from megatron.core import mpu
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.base import gpt_data_step
 from nemo.tron.api import megatron_pretrain
 from nemo.tron.config import (
     CheckpointConfig,
@@ -35,74 +32,7 @@ from nemo.tron.config import (
     TrainingConfig,
 )
 from nemo.tron.data.dataset import get_blend_and_blend_per_split
-from nemo.tron.state import GlobalState
-
-# define spiky loss as a variation of 20% or more
-SPIKY_LOSS_PERC = 0.2
-
-
-def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
-    """Loss function.
-
-    Args:
-        loss_mask (torch.Tensor): Used to mask out some portions of the loss
-        output_tensor (torch.Tensor): The tensor with the losses
-
-    Returns:
-        the loss scalar for this micro-batch
-        the number of non-padded tokens in this microbatch
-        a dict containing reporting metrics on the loss and number of tokens across
-            the data parallel ranks
-    """
-    state = GlobalState()
-    losses = output_tensor.float()
-    loss_mask = loss_mask.view(-1).float()
-    total_tokens = loss_mask.sum()
-    loss = torch.cat([torch.sum(losses.view(-1) * loss_mask).view(1), total_tokens.view(1)])
-
-    if state.cfg.model_config.context_parallel_size > 1:
-        torch.distributed.all_reduce(loss, group=mpu.get_context_parallel_group())
-
-    # Reduce loss for logging.
-    reporting_loss = loss.clone().detach()
-    torch.distributed.all_reduce(reporting_loss, group=mpu.get_data_parallel_group())
-
-    local_num_tokens = loss[1].clone().detach().to(torch.int)
-    return (
-        loss[0] * state.cfg.model_config.context_parallel_size,
-        local_num_tokens,
-        {"lm loss": (reporting_loss[0], reporting_loss[1])},
-    )
-
-
-def forward_step(data_iterator, model):
-    """Forward training step.
-
-    Args:
-        data_iterator : Input data iterator
-        model (GPTModel): The GPT Model
-    """
-    timers = GlobalState().timers
-
-    # Get the batch.
-    timers("batch-generator", log_level=2).start()
-    batch = gpt_data_step(data_iterator)
-    if "attention_mask" not in batch:
-        batch["attention_mask"] = None
-
-    tokens, labels, loss_mask, attention_mask, position_ids = (
-        batch["tokens"],
-        batch["labels"],
-        batch["loss_mask"],
-        batch["attention_mask"],
-        batch["position_ids"],
-    )
-    timers("batch-generator").stop()
-
-    output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
-
-    return output_tensor, partial(loss_func, loss_mask)
-
+from nemo.tron.llm.gpt import forward_step
 
 if __name__ == "__main__":
     global_batch_size = 256
