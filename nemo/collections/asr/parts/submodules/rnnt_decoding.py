@@ -823,14 +823,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Assert number of offsets and hypothesis tokens are 1:1 match.
         num_flattened_tokens = 0
         for t in range(len(char_offsets)):
-            # Subtract one here for the extra RNNT BLANK token emitted to designate "End of timestep"
-            num_flattened_tokens += len(char_offsets[t]['char']) - 1
+            # Count all tokens except for RNNT BLANK token emitted to designate "End of timestep"
+            num_flattened_tokens += len([c for c in char_offsets[t]['char'] if c!= self.blank_id])
 
         if num_flattened_tokens != len(hypothesis.text):
             raise ValueError(
                 f"`char_offsets`: {char_offsets} and `processed_tokens`: {hypothesis.text}"
                 " have to be of the same length, but are: "
-                f"`len(offsets)`: {len(char_offsets)} and `len(processed_tokens)`:"
+                f"`len(offsets)`: {num_flattened_tokens} and `len(processed_tokens)`:"
                 f" {len(hypothesis.text)}"
             )
 
@@ -1211,7 +1211,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     previous_word_index = i
                     continue
 
-            elif word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
+            elif word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
                 segment_words.append(word)
                 if segment_words:
                     segment_offsets.append(
