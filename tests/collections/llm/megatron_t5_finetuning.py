@@ -41,7 +41,7 @@ def get_args():
     parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
     parser.add_argument('--checkpoint-path', type=str, help="Path to checkpoint dir")
     parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
-
+    parser.add_argument('--force-redownload', type=bool, default=False, help="force redownload of data")
     return parser.parse_args()
 
 
@@ -64,6 +64,7 @@ if __name__ == '__main__':
         global_batch_size=128,
         tokenizer=tokenizer,
         num_workers=4,
+        force_redownload=args.force_redownload,
     )
 
     t5_config = llm.t5.model.t5.T5Config(
