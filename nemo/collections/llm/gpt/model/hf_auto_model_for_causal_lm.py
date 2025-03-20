@@ -296,7 +296,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
             input_ids = batch["input_ids"].to(self.model.device)
-
             batch["position_ids"] = (
                 torch.arange(self.pos, self.pos + input_ids.shape[1]).unsqueeze(0).to(self.model.device)
             )
