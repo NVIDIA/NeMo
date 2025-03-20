@@ -17,8 +17,6 @@ import os
 import sys
 import time
 from datetime import datetime
-from functools import partial
-from typing import Callable
 
 import torch
 from megatron.core import parallel_state
@@ -35,7 +33,7 @@ from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import CheckpointConfig, ConfigContainer
+from nemo.tron.config import ConfigContainer
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
@@ -44,7 +42,9 @@ from nemo.tron.utils.async_utils import maybe_finalize_async_save
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, get_world_size_safe, print_rank_0
 from nemo.tron.utils.train_utils import (
     calc_params_l2_norm,
+    check_forward_step_func_num_args,
     logical_and_across_model_parallel_group,
+    maybe_inject_state,
     reduce_max_stat_across_model_parallel_group,
     training_log,
 )
@@ -67,6 +67,9 @@ def train(
     train_config = config.train_config
     timers = global_state.timers
     straggler_timer = global_state.straggler_timer
+
+    # Check num args to forward_step_func
+    num_fw_args = check_forward_step_func_num_args(forward_step_func)
 
     # Turn on training mode which enables dropout.
     for model_module in model:
@@ -210,7 +213,7 @@ def train(
         # Run training step.
         fault_tolerance.on_training_step_start(global_state)
         loss_dict, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad = train_step(
-            forward_step_func, train_data_iterator, model, optimizer, scheduler, global_state
+            forward_step_func, num_fw_args, train_data_iterator, model, optimizer, scheduler, global_state
         )
         fault_tolerance.on_training_step_end(global_state)
         if should_checkpoint:
@@ -382,6 +385,7 @@ def train(
 
 def train_step(
     forward_step_func,
+    num_fw_args,
     data_iterator,
     model,
     optimizer,
@@ -402,10 +406,13 @@ def train_step(
             model_chunk.zero_grad_buffer()
         optimizer.zero_grad()
 
+        # Optionally inject state into forward step
+        wrapped_forward_step = maybe_inject_state(forward_step_func, global_state, num_fw_args=num_fw_args)
+
         # Forward pass.
         forward_backward_func = get_forward_backward_func()
         losses_reduced = forward_backward_func(
-            forward_step_func=forward_step_func,
+            forward_step_func=wrapped_forward_step,
             data_iterator=data_iterator,
             model=model,
             num_microbatches=get_num_microbatches(),

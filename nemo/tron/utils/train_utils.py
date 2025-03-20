@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 from datetime import datetime
+from functools import partial
+from typing import Callable, Optional
 
 import torch
 from megatron.core import parallel_state
@@ -509,3 +512,25 @@ def reduce_aux_losses_tracker_across_ranks():
             torch.distributed.all_reduce(values, group=tracker[name].get("reduce_group"))
         if tracker[name].get("avg_group") is not None:
             torch.distributed.all_reduce(values, group=tracker[name]["avg_group"], op=torch.distributed.ReduceOp.AVG)
+
+
+def maybe_inject_state(forward_step_func: Callable, state: GlobalState, num_fw_args: Optional[int] = None) -> Callable:
+    if not num_fw_args:
+        num_fw_args = len(inspect.signature(forward_step_func).parameters)
+    if num_fw_args == 3:
+        # inject global_state
+        return partial(forward_step_func, state)
+    else:
+        return forward_step_func
+
+
+def check_forward_step_func_num_args(forward_step_func: Callable) -> int:
+    num_fw_args = len(inspect.signature(forward_step_func).parameters)
+    fail_msg = f"""
+    forward_step_func has {num_fw_args} arguments. Only the following signatures are supported: 
+        2 args: forward_step_func(data_iterator: Iterable, model: GPTModel)
+        3 args: forward_step_func(state: GlobalState, data_iterator: Iterable, model: GPTModel)
+    """
+    assert num_fw_args in (2, 3), fail_msg
+
+    return num_fw_args
