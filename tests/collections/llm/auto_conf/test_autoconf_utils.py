@@ -12,14 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-from functools import partial
 from collections import OrderedDict
+from functools import partial
 
-from nemo.collections.llm.tools.auto_configurator.core.training_config import GPT3GridSearch, BertGridSearch, T5GridSearch
+import numpy as np
+
 from nemo.collections.llm.tools.auto_configurator.core.base_config import _estimate_training_time, calculate_model_size
-from nemo.collections.llm.tools.auto_configurator.core.utils import modify_cfg, _calculate_model_size, ModelSizeParams
-
+from nemo.collections.llm.tools.auto_configurator.core.training_config import (
+    BertGridSearch,
+    GPT3GridSearch,
+    T5GridSearch,
+)
+from nemo.collections.llm.tools.auto_configurator.core.utils import ModelSizeParams, _calculate_model_size, modify_cfg
 
 GPT_PARAMS = OrderedDict(
     [
@@ -349,7 +353,7 @@ class TestUtils:
                 kv_channels=8,
                 att_heads=32,
                 model_name="qwen",
-            ), 
+            ),
             2,
         )
 
@@ -366,7 +370,7 @@ class TestUtils:
                 kv_channels=None,
                 att_heads=36,
                 model_name="starcoder",
-            ), 
+            ),
             2,
         )
 
@@ -383,7 +387,7 @@ class TestUtils:
                 kv_channels=None,
                 att_heads=12,
                 model_name="bert",
-            ), 
+            ),
             2,
         )
 
@@ -400,7 +404,7 @@ class TestUtils:
                 kv_channels=None,
                 att_heads=12,
                 model_name="bert",
-            ), 
+            ),
             2,
         )
 
@@ -417,12 +421,12 @@ class TestUtils:
                 kv_channels=32,
                 att_heads=64,
                 model_name="t5",
-            ), 
+            ),
             2,
         )
 
         assert model_size == 8.67, f"expected model_size is 8.67 but got {model_size}."
-    
+
     def test_model_size_params(self):
         # Nemotron
         for model_size, model_params in GPT_PARAMS.items():
@@ -435,11 +439,16 @@ class TestUtils:
                 )
                 params.init_params()
 
-                assert (params.hs, params.att_h, params.lr) == model_params, \
+                assert (
+                    params.hs,
+                    params.att_h,
+                    params.lr,
+                ) == model_params, (
                     f"expected model params are {model_params} but got {(params.hs, params.att_h, params.lr)}."
+                )
             except ValueError:
                 assert True
-        
+
         # Bert
         for model_size, model_params in BERT_PARAMS.items():
             try:
@@ -451,8 +460,13 @@ class TestUtils:
                 )
                 params.init_params()
 
-                assert (params.hs, params.att_h, params.lr) == model_params, \
+                assert (
+                    params.hs,
+                    params.att_h,
+                    params.lr,
+                ) == model_params, (
                     f"expected model params are {model_params} but got {(params.hs, params.att_h, params.lr)}."
+                )
             except ValueError:
                 assert True
 
@@ -468,39 +482,40 @@ class TestUtils:
                 params.init_params()
 
                 gen_model_params = (params.hs, params.att_h, params.ffn, params.kv, params.lr)
-                assert gen_model_params == model_params, \
-                    f"expected model params are {model_params} but got {gen_model_params}."
+                assert (
+                    gen_model_params == model_params
+                ), f"expected model params are {model_params} but got {gen_model_params}."
             except ValueError:
                 assert True
 
     def test_gpt_grid_search(self):
         # GPT 80GB GPU
-        seq_lengths = [2 ** i for i in range(11, 16)]
+        seq_lengths = [2**i for i in range(11, 16)]
         model_sizes = [1, 4, 8, 13, 23, 45, 95, 130, 195, 395, 790, 1100]
 
         for seq_length in seq_lengths:
             for model_size in model_sizes:
                 params = GPT3GridSearch(
                     model_size_in_b=model_size,
-                    valid_pp=[1,2,4,8],
+                    valid_pp=[1, 2, 4, 8],
                     seq_length=seq_length,
                     gpu_memory_gb=80,
                 )
                 params.init_params()
 
         # GPT 40GB GPU
-        seq_lengths = [2 ** i for i in range(11, 16)]
+        seq_lengths = [2**i for i in range(11, 16)]
         model_sizes = [1, 4, 8, 13, 23, 45, 95, 130, 195, 395, 790, 1100]
 
         for model_size in model_sizes:
             params = GPT3GridSearch(
                 model_size_in_b=model_size,
-                valid_pp=[1,2,4,8],
+                valid_pp=[1, 2, 4, 8],
                 seq_length=2048,
                 gpu_memory_gb=40,
             )
             params.init_params()
-    
+
     def test_bert_grid_search(self):
         # Bert 80GB GPU
         model_sizes = [1, 4, 8, 13, 23, 45, 87, 165, 250]
@@ -508,7 +523,7 @@ class TestUtils:
         for model_size in model_sizes:
             params = BertGridSearch(
                 model_size_in_b=model_size,
-                valid_pp=[1,2,4,8],
+                valid_pp=[1, 2, 4, 8],
                 seq_length=512,
                 gpu_memory_gb=80,
             )
@@ -518,20 +533,20 @@ class TestUtils:
         for model_size in model_sizes:
             params = BertGridSearch(
                 model_size_in_b=model_size,
-                valid_pp=[1,2,4,8],
+                valid_pp=[1, 2, 4, 8],
                 seq_length=512,
                 gpu_memory_gb=40,
             )
             params.init_params()
-    
+
     def test_t5_grid_search(self):
-        #T5 80GB GPU
+        # T5 80GB GPU
         model_sizes = [1, 4, 8, 14, 25, 40, 85, 160, 248]
 
         for model_size in model_sizes:
             params = T5GridSearch(
                 model_size_in_b=model_size,
-                valid_pp=[1,2,4,8],
+                valid_pp=[1, 2, 4, 8],
                 seq_length=512,
                 gpu_memory_gb=80,
             )
@@ -541,7 +556,7 @@ class TestUtils:
         for model_size in model_sizes:
             params = T5GridSearch(
                 model_size_in_b=model_size,
-                valid_pp=[1,2,4,8],
+                valid_pp=[1, 2, 4, 8],
                 seq_length=512,
                 gpu_memory_gb=40,
             )
