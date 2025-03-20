@@ -57,7 +57,6 @@ def fused_linear_cross_entropy(
         shift=True,
         filter_eps=accuracy_threshold,
     )
-    print(f"num_items_in_batch: {num_items_in_batch}")
     if num_items_in_batch is not None:
         loss = loss / num_items_in_batch
     return loss
@@ -302,6 +301,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if "input_ids" not in batch and "tokens" in batch:
             batch["input_ids"] = batch["tokens"]
         batch = self._remove_extra_batch_keys(batch)
+        batch["output_hidden_states"] = True  # Enable hidden states output
 
         outputs = self.forward(batch)
 
@@ -318,9 +318,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             loss = self.loss_fn(logits, labels, loss_mask)
         else:
             # Prepare for loss calculation
-            # TODO: how to extract hidden_states and lm_head from outputs?
-            hidden_states = outputs.logits
-            lm_head = self.model.get_output_embeddings()
+            # Get hidden states from the last layer
+            hidden_states = outputs.hidden_states[-1]
+            lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
             labels = labels
             num_items_in_batch = torch.count_nonzero(labels != -100).item()
             logit_softcapping = 0
