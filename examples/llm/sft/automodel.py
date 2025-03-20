@@ -83,6 +83,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
         offload_policy = None
         if enable_cpu_offload:
             from nemo.lightning.pytorch.strategies.fsdp2_strategy import HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy
+
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
 

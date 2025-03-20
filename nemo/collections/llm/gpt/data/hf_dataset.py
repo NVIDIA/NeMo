@@ -400,8 +400,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
             dataset_splits[split_name] = subset.map(function, **kwargs)
 
 
-
-
 class HellaSwagHFDataModule(HFDatasetDataModule):
     """A data module for handling the HellaSwag dataset using HFDatasetDataModule."""
 
@@ -436,7 +434,6 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         }
         return out_doc
 
-
     # Note: I'm training the model causally not through multiclass classification.
     @staticmethod
     def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
@@ -465,6 +462,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         dataset = dataset.shuffle(seed=seed)
 
         return dataset
+
 
 class SquadHFDataModule(HFDatasetDataModule):
     """

@@ -174,7 +174,10 @@ def main():
     else:
         model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=model_accelerator, trust_remote_code=args.trust_remote_code, use_liger_kernel=args.liger
+        model_name=args.model,
+        model_accelerator=model_accelerator,
+        trust_remote_code=args.trust_remote_code,
+        use_liger_kernel=args.liger,
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
 
