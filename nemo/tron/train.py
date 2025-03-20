@@ -13,13 +13,10 @@
 # limitations under the License.
 
 import gc
-import inspect
 import os
 import sys
 import time
 from datetime import datetime
-from functools import partial
-from typing import Callable
 
 import torch
 from megatron.core import parallel_state
@@ -37,7 +34,7 @@ from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import CheckpointConfig, ConfigContainer
+from nemo.tron.config import ConfigContainer
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
