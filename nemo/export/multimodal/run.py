@@ -31,6 +31,8 @@ import tensorrt_llm
 import tensorrt_llm.profiler as profiler
 import torch
 import yaml
+import requests
+from io import BytesIO
 from PIL import Image
 from tensorrt_llm import logger
 from tensorrt_llm._utils import str_dtype_to_trt, torch_dtype_to_trt
@@ -95,6 +97,21 @@ class MultimodalModelRunner:
                 self.tokenizer.im_end_id = self.tokenizer.convert_tokens_to_ids("<extra_id_5>")
                 self.tokenizer.vid_start_id = self.tokenizer.convert_tokens_to_ids("<extra_id_8>")
                 self.tokenizer.vid_end_id = self.tokenizer.convert_tokens_to_ids("<extra_id_9>")
+            if self.model_type == 'cosmos':
+                self.tokenizer.add_tokens(
+                    [
+                        "<image>",
+                        "<img>",
+                        "</img>",
+                        "<quad>",
+                        "</quad>",
+                        "<ref>",
+                        "</ref>",
+                        "<box>",
+                        "</box>"
+                    ],
+                    special_tokens=True
+                )
         else:
             from sentencepiece import SentencePieceProcessor
 
@@ -755,6 +772,28 @@ class MultimodalModelRunner:
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
+        elif self.model_type == "cosmos":
+            from image_processing import get_visual_transform
+            imgs = get_visual_transform(
+                raw_image,
+                img_h=512,
+                img_w=512,
+                use_tiling=True,
+                max_num_tiles=12,
+                use_thumbnail=True,
+                augment=False,
+                vision_model_type="radio",
+            )
+            image = torch.stack(imgs).cuda()
+
+            pre_prompt = "<|begin_of_text|><|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAnswer the questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n<img><image></img>\n"
+            post_prompt = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+            if input_text is None:
+                input_text = "\n Which city is this? Answer:"
+            if isinstance(input_text, list):
+                post_prompt = [input + post_prompt for input in input_text]
+            else:
+                post_prompt = input_text + post_prompt
 
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
@@ -769,7 +808,7 @@ class MultimodalModelRunner:
         # Repeat inputs to match batch size
         pre_prompt = [pre_prompt] * batch_size
         post_prompt = [post_prompt] * batch_size
-        if self.model_type not in ['vila', 'lita', 'vita']:
+        if self.model_type not in ['vila', 'lita', 'vita', ]:
             if image.dim() == 5:
                 image = image.expand(batch_size, -1, -1, -1, -1).contiguous()
             else:
@@ -870,8 +909,12 @@ class MultimodalModelRunner:
         media_model = ["video-neva", "lita", "vita"]
         if self.model_type in media_model:
             media = input_media
-        elif self.model_type == "neva" or self.model_type == "vila":
-            media = Image.open(input_media).convert('RGB')
+        elif self.model_type in ["neva", "vila", "llava", "cosmos"]:
+            if input_media.startswith("http") or input_media.startswith("https"):
+                response = requests.get(input_media, timeout=5)
+                media = Image.open(BytesIO(response.content)).convert("RGB")
+            else:
+                media = Image.open(input_media).convert('RGB')
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
 
