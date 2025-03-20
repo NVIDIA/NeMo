@@ -388,7 +388,7 @@ def modify_cfg(
     num_nodes: int,
     model_name: str,
     path_to_logs: str,
-    model_size,
+    model_size: float,
 ) -> dict:
     """Modify the base configuration for the model with the new parameters that are specific to the current model,
         which the Auto Configurator tool heuristics selected.
@@ -408,6 +408,8 @@ def modify_cfg(
         max_steps (int): maximum number of steps to run this model for.
         num_nodes (int): number of nodes to use for the training run.
         model_name (str): name of the model, i.e. gpt3, t5, mt5...
+        path_to_logs (str): path to directory where logs will be saved.
+        model_size (float): model size.
 
     Returns:
         dict: dictionary containing the updated model configuration parameters.
