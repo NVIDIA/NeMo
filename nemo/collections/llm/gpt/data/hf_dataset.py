@@ -381,7 +381,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         if isinstance(split_names, str):
             split_names = [split_names]
         elif isinstance(split_names, list):
-            split_names = split_names
+            pass
         elif split_names is None:
             split_names = self.dataset_splits.keys()
         else:
