@@ -26,7 +26,7 @@ import nemo_run as run
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule, HFMockDataModule
 from nemo.utils import logging
 
 # TODO: Set your SQuaD dataset path, remember to add the path in custom_mounts if using slurm executor
@@ -35,8 +35,8 @@ DATA_PATH = ''
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument('--model', default='deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B')
-    parser.add_argument('--nodes', type=int, default=2)
+    parser.add_argument('--model', default='nvidia/Llama-3_3-Nemotron-Super-49B-v1')
+    parser.add_argument('--nodes', type=int, default=4)
     parser.add_argument('--devices', type=int, default=8)
     parser.add_argument('--max-steps', type=int, default=200)
     parser.add_argument(
@@ -112,10 +112,10 @@ def slurm_executor(
         ),
         nodes=nodes,
         ntasks_per_node=devices,
-        gpus_per_node=devices,
+        # gpus_per_node=devices,
         mem="0",
         exclusive=True,
-        gres="gpu:8",
+        # gres="gpu:8",
         packager=run.GitArchivePackager(),
     )
 
@@ -167,15 +167,14 @@ def main():
 
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     recipe.data = run.Config(
-        SquadHFDataModule,
-        path_or_dataset=DATA_PATH,
-        split="train[:100]",
-        pad_token_id=tokenizer.tokenizer.eos_token_id,
-        tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
+        HFMockDataModule,
+        seq_length=4196,
+        micro_batch_size=1,
+        global_batch_size=8,
     )
 
     recipe.trainer.strategy = run.Config(
-        nl.FSDP2Strategy, data_parallel_size=args.nodes * args.devices, tensor_parallel_size=1
+        nl.FSDP2Strategy, data_parallel_size=1, tensor_parallel_size=1, context_parallel_size=32,
     )
     recipe.trainer.plugins = None
 
@@ -199,14 +198,16 @@ def main():
 
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
-            user="",
-            host="",
-            remote_job_dir="",
-            account="",
-            partition="",
+            user="boxiangw",
+            host="login-eos01.eos.clusters.nvidia.com",
+            remote_job_dir="/lustre/fsw/coreai_dlalgo_llm/boxiangw/nemo-experiments",
+            account="coreai_dlalgo_llm",
+            partition="batch",
             nodes=recipe.trainer.num_nodes,
             devices=recipe.trainer.devices,
-            custom_mounts=[],
+            custom_mounts=[
+                "/home/boxiangw/NeMo:/opt/NeMo",
+            ],
             custom_env_vars=custom_env_vars,
         )
     else:
