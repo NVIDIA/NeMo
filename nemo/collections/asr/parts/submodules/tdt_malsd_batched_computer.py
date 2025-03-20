@@ -177,7 +177,7 @@ class MALSDState:
             [self.batch_size, self.beam_size],
             fill_value=self.INACTIVE_SCORE,
             device=self.device,
-            dtype=torch.float
+            dtype=float_dtype
         )
         
         # indices of elements in batch and beam (constant)
@@ -403,6 +403,9 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         batch_size, max_time, _ = encoder_output.shape
         device = encoder_output.device
         
+        if torch.is_autocast_enabled():
+            encoder_output = encoder_output.to(torch.get_autocast_gpu_dtype())
+            
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
         float_dtype = encoder_output_projected.dtype
@@ -445,14 +448,22 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)  # vocab_size_no_blank
             lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
 
-        decoder_output, decoder_state, *_ = self.decoder.predict(
-            last_labels_wb.view(-1, 1), 
-            None, 
-            add_sos=False, 
+        decoder_state = self.decoder.initialize_state(
+            torch.empty(
+                [batch_size * self.beam_size, ],
+                dtype=float_dtype,
+                device=device)
+        )
+        
+        decoder_output, state, *_ = self.decoder.predict(
+            last_labels_wb.view(-1, 1),
+            None,
+            add_sos=False,
             batch_size=batch_size * self.beam_size
         )
         # do not recalculate joint projection
         decoder_output = self.joint.project_prednet(decoder_output)  # size: [(batch_size x beam_size), 1, Dim]
+        self.decoder.batch_replace_states_all(state, dst_states=decoder_state)
 
         while active_mask.any():
             # step 1: get joint output + fuse with LM (if present)
@@ -464,8 +475,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 .squeeze(1)
                 .squeeze(1)
             )
-            log_probs = F.log_softmax(logits[..., :-len(self.durations)], dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
-            duration_log_probs = F.log_softmax(logits[..., -len(self.durations):], dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
+            log_probs = F.log_softmax(logits[..., :-len(self.durations)], dim=-1, dtype=float_dtype).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
+            duration_log_probs = F.log_softmax(logits[..., -len(self.durations):], dim=-1, dtype=float_dtype).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
                 
             if self.ngram_lm_batch is not None:
                 log_probs_top_k, labels_top_k, durations_top_k = self.topk_lm(lm_scores, log_probs, duration_log_probs)
@@ -846,24 +857,31 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             blank_index=self._blank_index
         )
 
-        self.state.init_decoder_output, self.state.init_decoder_state, *_ = self.decoder.predict(
+        self.state.decoder_state = self.decoder.initialize_state(
+            torch.empty(
+                [batch_size * self.beam_size, ],
+                dtype=encoder_output_projected.dtype,
+                device=encoder_output_projected.device)
+        )
+        self.state.prev_decoder_state = self.decoder.initialize_state(
+            torch.empty(
+                [batch_size * self.beam_size, ],
+                dtype=encoder_output_projected.dtype,
+                device=encoder_output_projected.device)
+        )
+        
+        init_decoder_output, self.state.init_decoder_state, *_ = self.decoder.predict(
             self.state.last_labels_wb.view(-1, 1),
-            None, 
+            None,
             add_sos=False,
             batch_size=batch_size * self.beam_size
         )
-        self.state.init_decoder_output.copy_(self.joint.project_prednet(self.state.init_decoder_output))  # do not recalculate joint projection        
-
-        self.state.decoder_state = (
-            self.state.init_decoder_state[0].clone(),
-            self.state.init_decoder_state[1].clone(),
-        )
+        self.state.init_decoder_output = self.joint.project_prednet(init_decoder_output).to(dtype=self.state.float_dtype) # do not recalculate joint projection        
+        
+        self.decoder.batch_replace_states_all(self.state.init_decoder_state, dst_states=self.state.decoder_state)
         self.state.decoder_output = self.state.init_decoder_output.clone()
         
-        self.state.prev_decoder_state = (
-            self.state.init_decoder_state[0].clone(),
-            self.state.init_decoder_state[1].clone(),
-        )
+        self.decoder.batch_replace_states_all(self.state.init_decoder_state, dst_states=self.state.prev_decoder_state)
         self.state.prev_decoder_output = self.state.init_decoder_output.clone()
         
         if self.ngram_lm_batch is not None:
@@ -1022,8 +1040,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             .squeeze(1)
             .squeeze(1)
         )
-        log_probs = F.log_softmax(logits[..., :-len(self.durations)], dim=-1).view(self.state.batch_size, self.beam_size, -1)  # [(batch_size x beam_size), V]
-        duration_log_probs = F.log_softmax(logits[..., -len(self.durations):], dim=-1).view(self.state.batch_size, self.beam_size, -1)  # [(batch_size x beam_size), num_durations]
+        log_probs = F.log_softmax(logits[..., :-len(self.durations)], dim=-1, dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1)  # [(batch_size x beam_size), V]
+        duration_log_probs = F.log_softmax(logits[..., -len(self.durations):], dim=-1, dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1)  # [(batch_size x beam_size), num_durations]
             
         if self.ngram_lm_batch is not None:
             log_probs_top_k, labels_top_k, durations_top_k = self.topk_lm(self.state.lm_scores, log_probs, duration_log_probs)

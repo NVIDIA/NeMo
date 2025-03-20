@@ -807,7 +807,7 @@ class BeamTDTInfer(Typing):
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
 
-class Best1BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
+class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""

@@ -1136,8 +1136,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         
         other = other_src_states if other_src_states is not None else dst_states
         dtype = dst_states[0].dtype
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), other[0], out=dst_states[0])
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), other[1], out=dst_states[1])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), other[0].to(dtype), out=dst_states[0])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), other[1].to(dtype), out=dst_states[1])
 
 
     @classmethod

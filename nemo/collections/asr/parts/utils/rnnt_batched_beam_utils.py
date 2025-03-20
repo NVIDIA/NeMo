@@ -368,12 +368,12 @@ class BatchedBeamHyps:
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
-                y_sequence=transcripts[batch_idx][transcripts[batch_idx] >= 0],
-                timestamp=timestamps[batch_idx][transcripts[batch_idx] >= 0],
+                y_sequence=transcripts[batch_idx][mask := (transcripts[batch_idx] >= 0) & (transcripts[batch_idx] != self.blank_index)],
+                timestamp=timestamps[batch_idx][mask],
                 alignments=None,
                 dec_state=None,
             )
-            for batch_idx, _ in enumerate(range(self.batch_size))
+            for batch_idx in range(self.batch_size)
         ]
         return hypotheses
     
@@ -396,16 +396,15 @@ class BatchedBeamHyps:
         timestamps = torch.cumsum(transcripts == self.blank_index, dim=-1).cpu().numpy()
         transcripts = transcripts.cpu().detach().numpy()
         hypotheses = [
-            NBestHypotheses(
-                [
-                    Hypothesis(
-                        score=scores[batch_idx][beam_idx],
-                        y_sequence=transcripts[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
-                        timestamp=timestamps[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
-                        alignments=None,
-                        dec_state=None,
-                ) for beam_idx in range(self.beam_size) if scores[batch_idx][beam_idx] > float('-inf')]
-            )
+            NBestHypotheses([
+                Hypothesis(
+                    score=scores[batch_idx][beam_idx],
+                    y_sequence=transcripts[batch_idx][beam_idx][mask := (transcripts[batch_idx][beam_idx] >= 0) & (transcripts[batch_idx][beam_idx] != self.blank_index)],
+                    timestamp=timestamps[batch_idx][beam_idx][mask],
+                    alignments=None,
+                    dec_state=None,
+                ) for beam_idx in range(self.beam_size) if scores[batch_idx][beam_idx] > float('-inf')
+            ])
             for batch_idx in range(self.batch_size)
         ]
         return hypotheses
@@ -487,7 +486,7 @@ class BatchedBeamHypsTDT:
             raise ValueError("Initial hypothesis lengths must be greater than 0.")
         
         self.device=device
-        self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=torch.float)
+        self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
         self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)
                 
         self._max_length = init_length
@@ -666,7 +665,7 @@ class BatchedBeamHypsTDT:
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
         new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        torch.where(scores_to_keep, new_scores, self.INACTIVE_SCORE_TENSOR, out=self.scores)
+        torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
     
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
         """
@@ -688,12 +687,12 @@ class BatchedBeamHypsTDT:
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
-                y_sequence=transcripts[batch_idx][transcripts[batch_idx] >= 0],
-                timestamp=timestamps[batch_idx][transcripts[batch_idx] >= 0],
+                y_sequence=transcripts[batch_idx][mask := (transcripts[batch_idx] >= 0) & (transcripts[batch_idx] != self.blank_index)],
+                timestamp=timestamps[batch_idx][mask],
                 alignments=None,
                 dec_state=None,
             )
-            for batch_idx, _ in enumerate(range(self.batch_size))
+            for batch_idx in range(self.batch_size)
         ]
         return hypotheses
         
@@ -715,16 +714,15 @@ class BatchedBeamHypsTDT:
         transcripts = self.transcript_wb[..., : max_idx + 1].cpu().detach().numpy()
         timestamps = self.timestamps[..., : max_idx + 1].cpu().detach().numpy()
         hypotheses = [
-            NBestHypotheses(
-                [
-                    Hypothesis(
-                        score=scores[batch_idx][beam_idx],
-                        y_sequence=transcripts[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
-                        timestamp=timestamps[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
-                        alignments=None,
-                        dec_state=None,
-                ) for beam_idx in range(self.beam_size) if scores[batch_idx][beam_idx] > float('-inf')]
-            )
+            NBestHypotheses([
+                Hypothesis(
+                    score=scores[batch_idx][beam_idx],
+                    y_sequence=transcripts[batch_idx][beam_idx][mask := (transcripts[batch_idx][beam_idx] >= 0) & (transcripts[batch_idx][beam_idx] != self.blank_index)],
+                    timestamp=timestamps[batch_idx][beam_idx][mask],
+                    alignments=None,
+                    dec_state=None,
+                ) for beam_idx in range(self.beam_size) if scores[batch_idx][beam_idx] > float('-inf')
+            ])
             for batch_idx in range(self.batch_size)
         ]
         return hypotheses

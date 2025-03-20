@@ -1502,7 +1502,7 @@ class BeamRNNTInfer(Typing):
         if decoding_type == 'subword':
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
-class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
+class BeamBatchedInfer(Typing, ConfidenceMethodMixin):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""

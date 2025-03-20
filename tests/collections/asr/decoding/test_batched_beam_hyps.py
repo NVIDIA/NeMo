@@ -14,7 +14,6 @@
 
 from contextlib import contextmanager
 from typing import List, Literal, Union
-import numpy as np
 
 import pytest
 import torch
@@ -388,10 +387,10 @@ class TestConvertToHypotheses:
         assert len(hypotheses) == 2
         
         assert_hyps_sequence_equal(hypotheses[0].y_sequence, [0, 3, 7])
-        assert_hyps_sequence_equal(hypotheses[1].y_sequence, [1024, 1024, 9])
+        assert_hyps_sequence_equal(hypotheses[1].y_sequence, [9])
         
         assert_hyps_timestamps_equal(hypotheses[0].timestamp, [0, 0, 0])
-        assert_hyps_timestamps_equal(hypotheses[1].timestamp, [1, 2, 2])
+        assert_hyps_timestamps_equal(hypotheses[1].timestamp, [2])
 
         assert hypotheses[0].score == pytest.approx(0.4)
         assert hypotheses[1].score == pytest.approx(0.6)
@@ -430,17 +429,17 @@ class TestConvertToHypotheses:
         assert len(hypotheses[1].n_best_hypotheses) == 3
         
         assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[0].y_sequence, [0, 3, 7])
-        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[1].y_sequence, [1024, 4])
-        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[2].y_sequence, [1024, 1024, 8])
-        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[0].y_sequence, [1024, 1024, 9])
-        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[1].y_sequence, [1024, 5])
+        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[1].y_sequence, [4])
+        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[2].y_sequence, [8])
+        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[0].y_sequence, [9])
+        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[1].y_sequence, [5])
         assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[2].y_sequence, [2, 6, 10])
         
         assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[0].timestamp, [0, 0, 0])
-        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[1].timestamp, [1, 1])
-        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[2].timestamp, [1, 2, 2])
-        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[0].timestamp, [1, 2, 2])
-        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[1].timestamp, [1, 1])
+        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[1].timestamp, [1])
+        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[2].timestamp, [2])
+        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[0].timestamp, [2])
+        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[1].timestamp, [1])
         assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[2].timestamp, [0, 0, 0])
         
         assert hypotheses[0].n_best_hypotheses[0].score == pytest.approx(0.4)
@@ -839,10 +838,10 @@ class TestConvertToHypotheses:
         assert len(hypotheses) == 2
         
         assert_hyps_sequence_equal(hypotheses[0].y_sequence, [0, 3, 7])
-        assert_hyps_sequence_equal(hypotheses[1].y_sequence, [1024, 1024, 9])
+        assert_hyps_sequence_equal(hypotheses[1].y_sequence, [9])
         
         assert_hyps_timestamps_equal(hypotheses[0].timestamp, [0, 2, 3])
-        assert_hyps_timestamps_equal(hypotheses[1].timestamp, [3, 4, 6])
+        assert_hyps_timestamps_equal(hypotheses[1].timestamp, [6])
 
         assert hypotheses[0].score == pytest.approx(0.4)
         assert hypotheses[1].score == pytest.approx(0.6)
@@ -884,17 +883,17 @@ class TestConvertToHypotheses:
         assert len(hypotheses[1].n_best_hypotheses) == 3
         
         assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[0].y_sequence, [0, 3, 7])
-        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[1].y_sequence, [1024, 4])
-        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[2].y_sequence, [1024, 1024, 8])
-        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[0].y_sequence, [1024, 1024, 9])
-        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[1].y_sequence, [1024, 5])
+        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[1].y_sequence, [4])
+        assert_hyps_sequence_equal(hypotheses[0].n_best_hypotheses[2].y_sequence, [8])
+        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[0].y_sequence, [9])
+        assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[1].y_sequence, [5])
         assert_hyps_sequence_equal(hypotheses[1].n_best_hypotheses[2].y_sequence, [2, 6, 10])
         
         assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[0].timestamp, [0, 2, 3])
-        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[1].timestamp, [3, 7])
-        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[2].timestamp, [3, 4, 7])
-        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[0].timestamp, [3, 4, 6])
-        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[1].timestamp, [4, 4])
+        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[1].timestamp, [7])
+        assert_hyps_timestamps_equal(hypotheses[0].n_best_hypotheses[2].timestamp, [7])
+        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[0].timestamp, [6])
+        assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[1].timestamp, [4])
         assert_hyps_timestamps_equal(hypotheses[1].n_best_hypotheses[2].timestamp, [2, 3, 5])
         
         assert hypotheses[0].n_best_hypotheses[0].score == pytest.approx(0.4)

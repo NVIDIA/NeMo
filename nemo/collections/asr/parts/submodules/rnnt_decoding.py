@@ -485,7 +485,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         elif self.cfg.strategy == 'malsd_batch':
             if self.big_blank_durations is None or self.big_blank_durations == []:
                 if not self._is_tdt:
-                    self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
+                    self.decoding = rnnt_beam_decoding.BeamBatchedInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
@@ -502,7 +502,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                     )
                 else:
-                    self.decoding = tdt_beam_decoding.Best1BeamBatchedTDTInfer(
+                    self.decoding = tdt_beam_decoding.BeamBatchedTDTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
@@ -522,7 +522,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         elif self.cfg.strategy == 'maes_batch':
             if self.big_blank_durations is None or self.big_blank_durations == []:
                 if not self._is_tdt:
-                    self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
+                    self.decoding = rnnt_beam_decoding.BeamBatchedInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         # durations=self.durations,
