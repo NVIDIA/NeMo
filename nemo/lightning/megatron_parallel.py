@@ -587,7 +587,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         for model_module in self:
-            if not self._cpu and (not HAVE_CUSTOM_FSDP or not self.ddp_config.use_custom_fsdp):
+            if not self._cpu and not (HAVE_CUSTOM_FSDP and self.ddp_config and self.ddp_config.use_custom_fsdp):
                 # If Megatron FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
                 model_module.cuda(torch.cuda.current_device())
 
@@ -1427,14 +1427,13 @@ class MegatronStep(Generic[ModelT, DataT]):
 
             if has_dataloader_idx:
                 packed_data = [(d, batch_idx, dataloader_idx) for d in data]
-                data = [itertools.chain(packed_data)]
+                data = itertools.chain(packed_data)
         else:
             data = self.data
             # for pretraining (fixed sequence length), we use seq_length inferred from the data sampler.
             seq_length = None
 
-        if not has_dataloader_idx:
-            data = self.to_data_iterator_list(data)
+        data = self.to_data_iterator_list(data)
         return data, seq_length
 
     @functools.cached_property

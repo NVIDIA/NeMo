@@ -4,6 +4,7 @@ set -ex
 # List of all supported libraries (update this list when adding new libraries)
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
+  # "te"
   "mcore"
   "nemo"
   "vllm"
@@ -14,9 +15,36 @@ export HEAVY_DEPS=${HEAVY_DEPS:-false}
 export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
+export PIP=pip
 
-PIP=pip
-${PIP} install -U ${PIP} setuptools
+te() {
+  local mode="$1"
+
+  TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
+  TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
+  TE_DIR="$INSTALL_DIR/TransformerEngine"
+  if [ ! -d "$TE_DIR/.git" ]; then
+    rm -rf "$TE_DIR" &&
+      cd $(dirname "$TE_DIR") &&
+      git clone ${TE_REPO}
+  fi &&
+    pushd $TE_DIR &&
+    git checkout -f $TE_TAG &&
+    popd
+
+  if [[ "$mode" == "build" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TE_DIR && git submodule init && git submodule update &&
+        pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
+    fi
+  else
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/te/*.whl || true
+  fi
+}
 
 mcore() {
   local mode="$1"
@@ -67,8 +95,8 @@ mcore() {
 
   build() {
     if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
-      pip wheel --no-deps --wheel-dir $WHEELS_DIR $MAMBA_DIR
-      pip wheel --no-deps --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
+      pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $MAMBA_DIR
+      pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
     fi
 
     pip wheel --no-deps --wheel-dir $WHEELS_DIR $MLM_DIR
@@ -146,21 +174,23 @@ nemo() {
   fi
 
   DEPS=(
-    "llama-index==0.10.43"
-    "unstructured==0.14.9"
-    "-r"
-    "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
-    "onnxscript@git+https://github.com/microsoft/onnxscript"
+    "sox"                                                                                      # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
+    "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
+    "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
+    "nemo_run"                                                                                 # Not compatible in Python 3.12
   )
 
   if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
-    DEPS+=("git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'")
+    DEPS+=(
+      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" # Compiling NvRX requires CUDA
+    )
   fi
 
   echo 'Installing dependencies of nemo'
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
+  # needs no-deps to avoid installing triton on top of pytorch-triton.
+  pip install --no-deps --no-cache-dir "liger-kernel==0.5.4; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
@@ -170,20 +200,19 @@ echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
 
-${PIP} install setuptools pybind11 wheel
+echo 'Upgrading tools'
+${PIP} install -U --no-cache-dir "setuptools==76.0.0" pybind11 wheel ${PIP}
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-
   echo "Will not install numba"
 
 else
   if [ -n "${CONDA_PREFIX}" ]; then
-    NUMBA_VERSION=0.57.1
-    echo 'Installing numba=='${NUMBA_VERSION}
-    conda install -y -c conda-forge numba==${NUMBA_VERSION}
+    echo 'Installing numba'
+    conda install -y -c conda-forge numba
   else
-    pip install --no-cache-dir --no-deps torch
+    pip install --no-cache-dir --no-deps torch cython
   fi
 fi
 

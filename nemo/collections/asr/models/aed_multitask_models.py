@@ -41,6 +41,7 @@ from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.timestamp_utils import process_aed_timestamp_outputs
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -498,8 +499,17 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files
         """
-        if timestamps:
-            raise NotImplementedError("Computing timestamps are not supported for this model yet.")
+        if timestamps is not None:
+            # TODO: Handle this key gracefully later
+
+            if timestamps is True:
+                timestamps = 'yes'
+            elif timestamps is False:
+                timestamps = 'no'
+            else:
+                timestamps = str(timestamps)
+                assert timestamps in ('yes', 'no', 'timestamp', 'notimestamp', '1', '0')
+            prompt['timestamp'] = timestamps
 
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(
@@ -958,19 +968,23 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         del enc_states, enc_mask, decoder_input_ids
 
+        hypotheses = process_aed_timestamp_outputs(
+            hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+        )
+
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
         Args:
-            config: A python dictionary which contains the following keys:
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-                Recommended length per file is between 5 and 25 seconds.
-            batch_size: (int) batch size to use during inference. \
-                Bigger will result in better throughput performance but would use more memory.
-            temp_dir: (str) A temporary directory where the audio manifest is temporarily
-                stored.
+            config: A python dictionary which contains keys such as:
+                paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                    Recommended length per file is between 5 and 25 seconds.
+                batch_size: (int) batch size to use during inference. \
+                    Bigger will result in better throughput performance but would use more memory.
+                temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                    stored.
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
@@ -987,7 +1001,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': min(batch_size, os.cpu_count() - 1),
+            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
             'use_lhotse': True,
             'use_bucketing': False,
@@ -1042,7 +1056,26 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 raise ValueError(f"Expected str or dict, got {type(item)}")
             default_turn = [t for t in trcfg.prompt if t["role"] == "user"]
             default_turn = default_turn[0]["slots"] if default_turn else {}
-            for k, dv in (("source_lang", "en"), ("target_lang", "en"), ("taskname", "asr"), ("pnc", "yes")):
+
+            # check for prompt format
+            if self.prompt_format == 'canary':
+                if 'timestamp' in default_turn and default_turn['timestamp']:
+                    raise ValueError(
+                        "Timestamp feature is not supported in Canary prompt format. Please use latest canary-1b-flash or canary-180m-flash"
+                    )
+                if 'context' in default_turn and default_turn['context']:
+                    raise ValueError(
+                        "Context feature is not supported in Canary prompt format. Please use latest canary-1b-flash or canary-180m-flash"
+                    )
+
+            for k, dv in (
+                ("source_lang", "en"),
+                ("target_lang", "en"),
+                ("taskname", "asr"),
+                ("pnc", "yes"),
+                ("context", ""),
+                ("timestamp", 'notimestamp'),
+            ):
                 if k not in entry:
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
@@ -1080,16 +1113,21 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             processed_signal_length=processed_signal_length,
         )
 
-        text = self.decoding.decode_predictions_tensor(
+        hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=batch.prompt,
             return_hypotheses=False,
         )
+
+        hypotheses = process_aed_timestamp_outputs(
+            hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+        )
+
         if batch.cuts:
-            return list(zip(batch.cuts, text))
+            return list(zip(batch.cuts, hypotheses))
         else:
-            return text
+            return hypotheses
 
     @property
     def adapter_module_names(self) -> List[str]:
