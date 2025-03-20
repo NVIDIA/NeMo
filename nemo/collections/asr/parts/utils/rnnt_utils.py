@@ -28,9 +28,10 @@
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
-from nemo.utils.enum import PrettyStrEnum
 
 import torch
+
+from nemo.utils.enum import PrettyStrEnum
 
 
 @dataclass
@@ -701,7 +702,8 @@ class BlankLMScoreMode(PrettyStrEnum):
     LM_MAX = "lm_max"
     LM_TOP_MAX = "lm_top_max"
     LATE_PRUNING = "late_pruning"
-    
+
+
 class PruningMode(PrettyStrEnum):
     EARLY = "early"
     LATE = "late"

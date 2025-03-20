@@ -28,31 +28,30 @@
 
 import copy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from pathlib import Path
 import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import (
+    BlankLMScoreMode,
     HATJointOutput,
     Hypothesis,
     NBestHypotheses,
+    PruningMode,
     is_prefix,
     select_k_expansions,
-    BlankLMScoreMode,
-    PruningMode
 )
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
-from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
-from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
-from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.core.classes import Typing, typecheck
+from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-
 
 try:
     import kenlm
@@ -1502,6 +1501,7 @@ class BeamRNNTInfer(Typing):
         if decoding_type == 'subword':
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
+
 class BeamBatchedInfer(Typing, ConfidenceMethodMixin):
     @property
     def input_types(self):
@@ -1513,24 +1513,24 @@ class BeamBatchedInfer(Typing, ConfidenceMethodMixin):
         }
 
     def __init__(
-            self,
-            decoder_model: rnnt_abstract.AbstractRNNTDecoder,
-            joint_model: rnnt_abstract.AbstractRNNTJoint,
-            blank_index: int,
-            beam_size: int,
-            search_type: str = 'malsd_batch',
-            score_norm: bool = True,
-            maes_num_steps: Optional[int] = 2,
-            maes_expansion_gamma: Optional[float] = 2.3,
-            maes_expansion_beta: Optional[int] = 2,
-            malsd_max_symbols_per_step: Optional[int] = 10,
-            preserve_alignments: bool = False,
-            ngram_lm_model: Optional[str | Path] = None,
-            ngram_lm_alpha: float = 0.0,
-            blank_lm_score_mode: Optional[str] = BlankLMScoreMode.LM_WEIGHTED_FULL,
-            pruning_mode: Optional[str] = PruningMode.EARLY,
-            allow_cuda_graphs: Optional[str] = True,
-            return_best_hypothesis: Optional[str] = True,
+        self,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
+        blank_index: int,
+        beam_size: int,
+        search_type: str = 'malsd_batch',
+        score_norm: bool = True,
+        maes_num_steps: Optional[int] = 2,
+        maes_expansion_gamma: Optional[float] = 2.3,
+        maes_expansion_beta: Optional[int] = 2,
+        malsd_max_symbols_per_step: Optional[int] = 10,
+        preserve_alignments: bool = False,
+        ngram_lm_model: Optional[str | Path] = None,
+        ngram_lm_alpha: float = 0.0,
+        blank_lm_score_mode: Optional[str] = BlankLMScoreMode.LM_WEIGHTED_FULL,
+        pruning_mode: Optional[str] = PruningMode.EARLY,
+        allow_cuda_graphs: Optional[str] = True,
+        return_best_hypothesis: Optional[str] = True,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -1592,10 +1592,10 @@ class BeamBatchedInfer(Typing, ConfidenceMethodMixin):
 
     @typecheck()
     def forward(
-            self,
-            encoder_output: torch.Tensor,
-            encoded_lengths: torch.Tensor,
-            partial_hypotheses: Optional[list[Hypothesis]] = None,
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[list[Hypothesis]] = None,
     ) -> Tuple[list[Hypothesis]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-regressively.

@@ -26,22 +26,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
 from tqdm import tqdm
-from pathlib import Path
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypotheses
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
 from nemo.collections.asr.parts.submodules.tdt_malsd_batched_computer import ModifiedALSDBatchedTDTComputer
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-
 from nemo.utils.timers import SimpleTimer
 
 try:
@@ -807,6 +806,7 @@ class BeamTDTInfer(Typing):
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
 
+
 class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
     @property
     def input_types(self):
@@ -818,28 +818,28 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         }
 
     def __init__(
-            self,
-            decoder_model: rnnt_abstract.AbstractRNNTDecoder,
-            joint_model: rnnt_abstract.AbstractRNNTJoint,
-            durations: list,
-            blank_index: int,
-            beam_size: int,
-            search_type: str = 'malsd_batch',
-            score_norm: bool = True,
-            malsd_max_symbols_per_step: Optional[int] = None,
-            preserve_alignments: bool = False,
-            ngram_lm_model: Optional[str | Path] = None,
-            ngram_lm_alpha: float = 0.0,
-            blank_lm_score_mode: Optional[str] = None,
-            pruning_mode: Optional[str] = None,
-            allow_cuda_graphs: bool = True,
-            return_best_hypothesis: Optional[str] = True,
+        self,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
+        durations: list,
+        blank_index: int,
+        beam_size: int,
+        search_type: str = 'malsd_batch',
+        score_norm: bool = True,
+        malsd_max_symbols_per_step: Optional[int] = None,
+        preserve_alignments: bool = False,
+        ngram_lm_model: Optional[str | Path] = None,
+        ngram_lm_alpha: float = 0.0,
+        blank_lm_score_mode: Optional[str] = None,
+        pruning_mode: Optional[str] = None,
+        allow_cuda_graphs: bool = True,
+        return_best_hypothesis: Optional[str] = True,
     ):
         super().__init__()
         self.decoder = decoder_model
         self.joint = joint_model
 
-        self.durations=durations
+        self.durations = durations
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
         self.beam_size = beam_size
@@ -849,7 +849,7 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         self.max_symbols = malsd_max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
-        self.timer = SimpleTimer() 
+        self.timer = SimpleTimer()
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
             # switch between more efficient batch decoding technique
@@ -882,10 +882,10 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
 
     @typecheck()
     def forward(
-            self,
-            encoder_output: torch.Tensor,
-            encoded_lengths: torch.Tensor,
-            partial_hypotheses: Optional[list[Hypothesis]] = None,
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[list[Hypothesis]] = None,
     ) -> Tuple[list[Hypothesis]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-regressively.

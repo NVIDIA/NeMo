@@ -1046,7 +1046,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         """
         Aggregates decoder states based on the given indices.
         Args:
-            src_states (Tuple[torch.Tensor, torch.Tensor]): source states of 
+            src_states (Tuple[torch.Tensor, torch.Tensor]): source states of
                 shape `([L x (batch_size * beam_size, H)], [L x (batch_size * beam_size, H)])`
             batch_size (int): The size of the batch.
             beam_size (int): The size of the beam.
@@ -1055,26 +1055,30 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             dst_states (Optional[Tuple[torch.Tensor, torch.Tensor]]): If provided, the method
                 updates these tensors in-place.
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: 
+            Tuple[torch.Tensor, torch.Tensor]:
         Note:
             - The `indices` tensor is expanded to match the shape of the source states
             during the gathering operation.
         """
         layers_num = src_states[0].shape[0]
         layers_dim = src_states[0].shape[-1]
-        
+
         beam_shape = torch.Size((layers_num, batch_size, beam_size, layers_dim))
         flat_shape = torch.Size((layers_num, batch_size * beam_size, layers_dim))
-        
+
         # Expand indices to match the source states' shape
         indices_expanded = indices[None, :, :, None].expand(beam_shape)
-        
+
         if dst_states is not None:
             # Perform in-place gathering into dst_states
-            torch.gather(src_states[0].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[0].view(beam_shape))
-            torch.gather(src_states[1].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[1].view(beam_shape))
+            torch.gather(
+                src_states[0].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[0].view(beam_shape)
+            )
+            torch.gather(
+                src_states[1].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[1].view(beam_shape)
+            )
             return dst_states
-        
+
         # Gather and reshape into the output format
         return (
             torch.gather(src_states[0].view(beam_shape), dim=2, index=indices_expanded).view(flat_shape),
@@ -1132,13 +1136,12 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             This operation is performed non-blocking using `torch.where`.
         """
         # same as `dst_states[i][mask] = src_states[i][mask]`, but non-blocking
-        # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled 
-        
+        # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled
+
         other = other_src_states if other_src_states is not None else dst_states
         dtype = dst_states[0].dtype
         torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), other[0].to(dtype), out=dst_states[0])
         torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), other[1].to(dtype), out=dst_states[1])
-
 
     @classmethod
     def batch_replace_states_all(
