@@ -26,6 +26,7 @@ from tensorrt_llm.runtime import MultimodalModelRunner as TRTLLMRunner
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import (
     build_mllama_engine,
+    build_cosmos_engine,
     build_perception_engine,
     build_trtllm_engine,
     build_visual_engine,
@@ -136,6 +137,18 @@ class TensorRTMMExporter(ITritonDeployable):
 
         if model_type == "mllama":
             build_mllama_engine(
+                model_dir=self.model_dir,
+                checkpoint_path=visual_checkpoint_path,
+                tensor_parallelism_size=tensor_parallel_size,
+                max_input_len=max_input_len,
+                max_output_len=max_output_len,
+                max_batch_size=max_batch_size,
+                vision_max_batch_size=vision_max_batch_size,
+                max_multimodal_len=max_multimodal_len,
+                dtype=dtype,
+            )
+        elif model_type == "cosmos":
+            build_cosmos_engine(
                 model_dir=self.model_dir,
                 checkpoint_path=visual_checkpoint_path,
                 tensor_parallelism_size=tensor_parallel_size,
