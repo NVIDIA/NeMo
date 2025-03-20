@@ -27,11 +27,11 @@ def test_nemo2_convert_to_safe_tensors():
         model_type="llama",
         delete_existing_files=True,
         tensor_parallelism_size=2,
-        pipeline_parallelism_size= 1,
-        gpus_per_node= 2,
-        use_parallel_embedding= False,
-        use_embedding_sharing= False,
-        dtype= "bfloat16",
+        pipeline_parallelism_size=1,
+        gpus_per_node=2,
+        use_parallel_embedding=False,
+        use_embedding_sharing=False,
+        dtype="bfloat16",
     )
 
     assert Path("/tmp/safe_tensor_test/").exists(), "Safe tensors were not generated."
