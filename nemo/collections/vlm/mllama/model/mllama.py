@@ -28,10 +28,11 @@ from nemo.collections.vlm.mllama.model.base import (
     MLlamaModel,
     MLlamaModelConfig,
 )
-from nemo.lightning import MegatronStrategy, Trainer, io, teardown
+from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
+# pylint: disable=C0115,C0116,C0301
 
 @dataclass
 class MLlamaConfig11B(MLlamaModelConfig):
@@ -380,7 +381,7 @@ def _merge_kv(k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_s
 
 
 def _merge_qkv(
-    q: Tensor, k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_size: int, hidden_size: int
+        q: Tensor, k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_size: int, hidden_size: int
 ):
     heads_per_group = head_num // num_query_groups
     old_tensor_shape = q.size()
@@ -393,9 +394,9 @@ def _merge_qkv(
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i : i + 1, :, :])
-        qkv_weights_l.append(v[i : i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i: i + 1, :, :])
+        qkv_weights_l.append(v[i: i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
