@@ -322,19 +322,19 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = device_mesh.get_group()
 
             def reduce_item(val, op, device, group, dtype):
-                 """util function"""
-                 divide_by_world_size = False
-                 if torch.distributed.get_backend(group) == "gloo" and op == dist.ReduceOp.AVG:
-                     # GLOO does not support the `ReduceOp.AVG` operation
-                     op = dist.ReduceOp.SUM
-                     divide_by_world_size = True
+                """util function"""
+                divide_by_world_size = False
+                if torch.distributed.get_backend(group) == "gloo" and op == dist.ReduceOp.AVG:
+                    # GLOO does not support the `ReduceOp.AVG` operation
+                    op = dist.ReduceOp.SUM
+                    divide_by_world_size = True
 
-                 val = torch.tensor([val], device=device, dtype=dtype).detach()
-                 dist.all_reduce(val, group=group, op=op)
-                 val = val.item()
-                 if divide_by_world_size:
-                     val /= dist.get_world_size(group)
-                 return val
+                val = torch.tensor([val], device=device, dtype=dtype).detach()
+                dist.all_reduce(val, group=group, op=op)
+                val = val.item()
+                if divide_by_world_size:
+                    val /= dist.get_world_size(group)
+                return val
 
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
@@ -480,7 +480,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
-    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
+    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask', 'input_ids']):
         """Remove extra keys from batch that are not kwargs in model's forward
 
         Args:
