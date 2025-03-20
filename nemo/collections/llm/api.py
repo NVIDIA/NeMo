@@ -466,21 +466,30 @@ def ptq(
     The function can be used through the NeMo CLI in the following way:
     ```bash
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-70B \
+    nemo llm ptq run.executor=torchrun run.executor.ntasks_per_node=8 \
+        model_path=/models/Llama-3-70B \
         export_config.path=/models/Llama-3-70B-FP8 \
         calibration_tp=8 \
         export_config.inference_tp=2
 
     # Choose different quantization method, for example, INT8 SmoothQuant
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+    nemo llm ptq run.executor=torchrun run.executor.ntasks_per_node=1 \
+        model_path=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
 
     # Export as NeMo checkpoint instead
-    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+    nemo llm ptq run.executor=torchrun \
+        model_path=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq \
         export_config.export_format=nemo
+
+    # Quantize HF AutoModel checkpoint.
+    nemo llm ptq run.executor=torchrun run.executor.ntasks_per_node=1 \
+        model_path=/models/Llama-3-70B-HF \
+        export_config.path=/models/Llama-3-70B-HF-FP8 \
+        export_config.export_format=hf
     ```
 
     Args:
@@ -516,7 +525,7 @@ def ptq(
     trainer = None
     if is_automodel:
         assert export_config.export_format != "nemo", "Automodel PTQ does not support export format nemo"
-        model = HFAutoModelForCausalLM(model_name=model_path, trust_remote_code=trust_remote_code)
+        model = HFAutoModelForCausalLM(model_name=model_path, trust_remote_code=trust_remote_code, device_map="auto")
         model.configure_model()
     else:
         assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"

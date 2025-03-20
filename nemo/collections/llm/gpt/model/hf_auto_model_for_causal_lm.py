@@ -73,6 +73,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         load_in_4bit=False,
         attn_implementation="sdpa",
         use_liger_kernel=False,
+        device_map="cpu",
     ):
         """
         Initialize the HFAutoModelForCausalLM.
@@ -106,6 +107,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
         self.use_liger_kernel = use_liger_kernel
+        self.device_map = device_map
         # holds loss values until optim step.
         self.loss_buffer = []
         self.n_tok = 0
@@ -173,7 +175,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             return auto_cls.from_pretrained(
                 self.model_name,
                 torch_dtype=torch.bfloat16,
-                device_map="auto",
+                device_map=self.device_map,
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
                 attn_implementation=attn_implementation,
