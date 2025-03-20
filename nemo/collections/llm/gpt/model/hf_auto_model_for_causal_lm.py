@@ -285,8 +285,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             _destroy_dist_connection,
             ckpt_to_dir,
             create_checkpoint_io,
-            fsdp2_strategy_parallelize,
             create_context_parallel_ctx,
+            fsdp2_strategy_parallelize,
             get_train_context,
         )
 
@@ -294,10 +294,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if context_parallel:
             input_ids = batch["input_ids"].to(self.model.device)
             # print(input_ids.shape)
-            batch["position_ids"] = torch.arange(
-                self.pos,
-                self.pos + input_ids.shape[1]
-            ).unsqueeze(0).to(self.model.device)
+            batch["position_ids"] = (
+                torch.arange(self.pos, self.pos + input_ids.shape[1]).unsqueeze(0).to(self.model.device)
+            )
             position_ids = batch["position_ids"].to(self.model.device)
             self.pos += input_ids.shape[1]
             # print(position_ids.shape)
@@ -309,7 +308,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 cp_buffers=[input_ids, labels, position_ids, loss_mask],
                 cp_seq_dims=[1, 1, 1, 1],
                 cp_no_restore_buffers={input_ids, labels, loss_mask},
-                cp_rotate_method="allgather", #TODO add "addtoall" option
+                cp_rotate_method="allgather",  # TODO add "addtoall" option
             )
             train_context = get_train_context(
                 False,
@@ -375,19 +374,19 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = device_mesh.get_group()
 
             def reduce_item(val, op, device, group, dtype):
-                 """util function"""
-                 divide_by_world_size = False
-                 if torch.distributed.get_backend(group) == "gloo" and op == dist.ReduceOp.AVG:
-                     # GLOO does not support the `ReduceOp.AVG` operation
-                     op = dist.ReduceOp.SUM
-                     divide_by_world_size = True
+                """util function"""
+                divide_by_world_size = False
+                if torch.distributed.get_backend(group) == "gloo" and op == dist.ReduceOp.AVG:
+                    # GLOO does not support the `ReduceOp.AVG` operation
+                    op = dist.ReduceOp.SUM
+                    divide_by_world_size = True
 
-                 val = torch.tensor([val], device=device, dtype=dtype).detach()
-                 dist.all_reduce(val, group=group, op=op)
-                 val = val.item()
-                 if divide_by_world_size:
-                     val /= dist.get_world_size(group)
-                 return val
+                val = torch.tensor([val], device=device, dtype=dtype).detach()
+                dist.all_reduce(val, group=group, op=op)
+                val = val.item()
+                if divide_by_world_size:
+                    val /= dist.get_world_size(group)
+                return val
 
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
