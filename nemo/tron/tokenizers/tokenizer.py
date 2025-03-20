@@ -21,6 +21,25 @@ class MegatronTokenizer(MegatronTokenizerCore):
     def __call__(self, *args, **kwargs):
         return self.tokenize(*args, **kwargs)
 
+    def text_to_ids(self, text: str) -> list[int]:
+        return self.tokenize(text)
+
+    @property
+    def eod_id(self):
+        return self.eod
+
+    @property
+    def bos_id(self):
+        return self.bos
+
+    @property
+    def eos_id(self):
+        return self.eos
+
+    @property
+    def mask_id(self):
+        return self.mask
+
 
 def build_tokenizer(
     tokenizer_config: TokenizerConfig, make_vocab_size_divisible_by: int, tensor_model_parallel_size: int, **kwargs
