@@ -100,6 +100,9 @@ def get_trtllm_deployable(
     if nemo_checkpoint is not None:
         try:
             logging.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
+            # Set use_mcore_path=False for eval as the default is now use_mcore_path=True and the latter requires
+            # changes in mcore's trtllm and this eval path will be deprecated in 25.06 when use_mcore_path=False path
+            # for export will also be removed. Hence not migrating to mcore's trtllm here.
             trt_llm_exporter.export(
                 nemo_checkpoint_path=nemo_checkpoint,
                 model_type=model_type,
@@ -110,6 +113,7 @@ def get_trtllm_deployable(
                 max_output_len=max_output_len,
                 max_batch_size=max_batch_size,
                 dtype=dtype,
+                use_mcore_path=False,
                 gather_context_logits=output_context_logits,
                 gather_generation_logits=output_generation_logits,
             )
