@@ -59,9 +59,4 @@ if __name__ == '__main__':
     else:
         model_class = HF_MODEL_ID_TO_NEMO_CLASS[model_name_or_path]
 
-    import_ckpt(
-        model_class(),
-        f"hf://{model_name_or_path}",
-        output_path=args.output_path
-    )
-
+    import_ckpt(model_class(), f"hf://{model_name_or_path}", output_path=args.output_path)
