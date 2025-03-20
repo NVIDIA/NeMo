@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
-from nemo.collections.llm.utils import torch_dtype_from_precision, barrier
+from nemo.collections.llm.utils import barrier, torch_dtype_from_precision
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
