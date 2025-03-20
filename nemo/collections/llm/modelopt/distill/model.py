@@ -87,43 +87,63 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
         super().__init__(*args, **kwargs)
         self._distillation_loss_fn = distillation_loss_fn
         self._cp_size = parallel_state.get_context_parallel_world_size()
+        self._tp_size = parallel_state.get_tensor_model_parallel_world_size()
 
     def forward(self, batch: Dict[str, Tensor], forward_out: Tensor) -> Tuple[Tensor, Dict[str, Tensor]]:
         if isinstance(forward_out, tuple):
             # neva returns (logits, loss_mask)
             forward_out, batch["loss_mask"] = forward_out
 
+        # Calculate original LM loss if desired for aggregate loss.
+        # (Will be zeros if distillation config enables skipping LM loss)
+        lm_loss = self._masked_token_loss(forward_out, batch["loss_mask"], batch.get("num_valid_tokens_in_ub"))
+
         # [ModelOpt]: KD loss calculation.
-        loss_for_ub = self._distillation_loss_fn(
+        losses = self._distillation_loss_fn(
+            student_loss=lm_loss,
             loss_reduction_fn=lambda x: self._masked_token_loss(
                 x, batch["loss_mask"], batch.get("num_valid_tokens_in_ub")
             )
         )
+        losses_averaged = average_losses_across_data_parallel_group(
+            [losses["kd_loss"], losses["logits_loss"], losses["intermediate_loss"]]
+        )
+        report = {
+            "avg": losses_averaged[0],
+            "logits distillation loss": losses_averaged[1],
+            "intermediate distillation loss": losses_averaged[2],
+        }
 
-        reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-        return loss_for_ub * self._cp_size, {"avg": reduced_loss}
+        return losses["kd_loss"] * self._cp_size, report
 
     def _masked_token_loss(self, loss_output: Tensor, mask: Tensor, num_valid_tokens_in_ub: Optional[int] = None):
         """The function takes as input per-token loss and masks non-required values."""
         if isinstance(loss_output, tuple):
             # [ModelOpt]: Losses can return extra flag to indicate additional TP-reduction (often required)
-            loss_output, tp_reduce = loss_output
+            loss_output, tp_reduce, is_sequence_parallel = loss_output
         else:
-            tp_reduce = False
+            tp_reduce, is_sequence_parallel = False, False
+
+        loss_mask_sum = mask.sum().float()
+        if is_sequence_parallel:
+            # Sequence-parallel tensor derived from intermediate activation - need to split loss mask.
+            idx = parallel_state.get_tensor_model_parallel_rank()
+            mask = torch.tensor_split(mask, self._tp_size, dim=1)[idx]
+
         losses = loss_output.float()
-        loss_mask = mask.view(-1).float()
+        loss_mask = mask.reshape(-1).float()
 
         if self._cp_size > 1:
             if num_valid_tokens_in_ub is None:
-                num_valid_tokens_in_ub = loss_mask.sum()
+                num_valid_tokens_in_ub = loss_mask_sum
             if num_valid_tokens_in_ub < 0.5:  # no valid tokens
                 num_valid_tokens_in_ub += 1.0
             loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         else:
-            loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+            loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask_sum  # sequence level nll
 
-        if tp_reduce is True:
+        if tp_reduce or is_sequence_parallel:
             torch.distributed.all_reduce(loss, group=parallel_state.get_tensor_model_parallel_group())
 
         return loss
@@ -137,6 +157,7 @@ class DistillationGPTModel(llm.GPTModel):
         student_config: llm.GPTConfig,
         teacher_config: llm.GPTConfig,
         teacher_ckpt_path: str,
+        distillation_config_path: Optional[str] = None,
         optim: Optional["OptimizerModule"] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
@@ -156,6 +177,8 @@ class DistillationGPTModel(llm.GPTModel):
             student_config: Config of student model.
             teacher_config: Config of teacher model.
             teacher_ckpt_path: Path to teacher checkpoint (to restore weights).
+            distillation_config_path: Path to distillation config YAML file.
+                If not provided, by default will perform logits-only distillation.
             optim: Optimizer.
             tokenizer: Tokenizer.
             model_transform: Transform to apply to model during setup.
@@ -165,6 +188,7 @@ class DistillationGPTModel(llm.GPTModel):
         super().__init__(student_config, optim, tokenizer, model_transform)
         self._teacher_config = teacher_config
         self._teacher_ckpt_path = teacher_ckpt_path
+        self._distillation_config_path = distillation_config_path
         self._train_called = False
 
         if not isinstance(student_config, llm.GPTConfig) or not isinstance(teacher_config, llm.GPTConfig):
@@ -189,7 +213,7 @@ class DistillationGPTModel(llm.GPTModel):
             setattr(self._teacher_config, attr, getattr(self.config, attr))
 
         # [ModelOpt] Intialize DistillationModel.
-        distill_cfg = load_distillation_config(self.config)
+        distill_cfg = load_distillation_config(self._distillation_config_path, self.config, self._teacher_config)
         kd_config = {
             "teacher_model": (
                 teacher_provider,
