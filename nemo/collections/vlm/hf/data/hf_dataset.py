@@ -336,9 +336,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         Additional arguments can be passed down to dataset's map via kwargs"""
         if isinstance(split_names, str):
             split_names = [split_names]
-            # : self.dataset_splits[split_names]}
         elif isinstance(split_names, list):
-            # dataset_splits = {k: self.dataset_splits[k] for k in split_names}
             split_names = split_names
         elif split_names is None:
             split_names = self.dataset_splits.keys()
