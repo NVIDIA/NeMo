@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
@@ -107,6 +106,9 @@ def pretrain_recipe(
     )
     recipe.model.config.num_layers_in_first_pipeline_stage = 3
     recipe.model.config.num_layers_in_last_pipeline_stage = 2
+
+    recipe.model.config.recompute_method = "uniform"
+    recipe.model.config.recompute_num_layers = 1
 
     return recipe
 
