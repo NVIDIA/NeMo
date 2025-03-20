@@ -74,7 +74,6 @@ class MegatronDataSampler(DataSampler):
         self.prev_global_batch_size = None
         self.init_global_step = init_global_step
 
-
     def setup(self, global_rank: int) -> None:
         from megatron.core import parallel_state
         from nemo.lightning.data import setup_microbatch_calculator
@@ -106,7 +105,7 @@ class MegatronDataSampler(DataSampler):
             ), f"cu_global_batch_splits: {self.cu_global_batch_splits} should start with 0 and end with {self.global_batch_size}!"
             self.global_batch_split_range = (
                 self.cu_global_batch_splits[world_size_split_range_id],
-                self.cu_global_batch_splits[world_size_split_range_id+1],
+                self.cu_global_batch_splits[world_size_split_range_id + 1],
             )
 
         setup_microbatch_calculator(

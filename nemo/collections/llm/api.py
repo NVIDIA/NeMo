@@ -1106,9 +1106,10 @@ def _validate_config(
         assert len(data.micro_batch_size) == len(data.cu_global_batch_splits) - 1
         for idx, mbs in enumerate(data.micro_batch_size):
             assert mbs > 0
-            gbs_split = data.cu_global_batch_splits[idx+1] - data.cu_global_batch_splits[idx]
-            assert (gbs_split % mbs == 0), \
-                f"Global batch size split {gbs_split} must be divisible by its corresponding micro batch size {mbs}"
+            gbs_split = data.cu_global_batch_splits[idx + 1] - data.cu_global_batch_splits[idx]
+            assert (
+                gbs_split % mbs == 0
+            ), f"Global batch size split {gbs_split} must be divisible by its corresponding micro batch size {mbs}"
     else:
         assert data.micro_batch_size > 0
         assert (
@@ -1133,7 +1134,7 @@ def _validate_config(
 
         if isinstance(data.micro_batch_size, list):
             for idx, mbs in enumerate(data.micro_batch_size):
-                gbs_split = data.cu_global_batch_splits[idx+1] - data.cu_global_batch_splits[idx]
+                gbs_split = data.cu_global_batch_splits[idx + 1] - data.cu_global_batch_splits[idx]
                 assert (
                     gbs_split
                     % (

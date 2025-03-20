@@ -183,7 +183,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None and not isinstance(arg, list) else arg for arg in kwargs] + [enable_cuda_graphs]
+    kwargs = [int(arg) if arg is not None and not isinstance(arg, list) else arg for arg in kwargs] + [
+        enable_cuda_graphs
+    ]
 
     return kwargs
 

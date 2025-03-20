@@ -118,11 +118,15 @@ def setup_microbatch_calculator(
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
                 assert get_current_global_batch_size() == global_batch_size
                 assert get_micro_batch_size() == micro_batch_size
-                assert get_num_microbatches() == global_batch_size_for_local_world_split // (micro_batch_size * data_parallel_size)
+                assert get_num_microbatches() == global_batch_size_for_local_world_split // (
+                    micro_batch_size * data_parallel_size
+                )
             else:
                 raise Exception("Microbatch calculator already initialized.")
     else:
-        assert global_batch_split_range is None, "global_batch_split_range is not supported for Apex num_microbatches_calculator!"
+        assert (
+            global_batch_split_range is None
+        ), "global_batch_split_range is not supported for Apex num_microbatches_calculator!"
 
         from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
@@ -377,7 +381,11 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
 
         for idx in indices:
             if self.global_batch_split_range is not None:
-                if self.global_batch_split_range[0] <= (idx % self.global_batch_size) < self.global_batch_split_range[1]:
+                if (
+                    self.global_batch_split_range[0]
+                    <= (idx % self.global_batch_size)
+                    < self.global_batch_split_range[1]
+                ):
                     batch.append(idx)
                     if len(batch) == self.micro_batch_times_data_parallel_size:
                         start_idx, end_idx = self.get_start_end_idx()
@@ -413,7 +421,9 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         pad_samples_to_global_batch_size: Optional[bool] = False,
         seed: int = 0,
     ) -> None:
-        assert global_batch_split_range is None, "`MegatronPretrainingRandomSampler` does not support global_batch_split_range!"
+        assert (
+            global_batch_split_range is None
+        ), "`MegatronPretrainingRandomSampler` does not support global_batch_split_range!"
 
         super().__init__(
             total_samples=total_samples,
