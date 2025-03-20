@@ -213,7 +213,7 @@ def fill_packing_strategy(
                 loss_mask = np.array(
                     [
                         [
-                            ## (x['answer_start_idx'] - 1) because we want to train on the output 
+                            ## (x['answer_start_idx'] - 1) because we want to train on the output
                             ## after the last context token
                             idx >= (x['answer_start_idx'] - 1) and x['input_ids'][idx] != pad_id
                             for idx in range(len(x['input_ids']))
