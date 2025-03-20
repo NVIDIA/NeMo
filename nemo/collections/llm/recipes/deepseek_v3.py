@@ -47,7 +47,7 @@ def model(use_mtp=False) -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     if use_mtp:
-        conf = run.Config(DeepSeekV3Config, num_mtp_layers=1, mtp_loss_scaling_factor=0.1)
+        conf = run.Config(DeepSeekV3Config, mtp_num_layers=1, mtp_loss_scaling_factor=0.1)
     else:
         conf = run.Config(DeepSeekV3Config)
     return run.Config(DeepSeekModel, config=conf)

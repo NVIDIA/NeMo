@@ -110,7 +110,7 @@ class ParallelismConfig:
 
     tensor_model_parallel_size: int
     pipeline_model_parallel_size: int
-    virtual_pipeline_model_parallel_size: int
+    virtual_pipeline_model_parallel_size: Optional[int]
     microbatch_group_size_per_vp_stage: int
     context_parallel_size: int
     sequence_parallel: bool
@@ -119,6 +119,8 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
+    num_layers_in_first_pipeline_stage: Optional[int] = None
+    num_layers_in_last_pipeline_stage: Optional[int] = None
     account_for_embedding_in_pipeline_split: bool = False
     account_for_loss_in_pipeline_split: bool = False
     use_te_rng_tracker: bool = False
@@ -219,13 +221,15 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self,
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
+        num_layers_in_first_pipeline_stage: Optional[int] = None,
+        num_layers_in_last_pipeline_stage: Optional[int] = None,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
         microbatch_group_size_per_vp_stage: Optional[int] = None,
         context_parallel_size: int = 1,
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
-        expert_tensor_parallel_size: int = None,
+        expert_tensor_parallel_size: Optional[int] = None,
         encoder_tensor_model_parallel_size: Optional[int] = 0,
         encoder_pipeline_model_parallel_size: Optional[int] = 0,
         account_for_embedding_in_pipeline_split: bool = False,
@@ -273,6 +277,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
         self.microbatch_group_size_per_vp_stage = (
+        self.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
+        self.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
             microbatch_group_size_per_vp_stage
             if microbatch_group_size_per_vp_stage is not None
             else pipeline_model_parallel_size
@@ -1008,6 +1014,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
+            num_layers_in_first_pipeline_stage=self.num_layers_in_first_pipeline_stage,
+            num_layers_in_last_pipeline_stage=self.num_layers_in_last_pipeline_stage,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
             microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
             context_parallel_size=self.context_parallel_size,
