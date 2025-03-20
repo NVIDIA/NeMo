@@ -15,7 +15,7 @@ import argparse
 from pathlib import Path
 
 import torch
-from transformers import AutoModelForCausalLM
+from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForSeq2SeqLM
 
 from nemo.collections import llm
 
@@ -44,8 +44,15 @@ if __name__ == '__main__':
         **kwargs,
     )
 
-    original_hf = AutoModelForCausalLM.from_pretrained(args.original_hf_path, trust_remote_code=True)
-    converted_hf = AutoModelForCausalLM.from_pretrained(args.output_path, trust_remote_code=True)
+    # Load config to determine model type
+    config = AutoConfig.from_pretrained(args.original_hf_path)
+
+    if config.is_encoder_decoder:
+        original_hf = AutoModelForSeq2SeqLM.from_pretrained(args.original_hf_path, trust_remote_code=True)
+        converted_hf = AutoModelForSeq2SeqLM.from_pretrained(args.output_path, trust_remote_code=True)
+    else:
+        original_hf = AutoModelForCausalLM.from_pretrained(args.original_hf_path, trust_remote_code=True)
+        converted_hf = AutoModelForCausalLM.from_pretrained(args.output_path, trust_remote_code=True)
 
     for (name1, parameter1), (name2, parameter2) in zip(
         converted_hf.named_parameters(), original_hf.named_parameters()

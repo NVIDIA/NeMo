@@ -1335,6 +1335,18 @@ jobs:
         rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
         rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
 
+  L2_NeMo_2_T5_MockData_Pretraining:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_MockData_Pretraining')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_MockData_Pretraining.sh
+      AFTER_SCRIPT: |
+        rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
+        rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
+
   L2_NeMo_2_T5_Finetuning:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2014,6 +2026,25 @@ jobs:
         rm -rf ${NEMO_OUTPUT_PATH}
         rm -rf ${HF_OUTPUT_PATH}
 
+  L2_NeMo_2_Conversion_Test_T5:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_T5') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
+          HF_ORI_PATH=/home/TestData/llm/models/t5_toy \
+          NEMO_MODEL_TYPE=T5Model \
+          NEMO_MODEL_CONFIG=T5Config220M \
+          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
+          add-model-name
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/output_nemo2_ckpt
+        rm -rf /tmp/output_hf_ckpt
+
   Nemo_CICD_Test:
     needs:
       - pre-flight
@@ -2054,6 +2085,7 @@ jobs:
       - L2_NeMo_2_Conversion_Test_Qwen2
       - L2_NeMo_2_Conversion_Test_Starcoder
       - L2_NeMo_2_Conversion_Test_Starcoder2
+      - L2_NeMo_2_Conversion_Test_T5
 
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_CitriNet
@@ -2139,6 +2171,7 @@ jobs:
       - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_Hyena_DDP_Pretraining_Test
       - L2_NeMo_2_T5_Pretraining
+      - L2_NeMo_2_T5_MockData_Pretraining
       - L2_NeMo_2_T5_Finetuning
       - L2_NeMo_2_T5_LoRA
       - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1

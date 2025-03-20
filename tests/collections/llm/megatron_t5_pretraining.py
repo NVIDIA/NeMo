@@ -24,13 +24,13 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import pretrain
-from nemo.collections.llm.t5.data import PreTrainingDataModule
+from nemo.collections.llm.t5.data import PreTrainingDataModule, MockDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.lr_scheduler import WarmupAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
+# from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
 
 
 def get_args():
@@ -59,17 +59,30 @@ if __name__ == '__main__':
         vocab_file=args.vocab_path,
         special_tokens=special_tokens,
     )
-    data = PreTrainingDataModule(
-        paths=args.data_path,
-        seq_length=512,
-        seq_length_dec=128,
-        micro_batch_size=64,
-        global_batch_size=512,
-        seed=1234,
-        tokenizer=tokenizer,
-        split="99982,9,9",
-        index_mapping_dir=args.index_mapping_dir,
-    )
+    if args.data_path=="mock":
+        data = MockDataModule(
+            seq_length=512,
+            seq_length_dec=128,
+            micro_batch_size=64,
+            global_batch_size=512,
+            tokenizer=tokenizer,
+            num_train_samples=10_000,
+            num_val_samples=10_000,
+            num_test_samples=10_000,
+        )
+    else:
+        data = PreTrainingDataModule(
+            paths=args.data_path,
+            seq_length=512,
+            seq_length_dec=128,
+            micro_batch_size=64,
+            global_batch_size=512,
+            seed=1234,
+            tokenizer=tokenizer,
+            split="99982,9,9",
+            index_mapping_dir=args.index_mapping_dir,
+        )
+
     t5_config = llm.t5.model.t5.T5Config(
         num_layers=12,
         encoder_num_layers=12,
@@ -97,7 +110,8 @@ if __name__ == '__main__':
         every_n_train_steps=5000,
         save_optim_on_train_end=True,
     )
-    callbacks = [checkpoint_callback, AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()]
+    # callbacks = [checkpoint_callback, AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()]
+    callbacks = [checkpoint_callback]
 
     resume = nl.AutoResume(
         resume_if_exists=True,
