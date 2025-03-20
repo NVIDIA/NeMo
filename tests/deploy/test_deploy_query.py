@@ -13,13 +13,14 @@
 # limitations under the License.
 
 
-from nemo.deploy import ITritonDeployable
-from pytriton.model_config import Tensor
-from pytriton.decorators import batch
 import numpy as np
-from nemo.deploy import DeployPyTriton
+from pytriton.decorators import batch
+from pytriton.model_config import Tensor
+
+from nemo.deploy import DeployPyTriton, ITritonDeployable
 from nemo.deploy.nlp import NemoQueryLLM
 from nemo.deploy.utils import cast_output, str_ndarray2list
+
 
 class MockModel(ITritonDeployable):
 
@@ -47,6 +48,7 @@ class MockModel(ITritonDeployable):
         output_dict = dict()
         output_dict["outputs"] = cast_output("I am good, how about you?", np.bytes_)
         return output_dict
+
 
 def test_nemo_deploy_query():
     model_name = "mock_model"
