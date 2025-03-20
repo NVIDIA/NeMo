@@ -61,7 +61,6 @@ The following list shows the required input parameters for the Auto Configurator
 
 The following list shows the optional parameters for the Auto Configurator runner:
 
-- ``global_batch_size``: global batch size to be used.
 - ``tensor_parallel_sizes``: a list, such as ``[1, 2, 4]``.
 - ``pipeline_parallel_sizes``: a list, such as ``[1, 2, 4]``.
 - ``context_parallel_sizes``: a list, such as ``[1, 2, 4]``.
