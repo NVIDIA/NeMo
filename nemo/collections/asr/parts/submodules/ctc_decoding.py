@@ -703,6 +703,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # Convert the token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
 
+        # collapse leading spaces before . , ? for PC models
+        hypothesis.text = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis.text)
+
         return hypothesis
 
     @staticmethod
