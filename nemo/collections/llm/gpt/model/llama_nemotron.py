@@ -14,7 +14,7 @@
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from torch import nn
@@ -37,10 +37,12 @@ if TYPE_CHECKING:
 
 @dataclass
 class Llama31NemotronNano8BConfig(Llama31Config8B):
+    """Configuration for an Llama31-Nemotron-Nano model."""
     kv_channels: int = 128
 
 
 class Llama31Nemotron70BConfig(Llama31Config70B):
+    """Configuration for an Llama31-Nemotron-70B model."""
     kv_channels: int = 128
 
 
