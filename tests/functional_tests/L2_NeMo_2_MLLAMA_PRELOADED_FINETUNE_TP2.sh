@@ -13,7 +13,9 @@
 # limitations under the License.
 TRANSFORMERS_OFFLINE=1 \
     coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/mllama_finetune.py \
-    --devices=2 --data_type=mock --use_toy_model \
+    --devices=2 --data_type=llava --use_toy_model \
     --mbs=2 --gbs=4 --max_steps=4 \
     --tp=2 \
+    --data_path=/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/tiny_datasets/llava/test1.json \
+    --image_folder=/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/tiny_datasets/llava/images \
     --log_dir=/tmp/nemo2_mllama_results/$RUN_ID
