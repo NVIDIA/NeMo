@@ -49,7 +49,9 @@ except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
     from torch.distributed._tensor.placement_types import Shard
 
-MixedPrecisionPolicy = safe_import_from("torch.distributed._composable.fsdp", "MixedPrecisionPolicy")
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
+)
 
 
 _logger = _logging.getLogger(__name__)
