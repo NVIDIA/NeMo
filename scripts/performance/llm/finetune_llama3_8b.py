@@ -98,6 +98,9 @@ def override_recipe_configs(
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
     recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
 
+    recipe.optim.config.use_distributed_optimizer = True
+    recipe.model.config.disable_parameter_transpose_cache = True
+
     return recipe
 
 
