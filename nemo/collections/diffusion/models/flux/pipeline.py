@@ -636,7 +636,6 @@ class FluxInferencePipeline(nn.Module):
                 return latents.transpose(0, 1)
             elif output_type == "pil":
                 latents = self._unpack_latents(latents.transpose(0, 1), height, width, self.vae_scale_factor)
-                latents = (latents / self.vae.params.scale_factor) + self.vae.params.shift_factor
                 if device == 'cuda' and device != self.device:
                     self.vae.to(device)
                 with torch.autocast(device_type='cuda', dtype=latents.dtype):
@@ -964,7 +963,6 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
                     guidance = None
 
                 conditioning_scale = controlnet_keep[i] * controlnet_conditioning_scale
-                print(latents.shape, control_image.shape, prompt_embeds.shape, pooled_prompt_embeds.shape, latent_image_ids.shape, text_ids.shape, timestep.shape)
                 with torch.autocast(device_type='cuda', dtype=latents.dtype):
                     controlnet_double_block_samples, controlnet_single_block_samples = self.flux_controlnet(
                         img=latents,
@@ -997,7 +995,6 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
                 return latents.transpose(0, 1)
             elif output_type == "pil":
                 latents = self._unpack_latents(latents.transpose(0, 1), height, width, self.vae_scale_factor)
-                latents = (latents / self.vae.params.scale_factor) + self.vae.params.shift_factor
                 if device == 'cuda' and device != self.device:
                     self.vae.to(device)
                 with torch.autocast(device_type='cuda', dtype=latents.dtype):

@@ -285,7 +285,6 @@ class FluxControlNet(VisionModule):
         controlnet_single_block_samples = (
             None if len(controlnet_single_block_samples) == 0 else controlnet_single_block_samples
         )
-
         return controlnet_double_block_samples, controlnet_single_block_samples
 
 
@@ -568,6 +567,9 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 save_to_disk=False,
             )
             log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}.png")
+            hint = pipe.torch_to_numpy(hint)
+            hint = pipe.numpy_to_pil(hint)
+            hint[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_control.png")
         else:
             img = batch['images'].cuda(non_blocking=True)
             hint = batch['hint'].cuda(non_blocking=True)

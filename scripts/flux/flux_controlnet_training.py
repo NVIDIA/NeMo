@@ -118,7 +118,7 @@ def flux_controlnet_training() -> run.Partial:
             plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
             num_sanity_val_steps=0,
             limit_val_batches=1,
-            val_check_interval=10,
+            val_check_interval=1000,
             max_steps=50000,
             log_every_n_steps=1,
             callbacks=[
@@ -174,13 +174,12 @@ def datamodule_test() -> run.Partial:
         AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1, 2, 4, 4], attn_resolutions=[]
     )
     recipe.model.flux_params.device = 'cuda'
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/nemo_dist_ckpt/weights/', load_dist_ckpt=True, guidance_embed = False, gradient_accumulation_fusion=False,)
-    recipe.trainer.devices = 1
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/nemo_dist_ckpt/weights/', load_dist_ckpt=True,  gradient_accumulation_fusion=False,)
+    recipe.trainer.devices = 8
     recipe.data = brushnet_datamodule('/mingyuanm/codebase/flux_brushnet/data')
-    recipe.data.global_batch_size = 1
-    recipe.model.flux_controlnet_config.num_single_layers = 0
-    recipe.model.flux_controlnet_config.num_joint_layers = 4
-    recipe.model.flux_controlnet_config.guidance_embed = False
+    recipe.data.global_batch_size = 8
+    recipe.model.flux_controlnet_config.num_single_layers = 38
+    recipe.model.flux_controlnet_config.num_joint_layers = 19
     recipe.model.flux_controlnet_config.gradient_accumulation_fusion = False
     recipe.optim.config.lr = 5e-5
     recipe.trainer.strategy.ddp = run.Config(
@@ -192,7 +191,7 @@ def datamodule_test() -> run.Partial:
         overlap_grad_reduce=True,
         overlap_param_gather=True,
     )
-    recipe.trainer.strategy.tensor_model_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.trainer.max_steps = -1
     return recipe
 
