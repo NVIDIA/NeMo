@@ -8,7 +8,6 @@ from typing import Callable, Optional
 import numpy as np
 import torch
 from megatron.core import mpu
-from megatron.training import get_args
 from torch.utils.data import Dataset
 
 
@@ -113,10 +112,9 @@ class MegatronPretrainingSampler:
 
 
 class RandomSeedDataset(Dataset):
-    def __init__(self, dataset):
-        args = get_args()
-        self.base_seed = args.seed
-        self.curr_seed = args.seed
+    def __init__(self, dataset, seed: int):
+        self.base_seed = seed
+        self.curr_seed = seed
         self.dataset = dataset
 
     def __len__(self):

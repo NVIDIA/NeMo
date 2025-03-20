@@ -31,7 +31,7 @@ from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer
-from nemo.tron.data.dataset import setup_data_iterators
+from nemo.tron.data.loaders import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
@@ -64,7 +64,7 @@ class SetupOutput(NamedTuple):
 
 def setup(
     cfg: ConfigContainer,
-    train_valid_test_dataset_provider,
+    train_valid_test_datasets_provider,
     get_embedding_ranks=None,
     get_position_embedding_ranks=None,
 ):
@@ -129,7 +129,7 @@ def setup(
     cfg.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(cfg, model)
     _update_model_config_funcs(
-        model, 
+        model,
         cfg.model_config,
         cfg.ddp_config,
         optimizer,
@@ -161,7 +161,7 @@ def setup(
         cfg=cfg,
         train_state=state.train_state,
         model_length=len(model),
-        train_valid_test_dataset_provider=train_valid_test_dataset_provider,
+        train_valid_test_datasets_provider=train_valid_test_datasets_provider,
     )
     timers("train/valid/test-data-iterators-setup").stop()
     barrier_and_log("after dataloaders are built")
@@ -186,23 +186,25 @@ def setup(
         checkpointing_context,
     )
 
+
 def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> Dict[str, Any]:
     # Context used for persisting some state between checkpoint saves.
     if checkpoint_config.non_persistent_ckpt_type != "local":
         return {}
-    
+
     if not HAVE_RESIL:
         raise RuntimeError(
             "The 'nvidia_resiliency_ext' module is required for local "
             "checkpointing but was not found. Please ensure it is installed."
         )
-         
+
     from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import (
         LocalCheckpointManager,
     )
     from nvidia_resiliency_ext.checkpointing.local.replication.strategies import (
         CliqueReplicationStrategy,
     )
+
     if checkpoint_config.replication:
         repl_strategy = CliqueReplicationStrategy.from_replication_params(
             checkpoint_config.replication_jump,
@@ -226,7 +228,7 @@ def _update_model_config_funcs(
     ddp_config: DistributedDataParallelConfig,
     optimizer: MegatronOptimizer,
     *,
-    align_grad_reduce: bool = True
+    align_grad_reduce: bool = True,
 ) -> None:
     """Update model config sync funcs based on initialized model."""
     if isinstance(model[0], DistributedDataParallel) and ddp_config.overlap_grad_reduce:
