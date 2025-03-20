@@ -67,32 +67,15 @@ class AutoTokenizer(TokenizerSpec):
             include_special_tokens: when True, converting text to ids will include special tokens / prompt tokens (if any), yielding self.tokenizer(text).input_ids
         """
         try:
-            # this logic deals with different huggingface tokenizers having different positional args
-            if vocab_file is None:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name,
-                    use_fast=use_fast,
-                    trust_remote_code=trust_remote_code,
+            self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
+        except Exception:
+            try:
+                self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, not use_fast,
+                                           trust_remote_code)
+            except Exception as e:
+                raise ValueError(
+                    f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
                 )
-            elif merges_file is None:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name,
-                    vocab_file=vocab_file,
-                    use_fast=use_fast,
-                    trust_remote_code=trust_remote_code,
-                )
-            else:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name,
-                    vocab_file=vocab_file,
-                    merges_file=merges_file,
-                    use_fast=use_fast,
-                    trust_remote_code=trust_remote_code,
-                )
-        except Exception as e:
-            raise ValueError(
-                f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
-            )
 
         self.include_special_tokens = include_special_tokens
         self.original_vocab_size = len(self.tokenizer)
@@ -171,6 +154,36 @@ class AutoTokenizer(TokenizerSpec):
         self.add_special_tokens(special_tokens_dict)
         self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
         self._inv_vocab_dict = {}
+
+    def _initialize_tokenizer(self,
+        pretrained_model_name: str,
+        vocab_file: Optional[str] = None,
+        merges_file: Optional[str] = None,
+        use_fast: Optional[bool] = False,
+        trust_remote_code: Optional[bool] = False,
+    ):
+        # this logic deals with different huggingface tokenizers having different positional args
+        if vocab_file is None:
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                pretrained_model_name_or_path=pretrained_model_name,
+                use_fast=use_fast,
+                trust_remote_code=trust_remote_code,
+            )
+        elif merges_file is None:
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                pretrained_model_name_or_path=pretrained_model_name,
+                vocab_file=vocab_file,
+                use_fast=use_fast,
+                trust_remote_code=trust_remote_code,
+            )
+        else:
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                pretrained_model_name_or_path=pretrained_model_name,
+                vocab_file=vocab_file,
+                merges_file=merges_file,
+                use_fast=use_fast,
+                trust_remote_code=trust_remote_code,
+            )
 
     @property
     def vocab_size(self):
