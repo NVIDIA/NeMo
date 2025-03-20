@@ -1,7 +1,7 @@
 import shutil
 from collections import OrderedDict
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
@@ -100,7 +100,7 @@ class TestFSDPStrategy:
         strategy.precision_plugin.train_step_context.return_value.__exit__ = MagicMock(return_value=None)
 
         try:
-            result = strategy.training_step(mock_batch, 0)
+            strategy.training_step(mock_batch, 0)
         except AssertionError:
             pass
 
@@ -114,7 +114,7 @@ class TestFSDPStrategy:
         strategy.precision_plugin.val_step_context.return_value.__exit__ = MagicMock(return_value=None)
 
         try:
-            result = strategy.validation_step(mock_batch, 0)
+            strategy.validation_step(mock_batch, 0)
         except AssertionError:
             pass
 
@@ -128,7 +128,7 @@ class TestFSDPStrategy:
         strategy.precision_plugin.test_step_context.return_value.__exit__ = MagicMock(return_value=None)
 
         try:
-            result = strategy.test_step(mock_batch, 0)
+            strategy.test_step(mock_batch, 0)
         except AssertionError:
             pass
 
@@ -143,7 +143,7 @@ class TestFSDPStrategy:
         strategy.precision_plugin.predict_step_context.return_value.__exit__ = MagicMock(return_value=None)
 
         try:
-            result = strategy.predict_step(mock_batch, 0)
+            strategy.predict_step(mock_batch, 0)
         except AssertionError:
             pass
 
