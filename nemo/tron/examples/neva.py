@@ -20,57 +20,17 @@ from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegat
 from megatron.core.datasets.multimodal_dataset import MockMultimodalDataset, MultimodalDatasetConfig
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.collections import vlm
+from nemo.collections import llm, vlm
 from nemo.collections.vlm.neva.model.base import neva_data_step, neva_forward_step
 from nemo.tron.api import megatron_pretrain
 from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig, SchedulerConfig, TrainingConfig
+from nemo.tron.losses import masked_next_token_loss
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import print_rank_0
 
 
-def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor):
-    """Loss function.
-
-    Args:
-        loss_mask (torch.Tensor): Used to mask out some portions of the loss
-        output_tensor (torch.Tensor): The tensor with the losses
-
-    Returns:
-        the loss scalar for this micro-batch
-        the number of non-padded tokens in this microbatch
-        a dict containing reporting metrics on the loss and number of tokens across
-            the data parallel ranks
-    """
-    state = GlobalState()
-    losses = output_tensor.float()
-    loss_mask = loss_mask.view(-1).float()
-    total_tokens = loss_mask.sum()
-    loss = torch.cat([torch.sum(losses.view(-1) * loss_mask).view(1), total_tokens.view(1)])
-
-    if state.cfg.model_config.context_parallel_size > 1:
-        torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
-
-    # Reduce loss for logging.
-    reporting_loss = loss.clone().detach()
-    torch.distributed.all_reduce(reporting_loss, group=parallel_state.get_data_parallel_group())
-
-    local_num_tokens = loss[1].clone().detach().to(torch.int)
-    return (
-        loss[0] * state.cfg.model_config.context_parallel_size,
-        local_num_tokens,
-        {"lm loss": (reporting_loss[0], reporting_loss[1])},
-    )
-
-
-def forward_step(data_iterator, model):
-    """Forward training step.
-
-    Args:
-        data_iterator : Input data iterator
-        model (NevaModel): The NeVA Model
-    """
-
-    timers = GlobalState().timers
+def forward_step(state: GlobalState, data_iterator, model):
+    timers = state.timers
 
     # Get the batch.
     timers("batch-generator", log_level=2).start()
@@ -80,7 +40,7 @@ def forward_step(data_iterator, model):
 
     output_tensor = neva_forward_step(model, batch)
 
-    return output_tensor, partial(loss_func, loss_mask)
+    return output_tensor, partial(masked_next_token_loss, loss_mask)
 
 
 def neva_dataset_provider(train_val_test_num_samples: list[int], dataset_config: MultimodalDatasetConfig):
