@@ -16,14 +16,16 @@ from nemo.collections.llm.peft.api import export_lora, gpt_lora, merge_lora
 from nemo.collections.llm.peft.canonical_lora import CanonicalLoRA
 from nemo.collections.llm.peft.dora import DoRA
 from nemo.collections.llm.peft.lora import LoRA
-
+from nemo.collections.llm.peft.qlora import QLoRA
 PEFT_STR2CLS = {
     "LoRA": LoRA,
     "lora": LoRA,
     "DoRA": DoRA,
     "dora": DoRA,
+    "QLoRA": QLoRA,
+    "qlora": QLoRA,
     "CanonicalLoRA": CanonicalLoRA,
     "canonical_lora": CanonicalLoRA,
 }
 
-__all__ = ["LoRA", "DoRA", "CanonicalLoRA", "gpt_lora", "PEFT_STR2CLS", "merge_lora", "export_lora"]
+__all__ = ["LoRA", "DoRA", "CanonicalLoRA", "QLoRA", "gpt_lora", "PEFT_STR2CLS", "merge_lora", "export_lora"]
