@@ -1,20 +1,23 @@
-import pytest
-import torch
 import os
-from unittest.mock import MagicMock, patch, PropertyMock
-from pathlib import Path
 import shutil
 from collections import OrderedDict
+from pathlib import Path
+from unittest.mock import MagicMock, PropertyMock, patch
+
+import pytest
+import torch
 from lightning.pytorch.plugins import FSDPPrecision
 
 # Import the module to test
 from nemo.lightning.pytorch.strategies.fsdp_strategy import FSDPStrategy
+
 
 # Mock dependencies
 @pytest.fixture
 def mock_transformer_layer():
     """Mock for TransformerLayer class"""
     return MagicMock()
+
 
 @pytest.fixture
 def mock_lightning_module():
@@ -28,6 +31,7 @@ def mock_lightning_module():
     module.log = MagicMock()
     return module
 
+
 @pytest.fixture
 def mock_trainer():
     """Mock for Trainer"""
@@ -39,6 +43,7 @@ def mock_trainer():
     trainer.state.fn = "fitting"
     return trainer
 
+
 @pytest.fixture
 def mock_checkpoint_io():
     """Mock for CheckpointIO"""
@@ -46,6 +51,7 @@ def mock_checkpoint_io():
     io.save_checkpoint = MagicMock()
     io.load_checkpoint = MagicMock(return_value={"state_dict": OrderedDict([]), "sharded_state_dict": {}})
     return io
+
 
 @pytest.fixture
 def strategy(mock_transformer_layer):
@@ -55,7 +61,7 @@ def strategy(mock_transformer_layer):
             auto_wrap_policy={mock_transformer_layer},
             state_dict_type="sharded",
             ckpt_load_optimizer=True,
-            ckpt_save_optimizer=True
+            ckpt_save_optimizer=True,
         )
         strategy.accelerator = MagicMock()
         strategy.model = MagicMock()
@@ -72,21 +78,19 @@ def strategy(mock_transformer_layer):
         strategy.kwargs = {}
         return strategy
 
+
 class TestFSDPStrategy:
-    
+
     def test_init(self, mock_transformer_layer):
         """Test that the strategy initializes with correct parameters"""
         with patch("megatron.core.transformer.transformer_layer.TransformerLayer", mock_transformer_layer):
-            strategy = FSDPStrategy(
-                auto_wrap_policy={mock_transformer_layer},
-                state_dict_type="sharded"
-            )
-            
+            strategy = FSDPStrategy(auto_wrap_policy={mock_transformer_layer}, state_dict_type="sharded")
+
             assert strategy.ckpt_load_optimizer is True
             assert strategy.ckpt_save_optimizer is True
             assert strategy.data_sampler is None
             assert strategy.store is None
-    
+
     def test_training_step(self, strategy):
         """Test that training_step executes correctly"""
         mock_batch = MagicMock()
@@ -95,12 +99,12 @@ class TestFSDPStrategy:
         strategy.precision_plugin.train_step_context = MagicMock()
         strategy.precision_plugin.train_step_context.return_value.__enter__ = MagicMock()
         strategy.precision_plugin.train_step_context.return_value.__exit__ = MagicMock(return_value=None)
-        
+
         try:
             result = strategy.training_step(mock_batch, 0)
         except AssertionError:
             pass
-            
+
     def test_validation_step(self, strategy):
         """Test that validation_step executes correctly"""
         mock_batch = MagicMock()
@@ -109,12 +113,12 @@ class TestFSDPStrategy:
         strategy.precision_plugin.val_step_context = MagicMock()
         strategy.precision_plugin.val_step_context.return_value.__enter__ = MagicMock()
         strategy.precision_plugin.val_step_context.return_value.__exit__ = MagicMock(return_value=None)
-        
+
         try:
             result = strategy.validation_step(mock_batch, 0)
         except AssertionError:
             pass
-            
+
     def test_test_step(self, strategy):
         """Test that test_step executes correctly"""
         mock_batch = MagicMock()
@@ -123,12 +127,12 @@ class TestFSDPStrategy:
         strategy.precision_plugin.test_step_context = MagicMock()
         strategy.precision_plugin.test_step_context.return_value.__enter__ = MagicMock()
         strategy.precision_plugin.test_step_context.return_value.__exit__ = MagicMock(return_value=None)
-        
+
         try:
             result = strategy.test_step(mock_batch, 0)
         except AssertionError:
             pass
-    
+
     def test_predict_step(self, strategy):
         """Test that predict_step executes correctly"""
         mock_batch = MagicMock()
@@ -138,29 +142,29 @@ class TestFSDPStrategy:
         strategy.precision_plugin.predict_step_context = MagicMock()
         strategy.precision_plugin.predict_step_context.return_value.__enter__ = MagicMock()
         strategy.precision_plugin.predict_step_context.return_value.__exit__ = MagicMock(return_value=None)
-        
+
         try:
             result = strategy.predict_step(mock_batch, 0)
         except AssertionError:
             pass
-    
+
     def test_process_dataloader(self, strategy):
         """Test that process_dataloader transforms dataloader correctly"""
         mock_dataloader = MagicMock()
         transformed_dataloader = MagicMock()
-        
+
         # Test with data_sampler
         strategy.data_sampler = MagicMock()
         strategy.data_sampler.transform_dataloader = MagicMock(return_value=transformed_dataloader)
         result = strategy.process_dataloader(mock_dataloader)
         strategy.data_sampler.transform_dataloader.assert_called_once_with(mock_dataloader)
         assert result == transformed_dataloader
-        
+
         # Test without data_sampler
         strategy.data_sampler = None
         result = strategy.process_dataloader(mock_dataloader)
         assert result == mock_dataloader
-    
+
     @patch('nemo.lightning.pytorch.strategies.fsdp_strategy.create_checkpoint_io')
     def test_checkpoint_io(self, mock_create_checkpoint_io):
         class Dummy: ...
@@ -176,39 +180,38 @@ class TestFSDPStrategy:
         new_io = object()
         strategy.checkpoint_io = new_io
         assert new_io == strategy.checkpoint_io
-    
+
     def test_current_epoch_step(self, strategy, mock_trainer):
         """Test current_epoch_step returns the maximum step value"""
         strategy.trainer = mock_trainer
         assert strategy.current_epoch_step == 5
-    
+
     def test_remove_checkpoint(self, strategy):
         """Test that remove_checkpoint properly removes checkpoint directories"""
         test_path = Path("test_ckpt")
-        
+
         # Test with directory
-        with patch("os.path.islink", return_value=False), \
-             patch("shutil.rmtree") as mock_rmtree:
-            
+        with patch("os.path.islink", return_value=False), patch("shutil.rmtree") as mock_rmtree:
+
             strategy.remove_checkpoint(test_path)
             mock_rmtree.assert_called_once()
-        
+
         # Test with symlink
-        with patch("os.path.islink", return_value=True), \
-             patch("os.unlink") as mock_unlink:
-            
+        with patch("os.path.islink", return_value=True), patch("os.unlink") as mock_unlink:
+
             strategy.remove_checkpoint(test_path)
             mock_unlink.assert_called_once()
-    
+
     def test_save_checkpoint(self, strategy):
         """Test that save_checkpoint correctly processes and saves the checkpoint"""
         mock_checkpoint = {
             "state_dict": {"layer1.weight": torch.randn(10, 10)},
         }
         test_path = "test_path"
-        
+
         strategy.checkpoint_io = MagicMock()
         strategy.save_checkpoint(mock_checkpoint, test_path)
-        
+
         strategy.checkpoint_io.save_checkpoint.assert_called_once_with(
-            mock_checkpoint, test_path, storage_options=None)
+            mock_checkpoint, test_path, storage_options=None
+        )
