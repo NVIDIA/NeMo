@@ -17,7 +17,6 @@ import pytest
 import torch
 from datasets import Dataset, DatasetDict
 
-# If you saved the original code in a file called hf_datamodule.py, adjust the import below:
 from nemo.collections.vlm.hf.data.hf_dataset import (
     clean_split,
     make_dataset_splits,
