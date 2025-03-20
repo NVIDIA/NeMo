@@ -25,6 +25,7 @@ from megatron.core.utils import get_model_config
 from nemo.tron import fault_tolerance
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import is_last_rank, print_rank_0, print_rank_last
+from nemo.tron.utils.train_utils import check_forward_step_func_num_args, maybe_inject_state
 
 
 def evaluate(
@@ -38,8 +39,10 @@ def evaluate(
     non_loss_data_func=None,
 ):
     """Evaluation."""
-    timers = state.timers
+    # Check num args to forward_step_func
+    num_fw_args = check_forward_step_func_num_args(forward_step_func)
 
+    timers = state.timers
     timers("evaluate", log_level=0).start(barrier=True)
 
     # Turn on evaluation mode which disables dropout.
@@ -66,12 +69,13 @@ def evaluate(
             if verbose:
                 print_rank_0(f"Evaluating iter {iteration}/{state.cfg.train_config.eval_iters}")
 
+            wrapped_forward_step = maybe_inject_state(forward_step_func, state, num_fw_args=num_fw_args)
             forward_backward_func = get_forward_backward_func()
             # Don't care about timing during evaluation
             config.timers = None
             fault_tolerance.on_eval_step_start(state)
             loss_dicts = forward_backward_func(
-                forward_step_func=forward_step_func,
+                forward_step_func=wrapped_forward_step,
                 data_iterator=data_iterator,
                 model=model,
                 num_microbatches=eval_num_microbatches,
@@ -119,7 +123,7 @@ def evaluate(
             collected_non_loss_data = non_loss_data_func(model)
         elif process_non_loss_data_func is not None and is_last_rank():
             collected_non_loss_data = forward_backward_func(
-                forward_step_func=forward_step_func,
+                forward_step_func=wrapped_forward_step,
                 data_iterator=data_iterator,
                 model=model,
                 num_microbatches=get_num_microbatches(),
