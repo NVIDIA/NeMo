@@ -824,7 +824,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         num_flattened_tokens = 0
         for t in range(len(char_offsets)):
             # Count all tokens except for RNNT BLANK token emitted to designate "End of timestep"
-            num_flattened_tokens += len([c for c in char_offsets[t]['char'] if c!= self.blank_id])
+            num_flattened_tokens += len([c for c in char_offsets[t]['char'] if c != self.blank_id])
 
         if num_flattened_tokens != len(hypothesis.text):
             raise ValueError(
