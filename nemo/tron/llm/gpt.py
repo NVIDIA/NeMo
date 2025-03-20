@@ -44,6 +44,7 @@ def forward_step(state: GlobalState, data_iterator: Iterable, model: GPTModel):
     """Forward training step.
 
     Args:
+        state (GlobalState): Global state for the run
         data_iterator : Input data iterator
         model (GPTModel): The GPT Model
     """
