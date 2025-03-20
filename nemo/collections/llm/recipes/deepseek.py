@@ -68,8 +68,6 @@ def trainer(
         context_parallel_size=context_parallelism,
         expert_model_parallel_size=expert_parallelism,
         sequence_parallel=sequence_parallelism,
-        account_for_embedding_in_pipeline_split=account_for_embedding_in_pipeline_split,
-        account_for_loss_in_pipeline_split=account_for_loss_in_pipeline_split,
         gradient_as_bucket_view=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
