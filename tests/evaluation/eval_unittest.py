@@ -1,6 +1,8 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from nemo.collections.llm.api import evaluate  # Replace 'your_module' with the actual module name
+
 
 class TestEvaluateFunction(unittest.TestCase):
 
@@ -30,12 +32,14 @@ class TestEvaluateFunction(unittest.TestCase):
     @patch('nemo.collections.llm.evaluation.base.wait_for_server_ready')
     @patch('lm_eval.evaluator.simple_evaluate')
     @patch('nemo.collections.llm.evaluation.base.NeMoFWLMEval')
-    def test_evaluate_success(self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context):
+    def test_evaluate_success(
+        self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context
+    ):
         # Mocking necessary methods
         mock_load_context.return_value = "tokenizer"
         mock_NeMoFWLMEval.return_value = "model"
         mock_simple_evaluate.return_value = {"results": {"gsm8k": "score"}}
-        
+
         # Call the function
         evaluate(self.target_cfg, self.eval_cfg)
 
@@ -67,7 +71,9 @@ class TestEvaluateFunction(unittest.TestCase):
     @patch('nemo.collections.llm.evaluation.base.wait_for_server_ready')
     @patch('lm_eval.evaluator.simple_evaluate')
     @patch('nemo.collections.llm.evaluation.base.NeMoFWLMEval')
-    def test_evaluate_nemo_checkpoint_path_none(self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context):
+    def test_evaluate_nemo_checkpoint_path_none(
+        self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context
+    ):
         # Set nemo_checkpoint_path to None
         self.target_cfg.api_endpoint.nemo_checkpoint_path = None
 
@@ -85,7 +91,9 @@ class TestEvaluateFunction(unittest.TestCase):
     @patch('nemo.collections.llm.evaluation.base.wait_for_server_ready')
     @patch('lm_eval.evaluator.simple_evaluate')
     @patch('nemo.collections.llm.evaluation.base.NeMoFWLMEval')
-    def test_evaluate_import_error(self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context):
+    def test_evaluate_import_error(
+        self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context
+    ):
         # Mocking ImportError for lm-evaluation-harness
         with patch('builtins.__import__', side_effect=ImportError("Mocked ImportError")):
             # Call the function and assert it raises ImportError
@@ -97,6 +105,7 @@ class TestEvaluateFunction(unittest.TestCase):
             mock_wait_for_server_ready.assert_not_called()
             mock_NeMoFWLMEval.assert_not_called()
             mock_simple_evaluate.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
