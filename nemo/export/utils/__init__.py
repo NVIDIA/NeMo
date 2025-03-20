@@ -19,6 +19,7 @@ from nemo.export.utils.model_loader import (
     load_sharded_metadata_zarr,
     nemo_to_path,
 )
+from nemo.export.utils.safe_tensor_exporter import convert_to_safe_tensors
 from nemo.export.utils.utils import (
     get_example_inputs,
     get_model_device_type,
@@ -42,4 +43,5 @@ __all__ = [
     "get_model_device_type",
     "get_example_inputs",
     "validate_fp8_network",
+    "convert_to_safe_tensors",
 ]
