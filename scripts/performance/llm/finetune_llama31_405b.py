@@ -75,7 +75,7 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
-        enable_cuda_graphs,
+        enable_cuda_graphs=enable_cuda_graphs,
     )
     recipe = set_exp_logging_configs(
         recipe,

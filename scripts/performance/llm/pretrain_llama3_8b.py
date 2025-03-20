@@ -63,7 +63,7 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
-        enable_cuda_graphs,
+        enable_cuda_graphs=enable_cuda_graphs,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
