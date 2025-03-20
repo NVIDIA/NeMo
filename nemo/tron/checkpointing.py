@@ -648,13 +648,15 @@ def save_checkpoint(
 
                 cfg.to_yaml(config_filename)
                 print_rank_0(
-                    f"  successfully saved checkpoint from iteration {train_state.step:7d} to {ckpt_cfg.save} "
+                    f"  successfully saved checkpoint from iteration {train_state_dict['step'].item():7d} to {ckpt_cfg.save} "
                     f"[ t {(tensor_rank if tensor_rank is not None else mpu.get_tensor_model_parallel_rank()) + 1}/{mpu.get_tensor_model_parallel_world_size()}, "
                     f"p {(pipeline_rank if pipeline_rank is not None else mpu.get_pipeline_model_parallel_rank()) + 1}/{mpu.get_pipeline_model_parallel_world_size()} ]"
                 )
                 if cfg.logger_config.log_progress and ckpt_cfg.async_save:
                     append_to_progress_log(
-                        ckpt_cfg.save, f"Saved async checkpoint\tIteration: {train_state.step}", barrier=False
+                        ckpt_cfg.save,
+                        f"Saved async checkpoint\tIteration: {train_state_dict['step'].item()}",
+                        barrier=False,
                     )
 
         if ckpt_cfg.async_save:

@@ -14,7 +14,8 @@
 
 import os
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional
+from pathlib import Path
+from typing import Any, List, Literal, Optional, Union
 
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -105,8 +106,8 @@ class TokenizerConfig:
     padded_vocab_size: Optional[int] = None
 
 
-@dataclass
-class GPTDatasetConfig(MCoreGPTDatasetConfig):
+@dataclass(kw_only=True)
+class DataloaderConfig:
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
 
@@ -116,12 +117,26 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig):
     data_sharding: bool = True
     """Disable data sharding."""
 
+
+@dataclass
+class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
     def __post_init__(self) -> None:
         super(MCoreGPTDatasetConfig, self).__post_init__()
 
         assert self.reset_position_ids is not None
         assert self.reset_attention_mask is not None
         assert self.eod_mask_loss is not None
+
+
+@dataclass(kw_only=True)
+class FinetuningDatasetConfig(DataloaderConfig):
+    dataset_root: Optional[Union[str, Path]] = None
+    seq_length: int = 1024
+    seed: int = 1234
+    memmap_workers: int = 1
+    max_train_samples: Optional[int] = None
+    packed_sequence_specs: Optional[dict] = None
+    dataset_kwargs: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -513,7 +528,7 @@ class ConfigContainer(Container):
     optimizer_config: OptimizerConfig
     ddp_config: DistributedDataParallelConfig = field(default_factory=DistributedDataParallelConfig)
     scheduler_config: SchedulerConfig
-    dataset_config: GPTDatasetConfig
+    dataset_config: GPTDatasetConfig | FinetuningDatasetConfig
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig

@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import time
+from functools import partial
 from typing import Any, Dict, NamedTuple, Optional
 
 import torch
@@ -31,7 +33,7 @@ from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer
-from nemo.tron.data.dataset import setup_data_iterators
+from nemo.tron.data.loaders import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
@@ -64,7 +66,7 @@ class SetupOutput(NamedTuple):
 
 def setup(
     cfg: ConfigContainer,
-    train_valid_test_dataset_provider,
+    train_valid_test_datasets_provider,
     get_embedding_ranks=None,
     get_position_embedding_ranks=None,
 ):
@@ -164,11 +166,14 @@ def setup(
 
     # Data stuff.
     timers("train/valid/test-data-iterators-setup", log_level=0).start(barrier=True)
+    if "tokenizer" in inspect.signature(train_valid_test_datasets_provider).parameters:
+        train_valid_test_datasets_provider = partial(train_valid_test_datasets_provider, tokenizer=tokenizer)
+
     train_data_iterator, valid_data_iterator, test_data_iterator = setup_data_iterators(
         cfg=cfg,
         train_state=state.train_state,
         model_length=len(model),
-        train_valid_test_dataset_provider=train_valid_test_dataset_provider,
+        train_valid_test_datasets_provider=train_valid_test_datasets_provider,
     )
     timers("train/valid/test-data-iterators-setup").stop()
     barrier_and_log("after dataloaders are built")
@@ -252,7 +257,7 @@ def _update_model_config_funcs(
             model_config.grad_sync_func = model_config.grad_sync_func[0]
     if ddp_config.overlap_param_gather and ddp_config.align_param_gather:
         model_config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
-    if len(model) == 1:
-        model_config.param_sync_func = model_config.param_sync_func[0]
+        if len(model) == 1:
+            model_config.param_sync_func = model_config.param_sync_func[0]
     model_config.finalize_model_grads_func = finalize_model_grads
     model_config.grad_scale_func = optimizer.scale_loss
