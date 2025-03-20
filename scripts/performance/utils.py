@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 import nemo_run as run
 import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
-from nemo_run.config import NEMORUN_HOME
+from nemo_run.config import get_nemorun_home
 from numpy import nan
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
@@ -53,13 +53,14 @@ def slurm_executor(
     and fine-tuning experiments
     """
     err_msgs = []
-    if log_dir != NEMORUN_HOME:
+    if log_dir != get_nemorun_home():
         err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
     if len(err_msgs) > 0:
         logging.error("\n".join(err_msgs))
         sys.exit(1)
 
     env_vars = {
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
         "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
         "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
         "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
@@ -175,8 +176,11 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     etp_size = args.expert_tensor_parallel_size
     etp_size = config.get("etp_size") if etp_size is None else etp_size
 
+    enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
+    enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [enable_cuda_graphs]
 
     return kwargs
 
