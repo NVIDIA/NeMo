@@ -26,7 +26,7 @@ import nemo_run as run
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule, HFMockDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule, SquadHFDataModule
 from nemo.utils import logging
 
 # TODO: Set your SQuaD dataset path, remember to add the path in custom_mounts if using slurm executor
@@ -174,7 +174,10 @@ def main():
     )
 
     recipe.trainer.strategy = run.Config(
-        nl.FSDP2Strategy, data_parallel_size=1, tensor_parallel_size=1, context_parallel_size=32,
+        nl.FSDP2Strategy,
+        data_parallel_size=1,
+        tensor_parallel_size=1,
+        context_parallel_size=32,
     )
     recipe.trainer.plugins = None
 
