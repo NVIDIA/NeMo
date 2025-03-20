@@ -62,7 +62,7 @@ trtllm() {
 te() {
   local mode="$1"
 
-  $(TE_)REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
+  TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
   TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
   TE_DIR="$INSTALL_DIR/TransformerEngine"
   if [ ! -d "$TE_DIR/.git" ]; then
