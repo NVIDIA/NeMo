@@ -1456,6 +1456,24 @@ jobs:
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2.sh
 
+  L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_PAD:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_PAD')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_PAD.sh
+
+  L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_TRUNC:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_TRUNC')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_TRUNC.sh
+
   L2_NeMo_2_NEVA_LOAD_GENERATE:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -1464,6 +1482,17 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_NEVA_LOAD_GENERATE.sh
+      AFTER_SCRIPT: |
+        rm -rf ~/.cache/nemo/models
+
+  L2_NeMo_2_LLAVA_IMPORT:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_IMPORT')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_LLAVA_IMPORT.sh
       AFTER_SCRIPT: |
         rm -rf ~/.cache/nemo/models
 
@@ -1484,6 +1513,17 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2.sh
+
+  L2_NeMo_2_MLLAMA_IMPORT:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_MLLAMA_IMPORT')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_MLLAMA_IMPORT.sh
+      AFTER_SCRIPT: |
+        rm -rf ~/.cache/nemo/models
 
   L2_NeMo_2_Mixtral_Pretraining:
     needs: [pre-flight, cicd-test-container-build]

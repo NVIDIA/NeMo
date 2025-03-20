@@ -14,7 +14,7 @@
 
 import argparse
 from pathlib import Path
-from nemo.collections import llm, vlm
+from nemo.collections import vlm
 from nemo.collections.llm import import_ckpt
 
 HF_MODEL_ID_TO_NEMO_CLASS = {
