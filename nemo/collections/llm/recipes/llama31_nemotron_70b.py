@@ -317,9 +317,7 @@ def finetune_recipe(
     else:
         raise ValueError(f'Unknown model_type {model_type}. Expected one of "instruct" or "reward".')
 
-    recipe = default_finetune_recipe(
-        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
-    )
+    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4

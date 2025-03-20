@@ -20,7 +20,7 @@ import torch
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTModel, torch_dtype_from_mcore_config
-from nemo.collections.llm.gpt.model.llama import Llama31Config, LlamaConfig, Llama31Config8B, Llama31Config70B
+from nemo.collections.llm.gpt.model.llama import Llama31Config, Llama31Config8B, Llama31Config70B, LlamaConfig
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
@@ -35,13 +35,14 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-
 @dataclass
 class Llama31NemotronNano8BConfig(Llama31Config8B):
     kv_channels: int = 128
 
+
 class Llama31Nemotron70BConfig(Llama31Config70B):
     kv_channels: int = 128
+
 
 class LlamaNemotronModel(GPTModel):
     """Llama-Nemotron model implementation based on the GPT model architecture.
@@ -57,7 +58,9 @@ class LlamaNemotronModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Llama31NemotronNano8BConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or Llama31NemotronNano8BConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
 @io.model_importer(LlamaNemotronModel, "hf")
@@ -364,6 +367,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
             bos_token_id=self.tokenizer.bos_id,
             eos_token_id=self.tokenizer.eos_id,
         )
+
 
 __all__ = [
     "LlamaNemotronModel",
