@@ -170,7 +170,7 @@ class ModelSizeParams:
             elif model_size_in_b <= 250.5:
                 self.hs, self.att_h = 12288, 96
             else:
-                raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
+                raise ValueError("Model_size for BERT must be smaller than 250B parameters.")
             self.ffn = 4 * self.hs
         else:
             raise NotImplementedError("Model name is not valid.")
@@ -340,8 +340,6 @@ def generic_base_config(config) -> dict:
 
     from nemo.collections.llm.tools.auto_configurator.core.base_config import calculate_model_size
 
-    default_model = False if config.model_size_in_b else True
-
     model_size_in_b = calculate_model_size(
         config.gpu_count,
         config.max_training_days,
@@ -352,7 +350,7 @@ def generic_base_config(config) -> dict:
     )
     base_cfg = config.recipe
 
-    if default_model:
+    if config.calculate_model_size:
         params = ModelSizeParams(
             model_size_in_b,
             config.vocab_size,
