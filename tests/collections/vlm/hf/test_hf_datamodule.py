@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from unittest.mock import MagicMock
-import os
 import pytest
 import torch
 from datasets import Dataset, DatasetDict
