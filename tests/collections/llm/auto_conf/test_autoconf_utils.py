@@ -339,7 +339,7 @@ class TestUtils:
             model_size=8,
         )
 
-        assert config == None
+        assert config is None
 
     def test_calculate_model_size_utils(self):
         # Qwen
@@ -504,7 +504,6 @@ class TestUtils:
                 params.init_params()
 
         # GPT 40GB GPU
-        seq_lengths = [2**i for i in range(11, 16)]
         model_sizes = [1, 4, 8, 13, 23, 45, 95, 130, 195, 395, 790, 1100]
 
         for model_size in model_sizes:

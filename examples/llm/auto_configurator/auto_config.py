@@ -82,6 +82,8 @@ def train_config(args):
         recipe = partial(llm.t5_220m.pretrain_recipe, num_nodes=1, num_gpus_per_node=1)()
         # Set to False if you don't want Auto Configurator to calculate model size
         calculate_model_size = True
+    else:
+        raise ValueError(f"Unsupported model type for this script: {args.model_type}")
     recipe.data.global_batch_size = 16
 
     runner = AutoConfigurator(
