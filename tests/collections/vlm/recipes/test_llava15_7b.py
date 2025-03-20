@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import nemo_run as run
+import pytest
 
 from nemo.collections.llm.api import finetune
-from nemo.collections.vlm import LlavaModel, Llava15Config7B, LoRA
+from nemo.collections.vlm import Llava15Config7B, LlavaModel, LoRA
 from nemo.collections.vlm.recipes import llava15_7b
 from nemo.lightning import Trainer
 

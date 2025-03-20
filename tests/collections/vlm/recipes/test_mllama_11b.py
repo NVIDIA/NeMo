@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nemo_run as run
 import pytest
 import torch
-import nemo_run as run
 
 from nemo.collections.llm.api import finetune
-from nemo.collections.vlm import MLlamaModel, MLlamaConfig11BInstruct, LoRA
+from nemo.collections.vlm import LoRA, MLlamaConfig11BInstruct, MLlamaModel
 from nemo.collections.vlm.recipes import mllama_11b
 from nemo.lightning import Trainer
 
@@ -69,8 +69,8 @@ class TestMLlama11B:
         assert isinstance(data, run.Config)
         # Check that the data module is MockDataModule and parameters match.
         assert data.__fn_or_cls__.__name__ == "MockDataModule"
-        assert data.seq_length == 6404           # Vision encoder sequence length.
-        assert data.decoder_seq_length == 2048     # LLM decoder sequence length.
+        assert data.seq_length == 6404  # Vision encoder sequence length.
+        assert data.decoder_seq_length == 2048  # LLM decoder sequence length.
         assert data.global_batch_size == 2
         assert data.micro_batch_size == 1
         assert data.vocab_size == 128256
