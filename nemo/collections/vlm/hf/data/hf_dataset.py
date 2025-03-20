@@ -176,7 +176,7 @@ def pad_within_micro(batch, pad_token_id):
         to match the length of the longest sequence in the batch.
     """
     max_len = max(map(len, batch))
-    return [item + [pad_token_id] * (max_len - len(item)) for item in batch
+    return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
 class HFDatasetDataModule(pl.LightningDataModule):
     """HFDatasetDataModule wraps HF's load_dataset (datasets library)
@@ -204,6 +204,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         micro_batch_size=2,
         global_batch_size=2,
         pad_token_id=0,
+        use_dist_sampler=False,
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
@@ -247,6 +248,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.pad_token_id = pad_token_id
+        self.use_dist_sampler = use_dist_sampler
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
@@ -333,13 +335,16 @@ class HFDatasetDataModule(pl.LightningDataModule):
         """Maps a function to all/selected splits
         Additional arguments can be passed down to dataset's map via kwargs"""
         if isinstance(split_names, str):
-            dataset_splits = {split_names: self.dataset_splits[split_names]}
+            split_names = [split_names]
+            # : self.dataset_splits[split_names]}
         elif isinstance(split_names, list):
-            dataset_splits = {k: self.dataset_splits[k] for k in split_names}
+            # dataset_splits = {k: self.dataset_splits[k] for k in split_names}
+            split_names = split_names
+        elif split_names is None:
+            split_names = self.dataset_splits.keys()
         else:
-            dataset_splits = self.dataset_splits
+            raise ValueError("split_names must None/str/list")
 
-        for split_name, subset in dataset_splits.items():
-            if subset is None:
-                continue
-            dataset_splits[split_name] = subset.map(function, **kwargs)
+        for split_name in split_names:
+            if not self.dataset_splits[split_name] is None:
+                self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
