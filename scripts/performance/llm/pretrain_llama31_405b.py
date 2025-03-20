@@ -26,7 +26,6 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
     userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
 )
-from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
