@@ -34,7 +34,7 @@ from nemo.collections.llm.gpt.model.deepseek import (
     DeepSeekModel,
     DeepSeekV2Config,
     DeepSeekV2LiteConfig,
-    DeepSeekV3Config
+    DeepSeekV3Config,
 )
 from nemo.collections.llm.gpt.model.gemma import (
     CodeGemmaConfig2B,
