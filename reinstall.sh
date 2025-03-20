@@ -42,12 +42,11 @@ trtllm() {
     if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
       cd $TRTLLM_DIR &&
         . docker/common/install_tensorrt.sh \
-          --TRT_VER="10.8.0.24" \
+          --TRT_VER="10.8.0.43" \
           --CUDA_VER="12.8" \
-          --CUDNN_VER="9.5.1.17-1" \
-          --NCCL_VER="2.23.4-1+cuda12.6" \
-          --CUBLAS_VER="12.6.1.4-1" \
-          --NVRTC_VER="12.6.85-1"\  &&
+          --CUDNN_VER="9.7.0.66-1" \
+          --NCCL_VER="2.25.1-1+cuda12.8" \
+          --CUBLAS_VER="12.8.3.14-1" \  &&
         python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --python_bindings --benchmarks &&
         pip wheel --wheel-dir $WHEELS_DIR/trtllm/ $TRTLLM_DIR
     fi
