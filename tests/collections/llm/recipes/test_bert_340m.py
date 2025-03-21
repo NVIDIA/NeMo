@@ -18,7 +18,7 @@ import torch
 
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.bert.data.mock import BERTMockDataModule
-from nemo.collections.llm.recipes import bert, bert_340m
+from nemo.collections.llm.recipes import bert_340m
 from nemo.lightning import Trainer
 from nemo.utils.exp_manager import TimingCallback
 

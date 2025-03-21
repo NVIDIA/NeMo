@@ -22,7 +22,6 @@ from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2Con
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import deepseek_v2
 from nemo.lightning import Trainer
-from nemo.utils.exp_manager import TimingCallback
 
 
 class TestDeepSeekV2:

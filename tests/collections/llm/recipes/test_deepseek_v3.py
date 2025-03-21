@@ -15,7 +15,7 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.api import finetune
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config
 from nemo.collections.llm.peft.lora import LoRA

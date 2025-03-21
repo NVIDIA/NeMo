@@ -23,7 +23,6 @@ from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig15B, Starcod
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes import starcoder_15b
 from nemo.lightning import Trainer
-from nemo.utils.exp_manager import TimingCallback
 
 
 class TestStarcoder_15B:

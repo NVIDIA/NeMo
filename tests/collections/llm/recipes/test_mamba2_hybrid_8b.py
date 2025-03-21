@@ -14,16 +14,13 @@
 
 import nemo_run as run
 import pytest
-import torch
 
 from nemo.collections import llm
-from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes import mamba2_hybrid_8b
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import Trainer
-from nemo.utils.exp_manager import TimingCallback
 
 
 class TestMamba2Hybrid_8B:

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import nemo_run as run
-import pytest
 import torch
 
 from nemo.collections.llm.api import pretrain

@@ -14,7 +14,6 @@
 
 import nemo_run as run
 import pytest
-import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -23,7 +22,6 @@ from nemo.collections.llm.gpt.model.llama import Llama32Config1B, LlamaModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import llama32_1b
 from nemo.lightning import Trainer
-from nemo.utils.exp_manager import TimingCallback
 
 
 class TestLlama32_1B:

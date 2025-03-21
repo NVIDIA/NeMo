@@ -14,16 +14,13 @@
 
 import nemo_run as run
 import pytest
-import torch
 
 from nemo.collections import llm
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes import qwen2_1p5b
 from nemo.lightning import Trainer
-from nemo.utils.exp_manager import TimingCallback
 
 
 class TestQwen2_1p5B:
