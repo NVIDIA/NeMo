@@ -2,7 +2,7 @@ import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.vlm import LlavaNextModel, LlavaNextConfig7B, LoRA
+from nemo.collections.vlm import LlavaNextConfig7B, LlavaNextModel, LoRA
 from nemo.collections.vlm.recipes import llava_next_7b
 from nemo.lightning import Trainer
 
@@ -93,4 +93,4 @@ class TestLlavaNext7B:
 
         pretrain_recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus)
         assert pretrain_recipe.trainer.num_nodes == num_nodes
-        assert pretrain_recipe.trainer.devices == num_gpus 
+        assert pretrain_recipe.trainer.devices == num_gpus

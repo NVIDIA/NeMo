@@ -2,7 +2,7 @@ import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import pretrain
-from nemo.collections.vlm import CLIPModel, CLIPConfigB32
+from nemo.collections.vlm import CLIPConfigB32, CLIPModel
 from nemo.collections.vlm.recipes import clip_b32
 from nemo.lightning import Trainer
 
@@ -62,4 +62,4 @@ class TestClipB32:
     def test_pretrain_recipe_different_configurations(self, recipe_module, num_nodes, num_gpus):
         recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus)
         assert recipe.trainer.num_nodes == num_nodes
-        assert recipe.trainer.devices == num_gpus 
+        assert recipe.trainer.devices == num_gpus

@@ -2,7 +2,7 @@ import nemo_run as run
 import pytest
 
 from nemo.collections.llm.api import pretrain
-from nemo.collections.vlm import NevaModel, NevaConfig
+from nemo.collections.vlm import NevaConfig, NevaModel
 from nemo.collections.vlm.recipes import neva_llama3_8b
 from nemo.collections.vlm.recipes.neva_llama3_8b import NevaConfig8B
 from nemo.lightning import Trainer
@@ -66,10 +66,14 @@ class TestNevaLlama38B:
     def test_finetune_recipe_performance_mode(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True)
         # Verify performance optimizations are applied
-        assert any(isinstance(callback, run.Config) and callback.__fn_or_cls__ == MegatronCommOverlapCallback 
-                  for callback in recipe.trainer.callbacks)
-        assert any(isinstance(callback, run.Config) and callback.__fn_or_cls__ == GarbageCollectionCallback 
-                  for callback in recipe.trainer.callbacks)
+        assert any(
+            isinstance(callback, run.Config) and callback.__fn_or_cls__ == MegatronCommOverlapCallback
+            for callback in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(callback, run.Config) and callback.__fn_or_cls__ == GarbageCollectionCallback
+            for callback in recipe.trainer.callbacks
+        )
 
     @pytest.mark.parametrize("num_nodes,num_gpus", [(1, 8), (2, 4)])
     def test_recipe_different_configurations(self, recipe_module, num_nodes, num_gpus):
@@ -79,4 +83,4 @@ class TestNevaLlama38B:
 
         trainer_config = recipe_module.trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus)
         assert trainer_config.num_nodes == num_nodes
-        assert trainer_config.devices == num_gpus 
+        assert trainer_config.devices == num_gpus
