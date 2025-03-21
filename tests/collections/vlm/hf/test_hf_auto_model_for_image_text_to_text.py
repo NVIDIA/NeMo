@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
-import transformers
 from datasets import Dataset, DatasetDict
 from transformers import AutoProcessor
 
