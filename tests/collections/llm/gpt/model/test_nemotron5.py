@@ -61,7 +61,11 @@ def parse_args():
         action="store_true",
         help="Train with Mock data (for testing/debugging), either set this or provide a dataset config.",
     )
-
+    data_group.add_argument(
+        "--sft",
+        action="store_true",
+        help="SFT with SQUAD.",
+    )
     parser.add_argument(
         "--dataset-dir",
         type=str,
@@ -329,6 +333,15 @@ def main():
             global_batch_size=global_batch_size,
             num_workers=args.workers,
             tokenizer=tokenizer,
+        )
+    elif args.sft:
+        data = llm.SquadDataModule(
+            seq_length=args.seq_length,
+            micro_batch_size=args.micro_batch_size,
+            global_batch_size=args.global_batch_size,
+            tokenizer=tokenizer,
+            num_workers=args.workers,
+            dataset_kwargs={"pad_to_max_length": True},
         )
     else:
         # Instantiate pre-training module.

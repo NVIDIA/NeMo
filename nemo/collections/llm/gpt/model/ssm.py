@@ -28,7 +28,7 @@ from nemo.lightning import get_vocab_size, io, teardown, OptimizerModule
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.collections.llm.utils import Config
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from transformers import Nemotron5Config, Nemotron5ForCausalLM, AutoTokenizer
+# from transformers import Nemotron5Config, Nemotron5ForCausalLM, AutoTokenizer
 
 
 try:
@@ -129,7 +129,7 @@ def dist_ckpt_handler(checkpoint_dir):
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.x')
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.B')
             state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.C')
-
+    torch.distributed.destroy_process_group()
     return state_dict, dist_ckpt_args
 
 @dataclass
@@ -201,7 +201,7 @@ class MambaModel(GPTModel):
     ):
         super().__init__(config or SSMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length) -> torch.Tensor:
+    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=8192) -> torch.Tensor:
         # This is to get the MCore model required in GPTInferenceWrapper. 
         # TODO: @ataghibakhsh Change when MambaInferenceWrapper is available in mcore
         mcore_model = self.module
@@ -262,6 +262,12 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         source.to(self.config.params_dtype)
         target.to(self.config.params_dtype)
         self.convert_state(source, target)
+
+        #fake override of parallel_state
+        parallel_state._DATA_PARALLEL_GROUP=0
+        parallel_state._DATA_PARALLEL_GROUP_WITH_CP=0
+        parallel_state._MPU_DATA_PARALLEL_WORLD_SIZE=0
+        parallel_state._MPU_DATA_PARALLEL_RANK=0
         self.nemo_save(output_path, trainer)
 
         logging.info(f"Converted SSM model to Nemo, model saved to {output_path}")
