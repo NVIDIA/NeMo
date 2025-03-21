@@ -39,6 +39,8 @@ from nemo.collections.audio.models.enhancement import (
     SchroedingerBridgeAudioToAudioModel,
     ScoreBasedGenerativeAudioToAudioModel,
 )
+from nemo.collections.audio.models.maxine import BNR2
+
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -52,6 +54,7 @@ class ModelType(str, Enum):
     ScoreBased = 'score_based'
     SchroedingerBridge = 'schroedinger_bridge'
     FlowMatching = 'flow_matching'
+    BNR2 = 'bnr'
 
 
 def get_model_class(model_type: ModelType):
@@ -66,6 +69,8 @@ def get_model_class(model_type: ModelType):
         return SchroedingerBridgeAudioToAudioModel
     elif model_type == ModelType.FlowMatching:
         return FlowMatchingAudioToAudioModel
+    elif model_type == ModelType.BNR2:
+        return BNR2
     else:
         raise ValueError(f'Unknown model type: {model_type}')
 
