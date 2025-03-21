@@ -68,12 +68,15 @@ class Qwen2Config500M(Qwen2Config):
     num_query_groups: int = 2
     ffn_hidden_size: int = 4864
 
+
 @dataclass
 class Qwen25Config500M(Qwen2Config500M):
     """
     Config for Qwen 2.5 0.5B: https://huggingface.co/Qwen/Qwen2.5-0.5B
     """
+
     seq_length: int = 32768
+
 
 @dataclass
 class Qwen2Config1P5B(Qwen2Config):
@@ -87,12 +90,15 @@ class Qwen2Config1P5B(Qwen2Config):
     num_query_groups: int = 2
     ffn_hidden_size: int = 8960
 
+
 @dataclass
 class Qwen25Config1P5B(Qwen2Config):
     """
     Config for Qwen 2.5 1.5B: https://huggingface.co/Qwen/Qwen2.5-1.5B
     """
+
     seq_length: int = 131072
+
 
 @dataclass
 class Qwen2Config7B(Qwen2Config):
@@ -107,12 +113,15 @@ class Qwen2Config7B(Qwen2Config):
     ffn_hidden_size: int = 18944
     vocab_size: int = 152064
 
+
 @dataclass
 class Qwen25Config7B(Qwen2Config7B):
     """
     Config for Qwen 2.5 7B: https://huggingface.co/Qwen/Qwen2.5-7B
     """
+
     seq_length: int = 131072
+
 
 @dataclass
 class Qwen25Config14B(Qwen2Config):
@@ -128,6 +137,7 @@ class Qwen25Config14B(Qwen2Config):
     vocab_size: int = 152064
     layernorm_epsilon: float = 1e-5
     seq_length: int = 131072
+
 
 @dataclass
 class Qwen25Config32B(Qwen2Config):
@@ -159,11 +169,13 @@ class Qwen2Config72B(Qwen2Config):
     vocab_size: int = 152064
     layernorm_epsilon: float = 1e-5
 
+
 @dataclass
 class Qwen25Config72B(Qwen2Config72B):
     """
     Config for Qwen 2.5 72B: https://huggingface.co/Qwen/Qwen2.5-72B
     """
+
     seq_length: int = 131072
 
 
@@ -240,9 +252,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(
-            source, target, mapping=mapping, transforms=transforms
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -344,7 +354,7 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
                 source_key="output_layer.weight",
                 target_key="lm_head.weight",
                 fn=TransformFns.prune_padding,
-            )
+            ),
         ]
         return io.apply_transforms(
             source,
