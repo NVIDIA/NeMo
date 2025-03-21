@@ -62,6 +62,7 @@ from nemo.collections.vlm.recipes import *
 
 # VISION
 from nemo.collections.vlm.vision import (
+    BaseCLIPViTModel,
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
     CLIPViTModel,
@@ -72,7 +73,6 @@ from nemo.collections.vlm.vision import (
     MultimodalProjectorConfig,
     SigLIPViT400M_14_384_Config,
     SigLIPViTModel,
-    BaseCLIPViTModel
 )
 
 __all__ = [
