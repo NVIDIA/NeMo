@@ -62,7 +62,7 @@ def hf_train_valid_test_datasets_provider(
         **{
             field.name: getattr(dataset_config, field.name)
             for field in fields(dataset_config)
-            if field.name not in fields(DataloaderConfig)
+            if field not in fields(DataloaderConfig)
         },
     ).build()
 
