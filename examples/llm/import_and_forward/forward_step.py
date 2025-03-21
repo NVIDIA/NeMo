@@ -53,4 +53,6 @@ def run_forward(model_path: str):
 
 
 if __name__ == "__main__":
+    # The user needs to run examples/llm/import_and_forward/import_ckpt.py first to convert the checkpoint to Nemo format and save it to the given path.
+    # Alternatively, the user can change the path to an existing Nemo checkpoint.
     run_forward("/workspace/starcoder2_3b_nemo2")
