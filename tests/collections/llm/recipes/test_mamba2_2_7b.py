@@ -16,7 +16,7 @@ import nemo_run as run
 import pytest
 
 from nemo.collections import llm
-from nemo.collections.llm.api import  pretrain
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes import mamba2_2_7b
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
