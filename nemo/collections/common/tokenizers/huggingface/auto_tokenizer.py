@@ -70,8 +70,9 @@ class AutoTokenizer(TokenizerSpec):
             self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
         except Exception:
             try:
-                self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, not use_fast,
-                                           trust_remote_code)
+                self._initialize_tokenizer(
+                    pretrained_model_name, vocab_file, merges_file, not use_fast, trust_remote_code
+                )
             except Exception as e:
                 raise ValueError(
                     f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
@@ -155,7 +156,8 @@ class AutoTokenizer(TokenizerSpec):
         self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
         self._inv_vocab_dict = {}
 
-    def _initialize_tokenizer(self,
+    def _initialize_tokenizer(
+        self,
         pretrained_model_name: str,
         vocab_file: Optional[str] = None,
         merges_file: Optional[str] = None,
