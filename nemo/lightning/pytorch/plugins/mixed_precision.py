@@ -71,7 +71,9 @@ class DtypeConfig:
     # fp8 related
     fp8: str = None
     fp8_recipe: Optional[str] = None
-    first_last_layers_bf16: int = 0
+    first_last_layers_bf16: bool = False
+    num_layers_at_start_in_bf16: int = 0
+    num_layers_at_end_in_bf16: int = 0
     fp8_margin: int = 0
     fp8_amax_history_len: int = 1
     fp8_amax_compute_algo: str = "most_recent"
@@ -120,7 +122,9 @@ class MegatronMixedPrecision(Precision):
         # fp8 related,
         fp8: str = None,
         fp8_recipe: Optional[str] = None,
-        first_last_layers_bf16: int = 0,
+        first_last_layers_bf16: bool = False,
+        num_layers_at_start_in_bf16: int = 0,
+        num_layers_at_end_in_bf16: int = 0,
         fp8_margin: int = 0,
         fp8_amax_history_len: int = 1,
         fp8_amax_compute_algo: str = "most_recent",
@@ -162,6 +166,8 @@ class MegatronMixedPrecision(Precision):
             fp8=fp8,
             fp8_recipe=fp8_recipe,
             first_last_layers_bf16=first_last_layers_bf16,
+            num_layers_at_start_in_bf16=num_layers_at_start_in_bf16,
+            num_layers_at_end_in_bf16=num_layers_at_end_in_bf16,
             fp8_margin=fp8_margin,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
