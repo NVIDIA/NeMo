@@ -211,6 +211,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             but requires larger memory than distributing within all
             ranks, especially for pure data parallel models.
             (default: False).
+        distributed_size (int, optional): the number of devices to
+            distribute optimizer state over.
         lock_timeout (float, optional): timeout for callback mutex in
             seconds.
         **kwargs: keyword arguments to pass to Apex
