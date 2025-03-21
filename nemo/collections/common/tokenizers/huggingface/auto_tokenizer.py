@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 from typing import List, Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
@@ -50,8 +49,9 @@ class AutoTokenizer(TokenizerSpec):
     ):
         """
         Args:
-            pretrained_model_name: corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input argument.
-                For more details please refer to https://huggingface.co/transformers/_modules/transformers/tokenization_auto.html#AutoTokenizer.from_pretrained.
+            pretrained_model_name: corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input
+                argument. For more details please refer to
+            https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.from_pretrained.
                 The list of all supported models can be found here: ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
             vocab_file: path to file with vocabulary which consists
                 of characters separated by newlines.
@@ -62,9 +62,11 @@ class AutoTokenizer(TokenizerSpec):
             sep_token: token used for separating sequences
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
-            additional_special_tokens: list of other tokens beside standard special tokens (bos, eos, pad, etc.). For example, sentinel tokens for T5 (<extra_id_0>, <extra_id_1>, etc.)
+            additional_special_tokens: list of other tokens beside standard special tokens (bos, eos, pad, etc.). For
+                example, sentinel tokens for T5 (<extra_id_0>, <extra_id_1>, etc.)
             use_fast: whether to use fast HuggingFace tokenizer
-            include_special_tokens: when True, converting text to ids will include special tokens / prompt tokens (if any), yielding self.tokenizer(text).input_ids
+            include_special_tokens: when True, converting text to ids will include special tokens / prompt tokens (if
+                any), yielding self.tokenizer(text).input_ids
         """
         try:
             self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
@@ -191,13 +193,13 @@ class AutoTokenizer(TokenizerSpec):
 
     def add_special_tokens(self, special_tokens_dict: dict) -> int:
         """
-        Adds a dictionary of special tokens (eos, pad, cls...). If special tokens are NOT in the vocabulary, they are added
-        to it (indexed starting from the last index of the current vocabulary).
+        Adds a dictionary of special tokens (eos, pad, cls...). If special tokens are NOT in the vocabulary, they are
+        added to it (indexed starting from the last index of the current vocabulary).
 
         Args:
             special_tokens_dict: dict of string. Keys should be in the list of predefined special attributes:
-                [``bos_token``, ``eos_token``, ``unk_token``, ``sep_token``, ``pad_token``, ``cls_token``, ``mask_token``,
-                ``additional_special_tokens``].
+                [``bos_token``, ``eos_token``, ``unk_token``, ``sep_token``, ``pad_token``, ``cls_token``,
+                ``mask_token``, ``additional_special_tokens``].
                 Tokens are only added if they are not already in the vocabulary.
 
         Returns:
