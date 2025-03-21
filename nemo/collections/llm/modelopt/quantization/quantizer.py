@@ -40,7 +40,9 @@ if TYPE_CHECKING:
     from nemo.lightning.megatron_parallel import MegatronParallel
 
 mtq, HAVE_MODELOPT_MTQ = safe_import("modelopt.torch.quantization")
-export_tensorrt_llm_checkpoint, HAVE_MODELOPT_EXPORT = safe_import_from("modelopt.torch.export", "export_tensorrt_llm_checkpoint")
+export_tensorrt_llm_checkpoint, HAVE_MODELOPT_EXPORT = safe_import_from(
+    "modelopt.torch.export", "export_tensorrt_llm_checkpoint"
+)
 HAVE_MODELOPT = HAVE_MODELOPT_MTQ and HAVE_MODELOPT_EXPORT
 
 QUANT_CFG_CHOICES = get_quant_cfg_choices()
@@ -144,7 +146,15 @@ class Quantizer:
             params_dtype=torch.bfloat16, inference_batch_times_seqlen_threshold=30
         )
 
-        generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts, inference_params=CommonInferenceParams(top_k=1, num_tokens_to_generate=30))]
+        generated = [
+            r.generated_text
+            for r in generate(
+                mcore_inference,
+                mcore_tokenizer,
+                prompts,
+                inference_params=CommonInferenceParams(top_k=1, num_tokens_to_generate=30),
+            )
+        ]
         outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
 
         logging.info(f"Sample generation after PTQ (with prompts): {outputs}")
