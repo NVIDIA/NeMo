@@ -292,7 +292,7 @@ class MultiModalTaskEncoder(
         """
         from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed
 
-        packed_images = torch.stack([sample.images for sample in samples])
+        packed_images = torch.cat([sample.images for sample in samples], dim=0)
         media_token_id = self.sample_config.image_token.token_id
         packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed(
             tokens=[sample.tokens for sample in samples],

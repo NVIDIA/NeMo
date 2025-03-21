@@ -13,7 +13,7 @@
 # limitations under the License.
 coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/neva_finetune.py \
     --devices=2 --data_type=energon --use_toy_model \
-    --mbs=2 --gbs=4 --max_steps=4 \
-    --tp=2 \
+    --mbs=1 --gbs=2 --max_steps=4 \
+    --tp=2 --use_packed_sequence \
     --data_path=/home/TestData/tiny_datasets/llava-energon \
     --log_dir=/tmp/nemo2_neva_results/$RUN_ID
