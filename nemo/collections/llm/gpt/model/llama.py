@@ -30,6 +30,7 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -39,6 +40,8 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
+_, HAVE_TE = safe_import("transformer_engine")
 
 
 # Note: these Llama configs are copied from the corresponding HF model. You may need to modify the parameter for
@@ -64,10 +67,10 @@ class LlamaConfig(GPTConfig):
     share_embeddings_and_output_weights: bool = False
     # Fusions
     bias_activation_fusion: bool = True
-    masked_softmax_fusion: bool = True
-    persist_layer_norm: bool = True
+    masked_softmax_fusion: bool = HAVE_TE
+    persist_layer_norm: bool = HAVE_TE
     bias_dropout_fusion: bool = True
-    apply_rope_fusion: bool = True
+    apply_rope_fusion: bool = HAVE_TE
 
 
 @dataclass
@@ -135,10 +138,10 @@ class Llama3Config(LlamaConfig):
     gated_linear_unit: bool = True
     # Fusions
     bias_activation_fusion: bool = True
-    masked_softmax_fusion: bool = True
-    persist_layer_norm: bool = True
+    masked_softmax_fusion: bool = HAVE_TE
+    persist_layer_norm: bool = HAVE_TE
     bias_dropout_fusion: bool = True
-    apply_rope_fusion: bool = True
+    apply_rope_fusion: bool = HAVE_TE
     share_embeddings_and_output_weights: bool = False
     position_embedding_type: str = "rope"
     rotary_percent: float = 1.0
@@ -395,9 +398,6 @@ class MLPerfLoRALlamaModel(LlamaModel):
     ):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
-        from nemo.utils.import_utils import safe_import
-
-        _, HAVE_TE = safe_import("transformer_engine")
         assert HAVE_TE, "TransformerEngine is required for MLPerfLoRALlamaModel."
 
     def configure_model(self):

@@ -1566,6 +1566,15 @@ jobs:
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1.sh
 
+  L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_no_transformer_engine:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_no_transformer_engine')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_no_transformer_engine.sh
+
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2215,6 +2224,7 @@ jobs:
       - L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
       - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
+      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_no_transformer_engine
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
