@@ -19,6 +19,7 @@ def build_pretraining_data_loader(
     num_workers: int,
     data_sharding: bool,
     worker_init_fn: Optional[Callable] = None,
+    collate_fn: Optional[Callable] = None,
 ):
     """Build dataloader given an input dataset."""
 
@@ -57,6 +58,7 @@ def build_pretraining_data_loader(
         batch_sampler=batch_sampler,
         num_workers=num_workers,
         pin_memory=True,
+        collate_fn=collate_fn,
         persistent_workers=True if num_workers > 0 else False,
         worker_init_fn=worker_init_fn,
     )

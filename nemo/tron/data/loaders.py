@@ -138,6 +138,7 @@ def build_train_valid_test_data_loaders(
         cfg.dataset_config.num_workers,
         cfg.dataset_config.data_sharding,
         worker_init_fn=maybe_worker_init_fn,
+        collate_fn=train_ds.collate_fn if hasattr(train_ds, "collate_fn") else None,
     )
     if cfg.train_config.skip_train:
         valid_dataloader = build_pretraining_data_loader(
@@ -148,6 +149,7 @@ def build_train_valid_test_data_loaders(
             cfg.dataset_config.num_workers,
             cfg.dataset_config.data_sharding,
             worker_init_fn=maybe_worker_init_fn,
+            collate_fn=valid_ds.collate_fn if hasattr(valid_ds, "collate_fn") else None,
         )
     else:
         valid_dataloader = build_pretraining_data_loader(
@@ -158,6 +160,7 @@ def build_train_valid_test_data_loaders(
             cfg.dataset_config.num_workers,
             cfg.dataset_config.data_sharding,
             worker_init_fn=maybe_worker_init_fn,
+            collate_fn=valid_ds.collate_fn if hasattr(valid_ds, "collate_fn") else None,
         )
     test_dataloader = build_pretraining_data_loader(
         test_ds,
@@ -166,6 +169,8 @@ def build_train_valid_test_data_loaders(
         cfg.train_config.micro_batch_size,
         cfg.dataset_config.num_workers,
         cfg.dataset_config.data_sharding,
+        worker_init_fn=maybe_worker_init_fn,
+        collate_fn=test_ds.collate_fn if hasattr(test_ds, "collate_fn") else None,
     )
 
     # Flags to know if we need to do training/validation/testing.
