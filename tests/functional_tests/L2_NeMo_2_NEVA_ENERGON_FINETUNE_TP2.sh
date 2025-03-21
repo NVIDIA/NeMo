@@ -15,5 +15,5 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     --devices=2 --data_type=energon --use_toy_model \
     --mbs=2 --gbs=4 --max_steps=4 \
     --tp=2 \
-    --data_path=/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/tiny_datasets/llava-energon \
+    --data_path=/home/TestData/tiny_datasets/llava-energon \
     --log_dir=/tmp/nemo2_neva_results/$RUN_ID

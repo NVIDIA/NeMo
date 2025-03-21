@@ -15,6 +15,6 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     --devices=2 --data_type=llava --use_toy_model \
     --mbs=2 --gbs=4 --max_steps=4 \
     --pp=2 --use_packed_sequence --decoder_seq_length=8192 \
-    --data_path=/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/tiny_datasets/llava/test1.json \
-    --image_folder=/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Instruct-150K/tiny_datasets/llava/images \
+    --data_path=/home/TestData/tiny_datasets/llava/test1.json \
+    --image_folder=/home/TestData/tiny_datasets/llava/images \
     --log_dir=/tmp/nemo2_neva_results/$RUN_ID
