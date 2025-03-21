@@ -50,6 +50,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.is_hf_model = True
         self.model_transform = model_transform
         self.trust_remote_code = trust_remote_code
+        self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.kwargs = kwargs
 
@@ -131,7 +132,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
 
-        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length" +str((logits.shape, labels.shape))
         loss = self.loss_fn(logits, labels, loss_mask)
 
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
