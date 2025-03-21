@@ -41,13 +41,15 @@ from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import Mod
 from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import (
-    BlankLMScoreMode,
     HATJointOutput,
     Hypothesis,
     NBestHypotheses,
-    PruningMode,
     is_prefix,
     select_k_expansions,
+)
+from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
+    BlankLMScoreMode,
+    PruningMode
 )
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
