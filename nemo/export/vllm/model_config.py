@@ -228,3 +228,9 @@ class NemoModelConfig(ModelConfig):
                     break
 
         return hf_args
+
+    def try_get_generation_config(self, *args, **kwargs):
+        """
+        Prevent vLLM from trying to load a generation config
+        """
+        return {}
