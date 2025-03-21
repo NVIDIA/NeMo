@@ -199,6 +199,8 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
                 max_generation_delta=self.cfg.beam.get('max_generation_delta', -1),
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
             )
 
         else:
