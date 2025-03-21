@@ -368,8 +368,6 @@ class SDRLoss(Loss, Typing):
     @property
     def output_types(self):
         """Output types definitions for SDRLoss.
-        loss:
-            NeuralType(None)
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -539,9 +537,7 @@ class MSELoss(Loss, Typing):
 
     @property
     def output_types(self):
-        """Output types definitions for SDRLoss.
-        loss:
-            NeuralType(None)
+        """Output types definitions for MSELoss.
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -663,9 +659,9 @@ class MAELoss(Loss, Typing):
             elif not np.isclose(sum(weight), 1, atol=1e-6):
                 raise ValueError(f'Weight should add to one, current weight: {weight}')
             weight = torch.tensor(weight).reshape(1, -1)
-            logging.info(f'Channel weight set to %s', weight)
+            logging.info('Channel weight set to %s', weight)
         self.register_buffer('weight', weight)
-        self.weight: Optional[Tensor]
+        self.weight: Optional[torch.Tensor]
 
         # Batch reduction
         self.reduction = reduction
@@ -705,8 +701,6 @@ class MAELoss(Loss, Typing):
     @property
     def output_types(self):
         """Output types definitions for MAELoss.
-        loss:
-            NeuralType(None)
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
