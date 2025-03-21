@@ -64,7 +64,6 @@ def hf_train_valid_test_datasets_provider(
         dataset_root=dataset_config.dataset_root,
         split=dataset_config.split,
         seq_length=dataset_config.seq_length,
-        pad_token_id=dataset_config.pad_token_id,
         max_train_samples=dataset_config.max_train_samples,
         packed_sequence_specs=dataset_config.packed_sequence_specs,
         force_redownload=dataset_config.force_redownload,

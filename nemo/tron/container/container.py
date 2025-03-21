@@ -78,9 +78,6 @@ class ConfigContainer:
         # Use instantiate to create the object
         instance = instantiate(config_dict, mode=mode)
 
-        # Validate after instantiation
-        instance.validate()
-
         return instance
 
     @classmethod
