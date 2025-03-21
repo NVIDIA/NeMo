@@ -90,6 +90,7 @@ def init_parallel_ranks(
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
+        num_distributed_optimizer_instances=parallel_config.num_distributed_optimizer_instances,
         encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
         encoder_pipeline_model_parallel_size=getattr(parallel_config, "encoder_pipeline_model_parallel_size", 0),
         seed=seed,
@@ -129,6 +130,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
+                num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
             )
 
