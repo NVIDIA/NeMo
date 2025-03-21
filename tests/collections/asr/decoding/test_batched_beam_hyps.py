@@ -573,7 +573,7 @@ class TestBatchedBeamHypsTDT:
         ]
 
 
-class TestConvertToHypotheses:
+class TestConvertToHypothesesTDT:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_flatten_sort(self, device: torch.device):

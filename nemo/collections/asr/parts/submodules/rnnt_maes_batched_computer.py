@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 from omegaconf import DictConfig
@@ -322,18 +322,16 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                 to_update = torch.logical_and(to_update, last_labels_wb != self._blank_index)
 
                 expansion_steps += 1
-            else:
-                if to_update.any():
-                    # step 4: force blank to active hypotheses
-                    next_hyps_probs = torch.where(to_update, batched_hyps.scores + logps[..., -1], batched_hyps.scores)
-                    next_labels = torch.where(to_update, self._blank_index, -1)
-                    batched_hyps.add_results_(beam_indices, next_labels, next_hyps_probs)
+            if to_update.any():
+                # step 4: force blank to active hypotheses
+                next_hyps_probs = torch.where(to_update, batched_hyps.scores + logps[..., -1], batched_hyps.scores)
+                next_labels = torch.where(to_update, self._blank_index, -1)
+                batched_hyps.add_results_(beam_indices, next_labels, next_hyps_probs)
 
             # step 5: update time indices + active mask
             time_indices += 1
             active_mask = time_indices <= last_timesteps
             safe_time_indices = torch.where(active_mask, time_indices, last_timesteps)
-            next_labels = batched_hyps.last_label
 
         if self.return_best_hypothesis:
             return batched_hyps.to_hyps_list(score_norm=self.score_norm)

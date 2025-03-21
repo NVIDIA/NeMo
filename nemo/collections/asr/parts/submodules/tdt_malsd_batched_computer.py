@@ -703,7 +703,6 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 durations_top_k = total_idx_top_k % len(self.durations)
             elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
                 # choosing topk from acoustic model
-                total_log_probs = log_probs[:, :, :, None] + duration_log_probs[:, :, None, :]
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )

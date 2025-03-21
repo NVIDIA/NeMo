@@ -27,10 +27,7 @@ from omegaconf import DictConfig, open_dict
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
 from nemo.collections.asr.parts.mixins import mixins
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedInfer
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
