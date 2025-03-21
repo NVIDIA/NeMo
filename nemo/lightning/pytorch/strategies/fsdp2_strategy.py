@@ -22,6 +22,7 @@ from typing import Any, Dict, Literal, Optional, Union
 
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 from lightning.fabric.utilities.seed import reset_seed
@@ -29,7 +30,6 @@ from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from typing_extensions import override
-import torch.distributed as dist
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
@@ -54,7 +54,9 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
 
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed.fsdp", "CPUOffloadPolicy")
 if not HAS_CPU_OFFLOAD_POLICY:
-    CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed._composable.fsdp", "CPUOffloadPolicy")
+    CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+        "torch.distributed._composable.fsdp", "CPUOffloadPolicy"
+    )
 
 _logger = _logging.getLogger(__name__)
 
@@ -440,9 +442,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def lightning_module_state_dict(self) -> Dict[str, Any]:
-        """Collects the state dict of the model.
-
-        """
+        """Collects the state dict of the model."""
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         assert self.lightning_module is not None
