@@ -21,8 +21,10 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon.conversation import MLlamaTemplateConfig
 from nemo.collections.vlm import ImageDataConfig
 from nemo.collections.vlm.mllama.data.preloaded import MLlamaPreloadedDataModule
+from nemo.collections.vlm.mllama.data.task_encoder import LlamaTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -83,6 +85,36 @@ def main(args):
             tokenizer=tokenizer,
             image_processor=image_processor,
             num_workers=16,
+        )
+    elif args.data_type == "energon":
+        # Data configuration
+        from nemo.collections.multimodal.data.energon import (
+            EnergonMultiModalDataModule,
+            ImageToken,
+            MultiModalSampleConfig,
+        )
+        # Configure multimodal samples
+        config = MultiModalSampleConfig(
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
+            conversation_template_config=MLlamaTemplateConfig(),
+        )
+
+        # Initialize the data module
+        data = EnergonMultiModalDataModule(
+            path=args.data_path,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            seq_length=decoder_seq_length,
+            micro_batch_size=mbs,
+            global_batch_size=gbs,
+            num_workers=0,
+            multimodal_sample_config=config,
+            task_encoder=LlamaTaskEncoder(
+                tokenizer=tokenizer,
+                image_processor=image_processor,
+                multimodal_sample_config=config,
+            ),
         )
     elif args.data_type == "mock":
         data = vlm.MLlamaMockDataModule(

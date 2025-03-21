@@ -142,3 +142,6 @@ class Llama3SampleEncoder(VQASampleEncoder):
         output_sample.loss_mask = loss_mask
         output_sample.vision_mask = vision_mask
         return output_sample
+
+    def process_answer_str(self, answer, stop_str):
+        return answer + ("" if stop_str is None else stop_str)
