@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List, Tuple, Union, Optional
+from typing import List, Optional, Tuple, Union
 
 import torch
 from megatron.core.packed_seq_params import PackedSeqParams
 
-from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig, BaseConversationTemplateConfig
+from nemo.collections.multimodal.data.energon.conversation import BaseConversationTemplateConfig, LLaVATemplateConfig
 
 
 @dataclass

@@ -105,7 +105,9 @@ class MultiModalTaskEncoder(
                 image_tag_type=image_tag_type,
             ),
             SimilarityInterleavedSample.__name__: SimilarityInterleavedEncoder(
-                tokenizer=tokenizer, image_processor=image_processor, multimodal_sample_config=multimodal_sample_config,
+                tokenizer=tokenizer,
+                image_processor=image_processor,
+                multimodal_sample_config=multimodal_sample_config,
                 image_tag_type=image_tag_type,
             ),
         }

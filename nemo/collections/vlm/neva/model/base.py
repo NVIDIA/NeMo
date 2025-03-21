@@ -122,9 +122,11 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     packed_seq_params = _batch.get("packed_seq_params", None)
     _batch = {
-        key: (val if isinstance(val, list) else val.cuda(non_blocking=True))
-        if key in required_keys and val is not None
-        else None
+        key: (
+            (val if isinstance(val, list) else val.cuda(non_blocking=True))
+            if key in required_keys and val is not None
+            else None
+        )
         for key, val in _batch.items()
     }
     if packed_seq_params is not None:
