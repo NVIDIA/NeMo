@@ -303,7 +303,8 @@ class AutoTokenizer(TokenizerSpec):
             text (str): Input text to be converted to IDs.
 
         Returns:
-            List[int]: List of token IDs. If include_special_tokens is True, will include special tokens from the tokenizer's configuration.
+            List[int]: List of token IDs. If include_special_tokens is True, will include special tokens from the
+            tokenizer's configuration.
         """
         if self.include_special_tokens:
             return self.tokenizer(text).input_ids
@@ -317,7 +318,8 @@ class AutoTokenizer(TokenizerSpec):
 
         Args:
             ids (List[int]): List of token IDs to convert to text.
-            remove_special_tokens (bool): Whether to remove special tokens (like [PAD], [CLS], etc.) from the output text.
+            remove_special_tokens (bool): Whether to remove special tokens (like [PAD], [CLS], etc.) from the output
+            text.
 
         Returns:
             str: The reconstructed text.
