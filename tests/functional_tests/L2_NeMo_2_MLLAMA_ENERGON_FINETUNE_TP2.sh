@@ -14,7 +14,7 @@
 TRANSFORMERS_OFFLINE=1 \
     coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/mllama_finetune.py \
     --devices=2 --data_type=energon --use_toy_model \
-    --mbs=2 --gbs=4 --max_steps=4 \
+    --mbs=1 --gbs=4 --max_steps=4 \
     --tp=2 \
     --data_path=/home/TestData/tiny_datasets/llava-energon \
     --log_dir=/tmp/nemo2_mllama_results/$RUN_ID
