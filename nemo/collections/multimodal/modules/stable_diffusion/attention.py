@@ -108,11 +108,7 @@ class GEGLU(nn.Module):
 
     def forward(self, x):
         x = self.proj(x)
-        if x.is_cuda and x.dtype == torch.float16 and x.shape[-1] // 2 in [1280, 2560, 5120] and x.is_contiguous():
-            return fast_geglu.geglu(x)
-        else:
-            x, gate = x.chunk(2, dim=-1)
-            return x * F.gelu(gate)
+        return fast_geglu.geglu(x)
 
 
 class FeedForward(nn.Module):
