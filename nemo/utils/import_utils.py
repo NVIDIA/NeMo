@@ -25,9 +25,11 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
-GPU_INSTALL_STRING = """Install GPU packages via `pip install --extra-index-url """ \
-"""https://pypi.nvidia.com nemo-curator[cuda12x]`
+GPU_INSTALL_STRING = (
+    """Install GPU packages via `pip install --extra-index-url """
+    """https://pypi.nvidia.com nemo-curator[cuda12x]`
 or use `pip install --extra-index-url https://pypi.nvidia.com ".[cuda12x]"` if installing from source"""
+)
 
 
 class UnavailableError(Exception):
@@ -36,7 +38,7 @@ class UnavailableError(Exception):
 
 @contextmanager
 def null_decorator(*args, **kwargs):
-    """ null_decorator """
+    """null_decorator"""
     if len(kwargs) == 0 and len(args) == 1 and callable(args[0]):
         return args[0]
     else:
