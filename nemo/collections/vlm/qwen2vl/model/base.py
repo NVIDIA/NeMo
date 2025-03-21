@@ -136,8 +136,7 @@ class Qwen2VLVisionConfig(TransformerConfig, io.IOMixin):
     normalization: str = 'LayerNorm'
     apply_rope_fusion: bool = False
     layernorm_epsilon: float = 1e-6
-
-    transformer_layer_spec: ModuleSpec = get_layer_spec_te(is_vit=True)
+    transformer_layer_spec: ModuleSpec = None
 
     def configure_model(self) -> "Qwen2VisionModel":
         # pylint: disable=C0115,C0116
