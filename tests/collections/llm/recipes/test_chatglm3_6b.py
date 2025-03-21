@@ -16,10 +16,10 @@ import nemo_run as run
 import pytest
 import torch
 
+from nemo.collections.llm import ChatGLM3Config6B, ChatGLMModel
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm import ChatGLM3Config6B, ChatGLMModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import chatglm3_6b
 from nemo.lightning import Trainer
@@ -120,7 +120,9 @@ class TestChatGLM3_6B:
             isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
             for cb in recipe.trainer.callbacks
         )
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+        )
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
@@ -146,4 +148,4 @@ class TestChatGLM3_6B:
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
         with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
-            recipe_module.finetune_recipe(peft_scheme="invalid_scheme") 
+            recipe_module.finetune_recipe(peft_scheme="invalid_scheme")

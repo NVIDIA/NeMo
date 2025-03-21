@@ -125,12 +125,19 @@ class TestGPT3_175B:
         recipe = gpt3_175b.pretrain_performance_optimizations(base_recipe)
 
         # Check that callbacks were added
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
+            for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
+            for cb in recipe.trainer.callbacks
+        )
 
         # Check specific MegatronCommOverlapCallback settings
         comm_overlap_cb = next(
-            cb for cb in recipe.trainer.callbacks 
+            cb
+            for cb in recipe.trainer.callbacks
             if isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
         )
         assert comm_overlap_cb.tp_comm_overlap is True
@@ -143,8 +150,14 @@ class TestGPT3_175B:
 
     def test_pretrain_recipe_with_performance_mode(self):
         recipe = gpt3_175b.pretrain_recipe(performance_mode=True)
-        
+
         # Verify performance optimizations were applied
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback for cb in recipe.trainer.callbacks)
-        assert recipe.trainer.plugins.grad_reduce_in_fp32 is False 
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
+            for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
+            for cb in recipe.trainer.callbacks
+        )
+        assert recipe.trainer.plugins.grad_reduce_in_fp32 is False

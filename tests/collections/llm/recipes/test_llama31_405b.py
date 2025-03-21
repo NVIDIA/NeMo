@@ -111,9 +111,13 @@ class TestLlama31_405B:
         assert recipe.trainer.plugins.grad_reduce_in_fp32 is False
 
         # Check callbacks
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
+            for cb in recipe.trainer.callbacks
+        )
         comm_overlap_cb = next(
-            cb for cb in recipe.trainer.callbacks 
+            cb
+            for cb in recipe.trainer.callbacks
             if isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
         )
         assert comm_overlap_cb.tp_comm_overlap is True
@@ -140,4 +144,4 @@ class TestLlama31_405B:
         assert recipe.trainer.strategy.tensor_model_parallel_size == 4
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 4
         assert recipe.trainer.strategy.virtual_pipeline_model_parallel_size == 4
-        assert recipe.trainer.strategy.sequence_parallel is True 
+        assert recipe.trainer.strategy.sequence_parallel is True

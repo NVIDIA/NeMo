@@ -111,4 +111,4 @@ class TestBertEmbedding:
         assert trainer.strategy.ddp.grad_reduce_in_fp32 is True
         assert trainer.strategy.ddp.overlap_grad_reduce is False
         assert trainer.strategy.ddp.overlap_param_gather is True
-        assert trainer.strategy.ddp.average_in_collective is True 
+        assert trainer.strategy.ddp.average_in_collective is True

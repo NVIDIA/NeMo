@@ -108,8 +108,13 @@ class TestLlamaEmbedding_1B:
         recipe = recipe_module.finetune_performance_optimizations(recipe, peft_scheme='lora')
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
         assert recipe.peft.target_modules == ['linear_qkv']
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
+            for cb in recipe.trainer.callbacks
+        )
 
     def test_finetune_performance_optimizations_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
@@ -122,4 +127,4 @@ class TestLlamaEmbedding_1B:
         assert any(
             isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
             for cb in recipe.trainer.callbacks
-        ) 
+        )

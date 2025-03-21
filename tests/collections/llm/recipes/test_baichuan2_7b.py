@@ -120,7 +120,9 @@ class TestBaichuan2_7B:
             isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
             for cb in recipe.trainer.callbacks
         )
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+        )
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
@@ -146,4 +148,4 @@ class TestBaichuan2_7B:
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
         with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
-            recipe_module.finetune_recipe(peft_scheme="invalid_scheme") 
+            recipe_module.finetune_recipe(peft_scheme="invalid_scheme")

@@ -15,8 +15,8 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm.api import finetune
 from nemo.collections.llm import SpecterDataModule
+from nemo.collections.llm.api import finetune
 from nemo.collections.llm.recipes import e5_340m
 from nemo.lightning import Trainer
 
@@ -66,4 +66,4 @@ class TestE5_340M:
 
     def test_finetune_recipe_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
-        assert not hasattr(recipe, 'peft') or recipe.peft is None 
+        assert not hasattr(recipe, 'peft') or recipe.peft is None

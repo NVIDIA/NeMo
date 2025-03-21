@@ -102,7 +102,5 @@ class TestMamba2Hybrid_8B:
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
         with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
             recipe_module.finetune_recipe(
-                resume_path="test_path",
-                tokenizer_model="test_tokenizer",
-                peft_scheme="invalid_scheme"
-            ) 
+                resume_path="test_path", tokenizer_model="test_tokenizer", peft_scheme="invalid_scheme"
+            )

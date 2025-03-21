@@ -89,9 +89,7 @@ class TestMamba2_370M:
 
     def test_finetune_recipe_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(
-            resume_path="test_path",
-            tokenizer_model="test_tokenizer",
-            peft_scheme=None
+            resume_path="test_path", tokenizer_model="test_tokenizer", peft_scheme=None
         )
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
         assert recipe.optim.config.lr == 5e-6
@@ -99,7 +97,5 @@ class TestMamba2_370M:
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
         with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
             recipe_module.finetune_recipe(
-                resume_path="test_path",
-                tokenizer_model="test_tokenizer",
-                peft_scheme="invalid_scheme"
-            ) 
+                resume_path="test_path", tokenizer_model="test_tokenizer", peft_scheme="invalid_scheme"
+            )

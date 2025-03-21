@@ -106,7 +106,8 @@ class TestLlama31_8B:
         )
         # Check specific MegatronCommOverlapCallback settings
         comm_overlap_cb = next(
-            cb for cb in recipe.trainer.callbacks 
+            cb
+            for cb in recipe.trainer.callbacks
             if isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
         )
         assert comm_overlap_cb.tp_comm_overlap is True
@@ -128,5 +129,10 @@ class TestLlama31_8B:
     def test_finetune_performance_optimizations(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback for cb in recipe.trainer.callbacks) 
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
+            for cb in recipe.trainer.callbacks
+        )

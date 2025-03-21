@@ -106,7 +106,8 @@ class TestLlama31_70B:
         )
         # Check specific MegatronCommOverlapCallback settings
         comm_overlap_cb = next(
-            cb for cb in recipe.trainer.callbacks 
+            cb
+            for cb in recipe.trainer.callbacks
             if isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
         )
         assert comm_overlap_cb.tp_comm_overlap is True
@@ -132,12 +133,17 @@ class TestLlama31_70B:
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 4
         assert recipe.trainer.strategy.virtual_pipeline_model_parallel_size == 5
         assert recipe.trainer.strategy.sequence_parallel is True
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
+            for cb in recipe.trainer.callbacks
+        )
 
     def test_finetune_performance_optimizations_with_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True, peft_scheme='lora')
         assert recipe.peft.target_modules == ['linear_qkv']
         assert recipe.trainer.strategy.tensor_model_parallel_size == 2
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 4
-        assert recipe.trainer.strategy.virtual_pipeline_model_parallel_size == 5 
+        assert recipe.trainer.strategy.virtual_pipeline_model_parallel_size == 5

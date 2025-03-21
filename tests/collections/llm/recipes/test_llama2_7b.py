@@ -116,8 +116,13 @@ class TestLlama2_7B:
     def test_finetune_performance_optimizations(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
+            for cb in recipe.trainer.callbacks
+        )
 
     def test_finetune_performance_optimizations_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True, peft_scheme=None)
@@ -133,4 +138,4 @@ class TestLlama2_7B:
 
     def test_finetune_performance_optimizations_with_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True, peft_scheme='lora')
-        assert recipe.peft.target_modules == ['linear_qkv'] 
+        assert recipe.peft.target_modules == ['linear_qkv']

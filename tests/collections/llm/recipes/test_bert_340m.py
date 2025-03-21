@@ -61,7 +61,9 @@ class TestBERT_340M:
         assert trainer_config.val_check_interval == 2000
 
         # Check callbacks
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in trainer_config.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in trainer_config.callbacks
+        )
 
     def test_pretrain_recipe(self, recipe_module):
         recipe = recipe_module.pretrain_recipe()
@@ -96,4 +98,4 @@ class TestBERT_340M:
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
         assert trainer_config.strategy.virtual_pipeline_model_parallel_size == 4
         assert trainer_config.strategy.context_parallel_size == 4
-        assert trainer_config.strategy.sequence_parallel is True 
+        assert trainer_config.strategy.sequence_parallel is True

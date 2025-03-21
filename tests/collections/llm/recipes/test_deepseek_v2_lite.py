@@ -90,4 +90,4 @@ class TestDeepSeekV2Lite:
 
     def test_finetune_recipe_with_packed_sequence(self, recipe_module):
         with pytest.raises(ValueError, match="Packed sequence for DeepSeek is not yet supported"):
-            recipe_module.finetune_recipe(packed_sequence=True) 
+            recipe_module.finetune_recipe(packed_sequence=True)
