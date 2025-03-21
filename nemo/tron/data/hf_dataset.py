@@ -46,11 +46,13 @@ class HFDatasetConfig(FinetuningDatasetConfig):
     process_example_fn: ProcessExampleFn
     dataset_subset: Optional[str] = None
     split: Optional[str] = None
-    force_redownload: bool = False
+    download_mode: Optional[str] = None
     val_proportion: float = 0.05
     split_val_from_train: bool = True
     delete_raw: bool = False
     hf_kwargs: Optional[dict[str, Any]] = None
+    hf_filter_lambda: Optional[Callable] = None
+    hf_filter_lambda_kwargs: Optional[dict[str, Any]] = None
 
 
 def preprocess_and_split_data(
@@ -177,12 +179,14 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         memmap_workers: int = 1,
         max_train_samples: Optional[int] = None,
         packed_sequence_specs: Optional[dict] = None,
-        force_redownload: bool = False,
+        download_mode: Optional[str] = None,
         val_proportion: float = 0.05,
         split_val_from_train: bool = True,
         delete_raw: bool = False,
         hf_kwargs: Optional[dict[str, Any]] = None,
         dataset_kwargs: Optional[dict[str, Any]] = None,
+        hf_filter_lambda: Optional[Callable] = None,
+        hf_filter_lambda_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
         dataset_root = Path(dataset_root) if dataset_root else get_dataset_root(dataset_name)
 
@@ -203,18 +207,24 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         self.dataset_name = dataset_name
         self.dataset_subset = dataset_subset
         self.split = split
-        self.force_redownload = force_redownload
+        self.download_mode = download_mode
         self.hf_kwargs = hf_kwargs or {}
         self.val_proportion = val_proportion
         self.split_val_from_train = split_val_from_train
         self.delete_raw = delete_raw
         self.process_example_fn = process_example_fn
-
+        self.hf_filter_lambda = hf_filter_lambda
+        self.hf_filter_lambda_kwargs = hf_filter_lambda_kwargs or {}
         print_rank_0(f"Building HFDataset {self.dataset_name}")
 
     def prepare_data(self) -> None:
-        if not self.train_path.exists() or self.force_redownload:
+        if self.download_mode != "force_redownload" and self.hf_filter_lambda:
+            raise ValueError("`hf_filter_lambda` is not supported when `download_mode` is not `force_redownload`")
+
+        if not self.train_path.exists() or self.download_mode == "force_redownload":
             dataset = self._load_dataset()
+            if self.hf_filter_lambda:
+                dataset = dataset.filter(self.hf_filter_lambda, **self.hf_filter_lambda_kwargs)
             preprocess_and_split_data(
                 dataset,
                 self.dataset_name,

@@ -1,3 +1,4 @@
+from dataclasses import fields
 from typing import Callable
 
 from megatron.core import mpu
@@ -56,22 +57,9 @@ def hf_train_valid_test_datasets_provider(
     )
 
     train_ds, valid_ds, test_ds = HFDatasetBuilder(
-        dataset_name=dataset_config.dataset_name,
         tokenizer=tokenizer,
         is_built_on_rank=is_dataset_built_on_rank,
-        process_example_fn=dataset_config.process_example_fn,
-        dataset_subset=dataset_config.dataset_subset,
-        dataset_root=dataset_config.dataset_root,
-        split=dataset_config.split,
-        seq_length=dataset_config.seq_length,
-        max_train_samples=dataset_config.max_train_samples,
-        packed_sequence_specs=dataset_config.packed_sequence_specs,
-        force_redownload=dataset_config.force_redownload,
-        val_proportion=dataset_config.val_proportion,
-        split_val_from_train=dataset_config.split_val_from_train,
-        delete_raw=dataset_config.delete_raw,
-        dataset_kwargs=dataset_config.dataset_kwargs,
-        hf_kwargs=dataset_config.hf_kwargs,
+        **{field.name: getattr(dataset_config, field.name) for field in fields(dataset_config)},
     ).build()
 
     print_rank_0(f"> finished creating Huggingface dataset {dataset_config.dataset_name} ...")
@@ -92,13 +80,9 @@ def finetuning_train_valid_test_datasets_provider(
     )
 
     train_ds, valid_ds, test_ds = FinetuningDatasetBuilder(
-        dataset_root=dataset_config.dataset_root,
         tokenizer=tokenizer,
         is_built_on_rank=is_dataset_built_on_rank,
-        seq_length=dataset_config.seq_length,
-        max_train_samples=dataset_config.max_train_samples,
-        packed_sequence_specs=dataset_config.packed_sequence_specs,
-        dataset_kwargs=dataset_config.dataset_kwargs,
+        **{field.name: getattr(dataset_config, field.name) for field in fields(dataset_config)},
     ).build()
 
     print_rank_0(f"> finished creating Finetuning dataset from {dataset_config.dataset_root} ...")
