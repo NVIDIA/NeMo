@@ -29,6 +29,7 @@ from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from typing_extensions import override
+import torch.distributed as dist
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
@@ -441,18 +442,23 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     def lightning_module_state_dict(self) -> Dict[str, Any]:
         """Collects the state dict of the model.
 
-        Only returns a non-empty state dict on rank 0 if ``save_distributed_checkpoint=False``.
-
         """
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         assert self.lightning_module is not None
         state_dict = self.lightning_module.state_dict()
+        is_adapter_only = getattr(self._checkpoint_io, 'adapter_only', False)
+        lora_is_in_name = lambda x: 'lora' in x.lower()
 
         module_names = list(state_dict.keys())
         for name in module_names:
             param = state_dict.pop(name)
-            state_dict[name] = to_cpu(param)
+            # @akoumparouli: refactor this.
+            # if any key has "lora" in FQN, then it will only move lora keys to cpu, since only
+            # the adapter weights are saved.
+            if (is_adapter_only and lora_is_in_name(name)) or not is_adapter_only:
+                state_dict[name] = to_cpu(param)
+        dist.barrier()
         return state_dict
 
     @override
