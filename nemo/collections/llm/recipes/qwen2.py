@@ -25,13 +25,13 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config7B,
     Qwen2Config72B,
     Qwen2Config500M,
-    Qwen25Config500M,
+    Qwen2Model,
     Qwen25Config1P5B,
     Qwen25Config7B,
     Qwen25Config14B,
     Qwen25Config32B,
     Qwen25Config72B,
-    Qwen2Model,
+    Qwen25Config500M,
 )
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
 
