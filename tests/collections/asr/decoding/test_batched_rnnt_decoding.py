@@ -45,47 +45,6 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 ) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
-def char_vocabulary():
-    return [' ', 'a', 'b', 'c', 'd', 'e', 'f', '.']
-
-
-@pytest.fixture()
-@lru_cache(maxsize=8)
-def tmp_tokenizer(test_data_dir):
-    cfg = DictConfig({'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'})
-
-    class _TmpASRBPE(mixins.ASRBPEMixin):
-        def register_artifact(self, _, vocab_path):
-            return vocab_path
-
-    asrbpe = _TmpASRBPE()
-    asrbpe._setup_tokenizer(cfg)
-    return asrbpe.tokenizer
-
-
-@lru_cache(maxsize=2)
-def get_rnnt_decoder(vocab_size, decoder_output_size=4):
-    prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
-    torch.manual_seed(0)
-    decoder = RNNTDecoder(prednet=prednet_cfg, vocab_size=vocab_size)
-    decoder.freeze()
-    return decoder
-
-
-@lru_cache(maxsize=2)
-def get_rnnt_joint(vocab_size, vocabulary=None, encoder_output_size=4, decoder_output_size=4, joint_output_shape=4):
-    jointnet_cfg = {
-        'encoder_hidden': encoder_output_size,
-        'pred_hidden': decoder_output_size,
-        'joint_hidden': joint_output_shape,
-        'activation': 'relu',
-    }
-    torch.manual_seed(0)
-    joint = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=vocabulary)
-    joint.freeze()
-    return joint
-
-
 @lru_cache(maxsize=1)
 def get_model_encoder_output(
     audio_filepaths: tuple,
