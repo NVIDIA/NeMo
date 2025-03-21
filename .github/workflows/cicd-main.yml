@@ -2337,6 +2337,9 @@ jobs:
       - L2_NeMo_2_Export_In_Framework
       - L2_NeMo_2_jit_callback
       - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
+      - L2_NeMo_2_VLLM_VISION
+      - L2_NeMo_2_CLIP_PRETRAIN
+      - L2_NeMo_2_CLIP_INFER
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
