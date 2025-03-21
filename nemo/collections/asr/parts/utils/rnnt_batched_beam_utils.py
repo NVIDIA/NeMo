@@ -235,7 +235,7 @@ class BatchedBeamHyps:
         )
 
         prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
-        prev_transcript_hash = None
+        prev_transcript_prefix_hash = None
         if self.store_prefix_hashes:
             prev_transcript_prefix_hash = torch.gather(self.transcript_prefix_hash, dim=-1, index=hyps_indices)
 
