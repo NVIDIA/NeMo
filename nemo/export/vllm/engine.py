@@ -52,6 +52,11 @@ class NemoLLMEngine(LLMEngine):
     instead of one from Transformers.
     """
 
+    def __init__(self, vllm_config, *args, **kwargs):
+        vllm_config.model_config.try_get_generation_config = lambda *args, **kwargs: {}
+        super().__init__(vllm_config, *args, **kwargs)
+
+
     def _init_tokenizer(self, **tokenizer_init_kwargs):
         # Determine if the model needs a bos token (which is not stored in Nemo checkpoints)
         add_bos_token = self.model_config.model_converter.requires_bos_token()

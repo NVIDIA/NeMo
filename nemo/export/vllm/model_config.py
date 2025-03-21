@@ -99,6 +99,11 @@ class NemoModelConfig(ModelConfig):
         self.task = "generate"  # Only the generate task is supported
         self.is_hybrid = False  # No hybrid models are supported
 
+        if self.task in ("draft", "generate"):
+            self.truncation_side = "left"
+        else:
+            self.truncation_side = "right"
+
         self.encoder_config = self._get_encoder_config()
         self.pooler_config = self._init_pooler_config(override_pooler_config)
         self.enable_sleep_mode = enable_sleep_mode
