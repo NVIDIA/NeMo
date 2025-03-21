@@ -280,7 +280,7 @@ def safe_import(module, *, msg=None, alt=None):
         return alt, False
 
 
-def safe_import_from(module, symbol, *, msg=None, alt=None):
+def safe_import_from(module, symbol, *, msg=None, alt=None, fallback_module=None):
     """A function used to import symbols from modules that may not be available
 
     This function will attempt to import a symbol with the given name from
@@ -300,6 +300,9 @@ def safe_import_from(module, symbol, *, msg=None, alt=None):
     alt: object
         An optional object to be used in place of the given symbol if it fails
         to import
+    fallback_module: str
+        Alternative name of the model in which the symbol is defined. The function will first to
+        import using the `module` value and if that fails will also try the `fallback_module`.
 
     Returns
     -------
@@ -314,6 +317,9 @@ def safe_import_from(module, symbol, *, msg=None, alt=None):
         exception_text = traceback.format_exc()
         logger.debug(f"Import of {module} failed with: {exception_text}")
     except AttributeError:
+        # if there is a fallback module try it.
+        if fallback_module is not None:
+            return safe_import_from(fallback_module, symbol, msg=msg, alt=alt, fallback_module=None)
         exception_text = traceback.format_exc()
         logger.info(f"Import of {symbol} from {module} failed with: {exception_text}")
     except Exception:
