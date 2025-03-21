@@ -265,7 +265,7 @@ class BatchedBeamHyps:
             prev_transcript_hash,
             out=self.transcript_hash,
         )
-        if self.store_prefix_hashes and prev_transcript_prefix_hash is not None:
+        if self.store_prefix_hashes:
             prev_transcript_prefix_hash = torch.gather(self.transcript_prefix_hash, dim=-1, index=hyps_indices)
             torch.where(
                 extended_with_label, prev_transcript_hash, prev_transcript_prefix_hash, out=self.transcript_prefix_hash
