@@ -93,6 +93,7 @@ def main(args):
             ImageToken,
             MultiModalSampleConfig,
         )
+
         # Configure multimodal samples
         config = MultiModalSampleConfig(
             image_token=ImageToken(token_str="<image>", token_id=-200),

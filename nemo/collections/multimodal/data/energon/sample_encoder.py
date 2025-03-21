@@ -75,7 +75,9 @@ class BaseSampleEncoder(SampleEncoder):
     image_token (Token): Token dataclass representing image placeholders in the tokenized sequence.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the BaseSampleEncoder.
 
@@ -162,7 +164,9 @@ class VQASampleEncoder(BaseSampleEncoder):
     conversation_template_config (ConversationTemplateConfig): Configuration for conversation templates used in VQA.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the VQASampleEncoder.
 
@@ -282,9 +286,7 @@ class VQASampleEncoder(BaseSampleEncoder):
         for answer in answers:
             # Encode the answer with the stop string
             answer = self.process_answer_str(answer, stop_str)
-            answer_tokens = self.tokenizer.encode(
-                answer, add_special_tokens=False, return_tensors="pt"
-            )[0]
+            answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False, return_tensors="pt")[0]
 
             # Find the start and end indices of the answer tokens in the prompt
             answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens, search_start_index)
@@ -363,7 +365,9 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
     multimodal_sample_config (MultiModalSampleConfig): Configuration for multimodal samples, including tokens and placeholders.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the InterleavedSampleEncoder.
 
@@ -468,7 +472,9 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
     image_following_text (bool): A flag indicating whether images should follow the text they are related to.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the SimilarityInterleavedEncoder.
 
