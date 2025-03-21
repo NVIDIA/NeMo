@@ -6,7 +6,7 @@ from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegat
 from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
 from megatron.core.datasets.gpt_dataset import GPTDataset, MockGPTDataset
 
-from nemo.tron.config import FinetuningDatasetConfig, GPTDatasetConfig
+from nemo.tron.config import DataloaderConfig, FinetuningDatasetConfig, GPTDatasetConfig
 from nemo.tron.data.finetuning_dataset import FinetuningDatasetBuilder
 from nemo.tron.data.hf_dataset import HFDatasetBuilder, HFDatasetConfig
 from nemo.tron.tokenizers.tokenizer import MegatronTokenizer
@@ -59,7 +59,11 @@ def hf_train_valid_test_datasets_provider(
     train_ds, valid_ds, test_ds = HFDatasetBuilder(
         tokenizer=tokenizer,
         is_built_on_rank=is_dataset_built_on_rank,
-        **{field.name: getattr(dataset_config, field.name) for field in fields(dataset_config)},
+        **{
+            field.name: getattr(dataset_config, field.name)
+            for field in fields(dataset_config)
+            if field.name not in fields(DataloaderConfig)
+        },
     ).build()
 
     print_rank_0(f"> finished creating Huggingface dataset {dataset_config.dataset_name} ...")
@@ -82,7 +86,11 @@ def finetuning_train_valid_test_datasets_provider(
     train_ds, valid_ds, test_ds = FinetuningDatasetBuilder(
         tokenizer=tokenizer,
         is_built_on_rank=is_dataset_built_on_rank,
-        **{field.name: getattr(dataset_config, field.name) for field in fields(dataset_config)},
+        **{
+            field.name: getattr(dataset_config, field.name)
+            for field in fields(dataset_config)
+            if field not in fields(DataloaderConfig)
+        },
     ).build()
 
     print_rank_0(f"> finished creating Finetuning dataset from {dataset_config.dataset_root} ...")
