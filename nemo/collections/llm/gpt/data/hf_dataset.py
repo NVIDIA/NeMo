@@ -426,7 +426,6 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         }
         return out_doc
 
-
     # Note: I'm training the model causally not through multiclass classification.
     @staticmethod
     def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
@@ -455,6 +454,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         dataset = dataset.shuffle(seed=seed)
 
         return dataset
+
 
 class SquadHFDataModule(HFDatasetDataModule):
     """

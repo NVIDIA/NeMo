@@ -17,12 +17,12 @@ import torch
 from datasets import Dataset, DatasetDict
 
 from nemo.collections.vlm.hf.data.hf_dataset import (
+    HFDatasetDataModule,
+    batchify,
     clean_split,
+    extract_key_from_dicts,
     make_dataset_splits,
     pad_within_micro,
-    batchify,
-    extract_key_from_dicts,
-    HFDatasetDataModule,
 )
 
 
@@ -113,7 +113,7 @@ def test_make_dataset_splits_single_dataset_plus_sign(simple_dataset):
 
 def test_make_dataset_splits_dataset_dict(simple_dataset_dict):
     """
-    dataset is a DatasetDict with both "train" and "validation", "test" inside. 
+    dataset is a DatasetDict with both "train" and "validation", "test" inside.
     """
     split_aliases = {
         "train": ["train", "training"],
@@ -131,6 +131,7 @@ def test_make_dataset_splits_list_of_splits(simple_dataset):
     Simulate the scenario in which HF's load_dataset(path, split=[...]) returns multiple Datasets as a list.
     """
     from datasets import DatasetDict
+
     # Suppose we have a user-supplied list for the split argument: ["train[:1]", "test[:1]"]
     # And we have an actual list of 2 dataset objects:
     ds_list = [simple_dataset, simple_dataset]

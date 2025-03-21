@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
-import torch.distributed as dist
-from nemo.utils import logging
-import os
 from torch.utils.data.distributed import DistributedSampler
+
+from nemo.utils import logging
 
 
 def clean_split(name):
@@ -179,6 +181,7 @@ def pad_within_micro(batch, pad_token_id):
     """
     max_len = max(map(len, batch))
     return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+
 
 class HFDatasetDataModule(pl.LightningDataModule):
     """HFDatasetDataModule wraps HF's load_dataset (datasets library)

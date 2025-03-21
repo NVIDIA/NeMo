@@ -12,34 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
-import pytest
-import torch
-from datasets import Dataset, DatasetDict
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
+import transformers
+from datasets import Dataset, DatasetDict
 from transformers import AutoProcessor
-from nemo.lightning.io.hf import HFCheckpointIO
 
 from nemo.collections.vlm import HFAutoModelForImageTextToText
-import transformers
-
-import pytest
-import torch
-from unittest.mock import MagicMock, patch
-from transformers import AutoProcessor
 from nemo.lightning.io.hf import HFCheckpointIO
+
 
 @pytest.fixture
 def mock_hf_calls():
     """
     Patches out all Hugging Face calls so no network or file I/O happens.
     """
-    with patch("transformers.AutoModelForImageTextToText.from_pretrained") as mock_from_pretrained, \
-         patch("transformers.AutoModelForImageTextToText.from_config") as mock_from_config, \
-         patch("transformers.AutoConfig.from_pretrained") as mock_from_auto_config, \
-         patch("transformers.AutoProcessor.from_pretrained") as mock_proc:
+    with (
+        patch("transformers.AutoModelForImageTextToText.from_pretrained") as mock_from_pretrained,
+        patch("transformers.AutoModelForImageTextToText.from_config") as mock_from_config,
+        patch("transformers.AutoConfig.from_pretrained") as mock_from_auto_config,
+        patch("transformers.AutoProcessor.from_pretrained") as mock_proc,
+    ):
         # Return mock objects instead of real HF classes
         mock_from_pretrained.return_value = MagicMock()
         mock_from_config.return_value = MagicMock()
@@ -47,6 +42,7 @@ def mock_hf_calls():
         mock_from_auto_config.return_value = MagicMock()
 
         yield  # Once we exit, the patches are removed
+
 
 @pytest.fixture
 def dummy_model(mock_hf_calls):
@@ -60,6 +56,7 @@ def dummy_model(mock_hf_calls):
     )
     return model
 
+
 def test_configure_model(dummy_model):
     """
     Calls configure_model() to ensure it doesn't trigger real HF calls.
@@ -67,6 +64,7 @@ def test_configure_model(dummy_model):
     dummy_model.configure_model()
     # We expect dummy_model.model to be the MagicMock from our `mock_from_config.return_value`
     assert dummy_model.model is not None
+
 
 def test_forward_pass(dummy_model):
     """
@@ -81,6 +79,8 @@ def test_forward_pass(dummy_model):
 
     output = dummy_model.forward(batch)
     assert hasattr(output, "logits"), "Forward pass output should have 'logits'."
+
+
 # def test_processor_property(dummy_model):
 #     """Ensure calling `processor` property doesn't cause network download."""
 #     with patch("nemo.collections.vlm.AutoProcessor.from_pretrained", return_value="MOCK_PROCESSOR"):
@@ -89,12 +89,12 @@ def test_forward_pass(dummy_model):
 #         processor = dummy_model.processor
 #         assert processor == "MOCK_PROCESSOR"
 
+
 def test_configure_model(dummy_model):
     """Ensure configure_model runs without performing external calls."""
     # We already patched from_pretrained/from_config, just call the method:
     dummy_model.configure_model()
     assert dummy_model.model is not None, "Expected model to be set after configure_model()"
-
 
 
 def test_forward(dummy_model):
