@@ -208,10 +208,11 @@ class PEFT(IOMixin, ABC, ModelTransform):
         # automodel adds adapters in configure_model
         if not getattr(self, 'transform_already_applied', False):
             super().apply_transform(trainer)
-        self.set_trainable_params(trainer)
+
         # @akoumparouli: only used with automodel + FSDP2Strategy.
         if callable(getattr(trainer.strategy, 'parallelize', None)):
             trainer.strategy.parallelize()
+        self.set_trainable_params(trainer)
 
         # Handle automodel and return early.
         if (
