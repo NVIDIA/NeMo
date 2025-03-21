@@ -14,12 +14,15 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional, Union
 from pathlib import Path
+from typing import List, Optional, Union
 
 import torch
 
-from nemo.collections.asr.modules.transformer import BeamSearchSequenceGenerator, BeamSearchSequenceGeneratorWithNGramLM
+from nemo.collections.asr.modules.transformer import (
+    BeamSearchSequenceGenerator,
+    BeamSearchSequenceGeneratorWithNGramLM,
+)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core import Typing, typecheck
