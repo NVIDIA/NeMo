@@ -25,13 +25,14 @@ from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 
-from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+from nemo.collections.multimodal.data.energon.config import AudioToken, ImageToken, MultiModalSampleConfig
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -66,15 +67,6 @@ MODEL_CONFIG_ATTR = [
     'seq_length',
 ]
 
-
-def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_token_len):
-    """Get image sequence length given image size, patch size, and class token."""
-    num_patches_per_dim_h = img_h // patch_dim
-    num_patches_per_dim_w = img_w // patch_dim
-    num_patches = num_patches_per_dim_h * num_patches_per_dim_w
-    return num_patches + (class_token_len if add_class_token else 0)
-
-
 def restore_model_weights(model, checkpoint_path, strict=False):
     """
     Restores model weights from a checkpoint.
@@ -96,8 +88,8 @@ def restore_model_weights(model, checkpoint_path, strict=False):
         model.load_state_dict(loaded_state_dict, strict=strict)
 
 
-def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
-    """Neva Data Step"""
+def avlm_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    """AVLM Data Step"""
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -114,8 +106,11 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         (
             "tokens",
             "attention_mask",
-            "media",
-            "num_media_tiles",
+            "images",
+            "num_image_tiles",
+            "image_sizes",
+            "audios",
+            "audio_lengths",
         )
     )
     if parallel_state.is_pipeline_first_stage():
@@ -148,17 +143,20 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     return _batch
 
 
-def neva_forward_step(model, batch) -> torch.Tensor:
-    """Neva Forward Step"""
+def avlm_forward_step(model, batch) -> torch.Tensor:
+    """AVLM Forward Step"""
     forward_args = {
-        "images": batch["media"],
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
-        "attention_mask": batch.get("attention_mask", None),
         "loss_mask": batch.get("loss_mask", None),
+        "attention_mask": batch.get("attention_mask", None),
         "labels": batch.get("labels", None),
-        "num_image_tiles": batch.get("num_media_tiles", None),
-        "image_token_mask": batch.get("image_token_mask", None),
+        "images": batch["images"],
+        "num_image_tiles": batch.get("num_image_tiles", None),
+        # "image_sizes": batch.get("image_sizes", None),
+        # "image_token_mask": batch.get("image_token_mask", None),
+        "audios": batch["audios"],
+        "audio_lengths": batch.get("audio_lengths", None),
         "packed_seq_params": batch.get("packed_seq_params", None),
     }
 
@@ -166,15 +164,18 @@ def neva_forward_step(model, batch) -> torch.Tensor:
 
 
 @dataclass
-class NevaConfig(TransformerConfig, io.IOMixin):
-    """Neva Model Base Config"""
+class AVLMConfig(TransformerConfig, io.IOMixin):
+    """AVLM Model Base Config"""
 
     language_transformer_config: Optional[TransformerConfig] = None
     vision_transformer_config: Optional[TransformerConfig] = None
     vision_projection_config: Optional[TransformerConfig] = None
+    audio_transformer_config: Optional[TransformerConfig] = None
+    audio_projection_config: Optional[TransformerConfig] = None
 
     drop_vision_class_token: bool = True
     vision_feature_layer: int = -2
+    audio_feature_layer: int = -2
 
     encoder_pipeline_model_parallel_size: int = 0
     encoder_tensor_model_parallel_size: int = 1
@@ -186,13 +187,17 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     language_model_from_pretrained: Optional[str] = None
     vision_model_from_pretrained: Optional[str] = None
     vision_projection_from_pretrained: Optional[str] = None  # TODO
+    audio_model_from_pretrained: Optional[str] = None
+    audio_projection_from_pretrained: Optional[str] = None  # TODO
 
     freeze_language_model: bool = False
     freeze_vision_model: bool = False
     freeze_vision_projection: bool = False
+    freeze_audio_model: bool = False
+    freeze_audio_projection: bool = False
 
-    forward_step_fn: Callable = neva_forward_step
-    data_step_fn: Callable = neva_data_step
+    forward_step_fn: Callable = avlm_forward_step
+    data_step_fn: Callable = avlm_data_step
 
     def __post_init__(self):
         # pylint: disable=C0115,C0116
@@ -200,29 +205,40 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             for attr in MODEL_CONFIG_ATTR:
                 setattr(self, attr, getattr(self.language_transformer_config, attr))
 
-    def configure_model(self, tokenizer) -> "MCoreNevaModel":
+    def configure_model(self, tokenizer) -> "MCoreAVLMModel":
         # pylint: disable=C0115,C0116
-        self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
-        self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        if self.vision_transformer_config is not None:
+            self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+            self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        if self.audio_transformer_config is not None:
+            self.audio_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+            self.audio_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
         self.language_transformer_config.context_parallel_size = self.context_parallel_size
 
-        assert "NEVA `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
+        assert "AVLM `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
         if self.encoder_pipeline_model_parallel_size > 0:
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
-            self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            if self.vision_transformer_config is not None:
+                self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+                self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            if self.audio_transformer_config is not None:
+                self.audio_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+                self.audio_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
             self.language_transformer_config.encoder_pipeline_model_parallel_size = (
                 self.encoder_pipeline_model_parallel_size
             )
             if self.encoder_tensor_model_parallel_size > 0:
-                self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                if self.vision_transformer_config is not None:
+                    self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                    self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                if self.audio_transformer_config is not None:
+                    self.audio_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                    self.audio_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        model = MCoreNevaModel(
+        model = MCoreAVLMModel(
             config=self,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage(),
@@ -236,12 +252,68 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         return model
 
 
-class MCoreNevaModel(MCoreLLaVAModel):
-    """Neva Model Base Model Class"""
+class _get_data_on_this_cp_rank(torch.autograd.Function):
+    """Performs sharding for Context Parallelism in THD format
+
+    In the forward pass, indices are selected for each CP rank and remaining tokens are dropped.
+    In the backward pass, this class takes care of managing gradients for dropped tokens on each
+    CP rank.
+    """
+
+    @staticmethod
+    # def forward(ctx, decoder_embeddings, labels, loss_mask, packed_seq_params):
+    def forward(ctx, batch, packed_seq_params):
+        # pylint: disable=C0115,C0116
+        cp_size = ps.get_context_parallel_world_size()
+        if cp_size > 1:
+            try:
+                import transformer_engine_torch as tex
+            except ModuleNotFoundError as e:
+                logging.error(
+                    "Please update Transformer Engine to >= 1.10 to use \
+                        Context Parallel with THD format data"
+                )
+                raise e
+            cp_rank = ps.get_context_parallel_rank()
+            for key, data in batch.items():
+                index = tex.thd_get_partitioned_indices(
+                    packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
+                )
+                if key == "combined_embeddings":
+                    ctx.decoder_emb_index = index
+                    ctx.decoder_emb_seqlen = data.size(1)
+                batch[key] = data.index_select(1, index)
+                batch[key].requires_grad = data.requires_grad
+
+        return batch
+
+    @staticmethod
+    def backward(ctx, grad_out, grad_label, grad_loss):
+        # pylint: disable=C0115,C0116
+        seqlen = ctx.decoder_emb_seqlen
+        index = ctx.decoder_emb_index
+        assert grad_out.size(1) == index.size(
+            0
+        ), f"Shape mismatch in incoming gradient {grad_out.shape} and \
+                index from THD CP sharding {index.shape}"
+        grad_in = torch.zeros(
+            grad_out.size(0),
+            seqlen,
+            *grad_out.size()[2:],
+            dtype=grad_out.dtype,
+            device=grad_out.device,
+        )
+        grad_in[:, ctx.decoder_emb_index, :] = grad_out
+
+        return (grad_in, None, None, None)
+
+
+class MCoreAVLMModel(MCoreLLaVAModel):
+    """AVLM Model Base Model Class"""
 
     def __init__(
         self,
-        config: NevaConfig,
+        config: AVLMConfig,
         tokenizer: Optional = None,
         pre_process: bool = True,
         post_process: bool = True,
@@ -255,6 +327,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         language_transformer_config = config.language_transformer_config
         vision_transformer_config = config.vision_transformer_config
         vision_projection_config = config.vision_projection_config
+        audio_transformer_config = config.audio_transformer_config
+        audio_projection_config = config.audio_projection_config
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -264,6 +338,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.encoder_hidden_state = None
         self.vision_model = None
         self.vision_projection = None
+        self.audio_model = None
+        self.audio_projection = None
         self.language_model = None
 
         self.sequence_parallel_lm = language_transformer_config.sequence_parallel
@@ -275,6 +351,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
         self.share_embeddings_and_output_weights = False
         if self.add_decoder:
+            language_transformer_config.scatter_embedding_sequence_parallel = False
             self.language_model = language_transformer_config.configure_model(
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
@@ -293,22 +370,30 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 )
 
         if self.add_encoder:
-            self.vision_model = vision_transformer_config.configure_model()
-            self.vision_projection = vision_projection_config.configure_model()
-            self._drop_vision_class_token = drop_vision_class_token
-            restore_model_weights(self.vision_model, config.vision_model_from_pretrained)
-            logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
-
+            if vision_transformer_config is not None:
+                self.vision_model = vision_transformer_config.configure_model()
+                self.vision_projection = vision_projection_config.configure_model()
+                self._drop_vision_class_token = drop_vision_class_token
+                restore_model_weights(self.vision_model, config.vision_model_from_pretrained)
+                logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
+            if audio_transformer_config is not None:
+                self.audio_model = audio_transformer_config.configure_model()
+                self.audio_projection = audio_projection_config.configure_model()
+                restore_model_weights(self.audio_model, config.audio_model_from_pretrained)
+                logging.info(f"Restored audio model weights from {config.audio_model_from_pretrained}")
         self.freeze(
             freeze_language_model=config.freeze_language_model,
             freeze_vision_model=config.freeze_vision_model,
             freeze_vision_projection=config.freeze_vision_projection,
+            freeze_audio_model=config.freeze_audio_model,
+            freeze_audio_projection=config.freeze_audio_projection,
         )
 
         self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
+        # TODO - Modality specific attributes
         self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
         if drop_vision_class_token and vision_transformer_config.add_class_token:
@@ -320,13 +405,15 @@ class MCoreNevaModel(MCoreLLaVAModel):
         position_ids: torch.Tensor,
         loss_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        images: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
-        inference_params: Optional[InferenceParams] = None,
+        images: Optional[torch.Tensor] = None,
         num_image_tiles: Optional[List[int]] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        image_token_index: Optional[int] = ImageToken.token_id,
+        audios: Optional[torch.Tensor] = None,
+        audio_lengths: Optional[List[int]] = None,
+        audio_token_index: Optional[int] = AudioToken.token_id,
+        inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
-        image_token_mask: Optional[torch.Tensor] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         # pylint: disable=C0301
@@ -356,54 +443,109 @@ class MCoreNevaModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
 
+        # TODO: not sure what to do with this?
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "media_tokens_count" in inference_params.key_value_memory_dict
         )
-        has_images = images is not None and images.shape[0] > 0
 
-        # If running inference, we can skip images token computation if they were computed already earlier
+        # If running inference, we can skip images/audios token computation if they were computed already earlier
         # for this sample.
         if use_inference_kv_cache:
             image_embeddings = None
-        elif self.add_encoder and not has_images:
-            vision_param = next(self.vision_model.parameters())
-            # If no images provided, use an empty image embeddings tensor.
-            image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
-        elif self.add_encoder and has_images:
-            # images is in shape of (num_images_in_mbs, c, h, w)
-            # note num_images_in_mbs is not mbs but total images in this mbs.
-            images = images.to(next(self.vision_model.parameters()).dtype)
-            if self.vision_model_from_hf:
-                self.vision_model = self.vision_model.eval()
-                image_embeddings = self.vision_model(images, output_hidden_states=True)
-                image_embeddings = image_embeddings[-1][
-                    self.config.vision_feature_layer
-                ]  # [num_images, img_seq_len, h_vision]
+            audio_embeddings = None
+        elif self.add_encoder:
+            # Encode images
+            if self.vision_model is not None:
+                has_images = images is not None and images.shape[0] > 0
+                if not has_images:
+                    vision_param = next(self.vision_model.parameters())
+                    # If no images provided, use an empty image embeddings tensor.
+                    image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
+                else:
+                    # images is in shape of (num_images_in_mbs, c, h, w)
+                    # note num_images_in_mbs is not mbs but total images in this mbs.
+                    images = images.to(next(self.vision_model.parameters()).dtype)
+                    if self.vision_model_from_hf:
+                        self.vision_model = self.vision_model.eval()
+                        image_embeddings = self.vision_model(images, output_hidden_states=True)
+                        image_embeddings = image_embeddings[-1][
+                            self.config.vision_feature_layer
+                        ]  # [num_images, img_seq_len, h_vision]
+                    else:
+                        # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
+                        image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
+                    if self._drop_vision_class_token:
+                        class_token_len = getattr(self.vision_model, "class_token_len", 1)
+                        image_embeddings = image_embeddings[:, class_token_len:, :]
+
+                    # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
+                    image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
+
+                    # map vision model output size to language model input size.
+                    image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
+
+                    # TODO: not sure what to do with this?
+                    # TODO: Support batched inference.
+                    # In inference, the language model KV cache will be updated for image token positions.
+                    # Store the image tokens sequence length to be used as an offset to the KV cache later.
+                    if inference_params is not None:
+                        inference_params.key_value_memory_dict["image_tokens_count"] = (
+                            image_embeddings.shape[0] * image_embeddings.shape[1]
+                        )
+                        inference_params.key_value_memory_dict["media_tokens_count"] = inference_params.key_value_memory_dict["image_tokens_count"]
             else:
-                # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
-                image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
-            if self._drop_vision_class_token:
-                class_token_len = getattr(self.vision_model, "class_token_len", 1)
-                image_embeddings = image_embeddings[:, class_token_len:, :]
+                image_embeddings = None
 
-            # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
-            image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
+            # Encode audios
+            if self.audio_model is not None:
+                has_audios = audios is not None and audios.shape[0] > 0
+                if not has_audios:
+                    audio_param = next(self.audio_model.parameters())
+                    # If no audios provided, use an empty audio embeddings tensor.
+                    audio_embeddings = torch.tensor([], dtype=audio_param.dtype, device=audio_param.device).reshape(0, 0)
+                else:
+                    # audios is in shape of (num_audios_in_mbs, audio_feature_dim)
+                    # note num_audios_in_mbs is not mbs but total audios in this mbs.
+                    audios = audios.to(next(self.audio_model.parameters()).dtype)
+                    audio_embeddings, audio_embedding_lens = self.audio_model(
+                        input_signal = audios,
+                        input_signal_length = audio_lengths,
+                        processed_signal = None,
+                        processed_signal_length = None, # what difference between input_signal and processed_signal?
+                    ) 
 
-            # map vision model output size to language model input size.
-            image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
+                    # [num_audios, h_audio, audio_seq_len] -> [audio_seq_len, num_audios, h_audio]
+                    # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
+                    audio_embeddings = audio_embeddings.permute(2, 0, 1).contiguous() 
 
-            # TODO: Support batched inference.
-            # In inference, the language model KV cache will be updated for image token positions.
-            # Store the image tokens sequence length to be used as an offset to the KV cache later.
-            if inference_params is not None:
-                inference_params.key_value_memory_dict["image_tokens_count"] = (
-                    image_embeddings.shape[0] * image_embeddings.shape[1]
-                )
+                    # map audio model output size to language model input size.
+                    audio_embeddings = self.audio_projection(audio_embeddings)  
+
+                    # TODO: not sure what to do with this?
+                    # TODO: Support batched inference.
+                    # In inference, the language model KV cache will be updated for audio token positions.
+                    # Store the audio tokens sequence length to be used as an offset to the KV cache later.
+                    if inference_params is not None:
+                        inference_params.key_value_memory_dict["audio_tokens_count"] = (
+                            audio_embeddings.shape[0] * audio_embeddings.shape[1]
+                        )
+                        if "media_tokens_count" in inference_params.key_value_memory_dict:
+                            inference_params.key_value_memory_dict["media_tokens_count"] += inference_params.key_value_memory_dict["audio_tokens_count"]
+                        else:
+                            inference_params.key_value_memory_dict["media_tokens_count"] = inference_params.key_value_memory_dict["audio_tokens_count"]
+            else:
+                audio_embeddings = None
         else:
-            image_embeddings = self.encoder_hidden_state
+            # only need image_embeddings, audio_embeddings if this is the first stage of LLM
+            if self.pre_process:
+                image_embeddings, audio_embeddings = self.encoder_hidden_state
+            else:
+                image_embeddings, audio_embeddings = None, None
+                audio_embedding_lens = self.audio_embedding_lens
 
         if not self.add_decoder:
-            return image_embeddings
+            return image_embeddings, audio_embeddings
+
 
         language_embeddings = None
         if self.pre_process:
@@ -425,15 +567,18 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         # Preprocess input, labels and loss mask.
         combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
-            image_embeddings,
             language_embeddings,
             input_ids,
+            attention_mask,
             loss_mask,
             labels,
-            use_inference_kv_cache,
+            image_embeddings,
+            num_image_tiles,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
             image_token_index,
-            num_image_tiles,
-            attention_mask,
+            audio_embeddings,
+            audio_embedding_lens,                                                                                                                      
+            audio_token_index,
+            use_inference_kv_cache,
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
@@ -460,10 +605,46 @@ class MCoreNevaModel(MCoreLLaVAModel):
         )
 
         if labels is None or loss_mask is None:
-            return output
+            return output, audio_embedding_lens
 
         return output, final_loss_mask.contiguous()
 
+    def freeze(
+        self, 
+        freeze_language_model: bool, 
+        freeze_vision_model: bool, 
+        freeze_vision_projection: bool,
+        freeze_audio_model: bool, 
+        freeze_audio_projection: bool,
+    ):
+        """Freeze model modules.
+
+        Make specific modules non-trainable by setting requires_grad to False.
+
+        Args:
+            freeze_language_model (bool): Freeze the language model module.
+            freeze_vision_model (bool): Freeze the vision model module.
+            freeze_vision_projection (bool): Freeze the vision projection module.
+            freeze_audio_model (bool): Freeze the audio model module.
+            freeze_audio_projection (bool): Freeze the audio projection module.
+        """
+        modules = []
+        if freeze_language_model and self.language_model is not None:
+            modules.append(self.language_model)
+        if freeze_vision_model and self.vision_model is not None:
+            modules.append(self.vision_model)
+        if freeze_vision_projection and self.vision_projection is not None:
+            modules.append(self.vision_projection)
+        if freeze_audio_model and self.audio_model is not None:
+            modules.append(self.audio_model)
+        if freeze_audio_projection and self.audio_projection is not None:
+            modules.append(self.audio_projection)
+
+        for module in modules:
+            for param in module.parameters():
+                param.requires_grad = False
+
+    # TODO: rethink for 2 encoders scenario
     def set_input_tensor(self, input_tensor) -> None:
         """Set model chunk input tensor."""
         # This is usually handled in schedules.py but some inference code still
@@ -483,63 +664,41 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
     def _preprocess_data(
         self,
-        image_embeddings,
         language_embeddings,
         input_ids,
+        attention_mask,
         loss_mask,
         labels,
-        use_inference_kv_cache,
-        image_token_index,
+        image_embeddings,
         num_image_tiles,
-        attention_mask,
+        image_token_index,
+        audio_embeddings,
+        audio_embedding_lens,
+        audio_token_index,
+        use_inference_kv_cache,
         packed_seq_params,
     ):
-        """Preprocess input data before input to language model.
+        """
+        Preprocesses input data for the model.
 
-        This function is adopted from
-        https://github.com/huggingface/transformers/blob/85817d98fb60977c97e3014196a462b732d2ed1a/src/transformers/models/llava_next/modeling_llava_next.py#L409
-        for our input data conventions.
-
-        image_token_index = -200 indicates the image position in the input_ids = [0, 1, -200, 2, 3]
-        and labels = [1, -200, 2, 3, 4], for example.
-        We want to replace the image position (-200) with image_embeddings and return the following:
-        - final_embeddings = [0, 1, image_embeddings, 2, 3],
-        - final_labels = [1, -100, 2, 3, 4]
-        - final_loss_mask = [1, 0, 0, 1, 1]
-
-        This function handles samples without images (text-only sample). It also handles samples
-        with images that are split into multiples tiles.
-
-        If pipeline parallelism is not used, then self.pre_process and self.post_process
-        are both True and we update both input embeddings, labels and loss masks (if available).
-
-        If pipeline parallelism is used, then we do the following
-        - the first language model chunk has self.pre_process = True and
-          self.post_process = False. We update input embeddings.
-        - the middle language model chunk(s) has self.pre_process = False and
-          self.post_process = False. We don't need to update anything.
-        - the last language model chunk has self.pre_process = False and
-          self.post_process = True. We update labels and loss mask.
-
-        TODO: This function should adjust the attention mask too.
-        Currently, we assume the language model uses a causal mask.
+        Combining image, audio and text embeddings to final_embedding and creating final_labels and final_loss_mask.
 
         Returns:
-            final_embedding (torch.Tensor): image and text embeddings [combined_seq_len, b, h].
-            final_labels (torch.Tensor): labels for image and text positions [b, combined_seq_len].
+            final_embedding (torch.Tensor): image, audio and text embeddings [combined_seq_len, b, h].
+            final_labels (torch.Tensor): labels for image, audio and text positions [b, combined_seq_len].
             final_loss_mask (torch.Tensor): loss mask [b, combined_seq_len].
-        """
-        assert self.add_decoder, "input text preprocessing is only needed for the language model"
 
-        # NOTE: image_embeddings [num_tiles * img_seq_len , embed_dim] -> num_piles is all the tiles for all images in the batch
-        # based on num_image_tiles, image_token_index, we can determine which image_embeddings tile to use for each image token
+        """
+
+        assert self.add_decoder, "input text preprocessing is only needed for the language model"
 
         # No pre- or postprocessing needed.
         # With pipeline parallel > 2, this means a chunk in the middle of the model.
         if not self.pre_process and not self.post_process:
             return language_embeddings, loss_mask, labels, attention_mask
 
-        # If using the inference KV cache, the image tokens are already computed.
+        # # TODO: not sure what to do with this?
+        # If using the inference KV cache, the image/audio tokens are already computed.
         if use_inference_kv_cache:
             return language_embeddings, loss_mask, labels, attention_mask
 
@@ -556,23 +715,27 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         # Create indices for new text and label positions.
         with torch.no_grad():
-            # NOTE: image_token_mask [batch_size, text_seq_len]
+
+            # Compute the final embedding size
             image_token_mask = input_ids == image_token_index
-            # NOTE: num_images_per_sample [batch_size, num_images]
+            audio_token_mask = input_ids == audio_token_index
+            media_token_mask = image_token_mask | audio_token_mask
             num_images_per_sample = torch.sum(image_token_mask, dim=-1)
-
-            # NOTE: num_images_per_sample [1, batch_size] -> list of num_images for each sample
-            # NOTE: num_image_tiles [1, num_images]: list of num_tiles for each image
-
-            # Number of tiles per sample.
             num_image_tiles_batch = num_image_tiles.split(num_images_per_sample.tolist(), dim=0)
-            # NOTE: num_image_tiles_batch [batch_size, num_tiles]
             num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
+            num_audios_per_sample = torch.sum(audio_token_mask, dim=-1)
+            audios_embeddings_lengths_batch = audio_embedding_lens.split(num_audios_per_sample.tolist(), dim=0)
+            audios_embeddings_lengths_batch = torch.tensor([x.sum() for x in audios_embeddings_lengths_batch], device=input_ids.device)
 
-            # Sequence length for each sample is the image sequence length multiplied by
-            # the number of tiles for that image, minus image token indices,
-            # plus text sequence length.
-            seq_lens = num_image_tiles_batch * img_seq_len - num_images_per_sample + text_seq_len
+            # Sequence length for each sample: 
+            # (image sequence length multiplied by the number of tiles for that image) + (audio sequence length) 
+            # - (number of image tokens + number of audio tokens) 
+            # + (text sequence length).
+            seq_lens = (
+                (num_image_tiles_batch * img_seq_len) + audios_embeddings_lengths_batch 
+                - (num_images_per_sample + num_audios_per_sample) 
+                + text_seq_len
+            )
             max_seq_len = seq_lens.max()
             
             # Pipeline parallel expects fixed input size. Check if we need to pad.
@@ -601,19 +764,27 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     padded_seq_len = int((max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size)
 
                 max_seq_len = padded_seq_len
-            batch_indices, non_image_indices = torch.where(input_ids != image_token_index)
+            batch_indices, non_media_indices = torch.where(
+                (input_ids != image_token_index) & (input_ids != audio_token_index)
+            )
 
             # New position ids for the text tokens, shifted by the image sequence length.
-            # E.g. for input_ids = [-200, 1, 2, 3] and img_seq_len = 576, we get
-            # new_position_ids = [576, 577, 578, 579]. text_position_ids are then [577, 578, 579].
-            image_token_mask_lens = image_token_mask.int().clone()
-            # -1 is for the removed image token index.
-            # NOTE: image_token_mask_lens [batch_size, text_seq_len] -> 0s for non_image tokens, and (num_tiles * img_seq_len - 1) for image tokens
-            image_token_mask_lens[image_token_mask] = num_image_tiles * img_seq_len - 1
-            # +1 is needed here for the cumulative sum. -1 is adjusting for zero-based indexing.
-            new_position_ids = torch.cumsum((image_token_mask_lens + 1), dim=-1) - 1
-            # NOTE: text_position_ids [batch_size, text_seq_len] -> position ids for text tokens
-            text_position_ids = new_position_ids[batch_indices, non_image_indices]
+            # E.g. for input_ids = [-200, 1, 2, 3, -200, 5, 6] and img_seq_len[0] = [576, 300], we get
+            # new_position_ids = [576, 577, 578, 579, 879, 880, 881]. text_position_ids are then [577, 578, 579, 880, 881].
+            # Build a tensor of contributions: text tokens (non-media) contribute 0 extra,
+            # while each media token contributes its media-specific extra length.
+            media_token_mask_lens = torch.zeros_like(input_ids, dtype=torch.int32)
+            media_token_mask_lens[image_token_mask] = ((num_image_tiles * img_seq_len) - 1).to(torch.int32)
+            media_token_mask_lens[audio_token_mask] = (audio_embedding_lens - 1).to(torch.int32)
+
+            # Compute new position ids for every token.
+            # We add 1 to every position (for text tokens this gives a step of 1,
+            # and for media tokens, it gives a step equal to its extra length + 1),
+            # then subtract 1 to adjust for zero-based indexing.
+            new_position_ids = torch.cumsum((media_token_mask_lens + 1), dim=-1) - 1
+
+            # Extract text token positions (non-media tokens).
+            text_position_ids = new_position_ids[batch_indices, non_media_indices]
 
             # Labels are shifted to left by one.
             # So, shift text position ids and non-image indices to left by one.
@@ -624,23 +795,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
                 label_batch_indices = batch_indices[valid_label_text_position_ids]
 
-                label_non_image_indices = non_image_indices - 1
-                valid_label_non_image_indices = label_non_image_indices >= 0
-                label_non_image_indices = label_non_image_indices[valid_label_non_image_indices]
+                label_non_media_indices = non_media_indices - 1
+                valid_label_non_media_indices = label_non_media_indices >= 0
+                label_non_media_indices = label_non_media_indices[valid_label_non_media_indices]
 
-            # Create a mask for the image embedding positions.
-            images_mask = torch.full((batch_size, max_seq_len), True, dtype=torch.bool, device=input_ids.device)
-            # No images in the text positions.
-            images_mask[batch_indices, text_position_ids] = False
-            # Samples can have different amount of images tokens.
-            # new_position_ids[:, -1] gives the last text position id for each sample.
-            # Padding is needed when the number of image tokens differs.
-            first_padding_idx = new_position_ids[:, -1] + 1
-            # NOTE: images_mask [batch_size, max_seq_len] -> 0s for text tokens or padding, 1s for image tokens
-            images_mask[
-                torch.arange(max_seq_len, device=first_padding_idx.device).repeat(batch_size, 1)
-                >= first_padding_idx.unsqueeze(1)
-            ] = False
+            # get new position ids for the image/audios tokens (each position is the last position of the image/audio tokens in each sample)
+            new_images_position_ids = []
+            new_audios_position_ids = []
+            for i in range(len(new_position_ids)):
+                new_images_position_ids.append(new_position_ids[i][image_token_mask[i]])
+                new_audios_position_ids.append(new_position_ids[i][audio_token_mask[i]])
 
         # Create the final input embedding (if this is the first language model stage).
         final_embedding = None
@@ -655,47 +819,83 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )
 
             # Put text embeddings to the text positions in the result tensor.
-            final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_image_indices]
+            final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_media_indices]
 
-            # Put image embeddings to image positions.
-            # NOTE: final_embedding [batch_size, max_seq_len, embed_dim]
-            final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+            # # Put image and audio embeddings to image and audios positions.
+            # # NOTE: final_embedding [batch_size, max_seq_len, embed_dim]
+            # final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+            # final_embedding[audios_mask] = audio_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+
+            # Put image embeddings to the last position of the image tokens
+            image_embeddings = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+            image_pointer = 0
+            tile_pointer = 0
+            images_mask = torch.full((batch_size, max_seq_len), False, dtype=torch.bool, device=input_ids.device)
+            for i in range(final_embedding.shape[0]):
+                for j in range(len(new_images_position_ids[i])):
+                    current_image_seq_len = num_image_tiles[image_pointer]*img_seq_len
+                    current_image_tokens_end_idx = new_images_position_ids[i][j]
+                    current_image_tokens_start_idx = current_image_tokens_end_idx - current_image_seq_len
+
+                    final_embedding[i][current_image_tokens_start_idx:current_image_tokens_end_idx] = image_embeddings[tile_pointer : (tile_pointer + current_image_seq_len)]
+                    images_mask[i][current_image_tokens_start_idx:current_image_tokens_end_idx] = True
+                    tile_pointer += num_image_tiles[image_pointer]
+                    image_pointer += 1
+            # print(stop_here)    
+
+            # Put audio embeddings to the last position of the audio tokens
+            audio_embeddings = audio_embeddings.permute(1, 0, 2).contiguous()
+            audio_pointer = 0
+            audio_length_pointer = 0
+            audios_mask = torch.full((batch_size, max_seq_len), False, dtype=torch.bool, device=input_ids.device)
+            for i in range(final_embedding.shape[0]):
+                for j in range(len(new_audios_position_ids[i])):
+                    current_audio_seq_len = audio_embedding_lens[audio_length_pointer]
+                    current_audio_tokens_end_idx = new_audios_position_ids[i][j]
+                    current_audio_tokens_start_idx = current_audio_tokens_end_idx - current_audio_seq_len
+
+                    final_embedding[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx] = audio_embeddings[audio_pointer][:current_audio_seq_len]
+                    audios_mask[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx] = True
+                    audio_pointer += 1
+                    audio_length_pointer += 1
+            # print(stop_here)
 
         # Create the final labels and loss mask (if this is the last language model stage).
         final_labels, final_loss_mask = None, None
         if has_labels:
             final_labels = torch.full(
-                (batch_size, max_seq_len), IGNORE_INDEX, dtype=labels.dtype, device=labels.device
+                (batch_size, max_seq_len), MultiModalSampleConfig.ignore_place_holder, dtype=labels.dtype, device=labels.device
             )
             final_loss_mask = torch.full((batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device)
 
             # Put text labels and loss mask to the text positions.
             final_labels[label_batch_indices, label_text_position_ids] = labels[
-                label_batch_indices, label_non_image_indices
+                label_batch_indices, label_non_media_indices
             ]
 
-            final_loss_mask[batch_indices, text_position_ids] = loss_mask[batch_indices, non_image_indices]
+            final_loss_mask[batch_indices, text_position_ids] = loss_mask[batch_indices, non_media_indices]
 
             # For labels, pick the last label index that got dropped by the shift to left.
             label_extra_text_position_ids = seq_lens - 1
             batch_range = torch.arange(len(label_extra_text_position_ids))
             final_labels[batch_range, label_extra_text_position_ids] = labels[batch_range, -1]
 
-            # Loss mask the image positions.
+            # Loss mask the media positions.
             final_loss_mask[images_mask] = 0
+            final_loss_mask[audios_mask] = 0
 
-            # Loss mask last text position just before an image
-            # so that text token does not need to predict the first image token.
-            batch_image_indices, image_indices = torch.where(image_token_mask)
-            # Indices just before image tokens. If it's -1, skip it.
-            before_image_indices = image_indices - 1
-            valid = before_image_indices >= 0
-            valid_batch_image_indices = batch_image_indices[valid]
-            valid_before_image_indices = before_image_indices[valid]
+            # Loss mask last text position just before an image/audio
+            # so that text token does not need to predict the first image/audio token.
+            batch_media_indices, media_indices = torch.where(media_token_mask)
+            # Indices just before media tokens. If it's -1, skip it.
+            before_media_indices = media_indices - 1
+            valid = before_media_indices >= 0
+            valid_batch_media_indices = batch_media_indices[valid]
+            valid_before_media_indices = before_media_indices[valid]
             # Map those indices those position ids.
-            valid_before_image_indices = new_position_ids[valid_batch_image_indices, valid_before_image_indices]
+            valid_before_media_indices = new_position_ids[valid_batch_media_indices, valid_before_media_indices]
 
-            final_loss_mask[valid_batch_image_indices, valid_before_image_indices] = 0
+            final_loss_mask[valid_batch_media_indices, valid_before_media_indices] = 0
 
         if final_embedding is not None and has_labels:
             assert (
@@ -786,21 +986,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
                 batch = get_batch_on_this_cp_rank(batch)
             else:
-                try:
-                    import transformer_engine_torch as tex
-                except ModuleNotFoundError as e:
-                    logging.error(
-                        "Please update Transformer Engine to >= 1.10 to use \
-                            Context Parallel with THD format data"
-                    )
-                    raise e
-                cp_size = ps.get_context_parallel_world_size()
-                cp_rank = ps.get_context_parallel_rank()
-                for key, data in batch.items():
-                    index = tex.thd_get_partitioned_indices(
-                        packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
-                    )
-                    batch[key] = data.index_select(1, index)
+                batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
@@ -817,12 +1003,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
         return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
 
-class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
-    """Lightning Wrapper for Neva Model"""
+class AVLMModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    """Lightning Wrapper for AVLM Model"""
 
     def __init__(
         self,
-        config: NevaConfig,
+        config: AVLMConfig,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
@@ -847,28 +1033,34 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         position_ids: torch.Tensor,
         loss_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        images: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
-        inference_params: Optional[InferenceParams] = None,
+        images: Optional[torch.Tensor] = None,
         num_image_tiles: Optional[List[int]] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        image_token_index: Optional[int] = ImageToken.token_id,
+        # image_token_mask: Optional[torch.Tensor] = None,
+        audios: Optional[torch.Tensor] = None,
+        audio_lengths: Optional[List[int]] = None,
+        audio_token_index: Optional[int] = AudioToken.token_id,
+        inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
-        image_token_mask: Optional[torch.Tensor] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         # pylint: disable=C0115,C0116
         output_tensor = self.module(
-            images=images,
             input_ids=input_ids,
             position_ids=position_ids,
             loss_mask=loss_mask,
             attention_mask=attention_mask,
             labels=labels,
-            inference_params=inference_params,
+            images=images,
             num_image_tiles=num_image_tiles,
             image_token_index=image_token_index,
+            # image_token_mask=image_token_mask,
+            audios=audios,
+            audio_lengths=audio_lengths,
+            audio_token_index=audio_token_index,
+            inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
-            image_token_mask=image_token_mask,
             packed_seq_params=packed_seq_params,
         )
 
@@ -911,8 +1103,8 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
 
 __all__ = [
-    "NevaModel",
-    "NevaConfig",
-    "neva_data_step",
-    "neva_forward_step",
+    "AVLMModel",
+    "AVLMConfig",
+    "AVLM_data_step",
+    "AVLM_forward_step",
 ]
