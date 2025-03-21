@@ -24,6 +24,10 @@ HF_MODEL_ID_TO_NEMO_CLASS = {
     "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaModel,
     "meta-llama/Llama-3.2-11B-Vision-Instruct": vlm.MLlamaModel,
     "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaModel,
+    "OpenGVLab/InternViT-300M-448px-V2_5": vlm.InternViTModel,
+    "google/siglip-base-patch16-224": vlm.SigLIPViTModel,
+    "OpenGVLab/InternViT-6B-448px-V2_5": vlm.InternViTModel,
+    "openai/clip-vit-large-patch14": vlm.CLIPViTModel,
 }
 
 

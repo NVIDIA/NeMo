@@ -64,6 +64,7 @@ from nemo.collections.vlm.recipes import *
 from nemo.collections.vlm.vision import (
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
+    CLIPViTModel,
     HFCLIPVisionConfig,
     InternViT_6B_448px_Config,
     InternViT_300M_448px_Config,
@@ -71,9 +72,11 @@ from nemo.collections.vlm.vision import (
     MultimodalProjectorConfig,
     SigLIPViT400M_14_384_Config,
     SigLIPViTModel,
+    BaseCLIPViTModel
 )
 
 __all__ = [
+    "BaseCLIPViTModel",
     "HFDatasetDataModule",
     "HFAutoModelForImageTextToText",
     "NevaMockDataModule",
