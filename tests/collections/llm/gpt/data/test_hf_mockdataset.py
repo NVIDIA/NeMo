@@ -13,12 +13,12 @@
 # limitations under the License.
 
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 import torch
-from nemo.collections.llm.gpt.data.hf_dataset import (
-    HFMockDataModule, _MockGPTDataset
-)
+
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule, _MockGPTDataset
 
 
 @pytest.fixture

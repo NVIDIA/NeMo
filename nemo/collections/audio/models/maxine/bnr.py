@@ -27,9 +27,9 @@ BNR 2.0 uses the SEASR architecture described in https://ieeexplore.ieee.org/sta
 from typing import Dict, Optional
 
 import einops
-from omegaconf import DictConfig
 import lightning.pytorch as plt
 from lightning.pytorch import Trainer
+from omegaconf import DictConfig
 
 from nemo.collections.audio.models.audio_to_audio import AudioToAudioModel
 from nemo.collections.audio.parts.utils.maxine import apply_weight_norm_lstm, remove_weight_norm_lstm

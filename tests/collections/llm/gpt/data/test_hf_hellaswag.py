@@ -13,11 +13,12 @@
 # limitations under the License.
 
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from nemo.collections.llm.gpt.data.hf_dataset import (
-    HellaSwagHFDataModule
-)
+
+from nemo.collections.llm.gpt.data.hf_dataset import HellaSwagHFDataModule
+
 
 @pytest.fixture
 def mock_tokenizer():

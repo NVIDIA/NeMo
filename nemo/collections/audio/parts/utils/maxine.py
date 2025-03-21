@@ -14,7 +14,7 @@
 
 import torch
 import torch.nn.functional as F
-from torch.nn.utils import weight_norm, remove_weight_norm
+from torch.nn.utils import remove_weight_norm, weight_norm
 
 
 def apply_weight_norm_lstm(lstm_module):
