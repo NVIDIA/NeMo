@@ -445,8 +445,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Only returns a non-empty state dict on rank 0 if ``save_distributed_checkpoint=False``.
 
         """
+        from nemo.lightning.pytorch.strategies.utils import to_cpu
+
         assert self.lightning_module is not None
         state_dict = self.lightning_module.state_dict()
+
+        module_names = list(state_dict.keys())
+        for name in module_names:
+            param = state_dict.pop(name)
+            state_dict[name] = to_cpu(param)
         return state_dict
 
     @override

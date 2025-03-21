@@ -180,7 +180,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             return auto_cls.from_pretrained(
                 self.model_name,
                 torch_dtype=torch.bfloat16,
-                device_map=self.device,
+                device_map="cpu",
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
                 attn_implementation=attn_implementation,
