@@ -29,7 +29,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules import stateless_net
