@@ -14,7 +14,7 @@
 
 import argparse
 
-from nemo_run.config import NEMORUN_HOME
+from nemo_run.config import get_nemorun_home
 
 from .utils import DEFAULT_NEMO_HOME
 
@@ -44,9 +44,9 @@ def parse_cli_args():
         "-l",
         "--log_dir",
         type=str,
-        help=f"Directory for logging experiment results. Defaults to {NEMORUN_HOME}",
+        help=f"Directory for logging experiment results. Defaults to {get_nemorun_home()}",
         required=False,
-        default=NEMORUN_HOME,
+        default=get_nemorun_home(),
     )
     parser.add_argument(
         "-t",
@@ -248,6 +248,14 @@ def parse_cli_args():
         help="Number of train steps. Defaults to 100",
         required=False,
         default=100,
+    )
+    parser.add_argument(
+        "-cg",
+        "--cuda_graphs",
+        help="Enable CUDA graphs. Disabled by default",
+        action="store_true",
+        required=False,
+        default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
     )
 
     def list_of_strings(arg):

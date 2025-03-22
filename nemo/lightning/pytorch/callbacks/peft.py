@@ -153,6 +153,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         # automodel_setup_optimizers is either None or holds a reference to trainer.strategy.setup_optimizers
         self.automodel_setup_optimizers = None
+        # automodel adds adapters in configure_model
+        self.transform_already_applied = False
         if get_automodel_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
             # Due to the workaround used in peft restoration, it makes restoration non-PTL conforming,
@@ -160,6 +162,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             trainer._checkpoint_connector.restore_training_state = lambda: True
             trainer._checkpoint_connector.restore_model = lambda: True
             self.automodel_setup_optimizers = trainer.strategy.setup_optimizers
+            self.transform_already_applied = True
             trainer.strategy.setup_optimizers = lambda x: True
         else:
             ckpt_io_kwarg_names = [
@@ -185,14 +188,19 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy._init_model_parallel = False
         trainer.strategy._setup_optimizers = False
 
-    def set_trainable_params(self, trainer: pl.Trainer) -> None:
+    def set_params_to_save(self, trainer: pl.Trainer) -> None:
         """
         Set params to be saved for PEFT. This function is called in apply_transform.
         Can be overridden in each PEFT method class.
         """
-        self.trainable_params = set(
+        self.params_to_save = set(
             name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
         )
+        for module_name, module in trainer.lightning_module.named_modules():
+            if hasattr(module, "track_running_stats"):
+                for buffer_name, buffer in module.named_buffers():
+                    if buffer is not None:
+                        self.params_to_save.add(module_name + "." + buffer_name)
 
     def apply_transform(self, trainer):
         """
@@ -202,8 +210,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
         3. Load weights and optimizer state dict
         4. Set up `finalize_model_grads` from mcore.
         """
-        super().apply_transform(trainer)
-        self.set_trainable_params(trainer)
+        # automodel adds adapters in configure_model
+        if not getattr(self, 'transform_already_applied', False):
+            super().apply_transform(trainer)
+        self.set_params_to_save(trainer)
         # @akoumparouli: only used with automodel + FSDP2Strategy.
         if callable(getattr(trainer.strategy, 'parallelize', None)):
             trainer.strategy.parallelize()
@@ -311,7 +321,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         """
         if isinstance(key, tuple):
             return key[1].requires_grad
-        return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
+        return key in self.params_to_save or ".adapter." in key or key.endswith(".adapters")
 
 
 class AdapterWrapper(nn.Module):
@@ -398,10 +408,10 @@ class AdapterWrapper(nn.Module):
             destination = {}
 
         # Get state dict of the main module
-        self.to_wrap.state_dict(destination, prefix, keep_vars)
+        self.to_wrap.state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
 
         # Store adapter state dict under the "adapter" prefix in the destination dict
-        self.adapter.state_dict(destination, f'{prefix}adapter.', keep_vars)
+        self.adapter.state_dict(destination=destination, prefix=f'{prefix}adapter.', keep_vars=keep_vars)
         return destination
 
     def sharded_state_dict(
