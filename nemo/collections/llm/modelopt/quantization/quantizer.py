@@ -96,6 +96,47 @@ class ExportConfig:
     def __post_init__(self):
         self.path = Path(self.path)
 
+@dataclass
+class ParallelConfig:
+    """Model parallelism during the calibration. Only applies for megatron-based models"""
+
+    calibration_tp: int = 0
+    calibration_pp: int = 0
+    devices: int = 0
+    num_nodes: int = 0
+    num_layers_in_first_pipeline_stage: Optional[int] = None
+    num_layers_in_last_pipeline_stage: Optional[int] = None
+
+    def _set_calibration_parallelism(self):
+        if self.calibration_tp == 0 and self.calibration_pp == 0:
+            self.calibration_tp = self.devices
+            self.calibration_pp = self.num_nodes
+
+        if self.calibration_tp == 0:
+            assert self.num_nodes * self.devices % self.calibration_pp == 0, (
+                f"The number of devices ({self.num_nodes * self.devices}) must be divisible by the number of "
+                f"pipeline parallelism ({self.calibration_pp})."
+            )
+            self.calibration_tp = self.num_nodes * self.devices // self.calibration_pp
+        
+        if self.calibration_pp == 0:
+            assert self.num_nodes * self.devices % self.calibration_tp == 0, (
+                f"The number of devices ({self.num_nodes * self.devices}) must be divisible by the number of "
+                f"tensor parallelism ({self.calibration_tp})."
+            )
+            self.calibration_pp = self.num_nodes * self.devices // self.calibration_tp
+
+    def __post_init__(self):
+        parallel_env = "LOCAL_WORLD_SIZE" in os.environ and "WORLD_SIZE" in os.environ
+
+        if self.devices == 0:
+            self.devices = int(os.environ["LOCAL_WORLD_SIZE"]) if parallel_env else 1
+        
+        if self.num_nodes == 0:
+            self.num_nodes = int(os.environ["WORLD_SIZE"]) // self.devices if parallel_env else 1
+            
+        self._set_calibration_parallelism()
+
 
 class Quantizer:
     """Post-training quantization (PTQ) and export of NeMo 2.0 checkpoints.
