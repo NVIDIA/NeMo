@@ -524,7 +524,7 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def __init__(
         self,
-        config: MLlamaModelConfig,
+        config: Optional[MLlamaModelConfig] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
