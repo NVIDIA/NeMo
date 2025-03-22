@@ -97,7 +97,7 @@ def get_args():
     parser.add_argument(
         "--generate_sample", help="Generate sample model output after performing PTQ", action="store_true"
     )
-    parser.add_argument("--legacy_ckpt", action="store_true", help="""Load ckpt saved with TE < 1.14""")
+    parser.add_argument("--legacy_ckpt", action="store_true", help="Load ckpt saved with TE < 1.14")
     parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()

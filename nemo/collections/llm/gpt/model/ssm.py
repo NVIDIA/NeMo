@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal, Optional, Union
 
 import torch
 
@@ -24,7 +24,8 @@ from nemo.utils import logging
 try:
     from megatron.core import parallel_state
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
-    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec as default_mamba_stack_spec
+    from megatron.core.transformer.spec_utils import ModuleSpec
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -86,8 +87,13 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = ssm_forward_step
     data_step_fn: Callable = gpt_data_step
     tokenizer_model_path: str = None
+    mamba_stack_spec: Union[ModuleSpec, Callable[[], ModuleSpec]] = field(default_factory=lambda: default_mamba_stack_spec)
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
+
+        mamba_stack_spec = self.mamba_stack_spec
+        if not isinstance(mamba_stack_spec, ModuleSpec):
+            mamba_stack_spec = mamba_stack_spec()
 
         return MCoreMambaModel(
             self,

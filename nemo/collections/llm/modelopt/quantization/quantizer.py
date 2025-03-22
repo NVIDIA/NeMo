@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Optional, Union
 import torch
 from datasets import load_dataset
 from megatron.core import parallel_state
+from megatron.core.inference.common_inference_params import CommonInferenceParams
 from tqdm import tqdm
 
 from nemo.collections import llm
@@ -152,7 +153,7 @@ class Quantizer:
             params_dtype=torch.bfloat16, inference_batch_times_seqlen_threshold=30
         )
 
-        generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
+        generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts, inference_params=CommonInferenceParams(top_k=1, num_tokens_to_generate=30))]
         outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
 
         logging.info(f"Sample generation after PTQ (with prompts): {outputs}")
