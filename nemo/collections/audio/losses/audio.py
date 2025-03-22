@@ -368,8 +368,6 @@ class SDRLoss(Loss, Typing):
     @property
     def output_types(self):
         """Output types definitions for SDRLoss.
-        loss:
-            NeuralType(None)
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -539,9 +537,7 @@ class MSELoss(Loss, Typing):
 
     @property
     def output_types(self):
-        """Output types definitions for SDRLoss.
-        loss:
-            NeuralType(None)
+        """Output types definitions for MSELoss.
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -705,8 +701,6 @@ class MAELoss(Loss, Typing):
     @property
     def output_types(self):
         """Output types definitions for MAELoss.
-        loss:
-            NeuralType(None)
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
