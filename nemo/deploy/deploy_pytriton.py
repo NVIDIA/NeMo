@@ -109,45 +109,41 @@ class DeployPyTriton(DeployBase):
 
         self._init_nemo_model()
 
-        try:
-            if self.streaming:
-                # TODO: can't set allow_http=True due to a bug in pytriton, will fix in latest pytriton
-                triton_config = TritonConfig(
-                    log_verbose=self.pytriton_log_verbose,
-                    allow_grpc=self.allow_grpc,
-                    allow_http=self.allow_http,
-                    grpc_address=self.address,
-                )
-                self.triton = Triton(config=triton_config)
-                self.triton.bind(
-                    model_name=self.triton_model_name,
-                    model_version=self.triton_model_version,
-                    infer_func=self.model.triton_infer_fn_streaming,
-                    inputs=self.model.get_triton_input,
-                    outputs=self.model.get_triton_output,
-                    config=ModelConfig(decoupled=True),
-                )
-            else:
-                triton_config = TritonConfig(
-                    http_address=self.address,
-                    http_port=self.http_port,
-                    grpc_address=self.address,
-                    grpc_port=self.grpc_port,
-                    allow_grpc=self.allow_grpc,
-                    allow_http=self.allow_http,
-                )
-                self.triton = Triton(config=triton_config)
-                self.triton.bind(
-                    model_name=self.triton_model_name,
-                    model_version=self.triton_model_version,
-                    infer_func=self.model.triton_infer_fn,
-                    inputs=self.model.get_triton_input,
-                    outputs=self.model.get_triton_output,
-                    config=ModelConfig(max_batch_size=self.max_batch_size),
-                )
-        except Exception as e:
-            self.triton = None
-            print(e)
+        if self.streaming:
+            # TODO: can't set allow_http=True due to a bug in pytriton, will fix in latest pytriton
+            triton_config = TritonConfig(
+                log_verbose=self.pytriton_log_verbose,
+                allow_grpc=self.allow_grpc,
+                allow_http=self.allow_http,
+                grpc_address=self.address,
+            )
+            self.triton = Triton(config=triton_config)
+            self.triton.bind(
+                model_name=self.triton_model_name,
+                model_version=self.triton_model_version,
+                infer_func=self.model.triton_infer_fn_streaming,
+                inputs=self.model.get_triton_input,
+                outputs=self.model.get_triton_output,
+                config=ModelConfig(decoupled=True),
+            )
+        else:
+            triton_config = TritonConfig(
+                http_address=self.address,
+                http_port=self.http_port,
+                grpc_address=self.address,
+                grpc_port=self.grpc_port,
+                allow_grpc=self.allow_grpc,
+                allow_http=self.allow_http,
+            )
+            self.triton = Triton(config=triton_config)
+            self.triton.bind(
+                model_name=self.triton_model_name,
+                model_version=self.triton_model_version,
+                infer_func=self.model.triton_infer_fn,
+                inputs=self.model.get_triton_input,
+                outputs=self.model.get_triton_output,
+                config=ModelConfig(max_batch_size=self.max_batch_size),
+            )
 
     def serve(self):
         """
