@@ -26,6 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -34,10 +35,13 @@ from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypotheses
+from nemo.collections.asr.parts.submodules.tdt_malsd_batched_computer import ModifiedALSDBatchedTDTComputer
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.timers import SimpleTimer
 
 try:
     import kenlm
@@ -165,6 +169,7 @@ class BeamTDTInfer(Typing):
         self.joint = joint_model
         self.decoder = decoder_model
         self.durations = durations
+        self.timer = SimpleTimer()
 
         self.token_offset = 0
         self.search_type = search_type
@@ -270,6 +275,7 @@ class BeamTDTInfer(Typing):
         decoder_training_state = self.decoder.training
         joint_training_state = self.joint.training
 
+        self.timer.start(device=encoder_output.device)
         with torch.inference_mode():
             # Apply optional preprocessing
             encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
@@ -314,6 +320,7 @@ class BeamTDTInfer(Typing):
                         best_hypothesis: NBestHypotheses = NBestHypotheses(nbest_hyps)
                     hypotheses.append(best_hypothesis)
 
+        self.timer.stop(device=encoder_output.device)
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
@@ -798,3 +805,121 @@ class BeamTDTInfer(Typing):
             return sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
+
+
+class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        return {
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
+        }
+
+    def __init__(
+        self,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
+        durations: list,
+        blank_index: int,
+        beam_size: int,
+        search_type: str = 'malsd_batch',
+        score_norm: bool = True,
+        malsd_max_symbols_per_step: Optional[int] = None,
+        preserve_alignments: bool = False,
+        ngram_lm_model: Optional[str | Path] = None,
+        ngram_lm_alpha: float = 0.0,
+        blank_lm_score_mode: Optional[str] = None,
+        pruning_mode: Optional[str] = None,
+        allow_cuda_graphs: bool = True,
+        return_best_hypothesis: Optional[str] = True,
+    ):
+        super().__init__()
+        self.decoder = decoder_model
+        self.joint = joint_model
+
+        self.durations = durations
+        self._blank_index = blank_index
+        self._SOS = blank_index  # Start of single index
+        self.beam_size = beam_size
+
+        if malsd_max_symbols_per_step is not None and malsd_max_symbols_per_step <= 0:
+            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {malsd_max_symbols_per_step}")
+        self.max_symbols = malsd_max_symbols_per_step
+        self.preserve_alignments = preserve_alignments
+
+        self.timer = SimpleTimer()
+        if search_type == "malsd_batch":
+            # Depending on availability of `blank_as_pad` support
+            # switch between more efficient batch decoding technique
+            self._decoding_computer = ModifiedALSDBatchedTDTComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                durations=durations,
+                beam_size=self.beam_size,
+                blank_index=self._blank_index,
+                max_symbols_per_step=self.max_symbols,
+                preserve_alignments=preserve_alignments,
+                ngram_lm_model=ngram_lm_model,
+                ngram_lm_alpha=ngram_lm_alpha,
+                blank_lm_score_mode=blank_lm_score_mode,
+                score_norm=score_norm,
+                pruning_mode=pruning_mode,
+                allow_cuda_graphs=allow_cuda_graphs,
+                return_best_hypothesis=return_best_hypothesis,
+            )
+        else:
+            raise Exception(f"Decoding strategy {search_type} nor implemented.")
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports."""
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    @typecheck()
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[list[Hypothesis]] = None,
+    ) -> Tuple[list[Hypothesis]]:
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-regressively.
+        Args:
+            encoder_output: A tensor of size (batch, features, timesteps).
+            encoded_lengths: list of int representing the length of each sequence
+                output sequence.
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
+        # Preserve decoder and joint training state
+        decoder_training_state = self.decoder.training
+        joint_training_state = self.joint.training
+
+        with torch.inference_mode():
+            # Apply optional preprocessing
+            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
+            logitlen = encoded_lengths
+
+            self.decoder.eval()
+            self.joint.eval()
+
+            inseq = encoder_output  # [B, T, D]
+            self.timer.start(device=inseq.device)
+            hyps = self._decoding_computer(x=inseq, out_len=logitlen)
+            self.timer.stop(device=inseq.device)
+            # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
+            # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
+            #     hyp.dec_state = state
+
+            # Pack the hypotheses results
+            # packed_result = pack_hypotheses(hypotheses, logitlen)
+
+        self.decoder.train(decoder_training_state)
+        self.joint.train(joint_training_state)
+
+        return (hyps,)

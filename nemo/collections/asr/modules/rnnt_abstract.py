@@ -276,13 +276,54 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     @classmethod
+    def batch_aggregate_states_beam(
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        batch_size: int,
+        beam_size: int,
+        indices: torch.Tensor,
+        dst_states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+    ):
+        """
+        Aggregates decoder states based on the given indices.
+        Args:
+            src_states (Tuple[torch.Tensor, torch.Tensor]): source states of
+                shape `([L x (batch_size * beam_size, H)], [L x (batch_size * beam_size, H)])`
+            batch_size (int): The size of the batch.
+            beam_size (int): The size of the beam.
+            indices (torch.Tensor): A tensor of shape `(batch_size, beam_size)` containing
+                the indices in beam that map the source states to the destination states.
+            dst_states (Optional[Tuple[torch.Tensor, torch.Tensor]]): If provided, the method
+                updates these tensors in-place.
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]:
+        Note:
+            - The `indices` tensor is expanded to match the shape of the source states
+            during the gathering operation.
+        """
+
+        raise NotImplementedError()
+
+    @classmethod
     def batch_replace_states_mask(
         cls,
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
         mask: torch.Tensor,
+        other_src_states: Optional[list[torch.Tensor]] = None,
     ):
-        """Replace states in dst_states with states from src_states using the mask, in a way that does not synchronize with the CPU"""
+        """
+        Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
+
+        Args:
+            mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
+            src_states (list[torch.Tensor]): Values selected at indices where `mask` is True.
+            dst_states (list[torch.Tensor]), optional): The output states.
+            other_src_states (Optional[list[torch.Tensor]]: Values selected at indices where `mask` is False.
+
+        Note:
+            This operation is performed non-blocking using `torch.where`.
+        """
         raise NotImplementedError()
 
     @classmethod
