@@ -40,7 +40,7 @@ def get_args():
 
 
 def run_deploy(args):
-    return subprocess.Popen(
+    process = subprocess.Popen(
         [
             "python",
             "tests/evaluation/deploy_script.py",
@@ -52,6 +52,7 @@ def run_deploy(args):
             args.trtllm_dir,
         ]
     )
+    return process
 
 
 if __name__ == '__main__':
@@ -60,7 +61,7 @@ if __name__ == '__main__':
 
     # Evaluation code
     logging.info("Waiting for server readiness...")
-    server_ready = wait_for_server_ready(max_retries=30)
+    server_ready = wait_for_server_ready(max_retries=40)
     if server_ready:
         logging.info("Starting evaluation...")
         api_endpoint = ApiEndpoint(nemo_checkpoint_path=args.nemo2_ckpt_path)
@@ -72,7 +73,6 @@ if __name__ == '__main__':
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logging.info("Evaluation completed.")
     else:
-        logging.error("Server is not ready.")
-    # After evaluation, terminate deploy_proc
+        raise Exception("Server is not ready. Please check the logs above for error")
+    # Terminate deploy_proc
     deploy_proc.terminate()
-    deploy_proc.wait()
