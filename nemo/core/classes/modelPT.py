@@ -26,6 +26,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 import hydra
 import torch
 
+import multistorageclient as msc
+from multistorageclient.types import MSC_PROTOCOL
+
 from nemo.core.classes.module import NeuralModule
 
 try:
@@ -406,7 +409,11 @@ class ModelPT(LightningModule, Model):
             if not path.parent.exists():
                 path.parent.mkdir(parents=True)
 
-        save_path = Path(save_path).expanduser().resolve()
+        is_msc_url = False
+        if save_path.startswith(MSC_PROTOCOL):
+            is_msc_url = True
+        else:
+            save_path = Path(save_path).expanduser().resolve()
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             if app_state.model_parallel_size > 1:
@@ -417,13 +424,15 @@ class ModelPT(LightningModule, Model):
                         'can also use a custom one.'
                     )
             if is_global_rank_zero():
-                maybe_make_save_dir(save_path)
+                if not is_msc_url:
+                    maybe_make_save_dir(save_path)
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             # connector checks for ranks properly, no need to check here
             self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
         elif is_global_rank_zero():
-            maybe_make_save_dir(save_path)
+            if not is_msc_url:
+                maybe_make_save_dir(save_path)
             self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
 
     @classmethod
@@ -467,12 +476,14 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        if save_restore_connector.model_extracted_dir is None:
-            restore_path = os.path.abspath(os.path.expanduser(restore_path))
-        else:
-            restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
+        is_msc_url = restore_path.startswith(MSC_PROTOCOL)
+        if not is_msc_url:
+            if save_restore_connector.model_extracted_dir is None:
+                restore_path = os.path.abspath(os.path.expanduser(restore_path))
+            else:
+                restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
 
-        if not path.exists(restore_path):
+        if not msc.os.path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         app_state = AppState()
