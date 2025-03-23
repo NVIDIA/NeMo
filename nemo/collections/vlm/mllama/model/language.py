@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import List, Literal, Optional, Union
@@ -36,8 +35,6 @@ from megatron.core.transformer.transformer_layer import TransformerLayer, Transf
 from megatron.core.transformer.utils import sharded_state_dict_default
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor, nn
-
-from nemo.utils import logging
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (

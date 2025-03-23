@@ -76,6 +76,7 @@ from nemo.collections.vlm.vision import (
 )
 
 __all__ = [
+    "CLIPViTModel",
     "BaseCLIPViTModel",
     "HFDatasetDataModule",
     "HFAutoModelForImageTextToText",

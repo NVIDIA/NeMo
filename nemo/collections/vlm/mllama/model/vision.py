@@ -53,7 +53,6 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
-from PIL import Image as PIL_Image
 from torch import Tensor, nn
 
 if TYPE_CHECKING:

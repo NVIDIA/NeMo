@@ -31,7 +31,7 @@ from nemo.collections.vlm.mllama.model.base import (
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
-
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 # pylint: disable=C0115,C0116,C0301
 
 
@@ -249,8 +249,6 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property

@@ -10,7 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+# pylint: disable=C0115,C0116,C0301
 import re
 from abc import ABC, abstractmethod
 
@@ -213,7 +213,7 @@ class VQASampleEncoder(BaseSampleEncoder):
             messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers})
         else:
             raise ValueError(
-                f"VQA Sample context/answers should either be a List[str] or str. Other types not supported"
+                "VQA Sample context/answers should either be a List[str] or str. Other types not supported"
             )
         # Set the chat template if defined
         if self.conversation_template_config.chat_template:

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116
 from dataclasses import dataclass, field
 from typing import Dict, List
 
