@@ -1813,7 +1813,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_llava_next_hf_conversion_results
 
- L2_NeMo_2_LLAVA_NEXT_ENERGON_TRAIN:
+  L2_NeMo_2_LLAVA_NEXT_ENERGON_TRAIN:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_ENERGON_TRAIN')
