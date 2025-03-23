@@ -25,7 +25,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 
 
 def trainer(
-    tensor_parallelism: int = 4,
+    tensor_parallelism: int = 1,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,

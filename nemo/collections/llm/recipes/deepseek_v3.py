@@ -104,9 +104,11 @@ def pretrain_recipe(
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
-    recipe.model.config.num_layers_in_first_pipeline_stage = 3
-    recipe.model.config.num_layers_in_last_pipeline_stage = 2
+    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 3
+    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 2
+    recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None
 
+    recipe.model.config.recompute_granularity = "full"
     recipe.model.config.recompute_method = "uniform"
     recipe.model.config.recompute_num_layers = 1
 
