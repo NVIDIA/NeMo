@@ -15,11 +15,11 @@
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
+import multistorageclient as msc
 from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning.fabric.utilities.types import _PATH
-
-import multistorageclient as msc
 from multistorageclient.types import MSC_PROTOCOL
+
 from nemo.utils import logging
 
 
@@ -84,5 +84,5 @@ class MSCCheckpointIO(CheckpointIO):
         Args:
             path: Path to checkpoint
         """
-        #TODO: add remove function to shortcuts.py then use it here
+        # TODO: add remove function to shortcuts.py then use it here
         pass
