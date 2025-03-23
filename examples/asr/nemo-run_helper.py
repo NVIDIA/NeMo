@@ -36,13 +36,13 @@ def gather_mounts(cluster_cfg):
 
     Args:
         cluster_cfg: Cluster config dictionary with following fields.
-            
+
             script (str): Path to the main Python script to be executed.
             script_config (str): Path to the YAML config used by the script.
             exp_name (str or None): Name of the experiment. If None, it is inferred from `exp_manager.name`
               in the script configuration.
             results_dir (str): Path to the directory where results should be saved.
-            
+
             num_runs (int): Number of times to repeat the experiment.
             num_gpus (int): Number of GPUs to allocate per run.
             num_tasks_per_node (int): Number of tasks per node.
@@ -66,7 +66,7 @@ def gather_mounts(cluster_cfg):
             env_vars:
                 List[str]: List of environment variable declarations to be set in the job,
                 e.g., 'TOKENIZERS_PARALLELISM=false', 'HYDRA_FULL_ERROR=1', etc.
-             
+
             required_env_vars (List[str]): List of env vars that **must** be present in the environment before running.
                 - 'HF_TOKEN'
                 - 'WANDB_KEY'
@@ -75,7 +75,7 @@ def gather_mounts(cluster_cfg):
 
             timeouts:
                 partition_name: 04:00:00 (max runtime for execution)
-    """ 
+    """
     # Gather all mounts from the cluster config including ones which are disjoint from the cluster_cfg.mounts list.
     mounts = cluster_cfg.get('mounts', [])
     # Resolve any mounts in th cluster config that need user expansion
@@ -182,7 +182,6 @@ def check_config_mount_paths(script_config, cluster_config):
     # recursively walk all values of the script_config, checking if its a path-like string and if so, check if the path is a mounted path
     # if it is not, raise an error
 
-  
     ais_endpoint = os.environ.get("AIS_ENDPOINT", None)
     # Check if ais paths should be checked at all
     # This can be disabled using `++check_ais_paths=False` passed when calling the script
