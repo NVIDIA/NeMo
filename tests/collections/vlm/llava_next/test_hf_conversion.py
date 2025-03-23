@@ -23,12 +23,9 @@ import tempfile
 from pathlib import Path
 
 import torch
-from prettytable import PrettyTable
 from transformers import AutoTokenizer, LlavaNextForConditionalGeneration
 
-import nemo.lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 
 
 def get_parser():
@@ -160,6 +157,7 @@ def compare_model_outputs(original_model, exported_model, tokenizer):
 def run_conversion_pipeline(args):
     """Run the full HF → NeMo → HF conversion pipeline and validate results."""
     # Setup paths
+    temp_dir = None
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
         nemo_output_path = os.path.join(args.output_dir, "nemo_model")
@@ -220,13 +218,15 @@ def run_conversion_pipeline(args):
     if args.compare_logits:
         tokenizer = AutoTokenizer.from_pretrained(args.hf_path)
         logits_match = compare_model_outputs(original_hf, reexported_hf, tokenizer)
+        print(f"Logits match: {logits_match}")
 
     # Clean up if not saving models
     if not args.save_models and not args.output_dir:
         print(f"\nCleaning up temporary directories...")
         import shutil
 
-        shutil.rmtree(temp_dir)
+        if temp_dir:
+            shutil.rmtree(temp_dir)
 
     # Final validation (modified to exclude vocab size differences)
     if results['mismatched'] == 0 and results['missing'] == 0:

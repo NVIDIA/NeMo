@@ -16,7 +16,6 @@
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
-import os
 
 import torch
 from megatron.core.optimizer import OptimizerConfig

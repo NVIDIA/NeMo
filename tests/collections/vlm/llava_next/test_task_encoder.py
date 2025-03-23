@@ -16,7 +16,6 @@ import unittest
 from unittest.mock import patch
 
 import torch
-from megatron.energon import VQASample
 from transformers import AutoProcessor
 
 from nemo.collections.multimodal.data.energon.config import ImageToken, LLaVATemplateConfig, MultiModalSampleConfig
@@ -53,8 +52,6 @@ class TestLlavaNextTaskEncoder(unittest.TestCase):
     def test_batch(self):
         # Import VQA sample types
         from megatron.energon import VQASample
-
-        from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
 
         # Create VQA sample encoder
         vqa_encoder = LlavaNextSampleEncoder(
