@@ -78,6 +78,7 @@ def to_2tuple(x):
         return x
     return (x, x)
 
+
 def build_encoder_attention_mask(
     x: torch.Tensor, ar_ids: torch.Tensor, ntok: int, num_chunks: int, supported_aspect_ratios: List[List[int]]
 ):
