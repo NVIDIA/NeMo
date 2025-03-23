@@ -23,8 +23,10 @@ import uuid
 from contextlib import contextmanager
 from typing import Callable, Generator, Optional, Set, Union
 
+import multistorageclient as msc
 import torch
 from lightning.pytorch.trainer.trainer import Trainer
+from multistorageclient.types import MSC_PROTOCOL
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 
@@ -33,9 +35,6 @@ from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
-
-import multistorageclient as msc
-from multistorageclient.types import MSC_PROTOCOL
 
 
 class SaveRestoreConnector:
@@ -590,7 +589,7 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
-        filename_with_extension = filename.split("/")[-1] # get the filename and extension
+        filename_with_extension = filename.split("/")[-1]  # get the filename and extension
         is_msc_url = filename.startswith(MSC_PROTOCOL)
         with tempfile.TemporaryDirectory() as tmpdir:
             tar_file = os.path.join(tmpdir, filename_with_extension)
@@ -599,10 +598,14 @@ class SaveRestoreConnector:
             start_time = time.time()
             if is_msc_url:
                 msc.upload_file(filename, tar_file)
-                logging.info(f"time spent for msc.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}")
+                logging.info(
+                    f"time spent for msc.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}"
+                )
             else:
                 shutil.move(tar_file, filename)
-                logging.info(f"time spent for shutil.move from {tar_file} to {filename}: {time.time() - start_time:.4f}")
+                logging.info(
+                    f"time spent for shutil.move from {tar_file} to {filename}: {time.time() - start_time:.4f}"
+                )
 
     @staticmethod
     def _is_safe_path(member, extract_to):
@@ -691,7 +694,7 @@ class SaveRestoreConnector:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             if is_msc_url:
-                filename_with_extension = path2file.split("/")[-1] # get the filename with extension
+                filename_with_extension = path2file.split("/")[-1]  # get the filename with extension
                 full_file_path = os.path.join(tmpdir, filename_with_extension)
                 start_time = time.time()
                 msc.download_file(path2file, full_file_path)
@@ -704,20 +707,26 @@ class SaveRestoreConnector:
             try:
                 taropen_trial_start_time = time.time()
                 tar_test = tarfile.open(path2file, tar_header)
-                logging.info(f"time spent for trial tarfile.open [{path2file}] with header[{tar_header}]: {time.time() - taropen_trial_start_time:.4f}")
+                logging.info(
+                    f"time spent for trial tarfile.open [{path2file}] with header[{tar_header}]: {time.time() - taropen_trial_start_time:.4f}"
+                )
                 tar_test.close()
             except tarfile.ReadError:
                 # can be older checkpoint => try compressed tar
                 tar_header = "r:gz"
             taropen_start_time = time.time()
             tar = tarfile.open(path2file, tar_header)
-            logging.info(f"time spent for tarfile.open[{path2file}] with header[{tar_header}]: {time.time() - taropen_start_time:.4f}")
+            logging.info(
+                f"time spent for tarfile.open[{path2file}] with header[{tar_header}]: {time.time() - taropen_start_time:.4f}"
+            )
             extract_start_time = time.time()
             if members is None:
                 SaveRestoreConnector._safe_extract(tar, out_folder)
             else:
                 SaveRestoreConnector._safe_extract(tar, out_folder, members)
-            logging.info(f"time spent for _safe_extract {path2file} to {out_folder}: {time.time() - extract_start_time:.4f}")
+            logging.info(
+                f"time spent for _safe_extract {path2file} to {out_folder}: {time.time() - extract_start_time:.4f}"
+            )
             tar.close()
             return out_folder
 

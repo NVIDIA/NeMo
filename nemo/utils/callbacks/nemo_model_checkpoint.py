@@ -19,12 +19,14 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
+import multistorageclient as msc
 import torch
 from _weakref import proxy
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from lightning.pytorch.trainer import call
 from lightning.pytorch.utilities import rank_zero_info
+from multistorageclient.types import MSC_PROTOCOL
 from torch import Tensor
 
 from nemo.collections.common.callbacks import EMA
@@ -33,9 +35,6 @@ from nemo.utils.app_state import AppState
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
-
-import multistorageclient as msc
-from multistorageclient.types import MSC_PROTOCOL
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
@@ -523,7 +522,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self, filepath: str, trainer: "lightning.pytorch.Trainer", check_dist_ckpt: bool = True  # noqa: F821
     ) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
-        exists = self._fs.exists(filepath) or (check_dist_ckpt and not self.msc_enabled and self._fs.exists(ckpt_to_dir(filepath)))
+        exists = self._fs.exists(filepath) or (
+            check_dist_ckpt and not self.msc_enabled and self._fs.exists(ckpt_to_dir(filepath))
+        )
 
         return trainer.strategy.broadcast(exists)
 
@@ -666,7 +667,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # TODO: add msc support for distributed checkpointing
         if msc_enabled:
-            existing_marker_filepaths = msc.glob(f"{checkpoint_dir}*{NeMoModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}")
+            existing_marker_filepaths = msc.glob(
+                f"{checkpoint_dir}*{NeMoModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}"
+            )
             fs = get_filesystem(checkpoint_dir)
             for ckpt_filepath in existing_marker_filepaths:
                 fs.rm(ckpt_filepath)
@@ -726,9 +729,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return dirpath in previous.parents
 
     def format_checkpoint_name(
-            self, metrics: Dict[str, Tensor], filename: Optional[str] = None, ver: Optional[int] = None
+        self, metrics: Dict[str, Tensor], filename: Optional[str] = None, ver: Optional[int] = None
     ) -> str:
-
         """
         Override the format_checkpoint_name behavior from lightning's ModelCheckpoint to support msc.
         Specifically, if msc_enabled = true, use string formatting to construct the full path;
@@ -736,7 +738,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         """
 
         filename = filename or self.filename
-        filename = self._format_checkpoint_name(filename, metrics, auto_insert_metric_name=self.auto_insert_metric_name)
+        filename = self._format_checkpoint_name(
+            filename, metrics, auto_insert_metric_name=self.auto_insert_metric_name
+        )
 
         if ver is not None:
             filename = self.CHECKPOINT_JOIN_CHAR.join((filename, f"v{ver}"))

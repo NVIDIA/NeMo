@@ -24,9 +24,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
-import torch
-
 import multistorageclient as msc
+import torch
 from multistorageclient.types import MSC_PROTOCOL
 
 from nemo.core.classes.module import NeuralModule
