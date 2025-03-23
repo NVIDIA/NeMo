@@ -42,23 +42,23 @@ def get_args():
         '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
     )
     parser.add_argument(
-        '--data-type', type=str, choices=['mock', 'energon'], default='mock', 
-        help="Type of data to use for training: mock or energon"
+        '--data-type',
+        type=str,
+        choices=['mock', 'energon'],
+        default='mock',
+        help="Type of data to use for training: mock or energon",
     )
     parser.add_argument(
-        '--data-path', type=str, default=None, 
-        help="Path to the WebDataset for Energon data (only needed if data-type is energon)"
+        '--data-path',
+        type=str,
+        default=None,
+        help="Path to the WebDataset for Energon data (only needed if data-type is energon)",
     )
     parser.add_argument(
-        '--use-packed-sequence', action='store_true',
-        help="Use packed sequence for more efficient training"
+        '--use-packed-sequence', action='store_true', help="Use packed sequence for more efficient training"
     )
-    parser.add_argument(
-        '--gbs', type=int, default=2, help="Global batch size"
-    )
-    parser.add_argument(
-        '--mbs', type=int, default=2, help="Micro batch size"
-    )
+    parser.add_argument('--gbs', type=int, default=2, help="Global batch size")
+    parser.add_argument('--mbs', type=int, default=2, help="Micro batch size")
 
     return parser.parse_args()
 
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     gbs = args.gbs
     mbs = args.mbs
     decoder_seq_length = 1024
-    
+
     model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
     processor = AutoProcessor.from_pretrained(model_id)
     tokenizer = AutoTokenizer(model_id)
@@ -90,11 +90,9 @@ if __name__ == '__main__':
         # Validate args
         if not args.data_path:
             raise ValueError("For Energon data type, you must specify --data-path")
-        
+
         from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-        from nemo.collections.multimodal.data.energon.config import (
-            MultiModalSampleConfig,
-        )
+        from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         # Configure multimodal sample settings
@@ -104,7 +102,7 @@ if __name__ == '__main__':
         )
         # Setting system prompt to empty string
         multimodal_sample_config.conversation_template_config.system = ''
-        
+
         # Setup task encoder
         task_encoder = LlavaNextTaskEncoder(
             tokenizer=tokenizer.tokenizer,
@@ -113,7 +111,7 @@ if __name__ == '__main__':
             packed_sequence=args.use_packed_sequence,
             packed_sequence_size=decoder_seq_length,
         )
-        
+
         # Create data module with Energon
         data = EnergonMultiModalDataModule(
             path=args.data_path,
