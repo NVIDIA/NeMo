@@ -16,10 +16,10 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
+from nemo import lightning as nl
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo import lightning as nl
 
 from ..argument_parser import parse_cli_args
 from ..utils import args_sanity_check, get_user_configs, slurm_executor
