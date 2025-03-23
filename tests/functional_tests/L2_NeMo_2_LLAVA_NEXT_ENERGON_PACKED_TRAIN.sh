@@ -17,7 +17,7 @@ mkdir -p /tmp/nemo2_llava_next_energon_packed_results/$RUN_ID
 
 # Download necessary models - needs to be offline
 TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/ykarnati/hf_data coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-    tests/collections/vlm/test_llava_next_train.py \
+    tests/collections/vlm/llava_next/test_llava_next_train.py \
     --devices=1 \
     --max-steps=5 \
     --experiment-dir=/tmp/nemo2_llava_next_energon_packed_results/$RUN_ID \

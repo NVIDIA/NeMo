@@ -1,0 +1,28 @@
+{
+    "name": "NeMo",
+    // "build": {
+    //  // Sets the run context to one level up instead of the .devcontainer folder.
+    //  "context": "..",
+    //  // Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
+    //  "dockerfile": "../Dockerfile.ci"
+    // },
+    "image": "nvcr.io/nvidian/nemo:01_20",
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {
+            "installDirectlyFromGitHubRelease": true,
+            "version": "latest"
+        }
+    },
+    "runArgs": [
+        "--gpus=all",
+        "--shm-size=128g"
+    ],
+    "mounts": [
+    "source=${localEnv:HOME},target=/home/ykarnati,type=bind,consistency=cached",
+    "source=/usr/bin/rg,target=/usr/bin/rg,type=bind,readonly",
+    "source=/home/ykarnati/projects/executables/bat-v0.24.0-x86_64-unknown-linux-gnu/bat,target=/usr/bin/bat,type=bind,readonly",   
+    "source=/usr/bin/fzf,target=/usr/bin/fzf,type=bind,readonly",
+    "source=/home/ykarnati/Downloads/nemo_cache,target=/root/.cache/nemo,type=bind,consistency=cached"
+    // "source=/home/ykarnati/projects/nemo/modelopt,target=/usr/local/lib/python3.10/dist-packages/modelopt,type=bind,consistency=cached"
+    ],
+    "remoteUser": "root"
