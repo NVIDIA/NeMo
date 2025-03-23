@@ -22,6 +22,7 @@ import torch.distributed
 from megatron.core.transformer import TransformerConfig
 from torch import Tensor
 
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
     CrossAttentionVisionConfig,
@@ -31,7 +32,7 @@ from nemo.collections.vlm.mllama.model.base import (
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
 # pylint: disable=C0115,C0116,C0301
 
 

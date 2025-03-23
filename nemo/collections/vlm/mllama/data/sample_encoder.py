@@ -27,6 +27,7 @@ from nemo.utils import logging
 
 class LlamaImageTextSample(ImageTextSample):
     """Llama Image Text Sample"""
+
     vision_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
@@ -35,6 +36,7 @@ class LlamaImageTextSample(ImageTextSample):
 
 class Llama3SampleEncoder(VQASampleEncoder):
     """MLlama Sample Encoder"""
+
     def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
         """
         Initialize the VQASampleEncoder.
