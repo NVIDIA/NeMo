@@ -100,7 +100,9 @@ def parse_args():
         default="A cat holding a sign that says hello world",
         help="Inference prompts, use \',\' to separate if multiple prompts are provided.",
     )
-    parser.add_argument("--output_path", type=str, default="/tmp/flux_controlnet_output", help="Path to save inference output.")
+    parser.add_argument(
+        "--output_path", type=str, default="/tmp/flux_controlnet_output", help="Path to save inference output."
+    )
     args = parser.parse_args()
     return args
 
@@ -151,5 +153,5 @@ if __name__ == '__main__':
         dtype=dtype,
         control_image=control_images,
         controlnet_conditioning_scale=args.conditioning_scale,
-        output_path=args.output_path
+        output_path=args.output_path,
     )

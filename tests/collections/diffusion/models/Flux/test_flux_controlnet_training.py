@@ -1,20 +1,20 @@
+import lightning.pytorch as pl
+import nemo_run as run
+import torch
+from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.optimizer import OptimizerConfig
+
 import nemo.collections.diffusion
+from nemo import lightning as nl
+from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
 from nemo.collections.diffusion.models.flux.model import ClipConfig, FluxConfig, FluxModelParams, T5Config
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.collections.llm.recipes.log.default import default_resume, tensorboard_logger
-from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.optimizer import OptimizerConfig
 
+NAME = 'flux_controlnet_training_test'
 
-from nemo.collections import llm
-import nemo_run as run
-from nemo import lightning as nl
-import lightning.pytorch as pl
-import torch
-
-NAME='flux_controlnet_training_test'
 
 @run.cli.factory
 @run.autoconvert
@@ -50,7 +50,7 @@ def flux_controlnet_training(
                     num_joint_layers=flux_num_joint_layers,
                     num_single_layers=flux_num_single_layers,
                 ),
-        ),
+            ),
             flux_controlnet_config=run.Config(
                 FluxControlNetConfig,
                 num_joint_layers=flux_controlnet_num_joint_layers,
@@ -86,7 +86,7 @@ def flux_controlnet_training(
                     nl.ModelCheckpoint,
                     save_last=False,
                 )
-            ]
+            ],
         ),
         log=run.Config(
             nl.NeMoLogger,

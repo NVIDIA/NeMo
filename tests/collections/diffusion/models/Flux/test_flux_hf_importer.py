@@ -1,6 +1,6 @@
 from nemo import lightning as nl
-from nemo.collections.diffusion.models.flux.model import MegatronFluxModel, FluxModelParams
 from nemo.collections import llm
+from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
 
 params = FluxModelParams()
 model = MegatronFluxModel(flux_params=params)

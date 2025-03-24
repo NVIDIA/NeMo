@@ -243,9 +243,7 @@ def unit_test() -> run.Partial:
     recipe.model.flux_controlnet_config.num_single_layers = 1
     recipe.model.flux_controlnet_config.num_joint_layers = 1
     recipe.data.global_batch_size = 1
-    recipe.trainer.strategy.ddp = run.Config(
-
-    )
+    recipe.trainer.strategy.ddp = run.Config()
     recipe.trainer.max_steps = 10
 
     return recipe
