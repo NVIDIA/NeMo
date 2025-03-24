@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from nemo.automodel.loss.masked_ce import masked_cross_entropy
+from nemo.automodel.loss.chunked_ce import chunked_cross_entropy
 
 __all__ = [
     "masked_cross_entropy",
+    "chunked_cross_entropy",
 ]

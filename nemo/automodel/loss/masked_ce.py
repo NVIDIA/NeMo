@@ -16,7 +16,7 @@ from typing import List
 import torch
 import torch.nn.functional as F
 
-def masked_cross_entropy(logits, targets, mask=None, fp32_upcast=True):
+def masked_cross_entropy(logits, targets, mask=None, fp32_upcast=True, ignore_index=-100):
     """
     Compute the masked cross-entropy loss between logits and targets.
 
@@ -34,13 +34,14 @@ def masked_cross_entropy(logits, targets, mask=None, fp32_upcast=True):
     Returns:
         torch.Tensor: The computed loss as a scalar tensor.
     """
+    # this may happen with CPUOffloadPolicy
     if targets.device != logits.device:
         targets = targets.to(logits.device)
     if mask is not None:
         with torch.no_grad():
             if mask.device != targets.device:
                 mask = mask.to(targets.device)
-            targets.masked_fill_(mask.view(-1) == 0, -100)
+            targets.masked_fill_(mask.view(-1) == 0, ignore_index)
             del mask
     if fp32_upcast:
         logits = logits.float()
