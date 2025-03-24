@@ -94,9 +94,7 @@ if __name__ == '__main__':
             raise ValueError("For Energon data type, you must specify --data-path")
 
         from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-        from nemo.collections.multimodal.data.energon.config import (
-            MultiModalSampleConfig,
-        )
+        from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         # Configure multimodal sample settings
