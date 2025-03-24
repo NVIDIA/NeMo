@@ -239,7 +239,7 @@ def set_primary_perf_configs(
 
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    if task == "none" or task == "lora" and hasattr(recipe.data, "packed_sequence_specs"):
+    if task in ["none", "lora"] and hasattr(recipe.data, "packed_sequence_specs") and recipe.data.packed_sequence_specs is not None:
         recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
 
     return recipe

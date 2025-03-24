@@ -38,7 +38,7 @@ HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 # extra Slurm job will be scheduled. In this case, if checkpoint is available
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
-SKIP_IMPORT = False
+SKIP_IMPORT = True
 
 
 def override_recipe_configs(
@@ -60,7 +60,7 @@ def override_recipe_configs(
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
 
-    recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=4096)
+    recipe = finetune_recipe(peft_scheme=finetuning_scheme, packed_sequence=False, seq_length=4096)
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -77,12 +77,16 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
     )
+    #recipe.data.dataset_kwargs = {'pad_to_max_length': True}
+
+    # !!! debug, delete this before commit !!!
+    recipe.resume.restore_config=None
 
     # parallel config
     _vp_size = 1 if vp_size is None else vp_size
     if pp_size == 16 and _vp_size == 1:
         # tune some recipe parameters for this config
-        recipe.model.config.num_layers_in_first_pipeline_stage = None
+        recipe.model.config.num_layers_in_first_pipeline_stage = 4
         recipe.model.config.num_layers_in_last_pipeline_stage = 1
         recipe.model.config.recompute_granularity = "full"
         recipe.model.config.recompute_method = "block"
@@ -96,6 +100,8 @@ def override_recipe_configs(
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    recipe.model.tokenizer = recipe.data.tokenizer
+
     if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
         # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True
