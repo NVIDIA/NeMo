@@ -352,7 +352,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         outputs = self.forward(batch)
 
-        logits = outputs.logits.float()
+        logits = outputs.logits
         n_cls = logits.shape[-1]
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
