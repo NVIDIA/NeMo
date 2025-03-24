@@ -307,7 +307,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             # position_embeddings = self.lightning_module.model.model.rotary_emb(hidden_states, position_ids)
 
             context_parallel_ctx = create_context_parallel_ctx(
-                cp_mesh=self._device_mesh["dp_with_cp"],
+                cp_mesh=self._device_mesh["context_parallel"],
                 cp_buffers=[input_ids, labels, position_ids, loss_mask],
                 cp_seq_dims=[1, 1, 1, 1],
                 cp_no_restore_buffers={input_ids, labels, loss_mask},
@@ -374,7 +374,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
-                group = device_mesh.get_group()
+                group = device_mesh["dp_with_cp"].get_group()
 
             def reduce_item(val, op, device, group, dtype):
                 """util function"""
