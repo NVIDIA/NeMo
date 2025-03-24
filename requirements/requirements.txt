@@ -8,7 +8,7 @@ python-dateutil
 # nemo_run
 ruamel.yaml
 scikit-learn
-setuptools>=70.0.0
+setuptools>=70.0.0,<78.0.0 # v78 enforces some deprecations that now all libraries (fasttext) are up to speed with
 tensorboard
 text-unidecode
 torch
