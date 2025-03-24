@@ -49,6 +49,7 @@ class AutoConfigurator:
         self,
         recipe: Partial = None,
         path_to_logs: str = None,
+        mode: Optional[str] = "pretrain",
         gpu_memory_gb: Optional[int] = 80,
         tensor_parallel_sizes: Optional[List[int]] = "auto",
         pipeline_parallel_sizes: Optional[List[int]] = "auto",
@@ -69,6 +70,7 @@ class AutoConfigurator:
         Args:
             recipe (Partial): recipe to be used for training.
             path_to_logs (str): path to the directory where the logs will be stored.
+            mode (Optional[str]): pretrain or finetune recipe mode.
             gpu_memory_gb (Optional[int]): memory per GPU, in GB. Currently 40GB and 80GB A100s/H100s supported.
             tensor_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
                 or a list, such as [1, 2, 4, 8].
@@ -97,6 +99,9 @@ class AutoConfigurator:
         for key, value in config.items():
             setattr(self, key, value)
         logging.info(self._get_message(config))
+        # add assertion that all mp params shoulb be not None if mode == 'finetune'
+        assert mode in ["pretrain", "finetune"], \
+            f"current mode is not supported. Please, set the mode to 'pretrain' or 'finetune'."
 
         model_type = self._get_model_type(recipe.model.config)
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {list(SUPPORTED_MODELS.keys())}."

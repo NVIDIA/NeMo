@@ -889,4 +889,8 @@ def _calculate_tp_pp_mbs_grid(
     if max_model_parallel_size is not None and max_model_parallel_size != "auto":
         params.max_model_parallel = max_model_parallel_size
 
+    if train_cfg.mode == "finetune":
+        # return input mp sizes
+        None
+
     return params
