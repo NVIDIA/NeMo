@@ -21,7 +21,11 @@ import warnings
 from pathlib import Path
 from time import sleep
 
-import fasttext
+try:
+    import fasttext
+    HAVE_FASTTEXT = True
+except: ModuleNotFoundError:
+    HAVE_FASTTEXT = False
 from tqdm import tqdm
 
 """
@@ -40,8 +44,10 @@ python filter_langs_nmt.py --input-src train.en \
 
 logging.basicConfig(level=logging.INFO)
 # temp fix for the warning: "Warning : 'load_model' does not return WordVectorModel or SupervisedModel any more, but a 'FastText' object which is very similar."
-fasttext.FastText.eprint = lambda x: None
-
+try:
+    fasttext.FastText.eprint = lambda x: None
+except: ModuleNotFoundError:
+    raise ImportError("Pypi package fasttext is required but not installed")
 
 def get_args():
     parser = argparse.ArgumentParser(
@@ -190,6 +196,8 @@ def filter_pairs(
     rank,
 ):
     global counter
+    if not HAVE_FASTTEXT:
+        raise ImportError("Pypi package fasttext is required but not installed")
     fasttext_model = fasttext.load_model(str(fasttext_model))
     output_src = filtered_dir_src / Path(f"rank{rank}")
     output_src_removed = removed_dir_src / Path(f"rank{rank}")
@@ -241,6 +249,8 @@ def filter_singles(
 ):
     logging.debug("filter singles")
     global counter
+    if not HAVE_FASTTEXT:
+        raise ImportError("Pypi package fasttext is required but not installed")
     fasttext_model = fasttext.load_model(str(fasttext_model))
     output_src = filtered_dir_src / Path(f"rank{rank}")
     output_src_removed = removed_dir_src / Path(f"rank{rank}")
