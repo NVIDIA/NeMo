@@ -187,11 +187,11 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     recipe.model.flux_params.device = 'cuda'
     recipe.trainer.strategy.tensor_model_parallel_size = 1
     recipe.trainer.devices = 8
-    recipe.data.global_batch_size = 32
+    recipe.data.global_batch_size = 64
     
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=5, num_single_layers=10)
-    recipe.model.flux_params.flux_config.enable_cuda_graph = True
-    recipe.model.flux_params.flux_config.use_te_rng_tracker = True
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=10, num_single_layers=20)
+    recipe.model.flux_params.flux_config.enable_cuda_graph = False  
+    recipe.model.flux_params.flux_config.use_te_rng_tracker = False
     recipe.model.flux_params.flux_config.cuda_graph_warmup_steps = 3
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
