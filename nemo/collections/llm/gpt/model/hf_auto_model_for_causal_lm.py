@@ -20,12 +20,12 @@ import torch
 import torch.distributed as dist
 from transformers import AutoModelForCausalLM
 
+from nemo.automodel.loss import masked_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.automodel.loss import masked_cross_entropy
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):

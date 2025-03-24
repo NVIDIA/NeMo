@@ -16,6 +16,7 @@ import torch
 import torch.nn.functional as F
 from nemo.automodel.loss.masked_ce import masked_cross_entropy
 
+
 def test_masked_cross_entropy_no_mask():
     # Create dummy data
     batch_size = 4
@@ -31,8 +32,10 @@ def test_masked_cross_entropy_no_mask():
     loss_ref = F.cross_entropy(logits, targets)
 
     # They should be very close
-    assert torch.allclose(loss_custom, loss_ref), \
-        f"Loss without mask expected {loss_ref.item():.4f}, but got {loss_custom.item():.4f}"
+    assert torch.allclose(
+        loss_custom, loss_ref
+    ), f"Loss without mask expected {loss_ref.item():.4f}, but got {loss_custom.item():.4f}"
+
 
 def test_masked_cross_entropy_with_mask():
     # Create dummy data
@@ -51,8 +54,10 @@ def test_masked_cross_entropy_with_mask():
     targets_ref[mask == 0] = -100
     loss_ref = F.cross_entropy(logits, targets_ref)
 
-    assert torch.allclose(loss_custom, loss_ref), \
-        f"Loss with mask expected {loss_ref.item():.4f}, but got {loss_custom.item():.4f}"
+    assert torch.allclose(
+        loss_custom, loss_ref
+    ), f"Loss with mask expected {loss_ref.item():.4f}, but got {loss_custom.item():.4f}"
+
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_masked_cross_entropy_gpu():

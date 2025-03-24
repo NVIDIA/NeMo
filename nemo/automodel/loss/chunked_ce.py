@@ -16,8 +16,11 @@ import torch.nn.functional as F
 
 _compiled_compute_cross_entropy = None
 
+
 def compute_cross_entropy(
-    logits: torch.Tensor, targets: torch.Tensor, ignore_index=-100,
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    ignore_index=-100,
 ):
     """
     Computes the cross-entropy loss between logits and targets.
@@ -32,6 +35,7 @@ def compute_cross_entropy(
         torch.Tensor: The sum of cross-entropy losses over the sequence.
     """
     return F.cross_entropy(logits.float(), targets, ignore_index=ignore_index, reduction="sum")
+
 
 def chunked_cross_entropy(logits, targets, mask=None, chunk_len=32, compile=True, ignore_index=-100):
     """
