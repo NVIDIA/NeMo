@@ -171,6 +171,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     fp16: bool = False
     bf16: bool = True
     num_layers: int = 2
+    hidden_size: int = 1024
     num_attention_heads: int = 8
     num_groups_hyena: int = None
     num_groups_hyena_medium: int = None
@@ -187,7 +188,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     seq_len_interpolation_factor: Optional[float] = None
     apply_rope_fusion: bool = True
     make_vocab_size_divisible_by: int = 128
-    gated_linear_unit: bool = False
+    gated_linear_unit: bool = True
     fp32_residual_connection: bool = True
     normalization: str = 'RMSNorm'
     add_bias_linear: bool = False
