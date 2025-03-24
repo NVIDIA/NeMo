@@ -116,7 +116,7 @@ def fp16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     return cfg
 
 
-def bf16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
+def bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """Create a MegatronMixedPrecision plugin configuration for mixed precision training using BF16 with FP8
     per-tensor current scaling.
 
@@ -134,7 +134,7 @@ def bf16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
     return cfg
 
 
-def fp16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
+def fp16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """Create a MegatronMixedPrecision plugin configuration for mixed precision training using FP16 with FP8
     per-tensor current scaling.
 
