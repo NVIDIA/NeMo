@@ -705,7 +705,9 @@ class NGramGPULanguageModel(ModelPT):
         return NGramGPULanguageModel.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
 
     @classmethod
-    def from_suffix_tree(cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None) -> "NGramGPULanguageModel":
+    def from_suffix_tree(
+        cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None
+    ) -> "NGramGPULanguageModel":
         """
         Constructor from suffix tree storage.
 

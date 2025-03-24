@@ -14,6 +14,6 @@
 
 
 from nemo.collections.asr.parts.submodules.ngram_lm.constants import DEFAULT_TOKEN_OFFSET
-from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_batched import NGramGPULanguageModel, KenLMBatchedWrapper
+from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_batched import KenLMBatchedWrapper, NGramGPULanguageModel
 
 __all__ = ["DEFAULT_TOKEN_OFFSET", "NGramGPULanguageModel", "KenLMBatchedWrapper"]

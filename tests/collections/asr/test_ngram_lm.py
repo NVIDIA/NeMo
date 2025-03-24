@@ -20,7 +20,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel, KenLMBatchedWrapper
+from nemo.collections.asr.parts.submodules.ngram_lm import KenLMBatchedWrapper, NGramGPULanguageModel
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE
 
 DEVICES = [torch.device("cpu")]
@@ -96,7 +96,9 @@ class TestNGramGPULanguageModel:
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("bos", [True, False])
-    def test_final(self, n_gpu_lm: NGramGPULanguageModel, kenlm_wrapper: KenLMBatchedWrapper, bos: bool, device: torch.device):
+    def test_final(
+        self, n_gpu_lm: NGramGPULanguageModel, kenlm_wrapper: KenLMBatchedWrapper, bos: bool, device: torch.device
+    ):
         """Test final (eos) scores"""
         n_gpu_lm = n_gpu_lm.to(device)
         sentences = [
@@ -129,7 +131,12 @@ class TestNGramGPULanguageModel:
     @pytest.mark.parametrize("bos", [True, False])
     @pytest.mark.parametrize("eos", [True, False])
     def test_sentences(
-        self, n_gpu_lm: NGramGPULanguageModel, kenlm_wrapper: KenLMBatchedWrapper, bos: bool, eos: bool, device: torch.device
+        self,
+        n_gpu_lm: NGramGPULanguageModel,
+        kenlm_wrapper: KenLMBatchedWrapper,
+        bos: bool,
+        eos: bool,
+        device: torch.device,
     ):
         n_gpu_lm = n_gpu_lm.to(device)
         sentences = [
