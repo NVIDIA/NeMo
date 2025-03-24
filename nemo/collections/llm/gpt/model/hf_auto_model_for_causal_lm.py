@@ -18,7 +18,6 @@ import _io
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
-import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
