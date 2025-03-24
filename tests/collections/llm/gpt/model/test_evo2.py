@@ -150,5 +150,3 @@ def test_hyena_nv_test_config():
     assert config.num_attention_heads == 32
     assert config.seq_length == 8192
     assert config.tokenizer_library == "byte-level"
-
-
