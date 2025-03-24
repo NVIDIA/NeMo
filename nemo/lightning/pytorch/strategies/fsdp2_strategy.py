@@ -51,9 +51,9 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
 )
 
-CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed.fsdp", "CPUOffloadPolicy")
-if not HAS_CPU_OFFLOAD_POLICY:
-    CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from("torch.distributed._composable.fsdp", "CPUOffloadPolicy")
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
+)
 
 _logger = _logging.getLogger(__name__)
 
@@ -341,7 +341,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
-            self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            if reduced["avg"]:
+                self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
             return loss
 
     @override
