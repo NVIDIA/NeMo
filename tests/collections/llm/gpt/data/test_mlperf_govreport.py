@@ -91,28 +91,6 @@ def govreport_data_module(mock_tokenizer, temp_dataset_dir, sample_govreport_dat
         return data_module
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_govreport_data_module_initialization(govreport_data_module):
     assert govreport_data_module.seq_length == 2048
     assert govreport_data_module.micro_batch_size == 1
