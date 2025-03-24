@@ -39,7 +39,7 @@ model:
   log_prediction: true # enables logging sample predictions in the output during training
 
   # Important ! Set the prompt format to the class you need
-  prompt_format: ???   # Options supported: ["canary"]
+  prompt_format: ???   # Options supported: ["canary", "canary2"]
   prompt_defaults: null
 
   model_defaults:
