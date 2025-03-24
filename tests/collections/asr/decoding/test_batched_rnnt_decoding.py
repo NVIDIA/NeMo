@@ -46,7 +46,8 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 @lru_cache(maxsize=4)
 def get_model(model_name: str, device: torch.device = torch.device("cpu")):
     return ASRModel.from_pretrained(model_name, map_location=device)  # type: ASRModel
-    
+
+
 @lru_cache(maxsize=1)
 def get_model_encoder_output(
     audio_filepaths: tuple,
@@ -261,7 +262,9 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+    def test_rnnt_beam_decoding_kenlm(
+        self, test_data_dir, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode
+    ):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
@@ -282,7 +285,7 @@ class TestRNNTDecoding:
             beam_size=beam_size,
             score_norm=True,
             return_best_hypothesis=True,
-            pruning_mode=pruning_mode, 
+            pruning_mode=pruning_mode,
             blank_lm_score_mode=blank_lm_score_mode,
             **beam_config,
         )
@@ -442,7 +445,7 @@ class TestRNNTDecoding:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
     def test_stated_stateless(self, test_data_dir, force_mode: str):
-        '''Compares stated and stateless implementations with bfloat16''' 
+        '''Compares stated and stateless implementations with bfloat16'''
         # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
@@ -632,15 +635,25 @@ class TestTDTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3,},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3,}
+            {
+                "search_type": "malsd_batch",
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+            },
+            {
+                "search_type": "malsd_batch",
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+            },
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])
     @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+    def test_rnnt_beam_decoding_kenlm(
+        self, test_data_dir, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode
+    ):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
@@ -704,7 +717,7 @@ class TestTDTDecoding:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
     def test_stated_stateless(self, test_data_dir, force_mode: str):
-        '''Compares stated and stateless implementations with bfloat16''' 
+        '''Compares stated and stateless implementations with bfloat16'''
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
@@ -760,7 +773,7 @@ class TestTDTDecoding:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
     def test_stated_stateless(self, test_data_dir, force_mode: str):
-        '''Compares stated and stateless implementations with bfloat16''' 
+        '''Compares stated and stateless implementations with bfloat16'''
         # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
