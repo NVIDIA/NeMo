@@ -142,7 +142,7 @@ def test_force_redownload(dolly_data_module, temp_dataset_dir):
     # Store original file stats and content
     original_mtime = marker_file.stat().st_mtime
     with open(marker_file, "r") as f:
-        original_content = f.read()
+        f.read()
 
     # Set force_redownload to True and prepare again
     dolly_data_module.force_redownload = True
