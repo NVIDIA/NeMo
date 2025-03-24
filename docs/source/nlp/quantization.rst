@@ -87,6 +87,7 @@ The script must be launched correctly with the number of processes equal to tens
         export.decoder_type=llama \
         export.inference_tensor_parallel=2 \
         export.save_path=llama3-70b-base-fp8-qnemo
+
 For large models, the command can be used in multi-node setting. For example, this can be done with `NeMo Framework Launcher <https://github.com/NVIDIA/NeMo-Framework-Launcher>`_ using Slurm.
 
 The output directory stores the following files:
@@ -98,6 +99,7 @@ The output directory stores the following files:
     ├── rank1.safetensors
     ├── tokenizer.model
     └── tokenizer_config.yaml
+
 The TensorRT-LLM engine can be conveniently built and run using ``TensorRTLLM`` class available in ``nemo.export`` submodule:
 
 .. code-block:: python
@@ -108,6 +110,7 @@ The TensorRT-LLM engine can be conveniently built and run using ``TensorRTLLM`` 
         model_type="llama",
     )
     trt_llm_exporter.forward(["Hi, how are you?", "I am good, thanks, how about you?"])
+
 Alternatively, it can also be built directly using ``trtllm-build`` command, see `TensorRT-LLM documentation <https://github.com/NVIDIA/TensorRT-LLM/tree/main/examples/llama#fp8-post-training-quantization>`_:
 
 .. code-block:: bash
@@ -118,6 +121,7 @@ Alternatively, it can also be built directly using ``trtllm-build`` command, see
         --max_input_len 2048 \
         --max_output_len 512 \
         --strongly_typed
+
 Known issues
 ^^^^^^^^^^^^
 * Currently with ``nemo.export`` module building TensorRT-LLM engines for quantized "qnemo" models is limited to single-node deployments.
@@ -164,6 +168,7 @@ The below example command will perform PTQ on the SFT model checkpoint followed 
         model.global_batch_size=128 \
         quantization.algorithm=int4 \
         # other parameters from sft training
+
 As you can see from the logs, the INT4 PTQ model has a validation loss of approximately ``1.31`` and the QAT model has a validation loss of approximately ``1.17`` which is very close to the BF16 model loss of ``1.15``.
 This script will produce a quantized ``.nemo`` checkpoint at the experiment manager log directory (in the config yaml file) that can be used for further training.
 It can also optionally produce an exported TensorRT-LLM engine directory or a ``.qnemo`` file that can be used for inference by setting the ``export`` parameters similar to the PTQ example.
@@ -183,6 +188,7 @@ The API is the same as with regular ``.nemo`` and ``.qnemo`` checkpoints:
         model_type="llama",
     )
     trt_llm_exporter.forward(["Hi, how are you?", "I am good, thanks, how about you?"])
+
 The export settings for quantization can be adjusted via ``trt_llm_exporter.export`` arguments:
 
 * ``fp8_quantized: Optional[bool] = None``: manually enables/disables FP8 quantization
