@@ -18,8 +18,8 @@ import os.path
 from typing import Iterable, List, Optional, Union
 
 import numpy
-import wrapt
 import vllm.envs as envs
+import wrapt
 from vllm import RequestOutput, SamplingParams
 from vllm.config import (
     CacheConfig,
