@@ -76,6 +76,7 @@ The example below shows how to quantize the Llama3 70b model into FP8 precision,
 The script must be launched correctly with the number of processes equal to tensor parallelism. This is achieved with the ``torchrun`` command below:
 
 .. code-block:: bash
+  
     torchrun --nproc-per-node 8 examples/nlp/language_modeling/megatron_gpt_ptq.py \
         model.restore_from_path=llama3-70b-base-bf16.nemo \
         model.tensor_model_parallel_size=8 \
@@ -93,6 +94,7 @@ For large models, the command can be used in multi-node setting. For example, th
 The output directory stores the following files:
 
 .. code-block:: bash
+
     llama3-70b-base-fp8-qnemo/
     ├── config.json
     ├── rank0.safetensors
@@ -103,6 +105,7 @@ The output directory stores the following files:
 The TensorRT-LLM engine can be conveniently built and run using ``TensorRTLLM`` class available in ``nemo.export`` submodule:
 
 .. code-block:: python
+
     from nemo.export.tensorrt_llm import TensorRTLLM
     trt_llm_exporter = TensorRTLLM(model_dir="/path/to/trt_llm_engine_folder")
     trt_llm_exporter.export(
@@ -114,6 +117,7 @@ The TensorRT-LLM engine can be conveniently built and run using ``TensorRTLLM`` 
 Alternatively, it can also be built directly using ``trtllm-build`` command, see `TensorRT-LLM documentation <https://github.com/NVIDIA/TensorRT-LLM/tree/main/examples/llama#fp8-post-training-quantization>`_:
 
 .. code-block:: bash
+
     trtllm-build \
         --checkpoint_dir llama3-70b-base-fp8-qnemo \
         --output_dir /path/to/trt_llm_engine_folder \
@@ -159,6 +163,7 @@ Along with the new parameters, make sure to pass the same parameters you passed 
 The below example command will perform PTQ on the SFT model checkpoint followed by SFT again (QAT) which can then be exported for TensorRT-LLM inference. The script will take ~2-3 hours to complete.
 
 .. code-block:: bash
+
     torchrun --nproc-per-node 8 examples/nlp/language_modeling/tuning/megatron_gpt_qat.py \
         trainer.num_nodes=1 \
         trainer.devices=8 \
@@ -181,6 +186,7 @@ If you have an FP8-quantized checkpoint, produced during pre-training or fine-tu
 The API is the same as with regular ``.nemo`` and ``.qnemo`` checkpoints:
 
 .. code-block:: python
+
     from nemo.export.tensorrt_llm import TensorRTLLM
     trt_llm_exporter = TensorRTLLM(model_dir="/path/to/trt_llm_engine_folder")
     trt_llm_exporter.export(
