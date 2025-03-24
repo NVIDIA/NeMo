@@ -273,7 +273,6 @@ class VQASampleEncoder(BaseSampleEncoder):
         Returns:
         torch.Tensor: A tensor containing the labels for the tokenized prompt.
         """
-        import pdb; pdb.set_trace()
         # Initialize labels with ignore index
         labels = torch.ones_like(tokens) * self.ignore_place_holder
         search_start_index = 0  # Initialize search index to start labeling answers sequentially
