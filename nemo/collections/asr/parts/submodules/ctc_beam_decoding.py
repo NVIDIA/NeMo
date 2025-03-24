@@ -30,7 +30,7 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import CTCBatchedBeamHyps
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMWrapper
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMBatchedWrapper
 
 from nemo.utils.timers import SimpleTimer
 
@@ -259,8 +259,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             self.search_algorithm = self._pyctcdecode_beam_search
         elif search_type == "flashlight":
             self.search_algorithm = self.flashlight_beam_search
-        elif search_type == "batch_beam":
-            self.search_algorithm = self.batch_beam_search
+        elif search_type == "beam_batch":
+            self.search_algorithm = self.batched_beam_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
@@ -439,7 +439,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         return nbest_hypotheses
 
     @torch.no_grad()
-    def batch_beam_search(
+    def batched_beam_search(
         self, x: torch.Tensor, out_len: torch.Tensor
     ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
         """

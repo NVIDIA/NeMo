@@ -225,7 +225,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         self.segment_seperators = self.cfg.get('segment_seperators', ['.', '?', '!'])
         self.segment_gap_threshold = self.cfg.get('segment_gap_threshold', None)
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'pyctcdecode', 'flashlight', 'wfst']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'pyctcdecode', 'flashlight', 'wfst', 'beam_batch']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}. Given {self.cfg.strategy}")
 
@@ -347,6 +347,28 @@ class AbstractCTCDecoding(ConfidenceMixin):
             )
 
             self.decoding.override_fold_consecutive_value = False
+    
+        elif self.cfg.strategy == 'beam_batch':
+
+            self.decoding = ctc_beam_decoding.BeamCTCInfer(
+                blank_id=blank_id,
+                beam_size=self.cfg.wfst.get('beam_size', 1),
+                search_type=self.cfg.wfst.get('search_type', 'riva'),
+                return_best_hypothesis=self.cfg.wfst.get('return_best_hypothesis', True),
+                preserve_alignments=self.preserve_alignments,
+                compute_timestamps=self.compute_timestamps,
+                decoding_mode=self.cfg.wfst.get('decoding_mode', 'nbest'),
+                open_vocabulary_decoding=self.cfg.wfst.get('open_vocabulary_decoding', False),
+                beam_width=self.cfg.wfst.get('beam_width', 10.0),
+                lm_weight=self.cfg.wfst.get('lm_weight', 1.0),
+                device=self.cfg.wfst.get('device', 'cuda'),
+                arpa_lm_path=self.cfg.wfst.get('arpa_lm_path', None),
+                wfst_lm_path=self.cfg.wfst.get('wfst_lm_path', None),
+                riva_decoding_cfg=self.cfg.wfst.get('riva_decoding_cfg', None),
+                k2_decoding_cfg=self.cfg.wfst.get('k2_decoding_cfg', None),
+            )
+
+            self.decoding.override_fold_consecutive_value = True
 
         else:
             raise ValueError(
