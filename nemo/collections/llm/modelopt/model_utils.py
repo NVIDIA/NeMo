@@ -67,6 +67,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     pipeline_model_parallel_size: int = 1,
     num_layers_in_first_pipeline_stage: int | None = None,
     num_layers_in_last_pipeline_stage: int | None = None,
+    expert_model_parallel_size: int = 1,
     devices: int = 1,
     num_nodes: int = 1,
     inference_only: bool = True,
@@ -111,6 +112,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
         strategy = nl.MegatronStrategy(
             tensor_model_parallel_size=tensor_model_parallel_size,
             pipeline_model_parallel_size=pipeline_model_parallel_size,
+            expert_model_parallel_size=expert_model_parallel_size,
             pipeline_dtype=torch.bfloat16,
             ckpt_load_optimizer=False,
             ckpt_parallel_save_optim=False,
@@ -123,6 +125,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
         strategy = nl.MegatronStrategy(
             tensor_model_parallel_size=tensor_model_parallel_size,
             pipeline_model_parallel_size=pipeline_model_parallel_size,
+            expert_model_parallel_size=expert_model_parallel_size,
             pipeline_dtype=torch.bfloat16,
             ckpt_load_strictness=StrictHandling.LOG_ALL if legacy_ckpt else None,
             **strategy_kwargs,

@@ -69,7 +69,7 @@ def get_args():
         "--algorithm",
         type=str,
         default="fp8",
-        choices=["no_quant", "int8", "int8_sq", "fp8", "int4_awq", "w4a8_awq", "int4", "nvfp4"],
+        choices=["no_quant", "int8", "int8_sq", "fp8", "block_fp8", "int4_awq", "w4a8_awq", "int4", "nvfp4"],
         help="TensorRT-Model-Optimizer quantization algorithm",
     )
     parser.add_argument(
