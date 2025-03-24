@@ -447,7 +447,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.lightning_module is not None
         state_dict = self.lightning_module.state_dict()
         is_adapter_only = getattr(self._checkpoint_io, 'adapter_only', False)
-        lora_is_in_name = lambda x: 'lora' in x.lower()
+        name_has_lora = lambda x: 'lora' in x.lower()
 
         module_names = list(state_dict.keys())
         for name in module_names:
@@ -455,7 +455,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             # @akoumparouli: refactor this.
             # if any key has "lora" in FQN, then it will only move lora keys to cpu, since only
             # the adapter weights are saved.
-            if (is_adapter_only and lora_is_in_name(name)) or not is_adapter_only:
+            if (is_adapter_only and name_has_lora(name)) or not is_adapter_only:
                 state_dict[name] = to_cpu(param)
         dist.barrier()
         return state_dict
