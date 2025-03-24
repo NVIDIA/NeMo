@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
 
 import _io
@@ -19,6 +20,9 @@ import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
+
+# TODO: add try to avoid import errors
+from cut_cross_entropy import linear_cross_entropy
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -26,11 +30,6 @@ from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-
-# TODO: add try to avoid import errors
-from cut_cross_entropy import linear_cross_entropy
-
-import os
 
 USE_FUSED_LOSS = os.getenv("USE_FUSED_LOSS", "0") == "1"
 
@@ -47,7 +46,7 @@ def fused_linear_cross_entropy(
 ):
     """
     Compute fused linear cross entropy loss that matches PyTorch's cross_entropy behavior.
-    
+
     Args:
         hidden_states: Input hidden states
         lm_weight: Weight matrix for linear transformation
@@ -61,7 +60,7 @@ def fused_linear_cross_entropy(
     # First compute loss with sum reduction to handle normalization ourselves
     if logit_softcapping == 0:
         logit_softcapping = None
-    
+
     # Compute loss with shift=False to match PyTorch behavior
     # Set filter_eps=None to avoid any token filtering
     loss = linear_cross_entropy(
@@ -74,7 +73,7 @@ def fused_linear_cross_entropy(
         shift=False,  # Match PyTorch behavior
         filter_eps=None,  # No token filtering
     )
-    
+
     # Match PyTorch's cross_entropy behavior:
     # For mean reduction, divide by number of valid tokens
     if reduction == 'mean':
@@ -83,7 +82,7 @@ def fused_linear_cross_entropy(
             num_items_in_batch = torch.sum(labels != ignore_index).item()
         # Normalize by number of valid tokens
         loss = loss / num_items_in_batch
-    
+
     return loss
 
 
@@ -223,13 +222,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AutoTokenizer: The instantiated tokenizer.
         """
         try:
-            return AutoTokenizer(
-                model_name, use_fast=use_fast, trust_remote_code=trust_remote_code
-            )
+            return AutoTokenizer(model_name, use_fast=use_fast, trust_remote_code=trust_remote_code)
         except:
-            return AutoTokenizer(
-                model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code
-            )
+            return AutoTokenizer(model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code)
 
     def _configure_model(self, attn_implementation):
         """helper method; see also configure_model."""
@@ -276,9 +271,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             Exception: If model configuration fails.
         """
         try:
-            self.model = self._configure_model(
-                attn_implementation=self.attn_implementation
-            )
+            self.model = self._configure_model(attn_implementation=self.attn_implementation)
         except ValueError as e:
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
             if "does not support an attention" in str(e):
@@ -287,9 +280,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 raise e
 
         if self.model_accelerator is not None:
-            from nemo.lightning.pytorch.accelerate.transformer_engine import (
-                te_accelerate,
-            )
+            from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
@@ -339,12 +330,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.timestamp = time.perf_counter()
 
         if isinstance(self.trainer.strategy.checkpoint_io, io.pl.MegatronCheckpointIO):
-            logging.warning(
-                "Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO."
-            )
-            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(
-                self._has_lora_adapter
-            )
+            logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
+            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
 
         # Reset memory stats before starting
         torch.cuda.reset_peak_memory_stats()
@@ -387,9 +374,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logits = logits.view(-1, n_cls)
             labels = labels.view(-1)
 
-            assert logits.shape[-2] == labels.shape[-1], (
-                "Expected logits & labels to have the same length"
-            )
+            assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
             loss = self.loss_fn(logits, labels, loss_mask)
         else:
             # Prepare for loss calculation
@@ -572,9 +557,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
 
-        assert logits.shape[-2] == labels.shape[-1], (
-            "Expected logits & labels to have the same length"
-        )
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
         return loss
 
@@ -615,9 +598,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 state_dict[new_key] = val
 
         if len(io_bytes_state) > 0:
-            logging.warning(
-                "State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`."
-            )
+            logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
             torch.save(io_bytes_state, path / "io_bytes.pt")
 
         self.model.save_pretrained(path, state_dict=state_dict)
