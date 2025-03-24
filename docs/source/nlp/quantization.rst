@@ -1,4 +1,5 @@
-.. _quantization:
+:orphan:
+.. _megatron__quantization:
 
 Quantization
 ==========================
