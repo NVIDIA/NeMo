@@ -580,6 +580,9 @@ class MMDiTLayer(TransformerLayer):
         hidden_size = config.hidden_size
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
 
+        if config.enable_cuda_graph:
+            self.cudagraph_manager = CudaGraphManager(config)
+
         self.adaln = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
 
         self.context_pre_only = context_pre_only
@@ -667,6 +670,8 @@ class MMDiTLayer(TransformerLayer):
         return hidden_states, encoder_hidden_states
 
     def __call__(self, *args, **kwargs):
+        if hasattr(self, 'cudagraph_manager'):
+            return self.cudagraph_manager(self, args, kwargs)
         return super(MegatronModule, self).__call__(*args, **kwargs)
 
 
@@ -690,10 +695,8 @@ class FluxSingleTransformerBlock(TransformerLayer):
         modulation_bias: bool = True,
     ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
-        # enable cuda graph for FluxSingleTransformerBlock
+
         if config.enable_cuda_graph:
-            config.use_te_rng_tracker = True
-            #print("Initializing CudaGraphManager in FluxSingleTransformerBlock")
             self.cudagraph_manager = CudaGraphManager(config)
         self.adaln = AdaLN(
             config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
