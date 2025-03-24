@@ -363,7 +363,7 @@ def test_packed_dataset_invalid_data(temp_npy_file, tokenizer, caplog):
         with pytest.raises(Exception):
             dataset = create_sft_dataset(path=invalid_file, tokenizer=tokenizer, seq_length=512)
             batch = [dataset[0], dataset[0]]
-            collated = dataset.collate_fn(batch)
+            dataset.collate_fn(batch)
     finally:
         invalid_file.unlink()
 
