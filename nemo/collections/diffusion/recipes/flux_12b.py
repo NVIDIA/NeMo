@@ -178,7 +178,6 @@ def pretrain_recipe(
         For more details on pre-training LLMs with NeMo, see the pre-training
         guide in the `examples/llm/pretrain/` directory.
     """
-    print("??????")
     recipe = run.Partial(
         fn,
         model=model(),

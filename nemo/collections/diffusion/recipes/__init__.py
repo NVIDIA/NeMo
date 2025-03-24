@@ -24,5 +24,6 @@ __all__ = [
     "default_log",
     "default_resume",
     "flux_535m",
-    "flux_12b" "torchrun",
+    "flux_12b",
+    "torchrun",
 ]

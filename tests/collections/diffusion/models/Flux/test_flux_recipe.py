@@ -31,6 +31,8 @@ class TestFluxRecipe:
         assert recipe.optim.config.lr == 1e-4
         assert recipe.optim.config.bf16 is True
 
+        print(recipe)
+
     @pytest.mark.unit
     def test_flux_535m(self):
         recipe = flux_535m.unit_test_recipe(name="flux_535m", num_gpus_per_node=1)
