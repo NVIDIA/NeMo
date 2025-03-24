@@ -376,28 +376,28 @@ class HFDatasetDataModule(pl.LightningDataModule):
         return self._make_dataloader(self.test, self._collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
-        """Maps a function to the dataset"""
+        """Maps a function to all/selected splits
+        Additional arguments can be passed down to dataset's map via kwargs"""
         if isinstance(split_names, str):
-            dataset_splits = {split_names: self.dataset_splits[split_names]}
+            split_names = [split_names]
         elif isinstance(split_names, list):
-            dataset_splits = {k: self.dataset_splits[k] for k in split_names}
+            pass
+        elif split_names is None:
+            split_names = self.dataset_splits.keys()
         else:
-            dataset_splits = self.dataset_splits
+            raise ValueError("split_names must None/str/list")
 
-        for split_name, subset in dataset_splits.items():
-            if subset is None:
-                continue
-            dataset_splits[split_name] = subset.map(function, **kwargs)
-
-
+        for split_name in split_names:
+            if not self.dataset_splits[split_name] is None:
+                self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
 
 
 class HellaSwagHFDataModule(HFDatasetDataModule):
     """A data module for handling the HellaSwag dataset using HFDatasetDataModule."""
 
     def __init__(self, tokenizer, dataset_name="Rowan/hellaswag", *args, **kwargs):
-        tokenizer = tokenizer.tokenizer
         tokenizer.pad_token = tokenizer.eos_token
+        self.pad_token_id = tokenizer.eos_id
         dataset = load_dataset(dataset_name)
         super().__init__(HellaSwagHFDataModule.preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
 
@@ -425,7 +425,6 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             "text": query + " " + choices[gold],
         }
         return out_doc
-
 
     # Note: I'm training the model causally not through multiclass classification.
     @staticmethod
@@ -456,6 +455,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
 
         return dataset
 
+
 class SquadHFDataModule(HFDatasetDataModule):
     """
     A data module for handling the SQuAD dataset using HFDatasetDataModule.
@@ -478,6 +478,8 @@ class SquadHFDataModule(HFDatasetDataModule):
         """
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.pad_token_id = self.tokenizer.eos_id
 
     def formatting_prompts_func(self, example):
         """

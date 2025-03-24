@@ -51,6 +51,9 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
 )
 
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
+)
 
 _logger = _logging.getLogger(__name__)
 
@@ -66,10 +69,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
+        offload_policy: 'CPUOffloadPolicy' = None,
         data_sampler=None,
         checkpoint_io=None,
         mp_policy=None,
-        parallelize_fn=None,
+        parallelize_fn=fsdp2_strategy_parallelize,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -104,8 +108,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 output_dtype=torch.bfloat16,
                 cast_forward_inputs=True,
             )
-        self.parallelize_fn = parallelize_fn or fsdp2_strategy_parallelize
         self.store: Optional[torch.distributed.Store] = None
+        self.parallelize_fn = parallelize_fn
+        self.offload_policy = offload_policy
 
     @property
     @override
@@ -199,7 +204,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self.parallelize_fn is not None:
             # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
             # Apply FSDP2 and TP to the model
-            self.parallelize_fn(self.lightning_module.model, device_mesh=self._device_mesh, mp_policy=self.mp_policy)
+            self.parallelize_fn(
+                self.lightning_module.model,
+                device_mesh=self._device_mesh,
+                mp_policy=self.mp_policy,
+                offload_policy=self.offload_policy,
+            )
             # Apply this only once
             self.parallelize_fn = None
         else:
@@ -331,7 +341,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
-            self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            if reduced["avg"]:
+                self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
             return loss
 
     @override
