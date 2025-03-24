@@ -33,6 +33,8 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
 
+from transformers import PreTrainedTokenizerBase
+
 if TYPE_CHECKING:
     from nemo.lightning import Trainer
     from nemo.lightning.megatron_parallel import MegatronParallel
@@ -40,7 +42,7 @@ if TYPE_CHECKING:
 _, HAVE_MODELOPT = safe_import("modelopt")
 if HAVE_MODELOPT:
     import modelopt.torch.quantization as mtq
-    from modelopt.torch.export import export_hf_checkpoint, export_tensorrt_llm_checkpoint
+    from modelopt.torch.export import export_hf_checkpoint, export_tensorrt_llm_checkpoint, export_mcore_gpt_to_hf
 
     QUANT_CFG_CHOICES = {
         "int8": mtq.INT8_DEFAULT_CFG,
@@ -330,11 +332,17 @@ class Quantizer:
                 export_dir = export_dir / "huggingface_tokenizer"
             model.tokenizer.save_pretrained(str(export_dir))
         else:
-            # Save the model context in order to restore its tokenizer later. The destination
-            # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-            shutil.copytree(
-                ckpt_to_context_subdir(model_dir), os.path.join(export_dir, "nemo_context"), dirs_exist_ok=True
-            )
+            if (export_fmt == "hf" and
+                hasattr(model, "tokenizer") and
+                hasattr(model.tokenizer, "tokenizer") and
+                isinstance(model.tokenizer.tokenizer, PreTrainedTokenizerBase)):
+                model.tokenizer.tokenizer.save_pretrained(str(export_dir))
+            else:
+                # Save the model context in order to restore its tokenizer later. The destination
+                # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
+                shutil.copytree(
+                    ckpt_to_context_subdir(model_dir), os.path.join(export_dir, "nemo_context"), dirs_exist_ok=True
+                )
 
     def export(self, model, model_dir: str, trainer: Optional["Trainer"] = None) -> None:
         """Export model to a TensorRT-LLM or NeMo checkpoint."""
@@ -355,13 +363,18 @@ class Quantizer:
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
         elif self.export_config.export_format == "hf":
-            assert is_automodel, "HF export is only supported for AutoModelForCausalLM"
             unwrapped_model = unwrap_for_modelopt_operations(model)
             with torch.inference_mode():
-                export_hf_checkpoint(
-                    unwrapped_model,
-                    export_dir=export_dir,
-                )
+                if is_automodel:
+                    export_hf_checkpoint(
+                        unwrapped_model,
+                        export_dir=export_dir,
+                    )
+                else:
+                    export_mcore_gpt_to_hf(
+                        unwrapped_model,
+                        export_dir=str(export_dir),
+                    )
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
