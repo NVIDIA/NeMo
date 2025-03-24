@@ -352,20 +352,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
-                beam_size=self.cfg.wfst.get('beam_size', 1),
-                search_type=self.cfg.wfst.get('search_type', 'riva'),
-                return_best_hypothesis=self.cfg.wfst.get('return_best_hypothesis', True),
+                beam_size=self.cfg.beam.get('beam_size', 1),
+                search_type='beam_batch',
+                return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
-                decoding_mode=self.cfg.wfst.get('decoding_mode', 'nbest'),
-                open_vocabulary_decoding=self.cfg.wfst.get('open_vocabulary_decoding', False),
-                beam_width=self.cfg.wfst.get('beam_width', 10.0),
-                lm_weight=self.cfg.wfst.get('lm_weight', 1.0),
-                device=self.cfg.wfst.get('device', 'cuda'),
-                arpa_lm_path=self.cfg.wfst.get('arpa_lm_path', None),
-                wfst_lm_path=self.cfg.wfst.get('wfst_lm_path', None),
-                riva_decoding_cfg=self.cfg.wfst.get('riva_decoding_cfg', None),
-                k2_decoding_cfg=self.cfg.wfst.get('k2_decoding_cfg', None),
+                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
+                beam_beta=self.cfg.beam.get('beam_beta', 0.0),
+                kenlm_path=self.cfg.beam.get('kenlm_path', None),
             )
 
             self.decoding.override_fold_consecutive_value = True
