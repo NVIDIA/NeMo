@@ -415,11 +415,7 @@ class FluxInferencePipeline(nn.Module):
             )
 
         latents = FluxInferencePipeline._generate_rand_latents(
-            shape,
-            generator=generator,
-            device=device,
-            dtype=dtype,
-            batch_size=batch_size
+            shape, generator=generator, device=device, dtype=dtype, batch_size=batch_size
         )
         latents = self._pack_latents(latents, batch_size, num_channels_latents, height, width)
 
@@ -441,8 +437,7 @@ class FluxInferencePipeline(nn.Module):
         if isinstance(generator, list):
             shape = (1,) + shape[1:]
             latents = [
-                torch.randn(shape, generator=generator[i], device=device, dtype=dtype)
-                for i in range(batch_size)
+                torch.randn(shape, generator=generator[i], device=device, dtype=dtype) for i in range(batch_size)
             ]
             latents = torch.cat(latents, dim=0).to(device=device)
         else:
@@ -659,8 +654,9 @@ class FluxInferencePipeline(nn.Module):
 
 class FluxControlNetInferencePipeline(FluxInferencePipeline):
     '''
-        Flux Contronlnet inference pipeline initializes controlnet component in addition to a normal flux pipeline.
+    Flux Contronlnet inference pipeline initializes controlnet component in addition to a normal flux pipeline.
     '''
+
     def __init__(
         self,
         params: Optional[FluxModelParams] = None,
