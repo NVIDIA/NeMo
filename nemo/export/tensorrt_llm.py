@@ -25,12 +25,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-import safetensors
 import tensorrt_llm
 import torch
 import torch.nn.functional as F
 import wrapt
-from tensorrt_llm._utils import numpy_to_torch
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from nemo.deploy import ITritonDeployable
