@@ -60,7 +60,7 @@ def override_recipe_configs(
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
 
-    recipe = finetune_recipe(peft_scheme=finetuning_scheme, packed_sequence=False, seq_length=4096)
+    recipe = finetune_recipe(peft_scheme=finetuning_scheme, packed_sequence=False)
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -77,27 +77,10 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
     )
-    #recipe.data.dataset_kwargs = {'pad_to_max_length': True}
 
-    # !!! debug, delete this before commit !!!
+    # disable HF ckpt loading
     recipe.resume.restore_config=None
-
-    # parallel config
-    _vp_size = 1 if vp_size is None else vp_size
-    if pp_size == 16 and _vp_size == 1:
-        # tune some recipe parameters for this config
-        recipe.model.config.num_layers_in_first_pipeline_stage = 4
-        recipe.model.config.num_layers_in_last_pipeline_stage = 1
-        recipe.model.config.recompute_granularity = "full"
-        recipe.model.config.recompute_method = "block"
-        recipe.model.config.recompute_num_layers = recipe.model.config.num_layers
-    else:
-        message = f"""Get pp={pp_size} and vp={_vp_size}, the default recipe uses: 
-        * SFT: pp=7, vp=1, num_layers_in_first_pipeline_stage=8, num_layers_in_last_pipeline_stage=8. 
-        * LoRA: pp=5, vp=1, num_layers_in_first_pipeline_stage=13, num_layers_in_last_pipeline_stage=12.
-        Your config might not be valid, use at your own risk."""
-        logging.warning(message)
-
+    
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     recipe.model.tokenizer = recipe.data.tokenizer
