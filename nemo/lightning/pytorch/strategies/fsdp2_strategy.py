@@ -178,16 +178,33 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             self._data_parallel_size = self.num_nodes
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
+
         # No TP currently
+        mesh_shape = []
+        mesh_dim_names = []
+        for dim, name in zip(
+            [self._data_parallel_size, self.context_parallel_size, self._tensor_parallel_size],
+            ["data_parallel", "context_parallel", "tensor_parallel_size"],
+        ):
+            if dim > 1:
+                mesh_shape.append(dim)
+                mesh_dim_names.append(name)
+
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
-            # mesh_shape=(self.context_parallel_size,),
-            # mesh_dim_names=("dp_with_cp",),
-            mesh_shape=(self._data_parallel_size,),
-            mesh_dim_names=("data_parallel",),
+            mesh_shape=tuple(mesh_shape),
+            mesh_dim_names=mesh_dim_names,
         )
-        # self._device_mesh["data_parallel", "context_parallel"]._flatten(mesh_dim_name="dp_with_cp")
-        # print(f"Device mesh: {self._device_mesh}")
+        
+        # create dp_with_cp mesh for loss
+        dp_with_cp_mesh_dim_names = []
+        if self._data_parallel_size > 1:
+            dp_with_cp_mesh_dim_names.append("data_parallel")
+        if self.context_parallel_size > 1:
+            dp_with_cp_mesh_dim_names.append("context_parallel")
+        if dp_with_cp_mesh_dim_names != []:
+            self._device_mesh[tuple(dp_with_cp_mesh_dim_names)]._flatten(mesh_dim_name="dp_with_cp")
+
         self.lightning_module._device_mesh = self._device_mesh
 
     @override
