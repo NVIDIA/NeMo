@@ -551,6 +551,7 @@ class HFMockDataModule(pl.LightningDataModule):
         create_attention_mask: bool = False,
         vocab_file=None,
         merges_file=None,
+        tokenizer=None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -564,7 +565,11 @@ class HFMockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.create_attention_mask = create_attention_mask
         self.collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=0)
-        self.vocab_size = vocab_size
+        # Note: tokenizer will be deprecated post 25.04.
+        if hasattr(tokenizer, 'vocab_size'):
+            self.vocab_size = tokenizer.vocab_size
+        else:
+            self.vocab_size = vocab_size
 
     def setup(self, stage: str = None) -> None:
         """setup"""
@@ -625,11 +630,16 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         seq_length: int,
         create_attention_mask: bool = False,
         seed: int = 42,
+        tokenizer = None,
     ) -> None:
         super().__init__()
         self.name = name
         self.seq_length = seq_length
-        self.vocab_size = vocab_size
+        # Note: tokenizer will be deprecated post 25.04.
+        if hasattr(tokenizer, 'vocab_size'):
+            self.vocab_size = tokenizer.vocab_size
+        else:
+            self.vocab_size = vocab_size
         self.length = num_samples
         self.seed = seed
         self.create_attention_mask = create_attention_mask
