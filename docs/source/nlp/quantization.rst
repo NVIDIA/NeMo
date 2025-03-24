@@ -76,7 +76,7 @@ The example below shows how to quantize the Llama3 70b model into FP8 precision,
 The script must be launched correctly with the number of processes equal to tensor parallelism. This is achieved with the ``torchrun`` command below:
 
 .. code-block:: bash
-  
+
     torchrun --nproc-per-node 8 examples/nlp/language_modeling/megatron_gpt_ptq.py \
         model.restore_from_path=llama3-70b-base-bf16.nemo \
         model.tensor_model_parallel_size=8 \
@@ -180,7 +180,7 @@ It can also optionally produce an exported TensorRT-LLM engine directory or a ``
 Note that you may tweak the QAT trainer steps and learning rate if needed to achieve better model quality.
 
 NeMo checkpoints trained in FP8 with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_
----------------------------------
+----------------------------------------------------------------------------------------------------------------
 
 If you have an FP8-quantized checkpoint, produced during pre-training or fine-tuning with Transformer Engine, you can convert it to a FP8 TensorRT-LLM engine directly using ``nemo.export``.
 The API is the same as with regular ``.nemo`` and ``.qnemo`` checkpoints:
