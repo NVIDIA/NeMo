@@ -158,7 +158,9 @@ class TestVQASampleEncoder(unittest.TestCase):
 
         labels = self.encoder.compute_labels(tokens, sample)
         expected_labels = torch.ones_like(tokens) * self.config.ignore_place_holder
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         if answer_start != -1:
             expected_labels[answer_start:answer_end] = tokens[answer_start:answer_end]
         self.assertTrue(
