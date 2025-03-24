@@ -22,3 +22,4 @@ NeMo's NLP collection supports provides the following task-specific models:
    entity_linking
    nlp_model
    machine_translation/machine_translation
+   quantization
