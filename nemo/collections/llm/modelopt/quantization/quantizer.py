@@ -40,10 +40,8 @@ if TYPE_CHECKING:
     from nemo.lightning.megatron_parallel import MegatronParallel
 
 mtq, HAVE_MODELOPT_MTQ = safe_import("modelopt.torch.quantization")
-export_tensorrt_llm_checkpoint, HAVE_MODELOPT_EXPORT = safe_import_from(
-    "modelopt.torch.export", "export_tensorrt_llm_checkpoint"
-)
-HAVE_MODELOPT = HAVE_MODELOPT_MTQ and HAVE_MODELOPT_EXPORT
+mte, HAVE_MODELOPT_MTE = safe_import("modelopt.torch.export")
+HAVE_MODELOPT = HAVE_MODELOPT_MTQ and HAVE_MODELOPT_MTE
 
 QUANT_CFG_CHOICES = get_quant_cfg_choices()
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
@@ -359,7 +357,7 @@ class Quantizer:
             assert is_automodel, "HF export is only supported for AutoModelForCausalLM"
             unwrapped_model = unwrap_for_modelopt_operations(model)
             with torch.inference_mode():
-                export_hf_checkpoint(
+                mte.export_hf_checkpoint(
                     unwrapped_model,
                     export_dir=export_dir,
                 )
@@ -371,7 +369,7 @@ class Quantizer:
 
             with torch.inference_mode():
                 remove_hook_from_module(model, recurse=True)
-                export_tensorrt_llm_checkpoint(
+                mte.export_tensorrt_llm_checkpoint(
                     model=unwrap_for_modelopt_operations(model),
                     decoder_type=self._get_decoder_type(model),
                     dtype=self.torch_dtype,
