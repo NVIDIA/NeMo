@@ -14,12 +14,10 @@
 
 import os
 import re
-import pandas as pd
 from typing import Optional
 
-
+import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
-
 
 GPT_BASED_MODELS = [
     "gpt3",
@@ -35,8 +33,8 @@ GPT_BASED_MODELS = [
 
 
 def get_results(
-    base_config = None,
-    train_config = None,
+    base_config=None,
+    train_config=None,
     path_to_save: str = None,
     output_top_n: Optional[int] = 10,
     log_file_prefix: Optional[str] = 'log-',
@@ -283,8 +281,6 @@ def calculate_tflops(
         model_tflops = model_flops / 1e12
         model_tflops_per_gpu = model_flops_per_gpu / 1e12
 
-    else:
-        raise NotImplementedError("Model type not supported.")
     return round(model_tflops, 2), round(model_tflops_per_gpu, 2)
 
 

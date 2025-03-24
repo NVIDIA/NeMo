@@ -15,13 +15,14 @@
 import copy
 import os
 import re
-import numpy as np
 from collections import OrderedDict
 from typing import List, Optional
 
+import numpy as np
+
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
-from nemo.collections.llm.tools.auto_configurator.core.utils import generic_base_config, _calculate_model_size
+from nemo.collections.llm.tools.auto_configurator.core.utils import _calculate_model_size, generic_base_config
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils import logging
 
@@ -113,7 +114,8 @@ class AutoConfigurator:
                 32768,
             ], "Available seq_length list for GPT-based models: [2048, 4096, 8192, 16384, 32768]."
         assert path_to_logs, "path_to_logs parameter must be specified."
-
+        assert num_tokens_in_b > 0, "num_tokens_in_b must be an int larger than zero."
+        assert tflops_per_gpu > 0, "tflops_per_gpu must be an int larger than zero."
         self.num_gpus = recipe.trainer.devices
         self.num_nodes = recipe.trainer.num_nodes
         gpu_count = self.num_nodes * self.num_gpus
@@ -123,6 +125,7 @@ class AutoConfigurator:
             80,
         ), "gpu_memory_gb can only be 40 or 80."
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
+        assert max_steps_per_run >= 10, "max_steps_per_run must be an int and be at least 10 minutes."
 
         self.model_type = model_type
         self.model_size_in_b = self._get_model_size(
@@ -203,17 +206,17 @@ class AutoConfigurator:
                     return size / 1000  # Convert millions to billions
         elif model_type == "bert":
             return np.round(
-                    _calculate_model_size(
-                        vocab_size=vocab_size,
-                        seq_length=model.seq_length,
-                        hidden_size=model.hidden_size,
-                        num_layers=model.num_layers,
-                        ffn_size=model.ffn_hidden_size,
-                        att_heads=model.num_attention_heads,
-                        model_name=model_type,
-                    ),
-                    3,
-                )
+                _calculate_model_size(
+                    vocab_size=vocab_size,
+                    seq_length=model.seq_length,
+                    hidden_size=model.hidden_size,
+                    num_layers=model.num_layers,
+                    ffn_size=model.ffn_hidden_size,
+                    att_heads=model.num_attention_heads,
+                    model_name=model_type,
+                ),
+                3,
+            )
         return None
 
 
