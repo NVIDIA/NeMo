@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-
 from unittest.mock import MagicMock
 
 import pytest
