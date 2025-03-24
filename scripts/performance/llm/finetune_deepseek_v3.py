@@ -20,7 +20,6 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.deepseek_v3 import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.utils import logging
 from ..argument_parser import parse_cli_args
 from ..utils import (
     args_sanity_check,
@@ -79,8 +78,8 @@ def override_recipe_configs(
     )
 
     # disable HF ckpt loading
-    recipe.resume.restore_config=None
-    
+    recipe.resume.restore_config = None
+
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     recipe.model.tokenizer = recipe.data.tokenizer
