@@ -46,7 +46,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v44
+        uses: step-security/changed-files@v45.0.1
         with:
           files: ${{ steps.filter.outputs.main }}
           files_separator: ","
@@ -117,7 +117,7 @@ jobs:
             echo '```' | tee -a $GITHUB_STEP_SUMMARY
           fi
 
-          if [[ "$FLAKE8" != "true" ]]; then  
+          if [[ "$FLAKE8" != "true" ]]; then
             echo "Flake8 output:" | tee -a $GITHUB_STEP_SUMMARY
 
             echo '```' | tee -a $GITHUB_STEP_SUMMARY

@@ -37,8 +37,14 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
 
-MixedPrecisionPolicy = safe_import_from("torch.distributed._composable.fsdp", "MixedPrecisionPolicy")
-fully_shard = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
+)
+fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
+
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
+)
 
 
 @dataclass(kw_only=True)
@@ -445,6 +451,7 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
+    offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
@@ -454,6 +461,7 @@ def fsdp2_strategy_parallelize(
     """
 
     if not mp_policy:
+        assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
         mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
 
     def parallelize_helper(module, mesh, mp_policy):
@@ -469,6 +477,7 @@ def fsdp2_strategy_parallelize(
                     mesh=mesh,
                     mp_policy=mp_policy,
                     reshard_after_forward=reshard_after_forward,
+                    offload_policy=offload_policy,
                 )
                 module[layer_id] = transformer_block
         else:
@@ -480,12 +489,15 @@ def fsdp2_strategy_parallelize(
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
+        assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
         # Find transformer layers and apply parallelisms
         parallelize_helper(model, dp_mesh, mp_policy)
 
         # reshard_after_forward=True based on
         # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
-        model = fully_shard(model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True)
+        model = fully_shard(
+            model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
+        )
 
     return model
 
