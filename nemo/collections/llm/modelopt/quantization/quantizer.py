@@ -235,8 +235,11 @@ class Quantizer:
         enable_quant_kv_cache = self.quantization_config.enable_kv_cache
         if enable_quant_kv_cache is None:
             enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gpt"
-        logging.info(f"{'Enabled' if enable_quant_kv_cache else 'Disabled'} KV cache quantization")
-        quant_cfg["quant_cfg"]["*output_quantizer"] = {
+        if self.quantization_config.enable_kv_cache is None and enable_quant_kv_cache:
+            logging.warning("Enabled KV cache quantization but enable_kv_cache is None in quantization_config")
+        else:
+            logging.info(f"{'Enabled' if enable_quant_kv_cache else 'Disabled'} KV cache quantization")
+        quant_cfg["quant_cfg"]["*.linear_qkv.output_quantizer"] = {
             "num_bits": 8 if algorithm == "int8_sq" else (4, 3),
             "axis": None,
             "enable": enable_quant_kv_cache,
