@@ -308,7 +308,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 cp_buffers=[input_ids, labels, position_ids, loss_mask],
                 cp_seq_dims=[1, 1, 1, 1],
                 cp_no_restore_buffers={input_ids, labels, loss_mask},
-                cp_rotate_method="allgather", #TODO add "addtoall" option
+                cp_rotate_method="allgather",  # TODO add "addtoall" option
             )
             train_context = get_train_context(
                 False,

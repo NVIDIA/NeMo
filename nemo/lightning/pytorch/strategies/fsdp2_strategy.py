@@ -195,7 +195,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             mesh_shape=tuple(mesh_shape),
             mesh_dim_names=mesh_dim_names,
         )
-        
+
         # create dp_with_cp mesh for loss
         dp_with_cp_mesh_dim_names = []
         if self._data_parallel_size > 1:
