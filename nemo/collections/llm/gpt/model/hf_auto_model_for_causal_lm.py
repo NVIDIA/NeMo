@@ -318,6 +318,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 self._has_lora_adapter
             )
 
+        # Reset memory stats before starting
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+        initial_memory = torch.cuda.memory_allocated()
+        print(f"Initial memory: {initial_memory / 1024**2:.2f} MB")
+
         labels = batch.pop("labels").to(self.model.device)
         loss_mask = batch.pop("loss_mask", None)
 
@@ -325,9 +331,26 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if "input_ids" not in batch and "tokens" in batch:
             batch["input_ids"] = batch["tokens"]
         batch = self._remove_extra_batch_keys(batch)
-        batch["output_hidden_states"] = True  # Enable hidden states output
+        batch["output_hidden_states"] = True if USE_FUSED_LOSS else False  # Enable hidden states output
+
+        # Memory before forward pass
+        pre_forward_memory = torch.cuda.memory_allocated()
+        print(f"Memory before forward pass: {pre_forward_memory / 1024**2:.2f} MB")
 
         outputs = self.forward(batch)
+
+        # Memory after forward pass
+        post_forward_memory = torch.cuda.memory_allocated()
+        print(f"Memory after forward pass: {post_forward_memory / 1024**2:.2f} MB")
+        print(f"Memory used in forward pass: {(post_forward_memory - pre_forward_memory) / 1024**2:.2f} MB")
+
+        # Reset memory stats before loss computation
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+
+        # Memory before loss computation
+        pre_loss_memory = torch.cuda.memory_allocated()
+        print(f"Memory before loss computation: {pre_loss_memory / 1024**2:.2f} MB")
 
         if not USE_FUSED_LOSS:
             # Prepare for loss calculation
@@ -355,6 +378,50 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 num_items_in_batch=num_items_in_batch,
                 logit_softcapping=logit_softcapping,
             )
+
+        # Memory after loss computation
+        post_loss_memory = torch.cuda.memory_allocated()
+        print(f"Memory after loss computation: {post_loss_memory / 1024**2:.2f} MB")
+        print(f"Memory used in loss computation: {(post_loss_memory - pre_loss_memory) / 1024**2:.2f} MB")
+
+        # Get peak memory usage
+        peak_memory = torch.cuda.max_memory_allocated()
+        print(f"Peak memory during loss computation: {peak_memory / 1024**2:.2f} MB")
+
+        # Log memory usage
+        self.log(
+            "memory/initial",
+            initial_memory / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+        self.log(
+            "memory/forward",
+            (post_forward_memory - pre_forward_memory) / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+        self.log(
+            "memory/loss",
+            (post_loss_memory - pre_loss_memory) / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+        self.log(
+            "memory/peak",
+            peak_memory / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+
         # logging
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel()
