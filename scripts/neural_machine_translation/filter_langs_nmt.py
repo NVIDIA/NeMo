@@ -23,9 +23,13 @@ from time import sleep
 
 try:
     import fasttext
+
     HAVE_FASTTEXT = True
-except: ModuleNotFoundError:
+
+except ModuleNotFoundError:
+
     HAVE_FASTTEXT = False
+
 from tqdm import tqdm
 
 """
@@ -46,7 +50,9 @@ logging.basicConfig(level=logging.INFO)
 # temp fix for the warning: "Warning : 'load_model' does not return WordVectorModel or SupervisedModel any more, but a 'FastText' object which is very similar."
 try:
     fasttext.FastText.eprint = lambda x: None
-except: ModuleNotFoundError:
+
+except ModuleNotFoundError:
+
     raise ImportError("Pypi package fasttext is required but not installed")
 
 def get_args():
