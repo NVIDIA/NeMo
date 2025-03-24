@@ -18,10 +18,11 @@ mkdir -p /tmp/nemo2_llava_next_energon_results/$RUN_ID
 # Download necessary models - needs to be offline
 TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/ykarnati/hf_data coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo \
     tests/collections/vlm/llava_next/test_llava_next_train.py \
-    --devices=1 \
+    --devices=2 \
     --max-steps=5 \
     --experiment-dir=/tmp/nemo2_llava_next_energon_results/$RUN_ID \
     --data-type=energon \
     --data-path=/home/TestData/ykarnati/llava_finetune_wds \
+    --tensor-model-parallel-size=2 \
     --gbs=2 \
     --mbs=1 

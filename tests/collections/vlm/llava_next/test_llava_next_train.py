@@ -58,6 +58,9 @@ def get_args():
     )
     parser.add_argument('--gbs', type=int, default=2, help="Global batch size")
     parser.add_argument('--mbs', type=int, default=2, help="Micro batch size")
+    parser.add_argument('--tensor-model-parallel-size', type=int, default=1, help="Tensor model parallel size")
+    parser.add_argument('--pipeline-model-parallel-size', type=int, default=1, help="Pipeline model parallel size")
+    parser.add_argument('--context-parallel-size', type=int, default=1, help="Context parallel size")
 
     return parser.parse_args()
 
@@ -68,7 +71,7 @@ if __name__ == '__main__':
 
     gbs = args.gbs
     mbs = args.mbs
-    decoder_seq_length = 1024
+    decoder_seq_length = 8192
 
     model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
     processor = AutoProcessor.from_pretrained(model_id)
@@ -91,7 +94,9 @@ if __name__ == '__main__':
             raise ValueError("For Energon data type, you must specify --data-path")
 
         from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-        from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+        from nemo.collections.multimodal.data.energon.config import (
+            MultiModalSampleConfig,
+        )
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         # Configure multimodal sample settings
@@ -153,8 +158,9 @@ if __name__ == '__main__':
     model = vlm.LlavaNextModel(neva_config, tokenizer=data.tokenizer)
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
-        pipeline_model_parallel_size=1,
+        tensor_model_parallel_size=args.tensor_model_parallel_size,
+        pipeline_model_parallel_size=args.pipeline_model_parallel_size,
+        context_parallel_size=args.context_parallel_size,
         encoder_pipeline_model_parallel_size=0,
         pipeline_dtype=torch.bfloat16,
     )
