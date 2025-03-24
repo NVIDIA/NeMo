@@ -1,33 +1,36 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
 import numpy as np
 import pytest
 import torch
 import json
-import multiprocessing as mp
 from unittest.mock import MagicMock, patch
-from functools import partial
 
 from nemo.collections.llm.gpt.data.utils import (
     _OnlineSampleMapping,
     build_index_from_memdata,
-    _identify_start_index_of_subsequence,
-    handle_index,
-    _index_fn,
-    _index_file_exists,
     _TextMemMapDataset,
     _JSONLMemMapDataset,
     build_index_files,
     _build_memmap_index_files,
-    _preprocess,
     _mask_targets,
     _get_header_conversation_type_mask_role,
     _add_speaker_and_signal,
     _response_value_formater,
-    PREFIX_STR,
     IGNORE_INDEX,
-    TYPE_INSTRUCTION,
 )
-
 
 # Test fixtures
 @pytest.fixture
