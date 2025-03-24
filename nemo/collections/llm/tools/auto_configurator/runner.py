@@ -99,7 +99,7 @@ class AutoConfigurator:
         for key, value in config.items():
             setattr(self, key, value)
         logging.info(self._get_message(config))
-        # add assertion that all mp params shoulb be not None if mode == 'finetune'
+
         assert mode in ["pretrain", "finetune"], \
             f"current mode is not supported. Please, set the mode to 'pretrain' or 'finetune'."
 
@@ -129,6 +129,27 @@ class AutoConfigurator:
             80,
         ), "gpu_memory_gb can only be 40 or 80."
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
+
+        assert context_parallel_sizes != "auto", "'auto' mode is not supported for context parallelism."
+        assert expert_parallel_sizes != "auto", "'auto' mode is not supported for expert parallelism."
+
+        if mode == "finetune":
+            assert tensor_parallel_sizes != "auto", "tensor parallelism must be specified if use 'finetune' mode."
+            assert pipeline_parallel_sizes != "auto", "pipeline parallelism must be specified if use 'finetune' mode."
+            
+            if min_model_parallel_size == "auto":
+                min_model_parallel_size = 
+                    min(tensor_parallel_sizes) * \
+                    min(pipeline_parallel_sizes) * \
+                    min(context_parallel_sizes) * \
+                    min(expert_parallel_sizes)
+            
+            if max_model_parallel_size == "auto":
+                max_model_parallel_size = 
+                    max(tensor_parallel_sizes) * \
+                    max(pipeline_parallel_sizes) * \
+                    max(context_parallel_sizes) * \
+                    max(expert_parallel_sizes)
 
         self.model_type = model_type
         self.model_size_in_b = self._get_model_size(
