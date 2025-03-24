@@ -239,6 +239,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
+        self.param_to_name = {}
+        for name, param in self.named_parameters():
+            self.param_to_name[param] = name
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
@@ -754,6 +757,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # dec_att = self.transf_decoder.decoder.decoder_blocks[0].attn
 
         # enc_att = self.encoder.ngpt.transformer.h[0]
+        # self.justnorm_and_stat(enc_att.attn.query, idim=1, name="enc_att.query", printit=1)
         # enc_att.query.weight.data.copy_(self.justnorm_and_stat(enc_att.query, idim=1, name="enc_att.query", printit=1))
         # dec_att.query.weight.data.copy_(self.justnorm_and_stat(dec_att.query, idim=1, name="dec_att.query", printit=1))
 
@@ -789,6 +793,41 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         ans = super().optimizer_step(
             epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_closure=optimizer_closure
         )
+        
+        for param_group in optimizer.param_groups:
+            for param in param_group['params']:
+                param_name = self.param_to_name[param]
+                idim = -1
+                
+                # Get config values from decoder
+                hidden_size = self.cfg.model_defaults.lm_dec_hidden
+                vocab_size = self.tokenizer.vocab_size
+                
+                # Handle embeddings and output layer
+                if param.shape == (vocab_size, hidden_size):
+                    idim = 1  # Token embeddings or output layer
+                
+                # Handle attention matrices
+                if 'query' in param_name or 'key' in param_name or 'value' in param_name:
+                    idim = 1  # Q, K, V matrices normalize along input dim
+                
+                # Handle attention output projection
+                if 'att_c_proj' in param_name:
+                    idim = 0  # Attention output projection normalizes along output dim
+                
+                # Handle MLP layers
+                if 'c_fc' in param_name:  # First MLP layer
+                    idim = 1
+                if 'mlp_c_proj' in param_name:  # Second MLP layer
+                    idim = 0
+                    
+                if idim >= 0 and len(param.shape) == 2:
+                    param.data.copy_(self.justnorm(param.data, idim))
+                else:
+                    if len(param.shape) == 2:
+                        if (param.shape[0] * param.shape[1] > hidden_size) and (param.shape[0] > 1) and (param.shape[1] > 1):
+                            logging.debug(f"Large 2D parameter not normalized: {param_name} with shape {param.shape}")
+
         self.normalize_matrices()
         return ans
 

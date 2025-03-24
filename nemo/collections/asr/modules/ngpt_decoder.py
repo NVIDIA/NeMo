@@ -168,8 +168,7 @@ class Embedding(nn.Module):
 
         self.base_scale = n_embd ** -0.5
         
-        self.drop = nn.Dropout(0.1)
-
+        self.drop = nn.Dropout(0.1) # TODO: remove dropout and check 
         self._init_weights()
 
     def forward(self, input_ids=None, start_pos=0):
