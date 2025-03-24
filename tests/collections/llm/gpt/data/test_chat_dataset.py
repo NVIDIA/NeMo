@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import torch
+
 from datasets import Dataset, DatasetDict
 
 from nemo.collections.llm.gpt.data.chat import ChatDataModule
