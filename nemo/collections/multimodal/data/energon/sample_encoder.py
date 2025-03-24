@@ -273,6 +273,7 @@ class VQASampleEncoder(BaseSampleEncoder):
         Returns:
         torch.Tensor: A tensor containing the labels for the tokenized prompt.
         """
+        import pdb; pdb.set_trace()
         # Initialize labels with ignore index
         labels = torch.ones_like(tokens) * self.ignore_place_holder
         search_start_index = 0  # Initialize search index to start labeling answers sequentially
@@ -287,6 +288,11 @@ class VQASampleEncoder(BaseSampleEncoder):
             # Encode the answer with the stop string
             answer = self.process_answer_str(answer, stop_str)
             answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False, return_tensors="pt")[0]
+
+            # sometimes the tokenizer can add additional space. See: 
+            # https://github.com/huggingface/transformers/issues/25073#issuecomment-1655271420
+            if self.tokenizer.decode(answer_tokens[0]) == "":
+                answer_tokens = answer_tokens[1:]
 
             # Find the start and end indices of the answer tokens in the prompt
             answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens, search_start_index)

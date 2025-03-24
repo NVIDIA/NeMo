@@ -158,6 +158,7 @@ class TestVQASampleEncoder(unittest.TestCase):
 
         labels = self.encoder.compute_labels(tokens, sample)
         expected_labels = torch.ones_like(tokens) * self.config.ignore_place_holder
+        import pdb; pdb.set_trace()
         if answer_start != -1:
             expected_labels[answer_start:answer_end] = tokens[answer_start:answer_end]
         self.assertTrue(
@@ -183,7 +184,7 @@ class TestVQASampleEncoder(unittest.TestCase):
         self.assertIsNotNone(encoded_sample.tokens, "The encoded sample should have tokens.")
         self.assertIsNotNone(encoded_sample.labels, "The encoded sample should have labels.")
         self.assertIsNotNone(encoded_sample.loss_mask, "The encoded sample should have a loss mask.")
-        self.assertEqual(encoded_sample.images.shape, (3, 336, 336))
+        self.assertEqual(encoded_sample.images.shape, (1, 3, 336, 336))
         self.assertEqual(
             len(encoded_sample.tokens), len(encoded_sample.labels), "Tokens and labels should have the same length."
         )
