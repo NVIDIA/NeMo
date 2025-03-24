@@ -293,22 +293,19 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
             input_ids = batch["input_ids"].to(self.model.device)
-            # print(input_ids.shape)
+
             batch["position_ids"] = (
                 torch.arange(self.pos, self.pos + input_ids.shape[1]).unsqueeze(0).to(self.model.device)
             )
             position_ids = batch["position_ids"].to(self.model.device)
             self.pos += input_ids.shape[1]
-            # print(position_ids.shape)
-            # print(batch)
-            # position_embeddings = self.lightning_module.model.model.rotary_emb(hidden_states, position_ids)
 
             context_parallel_ctx = create_context_parallel_ctx(
                 cp_mesh=self._device_mesh["context_parallel"],
                 cp_buffers=[input_ids, labels, position_ids, loss_mask],
                 cp_seq_dims=[1, 1, 1, 1],
                 cp_no_restore_buffers={input_ids, labels, loss_mask},
-                cp_rotate_method="allgather",  # TODO add "addtoall" option
+                cp_rotate_method="allgather", #TODO add "addtoall" option
             )
             train_context = get_train_context(
                 False,
@@ -322,7 +319,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 n_cls = logits.shape[-1]
                 logits = logits.view(-1, n_cls)
                 labels = labels.view(-1)
-                # print(logits.shape, labels.shape)
+
                 assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
                 loss = self.loss_fn(logits, labels, loss_mask)
 
