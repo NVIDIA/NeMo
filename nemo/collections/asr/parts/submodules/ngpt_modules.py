@@ -49,15 +49,20 @@ def apply_rotary_position_embeddings(sinusoidal_pos, tensor):
     """Applies rotary embeddings to the given tensor (Q or K)."""
     # Split sinusoidal_pos into sin and cos parts
     sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-
-    # Create rotated tensor
-    tensor_rot = torch.stack((-tensor[..., 1::2], tensor[..., ::2]), dim=-1)
-
-    # Reshape and apply RoPE
-    tensor_rot = torch.reshape(tensor_rot, tensor.shape[:-1] + (tensor.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    tensor_rot = torch.reshape(tensor_rot, tensor.shape)
-
-    return tensor_rot.to(tensor.dtype)
+    
+    # Get even and odd dimensions
+    x_even = tensor[..., ::2]
+    x_odd = tensor[..., 1::2]
+    
+    # Apply rotation using the rotation matrix multiplication
+    x_even_new = x_even * cos - x_odd * sin
+    x_odd_new = x_even * sin + x_odd * cos
+    
+    # Interleave the results
+    x_transformed = torch.stack((x_even_new, x_odd_new), dim=-1)
+    x_transformed = x_transformed.flatten(-2)
+    
+    return x_transformed
 
 def get_sinusoidal_embeddings(n_positions, dim, device):
     """Generate sinusoidal positional embeddings."""
