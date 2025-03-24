@@ -1,11 +1,13 @@
-import torch
 import argparse
-import modelopt.torch.export as mtex
-from nemo.collections.llm.modelopt import setup_trainer_and_restore_model_with_modelopt_spec
-from megatron.training.utils import unwrap_model
-from megatron.core.models.gpt import GPTModel
 
+import modelopt.torch.export as mtex
+import torch
+from megatron.core.models.gpt import GPTModel
+from megatron.training.utils import unwrap_model
+
+from nemo.collections.llm.modelopt import setup_trainer_and_restore_model_with_modelopt_spec
 from nemo.utils import logging
+
 
 def get_args():
     """Parse command line arguments for exporting a NeMo model to HuggingFace format.
@@ -13,7 +15,7 @@ def get_args():
     Returns:
         argparse.Namespace: The parsed command line arguments containing:
             model_path (str): Path to the NeMo model checkpoint to export
-            pretrained_model_name (str): Name or path of the HuggingFace model to use as reference 
+            pretrained_model_name (str): Name or path of the HuggingFace model to use as reference
                 for architecture configuration
             export_dir (str): Directory where the exported HuggingFace model will be saved
     """
@@ -24,11 +26,12 @@ def get_args():
     parser.add_argument("--pipeline_parallel_size", type=int, default=1)
     parser.add_argument("--num_layers_in_first_pipeline_stage", type=int, default=None)
     parser.add_argument("--num_layers_in_last_pipeline_stage", type=int, default=None)
-    parser.add_argument("--expert_parallel_size", type=int, default=1) 
+    parser.add_argument("--expert_parallel_size", type=int, default=1)
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--nodes", type=int, default=1)
     parser.add_argument("--legacy_ckpt", type=bool, default=True)
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = get_args()
@@ -51,8 +54,8 @@ if __name__ == "__main__":
     unwrapped_model = unwrap_model(mcore_model)
     logging.info("Unwrapped Megatron-Core model. Exporting to HuggingFace format...")
     mtex.export_mcore_gpt_to_hf(
-            unwrapped_model,
-            args.pretrained_model_name,
-            dtype=torch.bfloat16,
-            export_dir=args.export_dir,
-        )
+        unwrapped_model,
+        args.pretrained_model_name,
+        dtype=torch.bfloat16,
+        export_dir=args.export_dir,
+    )
