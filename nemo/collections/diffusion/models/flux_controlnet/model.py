@@ -485,6 +485,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(
                 txt, device=latents.device, dtype=latents.dtype
             )
+        print(prompt_embeds.shape)
 
         with torch.cuda.amp.autocast(
             self.autocast_dtype in (torch.half, torch.bfloat16),

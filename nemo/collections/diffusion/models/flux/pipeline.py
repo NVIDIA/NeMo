@@ -487,6 +487,7 @@ class FluxInferencePipeline(nn.Module):
         dtype: torch.dtype = torch.float32,
         save_to_disk: bool = True,
         offload: bool = False,
+        output_path: str = None,
     ):
         """
         Generates images based on a given text prompt and various model parameters. Optionally saves the images to disk.
@@ -638,10 +639,11 @@ class FluxInferencePipeline(nn.Module):
                 image = FluxInferencePipeline.numpy_to_pil(image)
         if save_to_disk:
             print('Saving to disk')
+            os.makedirs(output_path, exist_ok=True)
             assert len(image) == int(len(prompt) * num_images_per_prompt)
             prompt = [p[:40] + f'_{idx}' for p in prompt for idx in range(num_images_per_prompt)]
             for file_name, image in zip(prompt, image):
-                image.save(f'{file_name}.png')
+                image.save(os.path.join(output_path, f'{file_name}.png'))
 
         return image
 
@@ -788,6 +790,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         control_guidance_end: float = 1.0,
         control_image: Union[Image.Image, torch.FloatTensor] = None,
         controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
+        output_path: str = None,
     ):
         """
         Generates images based on a given text prompt and optionally incorporates control images and ControlNet for
@@ -998,9 +1001,10 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
                 image = FluxInferencePipeline.numpy_to_pil(image)
         if save_to_disk:
             print('Saving to disk')
+            os.makedirs(output_path, exist_ok=True)
             assert len(image) == int(len(prompt) * num_images_per_prompt)
             prompt = [p[:40] + f'_{idx}' for p in prompt for idx in range(num_images_per_prompt)]
             for file_name, image in zip(prompt, image):
-                image.save(f'{file_name}.png')
+                image.save(os.path.join(output_path, f'{file_name}.png'))
 
         return image

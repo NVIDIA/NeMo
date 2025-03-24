@@ -2014,6 +2014,37 @@ jobs:
         rm -rf ${NEMO_OUTPUT_PATH}
         rm -rf ${HF_OUTPUT_PATH}
 
+  L2_NeMo_2_Flux_Training_Test:
+    needs: [ pre-flight, cicd-test-container-build ]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Flux_Training_Test.sh
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/flux_controlnet_training
+
+  L2_NeMo_2_Flux_Inference_Test:
+    needs: [ pre-flight, cicd-test-container-build ]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Flux_Training_Test.sh
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/
+
+  L2_NeMo_2_Diffusion_Taskencoder_Test:
+    needs: [ pre-flight, cicd-test-container-build ]
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Diffusion_Taskencoder_Test.sh
+        
+
   Nemo_CICD_Test:
     needs:
       - pre-flight
@@ -2186,6 +2217,8 @@ jobs:
       - L2_NeMo_2_VLLM_EXPORT
       - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
+      - L2_NeMo_2_Flux_Training_Test
+      - L2_NeMo_2_Flux_Inference_Test
 
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest

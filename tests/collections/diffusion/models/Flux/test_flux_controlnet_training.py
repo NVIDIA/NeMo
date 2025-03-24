@@ -25,8 +25,8 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
         image_w=1024,
         micro_batch_size=1,
         global_batch_size=1,
-        image_precached=True,
-        text_precached=True,
+        image_precached=False,
+        text_precached=False,
     )
     return data_module
 
@@ -50,10 +50,7 @@ def flux_controlnet_training(
                     num_joint_layers=flux_num_joint_layers,
                     num_single_layers=flux_num_single_layers,
                 ),
-                t5_params=None,
-                clip_params = None,
-                vae_config = None,
-            ),
+        ),
             flux_controlnet_config=run.Config(
                 FluxControlNetConfig,
                 num_joint_layers=flux_controlnet_num_joint_layers,
@@ -96,7 +93,7 @@ def flux_controlnet_training(
             ckpt=None,
             name=NAME,
             tensorboard=tensorboard_logger(name=NAME),
-            log_dir=None,
+            log_dir='/tmp/flux_controlnet_training',
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
