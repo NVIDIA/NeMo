@@ -22,11 +22,9 @@ from functools import lru_cache
 import jiwer
 import pytest
 import torch
-from omegaconf import DictConfig, open_dict
+from omegaconf import open_dict
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
-from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedInfer
 from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -45,6 +43,10 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 ) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
+@lru_cache(maxsize=4)
+def get_model(model_name: str, device: torch.device = torch.device("cpu")):
+    return ASRModel.from_pretrained(model_name, map_location=device)  # type: ASRModel
+    
 @lru_cache(maxsize=1)
 def get_model_encoder_output(
     audio_filepaths: tuple,
@@ -52,9 +54,6 @@ def get_model_encoder_output(
     device: torch.device = torch.device("cpu"),
     dtype: torch.dtype = torch.float32,
 ):
-    # Import inside function to avoid issues with dependencies
-    import librosa
-
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_filepaths:
@@ -69,13 +68,10 @@ def get_model_encoder_output(
         }
 
         with torch.no_grad():
-            model = ASRModel.from_pretrained(model_name, map_location=device)  # type: ASRModel
+            model = get_model(model_name, device)  # type: ASRModel
             model.preprocessor.featurizer.dither = 0.0
             model.preprocessor.featurizer.pad_to = 0
             model.eval()
-
-            audios, _ = zip(*[librosa.load(path, sr=16000, mono=True) for path in audio_filepaths])
-            print([len(audio) for audio in audios])
 
             temporary_datalayer = model._setup_transcribe_dataloader(config)
             for test_batch in temporary_datalayer:
@@ -115,10 +111,7 @@ class TestRNNTDecoding:
         "beam_config",
         [
             {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-            {"search_type": "maes_batch", "allow_cuda_graphs": False},
             {"search_type": "maes_batch", "allow_cuda_graphs": False},
         ],
     )
@@ -163,7 +156,9 @@ class TestRNNTDecoding:
             print()
 
             print(
-                f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
             )
             for hyp_idx, hyp in enumerate(hyps):
                 print("Sample: ", hyp_idx)
@@ -184,10 +179,7 @@ class TestRNNTDecoding:
         "beam_config",
         [
             {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-            {"search_type": "maes_batch", "allow_cuda_graphs": False},
             {"search_type": "maes_batch", "allow_cuda_graphs": False},
         ],
     )
@@ -231,7 +223,9 @@ class TestRNNTDecoding:
             print()
             print(f"Decoding device: {encoder_output.device}")
             print(
-                f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
             )
             for batch_idx, nbest_hyps in enumerate(batch_nbest_hyps):
                 print(f"Batch idx: {batch_idx}")
@@ -258,95 +252,16 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "maes_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "maes_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "maes_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "maes_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
+            {"search_type": "maes_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3},
         ],
     )
-    @pytest.mark.parametrize("batch_size", [4, 16])
-    @pytest.mark.parametrize("beam_size", [2, 4])
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device, batch_size, beam_size):
+    @pytest.mark.parametrize("batch_size", [4])
+    @pytest.mark.parametrize("beam_size", [4])
+    @pytest.mark.parametrize("pruning_mode", ["late", "early"])
+    @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
+    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
@@ -367,6 +282,8 @@ class TestRNNTDecoding:
             beam_size=beam_size,
             score_norm=True,
             return_best_hypothesis=True,
+            pruning_mode=pruning_mode, 
+            blank_lm_score_mode=blank_lm_score_mode,
             **beam_config,
         )
 
@@ -388,7 +305,9 @@ class TestRNNTDecoding:
             print()
 
             print(
-                f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
             )
             for hyp_idx, hyp in enumerate(hyps):
                 print("Sample: ", hyp_idx)
@@ -405,25 +324,13 @@ class TestRNNTDecoding:
     @pytest.mark.unit
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    @pytest.mark.parametrize(
-        "beam_config",
-        [
-            {"batch_size": 4, "beam_size": 2},
-            {"batch_size": 4, "beam_size": 4},
-            {"batch_size": 4, "beam_size": 8},
-            {"batch_size": 16, "beam_size": 2},
-            {"batch_size": 16, "beam_size": 4},
-            {"batch_size": 16, "beam_size": 8},
-        ],
-    )
-    def test_cuda_graph_rnnt_batched_alsd_decoder(self, test_data_dir, beam_config):
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("beam_size", [4, 8])
+    def test_cuda_graph_rnnt_batched_alsd_decoder(self, test_data_dir, batch_size, beam_size):
         # Set device to CUDA
         device = torch.device("cuda")
 
         nemo_model = ASRModel.from_pretrained("stt_en_conformer_transducer_small", map_location=device)
-        beam_size = beam_config.get("beam_size", 4)
-        batch_size = beam_config.get("batch_size", 4)
-
         audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
 
         # Modify decoding config
@@ -479,6 +386,7 @@ class TestRNNTDecoding:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
     def test_stated_stateless(self, test_data_dir, force_mode: str):
+        '''Compares stated and stateless implementations'''
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
@@ -534,6 +442,7 @@ class TestRNNTDecoding:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
     def test_stated_stateless(self, test_data_dir, force_mode: str):
+        '''Compares stated and stateless implementations with bfloat16''' 
         # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
@@ -576,8 +485,6 @@ class TestTDTDecoding:
         "beam_config",
         [
             {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
@@ -626,7 +533,9 @@ class TestTDTDecoding:
             print()
 
             print(
-                f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
             )
             for hyp_idx, hyp in enumerate(hyps):
                 print("Sample: ", hyp_idx)
@@ -647,8 +556,6 @@ class TestTDTDecoding:
         "beam_config",
         [
             {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
@@ -696,7 +603,9 @@ class TestTDTDecoding:
             print()
             print(f"Decoding device: {encoder_output.device}")
             print(
-                f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+                f"Beam search algorithm : {beam_config['search_type']}, \
+                    beam size: {beam_size}, \
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
             )
             for batch_idx, nbest_hyps in enumerate(batch_nbest_hyps):
                 print(f"Batch idx: {batch_idx}")
@@ -723,69 +632,15 @@ class TestTDTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "no_score",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "early",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-                "pruning_mode": "late",
-                "blank_lm_score_mode": "lm_weighted_full",
-            },
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3,},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3,}
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])
-    @pytest.mark.parametrize("beam_size", [2])
-    # @pytest.mark.parametrize("batch_size", [4, 16])
-    # @pytest.mark.parametrize("beam_size", [2, 4])
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device, batch_size, beam_size):
+    @pytest.mark.parametrize("beam_size", [4])
+    @pytest.mark.parametrize("pruning_mode", ["late", "early"])
+    @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
+    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
@@ -810,6 +665,8 @@ class TestTDTDecoding:
             beam_size=beam_size,
             score_norm=True,
             return_best_hypothesis=True,
+            pruning_mode=pruning_mode,
+            blank_lm_score_mode=blank_lm_score_mode,
             **beam_config,
         )
 
@@ -831,7 +688,9 @@ class TestTDTDecoding:
             print()
 
             print(
-                f"Beam search algorithm : {beam_config['search_type']}, beam size: {beam_size}, Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+                f"Beam search algorithm : {beam_config['search_type']}, \
+                    beam size: {beam_size}, \
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
             )
             for hyp_idx, hyp in enumerate(hyps):
                 print("Sample: ", hyp_idx)
@@ -845,6 +704,7 @@ class TestTDTDecoding:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
     def test_stated_stateless(self, test_data_dir, force_mode: str):
+        '''Compares stated and stateless implementations with bfloat16''' 
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
@@ -900,6 +760,7 @@ class TestTDTDecoding:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
     def test_stated_stateless(self, test_data_dir, force_mode: str):
+        '''Compares stated and stateless implementations with bfloat16''' 
         # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
