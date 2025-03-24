@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
 
 import _io
@@ -19,6 +20,9 @@ import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
+
+# TODO: add try to avoid import errors
+from cut_cross_entropy import linear_cross_entropy
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -26,6 +30,60 @@ from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
+
+USE_FUSED_LOSS = os.getenv("USE_FUSED_LOSS", "0") == "1"
+
+
+def fused_linear_cross_entropy(
+    hidden_states: torch.Tensor,
+    lm_weight: torch.Tensor,
+    labels: torch.Tensor,
+    num_items_in_batch: int = None,
+    ignore_index: int = -100,
+    reduction: str = "mean",
+    logit_softcapping: float = 0,
+    accuracy_threshold: str = "auto",
+):
+    """
+    Compute fused linear cross entropy loss that matches PyTorch's cross_entropy behavior.
+
+    Args:
+        hidden_states: Input hidden states
+        lm_weight: Weight matrix for linear transformation
+        labels: Target labels
+        num_items_in_batch: Number of valid tokens (where labels != ignore_index)
+        ignore_index: Value to ignore in labels (default: -100)
+        reduction: Reduction method ('mean' or 'sum')
+        logit_softcapping: Value for softcapping logits (0 means no capping)
+        accuracy_threshold: Threshold for accuracy computation
+    """
+    # First compute loss with sum reduction to handle normalization ourselves
+    if logit_softcapping == 0:
+        logit_softcapping = None
+
+    # Compute loss with shift=False to match PyTorch behavior
+    # Set filter_eps=None to avoid any token filtering
+    loss = linear_cross_entropy(
+        hidden_states,
+        lm_weight,
+        targets=labels,
+        ignore_index=ignore_index,
+        softcap=logit_softcapping,
+        reduction='sum',  # Use sum reduction to handle normalization ourselves
+        shift=False,  # Match PyTorch behavior
+        filter_eps=None,  # No token filtering
+    )
+
+    # Match PyTorch's cross_entropy behavior:
+    # For mean reduction, divide by number of valid tokens
+    if reduction == 'mean':
+        # If num_items_in_batch not provided, compute it
+        if num_items_in_batch is None:
+            num_items_in_batch = torch.sum(labels != ignore_index).item()
+        # Normalize by number of valid tokens
+        loss = loss / num_items_in_batch
+
+    return loss
 
 
 def masked_cross_entropy(logits, targets, mask=None):
@@ -66,7 +124,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def __init__(
         self,
-        model_name='gpt2',
+        model_name="gpt2",
         load_pretrained_weights=True,
         tokenizer=None,
         loss_fn=masked_cross_entropy,
@@ -216,7 +274,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = self._configure_model(attn_implementation=self.attn_implementation)
         except ValueError as e:
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
-            if 'does not support an attention' in str(e):
+            if "does not support an attention" in str(e):
                 self.model = self._configure_model(attn_implementation="eager")
             else:
                 raise e
@@ -236,7 +294,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model.train()
 
         # Ugly hack for PEFT: adapters are added here so that can be wrapped correctly with DDP.
-        if getattr(self, 'model_transform', None) is not None:
+        if getattr(self, "model_transform", None) is not None:
             self.model_transform(self)
             self.model_transform.__num_calls__ = 0
 
@@ -275,24 +333,108 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
             self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
 
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
+        # Reset memory stats before starting
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+        initial_memory = torch.cuda.memory_allocated()
+        print(f"Initial memory: {initial_memory / 1024**2:.2f} MB")
+
+        labels = batch.pop("labels").to(self.model.device)
+        loss_mask = batch.pop("loss_mask", None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
-            batch['input_ids'] = batch['tokens']
+        if "input_ids" not in batch and "tokens" in batch:
+            batch["input_ids"] = batch["tokens"]
         batch = self._remove_extra_batch_keys(batch)
+        batch["output_hidden_states"] = True if USE_FUSED_LOSS else False  # Enable hidden states output
+
+        # Memory before forward pass
+        pre_forward_memory = torch.cuda.memory_allocated()
+        print(f"Memory before forward pass: {pre_forward_memory / 1024**2:.2f} MB")
 
         outputs = self.forward(batch)
 
-        # Prepare for loss calculation
-        logits = outputs.logits.float()
-        n_cls = logits.shape[-1]
-        logits = logits.view(-1, n_cls)
-        labels = labels.view(-1)
+        # Memory after forward pass
+        post_forward_memory = torch.cuda.memory_allocated()
+        print(f"Memory after forward pass: {post_forward_memory / 1024**2:.2f} MB")
+        print(f"Memory used in forward pass: {(post_forward_memory - pre_forward_memory) / 1024**2:.2f} MB")
 
-        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
-        loss = self.loss_fn(logits, labels, loss_mask)
+        # Reset memory stats before loss computation
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+
+        # Memory before loss computation
+        pre_loss_memory = torch.cuda.memory_allocated()
+        print(f"Memory before loss computation: {pre_loss_memory / 1024**2:.2f} MB")
+
+        if not USE_FUSED_LOSS:
+            # Prepare for loss calculation
+            logits = outputs.logits.float()
+            n_cls = logits.shape[-1]
+            logits = logits.view(-1, n_cls)
+            labels = labels.view(-1)
+
+            assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+            loss = self.loss_fn(logits, labels, loss_mask)
+        else:
+            # Prepare for loss calculation
+            # Get hidden states from the last layer
+            hidden_states = outputs.hidden_states[-1]
+            lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
+            labels = labels
+            num_items_in_batch = torch.count_nonzero(labels != -100).item()
+            logit_softcapping = 0
+            loss = fused_linear_cross_entropy(
+                hidden_states=hidden_states,
+                lm_weight=lm_head,
+                labels=labels,
+                num_items_in_batch=num_items_in_batch,
+                logit_softcapping=logit_softcapping,
+            )
+
+        # Memory after loss computation
+        post_loss_memory = torch.cuda.memory_allocated()
+        print(f"Memory after loss computation: {post_loss_memory / 1024**2:.2f} MB")
+        print(f"Memory used in loss computation: {(post_loss_memory - pre_loss_memory) / 1024**2:.2f} MB")
+
+        # Get peak memory usage
+        peak_memory = torch.cuda.max_memory_allocated()
+        print(f"Peak memory during loss computation: {peak_memory / 1024**2:.2f} MB")
+
+        # Log memory usage
+        self.log(
+            "memory/initial",
+            initial_memory / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+        self.log(
+            "memory/forward",
+            (post_forward_memory - pre_forward_memory) / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+        self.log(
+            "memory/loss",
+            (post_loss_memory - pre_loss_memory) / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+        self.log(
+            "memory/peak",
+            peak_memory / 1024**2,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+
         # logging
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel()
@@ -319,7 +461,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         # reduce across ranks
         is_ddp = isinstance(self.trainer.strategy, pl.strategies.DDPStrategy)
-        device_mesh = getattr(self, '_device_mesh', None)
+        device_mesh = getattr(self, "_device_mesh", None)
         if device_mesh is not None or is_ddp:
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
@@ -342,19 +484,50 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 return val
 
             mean_loss = reduce_item(
-                mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
+                mean_loss,
+                op=dist.ReduceOp.AVG,
+                device=self.device,
+                group=group,
+                dtype=torch.float32,
             )
-            tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
+            tps = reduce_item(
+                tps,
+                op=dist.ReduceOp.SUM,
+                device=self.device,
+                group=group,
+                dtype=torch.int64,
+            )
 
-        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
-        self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log(
+            "reduced_train_loss",
+            mean_loss,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
+        self.log(
+            "tps",
+            tps,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
 
         # log LR
         # TODO(akoumparouli): move this elsewhere.
         optim = self.optimizers()
         if isinstance(optim, list):
             optim = optim[0]
-        self.log('lr', optim.param_groups[0]['lr'], prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log(
+            "lr",
+            optim.param_groups[0]["lr"],
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
@@ -369,12 +542,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch (dict): A dictionary containing the batch data, including 'labels' and optionally 'loss_mask'.
             batch_idx (int): The index of the batch.
         """
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
+        labels = batch.pop("labels").to(self.model.device)
+        loss_mask = batch.pop("loss_mask", None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
-            batch['input_ids'] = batch['tokens']
+        if "input_ids" not in batch and "tokens" in batch:
+            batch["input_ids"] = batch["tokens"]
         batch = self._remove_extra_batch_keys(batch)
 
         outputs = self.forward(batch)
@@ -404,11 +577,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         assert self.model is not None, "Model has to be created first."
 
-        def pop_fqn_prefix(fqn, expected_prefix='model'):
+        def pop_fqn_prefix(fqn, expected_prefix="model"):
             """pops prefix from FQN"""
-            parts = fqn.split('.')
+            parts = fqn.split(".")
             assert parts[0] == expected_prefix
-            return '.'.join(parts[1:])
+            return ".".join(parts[1:])
 
         # Remove the "model." prefix from FQNs.
         # Context: calling state_dict on an HFAutoModelForCausalLM, will prepend "model." in the
@@ -426,7 +599,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         if len(io_bytes_state) > 0:
             logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
-            torch.save(io_bytes_state, path / 'io_bytes.pt')
+            torch.save(io_bytes_state, path / "io_bytes.pt")
 
         self.model.save_pretrained(path, state_dict=state_dict)
         if self._tokenizer is not None:
@@ -441,7 +614,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         return AutoModelForCausalLM.from_pretrained(
             path,
-            torch_dtype='auto',
+            torch_dtype="auto",
             device_map="cpu",
             trust_remote_code=self.trust_remote_code,
             load_in_4bit=self.load_in_4bit,
@@ -485,7 +658,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
-    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
+    def _remove_extra_batch_keys(self, batch, reserved_keys=["labels", "loss_mask"]):
         """Remove extra keys from batch that are not kwargs in model's forward
 
         Args:
@@ -502,4 +675,4 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     @property
     def _has_lora_adapter(self):
-        return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
+        return any(map(lambda x: "lora" in x[0].lower(), self.named_modules()))
