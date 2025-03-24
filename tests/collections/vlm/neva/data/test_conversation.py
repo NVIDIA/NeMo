@@ -1,28 +1,30 @@
 import base64
-import pytest
-from PIL import Image
 from io import BytesIO
 from unittest.mock import MagicMock, patch
+
+import pytest
+from PIL import Image
+
 from nemo.collections.vlm.neva.data.conversation import (
     Conversation,
     SeparatorStyle,
-    conv_vicuna_v1,
+    conv_chatml_direct,
+    conv_gemma_instruct,
     conv_llama_2,
-    conv_mistral_vila,
-    conv_nvgpt,
     conv_llava_llama_3,
-    conv_mllama,
     conv_llava_plain,
     conv_llava_v0,
     conv_llava_v1,
-    conv_mistral_orca,
-    conv_mistral_zephyr,
     conv_mistral_direct,
-    conv_chatml_direct,
+    conv_mistral_orca,
+    conv_mistral_vila,
+    conv_mistral_zephyr,
+    conv_mllama,
     conv_mpt,
-    conv_qwen,
-    conv_gemma_instruct,
     conv_nv_dpo,
+    conv_nvgpt,
+    conv_qwen,
+    conv_vicuna_v1,
 )
 
 
@@ -41,17 +43,12 @@ def basic_conversation():
         messages=[],
         offset=0,
         sep_style=SeparatorStyle.SINGLE,
-        sep="###"
+        sep="###",
     )
 
 
 def test_conversation_initialization():
-    conv = Conversation(
-        system="Test system",
-        roles=("User", "Assistant"),
-        messages=[],
-        offset=0
-    )
+    conv = Conversation(system="Test system", roles=("User", "Assistant"), messages=[], offset=0)
     assert conv.system == "Test system"
     assert conv.roles == ("User", "Assistant")
     assert conv.messages == []
@@ -77,7 +74,7 @@ def test_get_prompt_two_style():
         offset=0,
         sep_style=SeparatorStyle.TWO,
         sep=" ",
-        sep2="</s>"
+        sep2="</s>",
     )
     conv.append_message("User", "Hello")
     conv.append_message("Assistant", "Hi there")
@@ -230,47 +227,27 @@ def test_get_prompt_nv_dpo():
 
 
 def test_process_image_pad(sample_image):
-    conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[],
-        offset=0
-    )
+    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
     processed = conv.process_image(sample_image, "Pad", return_pil=True)
     assert isinstance(processed, Image.Image)
     assert processed.size[0] == processed.size[1]  # Should be square
 
 
 def test_process_image_resize(sample_image):
-    conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[],
-        offset=0
-    )
+    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
     processed = conv.process_image(sample_image, "Resize", return_pil=True)
     assert isinstance(processed, Image.Image)
     assert processed.size == (336, 336)
 
 
 def test_process_image_default(sample_image):
-    conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[],
-        offset=0
-    )
+    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
     processed = conv.process_image(sample_image, "Default", return_pil=True)
     assert isinstance(processed, Image.Image)
 
 
 def test_process_image_base64(sample_image):
-    conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[],
-        offset=0
-    )
+    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
     processed = conv.process_image(sample_image, "Default", return_pil=False)
     assert isinstance(processed, str)
     # Verify it's a valid base64 string
@@ -306,12 +283,7 @@ def test_to_gradio_chatbot(basic_conversation, sample_image):
 
 
 def test_copy():
-    conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[["User", "Hello"]],
-        offset=0
-    )
+    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[["User", "Hello"]], offset=0)
     copied = conv.copy()
     assert copied.system == conv.system
     assert copied.roles == conv.roles
@@ -323,12 +295,7 @@ def test_copy():
 
 
 def test_dict():
-    conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[["User", "Hello"]],
-        offset=0
-    )
+    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[["User", "Hello"]], offset=0)
     conv_dict = conv.dict()
     assert conv_dict["system"] == "Test"
     assert conv_dict["roles"] == ("User", "Assistant")
@@ -345,11 +312,7 @@ def test_dict_with_images(basic_conversation, sample_image):
 
 def test_process_chat_template():
     conv = Conversation(
-        system="Test system",
-        roles=("user", "assistant"),
-        messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.LLAMA_2
+        system="Test system", roles=("user", "assistant"), messages=[], offset=0, sep_style=SeparatorStyle.LLAMA_2
     )
     messages = [("user", "Hello"), ("assistant", "Hi there")]
     with patch('transformers.AutoTokenizer.from_pretrained') as mock_tokenizer:
@@ -361,22 +324,13 @@ def test_process_chat_template():
 
 def test_invalid_sep_style():
     conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[],
-        offset=0,
-        sep_style="INVALID"  # type: ignore
+        system="Test", roles=("User", "Assistant"), messages=[], offset=0, sep_style="INVALID"  # type: ignore
     )
     with pytest.raises(ValueError):
         conv.get_prompt()
 
 
 def test_invalid_image_process_mode():
-    conv = Conversation(
-        system="Test",
-        roles=("User", "Assistant"),
-        messages=[],
-        offset=0
-    )
+    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
     with pytest.raises(ValueError):
-        conv.process_image(None, "InvalidMode") 
+        conv.process_image(None, "InvalidMode")

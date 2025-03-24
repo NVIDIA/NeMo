@@ -288,7 +288,7 @@ class VQASampleEncoder(BaseSampleEncoder):
             answer = self.process_answer_str(answer, stop_str)
             answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False, return_tensors="pt")[0]
 
-            # sometimes the tokenizer can add additional space. See: 
+            # sometimes the tokenizer can add additional space. See:
             # https://github.com/huggingface/transformers/issues/25073#issuecomment-1655271420
             if self.tokenizer.decode(answer_tokens[0]) == "":
                 answer_tokens = answer_tokens[1:]
