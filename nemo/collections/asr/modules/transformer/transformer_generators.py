@@ -19,7 +19,7 @@ import torch
 from omegaconf import DictConfig
 from torch.distributions import Categorical
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
@@ -528,7 +528,7 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
         self.len_pen = len_pen
         # ngram lm
         assert ngram_lm_model is not None
-        self.ngram_lm_batch = FastNGramLM.from_file(lm_path=ngram_lm_model, vocab_size=self.num_tokens)
+        self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.num_tokens)
         self.ngram_lm_alpha = ngram_lm_alpha
 
     @staticmethod
