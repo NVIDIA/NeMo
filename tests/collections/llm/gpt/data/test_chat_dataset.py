@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from datasets import Dataset, DatasetDict
+from datasets import Dataset
 
 from nemo.collections.llm.gpt.data.chat import ChatDataModule
 
