@@ -44,7 +44,7 @@ To see all available pretrained models for a specific NeMo model, use the ``list
 For detailed information on the available pretrained models, refer to the collections documentation: 
 
 - :doc:`Automatic Speech Recognition (ASR) <../asr/intro>`
-- :doc:`Natural Language Processing (NLP) <../nlp/models>`
+- :doc:`Natural Language Processing (NLP) <nlp/models>`
 - :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 
 Training
@@ -175,9 +175,9 @@ via PyTorch Lightning `hooks <https://pytorch-lightning.readthedocs.io/en/stable
 
 For more domain-specific information, see:
 
-- :doc:`Automatic Speech Recognition (ASR) <../asr/intro>`
-- :doc:`Natural Language Processing (NLP) <../nlp/models>`
-- :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
+- :doc:`Automatic Speech Recognition (ASR) <asr/intro>`
+- :doc:`Natural Language Processing (NLP) <nlp/models>`
+- :doc:`Text-to-Speech Synthesis (TTS) <tts/intro>`
 
 PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
