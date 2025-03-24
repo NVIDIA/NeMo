@@ -51,30 +51,25 @@ def mock_sampler():
 @pytest.fixture
 def sample_squad_dataset():
     dataset_len = 30
-    train_dataset = Dataset.from_dict({
-        "context": ["The quick brown fox jumps over the lazy dog."] * dataset_len,
-        "question": ["What does the fox do?"] * dataset_len,
-        "answers": [
-            {"text": ["jumps over the lazy dog"], "answer_start": [20]}
-            for _ in range(dataset_len)
-        ],
-        "id": [str(i) for i in range(dataset_len)]
-    })
+    train_dataset = Dataset.from_dict(
+        {
+            "context": ["The quick brown fox jumps over the lazy dog."] * dataset_len,
+            "question": ["What does the fox do?"] * dataset_len,
+            "answers": [{"text": ["jumps over the lazy dog"], "answer_start": [20]} for _ in range(dataset_len)],
+            "id": [str(i) for i in range(dataset_len)],
+        }
+    )
 
-    validation_dataset = Dataset.from_dict({
-        "context": ["A computer is an electronic device."] * dataset_len,
-        "question": ["What is a computer?"] * dataset_len,
-        "answers": [
-            {"text": ["an electronic device"], "answer_start": [15]}
-            for _ in range(dataset_len)
-        ],
-        "id": [str(i) for i in range(dataset_len)]
-    })
+    validation_dataset = Dataset.from_dict(
+        {
+            "context": ["A computer is an electronic device."] * dataset_len,
+            "question": ["What is a computer?"] * dataset_len,
+            "answers": [{"text": ["an electronic device"], "answer_start": [15]} for _ in range(dataset_len)],
+            "id": [str(i) for i in range(dataset_len)],
+        }
+    )
 
-    return DatasetDict({
-        'train': train_dataset,
-        'validation': validation_dataset
-    })
+    return DatasetDict({'train': train_dataset, 'validation': validation_dataset})
 
 
 @pytest.fixture
@@ -85,8 +80,10 @@ def temp_dataset_dir():
 
 @pytest.fixture
 def squad_data_module(mock_tokenizer, temp_dataset_dir, sample_squad_dataset, mock_trainer, mock_sampler):
-    with patch('datasets.load_dataset', autospec=True) as mock_load_dataset, \
-            patch('nemo.collections.llm.gpt.data.core.get_dataset_root') as mock_get_dataset_root:
+    with (
+        patch('datasets.load_dataset', autospec=True) as mock_load_dataset,
+        patch('nemo.collections.llm.gpt.data.core.get_dataset_root') as mock_get_dataset_root,
+    ):
         mock_load_dataset.return_value = sample_squad_dataset
         mock_get_dataset_root.return_value = temp_dataset_dir
 

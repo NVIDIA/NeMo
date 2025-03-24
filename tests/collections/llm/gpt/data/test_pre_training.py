@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-import tempfile
 import os
+import tempfile
+
+import pytest
 
 from nemo.collections.llm.gpt.data.pre_training import (
+    PreTrainingDataModule,
     is_number_tryexcept,
     is_zipped_list,
     validate_dataset_asset_accessibility,
-    PreTrainingDataModule,
 )
 
 
@@ -63,11 +64,7 @@ class TestPreTrainingHelperFunctions:
             validate_dataset_asset_accessibility(weighted_paths)
 
             # Test valid dictionary paths
-            dict_paths = {
-                "train": [valid_path],
-                "validation": [paths[1]],
-                "test": [valid_path]
-            }
+            dict_paths = {"train": [valid_path], "validation": [paths[1]], "test": [valid_path]}
             validate_dataset_asset_accessibility(dict_paths)
 
             # Test invalid path
@@ -119,11 +116,7 @@ class TestPreTrainingDataModule:
         path2 = create_temp_dataset_files(temp_dataset_dir, "dataset2")
 
         datamodule = PreTrainingDataModule(
-            paths={
-                "train": [path1],
-                "validation": [path2],
-                "test": [path1]
-            },
+            paths={"train": [path1], "validation": [path2], "test": [path1]},
             seq_length=128,
             micro_batch_size=4,
             global_batch_size=8,
@@ -157,7 +150,7 @@ class TestPreTrainingDataModule:
             seq_length=128,
             micro_batch_size=4,
             global_batch_size=8,
-            rampup_batch_size=rampup_config
+            rampup_batch_size=rampup_config,
         )
         assert datamodule.data_sampler.rampup_batch_size == rampup_config
 
@@ -183,19 +176,19 @@ class TestPreTrainingDataModule:
         mock_trainer.global_step = 0
         basic_datamodule.trainer = mock_trainer
 
-        dataloader = basic_datamodule._create_dataloader(
-            dataset=mock_dataset,
-            mode="train"
-        )
+        dataloader = basic_datamodule._create_dataloader(dataset=mock_dataset, mode="train")
         assert dataloader is not None
         assert dataloader.mode == "train"
 
-    @pytest.mark.parametrize("paths,expected_error", [
-        (None, ValueError),
-        (123, ValueError),
-        ("nonexistent_path.bin", FileNotFoundError),
-        (["/path1", "/path2"], FileNotFoundError),
-    ])
+    @pytest.mark.parametrize(
+        "paths,expected_error",
+        [
+            (None, ValueError),
+            (123, ValueError),
+            ("nonexistent_path.bin", FileNotFoundError),
+            (["/path1", "/path2"], FileNotFoundError),
+        ],
+    )
     def test_validate_dataset_asset_accessibility_errors(self, paths, expected_error):
         with pytest.raises(expected_error):
             validate_dataset_asset_accessibility(paths)
@@ -207,7 +200,8 @@ class TestPreTrainingDataModule:
 
         # Mock BlendedMegatronDatasetBuilder
         mock_builder = mocker.patch(
-            'megatron.core.datasets.blended_megatron_dataset_builder.BlendedMegatronDatasetBuilder')
+            'megatron.core.datasets.blended_megatron_dataset_builder.BlendedMegatronDatasetBuilder'
+        )
         mock_builder_instance = mocker.MagicMock()
         mock_builder.return_value = mock_builder_instance
         # Set up the build method to return mock datasets
@@ -224,7 +218,7 @@ class TestPreTrainingDataModule:
             trainer_max_steps=100,
             trainer_val_check_interval=10,
             trainer_limit_val_batches=1,
-            trainer_limit_test_batches=1
+            trainer_limit_test_batches=1,
         )
 
         # Verify dist.init_process_group was called correctly

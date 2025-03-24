@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
 import json
 import tempfile
 from pathlib import Path
+
+import pytest
 
 from nemo.collections.llm.gpt.data.retrieval import CustomRetrievalDataModule
 
@@ -25,13 +26,13 @@ def sample_data():
         {
             "question": "What is NeMo?",
             "pos_doc": ["NeMo is NVIDIA's framework for conversational AI"],  # Always use list
-            "neg_doc": ["Wrong answer 1", "Wrong answer 2"]
+            "neg_doc": ["Wrong answer 1", "Wrong answer 2"],
         },
         {
             "question": "What is PyTorch?",
             "pos_doc": ["PyTorch is a machine learning framework"],  # Always use list
-            "neg_doc": ["Incorrect PyTorch description"]
-        }
+            "neg_doc": ["Incorrect PyTorch description"],
+        },
     ] * 20
 
 
@@ -44,11 +45,13 @@ def temp_data_files(sample_data):
             json.dump(sample_data, f)
 
         # Create validation data file with consistent format
-        val_data = [{
-            "question": "What is NeMo?",
-            "pos_doc": ["NeMo is NVIDIA's framework for conversational AI"],
-            "neg_doc": ["Wrong answer 1"]
-        }]
+        val_data = [
+            {
+                "question": "What is NeMo?",
+                "pos_doc": ["NeMo is NVIDIA's framework for conversational AI"],
+                "neg_doc": ["Wrong answer 1"],
+            }
+        ]
         val_file = Path(tmpdir) / "val.json"
         with open(val_file, 'w') as f:
             json.dump(val_data, f)
@@ -58,12 +61,7 @@ def temp_data_files(sample_data):
 
 def test_initialization(temp_data_files):
     main_file, val_file = temp_data_files
-    data_module = CustomRetrievalDataModule(
-        data_root=main_file,
-        val_root=val_file,
-        seq_length=128,
-        micro_batch_size=2
-    )
+    data_module = CustomRetrievalDataModule(data_root=main_file, val_root=val_file, seq_length=128, micro_batch_size=2)
     assert data_module.val_ratio == 0
     assert data_module.train_ratio == 0.99
     assert data_module.query_key == "question"
@@ -74,11 +72,7 @@ def test_initialization(temp_data_files):
 def test_data_splitting(temp_data_files):
     main_file, _ = temp_data_files
     data_module = CustomRetrievalDataModule(
-        data_root=main_file,
-        val_ratio=0.5,
-        test_ratio=0.0,
-        seq_length=128,
-        micro_batch_size=2
+        data_root=main_file, val_ratio=0.5, test_ratio=0.0, seq_length=128, micro_batch_size=2
     )
     data_module.prepare_data()
 
@@ -109,7 +103,7 @@ def test_multiple_data_roots(sample_data):
             force_redownload=True,
             test_ratio=0.05,
             val_ratio=0.05,
-       )
+        )
         data_module.prepare_data()
 
         # Verify that data from both files was combined
@@ -118,11 +112,14 @@ def test_multiple_data_roots(sample_data):
             assert len(lines) == 2 * train_ratio * len(sample_data)
 
 
-@pytest.mark.parametrize("val_ratio,test_ratio", [
-    (0.3, 0.2),
-    (0.0, 0.5),
-    (0.5, 0.0),
-])
+@pytest.mark.parametrize(
+    "val_ratio,test_ratio",
+    [
+        (0.3, 0.2),
+        (0.0, 0.5),
+        (0.5, 0.0),
+    ],
+)
 def test_different_split_ratios(temp_data_files, val_ratio, test_ratio):
     main_file, additional_file = temp_data_files
 
@@ -153,8 +150,4 @@ def test_different_split_ratios(temp_data_files, val_ratio, test_ratio):
 
 def test_invalid_data_path():
     with pytest.raises(AssertionError):
-        CustomRetrievalDataModule(
-            data_root="nonexistent_file.json",
-            seq_length=128,
-            micro_batch_size=2
-        )
+        CustomRetrievalDataModule(data_root="nonexistent_file.json", seq_length=128, micro_batch_size=2)

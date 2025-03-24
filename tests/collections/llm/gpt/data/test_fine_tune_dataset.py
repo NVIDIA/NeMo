@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-import torch
+import math
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
+import torch
+
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-import math
+
 
 class TestFineTuningDataModule:
     @pytest.fixture
@@ -41,10 +44,7 @@ class TestFineTuningDataModule:
     @pytest.fixture
     def basic_datamodule(self, dataset_root, mock_tokenizer):
         return FineTuningDataModule(
-            dataset_root=dataset_root,
-            tokenizer=mock_tokenizer,
-            micro_batch_size=4,
-            global_batch_size=8
+            dataset_root=dataset_root, tokenizer=mock_tokenizer, micro_batch_size=4, global_batch_size=8
         )
 
     def test_init_default_values(self, dataset_root, mock_tokenizer):
@@ -65,15 +65,12 @@ class TestFineTuningDataModule:
                 dataset_root=dataset_root,
                 tokenizer=mock_tokenizer,
                 micro_batch_size=4,
-                packed_sequence_specs=packed_specs
+                packed_sequence_specs=packed_specs,
             )
 
         # Should not raise error when micro_batch_size = 1
         dm = FineTuningDataModule(
-            dataset_root=dataset_root,
-            tokenizer=mock_tokenizer,
-            micro_batch_size=1,
-            packed_sequence_specs=packed_specs
+            dataset_root=dataset_root, tokenizer=mock_tokenizer, micro_batch_size=1, packed_sequence_specs=packed_specs
         )
         assert dm.packed_sequence_size == 512
 
@@ -106,13 +103,16 @@ class TestFineTuningDataModule:
     def test_state_dict_and_load_state_dict(self, basic_datamodule):
         mock_update_num_microbatches = MagicMock()
 
-        with patch.dict('sys.modules', {
-            'megatron': MagicMock(),
-            'megatron.core': MagicMock(),
-            'megatron.core.num_microbatches_calculator': MagicMock(
-                update_num_microbatches=mock_update_num_microbatches
-            )
-        }):
+        with patch.dict(
+            'sys.modules',
+            {
+                'megatron': MagicMock(),
+                'megatron.core': MagicMock(),
+                'megatron.core.num_microbatches_calculator': MagicMock(
+                    update_num_microbatches=mock_update_num_microbatches
+                ),
+            },
+        ):
             # Mock trainer
             basic_datamodule.trainer = MagicMock()
             basic_datamodule.trainer.global_step = 10
@@ -134,8 +134,7 @@ class TestFineTuningDataModule:
 
             # Verify update_num_microbatches was called correctly
             mock_update_num_microbatches.assert_called_once_with(
-                consumed_samples=state['consumed_samples'],
-                consistency_check=False
+                consumed_samples=state['consumed_samples'], consistency_check=False
             )
 
     @pytest.fixture
@@ -161,8 +160,9 @@ class TestFineTuningDataModule:
         return {
             'train': train_path.absolute(),  # Use absolute paths
             'val': val_path.absolute(),
-            'metadata': metadata_path.absolute()
+            'metadata': metadata_path.absolute(),
         }
+
     def test_packed_sequence_paths(self, dataset_root, mock_tokenizer, packed_files):
         # Verify the files exist before creating the module
         assert packed_files['train'].exists(), f"Train file does not exist: {packed_files['train']}"
@@ -173,14 +173,11 @@ class TestFineTuningDataModule:
             packed_sequence_size=512,
             packed_train_data_path=str(packed_files['train']),  # Convert Path to string
             packed_val_data_path=str(packed_files['val']),
-            packed_metadata_path=str(packed_files['metadata'])
+            packed_metadata_path=str(packed_files['metadata']),
         )
 
         dm = FineTuningDataModule(
-            dataset_root=dataset_root,
-            tokenizer=mock_tokenizer,
-            micro_batch_size=1,
-            packed_sequence_specs=packed_specs
+            dataset_root=dataset_root, tokenizer=mock_tokenizer, micro_batch_size=1, packed_sequence_specs=packed_specs
         )
 
         # Compare paths using resolve() to handle any path differences
@@ -189,6 +186,7 @@ class TestFineTuningDataModule:
 
     def test_tokenizer_initialization(self, dataset_root):
         from nemo.collections.common.tokenizers import TokenizerSpec
+
         mock_tokenizer = MagicMock(spec=TokenizerSpec)
         dm = FineTuningDataModule(dataset_root=dataset_root, tokenizer=mock_tokenizer)
         assert dm.tokenizer == mock_tokenizer
@@ -231,10 +229,7 @@ class TestFineTuningDataModule:
 
     def test_pack_metadata_paths(self, dataset_root, mock_tokenizer):
         custom_metadata_path = Path("custom_metadata.jsonl")
-        specs = PackedSequenceSpecs(
-            packed_sequence_size=512,
-            packed_metadata_path=custom_metadata_path
-        )
+        specs = PackedSequenceSpecs(packed_sequence_size=512, packed_metadata_path=custom_metadata_path)
         dm = FineTuningDataModule(
             dataset_root=dataset_root,
             tokenizer=mock_tokenizer,

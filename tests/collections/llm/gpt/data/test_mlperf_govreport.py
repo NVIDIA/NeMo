@@ -16,9 +16,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 import torch
-import numpy as np
 from datasets import Dataset, DatasetDict
 
 from nemo.collections.llm.gpt.data.mlperf_govreport import MLPerfGovReportDataModule
@@ -51,14 +51,10 @@ def mock_sampler():
 @pytest.fixture
 def sample_govreport_dataset():
     dataset_len = 30
-    dataset = Dataset.from_dict({
-        "input_ids": [[1, 2, 3, 4, 5]] * dataset_len,
-        "labels": [[1, 2, -100, 4, 5]] * dataset_len
-    })
-    return DatasetDict({
-        'train': dataset,
-        'validation': dataset
-    })
+    dataset = Dataset.from_dict(
+        {"input_ids": [[1, 2, 3, 4, 5]] * dataset_len, "labels": [[1, 2, -100, 4, 5]] * dataset_len}
+    )
+    return DatasetDict({'train': dataset, 'validation': dataset})
 
 
 @pytest.fixture
@@ -69,14 +65,15 @@ def temp_dataset_dir():
 
 @pytest.fixture
 def govreport_data_module(mock_tokenizer, temp_dataset_dir, sample_govreport_dataset, mock_trainer, mock_sampler):
-    with patch('datasets.load_dataset') as mock_load_dataset, \
-            patch('nemo.collections.llm.gpt.data.core.get_dataset_root') as mock_get_dataset_root:
+    with (
+        patch('datasets.load_dataset') as mock_load_dataset,
+        patch('nemo.collections.llm.gpt.data.core.get_dataset_root') as mock_get_dataset_root,
+    ):
         mock_load_dataset.return_value = sample_govreport_dataset
         mock_get_dataset_root.return_value = temp_dataset_dir
 
         mock_packed_sequence_specs = MagicMock(
-            packed_sequence_size=2048,
-            pad_cu_seqlens=False  # Disable pad_cu_seqlens to avoid metadata requirement
+            packed_sequence_size=2048, pad_cu_seqlens=False  # Disable pad_cu_seqlens to avoid metadata requirement
         )
 
         data_module = MLPerfGovReportDataModule(
@@ -85,13 +82,15 @@ def govreport_data_module(mock_tokenizer, temp_dataset_dir, sample_govreport_dat
             micro_batch_size=1,
             global_batch_size=4,
             force_redownload=True,
-            packed_sequence_specs=mock_packed_sequence_specs
+            packed_sequence_specs=mock_packed_sequence_specs,
         )
         data_module.dataset_root = temp_dataset_dir
         data_module.trainer = mock_trainer
         data_module.data_sampler = mock_sampler
 
         return data_module
+
+
 # @pytest.fixture
 # def govreport_data_module(mock_tokenizer, temp_dataset_dir, sample_govreport_dataset, mock_trainer, mock_sampler):
 #     with patch('datasets.load_dataset') as mock_load_dataset, \
@@ -203,7 +202,4 @@ def test_delete_raw(govreport_data_module, temp_dataset_dir, sample_govreport_da
 
 def test_invalid_packed_sequence_size():
     with pytest.raises(ValueError):
-        MLPerfGovReportDataModule(
-            seq_length=2048,
-            packed_sequence_specs=MagicMock(packed_sequence_size=1024)
-        )
+        MLPerfGovReportDataModule(seq_length=2048, packed_sequence_specs=MagicMock(packed_sequence_size=1024))

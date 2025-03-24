@@ -32,6 +32,7 @@ def mock_tokenizer():
     tokenizer.eos_id = 2
     return tokenizer
 
+
 @pytest.fixture
 def mock_trainer():
     trainer = MagicMock()
@@ -39,24 +40,26 @@ def mock_trainer():
     trainer.max_steps = 1000
     return trainer
 
+
 @pytest.fixture
 def mock_sampler():
     sampler = MagicMock()
     sampler.init_global_step = 0
     return sampler
 
+
 @pytest.fixture
 def sample_dolly_dataset():
     dataset_len = 30
-    dataset = Dataset.from_dict({
-        "context": ["Process mining is a family of techniques..."] * dataset_len,
-        "instruction": ["What is process mining?"] * dataset_len,
-        "response": ["Process mining brings together data mining."] * dataset_len,
-        "category": ["information_extraction"] * dataset_len,
-    })
-    return DatasetDict({
-            'train': dataset
-        })
+    dataset = Dataset.from_dict(
+        {
+            "context": ["Process mining is a family of techniques..."] * dataset_len,
+            "instruction": ["What is process mining?"] * dataset_len,
+            "response": ["Process mining brings together data mining."] * dataset_len,
+            "category": ["information_extraction"] * dataset_len,
+        }
+    )
+    return DatasetDict({'train': dataset})
 
 
 @pytest.fixture
@@ -67,8 +70,10 @@ def temp_dataset_dir():
 
 @pytest.fixture
 def dolly_data_module(mock_tokenizer, temp_dataset_dir, sample_dolly_dataset, mock_trainer, mock_sampler):
-    with patch('datasets.load_dataset') as mock_load_dataset, \
-            patch('nemo.collections.llm.gpt.data.core.get_dataset_root') as mock_get_dataset_root:
+    with (
+        patch('datasets.load_dataset') as mock_load_dataset,
+        patch('nemo.collections.llm.gpt.data.core.get_dataset_root') as mock_get_dataset_root,
+    ):
         mock_load_dataset.return_value = sample_dolly_dataset
 
         mock_get_dataset_root.return_value = temp_dataset_dir

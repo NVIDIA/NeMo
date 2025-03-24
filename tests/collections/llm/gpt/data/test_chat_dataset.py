@@ -43,18 +43,20 @@ def mock_trainer():
 
 @pytest.fixture
 def sample_chat_dataset():
-    return Dataset.from_dict({
-        "conversations": [
-            [
-                {"from": "human", "value": "Hello, how are you?"},
-                {"from": "assistant", "value": "I'm doing well, thank you! How can I help you today?"}
-            ],
-            [
-                {"from": "human", "value": "What's the weather like?"},
-                {"from": "assistant", "value": "I don't have access to real-time weather information."}
+    return Dataset.from_dict(
+        {
+            "conversations": [
+                [
+                    {"from": "human", "value": "Hello, how are you?"},
+                    {"from": "assistant", "value": "I'm doing well, thank you! How can I help you today?"},
+                ],
+                [
+                    {"from": "human", "value": "What's the weather like?"},
+                    {"from": "assistant", "value": "I don't have access to real-time weather information."},
+                ],
             ]
-        ]
-    })
+        }
+    )
 
 
 @pytest.fixture
@@ -72,7 +74,7 @@ def chat_data_module(mock_tokenizer, temp_dataset_dir):
             seq_length=512,
             micro_batch_size=2,
             global_batch_size=4,
-            dataset_root=temp_dataset_dir
+            dataset_root=temp_dataset_dir,
         )
         return data_module
 
@@ -87,14 +89,9 @@ def test_create_dataset(chat_data_module, temp_dataset_dir):
     # Create a sample chat dataset file
     dataset_path = temp_dataset_dir / "chat_dataset.jsonl"
     with open(dataset_path, "w") as f:
-        json.dump({
-            "conversations": [
-                [
-                    {"from": "human", "value": "Hello"},
-                    {"from": "assistant", "value": "Hi there!"}
-                ]
-            ]
-        }, f)
+        json.dump(
+            {"conversations": [[{"from": "human", "value": "Hello"}, {"from": "assistant", "value": "Hi there!"}]]}, f
+        )
 
     # Test dataset creation
     dataset = chat_data_module._create_dataset(str(dataset_path))

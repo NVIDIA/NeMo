@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-import numpy as np
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+import numpy as np
+import pytest
 
 from nemo.collections.llm.gpt.data.packed_sequence import (
-    tokenize_dataset,
-    prepare_packed_sequence_data,
     PackedSequenceSpecs,
+    prepare_packed_sequence_data,
+    tokenize_dataset,
 )
 
 
@@ -51,10 +52,7 @@ def test_tokenize_dataset(mock_tokenizer, sample_data_file):
     seed = 42
 
     result = tokenize_dataset(
-        path=sample_data_file,
-        tokenizer=mock_tokenizer,
-        max_seq_length=max_seq_length,
-        seed=seed
+        path=sample_data_file, tokenizer=mock_tokenizer, max_seq_length=max_seq_length, seed=seed
     )
 
     assert isinstance(result, np.ndarray)
@@ -74,7 +72,7 @@ def test_prepare_packed_sequence_data(mock_tokenizer, sample_data_file):
             tokenizer=mock_tokenizer,
             max_seq_length=10,
             seed=42,
-            packing_algorithm="first_fit_shuffle"
+            packing_algorithm="first_fit_shuffle",
         )
 
         # Check if output files were created
@@ -93,13 +91,15 @@ def test_packed_sequence_specs():
     assert specs.pad_cu_seqlens is False
 
     # Test with valid packed data paths
-    with tempfile.NamedTemporaryFile(suffix='.npy') as train_file, \
-            tempfile.NamedTemporaryFile(suffix='.npy') as val_file:
+    with (
+        tempfile.NamedTemporaryFile(suffix='.npy') as train_file,
+        tempfile.NamedTemporaryFile(suffix='.npy') as val_file,
+    ):
         specs = PackedSequenceSpecs(
             packed_sequence_size=128,
             tokenizer_model_name="test-tokenizer",
             packed_train_data_path=train_file.name,
-            packed_val_data_path=val_file.name
+            packed_val_data_path=val_file.name,
         )
 
         assert specs.packed_sequence_size == 128

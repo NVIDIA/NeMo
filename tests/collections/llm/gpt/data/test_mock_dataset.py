@@ -13,12 +13,12 @@
 # limitations under the License.
 
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 import torch
-from nemo.collections.llm.gpt.data.mock import (
-    MockDataModule, _MockGPTDataset
-)
+
+from nemo.collections.llm.gpt.data.mock import MockDataModule, _MockGPTDataset
 
 
 @pytest.fixture
@@ -41,6 +41,7 @@ def mock_tokenizer():
     tokenizer.__call__ = MagicMock(side_effect=tokenizer_call)
     tokenizer.vocab_size = 1024
     return tokenizer
+
 
 @pytest.fixture
 def mock_data_module():
@@ -68,6 +69,7 @@ def test_mock_gpt_dataset_length(mock_tokenizer):
     )
     assert len(ds) == 100
 
+
 def test_mock_gpt_dataset_with_attention_mask(mock_tokenizer):
     """Ensure the dataset's length matches the configured number of samples."""
     ds = _MockGPTDataset(
@@ -79,6 +81,7 @@ def test_mock_gpt_dataset_with_attention_mask(mock_tokenizer):
     )
     assert len(ds) == 100
     assert ds.attention_mask is not None
+
 
 def test_mock_gpt_dataset_item_shapes(mock_tokenizer):
     """Check that a sample has the expected keys and shapes."""

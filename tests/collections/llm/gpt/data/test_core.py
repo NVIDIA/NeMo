@@ -11,15 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-import torch
-from pathlib import Path
 import json
 import tempfile
+from pathlib import Path
+
 import numpy as np
+import pytest
+import torch
+
 from nemo.collections.llm.gpt.data.core import (
+    GPTSFTChatDataset,
     GPTSFTDataset,
-    create_sft_dataset, GPTSFTPackedDataset, GPTSFTChatDataset,
+    GPTSFTPackedDataset,
+    create_sft_dataset,
 )
 
 
@@ -37,14 +41,11 @@ class MockTokenizer:
 @pytest.fixture
 def sample_data():
     return [
-        {
-            "input": "What is machine learning?",
-            "output": "Machine learning is a subset of AI."
-        },
+        {"input": "What is machine learning?", "output": "Machine learning is a subset of AI."},
         {
             "input": "Define neural networks.",
-            "output": "Neural networks are computing systems inspired by biological brains."
-        }
+            "output": "Neural networks are computing systems inspired by biological brains.",
+        },
     ]
 
 
@@ -171,17 +172,17 @@ def chat_sample_data():
             "conversations": [
                 {"from": "System", "value": "You are a helpful assistant."},
                 {"from": "User", "value": "What is Python?"},
-                {"from": "Assistant", "value": "Python is a programming language."}
+                {"from": "Assistant", "value": "Python is a programming language."},
             ],
             "system": "user",
         },
         {
             "conversations": [
                 {"from": "User", "value": "How do I print in Python?"},
-                {"from": "Assistant", "value": "Use the print() function."}
+                {"from": "Assistant", "value": "Use the print() function."},
             ],
             "system": "user",
-        }
+        },
     ]
 
 
@@ -197,18 +198,19 @@ def temp_chat_jsonl_file(chat_sample_data):
 @pytest.fixture
 def temp_npy_file():
     # Create a structured array that matches the expected format
-    dtype = np.dtype([
-        ('input_ids', np.int64, (5,)),
-        ('seq_start_id', np.int64, (2,)),
-        ('loss_mask', np.int64, (5,))
-    ])
+    dtype = np.dtype([('input_ids', np.int64, (5,)), ('seq_start_id', np.int64, (2,)), ('loss_mask', np.int64, (5,))])
 
     # Create the data with the correct structure
-    data = np.array([(
-        np.array([1, 2, 3, 4, 5]),  # input_ids
-        np.array([0, 0]),  # seq_start_id
-        np.array([1, 1, 1, 1, 1])  # loss_mask
-    )], dtype=dtype)
+    data = np.array(
+        [
+            (
+                np.array([1, 2, 3, 4, 5]),  # input_ids
+                np.array([0, 0]),  # seq_start_id
+                np.array([1, 1, 1, 1, 1]),  # loss_mask
+            )
+        ],
+        dtype=dtype,
+    )
 
     with tempfile.NamedTemporaryFile(suffix='.npy', delete=False) as f:
         np.save(f, data)
@@ -273,12 +275,7 @@ def test_separate_template(temp_jsonl_file, tokenizer):
 
 
 def test_chat_dataset(temp_chat_jsonl_file, tokenizer):
-    dataset = create_sft_dataset(
-        path=temp_chat_jsonl_file,
-        tokenizer=tokenizer,
-        seq_length=512,
-        chat=True
-    )
+    dataset = create_sft_dataset(path=temp_chat_jsonl_file, tokenizer=tokenizer, seq_length=512, chat=True)
 
     assert isinstance(dataset, GPTSFTChatDataset)
     item = dataset[0]
@@ -293,13 +290,9 @@ def test_chat_dataset(temp_chat_jsonl_file, tokenizer):
     assert 'loss_mask' in collated
 
 
-
 def test_packed_dataset(temp_npy_file, tokenizer):
     # Create metadata file
-    metadata = [{
-        "max_samples_per_bin": 2,
-        "dataset_max_seqlen": 512
-    }]
+    metadata = [{"max_samples_per_bin": 2, "dataset_max_seqlen": 512}]
     metadata_file = Path("temp_metadata.json")
     with open(metadata_file, 'w') as f:
         json.dump(metadata, f)
@@ -311,7 +304,7 @@ def test_packed_dataset(temp_npy_file, tokenizer):
             seq_length=512,
             pack_metadata_file_path=metadata_file,
             pad_cu_seqlens=True,
-            pad_to_max_length=True
+            pad_to_max_length=True,
         )
 
         assert isinstance(dataset, GPTSFTPackedDataset)
@@ -340,11 +333,7 @@ def test_packed_dataset(temp_npy_file, tokenizer):
 def test_packed_dataset_no_pad_cu_seqlens(temp_npy_file, tokenizer):
     """Test packed dataset without padding cu_seqlens"""
     dataset = create_sft_dataset(
-        path=temp_npy_file,
-        tokenizer=tokenizer,
-        seq_length=512,
-        pad_cu_seqlens=False,
-        pad_to_max_length=False
+        path=temp_npy_file, tokenizer=tokenizer, seq_length=512, pad_cu_seqlens=False, pad_to_max_length=False
     )
 
     assert isinstance(dataset, GPTSFTPackedDataset)
@@ -372,15 +361,12 @@ def test_packed_dataset_invalid_data(temp_npy_file, tokenizer, caplog):
 
     try:
         with pytest.raises(Exception):
-            dataset = create_sft_dataset(
-                path=invalid_file,
-                tokenizer=tokenizer,
-                seq_length=512
-            )
+            dataset = create_sft_dataset(path=invalid_file, tokenizer=tokenizer, seq_length=512)
             batch = [dataset[0], dataset[0]]
             collated = dataset.collate_fn(batch)
     finally:
         invalid_file.unlink()
+
 
 def test_virtual_tokens(temp_jsonl_file, tokenizer):
     dataset = GPTSFTDataset(
@@ -390,7 +376,7 @@ def test_virtual_tokens(temp_jsonl_file, tokenizer):
         prompt_template="{input} {output}",
         truncation_field="input",
         label_key="output",
-        virtual_tokens=2
+        virtual_tokens=2,
     )
 
     item = dataset[0]
@@ -405,7 +391,7 @@ def test_ceil_to_power_2(temp_jsonl_file, tokenizer):
         prompt_template="{input} {output}",
         truncation_field="input",
         label_key="output",
-        ceil_to_power_2=True
+        ceil_to_power_2=True,
     )
 
     batch = [dataset[0], dataset[1]]
@@ -423,7 +409,7 @@ def test_attention_mask_from_fusion(temp_jsonl_file, tokenizer):
         prompt_template="{input} {output}",
         truncation_field="input",
         label_key="output",
-        get_attention_mask_from_fusion=True
+        get_attention_mask_from_fusion=True,
     )
 
     batch = [dataset[0], dataset[1]]
@@ -439,7 +425,7 @@ def test_output_original_text(temp_jsonl_file, tokenizer):
         prompt_template="{input} {output}",
         truncation_field="input",
         label_key="output",
-        output_original_text=True
+        output_original_text=True,
     )
 
     item = dataset[0]
@@ -477,12 +463,10 @@ def test_special_tokens(temp_jsonl_file, tokenizer):
         prompt_template="{input} {output}",
         truncation_field="input",
         label_key="output",
-        special_tokens=special_tokens
+        special_tokens=special_tokens,
     )
 
     assert dataset.special_tokens == special_tokens
-
-
 
 
 if __name__ == '__main__':
