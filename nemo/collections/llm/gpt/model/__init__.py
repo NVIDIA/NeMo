@@ -87,6 +87,11 @@ from nemo.collections.llm.gpt.model.llama import (
     MLPerfLoRALlamaModel,
 )
 from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
+from nemo.collections.llm.gpt.model.llama_nemotron import (
+    Llama31Nemotron70BConfig,
+    Llama31NemotronNano8BConfig,
+    LlamaNemotronModel,
+)
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig,
@@ -112,6 +117,12 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config72B,
     Qwen2Config500M,
     Qwen2Model,
+    Qwen25Config1P5B,
+    Qwen25Config7B,
+    Qwen25Config14B,
+    Qwen25Config32B,
+    Qwen25Config72B,
+    Qwen25Config500M,
 )
 from nemo.collections.llm.gpt.model.ssm import (
     BaseMambaConfig1_3B,
@@ -168,6 +179,9 @@ __all__ = [
     "Llama31Config405B",
     "Llama32Config1B",
     "Llama32Config3B",
+    "LlamaNemotronModel",
+    "Llama31NemotronNano8BConfig",
+    "Llama31Nemotron70BConfig",
     "NemotronConfig",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
@@ -209,6 +223,12 @@ __all__ = [
     "Qwen2Config1P5B",
     "Qwen2Config7B",
     "Qwen2Config72B",
+    "Qwen25Config72B",
+    "Qwen25Config32B",
+    "Qwen25Config14B",
+    "Qwen25Config7B",
+    "Qwen25Config500M",
+    "Qwen25Config1P5B",
     "Qwen2Model",
     "SSMConfig",
     "BaseMambaConfig130M",
