@@ -138,8 +138,8 @@ userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora = TransformerLayerTPOverlapC
     proj_dgrad=RingExchangeOverlapCfg(set_sm_margin=True),
     fc1_fprop=RingExchangeOverlapCfg(set_sm_margin=True),
     fc2_dgrad=RingExchangeOverlapCfg(set_sm_margin=True),
-    proj_fprop=RingExchangeOverlapCfg(cga_size=2, set_sm_margin=True),
-    fc2_fprop=RingExchangeOverlapCfg(cga_size=2, set_sm_margin=True),
+    proj_fprop=RingExchangeOverlapCfg(cga_size=2, set_sm_margin=True, fp8_buf=True),
+    fc2_fprop=RingExchangeOverlapCfg(cga_size=2, set_sm_margin=True, fp8_buf=True),
 )
 
 userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen4096_lora = TransformerLayerTPOverlapCfg(
@@ -152,7 +152,7 @@ userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen4096_lora = TransformerLayerTPOverlapC
     fc1_fprop=RingExchangeOverlapCfg(),
     fc2_dgrad=RingExchangeOverlapCfg(),
     proj_fprop=PipelineOverlapCfg(num_sm=32, cga_size=2, num_splits=4, set_sm_margin=True, fp8_buf=True),
-    fc2_fprop=PipelineOverlapCfg(num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, fp8_buf=False),
+    fc2_fprop=PipelineOverlapCfg(num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, fp8_buf=True),
 )
 
 # llama3.1 405b
