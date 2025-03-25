@@ -18,12 +18,12 @@
 
 import random
 import timeit
+from collections import OrderedDict
 from typing import Tuple
 
+import numpy
 import pytest
 import torch
-import numpy
-from collections import OrderedDict
 from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
 from megatron.core.datasets.utils import Split
 
@@ -1066,11 +1066,12 @@ if __name__ == "__main__":
 def test_evo2_dataset_getitem(monkeypatch):
     """Test Evo2Dataset.__getitem__ method."""
     import numpy as np
+
     class MockIndexedDataset:
         def __init__(self):
             self.sequence_lengths = np.ones(100, dtype=np.int32) * 10
             self.path_prefix = "/mock/path"
-            
+
         def get(self, idx, offset=0, length=None):
             return np.ones(10, dtype=np.int64)
 
@@ -1087,7 +1088,7 @@ def test_evo2_dataset_getitem(monkeypatch):
             self.config = config
             self.dataset = indexed_dataset
             self.indices = indexed_indices
-            
+
         def __getitem__(self, idx):
 
             return {
@@ -1140,7 +1141,7 @@ def test_evo2_dataset_getitem(monkeypatch):
             self.drop_last_partial_validation_sequence = True
             self.add_extra_token_to_sequence = True
             self.s3_cache_path = None
-            
+
             # BlendedMegatronDatasetConfig
             self.random_seed = 42
             self.sequence_length = 10
@@ -1157,7 +1158,7 @@ def test_evo2_dataset_getitem(monkeypatch):
     monkeypatch.setattr("nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset.GPTDataset", MockGPTDataset)
 
     mock_indexed_dataset = MockIndexedDataset()
-    
+
     dataset = Evo2Dataset(
         indexed_dataset=mock_indexed_dataset,
         dataset_path="/mock/path",
@@ -1170,9 +1171,8 @@ def test_evo2_dataset_getitem(monkeypatch):
     dataset.TO_UPPER_TOKENS = True
 
     result = dataset[0]
-    
-    assert result["loss_mask"][1] == 1 
+
+    assert result["loss_mask"][1] == 1
     assert result["loss_mask"][7] == 1
-    
+
     assert all(result["loss_mask"][3:6] == 1)
-    

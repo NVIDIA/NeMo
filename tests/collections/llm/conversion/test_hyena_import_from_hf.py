@@ -17,7 +17,8 @@
 
 import argparse
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.hyena import  HuggingFaceSavannaHyenaImporter
+from nemo.collections.llm.gpt.model.hyena import HuggingFaceSavannaHyenaImporter
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -31,5 +32,5 @@ if __name__ == '__main__':
 
     evo2_config = llm.Hyena1bConfig()
     exporter = HuggingFaceSavannaHyenaImporter(args.hf_model, model_config=evo2_config)
-    
+
     exporter.apply(args.output_path)

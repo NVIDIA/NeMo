@@ -16,22 +16,23 @@
 # limitations under the License.
 
 import pytest
-from nemo.collections import llm
-from nemo.collections.llm.gpt.model.hyena import  HuggingFaceSavannaHyenaImporter
 
+from nemo.collections import llm
 from nemo.collections.llm.gpt.model.hyena import (
-    HyenaConfig,
-    Hyena7bConfig,
-    HyenaNV7bConfig,
+    HuggingFaceSavannaHyenaImporter,
     Hyena1bConfig,
-    HyenaNV1bConfig,
-    Hyena40bConfig,
-    HyenaNV40bConfig,
     Hyena7bARCLongContextConfig,
+    Hyena7bConfig,
     Hyena40bARCLongContextConfig,
-    HyenaTestConfig,
+    Hyena40bConfig,
+    HyenaConfig,
+    HyenaNV1bConfig,
+    HyenaNV7bConfig,
+    HyenaNV40bConfig,
     HyenaNVTestConfig,
+    HyenaTestConfig,
 )
+
 
 def test_hyena_base_config():
     config = HyenaConfig()
@@ -48,6 +49,7 @@ def test_hyena_base_config():
     assert config.hybrid_mlp_ratio == 0.0
     assert config.gated_linear_unit == True
 
+
 def test_hyena_7b_config():
     config = Hyena7bConfig()
     assert config.num_layers == 32
@@ -59,6 +61,7 @@ def test_hyena_7b_config():
     assert config.num_groups_hyena_short == 256
     assert config.hybrid_override_pattern == "SDH*SDHSDH*SDHSDH*SDHSDH*SDHSDH*"
 
+
 def test_hyena_nv_7b_config():
     config = HyenaNV7bConfig()
     assert config.num_layers == 32
@@ -68,6 +71,7 @@ def test_hyena_nv_7b_config():
     assert config.tokenizer_library == "byte-level"
     assert config.mapping_type == "base"
     assert config.use_short_conv_bias is True
+
 
 def test_hyena_1b_config():
     config = Hyena1bConfig()
@@ -79,6 +83,7 @@ def test_hyena_1b_config():
     assert config.num_groups_hyena_medium == 128
     assert config.num_groups_hyena_short == 128
 
+
 def test_hyena_nv_1b_config():
     config = HyenaNV1bConfig()
     assert config.num_layers == 25
@@ -87,6 +92,7 @@ def test_hyena_nv_1b_config():
     assert config.num_attention_heads == 15
     assert config.seq_length == 8192
     assert config.tokenizer_library == "byte-level"
+
 
 def test_hyena_40b_config():
     config = Hyena40bConfig()
@@ -98,6 +104,7 @@ def test_hyena_40b_config():
     assert config.num_groups_hyena_medium == 512
     assert config.num_groups_hyena_short == 512
 
+
 def test_hyena_nv_40b_config():
     config = HyenaNV40bConfig()
     assert config.num_layers == 50
@@ -106,6 +113,7 @@ def test_hyena_nv_40b_config():
     assert config.num_attention_heads == 64
     assert config.seq_length == 8192
     assert config.tokenizer_library == "byte-level"
+
 
 def test_hyena_7b_arc_long_context_config():
     config = Hyena7bARCLongContextConfig()
@@ -116,6 +124,7 @@ def test_hyena_7b_arc_long_context_config():
     assert config.seq_length == 8192
     assert config.tokenizer_library == "byte-level"
 
+
 def test_hyena_40b_arc_long_context_config():
     config = Hyena40bARCLongContextConfig()
     assert config.num_layers == 50
@@ -125,6 +134,7 @@ def test_hyena_40b_arc_long_context_config():
     assert config.seq_length == 8192
     assert config.tokenizer_library == "byte-level"
 
+
 def test_hyena_test_config():
     config = HyenaTestConfig()
     assert config.num_layers == 4
@@ -132,6 +142,7 @@ def test_hyena_test_config():
     assert config.num_attention_heads == 32
     assert config.seq_length == 8192
     assert config.hybrid_override_pattern == "SDH*"
+
 
 def test_hyena_nv_test_config():
     config = HyenaNVTestConfig()
@@ -142,14 +153,14 @@ def test_hyena_nv_test_config():
     assert config.seq_length == 8192
     assert config.tokenizer_library == "byte-level"
 
+
 def test_convert_hyena():
 
     from huggingface_hub.utils import RepositoryNotFoundError
-    
+
     evo2_config = llm.Hyena1bConfig()
     model_ckpt = "dummy/model"
     exporter = HuggingFaceSavannaHyenaImporter(model_ckpt, model_config=evo2_config)
-    
+
     with pytest.raises(RepositoryNotFoundError):
         exporter.apply("dummy_output")
-    

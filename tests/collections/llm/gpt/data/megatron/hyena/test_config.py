@@ -22,7 +22,11 @@ from typing import Union
 import pytest
 import yaml
 
-from nemo.collections.llm.gpt.data.megatron.hyena.config import Evo2BlendedDatasetConfig, parse_dataset_config, infer_global_batch_size
+from nemo.collections.llm.gpt.data.megatron.hyena.config import (
+    Evo2BlendedDatasetConfig,
+    infer_global_batch_size,
+    parse_dataset_config,
+)
 
 
 @contextmanager
@@ -190,7 +194,7 @@ def test_infer_global_batch_size_validation():
     # Test all non-positive inputs
     with pytest.raises(ValueError, match="micro_batch_size must be greater than 0"):
         infer_global_batch_size(0, 1, 1, 1, 1, 1, 1)
-    
+
     with pytest.raises(ValueError, match="num_nodes must be greater than 0"):
         infer_global_batch_size(1, 0, 1, 1, 1, 1, 1)
 
@@ -223,7 +227,7 @@ def test_infer_global_batch_size_calculation():
         accumulate_grad_batches=2,
         tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
-        context_model_parallel_size=1
+        context_model_parallel_size=1,
     )
     # world_size = 1 * 4 = 4
     # model_parallel_size = 2 * 1 * 1 = 2
