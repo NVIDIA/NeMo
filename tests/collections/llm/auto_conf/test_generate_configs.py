@@ -269,7 +269,7 @@ class TestGenerateConfgis:
             1,
             2,
         ], f"[2, 2, 1, 1, 2] is expected configuration output but got {auto_configs[1]}."
-    
+
     def test_finetune_lora(self):
         # Llama31 70b lora
         recipe = partial(
@@ -319,7 +319,7 @@ class TestGenerateConfgis:
         recipe = partial(
             llm.nemotron4_15b.finetune_recipe,
             num_nodes=16,
-            num_gpus_per_node=8, 
+            num_gpus_per_node=8,
             dir="/",
             peft_scheme="dora",
         )()
@@ -362,7 +362,7 @@ class TestGenerateConfgis:
         recipe = partial(
             llm.nemotron4_15b.finetune_recipe,
             num_nodes=8,
-            num_gpus_per_node=8, 
+            num_gpus_per_node=8,
             dir="/",
             peft_scheme=None,
         )()
