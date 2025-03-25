@@ -320,6 +320,22 @@ class MultimodalModelRunner:
                 batch_size, visual_input, first_batch_split_prompts, input_lengths
             )
             return input_ids, input_lengths, ptuning_args, visual_features
+        elif self.model_type == 'cosmos':
+            visual_features, visual_atts = self.get_visual_features(image, attention_mask)
+            prompt = [pre + post for pre, post in zip(pre_prompt, post_prompt)]
+            input_ids = self.tokenizer(prompt, return_tensors="pt", padding=True).input_ids
+            image_token_id = self.tokenizer.convert_tokens_to_ids("<image>")
+            input_ids[input_ids == image_token_id] = 0
+            batch_split_prompts = self.split_prompt_by_images(input_ids)
+            first_batch_split_prompts = batch_split_prompts[0]
+            # compute prompt length + visual length
+            length = sum([ids.shape[1] for ids in first_batch_split_prompts])
+            length += visual_atts.shape[0] * visual_atts.shape[1]
+            input_lengths = torch.IntTensor([length] * batch_size).to(torch.int32)
+            input_ids, ptuning_args = self.setup_fake_prompts_vila(
+                batch_size, visual_features, first_batch_split_prompts, input_lengths
+            )
+            return input_ids, input_lengths, ptuning_args, visual_features
         else:
             visual_features, visual_atts = self.get_visual_features(image, attention_mask)
             pre_input_ids = self.tokenizer(pre_prompt, return_tensors="pt", padding=True).input_ids
@@ -511,7 +527,7 @@ class MultimodalModelRunner:
             visual_features = reshape_img_tokens + [visual_features[1]]
 
         fake_prompt_counter = self.model_config.vocab_size
-        if batch_size == 1:
+        if batch_size == 1 and self.model_type != 'cosmos':
             # only check for multi-image inference (mode 1)
             assert len(visual_features) <= len(
                 split_input_ids
@@ -543,6 +559,14 @@ class MultimodalModelRunner:
                     # in case no post prompt
                     if len(split_input_ids) > idx + 1:
                         input_ids.append(split_input_ids[idx + 1])
+            elif self.model_type == 'cosmos':
+                fake_prompt_id = torch.arange(
+                    fake_prompt_counter,
+                    fake_prompt_counter + visual_features.shape[0] * visual_features.shape[1]
+                )
+                fake_prompt_id = fake_prompt_id.unsqueeze(0)
+                input_ids.append(fake_prompt_id)
+                input_ids.append(split_input_ids[-1])
 
         elif batch_size > 1 and self.model_type == 'vila':
             # mode 2: each image have individual prompt, <pre><image><post>
@@ -724,6 +748,76 @@ class MultimodalModelRunner:
             new_images = torch.stack(new_images, dim=0)
         return new_images
 
+    def process_cosmos_img(self, images, input_size=512, max_num=12):
+        def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
+            best_factor = float('-inf')
+            best_ratio = (1, 1)
+            area = width * height
+            for ratio in target_ratios:
+                target_aspect_ratio = ratio[0] / ratio[1]
+                ratio_diff = abs(aspect_ratio - target_aspect_ratio)
+                area_ratio = (ratio[0]*ratio[1]*image_size*image_size)/ area
+                factor_based_on_area_n_ratio = min(
+                    (ratio[0]*ratio[1]*image_size*image_size)/ area, 0.6
+                    )* min(
+                        target_aspect_ratio/aspect_ratio, aspect_ratio/target_aspect_ratio)
+                if factor_based_on_area_n_ratio > best_factor:
+                    best_factor = factor_based_on_area_n_ratio
+                    best_ratio = ratio
+            return best_ratio
+
+
+        def dynamic_preprocess(image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
+            orig_width, orig_height = image.size
+            aspect_ratio = orig_width / orig_height
+
+            # calculate the existing image aspect ratio
+            target_ratios = set(
+                (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
+                i * j <= max_num and i * j >= min_num)
+            target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
+
+            # find the closest aspect ratio to the target
+            target_aspect_ratio = find_closest_aspect_ratio(
+                aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+
+            # calculate the target width and height
+            target_width = image_size * target_aspect_ratio[0]
+            target_height = image_size * target_aspect_ratio[1]
+            blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
+
+            # resize the image
+            resized_img = image.resize((target_width, target_height))
+            processed_images = []
+            for i in range(blocks):
+                box = (
+                    (i % (target_width // image_size)) * image_size,
+                    (i // (target_width // image_size)) * image_size,
+                    ((i % (target_width // image_size)) + 1) * image_size,
+                    ((i // (target_width // image_size)) + 1) * image_size
+                )
+                # split the image
+                split_img = resized_img.crop(box)
+                processed_images.append(split_img)
+            assert len(processed_images) == blocks
+            if use_thumbnail and len(processed_images) != 1:
+                thumbnail_img = image.resize((image_size, image_size))
+                processed_images.append(thumbnail_img)
+            return processed_images
+
+        images = dynamic_preprocess(images, image_size=input_size, use_thumbnail=True, max_num=max_num)
+
+        from torchvision.transforms.functional import InterpolationMode
+        transform = transforms.Compose([
+            transforms.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+            transforms.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+            transforms.ToTensor(),
+        ])
+
+        pixel_values = [transform(image) for image in images]
+        pixel_values = torch.stack(pixel_values)
+        return pixel_values
+
     def setup_inputs(self, input_text, raw_image, batch_size):
         attention_mask = None
         image = None
@@ -773,27 +867,15 @@ class MultimodalModelRunner:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
         elif self.model_type == "cosmos":
-            from image_processing import get_visual_transform
-            imgs = get_visual_transform(
-                raw_image,
-                img_h=512,
-                img_w=512,
-                use_tiling=True,
-                max_num_tiles=12,
-                use_thumbnail=True,
-                augment=False,
-                vision_model_type="radio",
-            )
-            image = torch.stack(imgs).cuda()
-
-            pre_prompt = "<|begin_of_text|><|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAnswer the questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n<img><image></img>\n"
-            post_prompt = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+            pre_prompt = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAnswer the questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
+            post_prompt = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
             if input_text is None:
                 input_text = "\n Which city is this? Answer:"
             if isinstance(input_text, list):
                 post_prompt = [input + post_prompt for input in input_text]
             else:
                 post_prompt = input_text + post_prompt
+            image = self.process_cosmos_img(raw_image)
 
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
@@ -808,7 +890,7 @@ class MultimodalModelRunner:
         # Repeat inputs to match batch size
         pre_prompt = [pre_prompt] * batch_size
         post_prompt = [post_prompt] * batch_size
-        if self.model_type not in ['vila', 'lita', 'vita', ]:
+        if self.model_type not in ['vila', 'lita', 'vita', 'cosmos']:
             if image.dim() == 5:
                 image = image.expand(batch_size, -1, -1, -1, -1).contiguous()
             else:

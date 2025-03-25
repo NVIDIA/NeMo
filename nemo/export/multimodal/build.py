@@ -97,12 +97,6 @@ def build_trtllm_engine_from_hf(
     lora_ckpt_list: List[str] = None,
 ):
     """Build mllama TRTLLM engine from HF"""
-    if max_batch_size < 4:
-        print(
-            "TensorRT LLM may hit a runtime issue with batch size is smaller than 4 on some models." " Force set to 4"
-        )
-        max_batch_size = 4
-
     plugin_config = PluginConfig()
     plugin_config.gpt_attention_plugin = "auto"
     plugin_config.gemm_plugin = "auto"
@@ -127,7 +121,6 @@ def build_trtllm_engine_from_hf(
     build_dict = {
         'max_input_len': max_input_len,
         'max_output_len': max_output_len,
-        'max_encoder_input_len': max_multimodal_len,
         'max_batch_size': max_batch_size,
         'max_beam_width': 1,
         'max_seq_len': max_seq_len,
@@ -136,12 +129,15 @@ def build_trtllm_engine_from_hf(
         'strongly_typed': True,
         'builder_opt': None,
     }
-    build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
     if model_type == "mllama":
         model_cls = tensorrt_llm.models.MLLaMAForCausalLM
-    else:
+        build_dict['max_encoder_input_len'] = max_multimodal_len
+    elif model_type == "cosmos":
         model_cls = tensorrt_llm.models.LLaMAForCausalLM
+        build_dict['max_prompt_embedding_table_size'] = max_multimodal_len
+
+    build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
     for rank in range(tensor_parallelism_size):
         mapping = Mapping(world_size=tensor_parallelism_size, rank=rank, tp_size=tensor_parallelism_size)
@@ -686,6 +682,7 @@ def build_cosmos_visual_engine(
 
         def extract_feature(self, pixel_values):
             vit_embeds = self.vision_model(pixel_values).features
+            vit_embeds = vit_embeds.to(dtype=model_dtype)
             h = w = int(vit_embeds.shape[1] ** 0.5)
             vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], h, w, -1)
             vit_embeds = self.pixel_shuffle(vit_embeds, scale_factor=self.downsample_ratio)
@@ -855,6 +852,10 @@ def build_cosmos_engine(
             dtype,
         )
         tokenizer_path = os.path.join(model_dir, "llm_engine", "huggingface_tokenizer")
-        shutil.copy(os.path.join(hf_model_path, "tokenizer.json"), tokenizer_path)
-        shutil.copy(os.path.join(hf_model_path, "tokenizer_config.json"), tokenizer_path)
-        shutil.copy(os.path.join(hf_model_path, "special_tokens_map.json"), tokenizer_path)
+        os.makedirs(tokenizer_path, exist_ok=True)
+        shutil.copy(os.path.join(hf_model_path, "tokenizer.json"),
+                    os.path.join(tokenizer_path, "tokenizer.json"))
+        shutil.copy(os.path.join(hf_model_path, "tokenizer_config.json"),
+                    os.path.join(tokenizer_path, "tokenizer_config.json"))
+        shutil.copy(os.path.join(hf_model_path, "special_tokens_map.json"),
+                    os.path.join(tokenizer_path, "special_tokens_map.json"))
