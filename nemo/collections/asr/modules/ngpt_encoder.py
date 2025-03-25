@@ -15,10 +15,14 @@
 import math
 from collections import OrderedDict
 from dataclasses import dataclass
+from torch.nn.attention.flex_attention import flex_attention
+from torch.nn.attention.flex_attention import create_block_mask
 
 import torch
 import torch.distributed
+from omegaconf import DictConfig, ListConfig, open_dict
 import torch.nn as nn
+import random
 
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -27,6 +31,8 @@ from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
+from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
+from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 
 try:
     from flash_attn import flash_attn_func
@@ -50,7 +56,7 @@ except ImportError:
 __all__ = ['NGPTEncoder']
 
 
-class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
+class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
     """
     Transformer encoder based on nGPT for ASR.
     Based on this paper:
@@ -130,12 +136,31 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         subsampling_factor=4,
         subsampling_conv_chunking_factor=1,
         subsampling_conv_channels=256,
+        att_context_size=None,
+        att_context_probs=None,
+        att_context_style='regular',
         use_bias=False,
         dropout=0.1,
         use_nGPT=True,
     ):
         super().__init__()
+        # adding all necessary parameters for caching
+        (
+            self.att_context_size_all,
+            self.att_context_size,
+            self.att_context_probs,
+            self.conv_context_size,
+        ) = self._calc_context_sizes(
+            att_context_style=att_context_style,
+            att_context_size=att_context_size,
+            att_context_probs=att_context_probs,
+        )
+        self.att_context_style = att_context_style
+        self.subsampling_factor = subsampling_factor
         self._feat_out = d_model
+        self._feat_in = feat_in
+        self.layers = n_layers
+        self.d_model = d_model
         if subsampling == "ngpt-frame-stack":
             self.pre_encode = NGPTStackingSubsampling(
                 subsampling_factor=subsampling_factor,
@@ -164,18 +189,210 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
                 use_nGPT=use_nGPT,
                 dropout=dropout,
                 bias=use_bias,
+                att_context_size=self.att_context_size,
             )
         )
+        self.setup_streaming_params()
 
+    def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None, max_dim=0):
+
+        if device is None:
+            device = next(self.parameters()).device
+        if max_dim > 0:
+            create_tensor = torch.randn
+        else:
+            create_tensor = torch.zeros
+        
+        cache_last_channel = create_tensor(
+            (
+                self.layers,
+                batch_size,
+                self.streaming_cfg.last_channel_cache_size,
+                self.d_model,
+            ),
+            device=device,
+            dtype=dtype,
+        )
+
+        if max_dim > 0:
+            cache_last_channel_len = torch.randint(
+                0,
+                min(max_dim, self.streaming_cfg.last_channel_cache_size),
+                (batch_size,),
+                device=device,
+                dtype=torch.int64,
+            )
+            for i in range(batch_size):
+                cache_last_channel[:, i, cache_last_channel_len[i] :, :] = 0    
+        else:
+            cache_last_channel_len = torch.zeros(batch_size, device=device, dtype=torch.int64)
+
+        return cache_last_channel, None, cache_last_channel_len #Returning None for convolution cache support
+    
+
+    def set_default_att_context_size(self, att_context_size):
+        if att_context_size not in self.att_context_size_all:
+            logging.warning(
+                f"att_context_size={att_context_size} is not among the list of the supported look-aheads: {self.att_context_size_all}"
+            )
+        if att_context_size is not None:
+            self.att_context_size = att_context_size
+
+        self.setup_streaming_params()
+
+    def setup_streaming_params(
+        self,
+        chunk_size: int = None,
+        shift_size: int = None,
+        left_chunks: int = None,
+        att_context_size: list = None,
+        max_context: int = 10000,
+    ):
+        # This function is also used for FC models
+        """
+        This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
+        The streaming configuration is needed to simulate streaming inference.
+
+        Args:
+            chunk_size (int): overrides the chunk size
+            shift_size (int): overrides the shift size for chunks
+            left_chunks (int): overrides the number of left chunks visible to each chunk
+            max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
+                Defaults to -1 (means feat_out is d_model)
+        """
+        streaming_cfg = CacheAwareStreamingConfig()
+        # When att_context_size is not specified, it uses the default_att_context_size
+        if att_context_size is None:
+            att_context_size = self.att_context_size
+
+        if chunk_size is not None:
+            if chunk_size < 1:
+                raise ValueError("chunk_size needs to be a number larger or equal to one.")
+            lookahead_steps = chunk_size - 1
+            streaming_cfg.cache_drop_size = chunk_size - shift_size
+        elif self.att_context_style == "chunked_limited":
+            lookahead_steps = att_context_size[1]
+            streaming_cfg.cache_drop_size = 0
+        elif self.att_context_style == "regular":
+            lookahead_steps = att_context_size[1] * self.layers #+ self.conv_context_size[1] * self.n_layers
+            streaming_cfg.cache_drop_size = lookahead_steps
+        else:
+            streaming_cfg.cache_drop_size = 0
+            lookahead_steps = None
+        if chunk_size is None:
+            streaming_cfg.last_channel_cache_size = att_context_size[0] if att_context_size[0] >= 0 else max_context
+        else:
+            if left_chunks is None:
+                raise ValueError("left_chunks can not be None when chunk_size is set.")
+            streaming_cfg.last_channel_cache_size = left_chunks * chunk_size
+
+        
+        if hasattr(self.pre_encode, "get_sampling_frames"):
+            sampling_frames = self.pre_encode.get_sampling_frames()
+        else:
+            sampling_frames = 0
+
+        if isinstance(sampling_frames, list):
+            streaming_cfg.chunk_size = [
+                sampling_frames[0] + self.subsampling_factor * lookahead_steps,
+                sampling_frames[1] + self.subsampling_factor * lookahead_steps,
+            ]
+        else:
+            streaming_cfg.chunk_size = sampling_frames * (1 + lookahead_steps)
+        if isinstance(sampling_frames, list):
+            streaming_cfg.shift_size = [
+                sampling_frames[0] + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
+                sampling_frames[1] + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
+            ]
+        else:
+            streaming_cfg.shift_size = sampling_frames * (1 + lookahead_steps - streaming_cfg.cache_drop_size)
+
+        if isinstance(streaming_cfg.shift_size, list):
+            streaming_cfg.valid_out_len = (
+                streaming_cfg.shift_size[1] - sampling_frames[1]
+            ) // self.subsampling_factor + 1
+        else:
+            streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
+
+        if hasattr(self.pre_encode, "get_streaming_cache_size"):
+            streaming_cfg.pre_encode_cache_size = self.pre_encode.get_streaming_cache_size()
+        else:
+            streaming_cfg.pre_encode_cache_size = 0
+        if isinstance(streaming_cfg.pre_encode_cache_size, list):
+            if streaming_cfg.pre_encode_cache_size[1] >= 1:
+                streaming_cfg.drop_extra_pre_encoded = (
+                    1 + (streaming_cfg.pre_encode_cache_size[1] - 1) // self.subsampling_factor
+                )
+            else:
+                streaming_cfg.drop_extra_pre_encoded = 0
+        else:
+            streaming_cfg.drop_extra_pre_encoded = streaming_cfg.pre_encode_cache_size // self.subsampling_factor
+
+        for block in self.ngpt.transformer["h"]:
+            block.cache_drop_size = streaming_cfg.cache_drop_size
+        self.streaming_cfg = streaming_cfg   
+    
+
+
+    def _calc_context_sizes(
+        self, att_context_size, att_context_probs, att_context_style,
+    ):
+        # convert att_context_size to a standard list of lists
+        if att_context_size:
+            att_context_size_all = list(att_context_size)
+            if isinstance(att_context_size_all[0], int):
+                att_context_size_all = [att_context_size_all]
+            for i, att_cs in enumerate(att_context_size_all):
+                if isinstance(att_cs, ListConfig):
+                    att_context_size_all[i] = list(att_cs)
+                if att_context_style == "chunked_limited":
+                    if att_cs[0] > 0 and att_cs[0] % (att_cs[1] + 1) > 0:
+                        raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
+                    if att_cs[1] < 0 and len(att_context_size_all) <= 1:
+                        raise ValueError(
+                            f"Right context (att_context_size[{i}][1]) can not be unlimited for chunked_limited style!"
+                        )
+        else:
+            att_context_size_all = [[-1, -1]]
+
+        if att_context_probs:
+            if len(att_context_probs) != len(att_context_size_all):
+                raise ValueError("The size of the att_context_probs should be the same as att_context_size.")
+            att_context_probs = list(att_context_probs)
+            if sum(att_context_probs) != 1:
+                raise ValueError(
+                    "The sum of numbers in att_context_probs should be equal to one to be a distribution."
+                )
+        else:
+            att_context_probs = [1.0 / len(att_context_size_all)] * len(att_context_size_all)
+
+
+        return att_context_size_all, att_context_size_all[0], att_context_probs, None
+    
     def forward_for_export(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
         raise NotImplementedError()
 
     def streaming_post_process(self, rets, keep_all_outputs=True):
-        raise NotImplementedError()
+        if len(rets) == 2:
+            return rets[0], rets[1], None, None, None
+        # keeping cache_last_time for support current cache-aware streaming
+        (encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len) = rets
 
-    @typecheck()
+        if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
+            if self.streaming_cfg.last_channel_cache_size > 0:
+                cache_last_channel_next = cache_last_channel_next[
+                    :, :, -self.streaming_cfg.last_channel_cache_size :, :
+                ]
+
+        if self.streaming_cfg.valid_out_len > 0 and (not keep_all_outputs or self.att_context_style == "regular"):
+            encoded = encoded[:, :, : self.streaming_cfg.valid_out_len]
+            encoded_len = torch.clamp(encoded_len, max=self.streaming_cfg.valid_out_len)
+
+        return (encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len)
+
+    #@typecheck()
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
@@ -194,13 +411,121 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
             length = audio_signal.new_full(
                 (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
             )
+        if self.training and len(self.att_context_size_all) > 1:
+            cur_att_context_size = random.choices(self.att_context_size_all, weights=self.att_context_probs)[0]
+        else:
+            cur_att_context_size = self.att_context_size
 
         audio_signal = audio_signal.transpose(1, 2)
         x, length = self.pre_encode(x=audio_signal, lengths=length)
-        x = self.ngpt(x)
-        x = x.transpose(1, 2)
+        length = length.to(torch.int64)
+            # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
+        if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
+            x = x[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
+            length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
 
-        return x, length
+        max_audio_length = x.size(1)
+
+        if cache_last_channel is not None:
+            cache_len = self.streaming_cfg.last_channel_cache_size
+            #Implement streaming param massing 
+            cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
+            max_audio_length = max_audio_length + cache_len
+            padding_length = length + cache_len
+            offset = torch.neg(cache_last_channel_len) + cache_len
+            border = offset.item()
+        else:
+            padding_length = length
+            cache_last_channel_next = None
+            cache_len = 0
+            offset = None
+            border = None
+            cache_keep_size = None
+        
+    
+        pad_mask = torch.arange(0, max_audio_length, device=x.device).expand(
+            padding_length.size(0), -1
+        ) < padding_length.unsqueeze(-1)
+        if self.att_context_style == "regular":
+            block_mask = None
+                
+        elif self.att_context_style == "chunked_limited":
+            # Currently implemented with left and right context limited chunks
+
+            # When right context is unlimited, just the left side of the masking need to get updated
+            # if cur_att_context_size[1] == -1:
+            #     if cur_att_context_size[0] >= 0:
+            #         att_mask = att_mask.triu(diagonal=-cur_att_context_size[0])
+            # else:
+
+            chunk_size = cur_att_context_size[1] + 1
+            # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
+            if cur_att_context_size[0] >= 0:
+                left_chunks_num = cur_att_context_size[0] // chunk_size
+            else:
+                left_chunks_num = 10000
+
+            #Function that creates block_mask for flex attention, This function support out chunked logic
+                
+            def chunked_causal_mask(b, h, q_idx, kv_idx):
+                """
+                Implements a chunked causal attention mask at an index level.
+
+                Args:
+                    q_idx (int or Tensor): Query index.
+                    kv_idx (int or Tensor): Key/Value index.
+
+                Returns:
+                    bool or Tensor: True if q_idx can attend to kv_idx, otherwise False.
+                """
+                pad_cur = pad_mask[b]
+                q_chunk_idx = q_idx // chunk_size
+                k_chunk_idx = kv_idx // chunk_size
+
+                # Apply the chunked limited mask logic
+                diff_chunks = q_chunk_idx - k_chunk_idx
+                return (0 <= diff_chunks) & (diff_chunks <= left_chunks_num) & pad_cur[q_idx] & pad_cur[kv_idx]
+            #We can later remove this no need for it    
+            def chunked_causal_mask_inference(b, h, q_idx, kv_idx):
+                """
+                Implements a chunked causal attention mask at an index level.
+
+                Args:
+                    q_idx (int or Tensor): Query index.
+                    kv_idx (int or Tensor): Key/Value index.
+
+                Returns:
+                    bool or Tensor: True if q_idx can attend to kv_idx, otherwise False.
+                """
+                return torch.tensor(True, dtype=torch.bool, device='cuda:0')
+
+            if cache_last_channel is not None:
+                block_mask =  create_block_mask(chunked_causal_mask_inference, B=x.shape[0], H=8, Q_LEN=max_audio_length-cache_len, KV_LEN=max_audio_length-border)
+            else:
+                block_mask =  create_block_mask(chunked_causal_mask, B=x.shape[0], H=8, Q_LEN=max_audio_length, KV_LEN=max_audio_length)
+        
+        if cache_last_channel is not None:
+            cache_last_channel_next = []
+        
+
+        x = self.ngpt(x, block_mask, cache_last_channel=cache_last_channel, offset=border)
+        
+        #x = x.transpose(1, 2)
+
+        if cache_last_channel is not None:
+        
+            audio_signal, cache_last_channel_next =  x
+            return (
+                audio_signal.transpose(1, 2),
+                length,
+                cache_last_channel_next,
+                None, # for cache_time = convolution
+                torch.clamp(cache_last_channel_len + cache_keep_size, max=cache_len),
+            )
+        else:
+            x = x.transpose(1, 2)
+            return x, length
+
 
     def normalize_matrices(self):
         if hasattr(self.pre_encode, "normalize_matrices"):
@@ -209,15 +534,19 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
 
 
 def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
-    # Split the sinusoidal_pos into sin and cos parts
-    sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-    # Apply the rotary embeddings to the query and key
-    q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
-    k_rot = torch.stack((-k[..., 1::2], k[..., ::2]), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    k_rot = torch.reshape(k_rot, k.shape[:-1] + (k.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape)
-    k_rot = torch.reshape(k_rot, k.shape)
+    # Ensure q and k have correct positional embeddings
+    sin_q, cos_q = sinusoidal_pos[-q.shape[2]:].chunk(2, dim=-1)  # Select for q length
+    sin_k, cos_k = sinusoidal_pos[-k.shape[2]:].chunk(2, dim=-1)  # Select for k length
+
+    # Apply rotary embeddings
+    def apply_rotary(q, sin, cos):
+        q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
+        q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
+        return torch.reshape(q_rot, q.shape)
+
+    q_rot = apply_rotary(q, sin_q, cos_q)
+    k_rot = apply_rotary(k, sin_k, cos_k)
+
     return q_rot.to(q.dtype), k_rot.to(k.dtype)
 
 
@@ -231,13 +560,25 @@ def get_sinusoidal_embeddings(n_positions, dim, device):
     return sinusoidal_emb
 
 
-def justnorm(x, fp32: bool = False, idim: int = -1):
+def get_sinusoidal_embeddings(n_positions, dim, device):
+    """Generate sinusoidal positional embeddings."""
+    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
+    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
+    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
+    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
+    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
+    return sinusoidal_emb
+
+
+def justnorm(x, fp32: bool = False, idim: int = -1,eps: float = 1e-10):
+    
     if fp32:
         dtype = x.dtype
         x = x.float()
         res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)
     else:
-        res = x / x.norm(p=2, dim=idim, keepdim=True)
+        norm = x.norm(p=2, dim=idim, keepdim=True)
+        res = x / (norm + eps)
     return res
 
 
@@ -287,23 +628,30 @@ class Block(nn.Module):
                 self.suv_init_scaling * torch.ones(2 * 4 * config.n_embd, dtype=torch.float32)
             )
 
-    def forward(self, h, mask):
+    def forward(self, h, block_mask=None,cache_last_channel=None, pad_mask=None, offset=None):
         B, T, C = h.size()
+        key, value, query, cache = self.update_cache(key=h,value=h,query=h,cache=cache_last_channel)
 
-        hin = h
-        if self.config.use_nGPT == 0:
-            hin = self.rmsnorm_att(h)
+       # hin = h
+       # if self.config.use_nGPT == 0:
+       #     q = k = v = self.rmsnorm_att(h)
 
-        q = self.query(hin)
-        k = self.key(hin)
-        v = self.value(hin)
+        q = self.query(query)
+        k = self.key(key)
+        v = self.value(value)
+        #using to ignor part of the cache that is all zeros 
+        if offset:
+            k  = k[:, offset:, :]
+            v = v[:, offset:, :]
 
         q = q.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        k = k.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-
-        sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head, device=q.device)
+        k = k.view(B, k.shape[1], self.config.n_head, self.config.n_embd // self.config.n_head)
+        
+        v = v.view(B, k.shape[1], self.config.n_head, self.config.n_embd // self.config.n_head)
+        sinusoidal_pos = get_sinusoidal_embeddings(k.shape[1], self.config.n_embd // self.config.n_head, device=q.device)
         q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
+
+
         q = q.transpose(2, 1)
         k = k.transpose(2, 1)
 
@@ -319,17 +667,30 @@ class Block(nn.Module):
             softmax_scale = 1.0 / sqrt_head_dim
         if self.config.use_nGPT == 1:
             softmax_scale = sqrt_head_dim
-        y = flash_attn_func(
-            q,
-            k,
-            v,
-            dropout_p=0.0,
-            softmax_scale=softmax_scale,
-            causal=False,
-            window_size=(-1, -1),
-            alibi_slopes=None,
-            deterministic=False,
-        )
+        if block_mask is None:
+            y = flash_attn_func(
+                q.to(torch.bfloat16),
+                k.to(torch.bfloat16),
+                v.to(torch.bfloat16),
+                dropout_p=0.0,
+                softmax_scale=softmax_scale,
+                causal=False,
+                window_size=(-1, -1),
+                alibi_slopes=None,
+                deterministic=False,
+            )
+        else:
+            q = q.transpose(1, 2)
+            k = k.transpose(1, 2)
+            v = v.transpose(1, 2)
+            y = flex_attention(
+                q.to(torch.bfloat16),
+                k.to(torch.bfloat16),
+                v.to(torch.bfloat16),
+                block_mask=block_mask,
+                scale=softmax_scale,
+            )
+
         y = y.to(dtype=q.dtype)
         y = y.contiguous().view(B, T, self.config.n_embd)
 
@@ -372,7 +733,19 @@ class Block(nn.Module):
             res = A_norm + lr * (B_norm - A_norm)
             h = justnorm(res)
 
-        return h
+        if cache is None:
+            return h
+        else:
+            return h, cache, None
+
+    def update_cache(self, key, value, query, cache):
+        if cache is not None:
+            key = value = torch.cat([cache, key], dim=1)
+            q_keep_size = query.shape[1] -  self.cache_drop_size
+            cache = torch.cat([cache[:, q_keep_size:, :], query[:, :q_keep_size, :]], dim=1)
+        return key, value, query, cache
+
+
 
 
 @dataclass
@@ -384,6 +757,7 @@ class GPTConfig:
     use_nGPT: int = 0
     dropout: float = 0.0
     bias: bool = False
+    att_context_size: int = 0
 
 
 class RMSNorm(torch.nn.Module):
@@ -454,15 +828,43 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.config.base_scale)
 
-    def forward(self, x, mask=None):
+    def forward(self, x, block_mask=None, pad_mask=None, cache_last_channel=None, offset=None):
 
+            
+        cache_last_channel_next = []
+        audio_signal = x
         for idx, block in enumerate(self.transformer.h):
-            x = block(x, mask=mask)
 
-        if self.config.use_nGPT == 0:
-            x = self.rmsnorm_f(x)
+            if cache_last_channel is not None:            
+                cache_last_channel_cur = cache_last_channel[idx]
+            else:
+                cache_last_channel_cur = None
 
-        return x
+            x = block(
+                audio_signal, 
+                block_mask=block_mask,
+                pad_mask=pad_mask,
+                cache_last_channel=cache_last_channel_cur,
+                offset=offset
+                )
+            
+            if cache_last_channel_cur is not None:
+                (audio_signal, cache_last_channel_cur, _) = x
+                cache_last_channel_next.append(cache_last_channel_cur)
+            else:
+                audio_signal = x
+
+        # if self.config.use_nGPT == 0:
+        #     x = self.rmsnorm_f(x)
+        if cache_last_channel is not None:
+            cache_last_channel_next = torch.stack(cache_last_channel_next, dim=0)
+
+            return (
+                audio_signal,
+                cache_last_channel_next,
+            )
+        else:
+            return x
 
     def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
         # start with all of the candidate parameters
@@ -579,6 +981,11 @@ class NGPTStackingSubsampling(torch.nn.Module):
 
     def normalize_matrices(self):
         self.proj_out.weight.data.copy_(justnorm_fp32(self.proj_out.weight.data, 0))
+    def get_sampling_frames(self):
+        return self.subsampling_factor
+
+    def get_streaming_cache_size(self):
+        return 0
 
     def forward(self, x, lengths):
         b, t, h = x.size()
