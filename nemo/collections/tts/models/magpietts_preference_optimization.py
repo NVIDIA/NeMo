@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from torch import nn
 import os
 import json

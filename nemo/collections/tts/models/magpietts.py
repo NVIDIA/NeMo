@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import json
 import os
 import random
@@ -25,7 +24,7 @@ import soundfile as sf
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn
 from torch.utils.data import get_worker_info
@@ -35,7 +34,6 @@ from transformers import AutoTokenizer, T5Tokenizer
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer
-from nemo.collections.tts.data.text_to_speech_dataset_lhotse import build_lhotse_dataloader, MagpieTTSLhotseDataset
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501

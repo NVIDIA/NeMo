@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.tts.models import MagpieTTS_Model, MagpieTTS_ModelInference, MagpieTTS_Model_PrefDataGen, MagpieTTS_Model_OfflinePO, MagpieTTS_Model_OnlinePO

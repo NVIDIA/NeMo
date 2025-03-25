@@ -1,14 +1,14 @@
 import json
 import torch
 from torch.utils.data import Dataset, DataLoader
-import pytorch_lightning as pl
-from pytorch_lightning import Trainer
-from pytorch_lightning.strategies import DDPStrategy
+import lightning.pytorch as pl
+from lightning.pytorch import Trainer
+from lightning.pytorch.strategies import DDPStrategy
 from nemo.collections.tts.models import AudioCodecModel
 import os
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 import argparse
-from pytorch_lightning.utilities.rank_zero import rank_zero_only
+from lightning.pytorch.utilities import rank_zero_only
 
 class AudioDataset(Dataset):
     def __init__(self, file_lists, base_audio_dirs, dataset_names, out_dir, sample_rate=22050, pad_multiple=1024):
