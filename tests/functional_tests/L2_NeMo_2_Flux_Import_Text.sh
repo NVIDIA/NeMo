@@ -12,11 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo import lightning as nl
-from nemo.collections import llm
-from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
-
-params = FluxModelParams()
-model = MegatronFluxModel(flux_params=params)
-
-llm.import_ckpt(model, "hf://black-forest-labs/FLUX.1-dev", "./test_ckpt")
+TRANSFORMER_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_hf_importer.py

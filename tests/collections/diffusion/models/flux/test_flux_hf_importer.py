@@ -12,4 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CUDA_VISIBLE_DEVICES=0 pytest tests/collections/diffusion/models/flux/test_flux_recipe.py --with_downloads --cov-branch --cov-report=xml --cov=nemo --cov-append
+from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
+
+
+if __name__ == '__main__':
+    params = FluxModelParams()
+    model = MegatronFluxModel(flux_params=params)
+
+    llm.import_ckpt(model, "hf://black-forest-labs/FLUX.1-dev", "/tmp_flux_dist_ckpt")
