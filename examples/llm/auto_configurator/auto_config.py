@@ -46,7 +46,12 @@ class Llama3Config145M(Llama3Config):
 @run.cli.factory(target=llm.pretrain, name="llama3_145m")
 def llama3_145m(num_nodes=1, num_gpus_per_node=1):
     # Setup Llama3 145M config
-    recipe = partial(llm.llama3_8b.finetune_recipe, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, dir="/home/models/llama_peft/llama_0.145b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None/default/2025-03-21_15-55-07/checkpoints")()
+    recipe = partial(
+        llm.llama3_8b.finetune_recipe,
+        num_nodes=num_nodes,
+        num_gpus_per_node=num_gpus_per_node,
+        dir="/home/models/llama_peft/llama_0.145b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None/default/2025-03-21_15-55-07/checkpoints",
+    )()
     recipe.data.global_batch_size = 16
     recipe.data.seq_length = 2048
 
@@ -55,6 +60,7 @@ def llama3_145m(num_nodes=1, num_gpus_per_node=1):
 
     import nemo_run as run
     from nemo.collections.common.tokenizers import SentencePieceTokenizer
+
     tokenzier = run.Config(SentencePieceTokenizer, model_path="/home/models/sp/tokenizer.model")
     recipe.data.tokenizer = recipe.model.tokenizer = tokenzier
     recipe = run.Partial(

@@ -100,8 +100,10 @@ class AutoConfigurator:
             setattr(self, key, value)
         logging.info(self._get_message(config))
 
-        assert mode in ["pretrain", "finetune"], \
-            f"current mode is not supported. Please, set the mode to 'pretrain' or 'finetune'."
+        assert mode in [
+            "pretrain",
+            "finetune",
+        ], f"current mode is not supported. Please, set the mode to 'pretrain' or 'finetune'."
 
         model_type = self._get_model_type(recipe.model.config)
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {list(SUPPORTED_MODELS.keys())}."
@@ -137,20 +139,22 @@ class AutoConfigurator:
             assert not calculate_model_size, "model size estimation is not supported for 'finetune' mode."
             assert tensor_parallel_sizes != "auto", "tensor parallelism must be specified for 'finetune' mode."
             assert pipeline_parallel_sizes != "auto", "pipeline parallelism must be specified for 'finetune' mode."
-            
+
             if min_model_parallel_size == "auto":
-                self.min_model_parallel_size = \
-                    min(tensor_parallel_sizes) * \
-                    min(pipeline_parallel_sizes) * \
-                    min(context_parallel_sizes) * \
-                    min(expert_parallel_sizes)
-            
+                self.min_model_parallel_size = (
+                    min(tensor_parallel_sizes)
+                    * min(pipeline_parallel_sizes)
+                    * min(context_parallel_sizes)
+                    * min(expert_parallel_sizes)
+                )
+
             if max_model_parallel_size == "auto":
-                self.max_model_parallel_size = \
-                    max(tensor_parallel_sizes) * \
-                    max(pipeline_parallel_sizes) * \
-                    max(context_parallel_sizes) * \
-                    max(expert_parallel_sizes)
+                self.max_model_parallel_size = (
+                    max(tensor_parallel_sizes)
+                    * max(pipeline_parallel_sizes)
+                    * max(context_parallel_sizes)
+                    * max(expert_parallel_sizes)
+                )
 
         self.model_type = model_type
         self.model_size_in_b = self._get_model_size(
