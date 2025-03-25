@@ -18,8 +18,7 @@ from pathlib import Path
 
 import nemo_run as run
 from omegaconf import OmegaConf, open_dict
-
-from nemo.collections.common.parts import run_utils
+from nemo.collections.common.parts import nemo_run_utils
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -36,13 +35,13 @@ def gather_mounts(cluster_cfg):
 
     Args:
         cluster_cfg: Cluster config dictionary with following fields.
-
+            
             script (str): Path to the main Python script to be executed.
             script_config (str): Path to the YAML config used by the script.
             exp_name (str or None): Name of the experiment. If None, it is inferred from `exp_manager.name`
               in the script configuration.
             results_dir (str): Path to the directory where results should be saved.
-
+            
             num_runs (int): Number of times to repeat the experiment.
             num_gpus (int): Number of GPUs to allocate per run.
             num_tasks_per_node (int): Number of tasks per node.
@@ -66,7 +65,7 @@ def gather_mounts(cluster_cfg):
             env_vars:
                 List[str]: List of environment variable declarations to be set in the job,
                 e.g., 'TOKENIZERS_PARALLELISM=false', 'HYDRA_FULL_ERROR=1', etc.
-
+             
             required_env_vars (List[str]): List of env vars that **must** be present in the environment before running.
                 - 'HF_TOKEN'
                 - 'WANDB_KEY'
@@ -75,7 +74,7 @@ def gather_mounts(cluster_cfg):
 
             timeouts:
                 partition_name: 04:00:00 (max runtime for execution)
-    """
+    """ 
     # Gather all mounts from the cluster config including ones which are disjoint from the cluster_cfg.mounts list.
     mounts = cluster_cfg.get('mounts', [])
     # Resolve any mounts in th cluster config that need user expansion
@@ -182,34 +181,15 @@ def check_config_mount_paths(script_config, cluster_config):
     # recursively walk all values of the script_config, checking if its a path-like string and if so, check if the path is a mounted path
     # if it is not, raise an error
 
-    ais_endpoint = os.environ.get("AIS_ENDPOINT", None)
-    # Check if ais paths should be checked at all
-    # This can be disabled using `++check_ais_paths=False` passed when calling the script
-    check_ais_paths = cluster_config.get('check_ais_paths', True)
-
     def filepath_check(v, cluster_cfg):
         if v.startswith(os.path.sep):  # check for absolute paths only
             logging.info(f"Checking if {v} is a mounted path")
             # Check if the path begins with mount path
-            run_utils.check_if_mounted(cluster_cfg, v)
+            nemo_run_utils.check_if_mounted(cluster_cfg, v)
 
             # Check the file exists in the cluster at the unmounted path
-            unmounted_path = run_utils.get_unmounted_filepath(cluster_cfg, v)
-            run_utils.check_remote_mount_directories(unmounted_path, cluster_cfg)
-
-        elif (
-            check_ais_paths and "ais://" in v and ais_endpoint is not None
-        ):  # if the value is a string, check if its an ais path
-            # Try to import ais module
-            try:
-                from aistore.sdk import Client
-
-                # Do actual data check for this ais path
-                ais_client = Client(ais_endpoint)
-                ais_client.fetch_object_by_url(v).head()
-
-            except ImportError:
-                logging.warning("\nais module is not installed. Please 'pip install aistore' to use ais paths.\n")
+            unmounted_path = nemo_run_utils.get_unmounted_filepath(cluster_cfg, v)
+            nemo_run_utils.check_remote_mount_directories(unmounted_path, cluster_cfg)
 
     def check_mounted_path(cfg, cluster_cfg):
         if hasattr(cfg, 'items'):  # if the object is a dictionary
@@ -260,16 +240,16 @@ def get_execution_script_cmd(cluster_script_path, config_name, merged_cfg):
     """
     # Create the command to run the script
     cmd = """
-nvidia-smi && \
-export PYTHONPATH=$PYTHONPATH:/nemo_run/code && \
-export HF_TOKEN={HF_TOKEN} && \
-export WANDB_API_KEY={WANDB} && \
-find /results/ -name '*-unfinished' -type f -delete && \ 
-cd {cluster_script_dir} && \
-python -u -B {cluster_script_path} --config-path "/results/configs" --config-name "{config_name}" && \
-cd /results && \
-ls -l;
-"""
+    nvidia-smi && \
+    export PYTHONPATH=$PYTHONPATH:/nemo_run/code && \
+    export HF_TOKEN={HF_TOKEN} && \
+    export WANDB_API_KEY={WANDB} && \
+    find /results/ -name '*-unfinished' -type f -delete && \
+    cd {cluster_script_dir} && \
+    python -u -B {cluster_script_path} --config-path "/results/configs" --config-name "{config_name}" && \
+    cd /results && \
+    ls -l;
+    """
     # Get the wandb key from the environment variables
     wandb_key = os.environ.get("WANDB", os.environ.get("WANDB_API_KEY", os.environ.get("WANDB_KEY", "")))
     if wandb_key == "":
@@ -312,14 +292,14 @@ def main(cluster_cfg):
     gather_mounts(cluster_cfg)
 
     # Add the results directory to the cluster config as a mount path
-    run_utils.add_mount_path(results_dir, '/results', cluster_cfg)
+    nemo_run_utils.add_mount_path(results_dir, '/results', cluster_cfg)
 
     # Check if the script path is in the NeMo root directory
     cluster_script_path = check_root_path(script_path, NEMO_ROOT)
 
     # Create results and logdir
     log_dir = cluster_cfg.get('log_dir', os.path.join(results_dir, 'logs'))
-    run_utils.create_remote_directory([results_dir, log_dir], cluster_cfg)
+    nemo_run_utils.create_remote_directory([results_dir, log_dir], cluster_cfg)
 
     # Load the script config and merge it with the cluster config
     script_config = OmegaConf.load(script_config_path)
@@ -352,7 +332,7 @@ def main(cluster_cfg):
 
         # Copy the merged config file to remote location's /results/configs directory
         config_dir = os.path.join(results_dir, 'configs')
-        run_utils.create_remote_config(merged_config, config_name, config_dir, cluster_cfg)
+        nemo_run_utils.create_remote_config(merged_config, config_name, config_dir, cluster_cfg)
 
         # Prepare arguments for the slurm job
         job_name = f"{exp_name}_job"
@@ -379,7 +359,7 @@ def main(cluster_cfg):
             else:
                 task = [task]
 
-            task = run_utils.add_task(
+            task = nemo_run_utils.add_task(
                 exp,
                 cmd=cmd,
                 task_name=job_name,
@@ -388,13 +368,13 @@ def main(cluster_cfg):
                 num_tasks=cluster_cfg.get('num_tasks', cluster_cfg.get('num_tasks_per_node', 1)),
                 num_gpus=num_gpus,
                 num_nodes=num_nodes,
-                log_dir=run_utils.get_mounted_filepath(cluster_cfg, log_dir),
+                log_dir=nemo_run_utils.get_mounted_filepath(cluster_cfg, log_dir),
                 partition=cluster_cfg.get('partition', None),
                 task_dependencies=task,
             )
 
         # Run the experiment on the cluster with all the tasks
-        run_utils.run_exp(exp, cluster_cfg)
+        nemo_run_utils.run_exp(exp, cluster_cfg)
 
 
 if __name__ == '__main__':
