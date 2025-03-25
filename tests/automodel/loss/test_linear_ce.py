@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
 import torch
 import torch.nn.functional as F
-import pytest
-from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
+
+from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
 
 
 @pytest.mark.skipif(not HAVE_LINEAR_LOSS_CE, reason="Linear loss CE is not installed")
@@ -63,8 +64,8 @@ def test_fused_cross_entropy():
     fused_loss = fused_loss.float()
 
     # Check if the losses are close
-    assert torch.allclose(fused_loss, pytorch_loss, rtol=1e-2, atol=1e-2), \
-        f"Loss mismatch: PyTorch={pytorch_loss.item()}, Fused={fused_loss.item()}"
+    assert torch.allclose(
+        fused_loss, pytorch_loss, rtol=1e-2, atol=1e-2
+    ), f"Loss mismatch: PyTorch={pytorch_loss.item()}, Fused={fused_loss.item()}"
     # Check if the fused implementation uses less memory
-    assert fused_memory < pytorch_memory, \
-        "Fused implementation should use less memory than PyTorch implementation"
+    assert fused_memory < pytorch_memory, "Fused implementation should use less memory than PyTorch implementation"

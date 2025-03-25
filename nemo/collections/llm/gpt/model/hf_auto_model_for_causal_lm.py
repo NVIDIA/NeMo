@@ -21,12 +21,12 @@ import torch.distributed as dist
 from transformers import AutoModelForCausalLM
 
 from nemo.automodel.loss import masked_cross_entropy
+from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -257,11 +257,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         batch = self._remove_extra_batch_keys(batch)
         batch["output_hidden_states"] = True if HAVE_LINEAR_LOSS_CE else False  # Enable hidden states output
 
-
         outputs = self.forward(batch)
 
         if not HAVE_LINEAR_LOSS_CE:
-        # Prepare for loss calculation
+            # Prepare for loss calculation
             logits = outputs.logits
             n_cls = logits.shape[-1]
             logits = logits.view(-1, n_cls)
