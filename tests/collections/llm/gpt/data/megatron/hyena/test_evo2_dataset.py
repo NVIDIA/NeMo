@@ -21,7 +21,7 @@ import timeit
 from collections import OrderedDict
 from typing import Tuple
 
-import numpy
+
 import pytest
 import torch
 from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
