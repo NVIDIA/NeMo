@@ -16,15 +16,8 @@
 # limitations under the License.
 
 import pytest
-import torch
-from megatron.core.transformer.transformer_config import TransformerConfig
-
-from nemo.collections.nlp.modules.common.hyena.hyena import (
-    HyenaOperator,
-    SingleHeadHyenaConv,
-    MultiHeadHyenaConv,
-    CausalDepthWiseConv1d,
-)
+from nemo.collections import llm
+from nemo.collections.llm.gpt.model.hyena import  HuggingFaceSavannaHyenaImporter
 
 from nemo.collections.llm.gpt.model.hyena import (
     HyenaConfig,
@@ -38,8 +31,6 @@ from nemo.collections.llm.gpt.model.hyena import (
     Hyena40bARCLongContextConfig,
     HyenaTestConfig,
     HyenaNVTestConfig,
-    HyenaModel,
-    GPTInferenceWrapper,
 )
 
 def test_hyena_base_config():
@@ -150,3 +141,15 @@ def test_hyena_nv_test_config():
     assert config.num_attention_heads == 32
     assert config.seq_length == 8192
     assert config.tokenizer_library == "byte-level"
+
+def test_convert_hyena():
+
+    from huggingface_hub.utils import RepositoryNotFoundError
+    
+    evo2_config = llm.Hyena1bConfig()
+    model_ckpt = "dummy/model"
+    exporter = HuggingFaceSavannaHyenaImporter(model_ckpt, model_config=evo2_config)
+    
+    with pytest.raises(RepositoryNotFoundError):
+        exporter.apply("dummy_output")
+    
