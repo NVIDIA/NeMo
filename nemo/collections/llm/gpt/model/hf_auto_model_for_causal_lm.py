@@ -26,6 +26,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
+from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -251,19 +252,36 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         loss_mask = batch.pop('loss_mask', None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
+        if 'input_ids' not in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
+        batch["output_hidden_states"] = True if HAVE_LINEAR_LOSS_CE else False  # Enable hidden states output
+
 
         outputs = self.forward(batch)
 
+        if not HAVE_LINEAR_LOSS_CE:
         # Prepare for loss calculation
-        logits = outputs.logits
-        n_cls = logits.shape[-1]
-        logits = logits.view(-1, n_cls)
-        labels = labels.view(-1)
-        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
-        loss = self.loss_fn(logits, labels, loss_mask)
+            logits = outputs.logits
+            n_cls = logits.shape[-1]
+            logits = logits.view(-1, n_cls)
+            labels = labels.view(-1)
+            assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+            loss = self.loss_fn(logits, labels, loss_mask)
+        else:
+            # use linear_cross_entropy
+            hidden_states = outputs.hidden_states[-1]
+            lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
+            labels = labels
+            num_items_in_batch = torch.count_nonzero(labels != -100).item()
+            logit_softcapping = 0
+            loss = fused_linear_cross_entropy(
+                hidden_states=hidden_states,
+                lm_weight=lm_head,
+                labels=labels,
+                num_items_in_batch=num_items_in_batch,
+                logit_softcapping=logit_softcapping,
+            )
         # logging
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel()
@@ -344,7 +362,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         loss_mask = batch.pop('loss_mask', None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
+        if 'input_ids' not in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
 
