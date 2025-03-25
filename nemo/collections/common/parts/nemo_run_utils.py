@@ -337,36 +337,3 @@ def get_mounted_filepath(cluster_config: dict, filepath: str):
     filepath = mount_dest + filepath[len(mount_source) :]  # replace the mount destination with the mount source
 
     return filepath
-
-
-
-
-# @dataclass(kw_only=True)
-# class CustomJobDetails(SlurmJobDetails):
-#     log_prefix: str = "main"
-
-#     @property
-#     def stdout(self) -> Path:
-#         return Path(self.folder) / f"{self.log_prefix}_sbatch.log"
-
-#     @property
-#     def srun_stdout(self) -> Path:
-#         return Path(self.folder) / f"{self.log_prefix}_srun.log"
-
-#     @property
-#     def stderr(self) -> Path:
-#         return Path(self.folder) / f"{self.log_prefix}_sbatch.log"
-
-#     @property
-#     def srun_stderr(self) -> Path:
-#         return Path(self.folder) / f"{self.log_prefix}_srun.log"
-
-#     @property
-#     def ls_term(self) -> str:
-#         """This term will be used to fetch the logs.
-
-#         The command used to list the files is ls -1 {ls_term} 2> /dev/null
-#         """
-#         assert self.folder
-#         return os.path.join(self.folder, "*_srun.log")
-
