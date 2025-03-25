@@ -84,6 +84,7 @@ def initialize_megatron(
         dist_config=dist_config,
         rng_config=rng_config,
         micro_batch_size=train_config.micro_batch_size,
+        num_distributed_optimizer_instances=cfg.ddp_config.num_distributed_optimizer_instances,
         get_embedding_ranks=get_embedding_ranks,
         get_position_embedding_ranks=get_position_embedding_ranks,
         skip_mpu_initialization=skip_mpu_initialization,
@@ -94,7 +95,8 @@ def torch_dist_init(
     model_config: GPTConfig | T5Config,
     dist_config: DistributedInitConfig,
     rng_config: RNGConfig,
-    micro_batch_size: Optional[int],
+    micro_batch_size: int,
+    num_distributed_optimizer_instances: int,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     skip_mpu_initialization: bool,
@@ -104,6 +106,7 @@ def torch_dist_init(
         _initialize_distributed(
             model_config=model_config,
             dist_config=dist_config,
+            num_distributed_optimizer_instances=num_distributed_optimizer_instances,
             get_embedding_ranks=get_embedding_ranks,
             get_position_embedding_ranks=get_position_embedding_ranks,
         )
@@ -193,6 +196,7 @@ def _initialize_tp_communicators(model_config: GPTConfig | T5Config, micro_batch
 def _initialize_distributed(
     model_config: GPTConfig | T5Config,
     dist_config: DistributedInitConfig,
+    num_distributed_optimizer_instances: int,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
 ):
@@ -239,7 +243,7 @@ def _initialize_distributed(
                 context_parallel_size=model_config.context_parallel_size,
                 hierarchical_context_parallel_sizes=model_config.hierarchical_context_parallel_sizes,
                 expert_model_parallel_size=model_config.expert_model_parallel_size,
-                num_distributed_optimizer_instances=dist_config.num_distributed_optimizer_instances,
+                num_distributed_optimizer_instances=num_distributed_optimizer_instances,
                 expert_tensor_parallel_size=model_config.expert_tensor_parallel_size,
                 distributed_timeout_minutes=dist_config.distributed_timeout_minutes,
                 nccl_communicator_config_path=dist_config.nccl_communicator_config_path,
