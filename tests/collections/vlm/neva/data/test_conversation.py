@@ -1,6 +1,19 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import base64
-from io import BytesIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from PIL import Image
@@ -19,12 +32,10 @@ from nemo.collections.vlm.neva.data.conversation import (
     conv_mistral_orca,
     conv_mistral_vila,
     conv_mistral_zephyr,
-    conv_mllama,
     conv_mpt,
     conv_nv_dpo,
     conv_nvgpt,
     conv_qwen,
-    conv_vicuna_v1,
 )
 
 
