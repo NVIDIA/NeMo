@@ -12,17 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import math
+import shutil
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import lightning.pytorch as pl
+from datasets import DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.llm.gpt.data.core import create_sft_dataset
+from nemo.collections.llm.gpt.data.core import create_sft_dataset, get_dataset_root
 from nemo.lightning.data import WrappedDataLoader
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
@@ -344,3 +348,139 @@ class FineTuningDataModule(pl.LightningDataModule):
         else:
             tokenizer_model_name = f"unknown_tokenizer_{hash(self.tokenizer)}"
         return tokenizer_model_name
+
+
+class HFFineTuningDataModule(FineTuningDataModule, IOMixin):
+    """A generic data module for downloading and preprocessing HF datasets for fine-tuning.
+
+    This class inherits from the `FineTuningDataModule` class; see this class for argument details.
+    """
+
+    def __init__(
+        self,
+        seq_length: int = 2048,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        rampup_batch_size: Optional[List[int]] = None,
+        force_redownload: bool = False,
+        delete_raw: bool = True,
+        seed: int = 1234,
+        memmap_workers: int = 1,
+        num_workers: int = 8,
+        pin_memory: bool = True,
+        persistent_workers: bool = False,
+        packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
+        dataset_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        self.force_redownload = force_redownload
+        self.delete_raw = delete_raw
+
+        super().__init__(
+            dataset_root=get_dataset_root(self.dataset_name),
+            seq_length=seq_length,
+            tokenizer=tokenizer,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+            rampup_batch_size=rampup_batch_size,
+            seed=seed,
+            memmap_workers=memmap_workers,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
+            packed_sequence_specs=packed_sequence_specs,
+            dataset_kwargs=dataset_kwargs,
+        )
+
+    def prepare_data(self) -> None:
+        """Download and preprocess data as needed."""
+        # if train file is specified, no need to do anything
+        if not self.train_path.exists() or self.force_redownload:
+            dset = self._download_data()
+            self._preprocess_and_split_data(dset)
+        super().prepare_data()
+
+    def _download_data(self):
+        """Download this dataset from HF."""
+        logging.info(f"Downloading {self.__class__.__name__}...")
+        return load_dataset(
+            self.dataset_hf_path,
+            **self.hf_load_dataset_kwargs,
+        )
+
+    def _preprocess_and_split_data(
+        self, dset: DatasetDict, *args, **kwargs,
+    ):
+        """Preprocesses and splits the downloaded dataset into training, validation, an
+ test sets.
+
+        Args:
+            dset (Dataset or DatasetDict): The downloaded dataset object.
+        """
+        logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
+
+        save_splits = self._make_splits(dset, *args, **kwargs)
+
+        for split_name, dataset in save_splits.items():
+            output_file = self.dataset_root / f"{split_name}.jsonl"
+
+            with output_file.open("w", encoding="utf-8") as f:
+                for example in dataset:
+                    f.write(json.dumps(self._json_line_from_example(example, *args, **kwargs)) + "\n")
+
+            logging.info(f"{split_name} split saved to {output_file}")
+
+        if self.delete_raw:
+            for p in self.dataset_root.iterdir():
+                if p.is_dir():
+                    shutil.rmtree(p)
+                elif '.jsonl' not in str(p.name):
+                    p.unlink()
+
+    def _make_splits(self, dset, *args, **kwargs):
+        """Assemble and return a dict with training, validation, and test splits as needed from the given dataset.
+
+        To be overridden by subclasses.
+
+        Args:
+            dset (Dataset or DatasetDict): The downloaded dataset object.
+
+        Returns:
+            A dictionary mapping string keys for jsonl output file names for each split to that dataset subset.
+        """
+        raise NotImplementedError()
+
+    def _json_line_from_example(self, example, *args, **kwargs):
+        """Generate and return a dict with input and output data as needed from the given example.
+
+        To be overridden by subclasses.
+
+        Args:
+            example (Dict): A data element from the dataset to be processed.
+
+        Returns:
+            A dictionary mapping string keys to raw data, to be written in json lines format.
+        """
+        raise NotImplementedError()
+
+    @property
+    def dataset_name(self) -> str:
+        """String property. Dataset will be written under this name within `dataset_root`.
+
+        To be overridden by subclasses
+        """
+        raise NotImplementedError()
+
+    @property
+    def dataset_hf_path(self) -> str:
+        """String property. Dataset will be retrieved from HF with this path. Defaults to match `dataset_name`."""
+        return self.dataset_name
+
+    @property
+    def hf_load_dataset_kwargs(self) -> dict:
+        """Additional keyword args to pass to `dataset_load` when retrieving the dataset from HF."""
+        kwargs = {
+            "cache_dir": str(self.dataset_root),
+            "download_mode": "force_redownload" if self.force_redownload else None,
+        }
+        return kwargs
