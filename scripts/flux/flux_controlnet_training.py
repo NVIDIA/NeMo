@@ -243,7 +243,11 @@ def unit_test() -> run.Partial:
     recipe.model.flux_controlnet_config.num_single_layers = 1
     recipe.model.flux_controlnet_config.num_joint_layers = 1
     recipe.data.global_batch_size = 1
-    recipe.trainer.strategy.ddp = run.Config()
+    recipe.trainer.strategy.ddp = run.Config(
+        DistributedDataParallelConfig,
+        check_for_nan_in_grad=True,
+        grad_reduce_in_fp32=True,
+    )
     recipe.trainer.max_steps = 10
 
     return recipe
