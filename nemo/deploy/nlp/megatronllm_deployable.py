@@ -256,8 +256,8 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
     @first_value("max_length", "max_batch_size", "top_k", "top_p", "temperature", "random_seed", "compute_logprob")
     def triton_infer_fn(self, **inputs: np.ndarray):
         output_infer = {}
+        prompts = str_ndarray2list(inputs.pop("prompts"))
         try:
-            prompts = str_ndarray2list(inputs.pop("prompts"))
             max_batch_size = inputs.pop("max_batch_size", 32)
             random_seed = inputs.pop("random_seed", None)
             temperature = inputs.pop("temperature", 1.0)
@@ -307,6 +307,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 output_infer["log_probs"] = np.array(output_log_probs)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output_infer["sentences"] = cast_output([err_msg], np.bytes_)
+            output_infer["sentences"] = cast_output([err_msg] * len(prompts), np.bytes_)
 
         return output_infer

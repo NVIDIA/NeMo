@@ -1228,8 +1228,9 @@ class TensorRTLLM(ITritonDeployable):
         output_dict = {}
         context_logits_available = False
         generation_logits_available = False
+        prompts = str_ndarray2list(inputs.pop("prompts"))
+        infer_input = {"input_texts": prompts}
         try:
-            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
                 infer_input["max_output_len"] = inputs["max_output_len"]
             if "top_k" in inputs:
@@ -1285,7 +1286,7 @@ class TensorRTLLM(ITritonDeployable):
             output_dict["outputs"] = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output_dict["outputs"] = cast_output([err_msg], np.bytes_)
+            output_dict["outputs"] = cast_output([err_msg] * len(prompts), np.bytes_)
 
         return output_dict
 
