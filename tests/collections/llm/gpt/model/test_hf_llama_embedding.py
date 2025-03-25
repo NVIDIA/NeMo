@@ -22,7 +22,10 @@ from nemo.collections.llm.gpt.model.hf_llama_embedding import (
     Pooling,
     get_llama_bidirectional_hf_model,
     pool,
+    LlamaBidirectionalConfig,
+    LlamaBidirectionalForSequenceClassification,
 )
+
 
 
 @pytest.fixture

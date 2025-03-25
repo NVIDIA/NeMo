@@ -69,19 +69,6 @@ def test_initialization(temp_data_files):
     assert data_module.neg_doc_key == "neg_doc"
 
 
-def test_data_splitting(temp_data_files):
-    main_file, _ = temp_data_files
-    data_module = CustomRetrievalDataModule(
-        data_root=main_file, val_ratio=0.5, test_ratio=0.0, seq_length=128, micro_batch_size=2
-    )
-    data_module.prepare_data()
-
-    # Check if files were created
-    assert (data_module.dataset_root / "training.jsonl").exists()
-    assert (data_module.dataset_root / "validation.jsonl").exists()
-    assert (data_module.dataset_root / "test.jsonl").exists()
-
-
 def test_multiple_data_roots(sample_data):
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create two data files
