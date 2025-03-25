@@ -1222,7 +1222,16 @@ class TensorRTLLM(ITritonDeployable):
         return outputs
 
     @batch
-    @first_value("max_output_len", "top_k", "top_p", "temperature", "random_seed", "no_repeat_ngram_size", "output_generation_logits", "output_context_logits")
+    @first_value(
+        "max_output_len",
+        "top_k",
+        "top_p",
+        "temperature",
+        "random_seed",
+        "no_repeat_ngram_size",
+        "output_generation_logits",
+        "output_context_logits",
+    )
     def triton_infer_fn(self, **inputs: np.ndarray):
         """Triton infer function for streaming"""
         output_dict = {}
