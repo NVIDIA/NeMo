@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 cd examples/nlp/machine_translation &&
-    coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo enc_dec_nmt.py \
+    coverage run --concurrency=multiprocessing --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo enc_dec_nmt.py \
         --config-path=conf \
         --config-name=aayn_base \
         do_training=false \

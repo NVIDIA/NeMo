@@ -19,6 +19,6 @@ cd tools/ctc_segmentation &&
         --OUTPUT_DIR=/tmp/ctc_seg_en/output${TIME} \
         --LANGUAGE=en \
         --USE_NEMO_NORMALIZATION="TRUE" &&
-    coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo /home/TestData/ctc_segmentation/verify_alignment.py \
+    coverage run --concurrency=multiprocessing --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo /home/TestData/ctc_segmentation/verify_alignment.py \
         -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
         -g /tmp/ctc_seg_en/output${TIME}/verified_segments/nv_test_segments.txt
