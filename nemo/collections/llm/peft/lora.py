@@ -316,7 +316,7 @@ def patch_linear_module(
         (nn.Module): the monkey-patched (nn.Linear + LoRA) nn.Module
     """
 
-    assert isinstance(orig_linear, nn.Linear) or isinstance(orig_linear, te.Linear)
+    assert isinstance(orig_linear, nn.Linear) or orig_linear.__class__ == te.Linear
 
     if isinstance(orig_linear, nn.Linear):
         LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
