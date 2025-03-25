@@ -53,11 +53,6 @@ def llama3_145m(num_nodes=1, num_gpus_per_node=1):
     recipe.trainer.strategy.context_parallel_size = 1
     recipe.model.config.seq_length = recipe.data.seq_length
 
-    import nemo_run as run
-    from nemo.collections.common.tokenizers import SentencePieceTokenizer
-
-    tokenzier = run.Config(SentencePieceTokenizer, model_path="/home/models/sp/tokenizer.model")
-    recipe.data.tokenizer = recipe.model.tokenizer = tokenzier
     recipe = run.Partial(
         llm.pretrain,
         model=run.Config(LlamaModel, config=run.Config(Llama3Config145M)),
@@ -98,7 +93,7 @@ def train_config(args):
         pipeline_parallel_sizes=[1],
         micro_batch_sizes=[1, 2, 4],
         max_training_days=1,
-        max_steps_per_run=30,
+        max_steps_per_run=10,
         num_tokens_in_b=10,
         vocab_size=32000,
         path_to_logs=args.log_dir,
