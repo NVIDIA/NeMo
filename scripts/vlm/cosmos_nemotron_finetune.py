@@ -237,8 +237,8 @@ def main(args):
             TimingCallback(),
             MegatronCommOverlapCallback(
                 tp_comm_overlap=False,
-                overlap_grad_reduce=True,
-                overlap_param_gather=True,
+                overlap_grad_reduce=False,
+                overlap_param_gather=False,
             ),
         ],
         val_check_interval=500,
