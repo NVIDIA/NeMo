@@ -196,7 +196,7 @@ class TextToSpeechDataset(Dataset):
                 dataset_name=dataset_name,
                 manifest_entry=entry,
                 audio_dir=Path(dataset.audio_dir),
-                feature_dir=Path(dataset.feature_dir),
+                feature_dir=Path(dataset.feature_dir) if dataset.feature_dir is not None else None,
                 text=text,
                 speaker=speaker,
                 speaker_index=speaker_index,
