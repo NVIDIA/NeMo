@@ -1241,15 +1241,15 @@ class TensorRTLLM(ITritonDeployable):
         infer_input = {"input_texts": prompts}
         try:
             if "max_output_len" in inputs:
-                infer_input["max_output_len"] = inputs["max_output_len"]
+                infer_input["max_output_len"] = inputs.pop("max_output_len")
             if "top_k" in inputs:
-                infer_input["top_k"] = inputs["top_k"]
+                infer_input["top_k"] = inputs.pop("top_k")
             if "top_p" in inputs:
-                infer_input["top_p"] = inputs["top_p"]
+                infer_input["top_p"] = inputs.pop("top_p")
             if "temperature" in inputs:
-                infer_input["temperature"] = inputs["temperature"]
+                infer_input["temperature"] = inputs.pop("temperature")
             if "random_seed" in inputs:
-                infer_input["random_seed"] = inputs["random_seed"]
+                infer_input["random_seed"] = inputs.pop("random_seed")
             if "stop_words_list" in inputs:
                 stop_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
                 infer_input["stop_words_list"] = [[stop_word] for stop_word in stop_words_list]
@@ -1257,7 +1257,7 @@ class TensorRTLLM(ITritonDeployable):
                 bad_words_list = str_ndarray2list(inputs.pop("bad_words_list"))
                 infer_input["bad_words_list"] = [[bad_word] for bad_word in bad_words_list]
             if "no_repeat_ngram_size" in inputs:
-                infer_input["no_repeat_ngram_size"] = inputs["no_repeat_ngram_size"]
+                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")
             if "task_id" in inputs:
                 task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
                 infer_input["task_ids"] = task_id[0]
@@ -1266,10 +1266,10 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["lora_uids"] = lora_uids[0].tolist()
             if "output_generation_logits" in inputs:
                 generation_logits_available = inputs["output_generation_logits"]
-                infer_input["output_generation_logits"] = inputs["output_generation_logits"]
+                infer_input["output_generation_logits"] = inputs.pop("output_generation_logits")
             if "output_context_logits" in inputs:
                 context_logits_available = inputs["output_context_logits"]
-                infer_input["output_context_logits"] = inputs["output_context_logits"]
+                infer_input["output_context_logits"] = inputs.pop("output_context_logits")
 
             if generation_logits_available:
                 # generation_logits is a 4d torch tensor of dim [BS,1,#generated_tokens,vocab_size]
