@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CosmosNemotronConfig(LlavaConfig):
-    """Cosmos Megatron Base Config"""
+    """Cosmos Nemotron Base Config"""
 
     pixel_shuffle: bool = True
 
@@ -60,12 +60,12 @@ class CosmosNemotronConfig(LlavaConfig):
 
 @dataclass
 class CosmosNemotronRadioLlama8BConfig(CosmosNemotronConfig):
-    """Cosmos Megatron 8B Config"""
+    """Cosmos Nemotron 8B Config"""
     pass
 
 
 class CosmosNemotronModel(NevaModel):
-    """Cosmos Megatron Model NeMo Wrapper"""
+    """Cosmos Nemotron Model NeMo Wrapper"""
 
     def __init__(
         self,
@@ -99,7 +99,7 @@ class StateDictWrapper:
 
 @io.model_importer(CosmosNemotronModel, "pyt")
 class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemotronModel]):
-    """Cosmos Megatron Importer"""
+    """Cosmos Nemotron Importer"""
 
     def init(self) -> CosmosNemotronModel:
         # pylint: disable=C0115,C0116

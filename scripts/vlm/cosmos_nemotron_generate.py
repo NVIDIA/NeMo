@@ -14,7 +14,7 @@
 
 """
 Example:
-  python scripts/vlm/cosmos_megatron_generate.py \
+  python scripts/vlm/cosmos_nemotron_generate.py \
     --load_from_mlm=/lustre/fsw/coreai_dlalgo_genai/yuya/cosmos-megatron/checkpoints/sft_llama_3p1_8b_radio_v13_0227_tp_1/checkpoints/iter_0010658/mp_rank_00/model_optim_rng.pt
 """
 

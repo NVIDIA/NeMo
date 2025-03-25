@@ -14,23 +14,23 @@
 
 """
 Mock Data Example:
-  torchrun --nproc_per_node=8 scripts/vlm/cosmos_megatron_finetune.py \
+  torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron_finetune.py \
   --devices=8 --tp=4 --data_type=mock
 
 Llava Data Example:
-   torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/cosmos_megatron_finetune.py  \
+   torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/cosmos_nemotron_finetune.py  \
      --data_path "/path/to/dataset/llava_v1_5_mix665k.json" \
      --image_folder "/path/to/dataset/images" \
      --data_type llava \
      --num_nodes 1 \
-     --log_dir "/path/to/experiments/cosmos_megatron_finetune" \
+     --log_dir "/path/to/experiments/cosmos_nemotron_finetune" \
      --devices=8 \
      --projector_type=mcore_mlp \
      --tp_size 2 --pp_size 1 \
      --gbs 128 --mbs 4 \
-     --wandb_project=cosmos_megatron_demo \
-     --name=cosmos_megatron_finetune \
-     --restore_path "/path/to/experiments/cosmos_megatron_pretrain_checkpoint"
+     --wandb_project=cosmos_nemotron_demo \
+     --name=cosmos_nemotron_finetune \
+     --restore_path "/path/to/experiments/cosmos_nemotron_pretrain_checkpoint"
 """
 
 import argparse
@@ -120,7 +120,7 @@ def main(args):
         # Data configuration
         data_config = ImageDataConfig(
             image_folder=args.image_folder,
-            conv_template="cosmos_megatron",
+            conv_template="cosmos_nemotron",
         )
 
         # Data module setup
