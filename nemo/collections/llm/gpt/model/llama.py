@@ -374,7 +374,13 @@ class LlamaModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
         model_context_managers: Optional[List] = [],
     ):
-        super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform, model_context_managers=model_context_managers)
+        super().__init__(
+            config or LlamaConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+            model_context_managers=model_context_managers,
+        )
 
 
 class MLPerfLoRALlamaModel(LlamaModel):
@@ -396,8 +402,13 @@ class MLPerfLoRALlamaModel(LlamaModel):
     ):
         # Apply context manager to reduce memory by avoiding unnecessary gradients
         model_context_managers = [torch.no_grad()]
-        super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform, model_context_managers=model_context_managers)
-
+        super().__init__(
+            config or LlamaConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+            model_context_managers=model_context_managers,
+        )
 
 
 @io.model_importer(LlamaModel, "hf")
