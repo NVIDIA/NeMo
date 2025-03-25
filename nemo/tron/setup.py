@@ -76,15 +76,7 @@ def setup(
 
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(
-        model_config=cfg.model_config,
-        rerun_state_machine_config=cfg.rerun_state_machine_config,
-        dist_config=cfg.dist_config,
-        rng_config=cfg.rng_config,
-        rampup_batch_size=cfg.train_config.rampup_batch_size,
-        global_batch_size=cfg.train_config.global_batch_size,
-        micro_batch_size=cfg.train_config.micro_batch_size,
-        data_parallel_size=cfg.data_parallel_size,
-        decrease_batch_size_if_needed=cfg.train_config.decrease_batch_size_if_needed,
+        cfg=cfg,
         get_embedding_ranks=get_embedding_ranks,
         get_position_embedding_ranks=get_position_embedding_ranks,
     )

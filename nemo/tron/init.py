@@ -32,22 +32,12 @@ from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
-from nemo.tron.config import DistributedInitConfig, RerunStateMachineConfig, RNGConfig
+from nemo.tron.config import ConfigContainer, DistributedInitConfig, RerunStateMachineConfig, RNGConfig
 from nemo.tron.utils.common_utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
 
 
 def initialize_megatron(
-    model_config: GPTConfig | T5Config,
-    rerun_state_machine_config: RerunStateMachineConfig,
-    dist_config: DistributedInitConfig,
-    rng_config: RNGConfig,
-    # Training params
-    global_batch_size: int,
-    micro_batch_size: int,
-    data_parallel_size: int,
-    rampup_batch_size: Optional[list[int]] = None,
-    decrease_batch_size_if_needed: bool = False,
-    # Other params
+    cfg: ConfigContainer,
     allow_no_cuda: bool = False,
     skip_mpu_initialization: bool = False,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
@@ -58,6 +48,12 @@ def initialize_megatron(
     if not allow_no_cuda:
         # Make sure cuda is available.
         assert torch.cuda.is_available(), "Megatron requires CUDA."
+
+    model_config = cfg.model_config
+    dist_config = cfg.dist_config
+    rng_config = cfg.rng_config
+    rerun_state_machine_config = cfg.rerun_state_machine_config
+    train_config = cfg.train_config
 
     # Prep for checkpoint conversion.
     # if args.ckpt_convert_format is not None:
@@ -72,29 +68,29 @@ def initialize_megatron(
 
     init_num_microbatches_calculator(
         get_rank_safe(),
-        rampup_batch_size,
-        global_batch_size,
-        micro_batch_size,
-        data_parallel_size,
-        decrease_batch_size_if_needed,
+        train_config.rampup_batch_size,
+        train_config.global_batch_size,
+        train_config.micro_batch_size,
+        cfg.data_parallel_size,
+        train_config.decrease_batch_size_if_needed,
     )
 
     # init rerun global state
-    _init_rerun_state(rerun_state_machine_config)
+    init_rerun_state(rerun_state_machine_config)
 
     # torch.distributed initialization
-    return _torch_dist_init(
+    return torch_dist_init(
         model_config=model_config,
         dist_config=dist_config,
         rng_config=rng_config,
-        micro_batch_size=micro_batch_size,
+        micro_batch_size=train_config.micro_batch_size,
         get_embedding_ranks=get_embedding_ranks,
         get_position_embedding_ranks=get_position_embedding_ranks,
         skip_mpu_initialization=skip_mpu_initialization,
     )
 
 
-def _torch_dist_init(
+def torch_dist_init(
     model_config: GPTConfig | T5Config,
     dist_config: DistributedInitConfig,
     rng_config: RNGConfig,
@@ -265,7 +261,7 @@ def _initialize_distributed(
                 )
 
 
-def _init_rerun_state(rerun_state_machine_config: RerunStateMachineConfig):
+def init_rerun_state(rerun_state_machine_config: RerunStateMachineConfig):
     from megatron.core.rerun_state_machine import (
         RerunDiagnostic,
         RerunErrorInjector,
