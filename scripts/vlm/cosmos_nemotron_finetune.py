@@ -38,8 +38,6 @@ import argparse
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from pygments.formatters import img
-from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
@@ -62,7 +60,7 @@ def main(args):
     max_steps = args.max_steps
 
     decoder_seq_length = 16384
-    recompute_num_layers = 0 if args.peft == "lora" else 16
+    recompute_num_layers = 0 if args.peft == "lora" else 20
 
     # Submodules configurations
     language_transformer_config = llm.Llama31Config8B(
@@ -82,7 +80,7 @@ def main(args):
     )
 
     # NEVA model configuration
-    neva_config = vlm.CosmosMegatronConfig(
+    neva_config = vlm.CosmosNemotronConfig(
         language_transformer_config=language_transformer_config,
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
@@ -239,8 +237,8 @@ def main(args):
             TimingCallback(),
             MegatronCommOverlapCallback(
                 tp_comm_overlap=False,
-                overlap_grad_reduce=False,
-                overlap_param_gather=False,
+                overlap_grad_reduce=True,
+                overlap_param_gather=True,
             ),
         ],
         val_check_interval=500,

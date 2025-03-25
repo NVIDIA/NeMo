@@ -25,8 +25,8 @@ import torch
 from PIL import Image
 
 import nemo.lightning as nl
-from nemo.collections.vlm import CosmosMegatronRadioLlama8BConfig
-from nemo.collections.vlm.neva.model.cosmos_megatron import CosmosMegatronModel
+from nemo.collections.vlm import CosmosNemotronRadioLlama8BConfig
+from nemo.collections.vlm.neva.model.cosmos_nemotron import CosmosNemotronModel
 from nemo.collections.vlm.vision.vision_transform import VisualProcessor
 from nemo.utils import logging
 
@@ -81,10 +81,10 @@ def main(args) -> None:
         # EOS path
         model = fabric.import_model(
             f"pyt://{args.load_from_mlm}",
-            CosmosMegatronModel
+            CosmosNemotronModel
         )
     else:
-        model = CosmosMegatronModel(CosmosMegatronRadioLlama8BConfig(), tokenizer=hf_tokenizer)
+        model = CosmosNemotronModel(CosmosNemotronRadioLlama8BConfig(), tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
     model = model.module.cuda()

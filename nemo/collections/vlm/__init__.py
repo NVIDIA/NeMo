@@ -53,10 +53,10 @@ from nemo.collections.vlm.neva.data import (
 )
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
-from nemo.collections.vlm.neva.model.cosmos_megatron import (
-    CosmosMegatronConfig,
-    CosmosMegatronRadioLlama8BConfig,
-    CosmosMegatronModel,
+from nemo.collections.vlm.neva.model.cosmos_nemotron import (
+    CosmosNemotronConfig,
+    CosmosNemotronRadioLlama8BConfig,
+    CosmosNemotronModel,
 )
 
 # PEFT
@@ -134,7 +134,7 @@ __all__ = [
     "RADIO_25_h_Config",
     "RADIO_25_g_Config",
     "RADIOViTModel",
-    "CosmosMegatronConfig",
-    "CosmosMegatronRadioLlama8BConfig",
-    "CosmosMegatronModel",
+    "CosmosNemotronConfig",
+    "CosmosNemotronRadioLlama8BConfig",
+    "CosmosNemotronModel",
 ]

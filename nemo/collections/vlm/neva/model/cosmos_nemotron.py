@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 @dataclass
-class CosmosMegatronConfig(LlavaConfig):
+class CosmosNemotronConfig(LlavaConfig):
     """Cosmos Megatron Base Config"""
 
     pixel_shuffle: bool = True
@@ -59,12 +59,12 @@ class CosmosMegatronConfig(LlavaConfig):
 
 
 @dataclass
-class CosmosMegatronRadioLlama8BConfig(CosmosMegatronConfig):
+class CosmosNemotronRadioLlama8BConfig(CosmosNemotronConfig):
     """Cosmos Megatron 8B Config"""
     pass
 
 
-class CosmosMegatronModel(NevaModel):
+class CosmosNemotronModel(NevaModel):
     """Cosmos Megatron Model NeMo Wrapper"""
 
     def __init__(
@@ -74,7 +74,7 @@ class CosmosMegatronModel(NevaModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or CosmosMegatronConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(config or CosmosNemotronConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
 class StateDictWrapper:
@@ -97,13 +97,13 @@ class StateDictWrapper:
         return self._state_dict
 
 
-@io.model_importer(CosmosMegatronModel, "pyt")
-class CosmosMegatronImporter(io.ModelConnector["CosmosMegatronModel", CosmosMegatronModel]):
+@io.model_importer(CosmosNemotronModel, "pyt")
+class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemotronModel]):
     """Cosmos Megatron Importer"""
 
-    def init(self) -> CosmosMegatronModel:
+    def init(self) -> CosmosNemotronModel:
         # pylint: disable=C0115,C0116
-        return CosmosMegatronModel(self.config, tokenizer=self.tokenizer)
+        return CosmosNemotronModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
@@ -154,8 +154,8 @@ class CosmosMegatronImporter(io.ModelConnector["CosmosMegatronModel", CosmosMega
         return tokenizer
 
     @property
-    def config(self) -> CosmosMegatronConfig:
+    def config(self) -> CosmosNemotronConfig:
         # pylint: disable=C0115,C0116
-        output = CosmosMegatronRadioLlama8BConfig()
+        output = CosmosNemotronRadioLlama8BConfig()
 
         return output
