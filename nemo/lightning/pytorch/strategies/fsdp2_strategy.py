@@ -18,7 +18,7 @@ import os
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union, Tuple
 
 import lightning.pytorch as pl
 import torch
@@ -80,6 +80,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         checkpoint_io=None,
         mp_policy=None,
         parallelize_fn=fsdp2_strategy_parallelize,
+        fsdp_meshes: Optional[Tuple[str, ...]] = None,
+        cp_meshes: Optional[Tuple[str, ...]] = None,
+        loss_reduce_meshes: Optional[Tuple[str, ...]] = None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -100,6 +103,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 )
                 ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
+            fsdp_meshes (Optional[Tuple[str, ...]]): For parallelisms that are compatible with FSDP, flatten the specified tuple of named mesh dimensions for sharding in FSDP, e.g. ("data_parallel", "context_parallel").
+                Supported Parallelisms: {"data_parallel", "context_parallel", "tensor_parallel"}
+                Default: None, which uses the canonical data parallel mesh for FSDP.
+            cp_meshes (Optional[Tuple[str, ...]]): For parallelisms that are compatible with CP, flatten the specified tuple of named mesh dimensions for context parallelism, e.g. ("data_parallel", "context_parallel").
+                Supported Parallelisms: {"data_parallel", "context_parallel", "tensor_parallel"}
+                Default: None, which uses the canonical context parallel mesh for context parallelism.
+            loss_reduce_meshes (Optional[Tuple[str, ...]]): For loss reduction, flatten the specified tuple of named mesh dimensions to reduce across for loss computation, e.g. ("data_parallel", "context_parallel").
+                Supported Parallelisms: {"data_parallel", "context_parallel", "tensor_parallel"}
+                Default: None, which uses the canonical data parallel mesh for loss reduction.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
@@ -119,6 +131,42 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.store: Optional[torch.distributed.Store] = None
         self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
+        self.parallel_dims = {
+            "data_parallel": self._data_parallel_size,
+            "context_parallel": self.context_parallel_size,
+            "tensor_parallel": self._tensor_parallel_size,
+        }
+        self.fsdp_meshes = self._validate_mesh_dimensions(fsdp_meshes, "FSDP")
+        self.cp_meshes = self._validate_mesh_dimensions(cp_meshes, "context parallel")
+        self.loss_reduce_meshes = self._validate_mesh_dimensions(loss_reduce_meshes, "loss reduction")
+
+    def _validate_mesh_dimensions(
+        self,
+        mesh_dims: Optional[Tuple[str, ...]],
+        mesh_type: str,
+    ) -> Optional[Tuple[str, ...]]:
+        """Validate that mesh dimensions are supported.
+        
+        Args:
+            mesh_dims: Tuple of mesh dimension names to validate
+            mesh_type: Type of mesh being validated (for error message clarity)
+
+        Returns:
+            Tuple of mesh dimension names to use, or None if using canonical mesh.
+        
+        Raises:
+            ValueError: If any mesh dimension is not supported
+        """
+        if not isinstance(mesh_dims, tuple):
+            # Use canonical mesh to shard and reduce on. For instance, "data_parallel" for DP, "context_parallel" for CP, etc.
+            return None
+        invalid_dims = [dim for dim in mesh_dims if dim not in self.parallel_dims]
+        if invalid_dims:
+            raise ValueError(
+                f"Invalid {mesh_type} mesh dimensions: {invalid_dims}. "
+                f"Supported dimensions are: {list(self.parallel_dims.keys())}"
+            )
+        return mesh_dims
 
     @property
     @override
@@ -179,30 +227,25 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
 
-        # No TP currently
-        mesh_shape = []
-        mesh_dim_names = []
-        for dim, name in zip(
-            [self._data_parallel_size, self.context_parallel_size, self._tensor_parallel_size],
-            ["data_parallel", "context_parallel", "tensor_parallel_size"],
-        ):
-            mesh_shape.append(dim)
-            mesh_dim_names.append(name)
+        # TODO: TP is currently not supported. But we still create a device mesh for TP.
+        mesh_dim_names, mesh_shape = zip(*self.parallel_dims.items())
 
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
-            mesh_shape=tuple(mesh_shape),
+            mesh_shape=mesh_shape,
             mesh_dim_names=mesh_dim_names,
         )
 
-        # create dp_with_cp mesh for loss
-        dp_with_cp_mesh_dim_names = []
-        if self._data_parallel_size > 1:
-            dp_with_cp_mesh_dim_names.append("data_parallel")
-        if self.context_parallel_size > 1:
-            dp_with_cp_mesh_dim_names.append("context_parallel")
-        if dp_with_cp_mesh_dim_names != []:
-            self._device_mesh[tuple(dp_with_cp_mesh_dim_names)]._flatten(mesh_dim_name="dp_with_cp")
+        # Construct sharding and reduction meshes for specific configurations.
+        # Replace existing mesh strategies if a custom mesh design is provided.
+        # WARNING: ADDING NEW MESHES WILL INCREASE MEMORY USAGE. For better memory utilization,
+        # use device meshes for multiple dimensions of parallelism if possible.
+        if self.fsdp_meshes is not None:
+            self._device_mesh[self.fsdp_meshes]._flatten(mesh_dim_name="fsdp_mesh")
+        if self.cp_meshes is not None:
+            self._device_mesh[self.cp_meshes]._flatten(mesh_dim_name="context_parallel")
+        if self.loss_reduce_meshes is not None:
+            self._device_mesh[self.loss_reduce_meshes]._flatten(mesh_dim_name="loss_reduce_mesh")
 
         self.lightning_module._device_mesh = self._device_mesh
 

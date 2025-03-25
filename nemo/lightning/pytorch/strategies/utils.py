@@ -487,7 +487,10 @@ def fsdp2_strategy_parallelize(
                 parallelize_helper(sub_module, mesh, mp_policy)
 
     # assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
-    dp_mesh = device_mesh["data_parallel"]
+
+    # TODO(@cspades): Using flattened mesh dimensions takes a bit more memory and pushes it to OOM. Temporarily comment out in favor of using CP mesh for FSDP.
+    # dp_mesh = device_mesh["fsdp_mesh" if device_mesh.mesh_dim_names is not None and "fsdp_mesh" in device_mesh.mesh_dim_names else "data_parallel"]
+    dp_mesh = device_mesh["context_parallel"]
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
