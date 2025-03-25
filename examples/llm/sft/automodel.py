@@ -167,9 +167,10 @@ def main():
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
-        '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
+        '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
+    parser.add_argument('--log-every-n-steps', type=int, default=10, help='Log every n steps')
     parser.add_argument('--wandb-project', type=str, default="automodel-fsdp2", help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
@@ -179,7 +180,10 @@ def main():
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
-    parser.add_argument('--batch-size', default=1, type=int, help='Batch size to use for training')
+    parser.add_argument('--global-batch-size', default=32, type=int, help='Global batch size to use for training.')
+    parser.add_argument('--micro-batch-size', default=1, type=int, help='Micro batch size to use for training.')
+    parser.add_argument('--limit-val-batches', default=0.01, type=float, help='Limit validation batch size to use for training. HFMockDataModule defaults to a validation set of 10,000 samples.')
+    parser.add_argument('--seq-length', default=2048, type=int, help='Sequence length to use for training')
     parser.add_argument(
         '--trust-remote-code',
         action='store_true',
@@ -198,7 +202,7 @@ def main():
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+            name=f'{model}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}',
         )
 
     callbacks = []
@@ -255,9 +259,8 @@ def main():
             max_steps=args.max_steps,
             accelerator='gpu',
             strategy=strategy,
-            log_every_n_steps=1,
-            limit_val_batches=0.0,
-            num_sanity_val_steps=0,
+            log_every_n_steps=args.log_every_n_steps,
+            limit_val_batches=args.limit_val_batches,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
             use_distributed_sampler=False,
