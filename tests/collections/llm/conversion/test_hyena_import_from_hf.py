@@ -22,8 +22,8 @@ from nemo.collections.llm.gpt.model.hyena import HuggingFaceSavannaHyenaImporter
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hf-model", type=str, default="/root/.cache/nemo/models/models/hyena_1b")
-    parser.add_argument("--output-path", type=str, default="/tmp/output_hf")
+    parser.add_argument("--hf-model", type=str, default="/home/TestData/nemo2_ckpt/HyenaConfig1B/savanna_evo2_1b_base.pt")
+    parser.add_argument("--output-path", type=str, default="/home/TestData/nemo2_ckpt/HyenaConfig1B/nemo2_hyena_1b")
     return parser
 
 
