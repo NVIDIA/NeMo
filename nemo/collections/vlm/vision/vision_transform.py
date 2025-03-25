@@ -16,7 +16,7 @@
 import numpy as np
 import torch
 from PIL import Image
-from image_processing import get_visual_transform, pixel_statistics
+from image_processing import ImageTransform
 
 class VisualProcessor:
     def __init__(self,
@@ -36,7 +36,7 @@ class VisualProcessor:
         self.augment = augment
         self.vision_model_type = vision_model_type
         self.target_aspect_ratio = target_aspect_ratio
-        self.image_mean, self.image_std = pixel_statistics[vision_model_type]
+        self._transform_img = ImageTransform(crop_height, vision_model_type)
 
     def preprocess(self, image, return_tensors='pt', do_center_crop=True, size=None, do_rescale=False):
         """
@@ -76,7 +76,7 @@ class VisualProcessor:
             target_width = self.crop_size['width']
 
         # Call the underlying transformation function.
-        imgs = get_visual_transform(
+        imgs = self._transform_img(
             image,
             img_h=target_height,
             img_w=target_width,
@@ -84,8 +84,6 @@ class VisualProcessor:
             max_num_tiles=self.max_num_tiles,
             use_thumbnail=self.use_thumbnail,
             augment=self.augment,
-            vision_model_type=self.vision_model_type,
-            target_aspect_ratio=self.target_aspect_ratio,
         )
 
         # Convert the resulting image(s) to PyTorch tensors if requested.

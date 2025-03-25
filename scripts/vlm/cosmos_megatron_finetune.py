@@ -23,14 +23,14 @@ Llava Data Example:
      --image_folder "/path/to/dataset/images" \
      --data_type llava \
      --num_nodes 1 \
-     --log_dir "/path/to/experiments/neva_finetune" \
+     --log_dir "/path/to/experiments/cosmos_megatron_finetune" \
      --devices=8 \
      --projector_type=mcore_mlp \
      --tp_size 2 --pp_size 1 \
      --gbs 128 --mbs 4 \
-     --wandb_project=neva_demo \
-     --name=neva_finetune \
-     --restore_path "/path/to/experiments/neva_pretrain_checkpoint"
+     --wandb_project=cosmos_megatron_demo \
+     --name=cosmos_megatron_finetune \
+     --restore_path "/path/to/experiments/cosmos_megatron_pretrain_checkpoint"
 """
 
 import argparse
@@ -62,6 +62,7 @@ def main(args):
     max_steps = args.max_steps
 
     decoder_seq_length = 16384
+    recompute_num_layers = 0 if args.peft == "lora" else 16
 
     # Submodules configurations
     language_transformer_config = llm.Llama31Config8B(
@@ -69,7 +70,7 @@ def main(args):
         seq_length=decoder_seq_length,
         recompute_granularity="full",
         recompute_method="block",
-        recompute_num_layers=16,
+        recompute_num_layers=recompute_num_layers,
     )
 
     vision_transformer_config = vlm.RADIO_25_h_Config(
@@ -87,7 +88,8 @@ def main(args):
         vision_projection_config=vision_projection_config,
         language_model_from_pretrained=args.language_model_path,
         freeze_language_model=False,
-        freeze_vision_model=True,
+        freeze_vision_model=False,
+        freeze_vision_projection=False,
     )
     num_image_embeddings_per_tile = (
             vision_transformer_config.num_image_embeddings_per_tile
@@ -161,7 +163,7 @@ def main(args):
             seq_length=decoder_seq_length,
             micro_batch_size=mbs,
             global_batch_size=gbs,
-            num_workers=0,
+            num_workers=4,
             multimodal_sample_config=config,
             task_encoder=MultiModalTaskEncoder(
                 tokenizer=tokenizer,
@@ -288,7 +290,9 @@ def main(args):
                 "*.language_model.*.linear_fc1",
                 "*.language_model.*.linear_fc2",
             ],
+            freeze_language_model=True,
             freeze_vision_model=False,
+            freeze_vision_projection=False,
             dim=32,
         )
     else:
@@ -333,7 +337,7 @@ if __name__ == "__main__":
     parser.add_argument("--peft", type=str, default='none', help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--gbs", type=int, required=False, default=128, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
+    parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument(
         "--use_packed_sequence",

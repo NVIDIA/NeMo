@@ -14,11 +14,11 @@
 
 """
 Example:
-  python scripts/vlm/neva_generate.py --load_from_hf
+  python scripts/vlm/cosmos_megatron_generate.py \
+    --load_from_mlm=/lustre/fsw/coreai_dlalgo_genai/yuya/cosmos-megatron/checkpoints/sft_llama_3p1_8b_radio_v13_0227_tp_1/checkpoints/iter_0010658/mp_rank_00/model_optim_rng.pt
 """
 
 import argparse
-import re
 
 import requests
 import torch
@@ -27,6 +27,7 @@ from PIL import Image
 import nemo.lightning as nl
 from nemo.collections.vlm import CosmosMegatronRadioLlama8BConfig
 from nemo.collections.vlm.neva.model.cosmos_megatron import CosmosMegatronModel
+from nemo.collections.vlm.vision.vision_transform import VisualProcessor
 from nemo.utils import logging
 
 
@@ -76,8 +77,12 @@ def main(args) -> None:
     fabric = trainer.to_fabric()
 
     # Decide whether to import or load the model based on the input arguments
-    if args.load_from_hf:
-        model = fabric.import_model("pyt:////lustre/fsw/coreai_dlalgo_genai/yuya/cosmos-megatron/checkpoints/sft_llama_3p1_8b_radio_v13_0227_tp_1/checkpoints/iter_0010658/mp_rank_00/model_optim_rng.pt", CosmosMegatronModel)
+    if args.load_from_mlm:
+        # EOS path
+        model = fabric.import_model(
+            f"pyt://{args.load_from_mlm}",
+            CosmosMegatronModel
+        )
     else:
         model = CosmosMegatronModel(CosmosMegatronRadioLlama8BConfig(), tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
@@ -85,7 +90,7 @@ def main(args) -> None:
     model = model.module.cuda()
     model.eval()
 
-    img_file = "/lustre/fsw/coreai_dlalgo_genai/datasets/llava-bench-in-the-wild/images/001.jpg"
+    raw_image = load_image(args.image_url)
     conversation = [
         {"role": "system", "content": "Answer the questions."},
         {
@@ -97,19 +102,17 @@ def main(args) -> None:
     prompt = hf_tokenizer.tokenizer.apply_chat_template(conversation, add_generation_prompt=True, tokenize=False)
     input_ids = hf_tokenizer.tokenizer(prompt, return_tensors='pt', add_special_tokens=False)['input_ids'].cuda()
 
-    img = Image.open(img_file)
-    from image_processing import get_visual_transform
-    imgs = get_visual_transform(
-        img,
-        img_h=512,
-        img_w=512,
+    processor = VisualProcessor(
+        crop_height=512,
+        crop_width=512,
         use_tiling=True,
         max_num_tiles=12,
         use_thumbnail=True,
         augment=False,
-        vision_model_type="radio",
+        vision_model_type="radio"
     )
-    images = torch.stack(imgs).cuda()
+    imgs = processor.preprocess(raw_image)['pixel_values']
+    images = imgs.cuda()
     num_image_tiles = torch.tensor([len(imgs)], dtype=torch.int).cuda()
 
 
@@ -156,9 +159,10 @@ def main(args) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LLaVA Multimodal Inference")
     parser.add_argument(
-        "--load_from_hf",
-        action="store_true",
-        help="Flag to indicate whether to load the model from Hugging Face hub.",
+        "--load_from_mlm",
+        type=str,
+        default=None,
+        help="Flag to indicate whether to load the model from megatron checkpoint.",
     )
     parser.add_argument(
         "--local_model_path",
