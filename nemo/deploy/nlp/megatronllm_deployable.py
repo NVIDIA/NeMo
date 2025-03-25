@@ -40,7 +40,7 @@ def noop_decorator(func):
 use_pytriton = True
 batch = noop_decorator
 try:
-    from pytriton.decorators import batch
+    from pytriton.decorators import batch, first_value
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False
@@ -236,7 +236,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
-            Tensor(name="max_length", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True),
         )
         return inputs
@@ -249,17 +248,18 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         )
 
     @batch
+    @first_value("max_length", "max_batch_size", "top_k", "top_p", "temperature", "random_seed", "compute_logprob")
     def triton_infer_fn(self, **inputs: np.ndarray):
         output_infer = {}
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
-            max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
-            random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
-            temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
-            top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
-            top_p = inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0
-            num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
-            log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
+            max_batch_size = inputs.pop("max_batch_size", 32)
+            random_seed = inputs.pop("random_seed", None)
+            temperature = inputs.pop("temperature", 1.0)
+            top_k = inputs.pop("top_k", 1)
+            top_p = inputs.pop("top_p", 0.0)
+            num_tokens_to_generate = inputs.pop("max_length", 256)
+            log_probs = inputs.pop("compute_logprob", False)
             text_only = True
 
             if torch.distributed.is_initialized():
