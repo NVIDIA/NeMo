@@ -79,6 +79,7 @@ def train_config(args):
     # Get Auto Conf runner
     runner = AutoConfigurator(
         recipe=partial(llama3_145m)(),
+        mode="finetune",
         gpu_memory_gb=40,
         tensor_parallel_sizes=[1],
         pipeline_parallel_sizes=[1],

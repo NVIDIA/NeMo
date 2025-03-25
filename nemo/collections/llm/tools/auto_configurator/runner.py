@@ -134,18 +134,19 @@ class AutoConfigurator:
         assert expert_parallel_sizes != "auto", "'auto' mode is not supported for expert parallelism."
 
         if mode == "finetune":
-            assert tensor_parallel_sizes != "auto", "tensor parallelism must be specified if use 'finetune' mode."
-            assert pipeline_parallel_sizes != "auto", "pipeline parallelism must be specified if use 'finetune' mode."
+            assert not calculate_model_size, "model size estimation is not supported for 'finetune' mode."
+            assert tensor_parallel_sizes != "auto", "tensor parallelism must be specified for 'finetune' mode."
+            assert pipeline_parallel_sizes != "auto", "pipeline parallelism must be specified for 'finetune' mode."
             
             if min_model_parallel_size == "auto":
-                min_model_parallel_size = 
+                self.min_model_parallel_size = \
                     min(tensor_parallel_sizes) * \
                     min(pipeline_parallel_sizes) * \
                     min(context_parallel_sizes) * \
                     min(expert_parallel_sizes)
             
             if max_model_parallel_size == "auto":
-                max_model_parallel_size = 
+                self.max_model_parallel_size = \
                     max(tensor_parallel_sizes) * \
                     max(pipeline_parallel_sizes) * \
                     max(context_parallel_sizes) * \
@@ -257,7 +258,6 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
 
     # Generate base config for the given model size
     base_config, train_config = generic_base_config(runner_config)
-
     # Launch grid search for training constraints
     base_config, train_configs = generate_grid_search_configs(base_config, train_config)
 
@@ -279,8 +279,6 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
         trainer.strategy.virtual_pipeline_model_parallel_size = config.get(
             "virtual_pipeline_model_parallel_size", None
         )
-        if config.get("tensor_model_parallel_size") > 1:
-            trainer.strategy.sequence_parallel = True
         trainer.max_steps = config.get("max_steps")
         trainer.log_every_n_steps = 1
 
