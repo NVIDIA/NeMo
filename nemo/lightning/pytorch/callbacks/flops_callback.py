@@ -35,6 +35,7 @@ _model_flops_map = {
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
     "hyena": hyena,
+    "transformer": flops_formulas.transformer,
 }
 
 
@@ -114,19 +115,26 @@ class FLOPsMeasurementCallback(Callback):
             self.avg_train_step_time += trainer.progress_bar_metrics['train_step_timing in s']
         except KeyError:
             print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
-
         n = trainer.strategy.current_epoch_step
         if n % trainer.log_every_n_steps == 0:
             # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
-            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
+            tflops_per_sec_per_gpu, total_flops = self.eval_tflops_per_sec_per_gpu(
                 self.avg_train_step_time / trainer.log_every_n_steps
             )
             self.avg_train_step_time = 0
             pl_module.log(
                 "tflops_per_sec_per_gpu",
                 tflops_per_sec_per_gpu,
+                on_step=True,
+                on_epoch=False,
+                batch_size=1,
+                prog_bar=True,
+            )
+            pl_module.log(
+                "total_flops",
+                total_flops,
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
@@ -151,13 +159,12 @@ class FLOPsMeasurementCallback(Callback):
         step_time_arr = np.array(train_step_time)
         train_step_time = np.mean(step_time_arr[len(step_time_arr) // 2 :])
 
-        return flops_per_gpu / (1e12 * train_step_time)
+        return flops_per_gpu / (1e12 * train_step_time), total_flops
 
     def eval_model_flops(self):
         """
         Calculate model FLOPs for a given model
         """
-
         if self.model is not None:
             model_matches = [model for model in _model_flops_map if model in self.model]
             self.model = model_matches[0] if len(model_matches) > 0 else self.model
