@@ -70,7 +70,6 @@ EXTERNAL_REPOS = {
 }
 
 
-
 def register_external_repo(metadata: RepoMetadata):
     """Register an external repo to be packaged with the code in the experiment.
 
