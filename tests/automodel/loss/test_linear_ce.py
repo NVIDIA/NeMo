@@ -17,46 +17,12 @@ import pytest
 from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
 
 
-# @pytest.mark.skipif(not HAVE_LINEAR_LOSS_CE, reason="Linear loss CE is not installed")
-# def test_fused_vs_pytorch_cross_entropy():
-#     """
-#     Tests fused_linear_cross_entropy against PyTorch's cross_entropy implementation
-#     using various input sizes and data types.
-#     """
-#     batch_size = 32
-#     hidden_dim = 4096
-#     vocab_size = 128256
-
-#     # Test cases with different dtypes
-#     dtypes = [torch.float32, torch.float16, torch.bfloat16]
-    
-#     for dtype in dtypes:
-#         # Create sample inputs
-#         hidden_states = torch.randn(batch_size, hidden_dim, dtype=dtype)
-#         weight = torch.randn(hidden_dim, vocab_size, dtype=dtype)
-#         targets = torch.randint(0, vocab_size, (batch_size,))
-
-#         # Compute loss using PyTorch's implementation
-#         with torch.amp.autocast(enabled=dtype in [torch.float16, torch.bfloat16]):
-#             # Standard PyTorch computation
-#             logits = torch.matmul(hidden_states, weight)
-#             pytorch_loss = F.cross_entropy(logits, targets, reduction="sum")
-
-#             # Fused implementation
-#             fused_loss = fused_linear_cross_entropy(hidden_states, weight, targets)
-
-#             # Compare results
-#             rtol = 1e-3 if dtype == torch.float32 else 1e-2
-#             atol = 1e-3 if dtype == torch.float32 else 1e-2
-            
-#             assert torch.allclose(
-#                 fused_loss, pytorch_loss, rtol=rtol, atol=atol
-#             ), f"Loss mismatch for dtype {dtype}: PyTorch={pytorch_loss.item()}, Fused={fused_loss.item()}"
-
 @pytest.mark.skipif(not HAVE_LINEAR_LOSS_CE, reason="Linear loss CE is not installed")
 def test_fused_cross_entropy():
     """
-    Tests memory usage of fused_linear_cross_entropy compared to standard PyTorch implementation.
+    Tests fused_linear_cross_entropy against PyTorch's cross_entropy implementation, fused_linear_cross_entropy should:
+        * has close output with PyTorch's cross_entropy
+        * uses less memory than PyTorch's cross_entropy
     """
     if not torch.cuda.is_available():
         pytest.skip("This test requires a GPU")
