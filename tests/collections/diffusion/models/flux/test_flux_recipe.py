@@ -34,7 +34,6 @@ class TestFluxRecipe:
         assert recipe.data.global_batch_size == 2
         assert recipe.data.micro_batch_size == 1
 
-
     @pytest.mark.unit
     def test_flux_535m(self):
         recipe = flux_535m.unit_test_recipe(name="flux_535m", num_gpus_per_node=1)
@@ -46,4 +45,3 @@ class TestFluxRecipe:
         # Check optimizer settings
         assert recipe.optim.config.lr == 1e-4
         assert recipe.optim.config.bf16 is True
-
