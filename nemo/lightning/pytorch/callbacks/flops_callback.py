@@ -35,6 +35,7 @@ _model_flops_map = {
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
     "hyena": hyena,
+    "transformer": flops_formulas.transformer,
 }
 
 
@@ -120,13 +121,21 @@ class FLOPsMeasurementCallback(Callback):
             # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
-            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
+            tflops_per_sec_per_gpu, total_model_tflops = self.eval_tflops_per_sec_per_gpu(
                 self.avg_train_step_time / trainer.log_every_n_steps
             )
             self.avg_train_step_time = 0
             pl_module.log(
                 "tflops_per_sec_per_gpu",
                 tflops_per_sec_per_gpu,
+                on_step=True,
+                on_epoch=False,
+                batch_size=1,
+                prog_bar=True,
+            )
+            pl_module.log(
+                "total_model_tflops",
+                total_model_tflops,
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
@@ -151,7 +160,7 @@ class FLOPsMeasurementCallback(Callback):
         step_time_arr = np.array(train_step_time)
         train_step_time = np.mean(step_time_arr[len(step_time_arr) // 2 :])
 
-        return flops_per_gpu / (1e12 * train_step_time)
+        return flops_per_gpu / (1e12 * train_step_time), total_flops
 
     def eval_model_flops(self):
         """
