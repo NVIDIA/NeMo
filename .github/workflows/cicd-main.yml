@@ -1988,7 +1988,8 @@ jobs:
           NEMO_MODEL_TYPE=LlamaEmbeddingModel \
           NEMO_MODEL_CONFIG=Llama32EmbeddingConfig1B \
           NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
+          HF_TARGET_CLASS=AutoModel
 
   L2_NeMo_2_Conversion_Test_Nemotron:
     needs: [pre-flight, cicd-test-container-build]
