@@ -56,6 +56,7 @@ def main(args):
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
+    num_workers = args.num_workers
 
     decoder_seq_length = args.decoder_seq_length
 
@@ -74,6 +75,7 @@ def main(args):
     )
     if args.use_toy_model:
         language_transformer_config.num_layers = 2
+        num_workers = 0
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -103,7 +105,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
             packed_sequence=args.use_packed_sequence,
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
         )
@@ -136,7 +138,7 @@ def main(args):
             seq_length=decoder_seq_length,
             micro_batch_size=mbs,
             global_batch_size=gbs,
-            num_workers=0,
+            num_workers=num_workers,
             multimodal_sample_config=config,
             task_encoder=MultiModalTaskEncoder(
                 tokenizer=tokenizer,
@@ -157,7 +159,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
             packed_sequence=args.use_packed_sequence,
         )
     else:
@@ -286,6 +288,7 @@ if __name__ == "__main__":
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--num_workers", type=int, required=False, default=4)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)

@@ -51,6 +51,7 @@ def main(args):
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
+    num_workers = args.num_workers
 
     # encoder (vision) seq length
     # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
@@ -67,6 +68,18 @@ def main(args):
     processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
     tokenizer = AutoTokenizer(model_id)
+
+    model_configs = {
+        "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
+        "meta-llama/Llama-3.2-11B-Vision-Instruct": vlm.MLlamaConfig11BInstruct,
+        "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaConfig90B,
+        "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaConfig90BInstruct,
+    }
+    conf = model_configs[model_id]()
+    if args.use_toy_model:
+        conf.language_model_config.num_layers = 2
+        num_workers = 0
+
     if args.data_type == "llava":
         # Data configuration
         data_config = ImageDataConfig(
@@ -84,7 +97,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=tokenizer,
             image_processor=image_processor,
-            num_workers=16,
+            num_workers=num_workers,
         )
     elif args.data_type == "energon":
         # Data configuration
@@ -109,7 +122,7 @@ def main(args):
             seq_length=decoder_seq_length,
             micro_batch_size=mbs,
             global_batch_size=gbs,
-            num_workers=0,
+            num_workers=num_workers,
             multimodal_sample_config=config,
             task_encoder=LlamaTaskEncoder(
                 tokenizer=tokenizer,
@@ -125,20 +138,11 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=tokenizer,
             image_processor=image_processor,
-            num_workers=4,
+            num_workers=num_workers,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
 
-    model_configs = {
-        "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
-        "meta-llama/Llama-3.2-11B-Vision-Instruct": vlm.MLlamaConfig11BInstruct,
-        "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaConfig90B,
-        "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaConfig90BInstruct,
-    }
-    conf = model_configs[model_id]()
-    if args.use_toy_model:
-        conf.language_model_config.num_layers = 2
 
     model = vlm.MLlamaModel(conf, tokenizer=tokenizer)
 
@@ -251,6 +255,7 @@ if __name__ == "__main__":
         help="Directory for logging and checkpoints",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--num_workers", type=int, required=False, default=4)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
