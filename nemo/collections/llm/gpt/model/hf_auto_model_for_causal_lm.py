@@ -254,7 +254,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Args:
             batch (dict): A dictionary containing the batch data, including 'labels' and optionally 'loss_mask'.
             batch_idx (int, optional): The index of the batch. Defaults to None.
-
+            context_parallel (bool, optional): Whether to use context parallelism. Defaults to False.
         Returns:
             torch.Tensor: The computed loss for the batch.
         """
@@ -281,17 +281,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             fsdp2_strategy_parallelize,
             get_train_context,
         )
-
-        # Prepare for loss calculation
-        logits = outputs.logits
-        n_cls = logits.shape[-1]
-        logits = logits.view(-1, n_cls)
-        labels = labels.view(-1)
-        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
-        loss = self.loss_fn(logits, labels, loss_mask)
-        # logging
-        self.loss_buffer.append(loss.item())
-        self.n_tok += labels.numel()
 
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
@@ -369,7 +358,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
-                group = device_mesh["dp_with_cp"].get_group()
+                group = device_mesh[
+                    "loss_reduce_mesh" if device_mesh.mesh_dim_names is not None and "loss_reduce_mesh" in device_mesh.mesh_dim_names else "data_parallel"
+                ].get_group()
 
             def reduce_item(val, op, device, group, dtype):
                 """util function"""

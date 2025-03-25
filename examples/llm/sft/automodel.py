@@ -19,9 +19,10 @@ import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
+from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing, pytorch_adam_with_flat_lr
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -35,7 +36,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
+def make_squad_hf_dataset(tokenizer, global_batch_size, micro_batch_size, seq_length, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -55,16 +56,15 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
 
     datamodule = llm.HFDatasetDataModule(
         "rajpurkar/squad",
-        split="train",
-        micro_batch_size=batch_size,
+        split=["train", "validation"],
+        micro_batch_size=micro_batch_size,
         pad_token_id=tokenizer.eos_id or 0,
-        global_batch_size=batch_size,
+        global_batch_size=global_batch_size,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
     )
     datamodule.map(
         formatting_prompts_func,
         batched=False,
-        batch_size=2,
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
     return datamodule
@@ -80,6 +80,9 @@ def make_strategy(
     dp_size=None,
     tp_size=None,
     cp_size=None,
+    fsdp_meshes=None,
+    cp_meshes=None,
+    loss_reduce_meshes=None,
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -122,6 +125,9 @@ def make_strategy(
             context_parallel_size=cp_size,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
+            fsdp_meshes=fsdp_meshes,
+            cp_meshes=cp_meshes,
+            loss_reduce_meshes=loss_reduce_meshes,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -176,6 +182,7 @@ def main():
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
     parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
+    parser.add_argument('--attn-implementation', type=str, default="sdpa", choices=["flash_attention_2", "sdpa", "eager"], help='Attention implementation to use. Default: sdpa')
     parser.add_argument('--enable-grad-ckpt', action='store_true', help='Enables gradient checkpoint')
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
@@ -191,8 +198,14 @@ def main():
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
     parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
+    parser.add_argument('--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.')
+    parser.add_argument('--fsdp-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for sharding in FSDP.')
+    parser.add_argument('--cp-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for context parallel FSDP.')
+    parser.add_argument('--loss-reduce-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for loss reduction in FSDP.')
+    parser.add_argument('--mock-dataset', action='store_true', help='Use HFMockDataModule for training.')
 
     args = parser.parse_args()
+
     # CPUOffload WA for known issue
     if args.enable_cpu_offload and args.use_te_optimizer:
         args.use_te_optimizer = False
@@ -202,7 +215,7 @@ def main():
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}',
+            name=f'{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}_lr{args.lr}_dset_{'squad' if not args.mock_dataset else 'hf_mock'}',
         )
 
     callbacks = []
@@ -215,7 +228,8 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
+        # optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
+        optimizer = fdl.build(pytorch_adam_with_flat_lr(lr=args.lr))
 
     if args.fp8:
         from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
@@ -223,13 +237,17 @@ def main():
         model_accelerator = TEConfig(fp8_autocast=True)
     else:
         model_accelerator = None
+
     model = llm.HFAutoModelForCausalLM(
         model_name=args.model,
         model_accelerator=model_accelerator,
+        attn_implementation=args.attn_implementation,
+        loss_fn=chunked_cross_entropy if args.use_chunked_ce else masked_cross_entropy,
         trust_remote_code=args.trust_remote_code,
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
+
     strategy = make_strategy(
         args.strategy,
         model,
@@ -239,6 +257,9 @@ def main():
         dp_size=args.dp_size,
         tp_size=args.tp_size,
         cp_size=args.cp_size,
+        fsdp_meshes=args.fsdp_mesh,
+        cp_meshes=args.cp_mesh,
+        loss_reduce_meshes=args.loss_reduce_mesh,
     )
 
     resume = (
@@ -250,9 +271,16 @@ def main():
         else None
     )
 
+    # Instantiate training dataset.
+    dataset = None
+    if args.mock_dataset:
+        dataset = HFMockDataModule(seq_length=args.seq_length, global_batch_size=args.global_batch_size, micro_batch_size=args.micro_batch_size)
+    else:
+        dataset = make_squad_hf_dataset(tokenizer=model.tokenizer, global_batch_size=args.global_batch_size, micro_batch_size=args.micro_batch_size, seq_length=args.seq_length, fp8=args.fp8)
+
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer, args.batch_size, args.fp8),
+        data=dataset,
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
