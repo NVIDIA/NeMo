@@ -20,6 +20,7 @@ import numpy as np
 import torch
 import torch.distributed
 import wrapt
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.inference_request import InferenceRequest
 
@@ -79,6 +80,7 @@ class MegatronLLMDeploy:
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
+        legacy_ckpt: bool = False,
     ):
         """
         Returns the appropriate deployable instance for the given NeMo checkpoint.
@@ -102,6 +104,7 @@ class MegatronLLMDeploy:
                 tensor_model_parallel_size=tensor_model_parallel_size,
                 pipeline_model_parallel_size=pipeline_model_parallel_size,
                 context_parallel_size=context_parallel_size,
+                legacy_ckpt=legacy_ckpt,
             )
         else:
             raise Exception("Only NeMo 2.0 checkpoint is supported.")
@@ -133,6 +136,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         expert_model_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
+        legacy_ckpt: bool = False,
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
@@ -144,6 +148,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             sequence_parallel=False,
             setup_optimizers=False,
             store_optimizer_states=False,
+            ckpt_load_strictness=StrictHandling.LOG_ALL if legacy_ckpt else None,
         )
 
         trainer = nl.Trainer(
