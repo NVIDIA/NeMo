@@ -143,7 +143,6 @@ def main(args):
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
 
-
     model = vlm.MLlamaModel(conf, tokenizer=tokenizer)
 
     # Training strategy setup
