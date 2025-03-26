@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 import torch
 from torch import nn
 
-from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
