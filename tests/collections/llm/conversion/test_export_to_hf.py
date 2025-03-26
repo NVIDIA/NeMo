@@ -15,7 +15,7 @@ import argparse
 from pathlib import Path
 
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForSeq2SeqLM
+from transformers
 
 from nemo.collections import llm
 
