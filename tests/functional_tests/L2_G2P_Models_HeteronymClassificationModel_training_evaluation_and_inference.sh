@@ -26,7 +26,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo exampl
     exp_manager.exp_dir=${OUTPUT_DIR} \
     +exp_manager.use_datetime_version=False +exp_manager.version=test
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo g2p_heteronym_classification_inference.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/tts/g2p/g2p_heteronym_classification_inference.py \
     manifest=/home/TestData/g2p/manifest.json \
     pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
     output_manifest=preds.json
