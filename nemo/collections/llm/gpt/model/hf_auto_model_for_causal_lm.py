@@ -18,38 +18,14 @@ import _io
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
-import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 
+from nemo.automodel.loss import masked_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-
-
-def masked_cross_entropy(logits, targets, mask=None):
-    """
-    Compute the masked cross-entropy loss between logits and targets.
-
-    If a mask is provided, the loss is computed per element, multiplied by the mask,
-    and then averaged. If no mask is provided, the standard cross-entropy loss is used.
-
-    Args:
-        logits (torch.Tensor): The predicted logits with shape (N, C) where C is the number of classes.
-        targets (torch.Tensor): The ground truth class indices with shape (N,).
-        mask (torch.Tensor, optional): A tensor that masks the loss computation. Items marked with
-            1 will be used to calculate loss, otherwise ignored. Must be broadcastable to the shape
-            of the loss. Defaults to None.
-
-    Returns:
-        torch.Tensor: The computed loss as a scalar tensor.
-    """
-    if mask is not None:
-        with torch.no_grad():
-            targets.masked_fill_(mask.view(-1) == 0, -100)
-            del mask
-    return F.cross_entropy(logits, targets)
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -74,6 +50,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         attn_implementation="sdpa",
         use_liger_kernel=False,
         enable_grad_ckpt=False,
+        device_map="cpu",
     ):
         """
         Initialize the HFAutoModelForCausalLM.
@@ -92,6 +69,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             attn_implementation (str, optional): Attention implementation to use. Defaults to "sdpa".
             use_liger_kernel (bool, optional): Enables custom kernels from the Liger-Kernel Library. Defaults to False.
             enable_grad_ckpt (bool, optional): Enables gradient checkpoints. Defaults to False.
+            device_map (str, optional): Device map to use. Defaults to "cpu".
         """
         super().__init__()
         self.save_hyperparameters()
@@ -108,6 +86,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
         self.use_liger_kernel = use_liger_kernel
+        self.device_map = device_map
         # holds loss values until optim step.
         self.loss_buffer = []
         self.n_tok = 0
@@ -176,7 +155,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             return auto_cls.from_pretrained(
                 self.model_name,
                 torch_dtype=torch.bfloat16,
-                device_map="cpu",
+                device_map=self.device_map,
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
                 attn_implementation=attn_implementation,
@@ -211,6 +190,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
             if 'does not support an attention' in str(e):
                 self.model = self._configure_model(attn_implementation="eager")
+            else:
+                raise e
 
         if self.model_accelerator is not None:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
@@ -277,11 +258,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         outputs = self.forward(batch)
 
         # Prepare for loss calculation
-        logits = outputs.logits.float()
+        logits = outputs.logits
         n_cls = logits.shape[-1]
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
-
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
         # logging
@@ -319,9 +299,18 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             def reduce_item(val, op, device, group, dtype):
                 """util function"""
+                divide_by_world_size = False
+                if torch.distributed.get_backend(group) == "gloo" and op == dist.ReduceOp.AVG:
+                    # GLOO does not support the `ReduceOp.AVG` operation
+                    op = dist.ReduceOp.SUM
+                    divide_by_world_size = True
+
                 val = torch.tensor([val], device=device, dtype=dtype).detach()
                 dist.all_reduce(val, group=group, op=op)
-                return val.item()
+                val = val.item()
+                if divide_by_world_size:
+                    val /= dist.get_world_size(group)
+                return val
 
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
@@ -359,16 +348,16 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
 
-        outputs = self.forward(**batch)
+        outputs = self.forward(batch)
 
-        logits = outputs.logits.float()
+        logits = outputs.logits
         n_cls = logits.shape[-1]
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        return loss
 
     def save_pretrained(self, path, state_dict):
         """
@@ -467,7 +456,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
-    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
+    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask', 'input_ids']):
         """Remove extra keys from batch that are not kwargs in model's forward
 
         Args:
