@@ -367,13 +367,13 @@ def add_megatron_sampler(
         )
     elif dataloader_type == 'cyclic':
         batch_sampler = MegatronPretrainingRandomSampler(
+            dataset=dataloader.dataset,
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             data_parallel_rank=rank,
             data_parallel_size=world_size,
             drop_last=drop_last,
-            # data_sharding=data_sharding
         )
     elif dataloader_type == 'batch':
         from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
