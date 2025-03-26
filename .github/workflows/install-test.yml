@@ -28,9 +28,11 @@ jobs:
           python-version: "${{ matrix.python }}"
 
       - uses: conda-incubator/setup-miniconda@v3
+        if: matrix.installer == 'nemo-install-light'
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+          activate-environment: nemo
 
       - name: Install NeMo
         env:
@@ -75,6 +77,13 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - uses: conda-incubator/setup-miniconda@v3
+        if: matrix.installer == 'nemo-install-light'
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+          activate-environment: nemo
+
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
@@ -112,6 +121,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+
+      - uses: conda-incubator/setup-miniconda@v3
+        if: matrix.installer == 'nemo-install-light'
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+          activate-environment: nemo
 
       - name: Install NeMo
         env:
