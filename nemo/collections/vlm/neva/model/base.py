@@ -741,12 +741,15 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 seq_dim = 1
             elif self.sequence_parallel_lm:
                 shard_factor = self.tensor_model_parallel_size_lm
-                seq_dim = 0
+                if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
+                    seq_dim = 1
+                else:
+                    seq_dim = 0
 
             assert (
                 combined_embeddings.shape[seq_dim] % shard_factor == 0
             ), f"Sequence length should be divisible by {shard_factor} for \
-                Sequence/Context parallelism"
+                Sequence/Context parallelism {combined_embeddings.shape} with dim {seq_dim}"
             if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
                 assert (
                     combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
@@ -798,6 +801,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 new_loss_mask = batch["new_loss_mask"]
 
         if self.sequence_parallel_lm and self.pre_process:
+            if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
+                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
                 combined_embeddings
             )  # [S/(CP*TP),B,H]
