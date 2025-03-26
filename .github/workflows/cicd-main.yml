@@ -13,6 +13,8 @@
 # limitations under the License.
 name: CICD NeMo
 on:
+  schedule:
+    - cron: 0 0 * * *
   pull_request:
     branches:
       - main
@@ -31,7 +33,7 @@ on:
         description: Comma-separated list of tests to run. Use "all" to run the full test suite.
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name || 'main' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name || 'main' }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -85,6 +87,8 @@ jobs:
         run: |
           BUILD_ARGS=$(cat << EOF
           BASE_IMAGE=$(cat requirements/manifest.json | jq -r '."ngc-pytorch"')
+          TRTLLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".repo')
+          TRTLLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".ref')
           MLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".repo')
           MLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
           TE_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.repo')
@@ -947,6 +951,19 @@ jobs:
       SCRIPT: |
         bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2_liger.sh
 
+  L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/peft/automodel.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy fsdp2 --fp8
+
   L2_HF_Transformer_PEFT_2gpu_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -991,6 +1008,19 @@ jobs:
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_HF_Transformer_SFT_2gpu_FSDP2.sh
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_FSDP2_fp8:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2_fp8') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/sft/automodel.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy fsdp2 --fp8
 
   L2_HF_Transformer_SFT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -1320,6 +1350,18 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/gpt_pretrain_results
         rm -rf tests/collections/llm/gpt_index_mappings
+
+  L2_NeMo_2_Hyena_Conversion_from_HF:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Hyena_Conversion_from_HF')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Hyena_Conversion_from_HF.sh
+
+      AFTER_SCRIPT: |
+        rm -rf tests/collections/llm/hyena_conversion_results/${{ github.run_id }}
 
   L2_NeMo_2_Hyena_DDP_Pretraining_Test:
     needs: [pre-flight, cicd-test-container-build]
@@ -2180,12 +2222,14 @@ jobs:
       - L2_HF_Transformer_PEFT_2gpu
       - L2_HF_Transformer_PEFT_2gpu_FSDP2
       - L2_HF_Transformer_PEFT_2gpu_FSDP2_liger
+      - L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8
       - L2_HF_Transformer_PEFT_2gpu_nemorun
       - L2_HF_Transformer_SFT_notebook
       - L2_HF_Transformer_SFT
       - L2_HF_Transformer_SFT_nemorun
       - L2_HF_Transformer_SFT_2gpu
       - L2_HF_Transformer_SFT_2gpu_FSDP2
+      - L2_HF_Transformer_SFT_2gpu_FSDP2_fp8
       - L2_VLM_HF_Transformer_PEFT
       - L2_VLM_HF_Transformer_PEFT_FSDP2
       - L2_VLM_HF_Transformer_PEFT_4bit
@@ -2200,6 +2244,7 @@ jobs:
       - L2_HF_Transformer_SpeechLM_SFT_2gpu
       - L2_NeMo_2_SSM_Pretraining
       - L2_NeMo_2_SSM_Finetuning
+      - L2_NeMo_2_Hyena_Conversion_from_HF
       - L2_NeMo_2_Hyena_DDP_Pretraining_Test
       - L2_NeMo_2_T5_Pretraining
       - L2_NeMo_2_T5_Finetuning
