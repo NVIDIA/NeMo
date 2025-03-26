@@ -16,6 +16,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+import tempfile
 from typing import TYPE_CHECKING, Optional, Union
 
 import torch
@@ -32,6 +33,7 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
+from nemo.lightning import io
 
 from transformers import PreTrainedTokenizerBase
 
@@ -371,10 +373,19 @@ class Quantizer:
                         export_dir=export_dir,
                     )
                 else:
-                    export_mcore_gpt_to_hf(
-                        unwrapped_model,
-                        export_dir=str(export_dir),
-                    )
+                    context = io.load_context(model_dir, subpath="model")
+                    try:
+                        exporter = context.exporter("hf", model_dir)
+                        config = exporter.config
+                        with tempfile.TemporaryDirectory() as tmp_dir:
+                            config.save_pretrained(tmp_dir)
+                            pretrained_path = Path(str(tmp_dir))
+                            export_mcore_gpt_to_hf(unwrapped_model, pretrained_path, export_dir=str(export_dir))
+                    except Exception as e:
+                        # Mcore GPT Models are supported, but do not have HF config.
+                        if "No connector found for extension 'hf'" not in str(e):
+                            raise e
+                        export_mcore_gpt_to_hf(unwrapped_model, export_dir=str(export_dir))
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
@@ -524,4 +535,6 @@ def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausa
             if isinstance(model, config_class):
                 return decoder_type
 
+    if isinstance(model, llm.GPTModel):
+        return "gpt"
     return None
