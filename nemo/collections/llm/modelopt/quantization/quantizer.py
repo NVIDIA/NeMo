@@ -14,28 +14,27 @@
 
 import os
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-import tempfile
 from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 from accelerate.hooks import remove_hook_from_module
 from datasets import load_dataset
 from tqdm import tqdm
+from transformers import PreTrainedTokenizerBase
 
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.collections.llm.utils import barrier, torch_dtype_from_precision
+from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
-from nemo.lightning import io
-
-from transformers import PreTrainedTokenizerBase
 
 if TYPE_CHECKING:
     from nemo.lightning import Trainer
@@ -44,7 +43,7 @@ if TYPE_CHECKING:
 _, HAVE_MODELOPT = safe_import("modelopt")
 if HAVE_MODELOPT:
     import modelopt.torch.quantization as mtq
-    from modelopt.torch.export import export_hf_checkpoint, export_tensorrt_llm_checkpoint, export_mcore_gpt_to_hf
+    from modelopt.torch.export import export_hf_checkpoint, export_mcore_gpt_to_hf, export_tensorrt_llm_checkpoint
 
     QUANT_CFG_CHOICES = {
         "int8": mtq.INT8_DEFAULT_CFG,
@@ -334,10 +333,12 @@ class Quantizer:
                 export_dir = export_dir / "huggingface_tokenizer"
             model.tokenizer.save_pretrained(str(export_dir))
         else:
-            if (export_fmt == "hf" and
-                hasattr(model, "tokenizer") and
-                hasattr(model.tokenizer, "tokenizer") and
-                isinstance(model.tokenizer.tokenizer, PreTrainedTokenizerBase)):
+            if (
+                export_fmt == "hf"
+                and hasattr(model, "tokenizer")
+                and hasattr(model.tokenizer, "tokenizer")
+                and isinstance(model.tokenizer.tokenizer, PreTrainedTokenizerBase)
+            ):
                 model.tokenizer.tokenizer.save_pretrained(str(export_dir))
             else:
                 # Save the model context in order to restore its tokenizer later. The destination
