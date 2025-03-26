@@ -290,7 +290,8 @@ def wait_for_fastapi_server(
                 logging.info(f"Model is not ready. HTTP status code: {response.status_code}")
                 time.sleep(retry_interval)
                 continue
-            logging.info("Server is ready.")
+            logging.info(f"Model '{model_name}' is ready.")
+            return True
         except requests.exceptions.RequestException:
             logging.info(f"Pytriton server not ready yet. Retrying in {retry_interval} seconds...")
 
