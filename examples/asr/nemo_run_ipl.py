@@ -82,8 +82,8 @@ def get_pseudo_labeling_command(
     updated_manifest_filepaths, updated_tarred_audio_filepaths = ipl_utils.update_training_sets(
         merged_config, ipl_training["manifests"], ipl_training.get("tarr_paths", None), ipl_training["prefix"]
     )
-
-    exec_cmd = get_training_script_cmd(cluster_script_path, config_name)
+    exec_cmd = get_export_variables_cmd(merged_cfg=merged_config)
+    exec_cmd += get_training_script_cmd(cluster_script_path, config_name)
     exec_cmd += " && sleep 10"
     if ipl_training.get("first_run", False):
         exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'], shuffle=False)}"
