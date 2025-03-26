@@ -200,7 +200,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModelForCausalLM
 
-        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
+        source = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=str(self), trust_remote_code=True, torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -333,6 +333,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         from transformers import AutoConfig as HFAutoConfig
         from transformers import GenerationConfig
 
+        breakpoint()
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
         generation_config = GenerationConfig.from_pretrained(str(self))
 

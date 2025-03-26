@@ -173,7 +173,3 @@ class TestBERTPreTrainingDataModule:
         mock_trainer.limit_val_batches = 0.001  # Very small value
         with pytest.raises(MisconfigurationException):
             basic_datamodule._reconfigure_limit_batches(0.001, mock_val_ds, 'val')
-
-
-if __name__ == "__main__":
-    pytest.main(["-v", "test_pre_training.py"])
