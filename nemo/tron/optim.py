@@ -12,36 +12,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.core.optimizer import MegatronOptimizer, get_megatron_optimizer
+from megatron.core.optimizer import MegatronOptimizer, OptimizerConfig, get_megatron_optimizer
 from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
 
-from nemo.tron.config import ConfigContainer
+from nemo.tron.config import SchedulerConfig
 
 
-def setup_optimizer(cfg: ConfigContainer, model, no_weight_decay_cond=None, scale_lr_cond=None, lr_mult=1.0):
-    optimizer = get_megatron_optimizer(cfg.optimizer_config, model, no_weight_decay_cond, scale_lr_cond, lr_mult, use_gloo_process_groups=cfg.dist_config.use_gloo_process_groups)
-    scheduler = _get_scheduler(cfg, optimizer)
+def setup_optimizer(
+    optimizer_config: OptimizerConfig,
+    scheduler_config: SchedulerConfig,
+    model,
+    use_gloo_process_groups: bool = False,
+    no_weight_decay_cond=None,
+    scale_lr_cond=None,
+    lr_mult=1.0,
+):
+    optimizer = get_megatron_optimizer(
+        optimizer_config,
+        model,
+        no_weight_decay_cond,
+        scale_lr_cond,
+        lr_mult,
+        use_gloo_process_groups=use_gloo_process_groups,
+    )
+    scheduler = _get_scheduler(optimizer_config, scheduler_config, optimizer)
 
     return optimizer, scheduler
 
 
-def _get_scheduler(cfg: ConfigContainer, optimizer: MegatronOptimizer):
+def _get_scheduler(optimizer_config: OptimizerConfig, scheduler_config: SchedulerConfig, optimizer: MegatronOptimizer):
     scheduler = OptimizerParamScheduler(
         optimizer,
-        init_lr=cfg.scheduler_config.lr_warmup_init,
-        max_lr=cfg.optimizer_config.lr,
-        min_lr=cfg.optimizer_config.min_lr,
-        lr_warmup_steps=cfg.scheduler_config.lr_warmup_steps,
-        lr_decay_steps=cfg.scheduler_config.lr_decay_steps,
-        lr_decay_style=cfg.scheduler_config.lr_decay_style,
-        start_wd=cfg.scheduler_config.start_weight_decay,
-        end_wd=cfg.scheduler_config.end_weight_decay,
-        wd_incr_steps=cfg.scheduler_config.wd_incr_steps,
-        wd_incr_style=cfg.scheduler_config.weight_decay_incr_style,
-        use_checkpoint_opt_param_scheduler=cfg.scheduler_config.use_checkpoint_opt_param_scheduler,
-        override_opt_param_scheduler=cfg.scheduler_config.override_opt_param_scheduler,
-        wsd_decay_steps=cfg.scheduler_config.wsd_decay_steps,
-        lr_wsd_decay_style=cfg.scheduler_config.lr_wsd_decay_style,
+        init_lr=scheduler_config.lr_warmup_init,
+        max_lr=optimizer_config.lr,
+        min_lr=optimizer_config.min_lr,
+        lr_warmup_steps=scheduler_config.lr_warmup_steps,
+        lr_decay_steps=scheduler_config.lr_decay_steps,
+        lr_decay_style=scheduler_config.lr_decay_style,
+        start_wd=scheduler_config.start_weight_decay,
+        end_wd=scheduler_config.end_weight_decay,
+        wd_incr_steps=scheduler_config.wd_incr_steps,
+        wd_incr_style=scheduler_config.weight_decay_incr_style,
+        use_checkpoint_opt_param_scheduler=scheduler_config.use_checkpoint_opt_param_scheduler,
+        override_opt_param_scheduler=scheduler_config.override_opt_param_scheduler,
+        wsd_decay_steps=scheduler_config.wsd_decay_steps,
+        lr_wsd_decay_style=scheduler_config.lr_wsd_decay_style,
     )
 
     return scheduler
