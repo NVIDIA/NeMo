@@ -15,4 +15,4 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     --devices=2 \
     --max-steps=3 \
     --experiment-dir=tests/collections/llm/t5_pretrain_results/$RUN_ID \
-    --data-path=mock \
+    --data-path=mock
