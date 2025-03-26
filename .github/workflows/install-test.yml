@@ -114,7 +114,7 @@ jobs:
         run: |
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
-            pip install -vvv ".[all]"
+            pip install ".[all]"
           elif [ "$INSTALLER" = "nemo-install-light" ]; then
             bash reinstall.sh
           else
