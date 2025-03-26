@@ -467,4 +467,3 @@ def test_special_tokens(temp_jsonl_file, tokenizer):
     )
 
     assert dataset.special_tokens == special_tokens
-
