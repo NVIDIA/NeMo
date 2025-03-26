@@ -102,6 +102,10 @@ def override_recipe_configs(
             "bf16": userbuffers_bf16_b200_h8192_tp2_mbs1_seqlen8192,
             "fp8": userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192,
         },
+        "gb200": {
+            "bf16": userbuffers_bf16_b200_h8192_tp2_mbs1_seqlen8192,
+            "fp8": userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192,
+        },
     }
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
