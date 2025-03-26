@@ -268,9 +268,22 @@ class MagpieTTS_Model(ModelPT):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
+    
+    def remap_names(self, state_dict):
+        # Backward compatibility for old checkpoints
+        keys = state_dict.keys()
+        keys_to_update = [k for k in keys if 't5_encoder.' in k or 't5_decoder.' in k]
+        for key in keys_to_update:
+            value = state_dict[key]
+            del state_dict[key]            
+            new_key = key.replace('t5_encoder.', 'encoder.').replace('t5_decoder.', 'decoder.')
+            state_dict[new_key] = value
+        return state_dict
 
-    def load_state_dict(self, state_dict, strict=True):
+    def load_state_dict(self, state_dict, strict=True, remap_names=False):
         # Override to load all the keys except _speaker_verification_model and _codec_model
+        if remap_names:
+            state_dict = self.remap_names(state_dict)
         super().load_state_dict(state_dict, strict=False)
 
     def _setup_tokenizers(self, cfg, mode='test'):
