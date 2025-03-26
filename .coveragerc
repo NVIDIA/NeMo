@@ -1,11 +1,11 @@
 [run]
 concurrency = thread,multiprocessing
-
+omit =
+    /tmp/*
+    
 [paths]
 source =
     nemo/
     /home/runner/work/NeMo/NeMo/nemo
     /workspace/nemo
 
-omit =
-    /tmp/*
