@@ -17,7 +17,6 @@ from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig
-from nemo.tron.container.utils.instantiate import instantiate
 from nemo.tron.converter.common import (
     get_full_mcore_state_dict,
     save_hf_tokenizer_assets,
@@ -25,6 +24,7 @@ from nemo.tron.converter.common import (
 )
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer, build_tokenizer
+from nemo.tron.utils.instantiate_utils import instantiate
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig

@@ -24,8 +24,8 @@ from megatron.core.transformer.enums import ModelType
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
-from nemo.tron.container.container import ConfigContainer as Container
 from nemo.tron.utils.common_utils import get_world_size_safe
+from nemo.tron.utils.config_utils import ConfigContainer as Container
 
 
 @dataclass

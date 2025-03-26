@@ -9,7 +9,7 @@ from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShard
 from omegaconf import OmegaConf
 
 from nemo.lightning import _strategy_lib
-from nemo.tron.container.utils.instantiate import instantiate
+from nemo.tron.utils.instantiate_utils import instantiate
 
 
 @contextmanager
