@@ -15,7 +15,7 @@ import argparse
 from pathlib import Path
 
 import torch
-from transformers
+import transformers
 
 from nemo.collections import llm
 
