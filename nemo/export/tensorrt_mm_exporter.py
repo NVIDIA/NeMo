@@ -304,7 +304,7 @@ class TensorRTMMExporter(ITritonDeployable):
 
             infer_input = {"input_text": str_ndarray2list(inputs.pop("input_text")[0])}
             video_model_list = ["video-neva", "lita", "vita"]
-            if self.runner.model_type in ["neva", "vila", "mllama"]:
+            if self.runner.model_type in ["neva", "vila", "mllama", "cosmos"]:
                 infer_input["input_image"] = ndarray2img(inputs.pop("input_media")[0])[0]
             elif self.runner.model_type in video_model_list:
                 infer_input["input_image"] = inputs.pop("input_media")[0]
