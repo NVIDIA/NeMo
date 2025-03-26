@@ -61,6 +61,7 @@ def get_parser():
     parser.add_argument(
         "--nemo_checkpoint",
         type=str,
+        required=True,
         help="NeMo 2.0 checkpoint to be evaluated",
     )
     parser.add_argument(
