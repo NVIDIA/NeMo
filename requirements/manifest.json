@@ -11,8 +11,16 @@
         },
         "megatron-lm": {
             "repo": "https://github.com/NVIDIA/Megatron-LM",
-            "ref": "aa6207e2da6bca789375f591c9124aa408d2509a"
+            "ref": "810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c"
         }
     },
-    "pypi-dependencies": {}
+    "transformer_engine": {
+      "repo": "https://github.com/NVIDIA/TransformerEngine",
+      "ref": "7d576ed25266a17a7b651f2c12e8498f67e0baea"
+    },
+    "megatron-lm": {
+      "repo": "https://github.com/NVIDIA/Megatron-LM",
+      "ref": "8a5521ac4226fbefeeb2a102ebecac32a01d4852"
+    },
+  "pypi-dependencies": {}
 }
