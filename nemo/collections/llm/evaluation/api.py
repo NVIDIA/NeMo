@@ -25,6 +25,16 @@ class ApiEndpoint(BaseModel):
     url: str = Field(description="Url of the model", default="http://0.0.0.0:8000/v1/completions/")
     model_id: str = Field(description="Name of the model in API", default="triton_model")
     type: str = Field(description="The type of the target", default="completions")
+    nemo_checkpoint_path: Optional[str] = Field(
+        description="Path for nemo 2.0 checkpoint",
+        default=None,
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+    )
+    nemo_triton_http_port: Optional[int] = Field(
+        description="HTTP port that was used for the PyTriton server in the deploy method. Default: 8000.",
+        default=8000,
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+    )
 
 
 class EvaluationTarget(BaseModel):
@@ -51,6 +61,11 @@ class ConfigParams(BaseModel):
     limit_samples: Optional[Union[int, float]] = Field(
         description="Limit evaluation to `limit` samples. Default: use all samples", default=None
     )
+    num_fewshot: Optional[int] = Field(
+        description="Number of examples in few-shot context. Default: None.",
+        default=None,
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+    )
     max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=256)
     max_retries: Optional[int] = Field(description="Number of REST request retries", default=None)
     parallelism: Optional[int] = Field(description="Parallelism to be used", default=None)
@@ -58,6 +73,26 @@ class ConfigParams(BaseModel):
     timeout: Optional[int] = Field(description="REST response timeout", default=None)
     extra: Optional[Dict[str, Any]] = Field(
         description="Framework specific parameters to be used for evaluation", default_factory=dict
+    )
+    batch_size: Optional[int] = Field(
+        description="batch size to use for evaluation",
+        default=1,
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+    )
+    top_k: Optional[int] = Field(
+        description="Limits to a certain number (K) of the top tokens to consider",
+        default=1,
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+    )
+    add_bos: Optional[bool] = Field(
+        description="whether a special bos token should be added when encoding a string",
+        default=False,
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+    )
+    bootstrap_iters: int = Field(
+        description="Number of iterations for bootstrap statistics",
+        default=100000,
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
     )
 
 
