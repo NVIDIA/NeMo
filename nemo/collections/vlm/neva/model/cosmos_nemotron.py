@@ -165,10 +165,10 @@ class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemo
         return output
 
 
-@io.model_exporter(CosmosMegatronModel, "hf")
-class HFCosmosMegatronExporter(io.ModelConnector[CosmosMegatronModel, "PreTrainedModel"]):
+@io.model_exporter(CosmosNemotronModel, "hf")
+class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTrainedModel"]):
     """
-    Exporter class for converting NeMo Cosmos Megatron model to HuggingFace format.
+    Exporter class for converting NeMo Cosmos Nemotron model to HuggingFace format.
 
     Inherits:
         io.ModelConnector: Connector interface to handle setup, save, and load using the Lightning framework.
@@ -197,7 +197,7 @@ class HFCosmosMegatronExporter(io.ModelConnector[CosmosMegatronModel, "PreTraine
 
     def apply(self, output_path: Path) -> Path:
         """
-        Converts the NeMo Cosmos Megatron to HuggingFace format and saves it to the specified path.
+        Converts the NeMo Cosmos Nemotron to HuggingFace format and saves it to the specified path.
 
         Args:
             output_path (Path): The path where the converted HuggingFace model will be saved.

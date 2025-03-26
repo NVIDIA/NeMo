@@ -38,6 +38,7 @@ from nemo.collections.multimodal.speech_llm.modules.perception_modules import Au
 from nemo.core.classes.common import typecheck
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
+from nemo.export.utils.constants import TRTLLM_ENGINE_DIR
 from nemo.collections import llm
 
 from .converter import convert_mllama_nemo_to_hf
@@ -140,6 +141,7 @@ def build_trtllm_engine_from_hf(
 
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
+    engine_dir = os.path.join(model_dir, TRTLLM_ENGINE_DIR)
     for rank in range(tensor_parallelism_size):
         mapping = Mapping(world_size=tensor_parallelism_size, rank=rank, tp_size=tensor_parallelism_size)
         model = model_cls.from_hugging_face(
@@ -149,7 +151,7 @@ def build_trtllm_engine_from_hf(
         )
 
         engine = build_trtllm(model, build_config)
-        engine.save(model_dir)
+        engine.save(engine_dir)
 
 
 def export_visual_wrapper_onnx(
@@ -852,8 +854,7 @@ def build_cosmos_engine(
             max_multimodal_len,
             dtype,
         )
-        tokenizer_path = os.path.join(model_dir, "llm_engine", "huggingface_tokenizer")
-        os.makedirs(tokenizer_path, exist_ok=True)
+        tokenizer_path = os.path.join(model_dir, "llm_engine")
         shutil.copy(os.path.join(hf_model_path, "tokenizer.json"),
                     os.path.join(tokenizer_path, "tokenizer.json"))
         shutil.copy(os.path.join(hf_model_path, "tokenizer_config.json"),
