@@ -215,7 +215,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
-from nemo.collections.llm.bert.model.embedding import BertEmbeddingConfig, BertEmbeddingModel
+from nemo.collections.llm.bert.model.embedding import BertEmbeddingModel
 
 
 def test_training_loss_reduction_initialization():
