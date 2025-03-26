@@ -16,6 +16,8 @@ from typing import Tuple
 
 import torch.nn as nn
 from torch.nn import functional as F
+
+
 def zero_module(module):
     """
     Initializes all parameters of the given module to zero.
@@ -29,6 +31,7 @@ def zero_module(module):
     for p in module.parameters():
         nn.init.zeros_(p)
     return module
+
 
 class ControlNetConditioningEmbedding(nn.Module):
     """

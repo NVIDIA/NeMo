@@ -28,7 +28,6 @@ from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.collections.llm.recipes.log.default import default_resume, tensorboard_logger
 
 
-
 @run.cli.factory
 @run.autoconvert
 def flux_mock_datamodule() -> pl.LightningDataModule:
@@ -193,6 +192,7 @@ def flux_training(
         ),
         resume=default_resume(),
     )
+
 
 if __name__ == "__main__":
     recipe = flux_controlnet_training()
