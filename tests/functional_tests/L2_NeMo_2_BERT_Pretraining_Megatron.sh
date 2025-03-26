@@ -18,5 +18,5 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     --tp_size 1 \
     --pp_size 1 \
     --mbs 1 \
-    --type $BERT_TYPE
+    --type megatron
 
