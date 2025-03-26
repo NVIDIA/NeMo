@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# 
-#This file is maintained in sync with `nemo_skills/pipeline/utils.py`
+#
+# This file is maintained in sync with `nemo_skills/pipeline/utils.py`
 # and is intended to be copied as-is to ensure consistency across projects.
 
 import logging
