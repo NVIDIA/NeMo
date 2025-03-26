@@ -1,15 +1,17 @@
-import pytest
-import torch
 from unittest.mock import MagicMock, patch
 
+import pytest
+import torch
+
 from nemo.collections.llm.bert.model.base import (
-    get_batch_on_this_context_parallel_rank,
-    get_packed_seq_params,
     BertConfig,
     BertModel,
     bert_data_step,
     bert_forward_step,
+    get_batch_on_this_context_parallel_rank,
+    get_packed_seq_params,
 )
+
 
 class TestBertBase:
     @pytest.fixture
@@ -79,10 +81,12 @@ class TestBertBase:
         from megatron.core import parallel_state  # Import the actual module we want to patch
 
         # Patch specific methods on the imported parallel_state module
-        with patch.object(parallel_state, 'get_context_parallel_world_size', return_value=1), \
-                patch.object(parallel_state, 'is_pipeline_first_stage', return_value=True), \
-                patch.object(parallel_state, 'is_pipeline_last_stage', return_value=True), \
-                patch.object(parallel_state, 'get_context_parallel_rank', return_value=0):
+        with (
+            patch.object(parallel_state, 'get_context_parallel_world_size', return_value=1),
+            patch.object(parallel_state, 'is_pipeline_first_stage', return_value=True),
+            patch.object(parallel_state, 'is_pipeline_last_stage', return_value=True),
+            patch.object(parallel_state, 'get_context_parallel_rank', return_value=0),
+        ):
 
             result = bert_data_step(mock_iter)
 
@@ -92,7 +96,6 @@ class TestBertBase:
             assert "labels" in result
             assert "loss_mask" in result
             assert all(v.is_cuda for v in result.values() if v is not None)
-
 
     def test_bert_forward_step(self, basic_config, sample_batch):
         model = BertModel(config=basic_config, tokenizer=None)
@@ -108,7 +111,6 @@ class TestBertBase:
         assert "lm_labels" in call_args
         assert "loss_mask" in call_args
 
-
     def test_bert_forward_step_with_tokentypes(self, basic_config, sample_batch):
         basic_config.num_tokentypes = 2
         model = BertModel(config=basic_config, tokenizer=None)
@@ -119,7 +121,6 @@ class TestBertBase:
         # Verify tokentype_ids was included in forward call
         call_args = model.module.call_args[1]
         assert "tokentype_ids" in call_args
-
 
     def test_bert_forward_step_with_packed_seqs(self, basic_config, sample_batch):
         model = BertModel(config=basic_config, tokenizer=None)
@@ -134,7 +135,6 @@ class TestBertBase:
         call_args = model.module.call_args[1]
         assert "packed_seq_params" in call_args
 
-
     def test_bert_model_training_step(self, basic_config):
         model = BertModel(config=basic_config, tokenizer=None)
         model.forward_step = MagicMock()
@@ -144,7 +144,6 @@ class TestBertBase:
 
         model.forward_step.assert_called_once_with(batch)
 
-
     def test_bert_model_validation_step(self, basic_config):
         model = BertModel(config=basic_config, tokenizer=None)
         model.forward_step = MagicMock()
@@ -153,7 +152,6 @@ class TestBertBase:
         output = model.validation_step(batch)
 
         model.forward_step.assert_called_once_with(batch)
-
 
     def test_get_batch_with_context_parallel(self, sample_batch):
         with patch('megatron.core.parallel_state') as mock_parallel_state:

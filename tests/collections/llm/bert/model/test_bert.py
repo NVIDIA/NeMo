@@ -56,18 +56,23 @@ def test_megatron_bert_large_config():
     assert config.num_attention_heads == 16
 
 
-import torch
-import pytest
 from dataclasses import dataclass
 from unittest.mock import MagicMock
 
+import pytest
+import torch
+
 from nemo.collections.llm.bert.model.bert import (
-    _import_qkv, _import_qkv_2,
-    _import_qkv_bias, _import_qkv_bias_2,
-    _import_embedding, _import_embedding_2,
+    _export_embedding,
+    _export_qkv,
+    _export_qkv_bias,
+    _import_embedding,
+    _import_embedding_2,
     _import_output_bias,
-    _export_qkv, _export_qkv_bias,
-    _export_embedding
+    _import_qkv,
+    _import_qkv_2,
+    _import_qkv_bias,
+    _import_qkv_bias_2,
 )
 
 

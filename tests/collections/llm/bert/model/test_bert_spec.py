@@ -11,17 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-import torch
 from unittest.mock import MagicMock
 
-from nemo.collections.llm.bert.model.bert_spec import (
-    TransformerLayerWithPostLNSupport,
-    get_bert_layer_with_transformer_engine_spec_postln,
-    get_bert_layer_local_spec_postln,
-    TransformerLayerSubmodulesWithPostLNSupport
-)
+import pytest
+import torch
 from megatron.core import parallel_state
+
+from nemo.collections.llm.bert.model.bert_spec import (
+    TransformerLayerSubmodulesWithPostLNSupport,
+    TransformerLayerWithPostLNSupport,
+    get_bert_layer_local_spec_postln,
+    get_bert_layer_with_transformer_engine_spec_postln,
+)
 
 
 class TestBertSpec:
@@ -82,7 +83,7 @@ class TestBertSpec:
             cross_attn_bda=MagicMock(),
             pre_mlp_layernorm=MagicMock(),
             mlp=MagicMock(),
-            mlp_bda=MagicMock()
+            mlp_bda=MagicMock(),
         )
 
         assert submodules.post_att_layernorm == post_att_ln

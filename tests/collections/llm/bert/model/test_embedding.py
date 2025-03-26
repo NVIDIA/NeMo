@@ -89,9 +89,11 @@ class TestBertEmbeddingModel:
         return model
 
 
-import torch
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+import torch
+
 from nemo.collections.llm.bert.model.embedding import bert_embedding_data_step
 
 
@@ -120,8 +122,9 @@ def test_bert_embedding_data_step():
     # Mock pipeline first stage check
     with patch('megatron.core.parallel_state.is_pipeline_first_stage', return_value=True):
         # Mock context parallel rank function to return the same batch
-        with patch('nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank',
-                   side_effect=lambda x: x):
+        with patch(
+            'nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank', side_effect=lambda x: x
+        ):
             result = bert_embedding_data_step(mock_iterator)
 
     # Verify the output contains the expected keys
@@ -161,8 +164,9 @@ def test_bert_embedding_data_step_tuple_input():
             tensor.cuda = MagicMock(side_effect=mock_cuda)
 
     with patch('megatron.core.parallel_state.is_pipeline_first_stage', return_value=True):
-        with patch('nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank',
-                   side_effect=lambda x: x):
+        with patch(
+            'nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank', side_effect=lambda x: x
+        ):
             result = bert_embedding_data_step(mock_iterator)
 
     # Verify the output structure
@@ -170,9 +174,11 @@ def test_bert_embedding_data_step_tuple_input():
     assert all(key in result for key in ["input_ids", "attention_mask", "token_type_ids"])
 
 
-import torch
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+import torch
+
 from nemo.collections.llm.bert.model.embedding import bert_embedding_forward_step
 
 
@@ -204,10 +210,12 @@ def test_bert_embedding_forward_step():
     bert_embedding_forward_step(mock_model, batch)
 
 
-import pytest
 from unittest.mock import MagicMock, patch
-from nemo.collections.llm.bert.model.embedding import BertEmbeddingModel, BertEmbeddingConfig
+
+import pytest
+
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
+from nemo.collections.llm.bert.model.embedding import BertEmbeddingConfig, BertEmbeddingModel
 
 
 def test_training_loss_reduction_initialization():
@@ -215,10 +223,7 @@ def test_training_loss_reduction_initialization():
     config = BertEmbeddingMiniConfig()
 
     # Create model instance with mock components
-    model = BertEmbeddingModel(
-        config=config,
-        tokenizer=MagicMock()
-    )
+    model = BertEmbeddingModel(config=config, tokenizer=MagicMock())
 
     # Get the training loss reduction
     loss_reduction = model.training_loss_reduction
@@ -230,15 +235,13 @@ def test_training_loss_reduction_initialization():
     assert loss_reduction.num_hard_negatives == config.num_hard_negatives
     assert loss_reduction.scale == config.ce_loss_scale
 
+
 def test_validation_loss_reduction_initialization():
     # Create a basic config
     config = BertEmbeddingMiniConfig()
 
     # Create model instance with mock components
-    model = BertEmbeddingModel(
-        config=config,
-        tokenizer=MagicMock()
-    )
+    model = BertEmbeddingModel(config=config, tokenizer=MagicMock())
 
     # Get the training loss reduction
     loss_reduction = model.validation_loss_reduction

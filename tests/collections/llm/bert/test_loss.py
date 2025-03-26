@@ -14,8 +14,12 @@
 import pytest
 import torch
 
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativeRankingLoss, \
-    BERTLossReduction, sentence_order_prediction_loss
+from nemo.collections.llm.bert.loss import (
+    BERTInBatchExclusiveHardNegativesRankingLoss,
+    BERTLossReduction,
+    HardNegativeRankingLoss,
+    sentence_order_prediction_loss,
+)
 
 
 def mock_average_losses(losses):
@@ -33,8 +37,9 @@ def mock_distributed(mocker):
     mocker.patch('megatron.core.parallel_state.get_data_parallel_group', return_value=None)
 
     # Mock the average_losses function
-    mocker.patch('nemo.collections.llm.bert.loss.average_losses_across_data_parallel_group',
-                 side_effect=mock_average_losses)
+    mocker.patch(
+        'nemo.collections.llm.bert.loss.average_losses_across_data_parallel_group', side_effect=mock_average_losses
+    )
 
 
 def test_hard_negative_ranking_loss():
@@ -65,10 +70,7 @@ def test_average_losses_mock():
 
 
 def test_bert_in_batch_negatives_loss():
-    loss_fn = BERTInBatchExclusiveHardNegativesRankingLoss(
-        num_hard_negatives=1,
-        global_in_batch_negatives=False
-    )
+    loss_fn = BERTInBatchExclusiveHardNegativesRankingLoss(num_hard_negatives=1, global_in_batch_negatives=False)
     batch_size = 4
     embed_dim = 128
 
@@ -82,6 +84,7 @@ def test_bert_in_batch_negatives_loss():
 
     # Test that averaging works as expected
     assert torch.allclose(stats['avg'], loss.detach())
+
 
 def test_bert_loss_with_sop():
     """Test BERTLossReduction with SOP loss enabled (lines 32-38)"""
@@ -97,16 +100,9 @@ def test_bert_loss_forward_with_sop(mocker):
     loss_fn = BERTLossReduction(add_sop_loss=True)
 
     # Create test inputs
-    batch = {
-        'loss_mask': torch.ones(2, 4),
-        'is_random': torch.tensor([0, 1])
-    }
+    batch = {'loss_mask': torch.ones(2, 4), 'is_random': torch.tensor([0, 1])}
 
-    forward_out = {
-        'lm_loss': torch.randn(2, 4),
-        'loss_mask': torch.ones(2, 4),
-        'binary_logits': torch.randn(2, 2)
-    }
+    forward_out = {'lm_loss': torch.randn(2, 4), 'loss_mask': torch.ones(2, 4), 'binary_logits': torch.randn(2, 2)}
 
     # Test with CP size = 1
     mocker.patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1)
@@ -134,10 +130,7 @@ def test_bert_loss_reduce(mocker):
     assert torch.equal(result, torch.tensor([1.0, 2.0, 3.0, 4.0]).mean())
 
     # Test with loss_sum_and_ub_size
-    losses = [
-        {'loss_sum_and_ub_size': torch.tensor([10.0, 2.0])},
-        {'loss_sum_and_ub_size': torch.tensor([20.0, 4.0])}
-    ]
+    losses = [{'loss_sum_and_ub_size': torch.tensor([10.0, 2.0])}, {'loss_sum_and_ub_size': torch.tensor([20.0, 4.0])}]
     result = loss_fn.reduce(losses)
     assert torch.equal(result, torch.tensor([30.0, 6.0]))
 
@@ -151,7 +144,7 @@ def test_bert_in_batch_negatives_init():
         scale=30.0,
         label_smoothing=0.1,
         global_in_batch_negatives=True,
-        backprop_type='global'
+        backprop_type='global',
     )
 
     assert loss_fn.validation_step == True
@@ -165,9 +158,7 @@ def test_bert_in_batch_negatives_init():
 def test_bert_in_batch_forward_validation():
     """Test BERTInBatchExclusiveHardNegativesRankingLoss forward validation (lines 278-298)"""
     loss_fn = BERTInBatchExclusiveHardNegativesRankingLoss(
-        num_hard_negatives=1,
-        global_in_batch_negatives=True,
-        validation_step=True
+        num_hard_negatives=1, global_in_batch_negatives=True, validation_step=True
     )
 
     batch_size = 4
@@ -180,10 +171,14 @@ def test_bert_in_batch_forward_validation():
     assert isinstance(stats, dict)
     assert 'avg' in stats
 
-@pytest.mark.parametrize("tensor_input,expected", [
-    (torch.tensor([[0.5, 0.5], [0.2, 0.8]]), torch.tensor(0.0)),
-    (torch.tensor([[1.0, 0.0], [0.0, 1.0]]), torch.tensor(1.0))
-])
+
+@pytest.mark.parametrize(
+    "tensor_input,expected",
+    [
+        (torch.tensor([[0.5, 0.5], [0.2, 0.8]]), torch.tensor(0.0)),
+        (torch.tensor([[1.0, 0.0], [0.0, 1.0]]), torch.tensor(1.0)),
+    ],
+)
 def test_sentence_order_prediction(tensor_input, expected):
     """Test sentence_order_prediction_loss (lines 307-314)"""
     sentence_order = torch.tensor([0, 1])

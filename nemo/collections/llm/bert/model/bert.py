@@ -345,7 +345,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     head_num = megatron_config.num_attention_heads
     hidden_size = megatron_config.hidden_size
-    head_size = getattr(megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads)
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -377,7 +379,9 @@ def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
-    head_size = getattr(megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads)
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     new_q_tensor_shape_bias = (head_num, head_size)
 
@@ -450,7 +454,9 @@ def _import_qkv_2(ctx: io.TransformCTX, q, k, v):
 
     head_num = megatron_config.num_attention_heads
     hidden_size = megatron_config.hidden_size
-    head_size = getattr(megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads)
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -482,7 +488,9 @@ def _import_qkv_bias_2(ctx: io.TransformCTX, qb, kb, vb):
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
-    head_size = getattr(megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads)
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     new_q_tensor_shape_bias = (head_num, head_size)
 
@@ -538,7 +546,9 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
 
-    head_size = getattr(megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads)
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
@@ -572,7 +582,9 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     head_num = megatron_config.num_attention_heads
     num_query_groups = head_num  # BERT does not use GQA
     heads_per_group = head_num // num_query_groups
-    head_size = getattr(megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads)
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])

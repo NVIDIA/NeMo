@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-import torch
-from pathlib import Path
 import json
 import tempfile
+from pathlib import Path
 
-from nemo.collections.llm.bert.data.core import BertEmbeddingDataset, get_dataset_root, create_sft_dataset
+import pytest
+import torch
+
+from nemo.collections.llm.bert.data.core import BertEmbeddingDataset, create_sft_dataset, get_dataset_root
 
 
 class MockTokenizer:
@@ -39,15 +40,15 @@ def sample_data():
             "pos_doc": "Machine learning is a subset of AI",
             "neg_doc": ["Wrong answer 1", "Wrong answer 2", "Wrong answer 3", "Wrong answer 4"],
             "query_id": "q1",
-            "doc_id": "d1"
+            "doc_id": "d1",
         },
         {
             "query": "what is deep learning?",
             "pos_doc": "Deep learning uses neural networks",
             "neg_doc": ["Wrong answer 5", "Wrong answer 6", "Wrong answer 7", "Wrong answer 8"],
             "query_id": "q2",
-            "doc_id": "d2"
-        }
+            "doc_id": "d2",
+        },
     ]
 
 
@@ -73,7 +74,7 @@ def test_bert_embedding_dataset_train(temp_jsonl_file):
         tokenizer=tokenizer,
         max_seq_length=128,
         data_type='train',
-        num_hard_negatives=2
+        num_hard_negatives=2,
     )
 
     # Test dataset length
@@ -98,10 +99,7 @@ def test_bert_embedding_dataset_train(temp_jsonl_file):
 def test_bert_embedding_dataset_query(temp_jsonl_file):
     tokenizer = MockTokenizer()
     dataset = BertEmbeddingDataset(
-        file_path=str(temp_jsonl_file),
-        tokenizer=tokenizer,
-        max_seq_length=128,
-        data_type='query'
+        file_path=str(temp_jsonl_file), tokenizer=tokenizer, max_seq_length=128, data_type='query'
     )
 
     item = dataset[0]
@@ -113,10 +111,7 @@ def test_bert_embedding_dataset_query(temp_jsonl_file):
 def test_bert_embedding_dataset_doc(temp_jsonl_file):
     tokenizer = MockTokenizer()
     dataset = BertEmbeddingDataset(
-        file_path=str(temp_jsonl_file),
-        tokenizer=tokenizer,
-        max_seq_length=128,
-        data_type='doc'
+        file_path=str(temp_jsonl_file), tokenizer=tokenizer, max_seq_length=128, data_type='doc'
     )
 
     item = dataset[0]
@@ -127,16 +122,10 @@ def test_bert_embedding_dataset_doc(temp_jsonl_file):
 
 def test_create_sft_dataset(temp_jsonl_file):
     tokenizer = MockTokenizer()
-    dataset = create_sft_dataset(
-        path=temp_jsonl_file,
-        tokenizer=tokenizer,
-        seq_length=128,
-        data_type='train'
-    )
+    dataset = create_sft_dataset(path=temp_jsonl_file, tokenizer=tokenizer, seq_length=128, data_type='train')
 
     assert isinstance(dataset, BertEmbeddingDataset)
     assert len(dataset) > 0
-
 
 
 def test_truncation_methods(temp_jsonl_file):
@@ -144,25 +133,15 @@ def test_truncation_methods(temp_jsonl_file):
 
     # Test right truncation
     dataset_right = BertEmbeddingDataset(
-        file_path=str(temp_jsonl_file),
-        tokenizer=tokenizer,
-        truncation_method='right'
+        file_path=str(temp_jsonl_file), tokenizer=tokenizer, truncation_method='right'
     )
 
     # Test left truncation
-    dataset_left = BertEmbeddingDataset(
-        file_path=str(temp_jsonl_file),
-        tokenizer=tokenizer,
-        truncation_method='left'
-    )
+    dataset_left = BertEmbeddingDataset(file_path=str(temp_jsonl_file), tokenizer=tokenizer, truncation_method='left')
 
     # Test invalid truncation method
     with pytest.raises(AssertionError):
-        BertEmbeddingDataset(
-            file_path=str(temp_jsonl_file),
-            tokenizer=tokenizer,
-            truncation_method='invalid'
-        )
+        BertEmbeddingDataset(file_path=str(temp_jsonl_file), tokenizer=tokenizer, truncation_method='invalid')
 
 
 def test_collate_fn_all_data_types(temp_jsonl_file):
@@ -175,7 +154,7 @@ def test_collate_fn_all_data_types(temp_jsonl_file):
         tokenizer=tokenizer,
         max_seq_length=128,
         data_type='train',
-        num_hard_negatives=2
+        num_hard_negatives=2,
     )
 
     batch_train = [dataset_train[0], dataset_train[1]]
@@ -190,10 +169,7 @@ def test_collate_fn_all_data_types(temp_jsonl_file):
 
     # Test query data type
     dataset_query = BertEmbeddingDataset(
-        file_path=str(temp_jsonl_file),
-        tokenizer=tokenizer,
-        max_seq_length=128,
-        data_type='query'
+        file_path=str(temp_jsonl_file), tokenizer=tokenizer, max_seq_length=128, data_type='query'
     )
 
     batch_query = [dataset_query[0], dataset_query[1]]
@@ -207,10 +183,7 @@ def test_collate_fn_all_data_types(temp_jsonl_file):
 
     # Test doc data type
     dataset_doc = BertEmbeddingDataset(
-        file_path=str(temp_jsonl_file),
-        tokenizer=tokenizer,
-        max_seq_length=128,
-        data_type='doc'
+        file_path=str(temp_jsonl_file), tokenizer=tokenizer, max_seq_length=128, data_type='doc'
     )
 
     batch_doc = [dataset_doc[0], dataset_doc[1]]
@@ -233,7 +206,7 @@ def test_collate_fn_attention_mask(temp_jsonl_file):
         tokenizer=tokenizer,
         max_seq_length=128,
         data_type='train',
-        truncation_method='right'
+        truncation_method='right',
     )
 
     batch = [dataset_right[0]]
@@ -250,7 +223,7 @@ def test_collate_fn_attention_mask(temp_jsonl_file):
         tokenizer=tokenizer,
         max_seq_length=128,
         data_type='train',
-        truncation_method='left'
+        truncation_method='left',
     )
 
     collated_left = dataset_left._collate_fn(batch)
@@ -269,7 +242,7 @@ def test_collate_fn_batch_size_handling(temp_jsonl_file):
         tokenizer=tokenizer,
         max_seq_length=128,
         data_type='train',
-        num_hard_negatives=2
+        num_hard_negatives=2,
     )
 
     # Test with single item batch
@@ -289,10 +262,7 @@ def test_collate_fn_metadata_handling(temp_jsonl_file):
     """Test metadata handling in _collate_fn"""
     tokenizer = MockTokenizer()
     dataset = BertEmbeddingDataset(
-        file_path=str(temp_jsonl_file),
-        tokenizer=tokenizer,
-        max_seq_length=128,
-        data_type='train'
+        file_path=str(temp_jsonl_file), tokenizer=tokenizer, max_seq_length=128, data_type='train'
     )
 
     batch = [dataset[0], dataset[1]]

@@ -40,10 +40,7 @@ class TestFineTuningDataModule:
     @pytest.fixture
     def basic_datamodule(self, dataset_root, mock_tokenizer):
         return FineTuningDataModule(
-            dataset_root=dataset_root, 
-            tokenizer=mock_tokenizer, 
-            micro_batch_size=4, 
-            global_batch_size=8
+            dataset_root=dataset_root, tokenizer=mock_tokenizer, micro_batch_size=4, global_batch_size=8
         )
 
     def test_init_default_values(self, dataset_root, mock_tokenizer):
@@ -81,7 +78,6 @@ class TestFineTuningDataModule:
         # Test train_dataloader
         basic_datamodule.train_dataloader()
 
-
     def test_state_dict_and_load_state_dict(self, basic_datamodule):
         mock_update_num_microbatches = MagicMock()
 
@@ -116,8 +112,7 @@ class TestFineTuningDataModule:
 
             # Verify update_num_microbatches was called correctly
             mock_update_num_microbatches.assert_called_once_with(
-                consumed_samples=state['consumed_samples'], 
-                consistency_check=False
+                consumed_samples=state['consumed_samples'], consistency_check=False
             )
 
     def test_setup_with_max_train_samples(self, basic_datamodule):
@@ -200,15 +195,11 @@ class TestFineTuningDataModule:
             return mock
 
         # Test case 6: Deep nested path with context/nemo_tokenizer
-        basic_datamodule.tokenizer = create_mock_tokenizer(
-            "NEMO_HOME/org/team/model/version/context/nemo_tokenizer"
-        )
+        basic_datamodule.tokenizer = create_mock_tokenizer("NEMO_HOME/org/team/model/version/context/nemo_tokenizer")
         assert basic_datamodule._extract_tokenizer_model_name() == "model--version"
 
         # Test case 7: Path with special characters
-        basic_datamodule.tokenizer = create_mock_tokenizer(
-            "NEMO_HOME/org-name/model-name/context/nemo_tokenizer"
-        )
+        basic_datamodule.tokenizer = create_mock_tokenizer("NEMO_HOME/org-name/model-name/context/nemo_tokenizer")
         assert basic_datamodule._extract_tokenizer_model_name() == "org-name--model-name"
 
         # Test case 8: Empty or None path

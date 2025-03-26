@@ -161,10 +161,7 @@ class TestBERTPreTrainingDataModule:
         basic_datamodule._validation_ds = mock_val_ds
 
         # Mock get_num_microbatches to return a non-zero value
-        mocker.patch(
-            'megatron.core.num_microbatches_calculator.get_num_microbatches',
-            return_value=2
-        )
+        mocker.patch('megatron.core.num_microbatches_calculator.get_num_microbatches', return_value=2)
 
         # Test reconfiguration
         basic_datamodule.reconfigure_limit_batches()
