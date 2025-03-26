@@ -17,10 +17,184 @@ import logging
 import os
 from itertools import chain
 from typing import List, Literal, Optional
+import random
+import numpy as np
 
 import torch
 from lightning.pytorch.overrides.distributed import _IndexBatchSamplerWrapper
 from torch.utils.data import DataLoader, Dataset
+# from megatron.core.data_samplers import MegatronPretrainingSampler as _MegatronPretrainingSampler, MegatronPretrainingRandomSampler as _MegatronPretrainingRandomSampler
+
+class _MegatronPretrainingSampler:
+
+    def __init__(
+        self,
+        total_samples,
+        consumed_samples,
+        micro_batch_size,
+        data_parallel_rank,
+        data_parallel_size,
+        drop_last=True,
+        global_batch_size=None,
+        pad_samples_to_global_batch_size=False,
+    ):
+        # Keep a copy of input params for later use.
+        self.total_samples = total_samples
+        self.consumed_samples = consumed_samples
+        self.micro_batch_size = micro_batch_size
+        self.data_parallel_rank = data_parallel_rank
+        self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
+        self.drop_last = drop_last
+        self.global_batch_size = global_batch_size
+        self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
+
+        # Sanity checks.
+        assert self.total_samples > 0, 'no sample to consume: {}'.format(self.total_samples)
+        assert (
+            self.consumed_samples < self.total_samples
+        ), 'no samples left to consume: {}, {}'.format(self.consumed_samples, self.total_samples)
+        assert self.micro_batch_size > 0
+        assert data_parallel_size > 0
+        assert (
+            self.data_parallel_rank < data_parallel_size
+        ), 'data_parallel_rank should be smaller than data size: {}, ' '{}'.format(
+            self.data_parallel_rank, data_parallel_size
+        )
+
+    def __len__(self):
+        return self.total_samples
+
+    def get_start_end_idx(self):
+        start_idx = self.data_parallel_rank * self.micro_batch_size
+        end_idx = start_idx + self.micro_batch_size
+        return start_idx, end_idx
+
+    def __iter__(self):
+        batch = []
+        # Last batch will be dropped if drop_last is not set False
+        indices = range(self.consumed_samples, self.total_samples)
+        if (not self.drop_last) and self.pad_samples_to_global_batch_size:
+            pad_samples_num = -len(indices) % self.global_batch_size
+            pad_indices = [None] * pad_samples_num
+            indices = chain(indices, pad_indices)
+
+        for idx in indices:
+            batch.append(idx)
+            if len(batch) == self.micro_batch_times_data_parallel_size:
+                start_idx, end_idx = self.get_start_end_idx()
+                yield batch[start_idx:end_idx]
+                batch = []
+
+        # Check the last partial batch and see drop_last is set
+        if len(batch) > 0 and not self.drop_last:
+            assert (
+                not self.pad_samples_to_global_batch_size
+            ), "with pad_samples_to_global_batch_size all batches should be complete"
+            start_idx, end_idx = self.get_start_end_idx()
+            yield batch[start_idx:end_idx]
+
+
+class RandomSeedDataset(Dataset):
+
+    def __init__(self, dataset, seed):
+        self.base_seed = seed
+        self.curr_seed = seed
+        self.dataset = dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def set_epoch(self, epoch):
+        self.curr_seed = self.base_seed + epoch
+
+    def __getitem__(self, idx):
+        seed = idx + self.curr_seed
+        torch.manual_seed(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        return self.dataset[idx]
+
+
+class _MegatronPretrainingRandomSampler:
+
+    def __init__(
+        self,
+        dataset,
+        total_samples,
+        consumed_samples,
+        micro_batch_size,
+        data_parallel_rank,
+        data_parallel_size,
+        data_sharding=True,
+        drop_last=True,
+    ):
+        # Keep a copy of input params for later use.
+        self.dataset = dataset
+        self.total_samples = total_samples
+        self.consumed_samples = consumed_samples
+        self.micro_batch_size = micro_batch_size
+        self.data_parallel_rank = data_parallel_rank
+        self.data_parallel_size = data_parallel_size
+        self.data_sharding = data_sharding
+        self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
+        self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
+        self.drop_last = drop_last
+
+        # Sanity checks.
+        assert self.total_samples > 0, 'no sample to consume: {}'.format(self.total_samples)
+        assert self.micro_batch_size > 0
+        assert data_parallel_size > 0
+        assert (
+            self.data_parallel_rank < data_parallel_size
+        ), 'data_parallel_rank should be smaller than data size: {}, ' '{}'.format(
+            self.data_parallel_rank, data_parallel_size
+        )
+
+    def __len__(self):
+        return self.total_samples
+
+    def __iter__(self):
+        active_total_samples = self.total_samples - self.last_batch_size
+        self.epoch = self.consumed_samples // active_total_samples
+        current_epoch_samples = self.consumed_samples % active_total_samples
+        assert current_epoch_samples % self.micro_batch_times_data_parallel_size == 0
+
+        if isinstance(self.dataset, RandomSeedDataset):
+            self.dataset.set_epoch(self.epoch)
+
+        # data sharding and random sampling
+        if self.data_sharding:
+            bucket_size = (
+                self.total_samples // self.micro_batch_times_data_parallel_size
+            ) * self.micro_batch_size
+            bucket_offset = current_epoch_samples // self.data_parallel_size
+            start_idx = self.data_parallel_rank * bucket_size
+
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            random_idx = torch.randperm(bucket_size, generator=g).tolist()
+            idx_range = [start_idx + x for x in random_idx[bucket_offset:]]
+        else:
+            full_bucket_size = (self.total_samples // self.micro_batch_size) * self.micro_batch_size
+            full_bucket_offset = current_epoch_samples
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            idx_range_total = torch.randperm(full_bucket_size, generator=g).tolist()
+            idx_range_active = idx_range_total[full_bucket_offset:]
+            idx_range = idx_range_active[self.data_parallel_rank :: self.data_parallel_size]
+
+        batch = []
+        # Last batch if not complete will be dropped.
+        for idx in idx_range:
+            batch.append(idx)
+            if len(batch) == self.micro_batch_size:
+                self.consumed_samples += self.micro_batch_times_data_parallel_size
+                yield batch
+                batch = []
+
+        # Check the last partial batch and see drop_last is set
+        if len(batch) > 0 and not self.drop_last:
+            yield batch
 
 
 ## TODO: remove? unused
@@ -240,87 +414,18 @@ class WrappedDataLoader(DataLoader):
         self.mode = mode
 
 
-# TODO: Replace this with megatron.core.data.data_samplers after we upgrade
-class BaseMegatronSampler:
+class MegatronPretrainingSampler(_MegatronPretrainingSampler):
+
     def __init__(
         self,
-        total_samples: int,
-        consumed_samples: int,
-        micro_batch_size: int,
-        data_parallel_rank: int,
-        data_parallel_size: int,
-        drop_last: bool = True,
-        global_batch_size: Optional[int] = None,
-        rampup_batch_size: Optional[list] = None,
-        pad_samples_to_global_batch_size: Optional[bool] = False,
-    ) -> None:
-        # Sanity checks.
-        if total_samples <= 0:
-            raise RuntimeError(f"no sample to consume: {total_samples}")
-        if micro_batch_size <= 0:
-            raise RuntimeError(f"micro_batch_size size must be greater than 0, but {micro_batch_size}")
-        if data_parallel_size <= 0:
-            raise RuntimeError(f"data parallel size must be greater than 0, but {data_parallel_size}")
-        if data_parallel_rank >= data_parallel_size:
-            raise RuntimeError(
-                f"data_parallel_rank should be smaller than data size, but {data_parallel_rank} >= {data_parallel_size}"
-            )
-        if global_batch_size is not None and rampup_batch_size is None:
-            if global_batch_size % (micro_batch_size * data_parallel_size) != 0:
-                raise RuntimeError(
-                    f"`global_batch_size` ({global_batch_size}) is not divisible by "
-                    f"`micro_batch_size ({micro_batch_size}) x data_parallel_size "
-                    f"({data_parallel_size})`"
-                )
-        if pad_samples_to_global_batch_size and global_batch_size is None:
-            raise RuntimeError(
-                "`pad_samples_to_global_batch_size` can be `True` only when "
-                "`global_batch_size` is set to an integer value"
-            )
-
-        # Keep a copy of input params for later use.
-        self.total_samples = total_samples
-        self.consumed_samples = consumed_samples
-        self.micro_batch_size = micro_batch_size
-        self.data_parallel_rank = data_parallel_rank
-        self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
-        self.drop_last = drop_last
-        self.global_batch_size = global_batch_size
-        self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
-
-        logging.info(
-            f"Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and"
-            f" consumed_samples: {consumed_samples}"
-        )
-
-    def __len__(self):
-        if self.global_batch_size is not None:
-            if self.drop_last:
-                num_global_batches = self.total_samples // self.global_batch_size
-            else:
-                num_global_batches = (self.total_samples + self.global_batch_size - 1) // self.global_batch_size
-            # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
-            # num of batches fetched (as training step fetches in terms of micro batches)
-            return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
-        else:
-            return (self.total_samples - 1) // self.micro_batch_times_data_parallel_size + 1
-
-    @abc.abstractmethod
-    def __iter__(self): ...
-
-
-class MegatronPretrainingSampler(BaseMegatronSampler):
-    def __init__(
-        self,
-        total_samples: int,
-        consumed_samples: int,
-        micro_batch_size: int,
-        data_parallel_rank: int,
-        data_parallel_size: int,
-        drop_last: bool = True,
-        global_batch_size: Optional[int] = None,
-        rampup_batch_size: Optional[list] = None,
-        pad_samples_to_global_batch_size: Optional[bool] = False,
+        total_samples,
+        consumed_samples,
+        micro_batch_size,
+        data_parallel_rank,
+        data_parallel_size,
+        drop_last=True,
+        global_batch_size=None,
+        pad_samples_to_global_batch_size=False,
     ):
         super().__init__(
             total_samples=total_samples,
@@ -330,45 +435,26 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
             data_parallel_size=data_parallel_size,
             drop_last=drop_last,
             global_batch_size=global_batch_size,
-            rampup_batch_size=rampup_batch_size,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
-        if consumed_samples >= total_samples:
-            raise RuntimeError(f"no samples left to consume: {consumed_samples}, {total_samples}")
 
-    def get_start_end_idx(self):
-        start_idx = self.data_parallel_rank * self.micro_batch_size
-        end_idx = start_idx + self.micro_batch_size
-        return start_idx, end_idx
-
-    def __iter__(self):
-        batch = []
-        # Last batch will be dropped if drop_last is not set False
-        indices = range(self.consumed_samples, self.total_samples)
-        if (not self.drop_last) and self.pad_samples_to_global_batch_size:
-            pad_samples_num = -len(indices) % self.global_batch_size
-            pad_indices = range(-1, -pad_samples_num - 1, -1)
-            indices = chain(indices, pad_indices)
-
-        for idx in indices:
-            batch.append(idx)
-            if len(batch) == self.micro_batch_times_data_parallel_size:
-                start_idx, end_idx = self.get_start_end_idx()
-                yield batch[start_idx:end_idx]
-                batch = []
-
-        # Check the last partial batch and see drop_last is set
-        if len(batch) > 0 and not self.drop_last:
-            assert (
-                not self.pad_samples_to_global_batch_size
-            ), "with pad_samples_to_global_batch_size all batches should be complete"
-            start_idx, end_idx = self.get_start_end_idx()
-            yield batch[start_idx:end_idx]
+        def __len__(self):
+            if self.global_batch_size is not None:
+                if self.drop_last:
+                    num_global_batches = self.total_samples // self.global_batch_size
+                else:
+                    num_global_batches = (self.total_samples + self.global_batch_size - 1) // self.global_batch_size
+                # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
+                # num of batches fetched (as training step fetches in terms of micro batches)
+                return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
+            else:
+                return (self.total_samples - 1) // self.micro_batch_times_data_parallel_size + 1
 
 
-class MegatronPretrainingRandomSampler(BaseMegatronSampler):
+class MegatronPretrainingRandomSampler(_MegatronPretrainingRandomSampler):
     def __init__(
         self,
+        dataset: Dataset,
         total_samples: int,
         consumed_samples: int,
         micro_batch_size: int,
@@ -376,29 +462,24 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
-        pad_samples_to_global_batch_size: Optional[bool] = False,
-        seed: int = 0,
     ) -> None:
         super().__init__(
+            dataset=dataset,
             total_samples=total_samples,
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             data_parallel_rank=data_parallel_rank,
             data_parallel_size=data_parallel_size,
             drop_last=drop_last,
-            global_batch_size=global_batch_size,
-            pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
-        assert (
-            not pad_samples_to_global_batch_size
-        ), "`MegatronPretrainingRandomSampler` does not support sample padding"
+        self.global_batch_size = global_batch_size
+
         if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
             raise RuntimeError(
                 "`MegatronPretrainingRandomSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
                   please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
             )
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
-        self.seed = seed
 
     def __len__(self):
         active_total_samples = self.total_samples - (self.last_batch_size if self.drop_last else 0)
@@ -416,33 +497,3 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
                 return num_available_samples // self.micro_batch_times_data_parallel_size
             else:
                 return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size
-
-    def __iter__(self):
-        active_total_samples = self.total_samples - self.last_batch_size
-        self.epoch = self.consumed_samples // active_total_samples
-        current_epoch_samples = self.consumed_samples % active_total_samples
-        assert current_epoch_samples % self.micro_batch_times_data_parallel_size == 0
-
-        # data sharding and random sampling
-        data_parallel_size = self.micro_batch_times_data_parallel_size // self.micro_batch_size
-        bucket_size = (self.total_samples // self.micro_batch_times_data_parallel_size) * self.micro_batch_size
-        bucket_offset = current_epoch_samples // data_parallel_size
-        start_idx = self.data_parallel_rank * bucket_size
-
-        g = torch.Generator()
-        g.manual_seed(self.seed + self.epoch)
-        random_idx = torch.randperm(bucket_size, generator=g).tolist()
-        idx_range = [start_idx + x for x in random_idx[bucket_offset:]]
-
-        batch = []
-        # Last batch if not complete will be dropped.
-        for idx in idx_range:
-            batch.append(idx)
-            if len(batch) == self.micro_batch_size:
-                self.consumed_samples += self.micro_batch_times_data_parallel_size
-                yield batch
-                batch = []
-
-        # Check the last partial batch and see drop_last is set
-        if len(batch) > 0 and not self.drop_last:
-            yield batch
