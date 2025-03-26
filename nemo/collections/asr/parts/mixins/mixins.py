@@ -902,11 +902,15 @@ class IPLMixin:
     """
     def check_should_stop(self):
         "Checks whether one epoch is completed and terminated training"
+        print(f"self._cfg {self._cfg}")
         if self._cfg.get('ipl_training', None):
+            print("ipl fou")
             if hasattr(self, 'epoch_done'):
                 if torch.distributed.is_initialized():
                     torch.distributed.barrier()
+                print(f"epochd one")
                 return True
             else:
+                print(f"epoch not done")
                 self.epoch_done = True
                 return False

@@ -187,6 +187,7 @@ class ASRModel(ModelPT, ABC, IPLMixin):
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        print(f"on train epoch end")
         #For pseudo-label generation after each epoch
         if self.check_should_stop():
             self.trainer.should_stop=True
