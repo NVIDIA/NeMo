@@ -164,12 +164,13 @@ def test_bert_embedding_data_step_tuple_input():
         if isinstance(tensor, torch.Tensor):
             tensor.cuda = MagicMock(side_effect=mock_cuda)
 
+    # Mock pipeline first stage check
     with patch('megatron.core.parallel_state.is_pipeline_first_stage', return_value=True):
         with patch(
             'nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank', side_effect=lambda x: x
         ):
-            result = bert_embedding_data_step(mock_iterator)
-
+            with patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1):
+                result = bert_embedding_data_step(mock_iterator)
     # Verify the output structure
     assert isinstance(result, dict)
     assert all(key in result for key in ["input_ids", "attention_mask", "token_type_ids"])
