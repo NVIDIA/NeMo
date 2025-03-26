@@ -18,7 +18,7 @@ jobs:
       matrix:
         os: [macos-latest]
         python: ["3.10", "3.11", "3.12"]
-        installer: ["pip-install", "nemo-install"]
+        installer: ["pip-install", "nemo-install", "nemo-install-light"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
