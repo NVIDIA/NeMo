@@ -22,7 +22,7 @@ class ApiEndpoint(BaseModel):
     Represents evaluation Standard API target.api_endpoint object
     """
 
-    url: str = Field(description="Url of the model", default="http://0.0.0.0:8000/v1/completions/")
+    url: str = Field(description="Url of the model", default="http://0.0.0.0:8080/v1/completions/")
     model_id: str = Field(description="Name of the model in API", default="triton_model")
     type: str = Field(description="The type of the target", default="completions")
     nemo_checkpoint_path: Optional[str] = Field(
@@ -68,7 +68,9 @@ class ConfigParams(BaseModel):
     )
     max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=256)
     max_retries: Optional[int] = Field(description="Number of REST request retries", default=None)
-    parallelism: Optional[int] = Field(description="Parallelism to be used", default=None)
+    parallelism: Optional[int] = Field(
+        description="Number of parallel requests to be sent to the server", default=None
+    )
     task: Optional[str] = Field(description="Name of the task", default=None)
     request_timeout: Optional[int] = Field(description="REST response timeout", default=None)
     extra: Optional[Dict[str, Any]] = Field(
