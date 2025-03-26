@@ -83,7 +83,7 @@ def get_pseudo_labeling_command(
         merged_config, ipl_training["manifests"], ipl_training.get("tarr_paths", None), ipl_training["prefix"]
     )
 
-    exec_cmd = get_training_script_cmd(cluster_script_path, config_name, config_dir)
+    exec_cmd = get_training_script_cmd(cluster_script_path, config_name)
     exec_cmd += " && sleep 10"
     if ipl_training.get("first_run", False):
         exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'], shuffle=False)}"
@@ -101,7 +101,7 @@ def get_pseudo_labeling_command(
     # If run has been interupted user has to change `num_ipl_epochs` in the config
     for _ in range(ipl_training["num_ipl_epochs"]):
         run_script = get_training_script_cmd(
-            cluster_script_path, config_name, config_dir, updated_manifest_filepaths, updated_tarred_audio_filepaths
+            cluster_script_path, config_name, updated_manifest_filepaths, updated_tarred_audio_filepaths
         )
         exec_cmd += " && sleep 10"
         exec_cmd += f" && {run_script}"
@@ -199,16 +199,23 @@ def main(cluster_cfg):
     update_exp_manager_runtime(merged_config, cluster_cfg)
 
     # Perform all path checks in the merged config
+    if "ipl_training" in merged_config.model:
+        ipl_training = merged_config.model.ipl_training
+        del merged_config.model.ipl_training
+    else:
+        raise KeyError("Parameters for `IPL` training are not provided.")
+    
     check_config_mount_paths(merged_config, cluster_cfg)
     print()
     print(f"going to ipl part")
-    ipl_training = script_config.get("ipl_training", None)
-    print(f"ipl_training {ipl_training}")
-    if ipl_training:
-        inference_config = script_config.ipl_training.inference_config
-        inference_config_path = Path(inference_config).absolute()
-        inference_config = OmegaConf.load(inference_config_path)
+
     
+    print(f"ipl_training {ipl_training}")
+
+    inference_config = ipl_training.inference_config
+    inference_config_path = Path(inference_config).absolute()
+    inference_config = OmegaConf.load(inference_config_path)
+
     # Resolve experiment name; if not provided in the script config file, check the cluster config
     exp_name = cluster_cfg.exp_name
     if exp_name is None:
