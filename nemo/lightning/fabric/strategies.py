@@ -65,6 +65,10 @@ DDPLiteral = Literal["megatron", "pytorch"]
 
 
 class FabricMegatronStrategy(DDPStrategy):
+    """
+    Fabric strategy for Megatron.
+    """
+
     def __init__(
         self,
         tensor_model_parallel_size: int = 1,
@@ -165,6 +169,9 @@ class FabricMegatronStrategy(DDPStrategy):
         _strategy_lib.init_model_parallel()
 
     def process_datamodule(self, datamodule: LightningDataModule) -> LightningDataModule:
+        """
+        Process the datamodule.
+        """
         datamodule.setup()
 
         if not self.data_sampler and hasattr(datamodule, "data_sampler"):
@@ -177,6 +184,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> Iterator:
+        """
+        Process the dataloader. Returns an iterator.
+        """
         if self.data_sampler:
             dataloader = self.data_sampler.transform_dataloader(dataloader)
 
@@ -198,6 +208,9 @@ class FabricMegatronStrategy(DDPStrategy):
         scale_lr_cond: Optional[Callable] = None,
         lr_mult: float = 1.0,
     ) -> Optimizer:
+        """
+        Setup the Megatron optimizer.
+        """
         if hasattr(self.precision, "convert_config"):
             optimizer_config = self.precision.convert_config(optimizer_config)
 
@@ -223,6 +236,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def setup_module(self, module: Module) -> MegatronParallel:
+        """
+        Setup the torch module. Returns a MegatronParallel object.
+        """
         from megatron.core.utils import get_model_config
 
         _strategy_lib.set_model_parallel_attributes(module, self.parallelism)
@@ -279,6 +295,9 @@ class FabricMegatronStrategy(DDPStrategy):
         return megatron_parallel
 
     def module_init_context(self, empty_init: Optional[bool] = None) -> ContextManager:
+        """
+        Get the context manager used for initializing the module.
+        """
         precision_init_ctx = self.precision.module_init_context()
         module_sharded_ctx = self.megatron_context()
         stack = ExitStack()
@@ -293,6 +312,9 @@ class FabricMegatronStrategy(DDPStrategy):
         return stack
 
     def module_to_device(self, module: nn.Module) -> None:
+        """
+        Move the module to the device.
+        """
         pass
 
     @override
@@ -324,6 +346,9 @@ class FabricMegatronStrategy(DDPStrategy):
         state: Optional[Union[Module, Optimizer, Dict[str, Union[Module, Optimizer, Any]]]] = None,
         strict: bool = True,
     ) -> Dict[str, Any]:
+        """
+        Load the checkpoint.
+        """
         if isinstance(state, Optimizer):
             raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
 
@@ -370,10 +395,16 @@ class FabricMegatronStrategy(DDPStrategy):
     def load_module_state_dict(
         self, module: Module, state_dict: Dict[str, Union[Any, Tensor]], strict: bool = True
     ) -> None:
+        """
+        Load the module state dict.
+        """
         _strategy_lib.load_model_state_dict(module, state_dict, strict=strict)
 
     @contextmanager
     def megatron_context(self) -> Generator[None, None, None]:
+        """
+        Context manager for Megatron.
+        """
         from megatron.core.extensions import transformer_engine as _te
 
         original = _te._get_extra_te_kwargs  # noqa: SLF001
@@ -401,6 +432,9 @@ class FabricMegatronStrategy(DDPStrategy):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+        """
+        Get the checkpoint IO.
+        """
         if self._checkpoint_io is None:
             self._checkpoint_io = MegatronCheckpointIO()
         elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
@@ -410,6 +444,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     def parallelism(self):
+        """
+        Get the parallelism config.
+        """
         from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
 
         return ParallelismConfig(
@@ -447,6 +484,9 @@ class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
         return self.iterator_wrapper
 
     def reset(self) -> None:
+        """
+        Reset the data fetcher.
+        """
         super().reset()
         self._batch = None
         self._batch_idx = 0
@@ -464,18 +504,30 @@ class _DataFetcherWrapper(Iterator):
 
     @property
     def done(self) -> bool:
+        """
+        Check if the data fetcher is done.
+        """
         return self.data_fetcher.done
 
     @property
     def fetched(self) -> int:
+        """
+        Check if the data fetcher is fetched.
+        """
         return self.data_fetcher.fetched
 
     @property
     def length(self) -> Optional[int]:
+        """
+        Get the length of the data fetcher.
+        """
         return self.data_fetcher.length
 
     @property
     def data_config(self):
+        """
+        Get the data config.
+        """
         return self.data_fetcher.data_config
 
     def __next__(self):
@@ -496,6 +548,9 @@ class _DataFetcherWrapper(Iterator):
 
 @to_fabric.register(MegatronStrategy)
 def convert_megatron_strategy(strategy: MegatronStrategy) -> FabricMegatronStrategy:
+    """
+    Convert the Megatron strategy to the Fabric strategy.
+    """
     return FabricMegatronStrategy(
         tensor_model_parallel_size=strategy.tensor_model_parallel_size,
         pipeline_model_parallel_size=strategy.pipeline_model_parallel_size,
