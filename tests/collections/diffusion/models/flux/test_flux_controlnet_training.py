@@ -27,7 +27,6 @@ from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlN
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.collections.llm.recipes.log.default import default_resume, tensorboard_logger
 
-NAME = 'flux_controlnet_training_test'
 
 
 @run.cli.factory
@@ -45,7 +44,7 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
     return data_module
 
 
-@run.cli.factory(target=llm.train, name=NAME)
+@run.cli.factory(target=llm.train, name='flux_controlnet_training_test')
 def flux_controlnet_training(
     flux_num_joint_layers=1,
     flux_num_single_layers=1,
@@ -92,8 +91,9 @@ def flux_controlnet_training(
             ),
             plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
             num_sanity_val_steps=0,
-            limit_val_batches=0,
-            max_steps=10,
+            val_check_interval=10,
+            limit_val_batches=1,
+            max_steps=15,
             log_every_n_steps=1,
             callbacks=[
                 run.Config(
@@ -123,6 +123,76 @@ def flux_controlnet_training(
         resume=default_resume(),
     )
 
+
+@run.cli.factory(target=llm.train, name='flux_training_test')
+def flux_training(
+    flux_num_joint_layers=1,
+    flux_num_single_layers=1,
+) -> run.Partial:
+    """Flux Controlnet Training Config"""
+    return run.Partial(
+        llm.train,
+        model=run.Config(
+            MegatronFluxModel,
+            flux_params=run.Config(
+                FluxModelParams,
+                num_joint_layers=flux_num_joint_layers,
+                num_single_layers=flux_num_single_layers,
+                ckpt_path='/home/TestData/diffusion/nemo_dist_ckpt/weights/',
+                load_dist_ckpt=True,
+            ),
+        ),
+        data=flux_mock_datamodule(),
+        trainer=run.Config(
+            nl.Trainer,
+            devices=1,
+            num_nodes=1,
+            accelerator="gpu",
+            strategy=run.Config(
+                nl.MegatronStrategy,
+                tensor_model_parallel_size=1,
+                pipeline_model_parallel_size=1,
+                context_parallel_size=1,
+                sequence_parallel=False,
+                pipeline_dtype=torch.bfloat16,
+                ddp=run.Config(
+                    DistributedDataParallelConfig,
+                    check_for_nan_in_grad=True,
+                    grad_reduce_in_fp32=True,
+                ),
+            ),
+            plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+            num_sanity_val_steps=0,
+            limit_val_batches=0,
+            max_steps=10,
+            log_every_n_steps=1,
+            callbacks=[
+                run.Config(
+                    nl.ModelCheckpoint,
+                    save_last=False,
+                )
+            ],
+        ),
+        log=run.Config(
+            nl.NeMoLogger,
+            ckpt=None,
+            name=NAME,
+            tensorboard=tensorboard_logger(name=NAME),
+            log_dir='/tmp/flux_training',
+        ),
+        optim=run.Config(
+            nl.MegatronOptimizerModule,
+            config=run.Config(
+                OptimizerConfig,
+                lr=1e-4,
+                adam_beta1=0.9,
+                adam_beta2=0.999,
+                use_distributed_optimizer=True,
+                bf16=True,
+            ),
+        ),
+        resume=default_resume(),
+    )
 
 if __name__ == "__main__":
     recipe = flux_controlnet_training()

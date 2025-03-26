@@ -83,6 +83,9 @@ def parse_args():
         default="A cat holding a sign that says hello world",
         help="Inference prompts, use \',\' to separate if multiple prompts are provided.",
     )
+    parser.add_argument(
+        "--output_path", type=str, default="/tmp/flux_output", help="Path to save inference output."
+    )
     args = parser.parse_args()
     return args
 
@@ -122,4 +125,5 @@ if __name__ == '__main__':
         offload=args.offload,
         guidance_scale=args.guidance,
         dtype=dtype,
+        output_path=args.output_path,
     )

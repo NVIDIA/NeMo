@@ -13,3 +13,6 @@
 # limitations under the License.
 
 TRANSFORMER_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v
+
+
+TRANSFORMER_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v --factory flux_training
