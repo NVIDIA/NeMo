@@ -160,6 +160,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
             & (df["model"] == model_name)
             & (df["size"] == model_size)
             & (df["dtype"] == args.compute_dtype)
+            & (args.num_gpus is None or df['num_gpus'] == args.num_gpus)
         ]
         config_df = config_df.replace({nan: None})
         if len(config_df) == 0:
@@ -205,6 +206,8 @@ def set_primary_perf_configs(
     ep_size: int,
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
+    use_mcore_fsdp: bool = False,
+    num_recompute_layers: int = 0,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -240,10 +243,36 @@ def set_primary_perf_configs(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
 
+    # enable cross entropy fusion with TE kernel
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    # Cuda graph configs
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
     if task == "none" or task == "lora" and hasattr(recipe.data, "packed_sequence_specs"):
         recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+
+    # FSDP configs
+    if use_mcore_fsdp:
+        recipe.model.config.init_model_with_meta_device = True
+        recipe.trainer.strategy.ddp.use_mcore_fsdp = True
+        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+        recipe.trainer.strategy.ddp.average_in_collective = False
+        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
+        recipe.model.config.gradient_accumulation_fusion = False
+        if (
+            comm_overlap_callback_idx is not None
+            and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute
+        ):
+            logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
+            recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
+
+    # Recompute configs
+    if num_recompute_layers > 0:
+        assert num_recompute_layers > 0, "Number of recompute layers must be greater than 0"
+        recipe.model.config.recompute_granularity = "full"
+        recipe.model.config.recompute_method = "block"
+        recipe.model.config.recompute_num_layers = num_recompute_layers
 
     return recipe
 
@@ -258,6 +287,7 @@ def set_exp_logging_configs(
     wandb_prj_name: str,
     wandb_job_name: str,
 ):
+    """Set experiment logging configs."""
     if task == "pre_train" and domain == "llm":
         recipe.trainer.callbacks.append(
             run.Config(
