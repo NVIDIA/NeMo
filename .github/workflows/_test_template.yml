@@ -133,7 +133,6 @@ jobs:
         id: check
         env:
           IS_OPTIONAL: ${{ inputs.IS_OPTIONAL }}
-          IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
         run: |
           cat $DIR/err.log
 
@@ -143,10 +142,8 @@ jobs:
           potential_infra_failure=$(cat $DIR/err.log | grep -Eqiw "device" && echo true || echo false)
           echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
 
-          if [[ "$IS_UNIT_TEST" == "false" ]]; then
-            docker exec nemo_container_${{ github.run_id }} coverage combine
-            docker exec nemo_container_${{ github.run_id }} coverage xml
-          fi
+          docker exec nemo_container_${{ github.run_id }} coverage combine
+          docker exec nemo_container_${{ github.run_id }} coverage xml
 
           coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
           echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
