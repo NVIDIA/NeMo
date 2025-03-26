@@ -26,7 +26,7 @@ from megatron.core.transformer.attention import (
     SelfAttention,
     SelfAttentionSubmodules,
 )
-
+from megatron.core.transformer.cuda_graphs import CudaGraphManager
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -34,7 +34,6 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.transformer.cuda_graphs import CudaGraphManager
 from megatron.core.utils import make_viewless_tensor
 
 from nemo.collections.diffusion.models.dit.dit_attention import (
@@ -730,7 +729,7 @@ class FluxSingleTransformerBlock(TransformerLayer):
         hidden_states = self.adaln.scale_add(residual, x=hidden_states, gate=gate)
 
         return hidden_states, None
-    
+
     def __call__(self, *args, **kwargs):
         if hasattr(self, 'cudagraph_manager'):
             return self.cudagraph_manager(self, args, kwargs)
