@@ -101,7 +101,7 @@ class TestBertBase:
         model = BertModel(config=basic_config, tokenizer=None)
         model.module = MagicMock()
 
-        result = bert_forward_step(model, sample_batch)
+        bert_forward_step(model, sample_batch)
 
         # Verify model was called with correct arguments
         model.module.assert_called_once()
