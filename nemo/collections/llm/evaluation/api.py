@@ -24,7 +24,7 @@ class ApiEndpoint(BaseModel):
 
     url: str = Field(description="Url of the model", default="http://0.0.0.0:8080/v1/completions/")
     model_id: str = Field(description="Name of the model in API", default="triton_model")
-    type: str = Field(description="The type of the target", default="completions")
+    type: str = Field(description="The type of the target (chat or completions)", default="completions")
     nemo_checkpoint_path: Optional[str] = Field(
         description="Path for nemo 2.0 checkpoint",
         default=None,
@@ -72,7 +72,7 @@ class ConfigParams(BaseModel):
         description="Number of parallel requests to be sent to the server", default=None
     )
     task: Optional[str] = Field(description="Name of the task", default=None)
-    request_timeout: Optional[int] = Field(description="REST response timeout", default=None)
+    request_timeout: Optional[int] = Field(description="REST response timeout", default=300)
     extra: Optional[Dict[str, Any]] = Field(
         description="Framework specific parameters to be used for evaluation", default_factory=dict
     )
