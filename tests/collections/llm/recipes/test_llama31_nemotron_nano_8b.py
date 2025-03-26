@@ -14,7 +14,6 @@
 
 import nemo_run as run
 import pytest
-import torch
 
 from nemo.collections.llm import Llama31NemotronNano8BConfig, LlamaNemotronModel
 from nemo.collections.llm.api import finetune, pretrain
