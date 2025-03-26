@@ -15,15 +15,17 @@
 import abc
 import logging
 import os
+import random
 from itertools import chain
 from typing import List, Literal, Optional
-import random
-import numpy as np
 
+import numpy as np
 import torch
 from lightning.pytorch.overrides.distributed import _IndexBatchSamplerWrapper
 from torch.utils.data import DataLoader, Dataset
+
 # from megatron.core.data_samplers import MegatronPretrainingSampler as _MegatronPretrainingSampler, MegatronPretrainingRandomSampler as _MegatronPretrainingRandomSampler
+
 
 class _MegatronPretrainingSampler:
 
@@ -50,9 +52,9 @@ class _MegatronPretrainingSampler:
 
         # Sanity checks.
         assert self.total_samples > 0, 'no sample to consume: {}'.format(self.total_samples)
-        assert (
-            self.consumed_samples < self.total_samples
-        ), 'no samples left to consume: {}, {}'.format(self.consumed_samples, self.total_samples)
+        assert self.consumed_samples < self.total_samples, 'no samples left to consume: {}, {}'.format(
+            self.consumed_samples, self.total_samples
+        )
         assert self.micro_batch_size > 0
         assert data_parallel_size > 0
         assert (
@@ -164,9 +166,7 @@ class _MegatronPretrainingRandomSampler:
 
         # data sharding and random sampling
         if self.data_sharding:
-            bucket_size = (
-                self.total_samples // self.micro_batch_times_data_parallel_size
-            ) * self.micro_batch_size
+            bucket_size = (self.total_samples // self.micro_batch_times_data_parallel_size) * self.micro_batch_size
             bucket_offset = current_epoch_samples // self.data_parallel_size
             start_idx = self.data_parallel_rank * bucket_size
 
