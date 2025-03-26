@@ -105,10 +105,6 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
-
     if finetuning_scheme == "lora" and tp_size > 1 and args.compute_dtype.lower() == "fp8":
         tp_comm_overlap_cfg = userbuffers_fp8_h100_h16384_tp4_mbs1_seqlen2048_lora if tp_size == 4 else None
         if tp_comm_overlap_cfg:
