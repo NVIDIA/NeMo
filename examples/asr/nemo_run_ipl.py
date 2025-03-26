@@ -201,16 +201,13 @@ def main(cluster_cfg):
     # Perform all path checks in the merged config
     if "ipl_training" in merged_config.model:
         ipl_training = merged_config.model.ipl_training
-        del merged_config.model.ipl_training
+        # not to check the path
+        del merged_config.model.ipl_training.inference_config
     else:
         raise KeyError("Parameters for `IPL` training are not provided.")
     
     check_config_mount_paths(merged_config, cluster_cfg)
-    print()
-    print(f"going to ipl part")
 
-    
-    print(f"ipl_training {ipl_training}")
 
     inference_config = ipl_training.inference_config
     inference_config_path = Path(inference_config).absolute()
