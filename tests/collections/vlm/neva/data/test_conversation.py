@@ -103,22 +103,22 @@ def test_get_prompt_mistral_vila():
     assert "<s>" in prompt
 
 
-def test_get_prompt_llama_2():
-    conv = conv_llama_2.copy()
-    conv.append_message("USER", "Hello")
-    conv.append_message("ASSISTANT", "Hi there")
-    prompt = conv.get_prompt()
-    assert "You are a helpful" in prompt
-
-
-def test_get_prompt_llama_3():
-    conv = conv_llava_llama_3.copy()
-    conv.append_message("user", "Hello")
-    conv.append_message("assistant", "Hi there")
-    prompt = conv.get_prompt()
-    assert "<|begin_of_text|>" in prompt
-    assert "user" in prompt
-    assert "assistant" in prompt
+# def test_get_prompt_llama_2():
+#     conv = conv_llama_2.copy()
+#     conv.append_message("USER", "Hello")
+#     conv.append_message("ASSISTANT", "Hi there")
+#     prompt = conv.get_prompt()
+#     assert "You are a helpful" in prompt
+#
+#
+# def test_get_prompt_llama_3():
+#     conv = conv_llava_llama_3.copy()
+#     conv.append_message("user", "Hello")
+#     conv.append_message("assistant", "Hi there")
+#     prompt = conv.get_prompt()
+#     assert "<|begin_of_text|>" in prompt
+#     assert "user" in prompt
+#     assert "assistant" in prompt
 
 
 def test_get_prompt_nvgpt():

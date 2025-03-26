@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,14 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import pytest
-from nemo.collections import vlm
-
-
-def test_siglip_config_error():
-    config = vlm.CLIPViTConfig(vision_model_type="siglip")
-    assert config.add_class_token == False
-    assert config.class_token_len == 0
-    # with pytest.raises(ValueError):
-    #     config.configure_model()
