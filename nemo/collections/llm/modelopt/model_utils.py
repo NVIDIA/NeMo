@@ -30,7 +30,7 @@ from nemo.utils import logging
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
 
-def _set_gpt_modelopt_spec(model_cfg: Union[llm.GPTConfig, llm.SSMConfig]) -> Union[llm.GPTConfig, llm.SSMConfig]:
+def _set_gpt_mamba_modelopt_spec(model_cfg: Union[llm.GPTConfig, llm.SSMConfig]) -> Union[llm.GPTConfig, llm.SSMConfig]:
     """
     Set the model layer spec to a modelopt spec variant. This function updates the model
     config with the appropriate modelopt layer specification based on the model type.
@@ -78,7 +78,7 @@ def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> 
         return
 
     if isinstance(model, (llm.GPTModel, "llm.MambaModel")):
-        _set_gpt_modelopt_spec(model.config)
+        _set_gpt_mamba_modelopt_spec(model.config)
 
         # Disable gradient accumulation fusion for QAT
         model.config.gradient_accumulation_fusion = False
@@ -163,7 +163,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     )
 
     model = nl.io.load_context(path=ckpt_to_context_subdir(model_path), subpath="model")
-    _set_gpt_modelopt_spec(model.config)
+    _set_gpt_mamba_modelopt_spec(model.config)
     for k, v in model_config_overrides.items():
         logging.info(f"Overriding model.config.{k} to {v}")
         setattr(model.config, k, v)
