@@ -1,3 +1,6 @@
+[run]
+concurrency = multiprocessing
+
 [paths]
 source =
     nemo/

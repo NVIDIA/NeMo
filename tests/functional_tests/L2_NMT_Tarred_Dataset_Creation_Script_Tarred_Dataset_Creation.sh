@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 cd examples/nlp/machine_translation &&
-    coverage run --concurrency=multiprocessing --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo create_tarred_parallel_dataset.py \
+    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo create_tarred_parallel_dataset.py \
         --src_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         --tgt_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
         --out_dir $PWD/out_dir \
