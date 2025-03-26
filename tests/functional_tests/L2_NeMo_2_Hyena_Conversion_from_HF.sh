@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-HF_HOME=/home/TestData/ykarnati/hf_data coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/vlm/llava_next/test_llava_next_train.py \
-    --devices=2 \
-    --max-steps=5 \
-    --tensor-model-parallel-size=2 \
-    --experiment-dir=/tmp/nemo2_llava_next_results/$RUN_ID
+
+TRANSFORMERS_OFFLINE=1 coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/conversion/test_hyena_import_from_hf.py \
+ --output-path=tests/collections/llm/hyena_conversion_results/$RUN_ID

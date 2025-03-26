@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,8 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-HF_HOME=/home/TestData/ykarnati/hf_data coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/vlm/llava_next/test_llava_next_train.py \
-    --devices=2 \
-    --max-steps=5 \
-    --tensor-model-parallel-size=2 \
-    --experiment-dir=/tmp/nemo2_llava_next_results/$RUN_ID
+
+from pathlib import Path
+
+from nemo.collections.llm import import_ckpt
+from nemo.collections.llm.gpt.model.starcoder2 import Starcoder2Config3B, Starcoder2Model
+
+if __name__ == "__main__":
+    import_ckpt(
+        model=Starcoder2Model(Starcoder2Config3B()),
+        source='hf://bigcode/starcoder2-3b',
+        output_path=Path('/workspace/starcoder2_3b_nemo2'),
+        overwrite=True,
+    )
