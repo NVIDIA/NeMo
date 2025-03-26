@@ -78,6 +78,8 @@ def main(args):
         bias=False,
         bias_activation_fusion=False,
     )
+    if args.use_toy_model:
+        language_transformer_config.num_layers = 2
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -117,7 +119,7 @@ def main(args):
         )
     elif args.data_type == "energon":
         from transformers import AutoProcessor
-
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
         from nemo.collections.multimodal.data.energon import (
             EnergonMultiModalDataModule,
             ImageToken,
@@ -126,8 +128,8 @@ def main(args):
         )
 
         processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-        tokenizer = processor.tokenizer
         image_processor = processor.image_processor
+        tokenizer = AutoTokenizer("llava-hf/llava-1.5-7b-hf")
 
         # Configure multimodal samples
         config = MultiModalSampleConfig(
@@ -284,7 +286,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NEVA Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava | energon")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
     parser.add_argument(
@@ -314,6 +316,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",
+    )
+    parser.add_argument(
+        "--use_toy_model",
+        action="store_true",
+        help="Toy size model used for testing",
     )
     args = parser.parse_args()
     main(args)
