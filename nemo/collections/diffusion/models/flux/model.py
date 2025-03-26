@@ -75,8 +75,8 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     """
 
     num_layers: int = 1  # dummy setting
-    num_joint_layers: int = 1
-    num_single_layers: int = 40
+    num_joint_layers: int = 19
+    num_single_layers: int = 38
     hidden_size: int = 3072
     num_attention_heads: int = 24
     activation_func: Callable = openai_gelu
