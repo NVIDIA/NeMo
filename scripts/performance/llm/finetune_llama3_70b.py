@@ -23,7 +23,6 @@ from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora,
-    userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen4096_lora,
 )
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -116,8 +115,7 @@ def override_recipe_configs(
     if finetuning_scheme == "lora" and tp_size > 1 and args.compute_dtype.lower() == "fp8":
         tp_comm_overlap_cfg = (
             userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora
-            if tp_size == 2
-            else userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen4096_lora if tp_size == 4 else None
+            if tp_size == 2 else None
         )
         if tp_comm_overlap_cfg:
             comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
