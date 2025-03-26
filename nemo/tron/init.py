@@ -30,15 +30,13 @@ from megatron.core.num_microbatches_calculator import (
 )
 from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_version
 
-from nemo.tron.config import ConfigContainer, RerunStateMachineConfig
-from nemo.tron.state import GlobalState
+from nemo.collections.llm.gpt.model.base import GPTConfig
+from nemo.collections.llm.t5.model.t5 import T5Config
+from nemo.tron.config import ConfigContainer, DistributedInitConfig, RerunStateMachineConfig, RNGConfig
 from nemo.tron.utils.common_utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
 
 
 def initialize_megatron(
-    # extra_args_provider=None,
-    # args_defaults={},
-    # ignore_unknown_args=False,
     cfg: ConfigContainer,
     allow_no_cuda: bool = False,
     skip_mpu_initialization: bool = False,
@@ -50,6 +48,12 @@ def initialize_megatron(
     if not allow_no_cuda:
         # Make sure cuda is available.
         assert torch.cuda.is_available(), "Megatron requires CUDA."
+
+    model_config = cfg.model_config
+    dist_config = cfg.dist_config
+    rng_config = cfg.rng_config
+    rerun_state_machine_config = cfg.rerun_state_machine_config
+    train_config = cfg.train_config
 
     # Prep for checkpoint conversion.
     # if args.ckpt_convert_format is not None:
@@ -64,47 +68,66 @@ def initialize_megatron(
 
     init_num_microbatches_calculator(
         get_rank_safe(),
-        cfg.train_config.rampup_batch_size,
-        cfg.train_config.global_batch_size,
-        cfg.train_config.micro_batch_size,
+        train_config.rampup_batch_size,
+        train_config.global_batch_size,
+        train_config.micro_batch_size,
         cfg.data_parallel_size,
-        cfg.train_config.decrease_batch_size_if_needed,
+        train_config.decrease_batch_size_if_needed,
     )
 
     # init rerun global state
-    _init_rerun_state(cfg.rerun_state_machine_config)
+    init_rerun_state(rerun_state_machine_config)
 
     # torch.distributed initialization
-    _torch_dist_init(cfg, get_embedding_ranks, get_position_embedding_ranks, skip_mpu_initialization)
+    return torch_dist_init(
+        model_config=model_config,
+        dist_config=dist_config,
+        rng_config=rng_config,
+        micro_batch_size=train_config.micro_batch_size,
+        num_distributed_optimizer_instances=cfg.ddp_config.num_distributed_optimizer_instances,
+        get_embedding_ranks=get_embedding_ranks,
+        get_position_embedding_ranks=get_position_embedding_ranks,
+        skip_mpu_initialization=skip_mpu_initialization,
+    )
 
 
-def _torch_dist_init(
-    cfg: ConfigContainer,
+def torch_dist_init(
+    model_config: GPTConfig | T5Config,
+    dist_config: DistributedInitConfig,
+    rng_config: RNGConfig,
+    micro_batch_size: int,
+    num_distributed_optimizer_instances: int,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     skip_mpu_initialization: bool,
 ):
     def finish_mpu_init():
         # Pytorch distributed.
-        _initialize_distributed(cfg, get_embedding_ranks, get_position_embedding_ranks)
+        _initialize_distributed(
+            model_config=model_config,
+            dist_config=dist_config,
+            num_distributed_optimizer_instances=num_distributed_optimizer_instances,
+            get_embedding_ranks=get_embedding_ranks,
+            get_position_embedding_ranks=get_position_embedding_ranks,
+        )
 
         # Random seeds for reproducibility.
         if get_rank_safe() == 0:
-            print("> setting random seeds to {} ...".format(cfg.rng_config.seed))
+            print("> setting random seeds to {} ...".format(rng_config.seed))
         _set_random_seed(
-            cfg.rng_config.seed,
-            cfg.rng_config.data_parallel_random_init,
-            cfg.rng_config.te_rng_tracker,
-            cfg.rng_config.inference_rng_tracker,
+            rng_config.seed,
+            rng_config.data_parallel_random_init,
+            rng_config.te_rng_tracker,
+            rng_config.inference_rng_tracker,
         )
 
     if skip_mpu_initialization:
         return None
 
-    if cfg.dist_config.lazy_mpu_init:
+    if dist_config.lazy_mpu_init:
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals
-        parallel_state.set_tensor_model_parallel_world_size(cfg.model_config.tensor_model_parallel_size)
+        parallel_state.set_tensor_model_parallel_world_size(model_config.tensor_model_parallel_size)
         # and return function for external DDP manager
         # to call when it has DDP initialized
         parallel_state.set_tensor_model_parallel_rank(get_rank_safe())
@@ -115,14 +138,14 @@ def _torch_dist_init(
 
         _compile_dataset_helpers()
 
-        if cfg.model_config.tp_comm_overlap:
-            _initialize_tp_communicators(cfg)
+        if model_config.tp_comm_overlap:
+            _initialize_tp_communicators(model_config, micro_batch_size)
 
         # No continuation function
         return None
 
 
-def _initialize_tp_communicators(cfg: ConfigContainer):
+def _initialize_tp_communicators(model_config: GPTConfig | T5Config, micro_batch_size: int):
     """initializing the communicators with user buffers for high-performance tensor-model-parallel
     communication overlap"""
 
@@ -136,42 +159,44 @@ def _initialize_tp_communicators(cfg: ConfigContainer):
             "Tensor Parallel Communication/GEMM Overlap optimization needs 'yaml' and 'transformer_engine' packages"
         )
 
-    if cfg.model_config.tp_comm_overlap_cfg is not None:
-        with open(cfg.model_config.tp_comm_overlap_cfg, "r") as stream:
+    if model_config.tp_comm_overlap_cfg is not None:
+        with open(model_config.tp_comm_overlap_cfg, "r") as stream:
             ub_cfgs = yaml.safe_load(stream)
     else:
         ub_cfgs = {}
 
     input_shape = [
-        (cfg.model_config.seq_length * cfg.train_config.micro_batch_size) // cfg.model_config.context_parallel_size,
-        cfg.model_config.hidden_size,
+        (model_config.seq_length * micro_batch_size) // model_config.context_parallel_size,
+        model_config.hidden_size,
     ]
 
     if is_te_min_version("1.9.0"):
         # The process group with the target bootstrap backend is created in Transformer Engine.
         te_module.base.initialize_ub(
             shape=input_shape,
-            tp_size=cfg.model_config.tensor_model_parallel_size,
-            use_fp8=(cfg.model_config.fp8 is not None),
+            tp_size=model_config.tensor_model_parallel_size,
+            use_fp8=(model_config.fp8 is not None),
             ub_cfgs=ub_cfgs,
-            bootstrap_backend=cfg.model_config.tp_comm_bootstrap_backend,
+            bootstrap_backend=model_config.tp_comm_bootstrap_backend,
         )
     else:
-        if cfg.model_config.tp_comm_bootstrap_backend != "mpi":
+        if model_config.tp_comm_bootstrap_backend != "mpi":
             warnings.warn(f"Transformer Engine v{get_te_version()} supports only MPI bootstrap backend.")
         # Create a MPI process group to help with TP communication overlap bootstrap.
         torch.distributed.new_group(backend="mpi")
 
         te_module.base.initialize_ub(
             shape=input_shape,
-            tp_size=cfg.model_config.tensor_model_parallel_size,
-            use_fp8=(cfg.model_config.fp8 is not None),
+            tp_size=model_config.tensor_model_parallel_size,
+            use_fp8=(model_config.fp8 is not None),
             ub_cfgs=ub_cfgs,
         )
 
 
 def _initialize_distributed(
-    cfg: ConfigContainer,
+    model_config: GPTConfig | T5Config,
+    dist_config: DistributedInitConfig,
+    num_distributed_optimizer_instances: int,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
 ):
@@ -195,10 +220,10 @@ def _initialize_distributed(
 
         # Call the init process
         init_process_group_kwargs = {
-            "backend": cfg.dist_config.distributed_backend,
+            "backend": dist_config.distributed_backend,
             "world_size": get_world_size_safe(),
             "rank": get_rank_safe(),
-            "timeout": datetime.timedelta(minutes=cfg.dist_config.distributed_timeout_minutes),
+            "timeout": datetime.timedelta(minutes=dist_config.distributed_timeout_minutes),
         }
 
         torch.distributed.init_process_group(**init_process_group_kwargs)
@@ -211,25 +236,23 @@ def _initialize_distributed(
             print("model parallel is already initialized")
         else:
             parallel_state.initialize_model_parallel(
-                cfg.model_config.tensor_model_parallel_size,
-                cfg.model_config.pipeline_model_parallel_size,
-                cfg.model_config.virtual_pipeline_model_parallel_size,
-                cfg.model_config.pipeline_model_parallel_split_rank,
-                context_parallel_size=cfg.model_config.context_parallel_size,
-                hierarchical_context_parallel_sizes=cfg.model_config.hierarchical_context_parallel_sizes,
-                expert_model_parallel_size=cfg.model_config.expert_model_parallel_size,
-                num_distributed_optimizer_instances=cfg.ddp_config.num_distributed_optimizer_instances,
-                expert_tensor_parallel_size=cfg.model_config.expert_tensor_parallel_size,
-                distributed_timeout_minutes=cfg.dist_config.distributed_timeout_minutes,
-                nccl_communicator_config_path=cfg.dist_config.nccl_communicator_config_path,
-                order="tp-cp-ep-dp-pp" if not cfg.dist_config.use_tp_pp_dp_mapping else "tp-pp-dp",
-                encoder_tensor_model_parallel_size=getattr(cfg.model_config, "encoder_tensor_model_parallel_size", 0),
-                encoder_pipeline_model_parallel_size=getattr(
-                    cfg.model_config, "encoder_pipeline_model_parallel_size", 0
-                ),
+                model_config.tensor_model_parallel_size,
+                model_config.pipeline_model_parallel_size,
+                model_config.virtual_pipeline_model_parallel_size,
+                model_config.pipeline_model_parallel_split_rank,
+                context_parallel_size=model_config.context_parallel_size,
+                hierarchical_context_parallel_sizes=model_config.hierarchical_context_parallel_sizes,
+                expert_model_parallel_size=model_config.expert_model_parallel_size,
+                num_distributed_optimizer_instances=num_distributed_optimizer_instances,
+                expert_tensor_parallel_size=model_config.expert_tensor_parallel_size,
+                distributed_timeout_minutes=dist_config.distributed_timeout_minutes,
+                nccl_communicator_config_path=dist_config.nccl_communicator_config_path,
+                order="tp-cp-ep-dp-pp" if not dist_config.use_tp_pp_dp_mapping else "tp-pp-dp",
+                encoder_tensor_model_parallel_size=getattr(model_config, "encoder_tensor_model_parallel_size", 0),
+                encoder_pipeline_model_parallel_size=getattr(model_config, "encoder_pipeline_model_parallel_size", 0),
                 get_embedding_ranks=get_embedding_ranks,
                 get_position_embedding_ranks=get_position_embedding_ranks,
-                create_gloo_process_groups=cfg.dist_config.use_gloo_process_groups,
+                create_gloo_process_groups=dist_config.use_gloo_process_groups,
             )
             if get_rank_safe() == 0:
                 print(
@@ -242,7 +265,7 @@ def _initialize_distributed(
                 )
 
 
-def _init_rerun_state(rerun_state_machine_config: RerunStateMachineConfig):
+def init_rerun_state(rerun_state_machine_config: RerunStateMachineConfig):
     from megatron.core.rerun_state_machine import (
         RerunDiagnostic,
         RerunErrorInjector,
@@ -310,7 +333,7 @@ def _set_random_seed(
         tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
 
 
-def set_jit_fusion_options(state: GlobalState):
+def set_jit_fusion_options(model_config: GPTConfig | T5Config, micro_batch_size: int):
     """Set PyTorch JIT layer fusion options."""
     # flags required to enable jit fusion kernels
     if is_torch_min_version("2.2.0a0"):
@@ -331,29 +354,29 @@ def set_jit_fusion_options(state: GlobalState):
         torch._C._jit_override_can_fuse_on_cpu(True)
         torch._C._jit_override_can_fuse_on_gpu(True)
 
-    _warmup_jit_function(state)
+    _warmup_jit_function(model_config, micro_batch_size)
 
 
-def _warmup_jit_function(state: GlobalState):
+def _warmup_jit_function(model_config: GPTConfig | T5Config, micro_batch_size: int):
     """Compilie JIT functions before the main training steps"""
-    if state.cfg.model_config.fp8:
+    if model_config.fp8:
         dtype = torch.float8
-    elif state.cfg.model_config.fp16:
+    elif model_config.fp16:
         dtype = torch.float16
     else:
         dtype = torch.float32
 
     # Warmup fused bias+gelu
     bias = torch.rand(
-        state.cfg.model_config.ffn_hidden_size // state.cfg.model_config.tensor_model_parallel_size,
+        model_config.ffn_hidden_size // model_config.tensor_model_parallel_size,
         dtype=dtype,
         device="cuda",
     )
     input = torch.rand(
         (
-            state.cfg.model_config.seq_length // state.cfg.model_config.context_parallel_size,
-            state.cfg.train_config.micro_batch_size,
-            state.cfg.model_config.ffn_hidden_size // state.cfg.model_config.tensor_model_parallel_size,
+            model_config.seq_length // model_config.context_parallel_size,
+            micro_batch_size,
+            model_config.ffn_hidden_size // model_config.tensor_model_parallel_size,
         ),
         dtype=dtype,
         device="cuda",
@@ -363,36 +386,36 @@ def _warmup_jit_function(state: GlobalState):
     for bias_grad, input_grad in zip([True, True], [False, True]):
         bias.requires_grad, input.requires_grad = bias_grad, input_grad
         for _ in range(5):
-            if state.cfg.model_config.activation_func == F.silu:
+            if model_config.activation_func == F.silu:
                 output = bias_swiglu(input, bias)
             else:
                 output = bias_gelu(bias, input)
     del bias, input, output
 
     # Warmup fused bias+dropout+add
-    if state.cfg.model_config.sequence_parallel:
-        seq_length = state.cfg.model_config.seq_length // parallel_state.get_tensor_model_parallel_world_size()
+    if model_config.sequence_parallel:
+        seq_length = model_config.seq_length // parallel_state.get_tensor_model_parallel_world_size()
     else:
-        seq_length = state.cfg.model_config.seq_length
+        seq_length = model_config.seq_length
     input = torch.rand(
         (
-            seq_length // state.cfg.model_config.context_parallel_size,
-            state.cfg.train_config.micro_batch_size,
-            state.cfg.model_config.hidden_size,
+            seq_length // model_config.context_parallel_size,
+            micro_batch_size,
+            model_config.hidden_size,
         ),
         dtype=dtype,
         device="cuda",
     )
     residual = torch.rand(
         (
-            seq_length // state.cfg.model_config.context_parallel_size,
-            state.cfg.train_config.micro_batch_size,
-            state.cfg.model_config.hidden_size,
+            seq_length // model_config.context_parallel_size,
+            micro_batch_size,
+            model_config.hidden_size,
         ),
         dtype=dtype,
         device="cuda",
     )
-    bias = torch.rand((state.cfg.model_config.hidden_size), dtype=dtype, device="cuda").expand_as(residual)
+    bias = torch.rand((model_config.hidden_size), dtype=dtype, device="cuda").expand_as(residual)
     dropout_rate = 0.1
     # Warmup JIT fusions with the input grad_enable state of both forward
     # prop and recomputation
