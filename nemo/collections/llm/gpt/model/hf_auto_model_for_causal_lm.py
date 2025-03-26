@@ -271,7 +271,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             # use linear_cross_entropy
             hidden_states = outputs.hidden_states[-1]
             lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
-            labels = labels
             num_items_in_batch = torch.count_nonzero(labels != -100).item()
             logit_softcapping = 0
             loss = fused_linear_cross_entropy(
