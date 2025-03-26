@@ -36,6 +36,8 @@ jobs:
           if [[ "$INSTALLER" == "pip-install" ]]; then
             pip install --no-cache-dir -U pip
             pip install --no-cache-dir ".[all]"
+          elif [ "$INSTALLER" = "nemo-install-light" ]; then
+            bash reinstall.sh
           else
             export NEMO_TAG
             export NEMO_REPO
