@@ -70,7 +70,7 @@ class ConfigParams(BaseModel):
     max_retries: Optional[int] = Field(description="Number of REST request retries", default=None)
     parallelism: Optional[int] = Field(description="Parallelism to be used", default=None)
     task: Optional[str] = Field(description="Name of the task", default=None)
-    timeout: Optional[int] = Field(description="REST response timeout", default=None)
+    request_timeout: Optional[int] = Field(description="REST response timeout", default=None)
     extra: Optional[Dict[str, Any]] = Field(
         description="Framework specific parameters to be used for evaluation", default_factory=dict
     )
