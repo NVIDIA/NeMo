@@ -16,9 +16,9 @@ import nemo_run as run
 import pytest
 import torch
 
+from nemo.collections.llm import Llama31Nemotron70BConfig, LlamaNemotronModel
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm import Llama31Nemotron70BConfig, LlamaNemotronModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import llama31_nemotron_70b
 from nemo.lightning import Trainer

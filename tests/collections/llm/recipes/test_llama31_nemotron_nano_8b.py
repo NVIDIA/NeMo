@@ -16,9 +16,9 @@ import nemo_run as run
 import pytest
 import torch
 
+from nemo.collections.llm import Llama31NemotronNano8BConfig, LlamaNemotronModel
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm import Llama31NemotronNano8BConfig, LlamaNemotronModel
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import llama31_nemotron_nano_8b
@@ -105,7 +105,9 @@ class TestLlama31NemotronNano8B:
     def test_pretrain_performance_optimizations(self, recipe_module):
         recipe = recipe_module.pretrain_recipe(performance_mode=True)
         assert any(cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback" for cb in recipe.trainer.callbacks)
-        comm_overlap_callback = next(cb for cb in recipe.trainer.callbacks if cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback")
+        comm_overlap_callback = next(
+            cb for cb in recipe.trainer.callbacks if cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+        )
         assert comm_overlap_callback.tp_comm_overlap is True
         assert comm_overlap_callback.defer_embedding_wgrad_compute is True
         assert comm_overlap_callback.wgrad_deferral_limit == 50
