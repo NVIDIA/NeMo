@@ -306,27 +306,24 @@ class HFCosmosMegatronExporter(io.ModelConnector[CosmosMegatronModel, "PreTraine
         Returns:
             PretrainedConfig: A configuration object for the HuggingFace NVLM_D_Model model.
         """
-        # from transformers import LlamaConfig as HFLlamaConfig
+        source = io.load_context(str(self), subpath="model.config")
+        language_config = source.language_transformer_config
+        text_config_dict = dict(
+            num_hidden_layers=language_config.num_layers,
+            hidden_size=language_config.hidden_size,
+            intermediate_size=language_config.ffn_hidden_size,
+            num_attention_heads=language_config.num_attention_heads,
+            max_position_embeddings=language_config.seq_length,
+            initializer_range=language_config.init_method_std,
+            rms_norm_eps=language_config.layernorm_epsilon,
+            num_key_value_heads=language_config.num_query_groups,
+            rope_theta=language_config.rotary_base,
+            tie_word_embeddings=language_config.share_embeddings_and_output_weights,
+        )
 
-        # source = io.load_context(str(self), subpath="model.config")
-        # language_config = source.language_transformer_config
-        # vision_config = AutoConfig.from_pretrained("nvidia/C-RADIOv2-H", trust_remote_code=True)
-
-        # # Create text config for HuggingFace model
-        # text_config = HFLlamaConfig(
-        #     num_hidden_layers=language_config.num_layers,
-        #     hidden_size=language_config.hidden_size,
-        #     intermediate_size=language_config.ffn_hidden_size,
-        #     num_attention_heads=language_config.num_attention_heads,
-        #     max_position_embeddings=language_config.seq_length,
-        #     initializer_range=language_config.init_method_std,
-        #     rms_norm_eps=language_config.layernorm_epsilon,
-        #     num_key_value_heads=language_config.num_query_groups,
-        #     rope_theta=language_config.rotary_base,
-        #     vocab_size=self.tokenizer.vocab_size,
-        #     tie_word_embeddings=language_config.share_embeddings_and_output_weights,
-        # )
-        return AutoConfig.from_pretrained("/ws/llama_3p1_8b_cradio_h_v2_hf", trust_remote_code=True)
+        config = AutoConfig.from_pretrained("/opt/llama_3p1_8b_cradio_h_v2_hf", trust_remote_code=True)
+        config.llm_config.update(text_config_dict)
+        return config
 
 # Define transformation functions needed for the exporter
 @io.state_transform(
