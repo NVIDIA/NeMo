@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import logging
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,7 +26,8 @@ from nemo.tron.config import FinetuningDatasetConfig
 from nemo.tron.data.finetuning_dataset import FinetuningDatasetBuilder
 from nemo.tron.tokenizers.tokenizer import MegatronTokenizer
 from nemo.tron.utils.common_utils import print_rank_0
-from nemo.utils import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessExampleOutput(TypedDict):
@@ -78,7 +80,7 @@ def preprocess_and_split_data(
         val_proportion (float, optional): The proportion of the training or test set to be used for the validation split.
             Defaults to 0.05.
     """
-    logging.info(f"Preprocessing {dataset_name} to jsonl format and splitting...")
+    logger.info(f"Preprocessing {dataset_name} to jsonl format and splitting...")
     save_splits = {}
     train_set: Dataset | None = None
     val_set: Dataset | None = None
@@ -135,7 +137,7 @@ def preprocess_and_split_data(
                     json_line["original_answers"] = processed_example["original_answers"]
                 f.write(json.dumps(json_line) + "\n")
 
-        logging.info(f"{split_name} split saved to {output_file}")
+        logger.info(f"{split_name} split saved to {output_file}")
 
     if delete_raw:
         for p in dataset_root.iterdir():
@@ -241,7 +243,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
     def _load_dataset(self):
         """Load the dataset from Hugging Face or use the provided dataset."""
         if isinstance(self.dataset_name, str):
-            logging.info(f"Loading HF dataset from {self.dataset_name} to {self.dataset_root}")
+            logger.info(f"Loading HF dataset from {self.dataset_name} to {self.dataset_root}")
             dataset = load_dataset(
                 self.dataset_name, cache_dir=str(self.dataset_root), split=self.split, **self.hf_kwargs
             )

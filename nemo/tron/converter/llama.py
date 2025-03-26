@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -24,11 +25,12 @@ from nemo.tron.converter.common import (
 )
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer, build_tokenizer
-from nemo.utils import logging
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
+
+logger = logging.getLogger(__name__)
 
 
 class _ModelState:
@@ -47,7 +49,7 @@ class _ModelState:
         # pylint: disable=C0115,C0116
         for k, v in self._state_dict.items():
             if v.dtype != dtype:
-                logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+                logger.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
             self._state_dict[k] = v.to(dtype)
 
 
@@ -138,7 +140,7 @@ class HFLlamaTronExporter:
         try:
             self.tokenizer = build_tokenizer(instantiate(_config["tokenizer_config"]))
         except Exception:
-            logging.warning("Failed to build tokenizer")
+            logger.warning("Failed to build tokenizer")
 
         dist_ckpt_folder = path / "weights" if (path / "weights").exists() else path
         state_dict = {}
@@ -158,10 +160,10 @@ class HFLlamaTronExporter:
         Returns:
             Path: The path where the converted model is saved
         """
-        logging.info("Loading Llama checkpoint. This may take a while...")
+        logger.info("Loading Llama checkpoint. This may take a while...")
         source, source_config = self.ckpt_load(self.input_path)
         self._source_config = source_config
-        logging.info("Llama checkpoint loaded.")
+        logger.info("Llama checkpoint loaded.")
         target = self.init_hf_model(torch_dtype_from_mcore_config(source_config))
         target = self.convert_state(source, target)
 
@@ -176,7 +178,7 @@ class HFLlamaTronExporter:
         try:
             self.tokenizer._tokenizer.save_pretrained(self.output_path)
         except Exception:
-            logging.warning("Failed to save tokenizer")
+            logger.warning("Failed to save tokenizer")
 
         return self.output_path
 

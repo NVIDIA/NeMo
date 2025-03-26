@@ -74,7 +74,11 @@ def setup(
     state.cfg = cfg
     # TODO: Freeze state.cfg
 
-    setup_logging(cfg)
+    setup_logging(
+        logging_level=cfg.logger_config.logging_level,
+        filter_warning=cfg.logger_config.filter_warnings,
+        modules_to_filter=cfg.logger_config.modules_to_filter,
+    )
 
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(

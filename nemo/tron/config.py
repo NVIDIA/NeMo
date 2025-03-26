@@ -319,6 +319,12 @@ class LoggerConfig:
     logging_level: Optional[int] = None
     """Set default logging level"""
 
+    filter_warnings: bool = True
+    """Filter out warning messages"""
+
+    modules_to_filter: Optional[list[str]] = None
+    """List of modules to filter out from the logs"""
+
 
 @dataclass(kw_only=True)
 class SchedulerConfig:

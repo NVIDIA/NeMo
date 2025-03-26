@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
@@ -21,7 +22,8 @@ import torch
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer
 from nemo.tron.utils.common_utils import get_rank_safe, print_rank_0
-from nemo.utils import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FinetuningDatasetBuilder:
@@ -135,7 +137,7 @@ class FinetuningDatasetBuilder:
                 try:
                     datasets = self._build_datasets()
                 except Exception as err:
-                    logging.error(f"Failed to build datasets on rank 0: {err}")
+                    logger.error(f"Failed to build datasets on rank 0: {err}")
                     raise
 
             # Synchronize all ranks
@@ -225,7 +227,7 @@ class FinetuningDatasetBuilder:
         default_pack_path = self.dataset_root / "packed" / tokenizer_model_name
         if not default_pack_path.exists():
             default_pack_path.mkdir(parents=True, exist_ok=True)
-            logging.info(f"Using default path for packing files: {str(default_pack_path)}")
+            logger.info(f"Using default path for packing files: {str(default_pack_path)}")
 
         return default_pack_path
 
