@@ -29,7 +29,7 @@ from typing_extensions import Annotated
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
-from nemo.collections.llm.evaluation.base import find_framework
+from nemo.collections.llm.evaluation.base import find_framework, wait_for_fastapi_server
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -855,6 +855,9 @@ def evaluate(
         raise ImportError(
             f"Please ensure that {framework_module_name} is installed in your env as it is required to run {eval_cfg.type} evaluation"
         )
+
+    base_url, _ = target_cfg.api_endpoint.url.split('/v1')
+    wait_for_fastapi_server(base_url=base_url, model_name=target_cfg.api_endpoint.model_id)
 
     results = evaluate.evaluate_accuracy(
         target_cfg=target_cfg,

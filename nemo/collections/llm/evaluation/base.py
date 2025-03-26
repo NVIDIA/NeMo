@@ -247,6 +247,60 @@ class NeMoFWLMEval(LM):
         return results
 
 
+def wait_for_fastapi_server(
+    base_url: str = 'http://0.0.0.0:8080',
+    model_name: str = 'triton_model',
+    max_retries: int = 600,
+    retry_interval: int = 2,
+):
+    """
+    Wait for FastAPI server and model to be ready.
+
+    Args:
+        base_url (str): The URL to the FastAPI server (e.g., "http://0.0.0.0:8080").
+        model_name (str): The name of the deployed model.
+        max_retries (int): Maximum number of retries before giving up.
+        retry_interval (int): Time in seconds to wait between retries.
+
+    Returns:
+        bool: True if both the server and model are ready within the retries, False otherwise.
+    """
+
+    import time
+    import requests
+
+    completions_url = f"{base_url}/v1/completions/"
+    health_url = f"{base_url}/v1/triton_health"
+
+    for _ in range(max_retries):
+        logging.info("Checking server and model readiness...")
+
+        try:
+            # Check server readiness using HTTP health endpoint
+            response = requests.get(health_url)
+            if response.status_code != 200:
+                logging.info(f"Server is not ready. HTTP status code: {response.status_code}")
+                time.sleep(retry_interval)
+                continue
+            logging.info("Server is ready.")
+
+            # Check model readiness
+            response = requests.post(completions_url, json={"model": model_name, "prompt": "hello", "max_tokens": 1})
+            if response.status_code != 200:
+                logging.info(f"Model is not ready. HTTP status code: {response.status_code}")
+                time.sleep(retry_interval)
+                continue
+            logging.info("Server is ready.")
+        except requests.exceptions.RequestException:
+            logging.info(f"Pytriton server not ready yet. Retrying in {retry_interval} seconds...")
+
+        # Wait before retrying
+        time.sleep(retry_interval)
+
+    logging.error(f"Server or model '{model_name}' not ready after {max_retries} attempts.")
+    return False
+
+
 def wait_for_server_ready(
     url: str = 'http://0.0.0.0:8000',
     triton_http_port: int = 8000,
