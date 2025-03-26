@@ -133,6 +133,7 @@ jobs:
         id: check
         env:
           IS_OPTIONAL: ${{ inputs.IS_OPTIONAL }}
+          IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
         run: |
           cat $DIR/err.log
 
