@@ -19,6 +19,7 @@ from nemo.collections.asr.parts.mixins.mixins import (
     ASRBPEMixin,
     ASRModuleMixin,
     DiarizationMixin,
+    IPLMixin,
 )
 from nemo.collections.asr.parts.mixins.transcription import (
     ASRTranscriptionMixin,
