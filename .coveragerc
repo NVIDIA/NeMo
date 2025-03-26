@@ -1,5 +1,5 @@
 [run]
-concurrency = multiprocessing
+concurrency = thread,multiprocessing
 
 [paths]
 source =
