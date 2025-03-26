@@ -75,7 +75,6 @@ class TestQwen25_500M:
         assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS['lora']
         assert recipe.optim.config.lr == 1e-4
 
-
     def test_finetune_recipe_with_dora(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme='dora')
         assert isinstance(recipe.peft, run.Config)
