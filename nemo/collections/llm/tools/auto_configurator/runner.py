@@ -103,7 +103,7 @@ class AutoConfigurator:
         assert mode in [
             "pretrain",
             "finetune",
-        ], f"current mode is not supported. Please, set the mode to 'pretrain' or 'finetune'."
+        ], "current mode is not supported. Please, set the mode to 'pretrain' or 'finetune'."
 
         model_type = self._get_model_type(recipe.model.config)
         assert model_type in SUPPORTED_MODELS, f"model_type must be set to one of {list(SUPPORTED_MODELS.keys())}."
