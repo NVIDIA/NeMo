@@ -27,4 +27,4 @@ TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/ykarnati/hf_data coverage run --br
     --data-path=/home/TestData/ykarnati/llava_finetune_wds \
     --gbs=1 \
     --mbs=1 \
-    --tensor-model-parallel-size=2
+    --tensor-model-parallel-size=2 --use-packed-sequence
