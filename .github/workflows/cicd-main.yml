@@ -958,11 +958,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/peft/automodel.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy fsdp2 --fp8
+        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8.sh
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
