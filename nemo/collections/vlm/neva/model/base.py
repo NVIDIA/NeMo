@@ -567,6 +567,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # plus text sequence length.
             seq_lens = num_image_tiles_batch * img_seq_len - num_images_per_sample + text_seq_len
             max_seq_len = seq_lens.max()
+            # padding for SP and CP
+            shard_factor, _ = self._get_shard_factor(packed_seq_params)
+            max_seq_len = (max_seq_len - 1) // shard_factor + shard_factor
             # Pipeline parallel expects fixed input size. Check if we need to pad.
             if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
                 max_seq_len = self._language_max_sequence_length
@@ -725,6 +728,27 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
+    def _get_shard_factor(self, packed_seq_params):
+        """Get shard factor of sequence dimension"""
+
+        if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
+            shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
+            seq_dim = 1
+        elif self.context_parallel_lm > 1:
+            shard_factor = self.context_parallel_lm * 2
+            seq_dim = 1
+        elif self.sequence_parallel_lm:
+            shard_factor = self.tensor_model_parallel_size_lm
+            if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
+                seq_dim = 1
+            else:
+                seq_dim = 0
+        else:
+            shard_factor = 1
+            seq_dim = 0
+
+        return shard_factor, seq_dim
+
     def _process_embedding_token_parallel(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
         """Processes the input data for model parallelism support."""
 
@@ -733,18 +757,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
         if self.pre_process:
-            if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
-                shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
-                seq_dim = 1
-            elif self.context_parallel_lm > 1:
-                shard_factor = self.context_parallel_lm * 2
-                seq_dim = 1
-            elif self.sequence_parallel_lm:
-                shard_factor = self.tensor_model_parallel_size_lm
-                if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-                    seq_dim = 1
-                else:
-                    seq_dim = 0
+            shard_factor, seq_dim = self._get_shard_factor(packed_seq_params)
 
             assert (
                 combined_embeddings.shape[seq_dim] % shard_factor == 0
