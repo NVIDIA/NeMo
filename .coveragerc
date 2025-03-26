@@ -2,7 +2,7 @@
 concurrency = thread,multiprocessing
 omit =
     /tmp/*
-    
+    /home/TestData
 [paths]
 source =
     nemo/
