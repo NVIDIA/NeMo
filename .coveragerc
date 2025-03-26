@@ -6,3 +6,8 @@ source =
     nemo/
     /home/runner/work/NeMo/NeMo/nemo
     /workspace/nemo
+
+omit = [
+    # omit pytorch-generated files in /tmp
+    "/tmp/*",
+]
