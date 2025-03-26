@@ -786,9 +786,11 @@ def _legacy_evaluate(
     tokenizer = io.load_context(endpoint.nemo_checkpoint_path + "/context", subpath="model.tokenizer")
 
     # Wait for server to be ready before starting evaluation
-    wait_for_server_ready(
+    server_ready = wait_for_server_ready(
         url=endpoint.url, triton_http_port=endpoint.nemo_triton_http_port, model_name=endpoint.model_id
     )
+    if not server_ready:
+        raise RuntimeError("Server not ready for evaluation")
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
     params = eval_cfg.params
     model = NeMoFWLMEval(
@@ -857,7 +859,9 @@ def evaluate(
         )
 
     base_url, _ = target_cfg.api_endpoint.url.split('/v1')
-    wait_for_fastapi_server(base_url=base_url, model_name=target_cfg.api_endpoint.model_id)
+    server_ready = wait_for_fastapi_server(base_url=base_url, model_name=target_cfg.api_endpoint.model_id)
+    if not server_ready:
+        raise RuntimeError("Server not ready for evaluation")
 
     results = evaluate.evaluate_accuracy(
         target_cfg=target_cfg,
