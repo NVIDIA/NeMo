@@ -32,6 +32,29 @@ ENDPOINT_TYPES = {
     "completions": "completions/"
 }
 
+EVAL_TASKS = (
+    "arc_challenge",
+    "bbh",
+    "gpqa",
+    "gpqa_diamond_cot",
+    "gsm8k",
+    "gsm8k_cot_instruct",
+    "hellaswag",
+    "ifeval",
+    "mgsm",
+    "mgsm_cot",
+    "mmlu",
+    "mmlu_instruct",
+    "mmlu_pro",
+    "mmlu_pro_instruct",
+    "mmlu_redux",
+    "mmlu_redux_instruct",
+    "musr",
+    "truthfulqa",
+    "wikilingua",
+    "winogrande",
+)
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Evaluation")
@@ -44,7 +67,7 @@ def get_parser():
         "--triton_http_address", type=str, default="0.0.0.0", help="IP address at which PyTriton server is created"
     )
     parser.add_argument("--fastapi_port", type=int, default=8080, help="Port at which FastAPI server is created")
-    parser.add_argument("--endpoint_type", type=str, choices=list(ENDPOINT_TYPES), help="Whether to use completions or chat endpoint")
+    parser.add_argument("--endpoint_type", type=str, default="completions", help="Whether to use completions or chat endpoint", choices=list(ENDPOINT_TYPES))
     parser.add_argument(
         "--max_input_len",
         type=int,
@@ -74,7 +97,7 @@ def get_parser():
         type=str,
         default="arc_challenge",
         help="Evaluation benchmark to run.",
-        choices=["mmlu", "gsm8k", "lambada_openai", "winogrande", "arc_challenge", "arc_easy", "copa"],
+        choices=EVAL_TASKS,
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
