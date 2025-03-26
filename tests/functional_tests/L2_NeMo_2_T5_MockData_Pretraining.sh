@@ -16,4 +16,3 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     --max-steps=3 \
     --experiment-dir=tests/collections/llm/t5_pretrain_results/$RUN_ID \
     --data-path=mock \
-    --index-mapping-dir=tests/collections/llm/t5_index_mappings/$RUN_ID
