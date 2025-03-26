@@ -821,7 +821,7 @@ def _legacy_evaluate(
 def evaluate(
     target_cfg: EvaluationTarget,
     eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
-):
+) -> dict:
     """
     Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
 
@@ -867,11 +867,12 @@ def evaluate(
         target_cfg=target_cfg,
         eval_cfg=eval_cfg,
     )
+    results_dict = results.model_dump()
 
     print("========== RESULTS ==========")
-    print(yaml.dump(results))
+    print(yaml.dump(results_dict))
 
-    return results
+    return results_dict
 
 
 @run.cli.entrypoint(name="import", namespace="llm")
