@@ -142,8 +142,7 @@ jobs:
           potential_infra_failure=$(cat $DIR/err.log | grep -Eqiw "device" && echo true || echo false)
           echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
 
-          if ! docker exec nemo_container_${{ github.run_id }} coverage combine; then
-            docker exec nemo_container_${{ github.run_id }} coverage combine
+          if docker exec nemo_container_${{ github.run_id }} coverage combine; then
             docker exec nemo_container_${{ github.run_id }} coverage xml
             docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage $DIR/.coverage 
             docker cp nemo_container_${{ github.run_id }}:/workspace/coverage.xml $DIR/coverage.xml
