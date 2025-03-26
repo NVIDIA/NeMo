@@ -185,8 +185,23 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
 
+    use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
+    use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
+
+    recompute_layers = config.get("recompute_layers") if args.recompute_layers is None else args.recompute_layers
+    activation_offload_layers = (
+        config.get("activation_offload_layers")
+        if args.activation_offload_layers is None
+        else args.activation_offload_layers
+    )
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [enable_cuda_graphs]
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+    ]
 
     return kwargs
 
@@ -207,7 +222,8 @@ def set_primary_perf_configs(
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
-    num_recompute_layers: int = 0,
+    recompute_layers: int = 0,
+    activation_offload_layers: int = 0,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -268,11 +284,16 @@ def set_primary_perf_configs(
             recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
 
     # Recompute configs
-    if num_recompute_layers > 0:
-        assert num_recompute_layers > 0, "Number of recompute layers must be greater than 0"
+    if recompute_layers > 0:
         recipe.model.config.recompute_granularity = "full"
         recipe.model.config.recompute_method = "block"
-        recipe.model.config.recompute_num_layers = num_recompute_layers
+        recipe.model.config.recompute_num_layers = recompute_layers
+
+    # Activation cpu offloading
+    if activation_offload_layers > 0:
+        recipe.model.config.cpu_offloading = True
+        recipe.model.config.cpu_offloading_weights = False
+        recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
     return recipe
 

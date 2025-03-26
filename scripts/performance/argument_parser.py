@@ -257,6 +257,30 @@ def parse_cli_args():
         required=False,
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
     )
+    parser.add_argument(
+        "-fsdp",
+        "--use_mcore_fsdp",
+        help="Enable Mcore FSDP. Disabled by default",
+        action="store_true",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-rl",
+        "--recompute_layers",
+        type=int,
+        help="Number of layers to recompute. Defaults to 0",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-ol",
+        "--activation_offload_layers",
+        type=int,
+        help="Number of layers to offload to CPU. Defaults to 0",
+        required=False,
+        default=None,
+    )
 
     def list_of_strings(arg):
         return arg.split(',')
