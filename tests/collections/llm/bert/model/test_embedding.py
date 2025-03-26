@@ -125,7 +125,8 @@ def test_bert_embedding_data_step():
         with patch(
             'nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank', side_effect=lambda x: x
         ):
-            result = bert_embedding_data_step(mock_iterator)
+            with patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1):
+                result = bert_embedding_data_step(mock_iterator)
 
     # Verify the output contains the expected keys
     assert "input_ids" in result
