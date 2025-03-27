@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+HF_ASSETS_DIR = "hf_assets"
+
 
 @contextmanager
 def temporary_distributed_context():
@@ -118,6 +120,7 @@ class BaseImporter:
     def __init__(self, input_path: str | Path, output_path: str | Path):
         self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
         self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
+        (self.output_path / HF_ASSETS_DIR).mkdir(parents=True, exist_ok=True)
         self._hf_config = None
         self._tron_config = None
 
