@@ -208,18 +208,24 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         self.ngpt.normalize_matrices()
 
 
-def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
-    # Split the sinusoidal_pos into sin and cos parts
+def apply_rotary_position_embeddings(sinusoidal_pos, tensor):
+    """Applies rotary embeddings to the given tensor (Q or K)."""
+    # Split sinusoidal_pos into sin and cos parts
     sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-    # Apply the rotary embeddings to the query and key
-    q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
-    k_rot = torch.stack((-k[..., 1::2], k[..., ::2]), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    k_rot = torch.reshape(k_rot, k.shape[:-1] + (k.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape)
-    k_rot = torch.reshape(k_rot, k.shape)
-    return q_rot.to(q.dtype), k_rot.to(k.dtype)
-
+    
+    # Get even and odd dimensions
+    x_even = tensor[..., ::2]
+    x_odd = tensor[..., 1::2]
+    
+    # Apply rotation using the rotation matrix multiplication
+    x_even_new = x_even * cos - x_odd * sin
+    x_odd_new = x_even * sin + x_odd * cos
+    
+    # Interleave the results
+    x_transformed = torch.stack((x_even_new, x_odd_new), dim=-1)
+    x_transformed = x_transformed.flatten(-2)
+    
+    return x_transformed
 
 def get_sinusoidal_embeddings(n_positions, dim, device):
     """Generate sinusoidal positional embeddings."""
@@ -229,7 +235,6 @@ def get_sinusoidal_embeddings(n_positions, dim, device):
     sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
     sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
     return sinusoidal_emb
-
 
 def justnorm(x, fp32: bool = False, idim: int = -1):
     if fp32:
@@ -303,10 +308,9 @@ class Block(nn.Module):
         v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
 
         sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head, device=q.device)
-        q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
-        q = q.transpose(2, 1)
-        k = k.transpose(2, 1)
-
+        q = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2)).transpose(2, 1)
+        k = apply_rotary_position_embeddings(sinusoidal_pos, k.transpose(1, 2)).transpose(2, 1)
+        
         if self.config.use_nGPT == 1:
             sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
                 1, 1, self.config.n_head, self.config.n_embd // self.config.n_head
