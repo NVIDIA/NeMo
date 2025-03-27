@@ -118,6 +118,8 @@ class BaseImporter:
     def __init__(self, input_path: str | Path, output_path: str | Path):
         self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
         self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
+        self._hf_config = None
+        self._tron_config = None
 
     def init_tron_model(self, cfg: GPTConfig | T5Config):
         with _strategy_lib.megatron_cpu_init_context(cfg):

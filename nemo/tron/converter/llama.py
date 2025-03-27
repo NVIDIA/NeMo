@@ -113,6 +113,9 @@ class HFLlamaImporter(BaseImporter):
         Returns:
             LlamaConfig: NeMo configuration for Llama models
         """
+        if self._tron_config is not None:
+            return self._tron_config
+
         from transformers import GenerationConfig
 
         source = self.hf_config
@@ -148,5 +151,5 @@ class HFLlamaImporter(BaseImporter):
             generation_config=generation_config,
             vocab_size=self.tokenizer.vocab_size,
         )
-
-        return output
+        self._tron_config = output
+        return self._tron_config
