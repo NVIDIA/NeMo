@@ -94,7 +94,17 @@ class HFLlamaImporter(BaseImporter):
     convert_state = _NeMo2HFLlamaImporter.convert_state
 
     @property
-    def config(self) -> LlamaConfig:
+    def hf_config(self) -> "HFLlamaConfig":
+        from transformers import LlamaConfig as HFLlamaConfig
+
+        if self._hf_config is not None:
+            return self._hf_config
+        self._hf_config = HFLlamaConfig.from_pretrained(str(self.input_path))
+        self._hf_config.save_pretrained(str(self.output_path))
+        return self._hf_config
+
+    @property
+    def tron_config(self) -> LlamaConfig:
         """Create a NeMo LlamaConfig from the HF model config.
 
         Translates the HF configuration parameters to the equivalent NeMo
@@ -104,9 +114,8 @@ class HFLlamaImporter(BaseImporter):
             LlamaConfig: NeMo configuration for Llama models
         """
         from transformers import GenerationConfig
-        from transformers import LlamaConfig as HFLlamaConfig
 
-        source = HFLlamaConfig.from_pretrained(str(self.input_path))
+        source = self.hf_config
         generation_config = GenerationConfig.from_pretrained(str(self.input_path))
 
         def make_vocab_size_divisible_by(vocab_size):

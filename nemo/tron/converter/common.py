@@ -131,7 +131,11 @@ class BaseImporter:
         raise NotImplementedError
 
     @property
-    def config(self) -> GPTConfig | T5Config:
+    def hf_config(self) -> "PretrainedConfig":
+        raise NotImplementedError
+
+    @property
+    def tron_config(self) -> GPTConfig | T5Config:
         raise NotImplementedError
 
     def apply(self) -> Path:
@@ -146,11 +150,11 @@ class BaseImporter:
         source = self.init_hf_model()
 
         with temporary_distributed_context():
-            target = self.init_tron_model(self.config)
+            target = self.init_tron_model(self.tron_config)
             self.convert_state(source, target[0])
             state = GlobalState()
             state.cfg = ConfigContainer(
-                model_config=self.config,
+                model_config=self.tron_config,
                 train_config=None,
                 optimizer_config=OptimizerConfig(use_distributed_optimizer=False),
                 ddp_config=None,
