@@ -59,6 +59,14 @@ def safe_yaml_representers() -> Generator[None, None, None]:
         except ModuleNotFoundError:
             pass
 
+        # Try to add GenerationConfig representer if available
+        try:
+            from transformers import GenerationConfig
+
+            yaml.SafeDumper.add_representer(GenerationConfig, _generation_config_representer)
+        except ModuleNotFoundError:
+            pass
+
         # General object representer
         yaml.SafeDumper.add_multi_representer(object, _safe_object_representer)
 
@@ -149,5 +157,18 @@ def _enum_representer(dumper, data):
         "_call_": True,
         "_args_": [data.value],
     }
+
+    return dumper.represent_data(value)
+
+
+def _generation_config_representer(dumper, data):
+    """Represent transformers GenerationConfig objects in YAML."""
+    cls = data.__class__
+    value = {
+        "_target": f"{inspect.getmodule(cls).__name__}.{cls.__qualname__}.from_dict",
+        "_call_": True,
+    }
+    # Extend with the config's dictionary representation
+    value.update(data.to_dict())
 
     return dumper.represent_data(value)
