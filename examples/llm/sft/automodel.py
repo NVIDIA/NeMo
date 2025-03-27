@@ -69,7 +69,9 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     return datamodule
 
 
-def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False, dp_size=None, tp_size=None):
+def make_strategy(
+    strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False, dp_size=None, tp_size=None
+):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
             device='cuda:0',
@@ -85,13 +87,19 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
             if dp_size is None:
                 dp_size = devices * num_nodes
             else:
-                assert dp_size == devices * num_nodes, "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
+                assert (
+                    dp_size == devices * num_nodes
+                ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
         else:
             if dp_size is None:
                 dp_size = 1
-                assert tp_size == devices * num_nodes, "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
+                assert (
+                    tp_size == devices * num_nodes
+                ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
             else:
-                assert dp_size * tp_size == devices * num_nodes, "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
+                assert (
+                    dp_size * tp_size == devices * num_nodes
+                ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
 
         offload_policy = None
         if enable_cpu_offload:
@@ -208,7 +216,16 @@ def main():
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
-    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False, args.enable_cpu_offload, dp_size=args.dp_size, tp_size=args.tp_size)
+    strategy = make_strategy(
+        args.strategy,
+        model,
+        args.devices,
+        args.num_nodes,
+        False,
+        args.enable_cpu_offload,
+        dp_size=args.dp_size,
+        tp_size=args.tp_size,
+    )
 
     resume = (
         nl.AutoResume(
