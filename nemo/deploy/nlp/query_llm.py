@@ -74,7 +74,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         end_strings=None,
         min_length: int = None,
         max_length: int = None,
-        init_timeout=60.0,
+        init_timeout: int = 60.0,
     ):
         """
         Query the Triton server synchronously and return a list of responses.
