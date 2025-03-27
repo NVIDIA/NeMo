@@ -28,7 +28,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
-from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import CTCBatchedBeamHyps
+from nemo.collections.asr.parts.submodules.ctc_batched_beam_decoding import BatchedBeamCTCComputer
 from nemo.utils import logging
 from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMBatchedWrapper
 
@@ -48,7 +48,7 @@ def pack_hypotheses(
         else:
             logitlen_cpu = logitlen
 
-    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.NBestHypotheses
+    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils NBestHypotheses
         for candidate_idx, cand in enumerate(hyp.n_best_hypotheses):
             cand.y_sequence = torch.tensor(cand.y_sequence, dtype=torch.long)
 
@@ -259,8 +259,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             self.search_algorithm = self._pyctcdecode_beam_search
         elif search_type == "flashlight":
             self.search_algorithm = self.flashlight_beam_search
-        elif search_type == "beam_batch":
-            self.search_algorithm = self.batched_beam_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
@@ -436,101 +434,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             hypotheses = rnnt_utils.NBestHypotheses(hypotheses)
             nbest_hypotheses.append(hypotheses)
 
-        return nbest_hypotheses
-
-    @torch.no_grad()
-    def batched_beam_search(
-        self, x: torch.Tensor, out_len: torch.Tensor
-    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
-        """
-        Open Seq2Seq Beam Search Algorithm (DeepSpeed)
-
-        Args:
-            x: Tensor of shape [B, T, V+1], where B is the batch size, T is the maximum sequence length,
-                and V is the vocabulary size. The tensor contains log-probabilities.
-            out_len: Tensor of shape [B], contains lengths of each sequence in the batch.
-
-        Returns:
-            A list of NBestHypotheses objects, one for each sequence in the batch.
-        """              
-        batch_size = x.shape[0]
-        max_time = x.shape[1]
-
-        vocab_size = self.blank_id + 1
-        zeros_column = torch.zeros([batch_size, self.beam_size, 1], device=x.device, dtype=torch.long)
-        vocab = torch.arange(vocab_size, device=x.device, dtype=torch.long)
-        batch_labels = vocab[None, None, :].expand(batch_size, self.beam_size, -1)
-        
-        batched_beam_hyps = CTCBatchedBeamHyps(
-            batch_size=batch_size,
-            beam_size=self.beam_size,
-            blank_index=self.blank_id,
-            init_length=max_time + 1,
-            device=x.device,
-            float_dtype=x.dtype,
-        )
-        
-        if self.ngram_lm_batch is not None:
-            self.ngram_lm_batch.to(x.device)
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
-        
-        for t in range(max_time):
-            active_mask = out_len.unsqueeze(1) > t
-            probs = x[:, t, :].unsqueeze(1)
-            
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
-            lm_scores = lm_scores.to(dtype=x.dtype).view(batch_size, self.beam_size, -1) * self.beam_alpha
-            
-            probs = np.log10(np.e) * probs + np.log10(np.e) * torch.cat([lm_scores, zeros_column], dim=-1)
-            
-            repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
-            blank_mask = (vocab == self.blank_id)[None, None, :]
-            
-            total_scores = batched_beam_hyps.scores[:, :, None] + probs
-            total_scores = torch.where(blank_mask | repeated_mask, total_scores, total_scores + self.beam_beta)
-            
-            hyps_scores, hyps_candidates_indices = torch.topk(total_scores.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True)
-            hyps_indices = hyps_candidates_indices // vocab_size # torch.gather(expansion_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
-            next_labels = torch.gather(batch_labels, dim=-1, index=(hyps_candidates_indices % vocab_size).unsqueeze(-1)).squeeze(2)
-            hyps_scores.view(batch_size, -1)[hyps_scores.view(batch_size, -1) <= hyps_scores.view(batch_size, -1).max(dim=-1, keepdim=True).values - 20] = float('-inf')
-            
-            repeating_mask = next_labels == torch.gather(batched_beam_hyps.last_label, dim=-1, index=hyps_indices)
-            blank_mask = next_labels == self.blank_id
-            
-            preserve_state_mask = repeating_mask | blank_mask | ~ active_mask
-            next_labels_masked = torch.where(blank_mask, 0, next_labels)
-                
-            # batch_lm_states: [(BxBeam)]
-            # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
-            batch_lm_states_candidates = torch.gather(
-                batch_lm_states_candidates.view(batch_size, self.beam_size, -1),
-                dim=1,
-                index=hyps_indices[:, :, None].expand(
-                    batch_size, self.beam_size, batch_lm_states_candidates.shape[-1]
-                ),
-            )
-            batch_lm_states_prev = torch.gather(
-                batch_lm_states.view(batch_size, self.beam_size), dim=1, index=hyps_indices
-            )
-
-            batch_lm_states = torch.gather(
-                batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
-            ).squeeze(-1)
-            batch_lm_states = torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states).view(-1)
-        
-            next_labels = torch.where(active_mask, next_labels, -1)
-            batched_beam_hyps.add_results_(hyps_indices, next_labels, hyps_scores)
-            
-            batched_beam_hyps.self_recombine_hyps_()
-
-        batched_beam_hyps.scores += self.ngram_lm_batch.get_final(batch_lm_states).view(batch_size, self.beam_size) * np.log10(np.e) * self.beam_alpha
-
-        nbest_hypotheses = []
-        for x in batched_beam_hyps.to_hyps_list():
-            # Wrap the result in NBestHypothesis.
-            hypotheses = rnnt_utils.NBestHypotheses([x])
-            nbest_hypotheses.append(hypotheses)
-            
         return nbest_hypotheses
 
     @torch.no_grad()
@@ -988,7 +891,114 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
 
         return self.k2_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
 
+class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
+    """A greedy CTC decoder.
 
+    Provides a common abstraction for sample level and batch level greedy decoding.
+
+    Args:
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+            decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
+        compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+
+    """
+
+    def __init__(
+        self,
+        blank_id: int,
+        beam_size: int,
+        return_best_hypothesis: bool = True,
+        preserve_alignments: bool = False,
+        compute_timestamps: bool = False,
+        beam_alpha: float = 1.0,
+        beam_beta: float = 0.0,
+        kenlm_path: str = None,
+        allow_cuda_graphs: bool = True
+    ):
+        super().__init__(blank_id=blank_id, beam_size=beam_size)
+
+        self.return_best_hypothesis = return_best_hypothesis
+        self.preserve_alignments = preserve_alignments
+        self.compute_timestamps = compute_timestamps
+        self.allow_cuda_graphs = allow_cuda_graphs
+
+        if self.compute_timestamps:
+            raise ValueError("Currently this flag is not supported for beam search algorithms.")
+
+        self.vocab = None  # This must be set by specific method by user before calling forward() !
+
+        self.beam_alpha = beam_alpha
+        self.beam_beta = beam_beta
+
+        # Default beam search args
+        self.kenlm_path = kenlm_path
+
+        # Default beam search scorer functions
+        self.default_beam_scorer = None
+        self.pyctcdecode_beam_scorer = None
+        self.flashlight_beam_scorer = None
+        self.token_offset = 0
+        
+        self.ngram_lm_batch = None
+        if kenlm_path is not None:
+            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
+            
+        self.search_algorithm = BatchedBeamCTCComputer(
+            blank_index=blank_id,
+            beam_size=beam_size,
+            return_best_hypothesis=return_best_hypothesis,
+            preserve_alignments=preserve_alignments,
+            compute_timestamps=compute_timestamps,
+            beam_alpha=beam_alpha,
+            beam_beta=beam_beta,
+            kenlm_path=kenlm_path,
+            allow_cuda_graphs=allow_cuda_graphs
+        )
+
+    @typecheck()
+    def forward(
+        self,
+        decoder_output: torch.Tensor,
+        decoder_lengths: torch.Tensor,
+    ) -> Tuple[List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]]:
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+
+        Args:
+            decoder_output: A tensor of size (batch, timesteps, features).
+            decoder_lengths: list of int representing the length of each sequence
+                output sequence.
+
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
+        with torch.no_grad(), torch.inference_mode():
+            # Process each sequence independently
+            prediction_tensor = decoder_output
+
+            if prediction_tensor.ndim != 3:
+                raise ValueError(
+                    f"`decoder_output` must be a tensor of shape [B, T, V] (log probs, float). "
+                    f"Provided shape = {prediction_tensor.shape}"
+                )
+
+            # determine type of input - logprobs or labels
+            out_len = decoder_lengths if decoder_lengths is not None else None
+            hypotheses = self.search_algorithm(prediction_tensor, out_len)
+
+            # Pack results into Hypotheses
+            packed_result = pack_hypotheses(hypotheses, decoder_lengths)
+
+            # Pack the result
+            if self.return_best_hypothesis and isinstance(packed_result[0], rnnt_utils.NBestHypotheses):
+                packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
+
+        return (packed_result,)
+    
 @dataclass
 class PyCTCDecodeConfig:
     # These arguments cannot be imported from pyctcdecode (optional dependency)
@@ -1018,6 +1028,7 @@ class BeamCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     return_best_hypothesis: bool = True
+    allow_cuda_graphs: bool = True
 
     beam_alpha: float = 1.0
     beam_beta: float = 0.0

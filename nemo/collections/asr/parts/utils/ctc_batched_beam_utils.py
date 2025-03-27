@@ -14,7 +14,7 @@ MODULUS = 2**64
 def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
     return prev_hash * MULTIPLIER + INCREMENT + add_labels
 
-class CTCBatchedBeamHyps:
+class BatchedBeamHypsCTC:
     """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
 
     def __init__(
@@ -84,8 +84,9 @@ class CTCBatchedBeamHyps:
         next_labels,
         next_hyps_prob,
     ):
-        if (self.current_lengths_wb + 1).max() >= self._max_length:
-            self._allocate_more()
+        # if self.current_lengths_wb.max().item() + 1 >= self._max_length:
+        #     print("A"*100)
+        #     self._allocate_more()
             
         self.add_results_no_checks_(
             hyps_indices=hyps_indices,
@@ -102,7 +103,7 @@ class CTCBatchedBeamHyps:
         # TODO: timesteps
         # TODO: sdelat' chtom esli next_labels = -1, tut ne obnovlyalos nichego!
         self.scores= torch.gather(self.scores, dim=-1, index=hyps_indices)
-        self.scores[next_labels > 0] = next_hyps_prob[next_labels > 0]
+        torch.where(next_labels > 0, next_hyps_prob, self.scores, out=self.scores)
         # self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(

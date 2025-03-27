@@ -349,17 +349,16 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.decoding.override_fold_consecutive_value = False
     
         elif self.cfg.strategy == 'beam_batch':
-
-            self.decoding = ctc_beam_decoding.BeamCTCInfer(
+            self.decoding = ctc_beam_decoding.BeamBatchedCTCInfer(
                 blank_id=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
-                search_type='beam_batch',
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True)
             )
 
             self.decoding.override_fold_consecutive_value = True
