@@ -295,6 +295,8 @@ class BaseExporter:
 
         self.config = self.hf_config  # for backward compatibility
         source = _ModelState(state_dict)
+        source.config = self.tron_config
+
         target = self.init_hf_model(torch_dtype_from_mcore_config(source_config))
         target = self.convert_state(source, target)
 
