@@ -58,7 +58,7 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.10", "3.11", "3.12"]
-        installer: ["pip-install", "nemo-install", "nemo-install-light"]
+        installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -75,8 +75,6 @@ jobs:
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
             pip install ".[all]"
-          elif [ "$INSTALLER" = "nemo-install-light" ]; then
-            bash reinstall.sh
           else
             export INSTALL_DIR=$(pwd)
             bash reinstall.sh --library all --mode install
@@ -96,7 +94,7 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.10", "3.11", "3.12"]
-        installer: ["pip-install", "nemo-install", "nemo-install-light"]
+        installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -113,8 +111,6 @@ jobs:
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
             pip install -vvv ".[all]"
-          elif [ "$INSTALLER" = "nemo-install-light" ]; then
-            bash reinstall.sh
           else
             export INSTALL_DIR=$(pwd)
             bash reinstall.sh --library all --mode install
