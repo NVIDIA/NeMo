@@ -704,6 +704,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
                 'rope_type': 'llama3',
             }
         return HFLlamaConfig(
+            architectures=["LlamaForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
