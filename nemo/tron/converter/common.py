@@ -43,11 +43,8 @@ def temporary_distributed_context():
     dist.destroy_process_group()
 
 
-def get_full_mcore_state_dict(dist_ckpt_folder: Path):
+def get_full_mcore_state_dict(dist_ckpt_folder: Path, model_cfg):
     with temporary_distributed_context():
-        cfg = OmegaConf.load(dist_ckpt_folder / "run_config.yaml")
-        cfg = cfg.model_config
-        model_cfg = instantiate(cfg)
         model_cfg.params_dtype = torch.bfloat16
         with _strategy_lib.megatron_cpu_init_context(model_cfg):
             model = model_cfg.configure_model(None)
@@ -282,7 +279,7 @@ class BaseExporter:
                 logger.warning("Failed to find Huggingface tokenizer in the NeMo checkpoint")
 
         state_dict = {}
-        state_dict = get_full_mcore_state_dict(self.input_path)
+        state_dict = get_full_mcore_state_dict(self.input_path, model_cfg=config)
 
         return state_dict, config
 

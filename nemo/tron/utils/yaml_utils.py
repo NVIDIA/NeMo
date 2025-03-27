@@ -165,10 +165,9 @@ def _generation_config_representer(dumper, data):
     """Represent transformers GenerationConfig objects in YAML."""
     cls = data.__class__
     value = {
-        "_target": f"{inspect.getmodule(cls).__name__}.{cls.__qualname__}.from_dict",
+        "_target_": f"{inspect.getmodule(cls).__name__}.{cls.__qualname__}.from_dict",
         "_call_": True,
+        "config_dict": data.to_dict(),
     }
-    # Extend with the config's dictionary representation
-    value.update(data.to_dict())
 
     return dumper.represent_data(value)
