@@ -66,8 +66,8 @@ class HFLlamaExporter(BaseExporter):
             vocab_size=source.vocab_size,
             tie_word_embeddings=source.share_embeddings_and_output_weights,
             rope_scaling=rope_scaling,
-            bos_token_id=self.tokenizer.bos_id if self.tokenizer else None,
-            eos_token_id=self.tokenizer.eos_id if self.tokenizer else None,
+            bos_token_id=self.tokenizer.bos_token_id if self.tokenizer else None,
+            eos_token_id=self.tokenizer.eos_token_id if self.tokenizer else None,
         )
         return self._hf_config
 
