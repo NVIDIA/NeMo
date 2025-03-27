@@ -1,31 +1,32 @@
 ## script to do SFT with NeMo 2.0
-import nemo_run as run
-from nemo import lightning as nl
-from nemo.collections import llm
-import torch
-import pytorch_lightning as pl
 from pathlib import Path
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from megatron.core.inference.common_inference_params import CommonInferenceParams
-from megatron.core.optimizer import OptimizerConfig
-from nemo.collections.llm import Llama2Config7B
+from typing import List, Optional
+
+import nemo_run as run
+import pytorch_lightning as pl
+import torch
 import wandb
 from lightning.pytorch.loggers import WandbLogger
-from typing import List, Optional
-from nemo.lightning.io.mixin import IOMixin
-from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.optimizer import OptimizerConfig
 from verilog_data_module import VerilogDataModule
+
+from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.llm import Llama2Config7B
+from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.lightning.io.mixin import IOMixin
+
 
 # configure custom dataset
 def verilog() -> run.Config[pl.LightningDataModule]:
     return run.Config(VerilogDataModule, seq_length=1024, micro_batch_size=2, global_batch_size=8, num_workers=8)
 
+
 # configure trainer class similar to pytorch lightning trainer
 def trainer() -> run.Config[nl.Trainer]:
-    strategy = run.Config(
-        nl.MegatronStrategy,
-        tensor_model_parallel_size=2
-    )
+    strategy = run.Config(nl.MegatronStrategy, tensor_model_parallel_size=2)
     trainer = run.Config(
         nl.Trainer,
         devices=2,
@@ -39,6 +40,7 @@ def trainer() -> run.Config[nl.Trainer]:
         num_sanity_val_steps=0,
     )
     return trainer
+
 
 # configure the logger
 def logger() -> run.Config[nl.NeMoLogger]:
@@ -62,6 +64,7 @@ def logger() -> run.Config[nl.NeMoLogger]:
         wandb=None,
     )
 
+
 # configre the optimizer, adam with cosine annealing
 def adam_with_cosine_annealing() -> run.Config[nl.OptimizerModule]:
     opt_cfg = run.Config(
@@ -73,32 +76,33 @@ def adam_with_cosine_annealing() -> run.Config[nl.OptimizerModule]:
         clip_grad=1.0,
         bf16=True,
     )
-    return run.Config(
-        nl.MegatronOptimizerModule,
-        config=opt_cfg
-    )
+    return run.Config(nl.MegatronOptimizerModule, config=opt_cfg)
+
 
 # configure the base model
 def llama2_7b() -> run.Config[pl.LightningModule]:
     return run.Config(llm.LlamaModel, config=run.Config(llm.Llama2Config7B))
 
+
 # configure auto resume
 def resume() -> run.Config[nl.AutoResume]:
     return run.Config(
         nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig,
-        ## default path to save converted hf model
-            path="/root/.cache/nemo/models/Llama-2-7b-hf"
+        restore_config=run.Config(
+            nl.RestoreConfig,
+            ## default path to save converted hf model
+            path="/root/.cache/nemo/models/Llama-2-7b-hf",
         ),
         # requires completely saved checkpoint to resume from
         resume_if_exists=False,
     )
 
+
 # with all above components created, call NeMo2.0 finetune API
 def configure_finetuning_recipe():
     return run.Partial(
         llm.finetune,
-        model=llama2_7b(),        
+        model=llama2_7b(),
         trainer=trainer(),
         data=verilog(),
         log=logger(),
@@ -125,6 +129,7 @@ def main():
     verilog._preprocess_and_split_data(verilog_data)
     print("running supervised fine tuning!")
     run.run(configure_finetuning_recipe(), executor=local_executor_torchrun())
+
 
 if __name__ == "__main__":
     main()

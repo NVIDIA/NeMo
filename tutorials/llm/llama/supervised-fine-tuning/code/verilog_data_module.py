@@ -1,7 +1,8 @@
 import json
+import re
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-import re
+
 import numpy as np
 from datasets import load_dataset
 
@@ -14,9 +15,10 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
-BLOCK_COMMON="You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following block level summaries. Assume that signals are positive clock/clk edge triggered unless otherwise stated.\nHere are block level summaries:\n\nblock_0:"
-DETAILED_COMMON="You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following description. Assume that signals are positive clock/clk edge triggered unless otherwise stated."
-HIGH_LEVEL_COMMON="You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following description. Assume that signals are positive clock/clk edge triggered unless otherwise stated."
+BLOCK_COMMON = "You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following block level summaries. Assume that signals are positive clock/clk edge triggered unless otherwise stated.\nHere are block level summaries:\n\nblock_0:"
+DETAILED_COMMON = "You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following description. Assume that signals are positive clock/clk edge triggered unless otherwise stated."
+HIGH_LEVEL_COMMON = "You only complete chats with syntax correct Verilog code. End the Verilog module code completion with 'endmodule'. Do not include module, input and output definitions.\n    <</SYS>>\n\n    Implement the Verilog module based on the following description. Assume that signals are positive clock/clk edge triggered unless otherwise stated."
+
 
 ## subclass the finetuning data module to create our own verilog data
 class VerilogDataModule(FineTuningDataModule, IOMixin):
@@ -69,7 +71,7 @@ class VerilogDataModule(FineTuningDataModule, IOMixin):
             dset = self._download_data()
             self._preprocess_and_split_data(dset)
         super().prepare_data()
-    
+
     def _download_data(self):
         logging.info(f"Downloading {self.__class__.__name__}...")
         return load_dataset(
@@ -78,7 +80,7 @@ class VerilogDataModule(FineTuningDataModule, IOMixin):
             download_mode="force_redownload" if self.force_redownload else None,
         )
 
-    def _preprocess_and_split_data(self, dset, train_ratio: float=0.80, val_ratio: float=0.15):
+    def _preprocess_and_split_data(self, dset, train_ratio: float = 0.80, val_ratio: float = 0.15):
         logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
 
         test_ratio = 1 - train_ratio - val_ratio

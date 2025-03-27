@@ -6,4 +6,3 @@ if __name__ == "__main__":
         model=llm.LlamaModel(config=Llama2Config7B()),
         source="hf:///workspace/Llama-2-7b-hf",
     )
-

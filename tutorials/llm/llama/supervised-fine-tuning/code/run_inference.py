@@ -1,25 +1,32 @@
-from megatron.core.inference.common_inference_params import CommonInferenceParams
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo import lightning as nl
-import nemo_run as run
-from nemo.collections import llm
-import torch
-import pytorch_lightning as pl
-from pathlib import Path
-from megatron.core.optimizer import OptimizerConfig
-from nemo.collections.llm import Llama2Config7B
-from typing import List, Optional
-from nemo.lightning.io.mixin import IOMixin
-from run_sft import trainer, local_executor_torchrun
 import os
+from pathlib import Path
+from typing import List, Optional
 
-input_data="/workspace/data/verilog/test.jsonl"
+import nemo_run as run
+import pytorch_lightning as pl
+import torch
+from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.optimizer import OptimizerConfig
+from run_sft import local_executor_torchrun, trainer
+
+from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.llm import Llama2Config7B
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.lightning.io.mixin import IOMixin
+
+input_data = "/workspace/data/verilog/test.jsonl"
 base_llama_path = "/root/.cache/nemo/models/Llama-2-7b-hf"
-sft_ckpt_path=str(next((d for d in Path("/workspace/sft_log/checkpoints").iterdir() if d.is_dir() and d.name.endswith("-last")), None))
+sft_ckpt_path = str(
+    next(
+        (d for d in Path("/workspace/sft_log/checkpoints").iterdir() if d.is_dir() and d.name.endswith("-last")), None
+    )
+)
 
 os.makedirs("/workspace/inference", exist_ok=True)
-output_path_base="/workspace/inference/base_llama_prediction.jsonl"
-output_path_sft="/workspace/inference/sft_prediction.jsonl"
+output_path_base = "/workspace/inference/base_llama_prediction.jsonl"
+output_path_sft = "/workspace/inference/sft_prediction.jsonl"
+
 
 # Configure inference to predict on base model checkpoint
 def configure_inference_base():
@@ -32,6 +39,7 @@ def configure_inference_base():
         output_path=output_path_base,
     )
 
+
 # Configure inference to predict on trained DAPT checkpoint
 def configure_inference_sft():
     return run.Partial(
@@ -42,6 +50,7 @@ def configure_inference_sft():
         inference_params=CommonInferenceParams(num_tokens_to_generate=50, top_k=1),
         output_path=output_path_sft,
     )
+
 
 if __name__ == '__main__':
     print("running inference on base model")
