@@ -18,11 +18,11 @@ from nemo.lightning import _strategy_lib
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig, TokenizerConfig
 from nemo.tron.state import GlobalState
-from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer, build_tokenizer
+from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer
 from nemo.tron.utils.instantiate_utils import instantiate
 
 if TYPE_CHECKING:
-    from transformers import AutoModelForCausalLM, PretrainedConfig
+    from transformers import AutoModelForCausalLM, AutoTokenizer, PretrainedConfig
 
 
 logger = logging.getLogger(__name__)
@@ -209,6 +209,7 @@ class BaseExporter:
         self._tron_config = None
         self._hf_tokenizer_path = hf_tokenizer_path
         self._tokenizer = None
+        self.config = self.hf_config  # for backward compatibility
 
     @property
     def hf_config(self) -> "PretrainedConfig":
@@ -221,7 +222,7 @@ class BaseExporter:
         return self._tron_config
 
     @property
-    def tokenizer(self) -> "_HuggingFaceTokenizer":
+    def tokenizer(self) -> "AutoTokenizer":
         if self._tokenizer is None:
             if self._hf_tokenizer_path is not None:
                 from transformers import AutoTokenizer
