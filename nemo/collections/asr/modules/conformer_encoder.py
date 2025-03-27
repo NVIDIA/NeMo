@@ -1106,6 +1106,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             subsampling_conv_chunking_factor=subsampling_conv_chunking_factor
         )
 
+    def fully_shard(self, cfg: dict) -> "ConformerEncoder":
+        """Applies FSDP2 to each block in this module."""
+        from torch.distributed.fsdp import fully_shard
+
+        self.pre_encode = fully_shard(self.pre_encode, **cfg)
+        for idx, block in enumerate(self.layers):
+            self.layers[idx] = fully_shard(block, **cfg)
+        return self
+
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
 
