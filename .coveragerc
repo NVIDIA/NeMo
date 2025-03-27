@@ -2,8 +2,9 @@
 concurrency = thread,multiprocessing
 omit =
     /tmp/*
-    /home/TestData
-    /workspace/Megatron-LM
+    /home/TestData/*
+    /workspace/Megatron-LM/*
+
 [paths]
 source =
     nemo/
