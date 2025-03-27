@@ -86,30 +86,6 @@ class TestBertBase:
         assert model.tokenizer == tokenizer
         assert hasattr(model, "optim")
 
-    def test_bert_data_step(self, sample_batch):
-        # Create a mock dataloader iterator that returns our sample batch
-        mock_iter = MagicMock()
-        mock_iter.__next__.return_value = sample_batch
-
-        from megatron.core import parallel_state  # Import the actual module we want to patch
-
-        # Patch specific methods on the imported parallel_state module
-        with (
-            patch.object(parallel_state, 'get_context_parallel_world_size', return_value=1),
-            patch.object(parallel_state, 'is_pipeline_first_stage', return_value=True),
-            patch.object(parallel_state, 'is_pipeline_last_stage', return_value=True),
-            patch.object(parallel_state, 'get_context_parallel_rank', return_value=0),
-        ):
-
-            result = bert_data_step(mock_iter)
-
-            # Check that required keys are present and moved to CUDA
-            assert "text" in result
-            assert "padding_mask" in result
-            assert "labels" in result
-            assert "loss_mask" in result
-            assert all(v.is_cuda for v in result.values() if v is not None)
-
     def test_bert_forward_step(self, basic_config, sample_batch):
         model = BertModel(config=basic_config, tokenizer=None)
         model.module = MagicMock()

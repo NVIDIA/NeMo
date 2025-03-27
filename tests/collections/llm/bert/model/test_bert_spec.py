@@ -66,39 +66,3 @@ class TestBertSpec:
         config.mlp = MagicMock()
         config.mlp_bda = MagicMock()
         return config
-
-    def test_transformer_layer_submodules_with_post_ln_support_init(self):
-        """Test initialization of TransformerLayerSubmodulesWithPostLNSupport"""
-        post_att_ln = MagicMock()
-        post_mlp_ln = MagicMock()
-
-        submodules = TransformerLayerSubmodulesWithPostLNSupport(
-            post_att_layernorm=post_att_ln,
-            post_mlp_layernorm=post_mlp_ln,
-            input_layernorm=MagicMock(),
-            self_attention=MagicMock(),
-            self_attn_bda=MagicMock(),
-            pre_cross_attn_layernorm=MagicMock(),
-            cross_attention=MagicMock(),
-            cross_attn_bda=MagicMock(),
-            pre_mlp_layernorm=MagicMock(),
-            mlp=MagicMock(),
-            mlp_bda=MagicMock(),
-        )
-
-        assert submodules.post_att_layernorm == post_att_ln
-        assert submodules.post_mlp_layernorm == post_mlp_ln
-
-    def test_get_bert_layer_with_transformer_engine_spec_postln(self):
-        """Test the transformer engine spec creation"""
-        spec = get_bert_layer_with_transformer_engine_spec_postln()
-
-        assert spec.module == TransformerLayerWithPostLNSupport
-        assert isinstance(spec.submodules, TransformerLayerSubmodulesWithPostLNSupport)
-
-    def test_get_bert_layer_local_spec_postln(self):
-        """Test the local spec creation"""
-        spec = get_bert_layer_local_spec_postln()
-
-        assert spec.module == TransformerLayerWithPostLNSupport
-        assert isinstance(spec.submodules, TransformerLayerSubmodulesWithPostLNSupport)

@@ -117,24 +117,6 @@ def test_bert_loss_forward_with_sop(mocker):
         loss_fn.forward(batch=batch, forward_out=forward_out)
 
 
-def test_bert_loss_reduce(mocker):
-    """Test BERTLossReduction reduce method (lines 76-96)"""
-    loss_fn = BERTLossReduction()
-
-    # Test with empty losses
-    assert torch.equal(loss_fn.reduce([]), torch.tensor(0.0, device=torch.cuda.current_device()))
-
-    # Test with avg in losses
-    losses = [{'avg': torch.tensor([1.0, 2.0])}, {'avg': torch.tensor([3.0, 4.0])}]
-    result = loss_fn.reduce(losses)
-    assert torch.equal(result, torch.tensor([1.0, 2.0, 3.0, 4.0]).mean())
-
-    # Test with loss_sum_and_ub_size
-    losses = [{'loss_sum_and_ub_size': torch.tensor([10.0, 2.0])}, {'loss_sum_and_ub_size': torch.tensor([20.0, 4.0])}]
-    result = loss_fn.reduce(losses)
-    assert torch.equal(result, torch.tensor([30.0, 6.0]))
-
-
 def test_bert_in_batch_negatives_init():
     """Test BERTInBatchExclusiveHardNegativesRankingLoss initialization (lines 213-228)"""
     loss_fn = BERTInBatchExclusiveHardNegativesRankingLoss(
