@@ -137,6 +137,16 @@ def legacy_generate(model, processor, raw_image, text, num_tokens_to_generate):
 
     model = model.module.cuda()
     model.eval()
+
+    inputs = processor(prompt, raw_image, return_tensors='pt').to(0, torch.float16)
+    input_ids = hf_tokenizer(prompt, return_tensors='pt')['input_ids'].to(model.device)
+    input_ids[input_ids == 32000] = -200
+    images = inputs['pixel_values'].to(model.device)
+    images = images.reshape(images.size(0), 3, 336, 336)
+
+    position_ids = (
+        torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
+    )
     generated_ids = input_ids.clone()
 
     # Greedy generation loop
