@@ -22,6 +22,7 @@ from nemo.collections.llm.recipes.nemotron4_340b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_bf16_b200_h18432_tp8_mbs1_seqlen4096,
+    userbuffers_fp8_b200_h18432_tp8_mbs1_seqlen4096,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
@@ -97,7 +98,11 @@ def override_recipe_configs(
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
     if gpu_type in ["b200", "gb200"]:
-        tp_comm_overlap_cfg = userbuffers_bf16_b200_h18432_tp8_mbs1_seqlen4096
+        tp_comm_overlap_cfg = (
+            userbuffers_fp8_b200_h18432_tp8_mbs1_seqlen4096
+            if args.compute_dtype.lower() == "fp8"
+            else userbuffers_bf16_b200_h18432_tp8_mbs1_seqlen4096
+        )
         # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
         tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
