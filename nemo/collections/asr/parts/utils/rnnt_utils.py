@@ -31,6 +31,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 
+from nemo.utils.enum import PrettyStrEnum
+
 
 @dataclass
 class Hypothesis:
@@ -690,3 +692,18 @@ def batched_hyps_to_hypotheses(
                     )
                 start += timestamp_cnt
     return hypotheses
+
+
+class BlankLMScoreMode(PrettyStrEnum):
+    NO_SCORE = "no_score"
+    PRESERVE_BLANK = "preserve_blank"
+    LM_WEIGHTED = "lm_weighted"
+    LM_WEIGHTED_FULL = "lm_weighted_full"
+    LM_MAX = "lm_max"
+    LM_TOP_MAX = "lm_top_max"
+    LATE_PRUNING = "late_pruning"
+
+
+class PruningMode(PrettyStrEnum):
+    EARLY = "early"
+    LATE = "late"

@@ -181,3 +181,6 @@ examples/neural_graphs/*.yml
 nemo_experiments/
 
 slurm*.out
+
+evaluation_transcripts*.json
+lightning_logs
