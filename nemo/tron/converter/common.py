@@ -18,7 +18,7 @@ from nemo.lightning import _strategy_lib
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig
 from nemo.tron.state import GlobalState
-from nemo.tron.tokenizers.tokenizer import build_tokenizer
+from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer, build_tokenizer
 from nemo.tron.utils.instantiate_utils import instantiate
 
 if TYPE_CHECKING:
@@ -123,6 +123,19 @@ class BaseImporter:
         (self.output_path / HF_ASSETS_DIR).mkdir(parents=True, exist_ok=True)
         self._hf_config = None
         self._tron_config = None
+        self.hf_config.save_pretrained(str(self.output_path / HF_ASSETS_DIR))
+
+    @property
+    def tokenizer(self) -> "_HuggingFaceTokenizer":
+        """Get the tokenizer for the HF model.
+
+        Returns:
+            _HuggingFaceTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+        """
+
+        return _HuggingFaceTokenizer(
+            save_hf_tokenizer_assets(str(self.input_path), str(self.output_path / HF_ASSETS_DIR))
+        )
 
     def init_tron_model(self, cfg: GPTConfig | T5Config):
         with _strategy_lib.megatron_cpu_init_context(cfg):
@@ -192,10 +205,18 @@ class BaseExporter:
     def __init__(self, input_path: str | Path, output_path: str | Path):
         self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
         self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
+        self._hf_config = None
+        self._tron_config = None
 
     @property
-    def config(self) -> "PretrainedConfig":
+    def hf_config(self) -> "PretrainedConfig":
         raise NotImplementedError
+
+    @property
+    def tron_config(self) -> GPTConfig | T5Config:
+        if self._tron_config is None:
+            raise ValueError("Tron config is not set")
+        return self._tron_config
 
     def convert_state(self, source, target):
         raise NotImplementedError
@@ -213,7 +234,7 @@ class BaseExporter:
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
+            return AutoModelForCausalLM.from_config(self.hf_config, torch_dtype=dtype)
 
     def init_tron_model(self) -> tuple[dict, dict]:
         """
@@ -248,7 +269,7 @@ class BaseExporter:
         """Run the conversion from Tron to HF format."""
         logger.info("Loading Tron checkpoint. This may take a while...")
         state_dict, source_config = self.init_tron_model()
-        self._source_config = source_config
+        self._tron_config = source_config
         logger.info("Tron checkpoint loaded.")
 
         source = _ModelState(state_dict)
@@ -256,7 +277,7 @@ class BaseExporter:
         target = self.convert_state(source, target)
 
         target = target.cpu()
-        if self.config.tie_word_embeddings:
+        if self.hf_config.tie_word_embeddings:
             state_dict = target.state_dict()
             state_dict.pop("lm_head.weight")
             target.save_pretrained(self.output_path, state_dict=state_dict)

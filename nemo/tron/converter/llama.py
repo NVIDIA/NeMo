@@ -11,11 +11,10 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
 )
 from nemo.tron.converter.common import (
+    BaseExporter,
     BaseImporter,
     dtype_from_hf,
-    save_hf_tokenizer_assets,
 )
-from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
@@ -23,13 +22,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class HFLlamaExporter:
+class HFLlamaExporter(BaseExporter):
     """Exporter to convert NeMo Llama models to Hugging Face format."""
 
     convert_state = _NeMo2HFLlamaExporter.convert_state
 
     @property
-    def config(self) -> "HFLlamaConfig":
+    def hf_config(self) -> "HFLlamaConfig":
         """Generate a Hugging Face Llama configuration from the NeMo model configuration.
 
         This property maps NeMo configuration parameters to their Hugging Face equivalents.
@@ -37,10 +36,10 @@ class HFLlamaExporter:
         Returns:
             HFLlamaConfig: A Hugging Face Llama configuration
         """
-        if self._config is not None:
-            return self._config
+        if self._hf_config is not None:
+            return self._hf_config
 
-        source = self._source_config
+        source = self.tron_config
         from transformers import LlamaConfig as HFLlamaConfig
 
         rope_scaling = None
@@ -54,7 +53,7 @@ class HFLlamaExporter:
                 "rope_type": "llama3",
             }
 
-        self._config = HFLlamaConfig(
+        self._hf_config = HFLlamaConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
@@ -70,7 +69,7 @@ class HFLlamaExporter:
             bos_token_id=self.tokenizer.bos_id if self.tokenizer else None,
             eos_token_id=self.tokenizer.eos_id if self.tokenizer else None,
         )
-        return self._config
+        return self._hf_config
 
 
 class HFLlamaImporter(BaseImporter):
@@ -81,16 +80,6 @@ class HFLlamaImporter(BaseImporter):
 
         return LlamaForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto")
 
-    @property
-    def tokenizer(self) -> "_HuggingFaceTokenizer":
-        """Get the tokenizer for the HF model.
-
-        Returns:
-            _HuggingFaceTokenizer: Tokenizer instance initialized from the HF model's tokenizer
-        """
-
-        return _HuggingFaceTokenizer(save_hf_tokenizer_assets(str(self.input_path), str(self.output_path)))
-
     convert_state = _NeMo2HFLlamaImporter.convert_state
 
     @property
@@ -100,7 +89,6 @@ class HFLlamaImporter(BaseImporter):
         if self._hf_config is not None:
             return self._hf_config
         self._hf_config = HFLlamaConfig.from_pretrained(str(self.input_path))
-        self._hf_config.save_pretrained(str(self.output_path))
         return self._hf_config
 
     @property
