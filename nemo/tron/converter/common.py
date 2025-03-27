@@ -268,11 +268,12 @@ class BaseExporter:
         config = _config["model_config"]
         config = instantiate(config)
 
-        if self._hf_tokenizer_path is not None:
+        if self._hf_tokenizer_path is None:
             # Try to build tokenizer from the NeMo checkpoint
-            tokenizer_config: TokenizerConfig = _config["tokenizer_config"]
+            tokenizer_config: TokenizerConfig | None = instantiate(_config["tokenizer_config"])
             if (
-                tokenizer_config.tokenizer_type == "HuggingFaceTokenizer"
+                tokenizer_config is not None
+                and tokenizer_config.tokenizer_type == "HuggingFaceTokenizer"
                 and tokenizer_config.tokenizer_model is not None
                 and Path(tokenizer_config.tokenizer_model).exists()
             ):
