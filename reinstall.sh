@@ -263,7 +263,7 @@ cd $CURR
 
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
   echo "Running in dev mode"
-  ${PIP} install --editable ".[all]"
+  ${PIP} install --use-pep517 --editable ".[all]"
 
 else
   # --------------------------
