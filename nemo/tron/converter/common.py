@@ -45,7 +45,12 @@ def temporary_distributed_context():
 
 def get_full_mcore_state_dict(dist_ckpt_folder: Path, model_cfg):
     with temporary_distributed_context():
-        model_cfg.params_dtype = torch.bfloat16
+        if model_cfg.params_dtype != torch_dtype_from_mcore_config(model_cfg):
+            logger.info(
+                f"Converting params_dtype from {model_cfg.params_dtype} to {torch_dtype_from_mcore_config(model_cfg)}"
+            )
+            model_cfg.params_dtype = torch_dtype_from_mcore_config(model_cfg)
+
         with _strategy_lib.megatron_cpu_init_context(model_cfg):
             model = model_cfg.configure_model(None)
 
@@ -313,4 +318,5 @@ class BaseExporter:
         if self.tron_config.generation_config is not None:
             self.tron_config.generation_config.save_pretrained(self.output_path)
 
+        print(f"Converted {self.input_path} to {self.output_path}.")
         return self.output_path
