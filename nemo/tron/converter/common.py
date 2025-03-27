@@ -209,7 +209,6 @@ class BaseExporter:
         self._tron_config = None
         self._hf_tokenizer_path = hf_tokenizer_path
         self._tokenizer = None
-        self.config = self.hf_config  # for backward compatibility
 
     @property
     def hf_config(self) -> "PretrainedConfig":
@@ -294,6 +293,7 @@ class BaseExporter:
         self._tron_config = source_config
         logger.info("Tron checkpoint loaded.")
 
+        self.config = self.hf_config  # for backward compatibility
         source = _ModelState(state_dict)
         target = self.init_hf_model(torch_dtype_from_mcore_config(source_config))
         target = self.convert_state(source, target)
