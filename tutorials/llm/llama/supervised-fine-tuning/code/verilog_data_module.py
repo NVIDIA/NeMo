@@ -94,7 +94,7 @@ class VerilogDataModule(FineTuningDataModule, IOMixin):
 
         for split_name, dataset in save_splits.items():
             output_file_high_level = self.dataset_root / f"{split_name}.jsonl"
-            with output_file_high_level.open("w", encoding="utf-8") as :f
+            with output_file_high_level.open("w", encoding="utf-8") as f:
                 for example in dataset:
                     code = example["code"].strip()
                     description = example["description"]
