@@ -49,6 +49,10 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
 )
 fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
 
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
+)
+
 
 @dataclass(kw_only=True)
 class RestoreConfig:
@@ -455,6 +459,7 @@ def fsdp2_strategy_parallelize(
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
     sequence_parallel: bool = True,
+    offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
 
@@ -488,14 +493,16 @@ def fsdp2_strategy_parallelize(
                     mesh=mesh,
                     mp_policy=mp_policy,
                     reshard_after_forward=reshard_after_forward,
+                    offload_policy=offload_policy,
                 )
                 module[layer_id] = transformer_block
         else:
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-    dp_mesh = device_mesh["data_parallel"]
+    # dp_mesh = device_mesh["data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
+    print(f"tp_mesh: {tp_mesh}")
 
     print(model)
     if tp_mesh.size() > 1:
@@ -505,17 +512,17 @@ def fsdp2_strategy_parallelize(
 
         # Parallelize the first embedding and the last linear out projection
         print(model)
-        plan = {
-            "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
-            "lm_head": ColwiseParallel(output_layouts=Replicate()),
-            # "model.norm": SequenceParallel(),
-            # "model.layers.0": PrepareModuleInput(
-            #     input_layouts=(Replicate(), None),
-            #     desired_input_layouts=(Shard(1), None),
-            #     use_local_output=True,
-            # ),
-        }
-        model = parallelize_module(model, tp_mesh, plan)
+        # plan = {
+        #     "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+        #     "lm_head": ColwiseParallel(output_layouts=Replicate()),
+        #     # "model.norm": SequenceParallel(),
+        #     # "model.layers.0": PrepareModuleInput(
+        #     #     input_layouts=(Replicate(), None),
+        #     #     desired_input_layouts=(Shard(1), None),
+        #     #     use_local_output=True,
+        #     # ),
+        # }
+        # model = parallelize_module(model, tp_mesh, plan)
 
         # Parallelize each transformer block
         for transformer_block in model.model.layers:
@@ -541,25 +548,27 @@ def fsdp2_strategy_parallelize(
             }
 
             # Adjust attention module to use the local number of heads
-            attn_layer = transformer_block.self_attn
-            attn_layer.config.num_attention_heads = attn_layer.config.num_attention_heads // tp_mesh.size()
-            attn_layer.config.num_key_value_heads = attn_layer.config.num_key_value_heads // tp_mesh.size()
+            # attn_layer = transformer_block.self_attn
+            # attn_layer.config.num_attention_heads = attn_layer.config.num_attention_heads // tp_mesh.size()
+            # attn_layer.config.num_key_value_heads = attn_layer.config.num_key_value_heads // tp_mesh.size()
             # attn_layer.config.hidden_size = attn_layer.config.hidden_size // tp_mesh.size()
 
             # Apply the plan for the current transformer block
             parallelize_module(transformer_block, tp_mesh, plan)
         print(model)
 
-    if dp_mesh.size() > 1:
-        assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
-        assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
+    # if dp_mesh.size() > 1:
+    #     assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
+    #     assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
 
-        # Find transformer layers and apply parallelisms
-        parallelize_helper(model, dp_mesh, mp_policy)
+    #     # Find transformer layers and apply parallelisms
+    #     parallelize_helper(model, dp_mesh, mp_policy)
 
-        # reshard_after_forward=True based on
-        # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
-        model = fully_shard(model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True)
+    #     # reshard_after_forward=True based on
+    #     # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
+    #     model = fully_shard(
+    #         model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
+    #     )
 
     return model
 

@@ -12,14 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import tempfile
-from functools import partial
 
 import fiddle as fdl
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
-from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -37,7 +34,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, batch_size):
+def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -56,7 +53,12 @@ def make_squad_hf_dataset(tokenizer, batch_size):
         )
 
     datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad", split="train", micro_batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0
+        "rajpurkar/squad",
+        split="train",
+        micro_batch_size=batch_size,
+        pad_token_id=tokenizer.eos_id or 0,
+        global_batch_size=batch_size,
+        pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
     )
     datamodule.map(
         formatting_prompts_func,
@@ -67,7 +69,7 @@ def make_squad_hf_dataset(tokenizer, batch_size):
     return datamodule
 
 
-def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, dp_size=None, tp_size=None):
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False, dp_size=None, tp_size=None):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
             device='cuda:0',
@@ -91,10 +93,18 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, dp_si
             else:
                 assert dp_size * tp_size == devices * num_nodes, "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
 
+        offload_policy = None
+        if enable_cpu_offload:
+            from nemo.lightning.pytorch.strategies.fsdp2_strategy import HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy
+
+            assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
+            offload_policy = CPUOffloadPolicy()
+
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            offload_policy=offload_policy,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -144,7 +154,10 @@ def main():
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--wandb-project', type=str, default="automodel-fsdp2", help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
+    parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
+    parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
+    parser.add_argument('--enable-grad-ckpt', action='store_true', help='Enables gradient checkpoint')
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
@@ -154,7 +167,13 @@ def main():
         action='store_true',
         help='Enables trust_remote_code to load HF models with unverified sources',
     )
+    parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
+    parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
+
     args = parser.parse_args()
+    # CPUOffload WA for known issue
+    if args.enable_cpu_offload and args.use_te_optimizer:
+        args.use_te_optimizer = False
 
     wandb = None
     if args.wandb_project is not None:
@@ -172,14 +191,24 @@ def main():
     if args.use_te_optimizer:
         # Use TE optimizer
         # Faster convergence but may lead to memory issues
-        optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5))
+        optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=3e-4))
+        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
 
+    if args.fp8:
+        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+
+        model_accelerator = TEConfig(fp8_autocast=True)
+    else:
+        model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=None, trust_remote_code=args.trust_remote_code
+        model_name=args.model,
+        model_accelerator=model_accelerator,
+        trust_remote_code=args.trust_remote_code,
+        use_liger_kernel=args.liger,
+        enable_grad_ckpt=args.enable_grad_ckpt,
     )
-    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False, dp_size=args.dp_size, tp_size=args.tp_size)
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False, args.enable_cpu_offload, dp_size=args.dp_size, tp_size=args.tp_size)
 
     resume = (
         nl.AutoResume(
@@ -189,10 +218,13 @@ def main():
         if args.auto_resume
         else None
     )
+    # CPUOffload WA
+    if args.enable_cpu_offload:
+        args.grad_clip = 0.0
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer, args.batch_size),
+        data=make_squad_hf_dataset(model.tokenizer, args.batch_size, args.fp8),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
