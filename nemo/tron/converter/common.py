@@ -2,7 +2,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.distributed as dist
@@ -16,7 +16,7 @@ from nemo.collections.llm.gpt.model.base import GPTConfig, torch_dtype_from_mcor
 from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.lightning import _strategy_lib
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig
+from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig, TokenizerConfig
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer, build_tokenizer
 from nemo.tron.utils.instantiate_utils import instantiate
@@ -202,11 +202,13 @@ class BaseImporter:
 
 
 class BaseExporter:
-    def __init__(self, input_path: str | Path, output_path: str | Path):
+    def __init__(self, input_path: str | Path, output_path: str | Path, hf_tokenizer_path: Optional[str] = None):
         self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
         self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
         self._hf_config = None
         self._tron_config = None
+        self._hf_tokenizer_path = hf_tokenizer_path
+        self._tokenizer = None
 
     @property
     def hf_config(self) -> "PretrainedConfig":
@@ -217,6 +219,16 @@ class BaseExporter:
         if self._tron_config is None:
             raise ValueError("Tron config is not set")
         return self._tron_config
+
+    @property
+    def tokenizer(self) -> "_HuggingFaceTokenizer":
+        if self._tokenizer is None:
+            if self._hf_tokenizer_path is not None:
+                from transformers import AutoTokenizer
+
+                self._tokenizer = AutoTokenizer.from_pretrained(self._hf_tokenizer_path, trust_remote_code=True)
+
+        return self._tokenizer
 
     def convert_state(self, source, target):
         raise NotImplementedError
@@ -250,15 +262,23 @@ class BaseExporter:
             tuple[Dict, Dict]: The loaded state dict and the yaml config dict.
         """
         tron_yaml = self.input_path / "run_config.yaml"
-        assert tron_yaml.exists()
+        assert tron_yaml.exists(), f"Tron config file {tron_yaml} does not exist"
         with open(tron_yaml, "r") as stream:
             _config = yaml.safe_load(stream)
         config = _config["model_config"]
         config = instantiate(config)
-        try:
-            self.tokenizer = build_tokenizer(instantiate(_config["tokenizer_config"]))
-        except Exception:
-            logger.warning("Failed to build tokenizer")
+
+        if self._hf_tokenizer_path is not None:
+            # Try to build tokenizer from the NeMo checkpoint
+            tokenizer_config: TokenizerConfig = _config["tokenizer_config"]
+            if (
+                tokenizer_config.tokenizer_type == "HuggingFaceTokenizer"
+                and tokenizer_config.tokenizer_model is not None
+                and Path(tokenizer_config.tokenizer_model).exists()
+            ):
+                self._hf_tokenizer_path = tokenizer_config.tokenizer_model
+            else:
+                logger.warning("Failed to find Huggingface tokenizer in the NeMo checkpoint")
 
         state_dict = {}
         state_dict = get_full_mcore_state_dict(self.input_path)
@@ -285,8 +305,11 @@ class BaseExporter:
             target.save_pretrained(self.output_path)
 
         try:
-            self.tokenizer._tokenizer.save_pretrained(self.output_path)
+            self.tokenizer.save_pretrained(self.output_path)
         except Exception:
             logger.warning("Failed to save tokenizer")
+
+        if self.tron_config.generation_config is not None:
+            self.tron_config.generation_config.save_pretrained(self.output_path)
 
         return self.output_path
