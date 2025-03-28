@@ -47,18 +47,22 @@ def make_squad_hf_dataset(tokenizer, global_batch_size, micro_batch_size, seq_le
             context_ids.insert(0, tokenizer.bos_id)
         if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
             answer_ids.append(tokenizer.eos_id)
-
+        
+        # Set input and labels, and pad to sequence length.
+        combined_query_answer = context_ids + answer_ids
+        seq_pad_len_ar = max(0, seq_length - len(combined_query_answer) + 1)
+        pad_token_id = tokenizer.eos_id if tokenizer.eos_id is not None else 0
         return dict(
-            labels=(context_ids + answer_ids)[1:],
-            input_ids=(context_ids + answer_ids)[:-1],
-            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+            labels=combined_query_answer[1:] + [pad_token_id] * seq_pad_len_ar,
+            input_ids=combined_query_answer[:-1] + [pad_token_id] * seq_pad_len_ar,
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids) + [0] * seq_pad_len_ar,
         )
 
     datamodule = llm.HFDatasetDataModule(
         "rajpurkar/squad",
         split=["train", "validation"],
         micro_batch_size=micro_batch_size,
-        pad_token_id=tokenizer.eos_id or 0,
+        pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
         global_batch_size=global_batch_size,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
     )
@@ -197,7 +201,7 @@ def main():
         help='Enables trust_remote_code to load HF models with unverified sources',
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
-    parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
+    parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate for training.')
     parser.add_argument('--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.')
     parser.add_argument('--fsdp-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for sharding in FSDP.')
     parser.add_argument('--cp-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for context parallel FSDP.')
