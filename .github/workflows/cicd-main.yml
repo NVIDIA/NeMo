@@ -117,7 +117,7 @@ jobs:
       image-label: nemo-core
       build-args: |
         IMAGE_LABEL=nemo-core
-        NEMO_TAG=${{ githuba }}
+        NEMO_TAG=${{ github.sha }}
         NEMO_REPO=https://github.com/NVIDIA/NeMo
         ${{ needs.pre-flight.outputs.BUILD_ARGS }}
       prune-filter-timerange: 24h
