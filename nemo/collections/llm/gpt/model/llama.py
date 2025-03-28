@@ -889,9 +889,8 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         from nemo.collections.llm.peft import DoRA
 
         assert (
-            not self.peft_obj.dropout
-            or self.peft_obj.dropout_position == 'pre' "LoRA dropout_position must be 'pre' to convert to HF."
-        )
+            not self.peft_obj.dropout or self.peft_obj.dropout_position == 'pre'
+        ), "LoRA dropout_position must be 'pre' to convert to HF."
 
         NEMO2HF = {
             'linear_q': ['q_proj'],
