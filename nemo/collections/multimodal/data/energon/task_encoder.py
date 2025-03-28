@@ -240,12 +240,12 @@ class MultiModalTaskEncoder(
         is_num_image_tiles_present = (
             'num_image_tiles' in batch_dict
             and batch_dict['num_image_tiles'] is not None
-            and batch_dict['num_image_tiles'] is not 0
+            and batch_dict['num_image_tiles'] != 0
         )
         is_num_media_tiles_present = (
             'num_media_tiles' in batch_dict
             and batch_dict['num_media_tiles'] is not None
-            and batch_dict['num_media_tiles'] is not 0
+            and batch_dict['num_media_tiles'] != 0
         )
 
         # Assert both should not be present
