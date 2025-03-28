@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/megatron_t5_finetuning.py \
+    -m torch.distributed.run --nproc_per_node=2 \
     --devices=2 \
     --max-steps=250 \
     --peft=lora \

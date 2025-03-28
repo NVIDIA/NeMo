@@ -63,7 +63,7 @@ if __name__ == '__main__':
         micro_batch_size=16,
         global_batch_size=128,
         tokenizer=tokenizer,
-        num_workers=4,
+        num_workers=0,
         # force_redownload=args.force_redownload,
     )
 
