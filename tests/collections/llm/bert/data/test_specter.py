@@ -18,10 +18,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import torch
 from datasets import Dataset, DatasetDict
 
-from nemo.collections.llm import SquadDataModule
+from nemo.collections.llm.bert.data.specter import SpecterDataModule
 
 
 @pytest.fixture
@@ -49,27 +48,16 @@ def mock_sampler():
 
 
 @pytest.fixture
-def sample_squad_dataset():
+def sample_specter_dataset():
     dataset_len = 30
     train_dataset = Dataset.from_dict(
         {
-            "context": ["The quick brown fox jumps over the lazy dog."] * dataset_len,
-            "question": ["What does the fox do?"] * dataset_len,
-            "answers": [{"text": ["jumps over the lazy dog"], "answer_start": [20]} for _ in range(dataset_len)],
-            "id": [str(i) for i in range(dataset_len)],
+            "anchor": ["Paper A abstract"] * dataset_len,
+            "positive": ["Similar paper B abstract"] * dataset_len,
+            "negative": ["Unrelated paper C abstract"] * dataset_len,
         }
     )
-
-    validation_dataset = Dataset.from_dict(
-        {
-            "context": ["A computer is an electronic device."] * dataset_len,
-            "question": ["What is a computer?"] * dataset_len,
-            "answers": [{"text": ["an electronic device"], "answer_start": [15]} for _ in range(dataset_len)],
-            "id": [str(i) for i in range(dataset_len)],
-        }
-    )
-
-    return DatasetDict({'train': train_dataset, 'validation': validation_dataset})
+    return DatasetDict({'train': train_dataset})
 
 
 @pytest.fixture
@@ -79,35 +67,32 @@ def temp_dataset_dir():
 
 
 @pytest.fixture
-def squad_data_module(mock_tokenizer, temp_dataset_dir, sample_squad_dataset, mock_trainer, mock_sampler):
+def specter_data_module(mock_tokenizer, temp_dataset_dir, sample_specter_dataset):
     # Patch the _download_data method directly
-    with patch.object(SquadDataModule, '_download_data', return_value=sample_squad_dataset):
-        with patch('nemo.collections.llm.gpt.data.core.get_dataset_root', return_value=temp_dataset_dir):
-            data_module = SquadDataModule(
+    with patch.object(SpecterDataModule, '_download_data', return_value=sample_specter_dataset):
+        with patch('nemo.collections.llm.bert.data.core.get_dataset_root', return_value=temp_dataset_dir):
+            data_module = SpecterDataModule(
                 tokenizer=mock_tokenizer,
                 seq_length=512,
-                micro_batch_size=2,
-                global_batch_size=4,
+                micro_batch_size=4,
+                global_batch_size=8,
                 force_redownload=True,
             )
             data_module.dataset_root = temp_dataset_dir
-            data_module.trainer = mock_trainer
-            data_module.data_sampler = mock_sampler
-
             yield data_module
 
 
-def test_squad_data_module_initialization(squad_data_module):
-    assert squad_data_module.seq_length == 512
-    assert squad_data_module.micro_batch_size == 2
-    assert squad_data_module.global_batch_size == 4
-    assert squad_data_module.force_redownload is True
-    assert squad_data_module.delete_raw is True
+def test_specter_data_module_initialization(specter_data_module):
+    assert specter_data_module.seq_length == 512
+    assert specter_data_module.micro_batch_size == 4
+    assert specter_data_module.global_batch_size == 8
+    assert specter_data_module.force_redownload is True
+    assert specter_data_module.delete_raw is True
 
 
-def test_preprocess_and_split_data(squad_data_module, temp_dataset_dir, sample_squad_dataset):
+def test_preprocess_and_split_data(specter_data_module, temp_dataset_dir, sample_specter_dataset):
     # Call the preprocessing function
-    squad_data_module._preprocess_and_split_data(sample_squad_dataset)
+    specter_data_module._preprocess_and_split_data(sample_specter_dataset)
 
     # Check if files were created
     assert (temp_dataset_dir / "training.jsonl").exists()
@@ -119,28 +104,16 @@ def test_preprocess_and_split_data(squad_data_module, temp_dataset_dir, sample_s
         lines = f.readlines()
         assert len(lines) > 0
         data = json.loads(lines[0])
-        assert "input" in data
-        assert "output" in data
-        assert data["input"].startswith("Context:")
-        assert "Question:" in data["input"]
-        assert data["input"].endswith("Answer:")
+        assert "query" in data
+        assert "pos_doc" in data
+        assert "neg_doc" in data
+        assert isinstance(data["neg_doc"], list)
+        assert len(data["neg_doc"]) == 1
 
 
-def test_dataloaders(squad_data_module, mock_trainer):
-    squad_data_module.prepare_data()
-
-    train_loader = squad_data_module.train_dataloader()
-    val_loader = squad_data_module.val_dataloader()
-    test_loader = squad_data_module.test_dataloader()
-
-    assert isinstance(train_loader, torch.utils.data.DataLoader)
-    assert isinstance(val_loader, torch.utils.data.DataLoader)
-    assert isinstance(test_loader, torch.utils.data.DataLoader)
-
-
-def test_force_redownload(squad_data_module, temp_dataset_dir):
+def test_force_redownload(specter_data_module, temp_dataset_dir, sample_specter_dataset):
     # First prepare data
-    squad_data_module.prepare_data()
+    specter_data_module.prepare_data()
 
     # Create a marker file to simulate existing data
     marker_file = temp_dataset_dir / "training.jsonl"
@@ -150,8 +123,8 @@ def test_force_redownload(squad_data_module, temp_dataset_dir):
     original_mtime = marker_file.stat().st_mtime
 
     # Set force_redownload to True and prepare again
-    squad_data_module.force_redownload = True
-    squad_data_module.prepare_data()
+    specter_data_module.force_redownload = True
+    specter_data_module.prepare_data()
 
     # Check if files were recreated
     assert marker_file.exists()
@@ -159,17 +132,17 @@ def test_force_redownload(squad_data_module, temp_dataset_dir):
     assert new_mtime > original_mtime, "File modification time should be newer after redownload"
 
 
-def test_delete_raw(squad_data_module, temp_dataset_dir, sample_squad_dataset):
+def test_delete_raw(specter_data_module, temp_dataset_dir, sample_specter_dataset):
     # First prepare data
-    squad_data_module.prepare_data()
+    specter_data_module.prepare_data()
 
     # Create a mock raw data file
     raw_file = temp_dataset_dir / "raw_data.txt"
     raw_file.touch()
 
     # Set delete_raw to True and prepare again
-    squad_data_module.delete_raw = True
-    squad_data_module._preprocess_and_split_data(sample_squad_dataset)
+    specter_data_module.delete_raw = True
+    specter_data_module._preprocess_and_split_data(sample_specter_dataset)
 
     # Check if raw file was deleted
     assert not raw_file.exists()
