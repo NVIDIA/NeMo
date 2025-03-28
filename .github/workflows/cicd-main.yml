@@ -2317,7 +2317,7 @@ jobs:
       - L2_NeMo_2_llama3_pretraining_recipe
       - L2_NeMo_2_llama3_fault_tolerance_plugin
       - L2_NeMo_2_llama3_straggler_detection
-      # - L2_HF_Transformer_PEFT_notebook
+      - L2_HF_Transformer_PEFT_notebook
       - L2_HF_Transformer_PEFT
       - L2_HF_Transformer_PEFT_nemorun
       - L2_HF_Transformer_PEFT_2gpu
