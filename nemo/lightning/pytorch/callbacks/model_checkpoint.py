@@ -687,7 +687,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             super()._remove_checkpoint(trainer, filepath)
         except Exception as e:
             logging.warning(
-                f'Error removing checkpoint, common if doing manual cleanup and restarting training: {filepath}: {e}'
+                f'Error removing checkpoint, common if doing manual cleanup and restarting: {filepath}: {e}'
             )
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
@@ -698,7 +698,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 super()._remove_checkpoint(trainer, filepath)
             except Exception as e:
                 logging.warning(
-                    f'Error removing checkpoint, common if doing manual cleanup and restarting training: {filepath}: {e}'
+                    f'Error removing checkpoint, common if doing manual cleanup and restarting: {filepath}: {e}'
                 )
         # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
         # we don't want to remove the marker until the checkpoint is actually removed.
