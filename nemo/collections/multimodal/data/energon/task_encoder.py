@@ -237,7 +237,12 @@ class MultiModalTaskEncoder(
         if 'images' in batch_dict:
             batch_dict['media'] = batch_dict['images']
             del batch_dict['images']
-        if 'num_image_tiles' in batch_dict:
+        is_num_image_tiles_present = 'num_image_tiles' in batch_dict and batch_dict['num_image_tiles'] is not None and batch_dict['num_image_tiles'] is not 0
+        is_num_media_tiles_present = 'num_media_tiles' in batch_dict and batch_dict['num_media_tiles'] is not None and batch_dict['num_media_tiles'] is not 0
+        
+        # Assert both should not be present
+        assert not (is_num_image_tiles_present and is_num_media_tiles_present), "num_image_tiles and num_media_tiles should not be present at the same time"
+        if is_num_image_tiles_present:
             batch_dict['num_media_tiles'] = batch_dict['num_image_tiles']
             del batch_dict['num_image_tiles']
         micro_batch_size, seq_length = batch_dict['tokens'].size()
