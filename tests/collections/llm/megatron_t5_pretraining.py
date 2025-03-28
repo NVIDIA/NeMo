@@ -24,7 +24,7 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import pretrain
-from nemo.collections.llm.t5.data import PreTrainingDataModule, MockDataModule
+from nemo.collections.llm.t5.data import MockDataModule, PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         vocab_file=args.vocab_path,
         special_tokens=special_tokens,
     )
-    if args.data_path=="mock":
+    if args.data_path == "mock":
         data = MockDataModule(
             seq_length=512,
             seq_length_dec=128,
