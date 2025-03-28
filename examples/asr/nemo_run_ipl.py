@@ -197,10 +197,10 @@ def main(cluster_cfg):
 
     # Update the exp_manager runtime with the max_runtime from the cluster config
     update_exp_manager_runtime(merged_config, cluster_cfg)
-
+    import copy
     # Perform all path checks in the merged config
     if "ipl_training" in merged_config.model:
-        ipl_training = merged_config.model.ipl_training
+        ipl_training = copy.deepcopy(merged_config.model.ipl_training)
         # not to check the path
         del merged_config.model.ipl_training.inference_config
     else:
