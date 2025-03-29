@@ -23,13 +23,12 @@ import numpy as np
 import soundfile as sf
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, open_dict
 from lightning.pytorch import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
+from omegaconf import DictConfig, open_dict
 from torch import nn
 from torch.utils.data import get_worker_info
 from transformers import AutoTokenizer, T5Tokenizer
-
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
@@ -38,7 +37,11 @@ from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
-from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, get_mask_from_lengths, plot_alignment_to_numpy
+from nemo.collections.tts.parts.utils.helpers import (
+    binarize_attention_parallel,
+    get_mask_from_lengths,
+    plot_alignment_to_numpy,
+)
 from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -152,8 +155,6 @@ class MagpieTTS_Model(ModelPT):
                 cfg.num_audio_tokens_per_codebook - 4
             )  # Changing these to make them different from target audio bos and eos
             self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 3
-
-        self._tb_logger = None
 
         self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
@@ -276,19 +277,6 @@ class MagpieTTS_Model(ModelPT):
             cfg.text_tokenizers, cfg.use_text_conditioning_encoder, mode=mode
         )
         return tokenizer, text_conditioning_tokenizer
-
-    @property
-    def tb_logger(self):
-        if self._tb_logger is None:
-            if self.logger is None and self.logger.experiment is None:
-                return None
-            tb_logger = self.logger.experiment
-            for logger in self.trainer.loggers:
-                if isinstance(logger, TensorBoardLogger):
-                    tb_logger = logger.experiment
-                    break
-            self._tb_logger = tb_logger
-        return self._tb_logger
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
         # audio: (B, T)
@@ -521,20 +509,34 @@ class MagpieTTS_Model(ModelPT):
         with torch.no_grad():
             attention_prob_matrix = torch.cat(attention_prob_matrix, dim=1)  # (B, C, audio_timesteps, text_timesteps)
             attention_prob_matrix_mean = attention_prob_matrix.mean(dim=1)  # (B, audio_timesteps, text_timesteps)
+
+            images = list()
             for idx in range(min(3, attention_prob_matrix_mean.size(0))):
                 item_attn_matrix = attention_prob_matrix_mean[idx][
                     dec_context_size : dec_context_size + audio_codes_lens[idx], : text_lens[idx]
                 ]
                 item_attn_matrix = item_attn_matrix.detach().cpu().numpy()
-                attn_np = plot_alignment_to_numpy(item_attn_matrix.T)
-                self.tb_logger.add_image(
-                    f'{prefix}attention_matrix_{idx}',
-                    attn_np,
-                    global_step=self.global_step,
-                    dataformats="HWC",
-                )
+                images.append(plot_alignment_to_numpy(item_attn_matrix.T))
 
-    def log_train_val_example(
+            if isinstance(self.logger, WandbLogger) and HAVE_WANDB:
+                self.logger.log_image(
+                    key=f"Image/{prefix}/attention_matrix",
+                    images=images,
+                    step=self.global_step,
+                    caption=[f"Example_{idx}" for idx in range(len(images))],
+                )
+            elif isinstance(self.logger, TensorBoardLogger):
+                for idx, img in enumerate(images):
+                    self.logger.experiment.add_image(
+                        f'{prefix}/attention_matrix/Example_{idx}',
+                        img,
+                        global_step=self.global_step,
+                        dataformats="HWC",
+                    )
+            else:
+                ValueError(f"Invalid logger: {self.logger}")
+
+    def log_train_val_audio_example(
         self,
         logits,
         target_audio_codes,
@@ -545,36 +547,60 @@ class MagpieTTS_Model(ModelPT):
         pred_audio_codes = self.logits_to_audio_codes(logits, audio_codes_lens_target)
         pred_audio, pred_audio_lens = self.codes_to_audio(pred_audio_codes, audio_codes_lens_target)
         target_audio, target_audio_lens = self.codes_to_audio(target_audio_codes, audio_codes_lens_target)
+
         context_audio, context_audio_lens = None, None
         if context_audio_codes is not None and context_audio_codes.shape[2] > 3:
             # > 3 ensures, it is a valid context audio tensor (and not dummy tensor used in text context)
             context_audio, context_audio_lens = self.codes_to_audio(context_audio_codes, context_audio_codes_lens)
+
         for idx in range(min(3, pred_audio.size(0))):
             pred_audio_np = pred_audio[idx].float().detach().cpu().numpy()
             target_audio_np = target_audio[idx].float().detach().cpu().numpy()
             pred_audio_np = pred_audio_np[: pred_audio_lens[idx]]
             target_audio_np = target_audio_np[: target_audio_lens[idx]]
-            self.tb_logger.add_audio(
-                f'pred_audio_{idx}',
-                pred_audio_np,
-                global_step=self.global_step,
-                sample_rate=self.cfg.sample_rate,
-            )
-            self.tb_logger.add_audio(
-                f'target_audio_{idx}',
-                target_audio_np,
-                global_step=self.global_step,
-                sample_rate=self.cfg.sample_rate,
-            )
+            context_audio_np = None
             if context_audio is not None:
                 context_audio_np = context_audio[idx].float().detach().cpu().numpy()
                 context_audio_np = context_audio_np[: context_audio_lens[idx]]
-                self.tb_logger.add_audio(
-                    f'context_audio_{idx}',
-                    context_audio_np,
+
+            if isinstance(self.logger, WandbLogger) and HAVE_WANDB:
+                if context_audio_np is not None:
+                    audios_np = [context_audio_np]
+                    captions = ["context"]
+                else:
+                    audios_np = list()
+                    captions = list()
+                audios_np = audios_np + [pred_audio_np, target_audio_np]
+                captions = captions + ["prediction", "target"]
+                self.logger.log_audio(
+                    key=f"Audio/Example_{idx}",
+                    audios=audios_np,
+                    step=self.global_step,
+                    sample_rate=[self.cfg.sample_rate] * len(audios_np),
+                    caption=captions,
+                )
+            elif isinstance(self.logger, TensorBoardLogger):
+                if context_audio_np is not None:
+                    self.logger.experiment.add_audio(
+                        f'Example_{idx}/context',
+                        context_audio_np,
+                        global_step=self.global_step,
+                        sample_rate=self.cfg.sample_rate,
+                    )
+                self.logger.experiment.add_audio(
+                    f'Example_{idx}/prediction',
+                    pred_audio_np,
                     global_step=self.global_step,
                     sample_rate=self.cfg.sample_rate,
                 )
+                self.logger.experiment.add_audio(
+                    f'Example_{idx}/target',
+                    target_audio_np,
+                    global_step=self.global_step,
+                    sample_rate=self.cfg.sample_rate,
+                )
+            else:
+                ValueError(f"Invalid logger: {self.logger}")
 
     def scale_prior(self, prior, global_step):
         if prior is None:
@@ -1007,17 +1033,17 @@ class MagpieTTS_Model(ModelPT):
         batch_output = self.process_batch(batch)
         loss = batch_output['loss']
         codebook_loss = batch_output['codebook_loss']
-        self.log('train_codebook_loss', codebook_loss, prog_bar=True, sync_dist=True)
+        self.log('train/codebook_loss', codebook_loss, prog_bar=True, sync_dist=True)
         if self.cfg.get('cfg_unconditional_prob', 0.0) == 0.0:
             # Only log alignment loss when not using cfg to avoid sync issues when
             # alignment loss is None on some ranks
             alignment_loss = batch_output['alignment_loss']
             if alignment_loss is not None:
-                self.log('train_alignment_loss', alignment_loss, prog_bar=True, sync_dist=True)
-        self.log('train_loss', loss, prog_bar=True, sync_dist=True)
+                self.log('train/alignment_loss', alignment_loss, prog_bar=True, sync_dist=True)
+        self.log('train/loss', loss, prog_bar=True, sync_dist=True)
         local_transformer_loss = batch_output['local_transformer_loss']
         if local_transformer_loss is not None:
-            self.log('train_local_transformer_loss', local_transformer_loss, prog_bar=True, sync_dist=True)
+            self.log('train/local_transformer_loss', local_transformer_loss, prog_bar=True, sync_dist=True)
 
         return loss
 
@@ -1041,7 +1067,7 @@ class MagpieTTS_Model(ModelPT):
             aligner_encoder_loss = torch.tensor(0.0, device=loss.device)
 
         if batch_idx == 0 and self.global_rank == 0:
-            self.log_train_val_example(
+            self.log_train_val_audio_example(
                 logits, audio_codes_target, audio_codes_lens_target, context_audio_codes, context_audio_codes_lens
             )
             if (
@@ -1055,19 +1081,19 @@ class MagpieTTS_Model(ModelPT):
                     cross_attention_probs,
                     audio_codes_lens_target,
                     text_lens,
-                    prefix="val_",
+                    prefix="val",
                     dec_context_size=dec_context_size,
                 )
                 for layer_idx in self.transcript_decoder_layers:
                     cross_attention_probs = [ attn_info[layer_idx]['cross_attn_probabilities'][0] ]
-                    self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix=f"val_layer_{layer_idx}_", dec_context_size=dec_context_size)
+                    self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix=f"val/layer_{layer_idx}", dec_context_size=dec_context_size)
 
                 if batch_output['aligner_attn_soft'] is not None:
                     self.log_attention_probs(
                         [batch_output['aligner_attn_soft']],
                         audio_codes_lens_target,
                         text_lens,
-                        prefix=f"val_aligner_encoder_attn_",
+                        prefix=f"val/aligner_encoder_attn",
                     )
 
                 if batch_output['aligner_attn_hard'] is not None:
@@ -1075,7 +1101,7 @@ class MagpieTTS_Model(ModelPT):
                         [batch_output['aligner_attn_hard'].unsqueeze(1)],
                         audio_codes_lens_target,
                         text_lens,
-                        prefix=f"val_aligner_encoder_attn_hard_",
+                        prefix=f"val/aligner_encoder_attn_hard",
                     )
 
         local_transformer_loss = batch_output['local_transformer_loss']
@@ -1447,12 +1473,24 @@ class MagpieTTS_Model(ModelPT):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[: predicted_audio_lens[idx]]
                 item_idx = batch_idx * test_dl_batch_size + idx
-                self.tb_logger.add_audio(
-                    'predicted_audio',
-                    predicted_audio_np,
-                    global_step=item_idx,
-                    sample_rate=self.cfg.sample_rate,
-                )
+
+                if isinstance(self.logger, WandbLogger) and HAVE_WANDB:
+                    log_dict = {
+                        f"test/predicted_audio": wandb.Audio(
+                            predicted_audio_np, sample_rate=self.cfg.sample_rate, caption=f"Predicted Audio"
+                        ),
+                    }
+                    self.logger.experiment.log(log_dict, step=item_idx)
+                elif isinstance(self.logger, TensorBoardLogger):
+                    self.logger.experiment.add_audio(
+                        'test/predicted_audio',
+                        predicted_audio_np,
+                        global_step=item_idx,
+                        sample_rate=self.cfg.sample_rate,
+                    )
+                else:
+                    ValueError(f"Invalid logger: {self.logger}")
+
                 # Save the predicted audio
                 log_dir = self.logger.log_dir
                 audio_dir = os.path.join(log_dir, 'audios')
@@ -1468,12 +1506,12 @@ class MagpieTTS_Model(ModelPT):
         val_alignment_loss = collect("val_alignment_loss")
         val_aligner_encoder_loss = collect("val_aligner_encoder_loss")
         self.log("val_loss", val_loss, prog_bar=True, sync_dist=True)
-        self.log("val_codebook_loss", val_codebook_loss, prog_bar=True, sync_dist=True)
-        self.log("val_alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
-        self.log("val_aligner_encoder_loss", val_aligner_encoder_loss, prog_bar=True, sync_dist=True)
+        self.log("val/codebook_loss", val_codebook_loss, prog_bar=True, sync_dist=True)
+        self.log("val/alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
+        self.log("val/aligner_encoder_loss", val_aligner_encoder_loss, prog_bar=True, sync_dist=True)
         if self.cfg.get('use_local_transformer', False):
             val_local_transformer_loss = collect("val_local_transformer_loss")
-            self.log("val_local_transformer_loss", val_local_transformer_loss, prog_bar=True, sync_dist=True)
+            self.log("val/local_transformer_loss", val_local_transformer_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()  # free memory
 
     def get_dataset(self, cfg, dataset_type):
