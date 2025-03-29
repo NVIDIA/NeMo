@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# mark is successful
-exit 0
-jupyter nbconvert --to script tutorials/llm/automodel/sft.ipynb --output _sft
-sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/automodel/_sft.py
-sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/automodel/_sft.py
-cp tutorials/llm/automodel/_sft.py /tmp/_sft.py
-grep -iv push_to_hub /tmp/_sft.py >tutorials/llm/automodel/_sft.py
-TRANSFORMERS_OFFLINE=1 coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo3 tutorials/llm/automodel/_sft.py
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/neva_finetune.py \
+    --devices=2 --data_type=energon --use_toy_model \
+    --mbs=1 --gbs=2 --max_steps=4 \
+    --tp=2  \
+    --data_path=/home/TestData/tiny_datasets/llava-energon \
+    --log_dir=/tmp/nemo2_neva_results/$RUN_ID
