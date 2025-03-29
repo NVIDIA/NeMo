@@ -20,14 +20,16 @@ from typing import Dict, List, Optional
 import nemo_run as run
 import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
-from nemo_run.config import NEMORUN_HOME
+from nemo_run.config import get_nemorun_home
 from numpy import nan
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
+from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
@@ -46,19 +48,21 @@ def slurm_executor(
     custom_srun_args: List[str] = [],
     hf_token: str = None,
     nemo_home: str = DEFAULT_NEMO_HOME,
+    wandb_key: str = None,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
     and fine-tuning experiments
     """
     err_msgs = []
-    if log_dir != NEMORUN_HOME:
+    if log_dir != get_nemorun_home():
         err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
     if len(err_msgs) > 0:
         logging.error("\n".join(err_msgs))
         sys.exit(1)
 
     env_vars = {
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
         "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
         "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
         "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
@@ -67,8 +71,13 @@ def slurm_executor(
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
     }
+    if wandb_key is not None:
+        env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
-    srun_args = ["--mpi=pmix"]
+    srun_args = [
+        "--mpi=pmix",
+        "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",
+    ]
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
@@ -172,15 +181,18 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     etp_size = args.expert_tensor_parallel_size
     etp_size = config.get("etp_size") if etp_size is None else etp_size
 
+    enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
+    enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [enable_cuda_graphs]
 
     return kwargs
 
 
 def set_primary_perf_configs(
     recipe,
-    enable_tb: bool,
+    task: str,
     num_nodes: int,
     num_gpus_per_node: int,
     mbs: int,
@@ -192,6 +204,7 @@ def set_primary_perf_configs(
     vp_size: int,
     ep_size: int,
     etp_size: Optional[int] = None,
+    enable_cuda_graphs: bool = False,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -199,9 +212,14 @@ def set_primary_perf_configs(
     recipe.trainer.devices = num_gpus_per_node
     recipe.trainer.max_steps = max_steps
 
+    recipe.trainer.val_check_interval = max_steps
+    recipe.trainer.limit_val_batches = 0
+
     # lightning.pytorch.LightningDataModule configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
+    if recipe.data.__fn_or_cls__ == MockDataModule:
+        recipe.data.num_train_samples = max_steps * gbs  # ensure only 1 epoch for whole run
 
     # parallelism configs
     recipe.trainer.strategy.tensor_model_parallel_size = tp_size
@@ -222,17 +240,48 @@ def set_primary_perf_configs(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
 
+    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
+    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+    if task == "none" or task == "lora" and hasattr(recipe.data, "packed_sequence_specs"):
+        recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+
+    return recipe
+
+
+def set_exp_logging_configs(
+    recipe,
+    task: str,
+    domain: str,
+    model_name: str,
+    enable_tb: bool,
+    enable_wd: bool,
+    wandb_prj_name: str,
+    wandb_job_name: str,
+):
+    if task == "pre_train" and domain == "llm":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                FLOPsMeasurementCallback,
+                model_config=recipe.model.config,
+                data_config=recipe.data,
+                model_name=model_name,
+            )
+        )
+
     if not enable_tb:  # tensorboard adds performance overhead.
         recipe.log.tensorboard = None
         recipe.trainer.logger = False
     else:
         # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
         recipe.log.log_dir = "/nemo_run/lightning_logs"  # saves file at- `<log_dir>/lightning_logs/tb_logs
+    if enable_wd:
+        from nemo.collections.llm.recipes.log.default import wandb_logger
+
+        recipe.log.wandb = wandb_logger(project=wandb_prj_name, name=wandb_job_name)
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
-    recipe.trainer.val_check_interval = max_steps
     recipe.trainer.log_every_n_steps = 1
 
     return recipe
@@ -284,3 +333,13 @@ def get_comm_overlap_callback_idx(callbacks: List[Callback]) -> int | None:
             if callback.__fn_or_cls__ == MegatronCommOverlapCallback:
                 return idx
     return None
+
+
+def args_sanity_check(args: dict) -> None:
+    """
+    Check the sanity of argument settings
+    """
+    if args.wandb:
+        assert args.wandb_key is not None, "wandb logger needs \"wandb_key\""
+        assert args.wandb_prj_name is not None, "wandb logger needs \"wandb_prj_name\""
+        assert args.wandb_job_name is not None, "wandb logger needs \"wandb_job_name\""
