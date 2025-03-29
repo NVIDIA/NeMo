@@ -16,6 +16,7 @@ import time
 
 import _io
 import lightning.pytorch as pl
+import math
 import torch
 import torch.distributed as dist
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
@@ -289,15 +290,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.pos += input_ids.shape[1]
 
             context_parallel_ctx = create_context_parallel_ctx(
-                cp_mesh=self._device_mesh[
-                    # If "context_parallel" is not in mesh_dim_names, then fallback to
-                    # "data_parallel" for unified model parallelism.
-                    "data_parallel" if self._device_mesh.mesh_dim_names is not None and "context_parallel" not in self._device_mesh.mesh_dim_names else "context_parallel"
-                ],
+                cp_mesh=self._device_mesh["context_parallel"],
                 cp_buffers=[input_ids, labels, position_ids, loss_mask],
                 cp_seq_dims=[1, 1, 1, 1],
                 cp_no_restore_buffers={input_ids, labels, loss_mask},
-                cp_rotate_method="allgather",  # TODO add "addtoall" option
+                cp_rotate_method="allgather",  # TODO add "alltoall" option
             )
             train_context = get_train_context(
                 False,
@@ -359,8 +356,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
+                # Use the flattened DP / CP device mesh for loss reduction if it exists (CP > 1), else default to the data parallel mesh.
                 group = device_mesh[
-                    "loss_reduce_mesh" if device_mesh.mesh_dim_names is not None and "loss_reduce_mesh" in device_mesh.mesh_dim_names else "data_parallel"
+                    "dp_cp" if device_mesh.mesh_dim_names is not None and "dp_cp" in device_mesh.mesh_dim_names else "data_parallel"
                 ].get_group()
 
             def reduce_item(val, op, device, group, dtype):
@@ -378,12 +376,17 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     val /= dist.get_world_size(group)
                 return val
 
+            # Reduce loss across DP (or DP x CP) ranks.
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
             )
             tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
 
-        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        # Log the reduced loss.
+        # TODO(@cspades): Skip logging if the loss is NaN as a WAR if all tokens in the input and label are masked / padding,
+        # in which case the cross entropy loss returned is NaN. (If at least one label token is not masked / padded, the reduced loss will not be NaN.)
+        if not math.isnan(mean_loss):
+            self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
         # log LR

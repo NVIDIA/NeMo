@@ -79,8 +79,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         checkpoint_io=None,
         mp_policy=None,
         parallelize_fn=fsdp2_strategy_parallelize,
-        unified_model_parallel: bool = False,
-        loss_reduce_meshes: Optional[Tuple[str, ...]] = None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -101,11 +99,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 )
                 ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
-            unified_model_parallel (bool): Use unified model parallelism, i.e. the same device mesh of size DP x CP x TP for all dimensions of parallelism.
-                Significantly improves memory utilization when scaling to large sequence / context lengths, but slower than having separate dimensions for DP, CP, and TP.
-            loss_reduce_meshes (Optional[Tuple[str, ...]]): For loss reduction, flatten the specified tuple of named mesh dimensions to reduce across for loss computation, e.g. ("data_parallel", "context_parallel").
-                Supported Parallelisms: {"data_parallel", "context_parallel", "tensor_parallel"}
-                Default: None, which uses the canonical data parallel mesh for loss reduction.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
@@ -130,43 +123,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             "context_parallel": self.context_parallel_size,
             "tensor_parallel": self._tensor_parallel_size,
         }
-        self.unified_model_parallel = unified_model_parallel
-        self.loss_reduce_meshes = self._validate_mesh_dimensions(loss_reduce_meshes, mesh_type="loss reduction")
-
-    def _validate_mesh_dimensions(
-        self,
-        mesh_dims: Optional[Tuple[str, ...]],
-        device_mesh: Optional[dist.device_mesh.DeviceMesh] = None,
-        mesh_type: str = "device",
-    ) -> Optional[Tuple[str, ...]]:
-        """Validate that mesh dimensions are supported.
-        
-        Args:
-            mesh_dims: Tuple of mesh dimension names to validate.
-            device_mesh: Device mesh names to validate against, if provided.
-            mesh_type: Type of mesh being validated (for error message clarity).
-
-        Returns:
-            Tuple of mesh dimension names to use, or None if using canonical mesh.
-        
-        Raises:
-            ValueError: If any mesh dimension is not supported
-        """
-        if not isinstance(mesh_dims, tuple):
-            # Use canonical mesh to shard and reduce on. For instance, "data_parallel" for DP, "context_parallel" for CP, etc.
-            return None
-        if device_mesh is not None and device_mesh.mesh_dim_names is not None:
-            # Check against the instantiated device mesh.
-            invalid_dims = [dim for dim in mesh_dims if dim not in device_mesh.mesh_dim_names]
-        else:
-            # Check against the parallelization dimensions.
-            invalid_dims = [dim for dim in mesh_dims if dim not in self.parallel_dims]
-        if invalid_dims:
-            raise ValueError(
-                f"Invalid {mesh_type} mesh dimensions: {invalid_dims}. "
-                f"Supported dimensions are: {list(self.parallel_dims.keys())}"
-            )
-        return mesh_dims
 
     @property
     @override
@@ -227,29 +183,22 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
 
-        if self.unified_model_parallel:
-            _logger.info(f"Using unified model parallelism with {self.parallel_dims} = {math.prod(self.parallel_dims.values())} devices.")
-            self._device_mesh = init_device_mesh(
-                device_type=self.root_device.type,
-                mesh_shape=(math.prod(self.parallel_dims.values()),),  # Unified device mesh.
-                mesh_dim_names=("data_parallel",),  # Utilize the "data_parallel" mesh for unified model parallelism, because FSDP uses this keyword when retrieving the device mesh, and the loss reduction mesh is set to "data_parallel" by default.
-            )
-        else:
-            # TODO: TP is currently not supported. But we still create a device mesh for TP.
-            mesh_dim_names, mesh_shape = zip(*self.parallel_dims.items())
+        # TODO: TP is currently not supported. But we still create a device mesh for TP.
+        mesh_dim_names, mesh_shape = zip(*self.parallel_dims.items())
 
-            self._device_mesh = init_device_mesh(
-                device_type=self.root_device.type,
-                mesh_shape=mesh_shape,
-                mesh_dim_names=mesh_dim_names,
-            )
+        self._device_mesh = init_device_mesh(
+            device_type=self.root_device.type,
+            mesh_shape=mesh_shape,
+            mesh_dim_names=mesh_dim_names,
+        )
 
         # Construct sharding and reduction meshes for specific configurations.
         # Replace existing mesh strategies if a custom mesh design is provided.
         # WARNING: ADDING MESHES INCREASES MEMORY USAGE. Use device meshes for
         # multiple dimensions of parallelism if possible.
-        if self._validate_mesh_dimensions(self.loss_reduce_meshes, device_mesh=self._device_mesh, mesh_type="loss reduction") is not None:
-            self._device_mesh[self.loss_reduce_meshes]._flatten(mesh_dim_name="loss_reduce_mesh")
+        if self._device_mesh["context_parallel"].size() > 1:
+            # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
+            self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
 
         self.lightning_module._device_mesh = self._device_mesh
 
