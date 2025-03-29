@@ -22,6 +22,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
+
 ## NOTE: This script is present for github-actions testing only.
 def get_args():
     parser = argparse.ArgumentParser(description='Pretraining a small BERT model using NeMo 2.0')
@@ -105,13 +106,6 @@ if __name__ == '__main__':
         resume_ignore_no_checkpoint=True,
     )
 
-    llm.pretrain(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=logger,
-        optim=adam,
-        resume=resume
-    )
+    llm.pretrain(model=model, data=data, trainer=trainer, log=logger, optim=adam, resume=resume)
 
     print("Bert Pretraining Succeeded")
