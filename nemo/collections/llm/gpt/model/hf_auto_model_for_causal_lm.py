@@ -194,6 +194,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 raise e
         if self.use_liger_kernel:
             from liger_kernel.transformers import _apply_liger_kernel_to_instance
+
             _apply_liger_kernel_to_instance(model=self.model)
 
         if self.model_accelerator is not None:
