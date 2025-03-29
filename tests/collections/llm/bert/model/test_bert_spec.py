@@ -18,7 +18,6 @@ import torch
 from megatron.core import parallel_state
 
 from nemo.collections.llm.bert.model.bert_spec import (
-    TransformerLayerSubmodulesWithPostLNSupport,
     TransformerLayerWithPostLNSupport,
     get_bert_layer_local_spec_postln,
     get_bert_layer_with_transformer_engine_spec_postln,
