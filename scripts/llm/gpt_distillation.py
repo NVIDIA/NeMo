@@ -16,13 +16,12 @@ import os
 from argparse import ArgumentParser
 
 from lightning.pytorch.loggers import TensorBoardLogger
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm import distillation
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 
@@ -72,6 +71,7 @@ if __name__ == "__main__":
         pipeline_model_parallel_size=args.pp_size,
         context_parallel_size=args.cp_size,
         sequence_parallel=(args.tp_size > 1),
+        ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
     )
     trainer = nl.Trainer(
         devices=args.devices,
@@ -84,26 +84,6 @@ if __name__ == "__main__":
         accelerator="gpu",
         plugins=nl.MegatronMixedPrecision(precision=args.precision),
     )
-
-    ## Load both models and combine into an aggregate module
-    _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
-    _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
-    assert isinstance(_student_model, llm.GPTModel), "Only models based on `llm.GPTModel` are supported currently."
-    assert isinstance(_teacher_model, llm.GPTModel), "Only models based on `llm.GPTModel` are supported currently."
-
-    if args.tokenizer is None:
-        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
-        assert tokenizer is not None, "Both models missing tokenizers. Please provide a tokenizer separately."
-    else:
-        tokenizer = get_tokenizer(args.tokenizer)
-
-    model = distillation.DistillationGPTModel(
-        _student_model.config,
-        _teacher_model.config,
-        teacher_ckpt_path=args.teacher_path,
-    )
-    # TODO(aanoosheh): Replace spec with modelopt one
-    model.__io__ = _student_model.__io__  # HACK: model saves and restores as original class
 
     # Set up dataset
     data = llm.PreTrainingDataModule(
@@ -151,17 +131,13 @@ if __name__ == "__main__":
         restore_config=nl.RestoreConfig(path=args.student_path),
     )
 
-    # Load ckpt saved with TE < 1.14
-    if args.legacy_ckpt:
-        trainer.strategy.ckpt_load_strictness = False
-
-    # Run
-    llm.train(
-        model=model,
+    llm.distill(
+        student_model_path=args.student_path,
+        teacher_model_path=args.teacher_path,
         data=data,
-        optim=optim,
-        tokenizer=tokenizer,
         trainer=trainer,
         log=logger,
         resume=resume,
+        optim=optim,
+        tokenizer=get_tokenizer(args.tokenizer) if args.tokenizer else None,
     )

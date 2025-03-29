@@ -14,7 +14,7 @@
 
 import argparse
 
-from nemo_run.config import NEMORUN_HOME
+from nemo_run.config import get_nemorun_home
 
 from .utils import DEFAULT_NEMO_HOME
 
@@ -44,9 +44,9 @@ def parse_cli_args():
         "-l",
         "--log_dir",
         type=str,
-        help=f"Directory for logging experiment results. Defaults to {NEMORUN_HOME}",
+        help=f"Directory for logging experiment results. Defaults to {get_nemorun_home()}",
         required=False,
-        default=NEMORUN_HOME,
+        default=get_nemorun_home(),
     )
     parser.add_argument(
         "-t",
@@ -88,6 +88,36 @@ def parse_cli_args():
         "--tensorboard",
         help="Enable tensorboard logging. Disabled by default",
         action="store_true",
+    )
+    parser.add_argument(
+        "-wd",
+        "--wandb",
+        help="Enable wandb logging. Disabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-wdk",
+        "--wandb_key",
+        type=str,
+        help="wandb key. Needed for wandb logger projetion to server",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-wdp",
+        "--wandb_prj_name",
+        type=str,
+        help="wandb project name",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-wdj",
+        "--wandb_job_name",
+        type=str,
+        help="wandb job name",
+        required=False,
+        default=None,
     )
     parser.add_argument(
         "-f",
@@ -218,6 +248,26 @@ def parse_cli_args():
         help="Number of train steps. Defaults to 100",
         required=False,
         default=100,
+    )
+    parser.add_argument(
+        "-cg",
+        "--cuda_graphs",
+        help="Enable CUDA graphs. Disabled by default",
+        action="store_true",
+        required=False,
+        default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
+    )
+
+    def list_of_strings(arg):
+        return arg.split(',')
+
+    parser.add_argument(
+        "-cm",
+        "--custom_mounts",
+        type=list_of_strings,
+        help="Comma separated string of mounts",
+        required=False,
+        default=[],
     )
 
     return parser

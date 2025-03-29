@@ -3,10 +3,11 @@ name: PyLint and flake8 linting
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_call:
 
 jobs:
   linting:
-    name: 'Domain: ${{ matrix.domain }}'
+    name: "Domain: ${{ matrix.domain }}"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -45,11 +46,11 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v44
+        uses: step-security/changed-files@v45.0.1
         with:
           files: ${{ steps.filter.outputs.main }}
-          files_separator: ','
-          separator: ' '
+          files_separator: ","
+          separator: " "
 
       - name: Run PyLint
         id: pylint
@@ -116,7 +117,7 @@ jobs:
             echo '```' | tee -a $GITHUB_STEP_SUMMARY
           fi
 
-          if [[ "$FLAKE8" != "true" ]]; then  
+          if [[ "$FLAKE8" != "true" ]]; then
             echo "Flake8 output:" | tee -a $GITHUB_STEP_SUMMARY
 
             echo '```' | tee -a $GITHUB_STEP_SUMMARY
