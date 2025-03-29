@@ -84,8 +84,7 @@ def make_strategy(
     dp_size=None,
     tp_size=None,
     cp_size=None,
-    fsdp_meshes=None,
-    cp_meshes=None,
+    unified_model_parallel=False,
     loss_reduce_meshes=None,
 ):
     if strategy == 'auto':
@@ -129,8 +128,7 @@ def make_strategy(
             context_parallel_size=cp_size,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
-            fsdp_meshes=fsdp_meshes,
-            cp_meshes=cp_meshes,
+            unified_model_parallel=unified_model_parallel,
             loss_reduce_meshes=loss_reduce_meshes,
         )
     else:
@@ -174,6 +172,11 @@ def main():
     parser.add_argument('--dp-size', type=int, default=None, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=None, help='Tensor Parallel size; to be used with fsdp2')
     parser.add_argument('--cp-size', type=int, default=None, help='Context Parallel size; to be used with fsdp2')
+    parser.add_argument(
+        '--unified-model-parallel',
+        action='store_true',
+        help='Use unified model parallelism, i.e. the same device mesh of size DP x CP x TP for all dimensions of parallelism. Significantly improves memory utilization when scaling to large sequence / context lengths, but slower than having separate dimensions for DP, CP, and TP.'
+    )
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
@@ -203,8 +206,6 @@ def main():
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
     parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate for training.')
     parser.add_argument('--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.')
-    parser.add_argument('--fsdp-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for sharding in FSDP.')
-    parser.add_argument('--cp-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for context parallel FSDP.')
     parser.add_argument('--loss-reduce-mesh', type=str, nargs='+', choices=["data_parallel", "context_parallel", "tensor_parallel"], default=None, help='Flattened device mesh dimensions for loss reduction in FSDP.')
     parser.add_argument('--mock-dataset', action='store_true', help='Use HFMockDataModule for training.')
 
@@ -261,8 +262,7 @@ def main():
         dp_size=args.dp_size,
         tp_size=args.tp_size,
         cp_size=args.cp_size,
-        fsdp_meshes=args.fsdp_mesh,
-        cp_meshes=args.cp_mesh,
+        unified_model_parallel=args.unified_model_parallel,
         loss_reduce_meshes=args.loss_reduce_mesh,
     )
 
