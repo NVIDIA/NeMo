@@ -273,17 +273,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
 
-        from nemo.lightning.pytorch.strategies.utils import (
-            _destroy_dist_connection,
-            ckpt_to_dir,
-            create_checkpoint_io,
-            create_context_parallel_ctx,
-            fsdp2_strategy_parallelize,
-            get_train_context,
-        )
-
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
+
+            from nemo.lightning.pytorch.strategies.utils import (
+                create_context_parallel_ctx,
+                get_train_context,
+            )
+
             input_ids = batch["input_ids"].to(self.model.device)
             batch["position_ids"] = (
                 torch.arange(self.pos, self.pos + input_ids.shape[1]).unsqueeze(0).to(self.model.device)
@@ -292,7 +289,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.pos += input_ids.shape[1]
 
             context_parallel_ctx = create_context_parallel_ctx(
-                cp_mesh=self._device_mesh["context_parallel"],
+                cp_mesh=self._device_mesh[
+                    # If "context_parallel" is not in mesh_dim_names, then fallback to
+                    # "data_parallel" for unified model parallelism.
+                    "data_parallel" if self._device_mesh.mesh_dim_names is not None and "context_parallel" not in self._device_mesh.mesh_dim_names else "context_parallel"
+                ],
                 cp_buffers=[input_ids, labels, position_ids, loss_mask],
                 cp_seq_dims=[1, 1, 1, 1],
                 cp_no_restore_buffers={input_ids, labels, loss_mask},
