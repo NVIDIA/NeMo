@@ -39,7 +39,6 @@ if TYPE_CHECKING:
     from nemo.lightning import Trainer
     from nemo.lightning.megatron_parallel import MegatronParallel
 
-
 mtq, HAVE_MODELOPT_MTQ = safe_import("modelopt.torch.quantization")
 mte, HAVE_MODELOPT_MTE = safe_import("modelopt.torch.export")
 HAVE_MODELOPT = HAVE_MODELOPT_MTQ and HAVE_MODELOPT_MTE
