@@ -15,31 +15,31 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal, Optional, Annotated
+from typing import Annotated, Callable, Literal, Optional
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-from nemo.lightning.io.state import _ModelState
-from nemo.utils import logging
-from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_dtype_from_mcore_config
-from nemo.lightning import get_vocab_size, io, teardown, OptimizerModule
-from nemo.lightning.pytorch.utils import dtype_from_hf
-from nemo.collections.llm.utils import Config
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from transformers import AutoConfig
+from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_dtype_from_mcore_config
+from nemo.collections.llm.utils import Config
+from nemo.lightning import OptimizerModule, get_vocab_size, io, teardown
+from nemo.lightning.io.state import _ModelState
+from nemo.lightning.pytorch.utils import dtype_from_hf
+from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.models.mamba import MambaModel as MCoreMambaModel
-    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+    from megatron.core.dist_checkpointing.serialization import load_plain_tensors
     from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
-    from megatron.core.dist_checkpointing.serialization import load_plain_tensors
-    from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.models.mamba import MambaModel as MCoreMambaModel
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
     from megatron.core.transformer.enums import AttnBackend
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
     HAVE_MEGATRON_CORE_OR_TE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -57,13 +57,16 @@ def ssm_forward_step(model, batch) -> torch.Tensor:
     forward_args["attention_mask"] = None
     return model(**forward_args)
 
+
 def dist_ckpt_handler(checkpoint_dir):
 
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'  # Ensure this port is available
     world_size = 1
     rank = 0
-    torch.distributed.init_process_group(backend="gloo", rank=rank, world_size=world_size)  # ckpt conversion done on CPU
+    torch.distributed.init_process_group(
+        backend="gloo", rank=rank, world_size=world_size
+    )  # ckpt conversion done on CPU
 
     state_dict = load_plain_tensors(checkpoint_dir)
 
@@ -132,6 +135,7 @@ def dist_ckpt_handler(checkpoint_dir):
     torch.distributed.destroy_process_group()
     return state_dict, dist_ckpt_args
 
+
 @dataclass
 class SSMConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.mamba.mamba_model.MambaModel
@@ -173,6 +177,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     deallocate_pipeline_outputs: bool = True
     bias_dropout_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
+
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
 
         return MCoreMambaModel(
@@ -191,6 +196,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             post_process=post_process or parallel_state.is_pipeline_last_stage(),
         )
 
+
 class MambaModel(GPTModel):
     def __init__(
         self,
@@ -201,8 +207,10 @@ class MambaModel(GPTModel):
     ):
         super().__init__(config or SSMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=8192) -> torch.Tensor:
-        # This is to get the MCore model required in GPTInferenceWrapper. 
+    def get_inference_wrapper(
+        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=8192
+    ) -> torch.Tensor:
+        # This is to get the MCore model required in GPTInferenceWrapper.
         # TODO: @ataghibakhsh Change when MambaInferenceWrapper is available in mcore
         mcore_model = self.module
         while mcore_model:
@@ -232,7 +240,8 @@ class MambaModel(GPTModel):
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
         return model_inference_wrapper
-    
+
+
 @io.model_importer(MambaModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
 
@@ -248,9 +257,7 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
     def apply(self, output_path: Path, source_dist_ckpt: bool = False) -> Path:
 
         if source_dist_ckpt:
-            source, dist_ckpt_args = dist_ckpt_handler(
-                str(self)
-            )
+            source, dist_ckpt_args = dist_ckpt_handler(str(self))
         else:
             source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
@@ -263,11 +270,11 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         target.to(self.config.params_dtype)
         self.convert_state(source, target)
 
-        #fake override of parallel_state
-        parallel_state._DATA_PARALLEL_GROUP=0
-        parallel_state._DATA_PARALLEL_GROUP_WITH_CP=0
-        parallel_state._MPU_DATA_PARALLEL_WORLD_SIZE=0
-        parallel_state._MPU_DATA_PARALLEL_RANK=0
+        # fake override of parallel_state
+        parallel_state._DATA_PARALLEL_GROUP = 0
+        parallel_state._DATA_PARALLEL_GROUP_WITH_CP = 0
+        parallel_state._MPU_DATA_PARALLEL_WORLD_SIZE = 0
+        parallel_state._MPU_DATA_PARALLEL_RANK = 0
         self.nemo_save(output_path, trainer)
 
         logging.info(f"Converted SSM model to Nemo, model saved to {output_path}")
@@ -309,13 +316,17 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
                 'output_layer.weight': 'output_layer.weight',
             }
             if "nemotron5" in self.model_config.mapping_type:
-                mapping.update({
-                    'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
-                })
+                mapping.update(
+                    {
+                        'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                    }
+                )
             else:
-                mapping.update({
-                    'decoder.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
-                })
+                mapping.update(
+                    {
+                        'decoder.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                    }
+                )
             if "hybrid" in self.model_config.mapping_type:
                 mapping.update(
                     {
@@ -348,6 +359,7 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
     @property
     def config(self) -> SSMConfig:
         return self.model_config
+
 
 @io.model_importer(MambaModel, "hf")
 class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel]):
@@ -396,10 +408,11 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
             elif layer_type == "-":
                 mapping[f'backbone.layers.{i}.norm.weight'] = f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
             elif layer_type == "*":
-                mapping[f'backbone.layers.{i}.norm.weight'] = f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+                mapping[f'backbone.layers.{i}.norm.weight'] = (
+                    f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+                )
             else:
                 raise AttributeError(f"layer type {layer_type} not found.")
-
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
 
@@ -414,6 +427,7 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
         source.torch_dtype = torch.bfloat16
+
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
             while vocab_size % base != 0:
@@ -485,7 +499,9 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
             elif layer_type == "-":
                 mapping[f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'] = f'backbone.layers.{i}.norm.weight'
             elif layer_type == "*":
-                mapping[f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'] = f'backbone.layers.{i}.norm.weight'
+                mapping[f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'] = (
+                    f'backbone.layers.{i}.norm.weight'
+                )
             else:
                 raise AttributeError(f"layer type {layer_type} not found.")
 
@@ -503,7 +519,6 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
 
         return AutoTokenizer.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
 
-
     @property
     def config(self):
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
@@ -511,23 +526,24 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         # TODO @ataghibakhsh: Change AutoConfig to Nemotron5Config once merged to HF
 
         hf_config = AutoConfig.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
-        hf_config.hybrid_override_pattern=source.hybrid_override_pattern
-        hf_config.n_groups=source.mamba_num_groups
-        hf_config.num_hidden_layers=source.num_layers
-        hf_config.mamba_head_dim=source.mamba_head_dim
-        hf_config.mamba_num_heads=source.hidden_size * 2 // source.mamba_head_dim
-        hf_config.mamba_state_size=source.mamba_state_dim
-        hf_config.hidden_size=source.hidden_size
-        hf_config.intermediate_size=source.ffn_hidden_size
-        hf_config.num_attention_heads=source.num_attention_heads
-        hf_config.max_position_embeddings=source.seq_length
-        hf_config.rms_norm_eps=source.layernorm_epsilon
-        hf_config.num_key_value_heads=source.num_query_groups
-        hf_config.vocab_size=source.vocab_size
-        hf_config.mlp_hidden_act='relu2'
-        hf_config.mamba_hidden_act="silu"
+        hf_config.hybrid_override_pattern = source.hybrid_override_pattern
+        hf_config.n_groups = source.mamba_num_groups
+        hf_config.num_hidden_layers = source.num_layers
+        hf_config.mamba_head_dim = source.mamba_head_dim
+        hf_config.mamba_num_heads = source.hidden_size * 2 // source.mamba_head_dim
+        hf_config.mamba_state_size = source.mamba_state_dim
+        hf_config.hidden_size = source.hidden_size
+        hf_config.intermediate_size = source.ffn_hidden_size
+        hf_config.num_attention_heads = source.num_attention_heads
+        hf_config.max_position_embeddings = source.seq_length
+        hf_config.rms_norm_eps = source.layernorm_epsilon
+        hf_config.num_key_value_heads = source.num_query_groups
+        hf_config.vocab_size = source.vocab_size
+        hf_config.mlp_hidden_act = 'relu2'
+        hf_config.mamba_hidden_act = "silu"
 
         return hf_config
+
 
 @io.state_transform(
     source_key=(
@@ -569,6 +585,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     return qkv_weights
 
+
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
@@ -603,6 +620,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
     return q_proj, k_proj, v_proj
 
+
 @io.state_transform(
     source_key="embedding.word_embeddings.weight",
     target_key="backbone.embeddings.weight",
@@ -621,6 +639,7 @@ def _export_head(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
     return embedding[: megatron_config.vocab_size, :]
+
 
 @dataclass
 class BaseMambaConfig130M(SSMConfig):
@@ -722,6 +741,7 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
     tokenizer_name: str = "GPTSentencePieceTokenizer"
     mapping_type: str = "nvidia-hybrid"
 
+
 @dataclass
 class Nemotron5HybridConfig8B(SSMConfig):
     hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
@@ -748,9 +768,12 @@ class Nemotron5HybridConfig8B(SSMConfig):
     first_last_layers_bf16: bool = True
     is_hybrid_model: bool = True
 
+
 @dataclass
 class Nemotron5HybridConfig47B(SSMConfig):
-    hybrid_override_pattern: str = "M-M-M-M-M-M-M-M-M*-M-M-M-M-M-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-M-M---MM---M-M*-M-M-M-M-M-"
+    hybrid_override_pattern: str = (
+        "M-M-M-M-M-M-M-M-M*-M-M-M-M-M-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-M-M---MM---M-M*-M-M-M-M-M-"
+    )
     num_layers: int = 98
     seq_length: int = 8192
     hidden_size: int = 8192
@@ -774,9 +797,12 @@ class Nemotron5HybridConfig47B(SSMConfig):
     first_last_layers_bf16: bool = True
     is_hybrid_model: bool = True
 
+
 @dataclass
 class Nemotron5HybridConfig56B(SSMConfig):
-    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    hybrid_override_pattern: str = (
+        "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    )
     num_layers: int = 118
     seq_length: int = 8192
     hidden_size: int = 8192
@@ -800,6 +826,7 @@ class Nemotron5HybridConfig56B(SSMConfig):
     first_last_layers_bf16: bool = True
     is_hybrid_model: bool = True
 
+
 __all__ = [
     "SSMConfig",
     "BaseMambaConfig130M",
@@ -811,5 +838,5 @@ __all__ = [
     "NVIDIAMambaHybridConfig8B",
     "Nemotron5HybridConfig8B",
     "Nemotron5HybridConfig47B",
-    "Nemotron5HybridConfig56B"
+    "Nemotron5HybridConfig56B",
 ]

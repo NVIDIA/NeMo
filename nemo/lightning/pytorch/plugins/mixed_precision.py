@@ -104,7 +104,7 @@ class MegatronMixedPrecision(Precision):
         grad_reduce_in_fp32: bool = True,
         # fp8 related,
         fp8: str = None,
-        fp8_recipe: str = "delayed", # "tensorwise", "delayed", "mxfp8" (for Blackwell only)
+        fp8_recipe: str = "delayed",  # "tensorwise", "delayed", "mxfp8" (for Blackwell only)
         fp8_margin: int = 0,
         fp8_amax_history_len: int = 1,
         fp8_amax_compute_algo: str = "most_recent",

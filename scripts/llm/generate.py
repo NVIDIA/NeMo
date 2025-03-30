@@ -36,6 +36,7 @@ torchrun --nproc-per-node=8 /opt/NeMo/scripts/llm/generate.py \
     --fp8
 """
 
+
 def get_args():
     """
     Parse the command line arguments.
@@ -45,15 +46,16 @@ def get_args():
         "--prompts",
         type=str,
         nargs="+",
-        default=["Q: How are you?",
-                 "Q: How big is the universe?",
-                 "Q: How is the weather?",
-                 "Q: How many stars are there?",
-                 "Paris is know for its ",
-                 "In a hot sunny day, you should ",
-                 "Q: How many planets are in the solar system?",
-                 "Q: How old are you?",
-                 ],
+        default=[
+            "Q: How are you?",
+            "Q: How big is the universe?",
+            "Q: How is the weather?",
+            "Q: How many stars are there?",
+            "Paris is know for its ",
+            "In a hot sunny day, you should ",
+            "Q: How many planets are in the solar system?",
+            "Q: How old are you?",
+        ],
         help="List of prompt strings",
     )
     parser.add_argument(
@@ -141,7 +143,7 @@ if __name__ == "__main__":
 
     if args.fp8:
         assert len(args.prompts) % 8 == 0, "Batch size should be divisible by 8 for FP8 inference"
-    
+
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
@@ -167,11 +169,11 @@ if __name__ == "__main__":
             fp8_amax_compute_algo="max",
         ),
     )
-    prompts=args.prompts
+    prompts = args.prompts
     ############################
     # from nemo.collections.llm.inference import chat_utils
 
-    # prompts=[{"role": "system", "content": ""}, 
+    # prompts=[{"role": "system", "content": ""},
     #         {"role": "user","content":"Write a limerick about the wonders of GPU computing."},
     #         {"role": "assistant", "content": "There once was a chip full of might, \
     #           That made data dance day and night. \
@@ -179,7 +181,7 @@ if __name__ == "__main__":
     #           Tasks were done on demand, \
     #           Turning code into speed and delight!"},
     #         {"role": "user", "content": "Can you change it to use the word NVIDIA?"}]
-    
+
     # prompts = prompts + [
     #         {'role': 'assistant', 'content': ''}
     #     ]  # adding trailing assistant message so that prompt ends with Assistant tag.

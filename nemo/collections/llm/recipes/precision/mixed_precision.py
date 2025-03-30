@@ -53,6 +53,7 @@ def bf16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg.fp8_params = True
     return cfg
 
+
 def bf16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
     """FP8 recipes are experimental and have not been tested for training convergence."""
     cfg = bf16_mixed()
@@ -62,6 +63,7 @@ def bf16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
     cfg.fp8_amax_compute_algo = "max"
     cfg.fp8_params = False
     return cfg
+
 
 def fp16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
     """FP8 recipes are experimental and have not been tested for training convergence."""
