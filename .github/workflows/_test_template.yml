@@ -164,6 +164,12 @@ jobs:
 
           exit $EXIT_CODE
 
+      - name: Test coverage
+        shell: bash -x -e -u -o pipefail {0}
+        run: |
+          pip install coverage
+          coverage report -i
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: ${{ steps.check.outputs.coverage_report != 'none' }}
