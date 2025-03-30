@@ -207,7 +207,7 @@ def trainer_recipe(
         accelerator="gpu",
         accumulate_grad_batches=1,
         callbacks=callbacks,
-        num_gpus_per_node=num_gpus_per_node,
+        devices=num_gpus_per_node,
         max_steps=max_steps,
         num_nodes=num_nodes,
         plugins=mixed_precision_cfg,
@@ -447,7 +447,7 @@ def pretrain_recipe_creater(
             pipeline_parallelism=pipeline_model_parallel_size,
             context_parallelism=context_parallel_size,
             sequence_parallelism=sequence_parallel,  # TODO Turn it on by default if TP is on
-            num_gpus_per_node=num_gpus_per_node,
+            devices=num_gpus_per_node,
             val_check_interval=val_check_interval,
             limit_test_batches=limit_val_batches,
             limit_val_batches=limit_val_batches,
