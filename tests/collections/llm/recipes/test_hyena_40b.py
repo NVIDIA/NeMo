@@ -15,10 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import nemo_run as run
-from nemo.collections.llm.recipes.hyena_40b import (
-    tokenizer, model, pretrain_recipe, finetune_recipe)
+import pytest
+
+from nemo.collections.llm.recipes.hyena_40b import finetune_recipe, model, pretrain_recipe, tokenizer
+
 
 class TestHyena40B:
     def test_tokenizer(self):

@@ -14,11 +14,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
 import nemo_run as run
-from nemo.collections.llm.recipes.hyena_1b import (
-    tokenizer, model, pretrain_recipe, finetune_recipe
-)
+import pytest
+
+from nemo.collections.llm.recipes.hyena_1b import finetune_recipe, model, pretrain_recipe, tokenizer
+
 
 class TestHyena1B:
     def test_tokenizer(self):

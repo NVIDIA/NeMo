@@ -168,6 +168,4 @@ class TestHyenaBase:
             nsys_start_step=10,
             nsys_end_step=20,
         )
-        assert any(
-            callback.__fn_or_cls__.__name__ == "NsysCallback" for callback in recipe.trainer.callbacks
-        )
+        assert any(callback.__fn_or_cls__.__name__ == "NsysCallback" for callback in recipe.trainer.callbacks)
