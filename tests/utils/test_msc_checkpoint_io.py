@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-import torch
 from unittest.mock import patch
 
+import pytest
+import torch
 from multistorageclient.types import MSC_PROTOCOL
+
 from nemo.utils.callbacks.msc_checkpoint_io import MSCCheckpointIO
 
 
@@ -38,12 +39,7 @@ def mock_msc():
 
 @pytest.fixture
 def sample_checkpoint():
-    return {
-        'state_dict': {
-            'layer.weight': torch.tensor([1.0, 2.0, 3.0]),
-            'layer.bias': torch.tensor([0.1, 0.2, 0.3])
-        }
-    }
+    return {'state_dict': {'layer.weight': torch.tensor([1.0, 2.0, 3.0]), 'layer.bias': torch.tensor([0.1, 0.2, 0.3])}}
 
 
 @pytest.fixture
@@ -66,13 +62,13 @@ class TestMSCCheckpointIO:
     def test_save_checkpoint(self, checkpoint_io, mock_msc, sample_checkpoint):
         """Test saving checkpoint to MSC storage."""
         save_path = f"{MSC_PROTOCOL}test/path/checkpoint.ckpt"
-        
+
         # Call save_checkpoint
         checkpoint_io.save_checkpoint(sample_checkpoint, save_path)
-        
+
         # Verify msc.torch.save was called
         mock_msc.torch.save.assert_called_once_with(sample_checkpoint, save_path)
-    
+
     def test_save_checkpoint_with_storage_options(self, checkpoint_io, mock_msc, sample_checkpoint, mock_nemo_logger):
         """Test save_checkpoint with storage_options logs warning."""
         save_path = f"{MSC_PROTOCOL}test/path/checkpoint.ckpt"
@@ -92,27 +88,27 @@ class TestMSCCheckpointIO:
     def test_load_checkpoint(self, checkpoint_io, mock_msc, sample_checkpoint):
         """Test loading checkpoint from MSC storage."""
         load_path = f"{MSC_PROTOCOL}test/path/checkpoint.ckpt"
-        
+
         # Setup mock to return the sample checkpoint
         mock_msc.torch.load.return_value = sample_checkpoint
-        
+
         # Load checkpoint
         loaded_checkpoint = checkpoint_io.load_checkpoint(load_path)
-        
+
         # Verify msc.torch.load was called
         mock_msc.torch.load.assert_called_once()
         call_args = mock_msc.torch.load.call_args
         assert call_args[0][0] == load_path  # First arg should be the path
-        
+
         # Verify the loaded checkpoint matches the original
         assert loaded_checkpoint == sample_checkpoint
 
     def test_remove_checkpoint(self, checkpoint_io, mock_msc):
         """Test removing checkpoint from MSC storage."""
         remove_path = f"{MSC_PROTOCOL}test/path/checkpoint.ckpt"
-        
+
         # Call remove_checkpoint
         checkpoint_io.remove_checkpoint(remove_path)
-        
+
         # Verify msc.delete was called with the correct path
         mock_msc.delete.assert_called_once_with(remove_path)

@@ -15,10 +15,10 @@
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
-from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
-
 import multistorageclient as msc
+from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
 from multistorageclient.types import MSC_PROTOCOL
+
 from nemo.utils import logging
 
 
