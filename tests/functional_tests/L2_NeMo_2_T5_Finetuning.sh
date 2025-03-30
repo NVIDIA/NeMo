@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/megatron_t5_finetuning.py \
-    --devices=1 \
+    --devices=2 \
     --max-steps=250 \
     --experiment-dir=tests/collections/llm/t5_finetune_results/$RUN_ID \
+    --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_padding_attnmasktype_150steps
+
+coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/megatron_t5_finetuning.py \
+    --devices=2 \
+    --max-steps=250 \
+    --data-dir=tests/collections/llm/ \
+    --experiment-dir=tests/collections/llm/t5_finetune_squad_redownload_results/$RUN_ID \
     --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_padding_attnmasktype_150steps

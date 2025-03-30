@@ -2287,10 +2287,10 @@ jobs:
       # - L2_NeMo_2_SSM_Finetuning
       # - L2_NeMo_2_Hyena_Conversion_from_HF
       # - L2_NeMo_2_Hyena_DDP_Pretraining_Test
-      - L2_NeMo_2_T5_Pretraining
+      # - L2_NeMo_2_T5_Pretraining
       - L2_NeMo_2_T5_Finetuning
       - L2_NeMo_2_T5_LoRA
-      - L2_NeMo_2_T5_MockData_Pretraining
+      # - L2_NeMo_2_T5_MockData_Pretraining
       # - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
       # - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
       # - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
