@@ -226,11 +226,11 @@ def blended_dataset_config_recipe(config_path: Path | str | None = None):
     Creates a configuration for a blended dataset by utilizing the `run.Config` function.
 
     Args:
-        config_path (Path | str | None, optional): The path to the dataset configuration file. 
+        config_path (Path | str | None, optional): The path to the dataset configuration file.
             Can be a `Path` object, a string, or `None`. Defaults to `None`.
 
     Returns:
-        run.Config: A configuration object initialized with the dataset parsing function 
+        run.Config: A configuration object initialized with the dataset parsing function
         and the provided dataset configuration path.
     """
     return run.Config(

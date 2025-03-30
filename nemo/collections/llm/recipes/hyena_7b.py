@@ -28,7 +28,7 @@ def tokenizer() -> run.Config[TokenizerSpec]:
     """
     Defines a factory function for creating a tokenizer configuration.
 
-    This function is registered as a CLI factory with the specified name and 
+    This function is registered as a CLI factory with the specified name and
     returns a tokenizer configuration based on the `tokenizer_recipe`.
 
     Returns:
