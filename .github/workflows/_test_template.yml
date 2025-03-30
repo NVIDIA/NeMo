@@ -50,6 +50,9 @@ jobs:
       potential_infra_failure: ${{ steps.check.outputs.potential_infra_failure }}
     env:
       DIR: ${{ github.run_id }}
+      IS_OPTIONAL: ${{ inputs.IS_OPTIONAL }}
+      SCRIPT: ${{ inputs.SCRIPT }}
+      IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
     steps:
       - name: Docker system cleanup
         run: |
@@ -60,8 +63,6 @@ jobs:
           docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
       - name: Start container
-        env:
-          DIR: ${{ github.run_id }}
         run: |
           mkdir -p $DIR
 
@@ -90,10 +91,6 @@ jobs:
           bash $DIR/retry_job.sh
 
       - name: Create run-script
-        env:
-          DIR: ${{ github.run_id }}
-          SCRIPT: ${{ inputs.SCRIPT }}
-          IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
         id: create
         run: |
 
@@ -131,8 +128,6 @@ jobs:
 
       - name: Check result
         id: check
-        env:
-          IS_OPTIONAL: ${{ inputs.IS_OPTIONAL }}
         run: |
           cat $DIR/err.log
 
