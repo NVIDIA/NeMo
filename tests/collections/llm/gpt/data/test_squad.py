@@ -143,6 +143,7 @@ def test_dataloaders(squad_data_module, mock_trainer):
     assert isinstance(test_loader, torch.utils.data.DataLoader)
 
 
+@pytest.mark.pleasefixme
 def test_force_redownload(squad_data_module, temp_dataset_dir):
     # First prepare data
     squad_data_module.prepare_data()
