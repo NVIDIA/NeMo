@@ -16,7 +16,6 @@
 # limitations under the License.
 
 import math
-import os
 from functools import partial
 
 import torch
