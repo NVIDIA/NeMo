@@ -139,7 +139,8 @@ def trainer_recipe(
             to reduce the computational graph bubbles caused by pipeline parallel (if pipeline parallel>1 is in use)
         context_parallelism (int): Number of context parallel blocks for processing sub-attention matrices in a block
             parallel fassion.
-        sequence_parallelism (bool): Whether to use the sequence_parallelism improvement on the base tensor parallelism.
+        sequence_parallelism (bool): Whether to use the sequence_parallelism improvement
+            on the base tensor parallelism.
             This will allow for more layers to be parallelized when using tensor parallelism.
         num_nodes (int): Number of nodes for the distributed setting.
         num_gpus_per_node (int): Number of GPUs per node.
@@ -303,8 +304,8 @@ def pretrain_recipe_creater(
         seq_length (int): The desired sequence length to train this model on.
         seed (int): Random seed to use for initialization
         model_size (str): model size to load
-        use_megatron_comm_overlap_llama3_8k (bool): If using TP, this controls advanced overlap communications which can
-            improve performance during pretraining.
+        use_megatron_comm_overlap_llama3_8k (bool): If using TP, this controls advanced overlap communications
+            which can improve performance during pretraining.
         workers (int): Number of workers to use for per-device batch creation.
         val_check_interval (int): How often the model evaluates during training.
         dir (str): Directory to save logs and checkpoints
