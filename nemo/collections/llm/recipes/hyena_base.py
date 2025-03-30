@@ -401,7 +401,7 @@ def pretrain_recipe_creater(
                 tp_comm_overlap=use_megatron_comm_overlap_llama3_8k,
                 tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
                 wgrad_deferral_limit=22,  # default from NeMo
-                overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing.
+                overlap_param_gather_with_optimizer_step=False,
                 align_param_gather=align_param_gather,
             )
         )
