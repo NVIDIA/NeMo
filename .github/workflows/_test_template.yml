@@ -162,8 +162,7 @@ jobs:
       - name: Test coverage
         shell: bash -x -e -u -o pipefail {0}
         run: |
-          pip install coverage
-          coverage report -i
+          docker exec nemo_container_${{ github.run_id }} coverage report -i
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
