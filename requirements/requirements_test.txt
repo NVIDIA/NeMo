@@ -2,6 +2,7 @@ black~=24.3
 click>=8.1
 coverage
 isort>5.1.0,<6.0.0
+multi-storage-client
 parameterized
 pytest
 pytest-coverage
@@ -13,4 +14,3 @@ sphinxcontrib-bibtex
 wandb
 wget
 wrapt
-multi-storage-client
