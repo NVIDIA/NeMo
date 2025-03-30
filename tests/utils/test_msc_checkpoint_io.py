@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-
 import pytest
 import torch
 from unittest.mock import patch
@@ -111,11 +109,10 @@ class TestMSCCheckpointIO:
 
     def test_remove_checkpoint(self, checkpoint_io, mock_msc):
         """Test removing checkpoint from MSC storage."""
-        # This is a no-op in the current implementation
         remove_path = f"{MSC_PROTOCOL}test/path/checkpoint.ckpt"
         
         # Call remove_checkpoint
         checkpoint_io.remove_checkpoint(remove_path)
         
-        # Currently this is a no-op, so we're just verifying it doesn't raise an exception
-        # Once implemented, we would add assertions to check the appropriate MSC method is called
+        # Verify msc.delete was called with the correct path
+        mock_msc.delete.assert_called_once_with(remove_path)
