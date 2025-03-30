@@ -269,7 +269,6 @@ def pretrain_recipe_creater(
     no_aligned_megatron_ddp: bool = False,
     grad_reduce_in_fp32: bool = False,
     fp8: bool = True,
-    wandb_run_id: str = None,
     ckpt_async_save: bool = True,
     sequence_parallel: bool = True,
     ckpt_format: Literal["zarr", "torch_dist"] = "torch_dist",
@@ -330,7 +329,6 @@ def pretrain_recipe_creater(
         resume_path (str): If specified starting weights will be loaded from this checkpoint rather than being
             randomly initialized.
         restore_optimizer_from_ckpt (bool): when loading checkpoint, try to load the optimizer.
-        wandb_run_id (str): If specified, this will control the id of the wandb run to use.
         wandb_project (str): if set, logging to wandb will happen
         wandb_name (str): override default name for the wandb log.
     Returns:
@@ -372,7 +370,7 @@ def pretrain_recipe_creater(
                 f"ALIGN{not no_aligned_megatron_ddp}"
                 f"-NODES{num_nodes}-FP8{fp8}"
             )
-        extra_loggers['wandb_logger'] = wandb_logger(project=wandb_project, name=wandb_name, id=wandb_run_id)
+        extra_loggers['wandb_logger'] = wandb_logger(project=wandb_project, name=wandb_name)
     if resume_path:
         restore_cfg = run.Config(
             nl.RestoreConfig,
@@ -418,8 +416,6 @@ def pretrain_recipe_creater(
     if nsys_profiling:
         if nsys_end_step is None:
             nsys_end_step = max_steps
-        else:
-            nsys_end_step = nsys_end_step
         callbacks.append(
             run.Config(
                 nl_callbacks.NsysCallback,
