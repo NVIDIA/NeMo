@@ -13,3 +13,4 @@ sphinxcontrib-bibtex
 wandb
 wget
 wrapt
+multi-storage-client
