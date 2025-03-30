@@ -168,6 +168,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         params_dtype (torch.dtype): The data type for model parameters.
         ... (other attributes are described in the class definition)
     """
+
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
     share_embeddings_and_output_weights: bool = False
@@ -238,6 +239,7 @@ class MambaModel(GPTModel):
         tokenizer (TokenizerSpec): The tokenizer used for text processing.
         model_transform (Callable): A function to transform the model.
     """
+
     def __init__(
         self,
         config: Annotated[Optional[SSMConfig], Config[SSMConfig]] = None,
@@ -298,6 +300,7 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         path (str): The path to the model checkpoint.
         model_config (SSMConfig): The configuration for the model.
     """
+
     def __new__(cls, path: str, model_config=None):
         """
         Creates a new instance of the SSM model importer.
@@ -390,8 +393,7 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
             if "nemotron5" in self.model_config.mapping_type:
                 mapping.update(
                     {
-                        'decoder.layers.*.mixer.in_proj.layer_norm_weight': 
-                        'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                        'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
                     }
                 )
             else:
@@ -403,16 +405,12 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
             if "hybrid" in self.model_config.mapping_type:
                 mapping.update(
                     {
-                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 
-                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
+                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
                         'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight',
                         'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
-                        'decoder.layers.*.self_attention.linear_proj.weight': 
-                        'decoder.layers.*.self_attention.linear_proj.weight',
-                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 
-                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
-                        'decoder.layers.*.self_attention.linear_qkv.weight': 
-                        'decoder.layers.*.self_attention.linear_qkv.weight',
+                        'decoder.layers.*.self_attention.linear_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight',
+                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
+                        'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight',
                     }
                 )
         else:
@@ -457,6 +455,7 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
         path (str): The path to the Hugging Face model checkpoint.
         model_config (SSMConfig): The configuration for the model.
     """
+
     def init(self) -> MambaModel:
         """
         Initializes the model for export.
@@ -581,6 +580,7 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         path (str): The path to save the exported model.
         model_config (SSMConfig): The configuration for the model.
     """
+
     def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
         """
         Initializes the model for export.
@@ -595,7 +595,7 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         Converts the Mamba model to Hugging Face format and saves it to the specified path.
         Args:
             output_path (Path): The path to save the exported model.
-        Returns: 
+        Returns:
             output_path (Path): The path to the saved model.
         """
         source, _ = self.nemo_load(str(self))
@@ -839,6 +839,7 @@ def _export_head(ctx: io.TransformCTX, embedding):
 @dataclass
 class BaseMambaConfig130M(SSMConfig):
     """BaseMambaConfig130M"""
+
     hybrid_override_pattern: str = "M" * 24
     num_layers: int = 24
     seq_length: int = 2048
@@ -854,6 +855,7 @@ class BaseMambaConfig130M(SSMConfig):
 @dataclass
 class BaseMambaConfig370M(SSMConfig):
     """BaseMambaConfig370M"""
+
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -869,6 +871,7 @@ class BaseMambaConfig370M(SSMConfig):
 @dataclass
 class BaseMambaConfig780M(SSMConfig):
     """BaseMambaConfig780M"""
+
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -884,6 +887,7 @@ class BaseMambaConfig780M(SSMConfig):
 @dataclass
 class BaseMambaConfig1_3B(SSMConfig):
     """BaseMambaConfig1_3B"""
+
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -899,6 +903,7 @@ class BaseMambaConfig1_3B(SSMConfig):
 @dataclass
 class BaseMambaConfig2_7B(SSMConfig):
     """BaseMambaConfig2_7B"""
+
     hybrid_override_pattern: str = "M" * 64
     num_layers: int = 64
     seq_length: int = 2048
@@ -914,6 +919,7 @@ class BaseMambaConfig2_7B(SSMConfig):
 @dataclass
 class NVIDIAMambaConfig8B(SSMConfig):
     """NVIDIAMambaConfig8B"""
+
     hybrid_override_pattern: str = "M" * 56
     num_attention_heads: int = 32
     num_layers: int = 56
@@ -930,6 +936,7 @@ class NVIDIAMambaConfig8B(SSMConfig):
 @dataclass
 class NVIDIAMambaHybridConfig8B(SSMConfig):
     """NVIDIAMambaHybridConfig8B"""
+
     hybrid_override_pattern: str = "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
     num_layers: int = 56
     seq_length: int = 4096
@@ -947,6 +954,7 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
 @dataclass
 class Nemotron5HybridConfig8B(SSMConfig):
     """Nemotron5HybridConfig8B"""
+
     hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
     num_layers: int = 52
     seq_length: int = 8192
@@ -975,6 +983,7 @@ class Nemotron5HybridConfig8B(SSMConfig):
 @dataclass
 class Nemotron5HybridConfig47B(SSMConfig):
     """Nemotron5HybridConfig47B"""
+
     hybrid_override_pattern: str = (
         "M-M-M-M-M-M-M-M-M*-M-M-M-M-M-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-M-M---MM---M-M*-M-M-M-M-M-"
     )
@@ -1005,6 +1014,7 @@ class Nemotron5HybridConfig47B(SSMConfig):
 @dataclass
 class Nemotron5HybridConfig56B(SSMConfig):
     """Nemotron5HybridConfig56B"""
+
     hybrid_override_pattern: str = (
         "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-"
         "M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
