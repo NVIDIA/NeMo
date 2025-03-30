@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-from collections import defaultdict
 from dataclasses import asdict
 from pathlib import Path
 from typing import Literal, Optional
@@ -21,7 +20,6 @@ from typing import Literal, Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-import yaml
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
@@ -46,6 +44,15 @@ NAME = "hyena_test"
 
 
 def tokenizer_recipe():
+    """
+    Creates and returns a configuration for initializing a tokenizer.
+
+    The configuration is set up to use the `get_nmt_tokenizer` function with
+    the specified library type as 'byte-level'.
+
+    Returns:
+        run.Config: A configuration object for the tokenizer setup.
+    """
     return run.Config(
         get_nmt_tokenizer,
         library='byte-level',
@@ -215,6 +222,17 @@ def trainer_recipe(
 
 
 def blended_dataset_config_recipe(config_path: Path | str | None = None):
+    """
+    Creates a configuration for a blended dataset by utilizing the `run.Config` function.
+
+    Args:
+        config_path (Path | str | None, optional): The path to the dataset configuration file. 
+            Can be a `Path` object, a string, or `None`. Defaults to `None`.
+
+    Returns:
+        run.Config: A configuration object initialized with the dataset parsing function 
+        and the provided dataset configuration path.
+    """
     return run.Config(
         parse_dataset_config,
         dataset_config_path=config_path,
@@ -457,6 +475,12 @@ def pretrain_recipe_creater(
 
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[TokenizerSpec]:
+    """
+    Creates and returns a tokenizer configuration.
+
+    Returns:
+        run.Config[TokenizerSpec]: A configuration object for the tokenizer.
+    """
     return tokenizer_recipe()
 
 

@@ -25,6 +25,15 @@ NAME = "hyena_40b"
 
 @run.cli.factory(name=NAME)
 def tokenizer() -> run.Config[TokenizerSpec]:
+    """
+    Defines a factory function for creating a tokenizer configuration.
+
+    This function is registered as a CLI factory with the specified name and 
+    returns a tokenizer configuration based on the `tokenizer_recipe`.
+
+    Returns:
+        run.Config[TokenizerSpec]: A configuration object for the tokenizer.
+    """
     return tokenizer_recipe()
 
 
