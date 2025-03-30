@@ -381,6 +381,10 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 self.audio_projection = audio_projection_config.configure_model()
                 restore_model_weights(self.audio_model, config.audio_model_from_pretrained)
                 logging.info(f"Restored audio model weights from {config.audio_model_from_pretrained}")
+
+                # DEBUGGING
+                print(f"self.audio_model: {self.audio_model}")
+
         self.freeze(
             freeze_language_model=config.freeze_language_model,
             freeze_vision_model=config.freeze_vision_model,
@@ -398,6 +402,108 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
+
+    def combine_embeddings(self, input_ids, image_embeddings, audio_embeddings, language_embeddings, image_token_index, audio_token_index, use_inference_kv_cache, packed_seq_params):
+        """
+        Combine image_embeddings, audio_embeddings, and language_embeddings into a single tensor.
+        """
+
+        assert self.add_decoder, "input text preprocessing is only needed for the language model"
+
+        # No preprocessing needed if not pre_process
+        if not self.pre_process:
+            return language_embeddings
+
+        # If using the inference KV cache, the image/audio tokens are already computed.
+        if use_inference_kv_cache:
+            return language_embeddings
+
+        # combine image_embeddings, audio_embeddings, language_embeddings
+        image_token_mask = input_ids == image_token_index
+        audio_token_mask = input_ids == audio_token_index
+        combined_embeddings = language_embeddings
+        # # DEBUGGING
+        # print(f"combined_embeddings[image_token_mask].shape: {combined_embeddings[image_token_mask].shape}")
+        # print(f"image_embeddings.shape: {image_embeddings.shape}")
+        # print(f"combined_embeddings[audio_token_mask].shape: {combined_embeddings[audio_token_mask].shape}")
+        # print(f"audio_embeddings.shape: {audio_embeddings.shape}")
+        # print(f"combined_embeddings.shape: {combined_embeddings.shape}")
+        combined_embeddings[image_token_mask] = image_embeddings
+        combined_embeddings[audio_token_mask] = audio_embeddings
+
+        # TODO: Not sure if this is needed
+        # # Pipeline parallel expects fixed input size. Check if we need to pad.
+        # if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
+        #     max_seq_len = self._language_max_sequence_length
+        #     if packed_sequence:
+        #         last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+        #         last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
+        #         assert (
+        #             last_seqlen_padded >= last_seqlen
+        #         ), "`language_max_sequence_length` needs to increase for sequence packing to work properly."
+        #         packed_seq_params.cu_seqlens_q_padded[-1] = max_seq_len
+        #         packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
+        #         packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
+        #         packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
+
+        # TODO: Not sure if this is needed
+        # if self.sequence_parallel_lm:
+        #     if self.tp_comm_overlap_lm:
+        #         # If shorter: Pad to language_max_sequence_length to use TP Comm overlap.
+        #         # If longer: Gets truncated later.
+        #         if max_seq_len < self._language_max_sequence_length:
+        #             padded_seq_len = self._language_max_sequence_length
+        #     else:
+        #         # Pad to multiple of tp size for sequence parallelism
+        #         tp_world_size = ps.get_tensor_model_parallel_world_size()
+        #         padded_seq_len = int((max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size)
+
+        #     max_seq_len = padded_seq_len
+
+        return combined_embeddings
+
+
+    def truncate_sequence(self, combined_embeddings, labels, loss_mask, packed_seq_params):
+        """
+        Truncate the sequence (labels, loss_mask, combined_embeddings) to the language model's max sequence length.
+        """
+
+        # truncate labels and loss_mask
+        truncate_labels = (labels is not None) and (labels.shape[1] > self._language_max_sequence_length)
+        if truncate_labels:
+            labels = labels[:, : self._language_max_sequence_length]
+            loss_mask = loss_mask[:, : self._language_max_sequence_length]
+
+        # truncate final embedding
+        if combined_embeddings is not None:
+            # transpose combined_embeddings to sbhd
+            # note this will also transpose thd, which is fine
+            combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
+            # Truncate if exceeding the language model's max sequence length.
+            if combined_embeddings.shape[0] > self._language_max_sequence_length:
+                combined_embeddings = combined_embeddings[: self._language_max_sequence_length]
+
+        # packed seq param truncation
+        packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
+        if packed_sequence and packed_seq_params.cu_seqlens_q_padded[-1] > self._language_max_sequence_length:
+            truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
+            final_seq_len_padded = (
+                packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
+            )
+            final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+            final_padding = final_seq_len_padded - final_seq_len_unpadded
+            truncate_len -= final_padding
+            packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
+            packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
+            # need to truncate the actual sequence as well
+            if truncate_len > 0:
+                packed_seq_params.cu_seqlens_q[-1] -= truncate_len
+                packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
+            assert (
+                packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
+            ), "with packed sequence, the truncation can only truncate on the last sequence."
+
+        return combined_embeddings, labels, loss_mask
 
     def forward(
         self,
@@ -484,14 +590,12 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     # map vision model output size to language model input size.
                     image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
 
-                    # TODO: not sure what to do with this?
+                    # TODO: => need to update this. It might actually already be computed with pre-calculated audio embeddings seq length
                     # TODO: Support batched inference.
                     # In inference, the language model KV cache will be updated for image token positions.
                     # Store the image tokens sequence length to be used as an offset to the KV cache later.
                     if inference_params is not None:
-                        inference_params.key_value_memory_dict["image_tokens_count"] = (
-                            image_embeddings.shape[0] * image_embeddings.shape[1]
-                        )
+                        inference_params.key_value_memory_dict["image_tokens_count"] = (input_ids==image_token_index).sum()
                         inference_params.key_value_memory_dict["media_tokens_count"] = inference_params.key_value_memory_dict["image_tokens_count"]
             else:
                 image_embeddings = None
@@ -521,14 +625,12 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     # map audio model output size to language model input size.
                     audio_embeddings = self.audio_projection(audio_embeddings)  
 
-                    # TODO: not sure what to do with this?
+                    # TODO: => need to update this. This first, is not correct for audio tokens count, second, it might actually already be computed with pre-calculated audio embeddings seq length
                     # TODO: Support batched inference.
                     # In inference, the language model KV cache will be updated for audio token positions.
                     # Store the audio tokens sequence length to be used as an offset to the KV cache later.
                     if inference_params is not None:
-                        inference_params.key_value_memory_dict["audio_tokens_count"] = (
-                            audio_embeddings.shape[0] * audio_embeddings.shape[1]
-                        )
+                        inference_params.key_value_memory_dict["audio_tokens_count"] = (input_ids==audio_token_index).sum()
                         if "media_tokens_count" in inference_params.key_value_memory_dict:
                             inference_params.key_value_memory_dict["media_tokens_count"] += inference_params.key_value_memory_dict["audio_tokens_count"]
                         else:
@@ -541,7 +643,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 image_embeddings, audio_embeddings = self.encoder_hidden_state
             else:
                 image_embeddings, audio_embeddings = None, None
-                audio_embedding_lens = self.audio_embedding_lens
 
         if not self.add_decoder:
             return image_embeddings, audio_embeddings
@@ -559,46 +660,63 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
-        # Assume 1 tile per image if the number of tiles is not provided.
-        if num_image_tiles is None:
-            num_image_tiles = torch.ones(images.shape[0], dtype=torch.int, device=input_ids.device)
-        elif isinstance(num_image_tiles, list):
-            num_image_tiles = torch.tensor(num_image_tiles, dtype=torch.int, device=input_ids.device)
+        # processing image and audio embeddings, reshape them to [number_image_tokens or number_audio_tokens, embed_dim]
+        # image modality
+        embed_dim = language_embeddings.shape[-1]
+        image_embeddings = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+        # audio modality
+        # (for audio modality, we need to base on audio_embedding_lens to filter out the padded audio embeddings)
+        audio_embeddings_max_seq_len, num_audios = audio_embeddings.shape[0], audio_embeddings.shape[1]
+        nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(audio_embeddings.device) < audio_embedding_lens.unsqueeze(0)
+        nonpadded_audio_embeddings = audio_embeddings[nonpadded_mask]
+        audio_embeddings = nonpadded_audio_embeddings
 
-        # Preprocess input, labels and loss mask.
-        combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
-            language_embeddings,
-            input_ids,
-            attention_mask,
-            loss_mask,
-            labels,
-            image_embeddings,
-            num_image_tiles,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
-            image_token_index,
-            audio_embeddings,
-            audio_embedding_lens,                                                                                                                      
-            audio_token_index,
-            use_inference_kv_cache,
-            packed_seq_params,
-        )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
+        # combine multimodal embeddings to text embeddings
+        combined_embeddings = self.combine_embeddings(
+            input_ids, 
+            image_embeddings, 
+            audio_embeddings, 
+            language_embeddings, 
+            image_token_index, 
+            audio_token_index, 
+            use_inference_kv_cache, 
+            packed_seq_params
+        )
+
+        # TODO: Not sure if this is needed
+        # truncate combined_embeddings, labels, loss_mask if needed
+        combined_embeddings, labels, loss_mask = self.truncate_sequence(combined_embeddings, labels, loss_mask, packed_seq_params)
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
             if self.context_parallel_lm > 1:
                 # _process_embedding_token_parallel expects input in shape bshd for cp
                 combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
-            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
+            combined_embeddings, labels, loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
-                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+                    combined_embeddings, labels, loss_mask, packed_seq_params
                 )
             )
+
+        # # DEBUGGING
+        # print(f"input_ids.shape: {input_ids.shape}")
+        # print(f"language_embeddings.shape: {language_embeddings.shape}")
+        # print(f"combined_embeddings.shape: {combined_embeddings.shape}")
+        # print(f"labels.shape: {labels.shape}")
+        # print(f"loss_mask.shape: {loss_mask.shape}")
+        # # print(f"language_embeddings[0]: {language_embeddings[0].tolist()}")
+        # # print(f"combined_embeddings[0]: {combined_embeddings[0].tolist()}")
+        # print(f"input_ids[0]: {input_ids[0].tolist()}")
+        # print(f"labels[0]: {labels[0].tolist()}")
+        # print(f"loss_mask[0]: {loss_mask[0].tolist()}")
+        # print(stop_here)
 
         output = self.language_model(
             input_ids=None,
             position_ids=None,
-            attention_mask=final_attention_mask,
+            attention_mask=attention_mask,
             decoder_input=combined_embeddings,
-            labels=final_labels,
+            labels=labels,
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
             packed_seq_params=packed_seq_params,
@@ -607,7 +725,8 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         if labels is None or loss_mask is None:
             return output, audio_embedding_lens
 
-        return output, final_loss_mask.contiguous()
+        return output, loss_mask
+
 
     def freeze(
         self, 
@@ -662,280 +781,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         else:
             self.language_model.set_input_tensor(input_tensor[0])
 
-    def _preprocess_data(
-        self,
-        language_embeddings,
-        input_ids,
-        attention_mask,
-        loss_mask,
-        labels,
-        image_embeddings,
-        num_image_tiles,
-        image_token_index,
-        audio_embeddings,
-        audio_embedding_lens,
-        audio_token_index,
-        use_inference_kv_cache,
-        packed_seq_params,
-    ):
-        """
-        Preprocesses input data for the model.
-
-        Combining image, audio and text embeddings to final_embedding and creating final_labels and final_loss_mask.
-
-        Returns:
-            final_embedding (torch.Tensor): image, audio and text embeddings [combined_seq_len, b, h].
-            final_labels (torch.Tensor): labels for image, audio and text positions [b, combined_seq_len].
-            final_loss_mask (torch.Tensor): loss mask [b, combined_seq_len].
-
-        """
-
-        assert self.add_decoder, "input text preprocessing is only needed for the language model"
-
-        # No pre- or postprocessing needed.
-        # With pipeline parallel > 2, this means a chunk in the middle of the model.
-        if not self.pre_process and not self.post_process:
-            return language_embeddings, loss_mask, labels, attention_mask
-
-        # # TODO: not sure what to do with this?
-        # If using the inference KV cache, the image/audio tokens are already computed.
-        if use_inference_kv_cache:
-            return language_embeddings, loss_mask, labels, attention_mask
-
-        img_seq_len = self._img_seq_len
-        batch_size, text_seq_len = input_ids.shape
-
-        has_labels = labels is not None
-        if has_labels:
-            assert (
-                labels.shape == loss_mask.shape
-            ), f"mismatching labels shape {labels.shape} and loss mask shape {loss_mask.shape}"
-
-        packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
-
-        # Create indices for new text and label positions.
-        with torch.no_grad():
-
-            # Compute the final embedding size
-            image_token_mask = input_ids == image_token_index
-            audio_token_mask = input_ids == audio_token_index
-            media_token_mask = image_token_mask | audio_token_mask
-            num_images_per_sample = torch.sum(image_token_mask, dim=-1)
-            num_image_tiles_batch = num_image_tiles.split(num_images_per_sample.tolist(), dim=0)
-            num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
-            num_audios_per_sample = torch.sum(audio_token_mask, dim=-1)
-            audios_embeddings_lengths_batch = audio_embedding_lens.split(num_audios_per_sample.tolist(), dim=0)
-            audios_embeddings_lengths_batch = torch.tensor([x.sum() for x in audios_embeddings_lengths_batch], device=input_ids.device)
-
-            # Sequence length for each sample: 
-            # (image sequence length multiplied by the number of tiles for that image) + (audio sequence length) 
-            # - (number of image tokens + number of audio tokens) 
-            # + (text sequence length).
-            seq_lens = (
-                (num_image_tiles_batch * img_seq_len) + audios_embeddings_lengths_batch 
-                - (num_images_per_sample + num_audios_per_sample) 
-                + text_seq_len
-            )
-            max_seq_len = seq_lens.max()
-            
-            # Pipeline parallel expects fixed input size. Check if we need to pad.
-            if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
-                max_seq_len = self._language_max_sequence_length
-                if packed_sequence:
-                    last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
-                    last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
-                    assert (
-                        last_seqlen_padded >= last_seqlen
-                    ), "`language_max_sequence_length` needs to increase for sequence packing to work properly."
-                    packed_seq_params.cu_seqlens_q_padded[-1] = max_seq_len
-                    packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
-                    packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
-                    packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
-
-            if self.sequence_parallel_lm:
-                if self.tp_comm_overlap_lm:
-                    # If shorter: Pad to language_max_sequence_length to use TP Comm overlap.
-                    # If longer: Gets truncated later.
-                    if max_seq_len < self._language_max_sequence_length:
-                        padded_seq_len = self._language_max_sequence_length
-                else:
-                    # Pad to multiple of tp size for sequence parallelism
-                    tp_world_size = ps.get_tensor_model_parallel_world_size()
-                    padded_seq_len = int((max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size)
-
-                max_seq_len = padded_seq_len
-            batch_indices, non_media_indices = torch.where(
-                (input_ids != image_token_index) & (input_ids != audio_token_index)
-            )
-
-            # New position ids for the text tokens, shifted by the image sequence length.
-            # E.g. for input_ids = [-200, 1, 2, 3, -200, 5, 6] and img_seq_len[0] = [576, 300], we get
-            # new_position_ids = [576, 577, 578, 579, 879, 880, 881]. text_position_ids are then [577, 578, 579, 880, 881].
-            # Build a tensor of contributions: text tokens (non-media) contribute 0 extra,
-            # while each media token contributes its media-specific extra length.
-            media_token_mask_lens = torch.zeros_like(input_ids, dtype=torch.int32)
-            media_token_mask_lens[image_token_mask] = ((num_image_tiles * img_seq_len) - 1).to(torch.int32)
-            media_token_mask_lens[audio_token_mask] = (audio_embedding_lens - 1).to(torch.int32)
-
-            # Compute new position ids for every token.
-            # We add 1 to every position (for text tokens this gives a step of 1,
-            # and for media tokens, it gives a step equal to its extra length + 1),
-            # then subtract 1 to adjust for zero-based indexing.
-            new_position_ids = torch.cumsum((media_token_mask_lens + 1), dim=-1) - 1
-
-            # Extract text token positions (non-media tokens).
-            text_position_ids = new_position_ids[batch_indices, non_media_indices]
-
-            # Labels are shifted to left by one.
-            # So, shift text position ids and non-image indices to left by one.
-            if has_labels:
-                label_text_position_ids = text_position_ids - 1
-                valid_label_text_position_ids = label_text_position_ids >= 0
-                label_text_position_ids = label_text_position_ids[valid_label_text_position_ids]
-
-                label_batch_indices = batch_indices[valid_label_text_position_ids]
-
-                label_non_media_indices = non_media_indices - 1
-                valid_label_non_media_indices = label_non_media_indices >= 0
-                label_non_media_indices = label_non_media_indices[valid_label_non_media_indices]
-
-            # get new position ids for the image/audios tokens (each position is the last position of the image/audio tokens in each sample)
-            new_images_position_ids = []
-            new_audios_position_ids = []
-            for i in range(len(new_position_ids)):
-                new_images_position_ids.append(new_position_ids[i][image_token_mask[i]])
-                new_audios_position_ids.append(new_position_ids[i][audio_token_mask[i]])
-
-        # Create the final input embedding (if this is the first language model stage).
-        final_embedding = None
-        if self.pre_process:
-            embed_dim = language_embeddings.shape[-1]
-            final_embedding = torch.zeros(
-                batch_size,
-                max_seq_len,
-                embed_dim,
-                dtype=language_embeddings.dtype,
-                device=language_embeddings.device,
-            )
-
-            # Put text embeddings to the text positions in the result tensor.
-            final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_media_indices]
-
-            # # Put image and audio embeddings to image and audios positions.
-            # # NOTE: final_embedding [batch_size, max_seq_len, embed_dim]
-            # final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
-            # final_embedding[audios_mask] = audio_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
-
-            # Put image embeddings to the last position of the image tokens
-            image_embeddings = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
-            image_pointer = 0
-            tile_pointer = 0
-            images_mask = torch.full((batch_size, max_seq_len), False, dtype=torch.bool, device=input_ids.device)
-            for i in range(final_embedding.shape[0]):
-                for j in range(len(new_images_position_ids[i])):
-                    current_image_seq_len = num_image_tiles[image_pointer]*img_seq_len
-                    current_image_tokens_end_idx = new_images_position_ids[i][j]
-                    current_image_tokens_start_idx = current_image_tokens_end_idx - current_image_seq_len
-
-                    final_embedding[i][current_image_tokens_start_idx:current_image_tokens_end_idx] = image_embeddings[tile_pointer : (tile_pointer + current_image_seq_len)]
-                    images_mask[i][current_image_tokens_start_idx:current_image_tokens_end_idx] = True
-                    tile_pointer += num_image_tiles[image_pointer]
-                    image_pointer += 1
-            # print(stop_here)    
-
-            # Put audio embeddings to the last position of the audio tokens
-            audio_embeddings = audio_embeddings.permute(1, 0, 2).contiguous()
-            audio_pointer = 0
-            audio_length_pointer = 0
-            audios_mask = torch.full((batch_size, max_seq_len), False, dtype=torch.bool, device=input_ids.device)
-            for i in range(final_embedding.shape[0]):
-                for j in range(len(new_audios_position_ids[i])):
-                    current_audio_seq_len = audio_embedding_lens[audio_length_pointer]
-                    current_audio_tokens_end_idx = new_audios_position_ids[i][j]
-                    current_audio_tokens_start_idx = current_audio_tokens_end_idx - current_audio_seq_len
-
-                    final_embedding[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx] = audio_embeddings[audio_pointer][:current_audio_seq_len]
-                    audios_mask[i][current_audio_tokens_start_idx:current_audio_tokens_end_idx] = True
-                    audio_pointer += 1
-                    audio_length_pointer += 1
-            # print(stop_here)
-
-        # Create the final labels and loss mask (if this is the last language model stage).
-        final_labels, final_loss_mask = None, None
-        if has_labels:
-            final_labels = torch.full(
-                (batch_size, max_seq_len), MultiModalSampleConfig.ignore_place_holder, dtype=labels.dtype, device=labels.device
-            )
-            final_loss_mask = torch.full((batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device)
-
-            # Put text labels and loss mask to the text positions.
-            final_labels[label_batch_indices, label_text_position_ids] = labels[
-                label_batch_indices, label_non_media_indices
-            ]
-
-            final_loss_mask[batch_indices, text_position_ids] = loss_mask[batch_indices, non_media_indices]
-
-            # For labels, pick the last label index that got dropped by the shift to left.
-            label_extra_text_position_ids = seq_lens - 1
-            batch_range = torch.arange(len(label_extra_text_position_ids))
-            final_labels[batch_range, label_extra_text_position_ids] = labels[batch_range, -1]
-
-            # Loss mask the media positions.
-            final_loss_mask[images_mask] = 0
-            final_loss_mask[audios_mask] = 0
-
-            # Loss mask last text position just before an image/audio
-            # so that text token does not need to predict the first image/audio token.
-            batch_media_indices, media_indices = torch.where(media_token_mask)
-            # Indices just before media tokens. If it's -1, skip it.
-            before_media_indices = media_indices - 1
-            valid = before_media_indices >= 0
-            valid_batch_media_indices = batch_media_indices[valid]
-            valid_before_media_indices = before_media_indices[valid]
-            # Map those indices those position ids.
-            valid_before_media_indices = new_position_ids[valid_batch_media_indices, valid_before_media_indices]
-
-            final_loss_mask[valid_batch_media_indices, valid_before_media_indices] = 0
-
-        if final_embedding is not None and has_labels:
-            assert (
-                final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
-            ), "unexpected shapes after data preprocessing"
-
-        truncate_labels = has_labels and final_labels.shape[1] > self._language_max_sequence_length
-        if truncate_labels:
-            final_labels = final_labels[:, : self._language_max_sequence_length]
-            final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
-
-        # truncate final embedding
-        if final_embedding is not None:
-            # transpose final_embeddings to sbhd
-            # note this will also transpose thd, which is fine
-            final_embedding = final_embedding.transpose(1, 0).contiguous()
-            # Truncate if exceeding the language model's max sequence length.
-            if final_embedding.shape[0] > self._language_max_sequence_length:
-                final_embedding = final_embedding[: self._language_max_sequence_length]
-
-        # packed seq param truncation
-        if packed_sequence and packed_seq_params.cu_seqlens_q_padded[-1] > self._language_max_sequence_length:
-            truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
-            final_seq_len_padded = (
-                packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
-            )
-            final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
-            final_padding = final_seq_len_padded - final_seq_len_unpadded
-            truncate_len -= final_padding
-            packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
-            packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
-            # need to truncate the actual sequence as well
-            if truncate_len > 0:
-                packed_seq_params.cu_seqlens_q[-1] -= truncate_len
-                packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
-            assert (
-                packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
-            ), "with packed sequence, the truncation can only truncate on the last sequence."
-
-        return final_embedding, final_labels, final_loss_mask, attention_mask
 
     def _process_embedding_token_parallel(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
         """Processes the input data for model parallelism support."""

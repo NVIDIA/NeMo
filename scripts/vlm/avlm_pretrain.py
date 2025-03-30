@@ -53,8 +53,21 @@ def main(args):
         from nemo.collections.avlm.data.energon import AVLMTaskEncoder
 
         data_path = args.data_path
-
-        avlm_sample_config = AVLMSampleConfig()
+            audio_encoder_config={
+                "model_type": "whisper",
+                "window_stride": 0.01,
+                "sample_rate": 16000,
+                "encoder_down_sampling": 8,
+                "num_mel_bins": None,
+                "patch_size": None,
+                "time_stride": None,
+                "frequency_stride": None,
+                "max_spectrogram_length": None,
+            },
+            image_encoder_config={
+                "model_type": "clip",
+            }
+        )
         # Setting system prompt to empty string
         avlm_sample_config.conversation_template_config.system = ''
 
