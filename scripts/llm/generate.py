@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
     if args.fp8:
         assert len(args.prompts) % 8 == 0, "Batch size should be divisible by 8 for FP8 inference"
-    
+
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
