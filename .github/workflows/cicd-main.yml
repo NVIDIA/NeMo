@@ -622,8 +622,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |
-        bash tests/functional_tests/L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir.sh
+      SCRIPT: L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir
       AFTER_SCRIPT: |
         rm -rf preds.json
 
@@ -634,8 +633,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |
-        bash tests/functional_tests/L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir.sh
+      SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir
       AFTER_SCRIPT: |
         rm -rf preds.json
 
@@ -646,8 +644,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |
-        bash tests/functional_tests/L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest.sh
+      SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest
       AFTER_SCRIPT: |
         rm -rf preds.json
 
@@ -872,8 +869,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2_liger') || needs.pre-flight.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |
-        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2_liger.sh
+      SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2_liger
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8:
     needs: [pre-flight, cicd-test-container-build]
@@ -881,8 +877,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8') || needs.pre-flight.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |
-        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8.sh
+      SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -931,8 +926,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2_fp8') || needs.pre-flight.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |
-        tests/functional_tests/L2_HF_Transformer_SFT_2gpu_FSDP2_fp8.sh
+      SCRIPT: L2_HF_Transformer_SFT_2gpu_FSDP2_fp8
 
   L2_HF_Transformer_SFT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
