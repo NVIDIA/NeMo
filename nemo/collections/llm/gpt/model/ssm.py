@@ -28,8 +28,8 @@ from nemo.lightning import get_vocab_size, io, teardown, OptimizerModule
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.collections.llm.utils import Config
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-# from transformers import Nemotron5Config, Nemotron5ForCausalLM, AutoTokenizer
-
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoConfig
 
 try:
     from megatron.core import parallel_state
@@ -350,13 +350,13 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         return self.model_config
 
 @io.model_importer(MambaModel, "hf")
-class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", MambaModel]):
+class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel]):
     def init(self) -> MambaModel:
         return MambaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
 
-        source = Nemotron5ForCausalLM.from_pretrained("/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_nemo_to_hf")
+        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True)
         target = self.init()
         trainer = self.nemo_setup(target)
         source = source.to(self.config.params_dtype)
@@ -407,13 +407,12 @@ class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", MambaModel])
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets("/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_nemo_to_hf"))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
 
     @property
     def config(self) -> SSMConfig:
-        from transformers import Nemotron5Config as HFNemotron5Config
 
-        source = HFNemotron5Config.from_pretrained("/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_nemo_to_hf")
+        source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
         source.torch_dtype = torch.bfloat16
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
@@ -440,12 +439,12 @@ class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", MambaModel])
 
 
 @io.model_exporter(MambaModel, "hf")
-class HFNemotron5Exporter(io.ModelConnector[MambaModel, "Nemotron5ForCausalLM"]):
-    def init(self, dtype=torch.bfloat16) -> "Nemotron5ForCausalLM":
+class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"]):
+    def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return Nemotron5ForCausalLM(self.config)
+            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
 
     def apply(self, output_path: Path) -> Path:
 
@@ -501,34 +500,34 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "Nemotron5ForCausalLM"])
 
     @property
     def tokenizer(self):
-        from transformers import AutoTokenizer
 
-        return AutoTokenizer.from_pretrained("nvidia/Mistral-NeMo-Minitron-8B-Instruct")
+        return AutoTokenizer.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
 
 
     @property
-    def config(self) -> "Nemotron5Config":
+    def config(self):
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
-        from transformers import Nemotron5Config as HFNemotron5Config
+        # TODO @ataghibakhsh: Change AutoConfig to Nemotron5Config once merged to HF
 
-        return HFNemotron5Config(
-            hybrid_override_pattern=source.hybrid_override_pattern,
-            n_groups=source.mamba_num_groups,
-            num_hidden_layers=source.num_layers,
-            mamba_head_dim=source.mamba_head_dim,
-            mamba_num_heads=source.hidden_size * 2 // source.mamba_head_dim,
-            mamba_state_size=source.mamba_state_dim,
-            hidden_size=source.hidden_size,
-            intermediate_size=source.ffn_hidden_size,
-            num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.seq_length,
-            rms_norm_eps=source.layernorm_epsilon,
-            num_key_value_heads=source.num_query_groups,
-            vocab_size=source.vocab_size,
-            mlp_hidden_act='relu2',
-            mamba_hidden_act="silu",
-        )
+        hf_config = AutoConfig.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
+        hf_config.hybrid_override_pattern=source.hybrid_override_pattern
+        hf_config.n_groups=source.mamba_num_groups
+        hf_config.num_hidden_layers=source.num_layers
+        hf_config.mamba_head_dim=source.mamba_head_dim
+        hf_config.mamba_num_heads=source.hidden_size * 2 // source.mamba_head_dim
+        hf_config.mamba_state_size=source.mamba_state_dim
+        hf_config.hidden_size=source.hidden_size
+        hf_config.intermediate_size=source.ffn_hidden_size
+        hf_config.num_attention_heads=source.num_attention_heads
+        hf_config.max_position_embeddings=source.seq_length
+        hf_config.rms_norm_eps=source.layernorm_epsilon
+        hf_config.num_key_value_heads=source.num_query_groups
+        hf_config.vocab_size=source.vocab_size
+        hf_config.mlp_hidden_act='relu2'
+        hf_config.mamba_hidden_act="silu"
+
+        return hf_config
 
 @io.state_transform(
     source_key=(
