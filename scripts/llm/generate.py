@@ -134,6 +134,11 @@ def get_args():
         default=1234,
         help="""Random seed for generation""",
     )
+    parser.add_argument(
+        "--legacy_ckpt",
+        action="store_true",
+        help="""Load ckpt saved with TE < 1.14""",
+    )
     args = parser.parse_args()
     return args
 
@@ -143,7 +148,7 @@ if __name__ == "__main__":
 
     if args.fp8:
         assert len(args.prompts) % 8 == 0, "Batch size should be divisible by 8 for FP8 inference"
-
+    
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
@@ -169,31 +174,13 @@ if __name__ == "__main__":
             fp8_amax_compute_algo="max",
         ),
     )
+
+    # Load ckpt saved with TE < 1.14
+    if args.legacy_ckpt:
+        trainer.strategy.ckpt_load_strictness = False
+
     prompts = args.prompts
-    ############################
-    # from nemo.collections.llm.inference import chat_utils
 
-    # prompts=[{"role": "system", "content": ""},
-    #         {"role": "user","content":"Write a limerick about the wonders of GPU computing."},
-    #         {"role": "assistant", "content": "There once was a chip full of might, \
-    #           That made data dance day and night. \
-    #           With GPUs so grand, \
-    #           Tasks were done on demand, \
-    #           Turning code into speed and delight!"},
-    #         {"role": "user", "content": "Can you change it to use the word NVIDIA?"}]
-
-    # prompts = prompts + [
-    #         {'role': 'assistant', 'content': ''}
-    #     ]  # adding trailing assistant message so that prompt ends with Assistant tag.
-    # special_tokens = chat_utils.NM5_CHAT_PROMPT_TOKENS
-    # nemo_source = chat_utils.convert_messages(prompts)
-    # header, conversation, data_type, mask_role = chat_utils.get_header_conversation_type_mask_role(
-    #     nemo_source, special_tokens
-    # )
-    # len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
-    # prompts = [conversation[:-len_strip]]*8
-
-    ############################
     results = api.generate(
         path=args.model_path,
         prompts=prompts,
