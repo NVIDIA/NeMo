@@ -53,6 +53,8 @@ def main(args):
         from nemo.collections.avlm.data.energon import AVLMTaskEncoder
 
         data_path = args.data_path
+
+        avlm_sample_config = AVLMSampleConfig(
             audio_encoder_config={
                 "model_type": "whisper",
                 "window_stride": 0.01,
