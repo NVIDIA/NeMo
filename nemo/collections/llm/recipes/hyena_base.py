@@ -33,7 +33,9 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.log.default import default_log, tensorboard_logger, wandb_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, bf16_with_fp8_mixed
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+    userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch import callbacks as nl_callbacks
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
@@ -226,11 +228,11 @@ def blended_dataset_config_recipe(config_path: Path | str | None = None):
     Creates a configuration for a blended dataset by utilizing the `run.Config` function.
 
     Args:
-        config_path (Path | str | None, optional): The path to the dataset configuration file.
+        config_path (Path | str | None, optional): The path to the dataset configuration file. 
             Can be a `Path` object, a string, or `None`. Defaults to `None`.
 
     Returns:
-        run.Config: A configuration object initialized with the dataset parsing function
+        run.Config: A configuration object initialized with the dataset parsing function 
         and the provided dataset configuration path.
     """
     return run.Config(
@@ -367,7 +369,8 @@ def pretrain_recipe_creater(
                 f"heyna-size-{model_size}-TP{tensor_parallel_size}-"
                 f"PP{pipeline_model_parallel_size}-CP{context_parallel_size}"
                 f"-GBS{global_batch_size}-MBS{micro_batch_size}"
-                f"-GRFP32{grad_reduce_in_fp32}-ALIGN{not no_aligned_megatron_ddp}"
+                f"-GRFP32{grad_reduce_in_fp32}-"
+                f"ALIGN{not no_aligned_megatron_ddp}"
                 f"-NODES{num_nodes}-FP8{fp8}"
             )
         extra_loggers['wandb_logger'] = wandb_logger(project=wandb_project, name=wandb_name, id=wandb_run_id)
@@ -398,7 +401,9 @@ def pretrain_recipe_creater(
             run.Config(
                 MegatronCommOverlapCallback,
                 tp_comm_overlap=use_megatron_comm_overlap_llama3_8k,
-                tp_comm_overlap_cfg=userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
+                tp_comm_overlap_cfg=
+                    userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
+                ,
                 wgrad_deferral_limit=22,  # default from NeMo
                 overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing.
                 align_param_gather=align_param_gather,
