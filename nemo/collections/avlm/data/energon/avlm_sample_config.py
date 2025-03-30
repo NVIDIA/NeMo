@@ -121,6 +121,7 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
 
     # audio related sample config
+    audio_encoder_config: Optional[dict] = None
     audio_token: AudioToken = field(default_factory=AudioToken)
     audio_sample_rate: int = field(default=16000)
     audio_channel_selector: Optional[Union[int, Iterable[int], Literal["average"]]] = "average"
@@ -143,3 +144,5 @@ class AVLMSampleConfig(MultiModalSampleConfig):
         "video_audio",     
         "interleaved_optimal",] = field(default="sequential")
     
+    # image related sample config
+    image_encoder_config: Optional[dict] = None

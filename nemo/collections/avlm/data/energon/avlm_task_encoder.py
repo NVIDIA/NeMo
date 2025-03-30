@@ -43,6 +43,11 @@ from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AVLMSampleConfig,
 )
 
+from nemo.collections.avlm.data.energon.calculate_media_seq_length import (
+    calculate_encoded_audio_seq_length,
+    calculate_encoded_image_seq_length,
+)
+
 from nemo.collections.multimodal.data.energon.sample_encoder import (
     _find_pattern_indices, 
     SampleEncoder, 
@@ -58,7 +63,7 @@ from nemo.utils import logging
 
 
 class AVLMSampleEncoder(BaseSampleEncoder):
-    """AVLMSampleEncoderInterleaved"""
+    """AVLMSampleEncoder"""
 
     def __init__(
         self, 
@@ -405,7 +410,23 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                     if processed_audio is not None:
                         audios.append(processed_audio)
                         audio_lengths.append(processed_audio.shape[0])
-                        tokenized_chunks.append(self.audio_token.token_id)
+
+                        # calculate the encoded audio sequence length from processed audio length
+                        # and add the corresponding special audio tokens to the tokenized_chunks
+                        encoded_audio_seq_length = calculate_encoded_audio_seq_length(
+                            audio_length=processed_audio.shape[0],
+                            model_type=self.multimodal_sample_config.audio_encoder_config['model_type'],
+                            sample_rate=self.multimodal_sample_config.audio_encoder_config['sample_rate'],
+                            window_stride=self.multimodal_sample_config.audio_encoder_config['window_stride'],
+                            encoder_down_sampling=self.multimodal_sample_config.audio_encoder_config['encoder_down_sampling'],
+                            num_mel_bins=self.multimodal_sample_config.audio_encoder_config['num_mel_bins'],
+                            patch_size=self.multimodal_sample_config.audio_encoder_config['patch_size'],
+                            time_stride=self.multimodal_sample_config.audio_encoder_config['time_stride'],
+                            frequency_stride=self.multimodal_sample_config.audio_encoder_config['frequency_stride'],
+                            max_spectrogram_length=self.multimodal_sample_config.audio_encoder_config['max_spectrogram_length'],
+                            )
+                        tokenized_chunks.extend([self.audio_token.token_id] * encoded_audio_seq_length)
+
                 elif media_type == "video":
                     audio_stream_index_tokens_dict = {}
                     video_stream_index_tokens_dict = {}
@@ -434,12 +455,20 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                     tokenized_chunks.extend(self.concate_audio_video_tokens(audio_stream_index_tokens_dict, video_stream_index_tokens_dict))
                 elif media_type == "image":
                     # process image
-                    tokenized_chunks.append(self.image_token.token_id)
                     processed_image, original_image_size = self.process_image(chunk)
                     if processed_image is not None:
                         images.append(processed_image)
                         num_image_tiles.append(processed_image.shape[0])
                         image_sizes.append([original_image_size.height, original_image_size.width])
+
+                    # calculate the encoded image sequence length from processed image length
+                    # and add the corresponding special image tokens to the tokenized_chunks
+                    encoded_image_seq_length = calculate_encoded_image_seq_length(
+                        num_one_image_tiles = processed_image.shape[0],
+                        model_type=self.multimodal_sample_config.image_encoder_config['model_type'],
+                        )
+                    tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
+
                 else:
                     raise ValueError(f"Unsupported type in MediaDict: {type(chunk)}")    
             elif len(chunk) > 0:
@@ -558,14 +587,31 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
 
         for chunk in chunks:
             if chunk == self.audio_token.token_str:
-                tokenized_chunks.append(self.audio_token.token_id)
                 # process the corresponding audio bytes
                 processed_audio, _ = self.process_audio(input_sample.audios[input_audio_index], "from_file")
                 if processed_audio is not None:
                     processed_audios.append(processed_audio)
                     processed_audio_lengths.append(processed_audio.shape[0])
                 input_audio_index = input_audio_index + 1
+
+                # calculate the encoded audio sequence length from processed audio length
+                # and add the corresponding special audio tokens to the tokenized_chunks
+                encoded_audio_seq_length = calculate_encoded_audio_seq_length(
+                    audio_length=processed_audio.shape[0],
+                    model_type=self.multimodal_sample_config.audio_encoder_config['model_type'],
+                    sample_rate=self.multimodal_sample_config.audio_encoder_config['sample_rate'],
+                    window_stride=self.multimodal_sample_config.audio_encoder_config['window_stride'],
+                    encoder_down_sampling=self.multimodal_sample_config.audio_encoder_config['encoder_down_sampling'],
+                    num_mel_bins=self.multimodal_sample_config.audio_encoder_config['num_mel_bins'],
+                    patch_size=self.multimodal_sample_config.audio_encoder_config['patch_size'],
+                    time_stride=self.multimodal_sample_config.audio_encoder_config['time_stride'],
+                    frequency_stride=self.multimodal_sample_config.audio_encoder_config['frequency_stride'],
+                    max_spectrogram_length=self.multimodal_sample_config.audio_encoder_config['max_spectrogram_length'],
+                    )
+                tokenized_chunks.extend([self.audio_token.token_id] * encoded_audio_seq_length)
+
             elif chunk == self.video_token.token_str:
+
                 total_frames_in_each_processed_video = []
                 audio_stream_index_tokens_dict = {}
                 video_stream_index_tokens_dict = {}
@@ -596,7 +642,6 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
 
                 input_video_index = input_video_index + 1
             elif chunk == self.image_token.token_str:
-                tokenized_chunks.append(self.image_token.token_id)
                 # process the corresponding image
                 processed_image, original_image_size = self.process_image(input_sample.images[input_image_index])
                 if processed_image is not None:
@@ -604,6 +649,15 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                     processed_num_image_tiles.append(processed_image.shape[0])
                     processed_image_sizes.append([original_image_size.height, original_image_size.width])
                 input_image_index = input_image_index + 1
+
+                # calculate the encoded image sequence length from processed image length
+                # and add the corresponding special image tokens to the tokenized_chunks
+                encoded_image_seq_length = calculate_encoded_image_seq_length(
+                    num_one_image_tiles = processed_image.shape[0],
+                    model_type=self.multimodal_sample_config.image_encoder_config['model_type'],
+                    )
+                tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
+
             elif len(chunk) > 0:
                 tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
 
@@ -830,4 +884,3 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         if 'attention_mask' not in batch_dict:
             batch_dict['attention_mask'] = None
         return batch_dict
-
