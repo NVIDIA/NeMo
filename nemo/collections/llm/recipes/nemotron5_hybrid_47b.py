@@ -37,7 +37,9 @@ NAME = "nemotron5_hybrid_47b"
 
 @run.cli.factory(name=NAME)
 def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
-
+    """
+    Factory function to create a tokenizer configuration for Nemotron5 Hybrid model.
+    """
     return run.Config(
         get_nmt_tokenizer,
         library='tiktoken',

@@ -36,7 +36,9 @@ NAME = "mamba2_370m"
 
 @run.cli.factory(name=NAME)
 def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
-
+    """
+    Factory function to create a tokenizer configuration.
+    """
     return run.Config(
         get_nmt_tokenizer,
         library='huggingface',

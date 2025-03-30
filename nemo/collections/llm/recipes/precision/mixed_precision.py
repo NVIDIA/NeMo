@@ -21,6 +21,9 @@ from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecisio
 
 @run.cli.factory
 def bf16_mixed() -> run.Config[MegatronMixedPrecision]:
+    """
+    BF16 mixed precision configuration for Megatron models.
+    """
     return run.Config(
         MegatronMixedPrecision,
         precision="bf16-mixed",
@@ -33,6 +36,9 @@ def bf16_mixed() -> run.Config[MegatronMixedPrecision]:
 
 @run.cli.factory
 def fp16_mixed() -> run.Config[MegatronMixedPrecision]:
+    """
+    FP16 mixed precision configuration for Megatron models.
+    """
     return run.Config(
         MegatronMixedPrecision,
         precision="16-mixed",

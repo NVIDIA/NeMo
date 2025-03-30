@@ -48,7 +48,16 @@ except (ImportError, ModuleNotFoundError):
 
 
 def ssm_forward_step(model, batch) -> torch.Tensor:
+    """
+    Performs a forward step for the SSM model.
 
+    Args:
+        model (torch.nn.Module): The model to perform the forward step on.
+        batch (dict): A dictionary containing input tensors such as `tokens`, `position_ids`, and `labels`.
+
+    Returns:
+        torch.Tensor: The output tensor from the forward step.
+    """
     forward_args = {
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
@@ -59,7 +68,15 @@ def ssm_forward_step(model, batch) -> torch.Tensor:
 
 
 def dist_ckpt_handler(checkpoint_dir):
+    """
+    Handles distributed checkpoint loading and processing.
 
+    Args:
+        checkpoint_dir (str): The directory containing the checkpoint files.
+
+    Returns:
+        tuple: A tuple containing the processed state dictionary and distributed checkpoint arguments.
+    """
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'  # Ensure this port is available
     world_size = 1
@@ -138,7 +155,19 @@ def dist_ckpt_handler(checkpoint_dir):
 
 @dataclass
 class SSMConfig(TransformerConfig, io.IOMixin):
-    # From megatron.core.models.mamba.mamba_model.MambaModel
+    """
+    Configuration class for the SSM model.
+
+    Inherits from TransformerConfig and io.IOMixin to provide additional configuration options
+    specific to the SSM model.
+
+    Attributes:
+        fp16_lm_cross_entropy (bool): Whether to use FP16 for cross-entropy loss.
+        parallel_output (bool): Whether to enable parallel output.
+        share_embeddings_and_output_weights (bool): Whether to share embeddings and output weights.
+        params_dtype (torch.dtype): The data type for model parameters.
+        ... (other attributes are described in the class definition)
+    """
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
     share_embeddings_and_output_weights: bool = False
@@ -179,7 +208,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     cross_entropy_loss_fusion: bool = True
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
-
+        """
+        Configures the model for training or inference.
+        """
         return MCoreMambaModel(
             self,
             mamba_stack_spec=mamba_stack_spec,
@@ -198,6 +229,15 @@ class SSMConfig(TransformerConfig, io.IOMixin):
 
 
 class MambaModel(GPTModel):
+    """
+    A subclass of GPTModel that implements the Mamba architecture.
+
+    Attributes:
+        config (SSMConfig): The configuration for the Mamba model.
+        optim (OptimizerModule): The optimizer module for training.
+        tokenizer (TokenizerSpec): The tokenizer used for text processing.
+        model_transform (Callable): A function to transform the model.
+    """
     def __init__(
         self,
         config: Annotated[Optional[SSMConfig], Config[SSMConfig]] = None,
@@ -205,11 +245,17 @@ class MambaModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        """
+        Initializes the MambaModel with the given configuration, optimizer, tokenizer, and model transform.
+        """
         super().__init__(config or SSMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
     def get_inference_wrapper(
         self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=8192
     ) -> torch.Tensor:
+        """
+        Returns the inference wrapper for the model.
+        """
         # This is to get the MCore model required in GPTInferenceWrapper.
         # TODO: @ataghibakhsh Change when MambaInferenceWrapper is available in mcore
         mcore_model = self.module
@@ -227,7 +273,8 @@ class MambaModel(GPTModel):
             vocab_size = self.config.vocab_size
         else:
             raise ValueError(
-                'Unable to find vocab size. Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+                "Unable to find vocab size. Either pass in a tokenizer with vocab size, "
+                "or set vocab size in the model config"
             )
 
         inference_wrapper_config = InferenceWrapperConfig(
@@ -244,18 +291,36 @@ class MambaModel(GPTModel):
 
 @io.model_importer(MambaModel, "pytorch")
 class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
+    """
+    A model importer for loading PyTorch-based SSM models.
 
+    Attributes:
+        path (str): The path to the model checkpoint.
+        model_config (SSMConfig): The configuration for the model.
+    """
     def __new__(cls, path: str, model_config=None):
+        """
+        Creates a new instance of the SSM model importer.
+        """
         instance = super().__new__(cls, path)
         instance.model_config = model_config
         return instance
 
     def init(self) -> MambaModel:
-
+        """
+        Initializes the model for export.
+        """
         return MambaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path, source_dist_ckpt: bool = False) -> Path:
-
+        """
+        Converts the SSM model to Nemo format and saves it to the specified path.
+        Args:
+            output_path (Path): The path to save the exported model.
+            source_dist_ckpt (bool): Whether to load from a distributed checkpoint.
+        Returns:
+            output_path (Path): The path to the saved model.
+        """
         if source_dist_ckpt:
             source, dist_ckpt_args = dist_ckpt_handler(str(self))
         else:
@@ -285,7 +350,14 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         return output_path
 
     def convert_state(self, source, target):
-
+        """
+        Converts the state of the source model to match the target model.
+        Args:
+            source (torch.nn.Module): The source model.
+            target (torch.nn.Module): The target model.
+        Returns:
+            torch.nn.Module: The converted target model.
+        """
         if self.model_config.mapping_type == "base":
             mapping = {
                 'backbone.embedding.weight': 'embedding.word_embeddings.weight',
@@ -318,7 +390,8 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
             if "nemotron5" in self.model_config.mapping_type:
                 mapping.update(
                     {
-                        'decoder.layers.*.mixer.in_proj.layer_norm_weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                        'decoder.layers.*.mixer.in_proj.layer_norm_weight': 
+                        'decoder.layers.*.mixer.in_proj.layer_norm_weight',
                     }
                 )
             else:
@@ -330,12 +403,16 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
             if "hybrid" in self.model_config.mapping_type:
                 mapping.update(
                     {
-                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
+                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight': 
+                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
                         'decoder.layers.*.mlp.linear_fc1.weight': 'decoder.layers.*.mlp.linear_fc1.weight',
                         'decoder.layers.*.mlp.linear_fc2.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
-                        'decoder.layers.*.self_attention.linear_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight',
-                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
-                        'decoder.layers.*.self_attention.linear_qkv.weight': 'decoder.layers.*.self_attention.linear_qkv.weight',
+                        'decoder.layers.*.self_attention.linear_proj.weight': 
+                        'decoder.layers.*.self_attention.linear_proj.weight',
+                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight': 
+                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
+                        'decoder.layers.*.self_attention.linear_qkv.weight': 
+                        'decoder.layers.*.self_attention.linear_qkv.weight',
                     }
                 )
         else:
@@ -344,6 +421,11 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
 
     @property
     def tokenizer(self):
+        """
+        Loads the tokenizer from the specified path.
+        Returns:
+            TokenizerSpec: The tokenizer object.
+        """
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         tokenizer = get_nmt_tokenizer(
@@ -358,16 +440,37 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
 
     @property
     def config(self) -> SSMConfig:
+        """
+        Loads the model configuration from the specified path.
+        Returns:
+            SSMConfig: The model configuration object.
+        """
         return self.model_config
 
 
 @io.model_importer(MambaModel, "hf")
 class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel]):
+    """
+    A model importer for loading Hugging Face-based Nemotron5 models.
+
+    Attributes:
+        path (str): The path to the Hugging Face model checkpoint.
+        model_config (SSMConfig): The configuration for the model.
+    """
     def init(self) -> MambaModel:
+        """
+        Initializes the model for export.
+        """
         return MambaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-
+        """
+        Converts the Nemotron5 model to Nemo format and saves it to the specified path.
+        Args:
+            output_path (Path): The path to save the exported model.
+        Returns:
+            output_path (Path): The path to the saved model.
+        """
         source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True)
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -385,7 +488,14 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
         return output_path
 
     def convert_state(self, source, target):
-
+        """
+        Converts the state of the source model to match the target model.
+        Args:
+            source (torch.nn.Module): The source model.
+            target (torch.nn.Module): The target model.
+        Returns:
+            torch.nn.Module: The converted target model.
+        """
         mapping = {
             'backbone.embeddings.weight': 'embedding.word_embeddings.weight',
             'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log',
@@ -418,12 +528,22 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """
+        Loads the tokenizer from the specified path.
+        Returns:
+            AutoTokenizer: The tokenizer object.
+        """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
 
     @property
     def config(self) -> SSMConfig:
+        """
+        Loads the model configuration from the specified path.
+        Returns:
+            SSMConfig: The model configuration object.
+        """
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
         source.torch_dtype = torch.bfloat16
@@ -454,14 +574,30 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
 
 @io.model_exporter(MambaModel, "hf")
 class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"]):
+    """
+    A model exporter for converting Mamba models to Hugging Face format.
+
+    Attributes:
+        path (str): The path to save the exported model.
+        model_config (SSMConfig): The configuration for the model.
+    """
     def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
+        """
+        Initializes the model for export.
+        """
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
             return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
 
     def apply(self, output_path: Path) -> Path:
-
+        """
+        Converts the Mamba model to Hugging Face format and saves it to the specified path.
+        Args:
+            output_path (Path): The path to save the exported model.
+        Returns: 
+            output_path (Path): The path to the saved model.
+        """
         source, _ = self.nemo_load(str(self))
         source = source.to(torch_dtype_from_mcore_config(source.config))
         target = self.init().to(torch_dtype_from_mcore_config(source.config))
@@ -477,7 +613,14 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         return output_path
 
     def convert_state(self, source, target):
-
+        """
+        Converts the state of the source model to match the target model.
+        Args:
+            source (torch.nn.Module): The source model.
+            target (torch.nn.Module): The target model.
+        Returns:
+            torch.nn.Module: The converted target model.
+        """
         mapping = {
             'decoder.layers.*.mixer.A_log': 'backbone.layers.*.mixer.A_log',
             'decoder.layers.*.mixer.D': 'backbone.layers.*.mixer.D',
@@ -516,11 +659,21 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
 
     @property
     def tokenizer(self):
+        """
+        Loads the tokenizer from the specified path.
+        Returns:
+            AutoTokenizer: The tokenizer object.
+        """
 
         return AutoTokenizer.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
 
     @property
     def config(self):
+        """
+        Loads the model configuration from the specified path.
+        Returns:
+            SSMConfig: The model configuration object.
+        """
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
         # TODO @ataghibakhsh: Change AutoConfig to Nemotron5Config once merged to HF
@@ -554,6 +707,18 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
     target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
+    """
+    Transforms Q, K, and V projection weights from the source model to the target model.
+
+    Args:
+        ctx (io.TransformCTX): The transformation context.
+        q (torch.Tensor): The Q projection weights.
+        k (torch.Tensor): The K projection weights.
+        v (torch.Tensor): The V projection weights.
+
+    Returns:
+        torch.Tensor: The transformed QKV weights.
+    """
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
@@ -595,6 +760,16 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    """
+    Transforms QKV weights from the target model back to the source model format.
+
+    Args:
+        ctx (io.TransformCTX): The transformation context.
+        linear_qkv (torch.Tensor): The QKV weights from the target model.
+
+    Returns:
+        tuple: A tuple containing the transformed Q, K, and V weights.
+    """
     megatron_config = ctx.source.config
 
     head_num = megatron_config.num_attention_heads
@@ -626,6 +801,16 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     target_key="backbone.embeddings.weight",
 )
 def _export_embedding(ctx: io.TransformCTX, embedding):
+    """
+    Transforms the embedding weights from the target model to the source model format.
+
+    Args:
+        ctx (io.TransformCTX): The transformation context.
+        embedding (torch.Tensor): The embedding weights from the target model.
+
+    Returns:
+        torch.Tensor: The transformed embedding weights.
+    """
     megatron_config = ctx.target.config
     # prune padding.
     return embedding[: megatron_config.vocab_size, :]
@@ -636,6 +821,16 @@ def _export_embedding(ctx: io.TransformCTX, embedding):
     target_key="lm_head.weight",
 )
 def _export_head(ctx: io.TransformCTX, embedding):
+    """
+    Transforms the output layer weights from the target model to the source model format.
+
+    Args:
+        ctx (io.TransformCTX): The transformation context.
+        embedding (torch.Tensor): The output layer weights from the target model.
+
+    Returns:
+        torch.Tensor: The transformed output layer weights.
+    """
     megatron_config = ctx.target.config
     # prune padding.
     return embedding[: megatron_config.vocab_size, :]
@@ -643,6 +838,7 @@ def _export_head(ctx: io.TransformCTX, embedding):
 
 @dataclass
 class BaseMambaConfig130M(SSMConfig):
+    """BaseMambaConfig130M"""
     hybrid_override_pattern: str = "M" * 24
     num_layers: int = 24
     seq_length: int = 2048
@@ -657,6 +853,7 @@ class BaseMambaConfig130M(SSMConfig):
 
 @dataclass
 class BaseMambaConfig370M(SSMConfig):
+    """BaseMambaConfig370M"""
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -671,6 +868,7 @@ class BaseMambaConfig370M(SSMConfig):
 
 @dataclass
 class BaseMambaConfig780M(SSMConfig):
+    """BaseMambaConfig780M"""
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -685,6 +883,7 @@ class BaseMambaConfig780M(SSMConfig):
 
 @dataclass
 class BaseMambaConfig1_3B(SSMConfig):
+    """BaseMambaConfig1_3B"""
     hybrid_override_pattern: str = "M" * 48
     num_layers: int = 48
     seq_length: int = 2048
@@ -699,6 +898,7 @@ class BaseMambaConfig1_3B(SSMConfig):
 
 @dataclass
 class BaseMambaConfig2_7B(SSMConfig):
+    """BaseMambaConfig2_7B"""
     hybrid_override_pattern: str = "M" * 64
     num_layers: int = 64
     seq_length: int = 2048
@@ -713,6 +913,7 @@ class BaseMambaConfig2_7B(SSMConfig):
 
 @dataclass
 class NVIDIAMambaConfig8B(SSMConfig):
+    """NVIDIAMambaConfig8B"""
     hybrid_override_pattern: str = "M" * 56
     num_attention_heads: int = 32
     num_layers: int = 56
@@ -728,6 +929,7 @@ class NVIDIAMambaConfig8B(SSMConfig):
 
 @dataclass
 class NVIDIAMambaHybridConfig8B(SSMConfig):
+    """NVIDIAMambaHybridConfig8B"""
     hybrid_override_pattern: str = "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
     num_layers: int = 56
     seq_length: int = 4096
@@ -744,6 +946,7 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
 
 @dataclass
 class Nemotron5HybridConfig8B(SSMConfig):
+    """Nemotron5HybridConfig8B"""
     hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
     num_layers: int = 52
     seq_length: int = 8192
@@ -771,6 +974,7 @@ class Nemotron5HybridConfig8B(SSMConfig):
 
 @dataclass
 class Nemotron5HybridConfig47B(SSMConfig):
+    """Nemotron5HybridConfig47B"""
     hybrid_override_pattern: str = (
         "M-M-M-M-M-M-M-M-M*-M-M-M-M-M-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-M-M---MM---M-M*-M-M-M-M-M-"
     )
@@ -800,8 +1004,10 @@ class Nemotron5HybridConfig47B(SSMConfig):
 
 @dataclass
 class Nemotron5HybridConfig56B(SSMConfig):
+    """Nemotron5HybridConfig56B"""
     hybrid_override_pattern: str = (
-        "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+        "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-"
+        "M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
     )
     num_layers: int = 118
     seq_length: int = 8192
