@@ -248,6 +248,5 @@ def main(cfg: ParallelTranscriptionConfig):
         logging.info("{} for all predictions is {:.4f}.".format("CER" if cfg.use_cer else "WER", wer_cer))
 
 
-
 if __name__ == '__main__':
     main()
