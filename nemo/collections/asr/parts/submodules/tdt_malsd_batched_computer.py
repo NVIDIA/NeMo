@@ -20,7 +20,7 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
@@ -98,7 +98,7 @@ class MALSDState:
     batched_hyps: BatchedBeamHypsTDT  # batched hypotheses - decoding result
 
     # LM-related fields
-    ngram_lm_batch: Optional[FastNGramLM] = None  # N-gram LM for hypotheses
+    ngram_lm_batch: Optional[NGramGPULanguageModel] = None  # N-gram LM for hypotheses
     lm_scores: Optional[torch.Tensor] = None  # LM scores for hypotheses
     batch_lm_states: Optional[torch.Tensor] = None  # LM states for hypotheses
     batch_lm_states_candidates: Optional[torch.Tensor] = None  # LM states for hypotheses candidates
@@ -235,7 +235,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
     full_graph: Optional[torch.cuda.CUDAGraph]
     cuda_graphs_mode: Optional[CudaGraphsMode]
     state: Optional[MALSDState]
-    ngram_lm_batch: Optional[FastNGramLM]
+    ngram_lm_batch: Optional[NGramGPULanguageModel]
 
     def __init__(
         self,
@@ -304,7 +304,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
 
-            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
             self.pruning_mode = PruningMode.EARLY if pruning_mode is None else PruningMode(pruning_mode)
             self.blank_lm_score_mode = (
