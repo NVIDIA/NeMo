@@ -321,6 +321,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):
         return offset
 
     def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), metadata=None):
+        """Get the sharded state dict for the transformer layer."""
         TENSOR_PARALLEL_LAYERS_AXIS_MAP = {
             'self_attention.layernorm_qkv.weight': 0,
             'self_attention.layernorm_qkv.bias': 0,
