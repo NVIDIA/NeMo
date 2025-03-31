@@ -271,6 +271,10 @@ class BeamRNNTInfer(Typing):
         ngram_lm_alpha: float = 0.0,
         hat_subtract_ilm: bool = False,
         hat_ilm_weight: float = 0.0,
+        malsd_max_symbols_per_step: Optional[int] = None,
+        blank_lm_score_mode: Optional[str] = "no_score",
+        pruning_mode: Optional[str] = "early",
+        allow_cuda_graphs: bool = False
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -305,6 +309,23 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
                 f"Please use one of : (default, tsd, alsd, nsc)"
+            )
+            
+        if malsd_max_symbols_per_step is not None:
+            logging.warning(f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }")
+            
+        if allow_cuda_graphs:
+            logging.warning(f"""Cuda Graphs are not supported for the decoding strategy {self.search_algorithm}.
+                                Decoding will proceed without Cuda Graphs.""")
+
+        strategies = ["default", "tsd", "alsd", "nsc"]
+        strategies_batch = ["maes_batch", "malsd_batch"]
+        if (pruning_mode, blank_lm_score_mode) != ("early", "no_score"):
+            logging.warning(
+                f"""Decoding strategies {strategies} support early pruning and the 'no_score' blank scoring mode.
+                Please choose a strategy from {strategies_batch} for {pruning_mode} pruning 
+                and {blank_lm_score_mode} blank scoring mode." 
+                """
             )
 
         if tsd_max_sym_exp_per_step is None:
@@ -1647,11 +1668,11 @@ class BeamRNNTInferConfig:
     language_model: Optional[Dict[str, Any]] = None
     softmax_temperature: float = 1.0
     preserve_alignments: bool = False
-    max_symbols_per_step: int = 10
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: Optional[float] = 0.0
-    blank_lm_score_mode: Optional[str] = None
-    pruning_mode: Optional[str] = None
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0
+    malsd_max_symbols_per_step: Optional[int] = 10
+    blank_lm_score_mode: Optional[str] = None
+    pruning_mode: Optional[str] = None
     allow_cuda_graphs: bool = True

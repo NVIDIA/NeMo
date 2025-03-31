@@ -164,6 +164,10 @@ class BeamTDTInfer(Typing):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str] = None,
         ngram_lm_alpha: float = 0.3,
+        malsd_max_symbols_per_step: Optional[int] = None,
+        blank_lm_score_mode: Optional[str] = "no_score",
+        pruning_mode: Optional[str] = "early",
+        allow_cuda_graphs: bool = False
     ):
         self.joint = joint_model
         self.decoder = decoder_model
@@ -207,6 +211,23 @@ class BeamTDTInfer(Typing):
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n" f"Please use one of : (default, maes)"
+            )
+
+        if malsd_max_symbols_per_step is not None:
+            logging.warning(f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }")
+            
+        if allow_cuda_graphs:
+            logging.warning(f"""Cuda Graphs are not supported for the decoding strategy {self.search_algorithm}.
+                                Decoding will proceed without Cuda Graphs.""")
+
+        strategies = ["default", "maes"]
+        strategies_batch = ["malsd_batch"]
+        if (pruning_mode, blank_lm_score_mode) != ("early", "no_score"):
+            logging.warning(
+                f"""Decoding strategies {strategies} support early pruning and the 'no_score' blank scoring mode.
+                Please choose a strategy from {strategies_batch} for {pruning_mode} pruning 
+                and {blank_lm_score_mode} blank scoring mode." 
+                """
             )
 
         if self.search_type == 'maes':
