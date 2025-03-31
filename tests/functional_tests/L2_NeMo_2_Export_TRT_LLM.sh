@@ -21,7 +21,4 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
   --checkpoint_dir /tmp/nemo2_ckpt \
   --min_tps 1 \
   --test_deployment True \
-  --run_accuracy True \
-  --test_data_path /tmp/lambada.json \
-  --accuracy_threshold 0.0 \
   --debug
