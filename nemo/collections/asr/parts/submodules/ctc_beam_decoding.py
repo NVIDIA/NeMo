@@ -30,12 +30,12 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.collections.asr.parts.submodules.ctc_batched_beam_decoding import BatchedBeamCTCComputer
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMBatchedWrapper
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel, KenLMBatchedWrapper
 
 from nemo.utils.timers import SimpleTimer
+from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BlankLMScoreMode
 
 DEFAULT_TOKEN_OFFSET = 100
-
 
 def pack_hypotheses(
     hypotheses: List[rnnt_utils.NBestHypotheses],
@@ -291,7 +291,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         
         self.ngram_lm_batch = None
         if kenlm_path is not None:
-            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
         
 
     @typecheck()
@@ -916,6 +916,9 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         compute_timestamps: bool = False,
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
+        beam_threshold: float = 20.0,
+        beam_size_token: Optional[int] = 16,
+        blank_lm_score_mode: str = "no_score",
         kenlm_path: str = None,
         allow_cuda_graphs: bool = True
     ):
@@ -933,6 +936,9 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
 
         self.beam_alpha = beam_alpha
         self.beam_beta = beam_beta
+        self.beam_threshold = beam_threshold
+        self.beam_size_token = beam_size_token
+        self.blank_lm_score_mode = blank_lm_score_mode
 
         # Default beam search args
         self.kenlm_path = kenlm_path
@@ -945,7 +951,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         
         self.ngram_lm_batch = None
         if kenlm_path is not None:
-            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
             
         self.search_algorithm = BatchedBeamCTCComputer(
             blank_index=blank_id,
@@ -955,8 +961,11 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             compute_timestamps=compute_timestamps,
             beam_alpha=beam_alpha,
             beam_beta=beam_beta,
+            beam_threshold=beam_threshold,
+            beam_size_token=beam_size_token,
             kenlm_path=kenlm_path,
-            allow_cuda_graphs=allow_cuda_graphs
+            allow_cuda_graphs=allow_cuda_graphs,
+            blank_lm_score_mode=blank_lm_score_mode
         )
 
     @typecheck()
@@ -1031,8 +1040,11 @@ class BeamCTCInferConfig:
     allow_cuda_graphs: bool = True
 
     beam_alpha: float = 1.0
-    beam_beta: float = 0.0
+    beam_beta: float = 1.0
+    beam_threshold: float = 20.0
+    beam_size_token: Optional[float] = None
     kenlm_path: Optional[str] = None
+    blank_lm_score_mode: Optional[BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())

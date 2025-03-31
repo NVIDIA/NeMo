@@ -4,6 +4,8 @@ import numpy as np
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
+from nemo.utils.enum import PrettyStrEnum
+
 # https://stackoverflow.com/a/77213071
 MULTIPLIER = 7
 INCREMENT = 1
@@ -176,3 +178,14 @@ class BatchedBeamHypsCTC:
         )
         new_scores = torch.max(np.log(10) * scores_matrix, dim=-1, keepdim=False).values * np.log10(np.e)
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
+        
+class BlankLMScoreMode(PrettyStrEnum):
+    """
+    Defines the strategies for handling blank token scores in a external Ngram LM
+    when combined with an automatic speech recognition (ASR) model.
+    """
+
+    NO_SCORE = "no_score"
+    """No score for blank."""
+    LM_WEIGHTED_FULL = "lm_weighted_full"
+    """Blank score for LM is set equal to blank score from ASR model; non-blank LM scores are reweighted to sum to 1."""

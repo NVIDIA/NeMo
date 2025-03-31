@@ -19,9 +19,8 @@ from typing import Any, Optional, Tuple, Union, List
 import numpy as np
 import torch
 import torch.nn.functional as F
-from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BatchedBeamHypsCTC
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
@@ -34,6 +33,7 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
+from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BlankLMScoreMode
 
 try:
     from cuda import cudart
@@ -88,7 +88,7 @@ class BacthedBeamCTCState:
     batched_hyps: BatchedBeamHypsCTC  # batched hypotheses - decoding result
 
     # LM-related fields
-    ngram_lm_batch: Optional[FastNGramLM] = None  # N-gram LM for hypotheses
+    ngram_lm_batch: Optional[NGramGPULanguageModel] = None  # N-gram LM for hypotheses
     lm_scores: Optional[torch.Tensor] = None  # LM scores for hypotheses
     batch_lm_states: Optional[torch.Tensor] = None  # LM states for hypotheses
     batch_lm_states_candidates: Optional[torch.Tensor] = None  # LM states for hypotheses candidates
@@ -182,6 +182,7 @@ class BacthedBeamCTCState:
         self.batch_labels = self.vocab[None, None, :].expand(batch_size, self.beam_size, -1)
         self.non_blank_mask = self.batch_labels != self.blank_index
         self.zeros_column = torch.zeros([self.batch_size, self.beam_size, 1], device=self.device, dtype=self.float_dtype)
+        self.false_mask = torch.zeros([self.batch_size, self.beam_size, self.vocab_size], dtype=torch.bool, device=self.device)
         self.curr_length = torch.tensor(0, device=self.device, dtype=torch.long)
         
         self.repeated_mask = torch.zeros([self.batch_size, self.beam_size, self.vocab_size], device=self.device, dtype=torch.bool)
@@ -237,7 +238,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     full_graph: Optional[torch.cuda.CUDAGraph]
     cuda_graphs_mode: Optional[CudaGraphsMode]
     state: Optional[BacthedBeamCTCState]
-    ngram_lm_batch: Optional[FastNGramLM]
+    ngram_lm_batch: Optional[NGramGPULanguageModel]
 
     def __init__(
         self,
@@ -248,6 +249,9 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         compute_timestamps: bool = False,
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
+        beam_threshold: float = 20.0,
+        beam_size_token: Optional[int] = 16,
+        blank_lm_score_mode: str = "no_score",
         kenlm_path: str = None,
         allow_cuda_graphs: bool = True
     ):
@@ -281,6 +285,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         
         self.beam_alpha = beam_alpha
         self.beam_beta = beam_beta
+        self.beam_threshold = beam_threshold
+        self.beam_size_token = beam_size_token
 
         assert not self.preserve_alignments, "Preserve aligments is not supported"
         assert not self.compute_timestamps, "Compute timestamps is not supported"
@@ -292,12 +298,12 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # prprprprpr
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
+        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
         if kenlm_path is not None:
             assert self._blank_index == 1024
-            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=kenlm_path, vocab_size=self._blank_index)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=kenlm_path, vocab_size=self._blank_index)
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -383,6 +389,12 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             active_mask = decoder_output_lengths.unsqueeze(1) > t
             log_probs = decoder_outputs[:, t, :].unsqueeze(1) * np.log10(np.e)
             
+            print("bstbstbst", self.beam_size_token)
+            if self.beam_size_token is not None:
+                _, topk_idx = log_probs.topk(k=self.beam_size_token, largest=True, sorted=True)
+                mask = torch.zeros_like(log_probs, dtype=torch.bool).scatter_(2, topk_idx, True)
+                log_probs.masked_fill_(~mask, float('inf'))
+            
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
                 lm_scores = lm_scores.to(dtype=decoder_outputs.dtype).view(batch_size, self.beam_size, -1) * self.beam_alpha * np.log10(np.e)
@@ -398,7 +410,11 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             hyps_scores, hyps_candidates_indices = torch.topk(total_scores.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True)
             hyps_indices = hyps_candidates_indices // vocab_size # torch.gather(expansion_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
             next_labels = torch.gather(batch_labels, dim=-1, index=(hyps_candidates_indices % vocab_size).unsqueeze(-1)).squeeze(2)
-            hyps_scores.view(batch_size, -1)[hyps_scores.view(batch_size, -1) <= hyps_scores.view(batch_size, -1).max(dim=-1, keepdim=True).values - 20] = float('-inf')
+            hyps_scores.view(batch_size, -1)[
+                hyps_scores.view(batch_size, -1) <= 
+                hyps_scores.view(batch_size, -1).max(dim=-1, keepdim=True).values - 
+                self.beam_threshold
+            ] = float('-inf')
             
             repeating_mask = next_labels == torch.gather(batched_beam_hyps.last_label, dim=-1, index=hyps_indices)
             blank_mask = next_labels == self._blank_index
@@ -716,6 +732,12 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             .index_select(dim=1, index=self.state.curr_length.repeat(self.beam_size))
         )
         
+        # print("bstbstbst", self.beam_size_token)
+        # if self.beam_size_token is not None:
+        #     _, topk_idx = log_probs.topk(k=self.beam_size_token, largest=True, sorted=True)
+        #     mask = self.state.false_mask.scatter_(dim=2, index=topk_idx, value=True)
+        #     log_probs.masked_fill_(~mask, float('-inf'))
+        
         if self.ngram_lm_batch is not None:
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=self.state.batch_lm_states.view(-1))
 
@@ -734,7 +756,11 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.state.next_scores.copy_(hyps_scores)
         self.state.next_indices.copy_(hyps_candidates_indices // self.state.vocab_size)
         self.state.next_labels.copy_(torch.gather(self.state.batch_labels, dim=-1, index=(hyps_candidates_indices % self.state.vocab_size).unsqueeze(-1)).squeeze(2))
-        self.state.next_scores.view(self.state.batch_size, -1)[self.state.next_scores.view(self.state.batch_size, -1) <= self.state.next_scores.view(self.state.batch_size, -1).max(dim=-1, keepdim=True).values - 20] = float('-inf')
+        self.state.next_scores.view(self.state.batch_size, -1)[
+            self.state.next_scores.view(self.state.batch_size, -1) <= 
+            self.state.next_scores.view(self.state.batch_size, -1).max(dim=-1, keepdim=True).values - 
+            self.beam_threshold
+        ] = float('-inf')
         
         torch.where(self.state.active_mask, self.state.next_labels, self.state.MINUS_ONE_TENSOR, out=self.state.next_labels)
         
