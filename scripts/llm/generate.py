@@ -128,6 +128,12 @@ def get_args():
         action="store_true",
         help="""Whether to run inference in FP8 precision""",
     )
+    praser.add_argument(
+        "--fp8_recipe",
+        type=str,
+        default="tensorwise",
+        help="""fp8 recipe, can be 'tensorwise', 'delayed', or 'mxfp8'""",
+    )
     parser.add_argument(
         "--max_batch_size",
         type=int,
@@ -177,8 +183,9 @@ if __name__ == "__main__":
             autocast_enabled=False,
             grad_reduce_in_fp32=False,
             fp8="hybrid" if args.fp8 else None,
+            fp8_recipe=args.fp8_recipe if args.fp8 else None,
             fp8_amax_history_len=1,
-            fp8_amax_compute_algo="max",
+            fp8_amax_compute_algo="max" if args.fp8 else "most_recent",
         ),
     )
 
