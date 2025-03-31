@@ -1,10 +1,16 @@
 # Changelog
 
 <!-- Next changelog -->
-## NVIDIA Neural Modules 2.2.0
+## NVIDIA Neural Modules 2.2.1
+
+### Highlights
+
+- Training
+  - Fix MoE based models training instability.
+  - Fix bug in Llama exporter for Llama 3.2 1B and 3B.
+  - Fix bug in LoRA linear_fc1adapter when different TP is used during saving and loading the adapter checkpoint.
 
 ### Detailed Changelogs:
-
 
 </details>
 
@@ -18,6 +24,7 @@
 - Bump mcore to use 0.11.1 by @chtruong814 :: PR: #12634
 
 </details>
+
 ## NVIDIA Neural Modules 2.2.0
 
 ### Highlights
