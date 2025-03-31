@@ -1,7 +1,5 @@
 import torch
 from typing import Optional
-from nemo.utils.enum import PrettyStrEnum
-from collections import Counter
 import numpy as np
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
@@ -102,7 +100,7 @@ class BatchedBeamHypsCTC:
     ):
         # TODO: timesteps
         # TODO: sdelat' chtom esli next_labels = -1, tut ne obnovlyalos nichego!
-        self.scores= torch.gather(self.scores, dim=-1, index=hyps_indices)
+        self.scores.copy_(torch.gather(self.scores, dim=-1, index=hyps_indices))
         torch.where(next_labels > 0, next_hyps_prob, self.scores, out=self.scores)
         # self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
@@ -114,12 +112,10 @@ class BatchedBeamHypsCTC:
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
-        self.current_lengths_nb.copy_(
-            torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
-        )
+        self.current_lengths_nb.copy_(torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label)
 
-        self.last_label = torch.gather(self.last_label, dim=-1, index=hyps_indices)
-        self.transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
+        self.last_label.copy_(torch.gather(self.last_label, dim=-1, index=hyps_indices))
+        self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=hyps_indices))
         mask_to_update_mask = torch.logical_and(next_labels != self.blank_index, next_labels != self.last_label)
         # update hashes and prefix hashes
         torch.where(
