@@ -269,19 +269,6 @@ class LinearAdapter(nn.Linear):
         # If LinearAdapter is used to monkey-patch a nn.Linear module, we want to use nn.Linear's
         # forward in the case where it uses quantized weights. We store a reference to nn.Linear's
         # forward in `super_fwd` attribute. If the attribute does not exist we do the usual linear.
-        # import torch
-        # if torch.distributed.get_rank() == 0:
-        #     breakpoint()
-        # # When the breakpoint is passed, Rank 0 hits the barrier, all barriers will deactivate, and the distributed process continues normally. Good for spot-checking things and proceeding the entire program.
-        # torch.distributed.barrier()
-
-        # import torch
-        # if torch.distributed.get_rank() == 0:
-        #     breakpoint()
-        # else:
-        #     # Permanently block all other ranks if you want to only debug this rank or if other ranks are crashing or obstructing you from debugging.
-        #     # Can also just start a run with 1 rank, but this allows you to see the behavior of individual ranks in a distributed setting.
-        #     torch.distributed.barrier()
         if (fwd := getattr(self, 'super_fwd', None)) is not None:
             res = fwd(x)
         else:

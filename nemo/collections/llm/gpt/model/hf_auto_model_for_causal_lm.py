@@ -163,23 +163,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
         
         if self.load_pretrained_weights:
-            print(quantization_config)
-            # if torch.distributed.get_rank() == 0:
-            #     breakpoint()
-            # else:
-            # # Permanently block all other ranks if you want to only debug this rank or if other ranks are crashing or obstructing you from debugging.
-            # # Can also just start a run with 1 rank, but this allows you to see the behavior of individual ranks in a distributed setting.
-            #     torch.distributed.barrier()
-
-            import os
-            if os.environ.get("DEBUG", None) == "YES":
-                if torch.distributed.get_rank() == 0:
-                    breakpoint()
-                else:
-                # Permanently block all other ranks if you want to only debug this rank or if other ranks are crashing or obstructing you from debugging.
-                # Can also just start a run with 1 rank, but this allows you to see the behavior of individual ranks in a distributed setting.
-                    torch.distributed.barrier()
-            a =  auto_cls.from_pretrained(
+            m =  auto_cls.from_pretrained(
                 self.model_name,
                 torch_dtype=self.default_dtype,
                 device_map=None if self.load_in_4bit else self.device_map,
@@ -188,15 +172,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 quantization_config=quantization_config
                 
             )
-            import os
-            if os.environ.get("DEBUG", None) == "YES":
-                if torch.distributed.get_rank() == 0:
-                    breakpoint()
-                else:
-                # Permanently block all other ranks if you want to only debug this rank or if other ranks are crashing or obstructing you from debugging.
-                # Can also just start a run with 1 rank, but this allows you to see the behavior of individual ranks in a distributed setting.
-                    torch.distributed.barrier()
-            return a
+            return m
         else:
             from transformers import AutoConfig
 
