@@ -11,8 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/megatron_t5_pretraining.py \
-    --devices=2 \
-    --max-steps=3 \
-    --experiment-dir=tests/collections/llm/t5_pretrain_results/$RUN_ID \
-    --data-path=mock
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/bert_pretraining.py \
+    --devices 1 \
+    --max_steps 3 \
+    --experiment_dir /tmp/nemo2_bert_pretraining/$RUN_ID \
+    --tp_size 1 \
+    --pp_size 1 \
+    --mbs 1 \
+    --type huggingface
