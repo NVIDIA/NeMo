@@ -906,18 +906,26 @@ class NGramGPULanguageModel(ModelPT):
             scores.scatter_(dim=1, index=labels_lengths.unsqueeze(-1).to(torch.int64), src=final_weights.unsqueeze(-1))
         return scores
 
-    def advance(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def advance(self, states: torch.Tensor, eos_id: Optional[int] = None) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
         Args:
             states: batch of states
+            eos_id: if not None, for eos symbol use final state weight
 
         Returns:
             tuple with next states and scores
         """
         if self.use_triton and states.device.type == "cuda":
-            return self._advance_triton(states=states)
-        return self._advance_pytorch(states=states)
+            scores, next_states = self._advance_triton(states=states)
+        else:
+            scores, next_states = self._advance_pytorch(states=states)
+
+        # replace weight corresponding to eos_id with final state weight
+        if eos_id is not None:
+            scores[:, eos_id] = self.get_final(states=states)
+            next_states[:, eos_id] = states
+        return scores, next_states
 
     def _advance_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """

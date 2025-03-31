@@ -527,7 +527,6 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.len_pen = len_pen
         # ngram lm
-        assert ngram_lm_model is not None
         self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.num_tokens)
         self.ngram_lm_alpha = ngram_lm_alpha
 
@@ -536,73 +535,22 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
 
-    def _one_step_forward(
-        self,
-        decoder_input_ids=None,
-        encoder_hidden_states=None,
-        encoder_input_mask=None,
-        decoder_mems_list=None,
-        batch_lm_states=None,
-        pos=0,
-        return_scores: bool = True,
-    ):
-        """
-        One step of autoregressive output generation.
-
-        Args:
-            decoder_input_ids: starting sequence of tokens to generate from;
-                if None, generation will start from a batch of <bos> tokens
-            encoder_hidden_states: output of the encoder for conditional
-                sequence generation; if None, generator will use unconditional
-                mode (e.g., language modeling)
-            encoder_input_mask: input mask used in the encoder
-            decoder_mems_list: list of size num_layers with cached activations
-                of sequence (x[1], ..., x[k-1]) for fast generation of x[k]
-            pos: starting position in positional encoding
-        """
-
-        decoder_hidden_states = self.embedding.forward(decoder_input_ids, start_pos=pos)
-        decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
-
-        if encoder_hidden_states is not None:
-            decoder_mems_list = self.decoder.forward(
-                decoder_hidden_states,
-                decoder_input_mask,
-                encoder_hidden_states,
-                encoder_input_mask,
-                decoder_mems_list,
-                return_mems=True,
-            )
-        else:
-            decoder_mems_list = self.decoder.forward(
-                decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
-            )
-        with self.classifier.with_log_softmax_enabled(return_scores) as clf:
-            logits = clf.forward(hidden_states=decoder_mems_list[-1][:, -1:])
-        lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
-        lm_final = self.ngram_lm_batch.get_final(states=batch_lm_states)
-        return logits, decoder_mems_list, lm_scores, lm_final, batch_lm_states_candidates
-
     def _forward(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
         device = encoder_hidden_states.device
+        # force ngram lm to use the same device as encoder_hidden_states, since current class is not nn.Module instance
         self.ngram_lm_batch.to(device)
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
         batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
 
         # generate initial buffer of beam_size prefixes-hypotheses
-        log_probs, decoder_mems_list, lm_scores, lm_final, batch_lm_states_candidates = self._one_step_forward(
-            decoder_input_ids=tgt,
-            encoder_hidden_states=encoder_hidden_states,
-            encoder_input_mask=encoder_input_mask,
-            decoder_mems_list=None,
-            batch_lm_states=batch_lm_states,
-            pos=0,
-        )
-        lm_scores[:, self.eos] = lm_final
+        log_probs, decoder_mems_list = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
+        # get ngram lm scores
+        lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states, eos_id=self.eos)
         log_probs += self.ngram_lm_alpha * lm_scores[:, None, :]
+
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)  # [Batch, Beam, 1]
         batch_lm_states = batch_lm_states_candidates.gather(dim=1, index=prefixes.squeeze(-1))  # [Batch, Beam]
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)  # [Batch*Beam, 1]
@@ -638,16 +586,14 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
             pad_mask = pad_profile.repeat(1, self.beam_size)
 
             # generate and score candidates for prefixes continuation
-            log_probs, decoder_mems_list, lm_scores, lm_final, batch_lm_states_candidates = self._one_step_forward(
-                decoder_input_ids=prefixes[:, -1:],
-                encoder_hidden_states=encoder_hidden_states,
-                encoder_input_mask=encoder_input_mask,
-                batch_lm_states=batch_lm_states,
-                decoder_mems_list=decoder_mems_list,
-                pos=i,
+            log_probs, decoder_mems_list = self._one_step_forward(
+                prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
-            lm_scores[:, self.eos] = lm_final
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
+                states=batch_lm_states, eos_id=self.eos
+            )
             log_probs += self.ngram_lm_alpha * lm_scores[:, None, :]
+
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)  # [Batch*Beam, Beam]
             batch_lm_states = batch_lm_states_candidates.gather(dim=1, index=prefixes_i)  # [Batch*Beam, Beam]
 
