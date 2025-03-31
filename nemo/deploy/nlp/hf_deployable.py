@@ -14,13 +14,12 @@
 
 
 import logging
-from pathlib import Path
 from typing import Any, List, Optional
 
 import numpy as np
 import torch
 import wrapt
-from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list

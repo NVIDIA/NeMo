@@ -15,7 +15,6 @@
 import argparse
 import logging
 import sys
-import torch
 
 from nemo.deploy import DeployPyTriton
 from nemo.deploy.nlp.hf_deployable import HuggingFaceLLMDeploy
