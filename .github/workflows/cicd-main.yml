@@ -1684,9 +1684,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Automodel_PTQ_trtllm
 
-      AFTER_SCRIPT: |
-        rm -rf /tmp/trtllm_quantized
-
   L2_NeMo_2_Automodel_PTQ_hf:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -1694,9 +1691,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Automodel_PTQ_hf
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/hf_quantized
 
   L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
     needs: [pre-flight, cicd-test-container-build]

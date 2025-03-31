@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import time
 
 import _io
 import lightning.pytorch as pl
-import math
 import torch
 import torch.distributed as dist
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
@@ -277,10 +277,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
 
-            from nemo.lightning.pytorch.strategies.utils import (
-                create_context_parallel_ctx,
-                get_train_context,
-            )
+            from nemo.lightning.pytorch.strategies.utils import create_context_parallel_ctx, get_train_context
 
             input_ids = batch["input_ids"].to(self.model.device)
             batch["position_ids"] = (
@@ -356,9 +353,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
-                # Use the flattened DP / CP device mesh for loss reduction if it exists (CP > 1), else default to the data parallel mesh.
+                # Use the flattened DP / CP device mesh for loss reduction
+                # if it exists (CP > 1), else default to the data parallel mesh.
                 group = device_mesh[
-                    "dp_cp" if device_mesh.mesh_dim_names is not None and "dp_cp" in device_mesh.mesh_dim_names else "data_parallel"
+                    (
+                        "dp_cp"
+                        if device_mesh.mesh_dim_names is not None and "dp_cp" in device_mesh.mesh_dim_names
+                        else "data_parallel"
+                    )
                 ].get_group()
 
             def reduce_item(val, op, device, group, dtype):
@@ -383,10 +385,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
 
         # Log the reduced loss.
-        # TODO(@cspades): Skip logging if the loss is NaN as a WAR if all tokens in the input and label are masked / padding,
-        # in which case the cross entropy loss returned is NaN. (If at least one label token is not masked / padded, the reduced loss will not be NaN.)
+        # TODO(@cspades): Skip logging if the loss is NaN as a WAR if all tokens
+        # in the input and label are masked / padding, in which case the CE loss
+        # returned is NaN.
         if not math.isnan(mean_loss):
-            self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+            self.log(
+                'reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False
+            )
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
         # log LR

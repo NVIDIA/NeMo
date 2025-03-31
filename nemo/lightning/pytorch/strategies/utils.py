@@ -43,9 +43,7 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
 fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
 
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
-    "torch.distributed.fsdp",
-    "CPUOffloadPolicy",
-    fallback_module="torch.distributed._composable.fsdp"
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
 
 
@@ -562,6 +560,16 @@ def create_context_parallel_ctx(
     cp_no_restore_buffers: Set[torch.Tensor],
     cp_rotate_method: str,
 ):
+    """
+    Create a context parallel context.
+
+    Args:
+        cp_mesh (DeviceMesh): The device mesh for context parallel.
+        cp_buffers (List[torch.Tensor]): The buffers for context parallel.
+        cp_seq_dims (List[int]): The sequence dimensions for context parallel.
+        cp_no_restore_buffers (Set[torch.Tensor]): The no restore buffers for context parallel.
+        cp_rotate_method (str): The rotation method for context parallel, such as "allgather" or "addtoall".
+    """
     from torch.distributed.tensor.experimental import context_parallel
 
     # TODO: uncomment this when torch.distributed.tensor.experimental._attention.set_rotate_method is available
@@ -577,6 +585,13 @@ def create_context_parallel_ctx(
 
 # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/distributed/utils.py#L138
 def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool):
+    """
+    Create a train context.
+
+    Args:
+        enable_loss_parallel (bool): Whether to enable loss parallelism.
+        enable_compiled_autograd (bool): Whether to enable compiled autograd.
+    """
     @contextlib.contextmanager
     def context(cp_context: Optional[Generator[None, None, None]] = None):
         with contextlib.ExitStack() as stack:

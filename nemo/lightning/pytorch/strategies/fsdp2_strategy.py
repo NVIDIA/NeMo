@@ -14,12 +14,11 @@
 
 import atexit
 import logging as _logging
-import math
 import os
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Union, Tuple
+from typing import Any, Dict, Literal, Optional, Union
 
 import lightning.pytorch as pl
 import torch
@@ -54,9 +53,7 @@ MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
 )
 
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
-    "torch.distributed.fsdp",
-    "CPUOffloadPolicy",
-    fallback_module="torch.distributed._composable.fsdp"
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
 
 _logger = _logging.getLogger(__name__)

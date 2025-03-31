@@ -22,7 +22,7 @@ from nemo import lightning as nl
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing, pytorch_adam_with_flat_lr
+from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_flat_lr
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -36,7 +36,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, global_batch_size, micro_batch_size, seq_length, fp8=False):
+def make_squad_hf_dataset(tokenizer, micro_batch_size, seq_length, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -63,7 +63,6 @@ def make_squad_hf_dataset(tokenizer, global_batch_size, micro_batch_size, seq_le
         split=["train", "validation"],
         micro_batch_size=micro_batch_size,
         pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
-        global_batch_size=global_batch_size,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
     )
     datamodule.map(
@@ -210,7 +209,7 @@ def main():
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f'{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}_lr{args.lr}_dset_{'squad' if not args.mock_dataset else 'hf_mock'}',
+            name=f"{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}_lr{args.lr}",
         )
 
     callbacks = []
@@ -223,7 +222,6 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        # optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
         optimizer = fdl.build(pytorch_adam_with_flat_lr(lr=args.lr))
 
     if args.fp8:
@@ -266,9 +264,9 @@ def main():
     # Instantiate training dataset.
     dataset = None
     if args.mock_dataset:
-        dataset = HFMockDataModule(seq_length=args.seq_length, global_batch_size=args.global_batch_size, micro_batch_size=args.micro_batch_size)
+        dataset = HFMockDataModule(seq_length=args.seq_length, micro_batch_size=args.micro_batch_size)
     else:
-        dataset = make_squad_hf_dataset(tokenizer=model.tokenizer, global_batch_size=args.global_batch_size, micro_batch_size=args.micro_batch_size, seq_length=args.seq_length, fp8=args.fp8)
+        dataset = make_squad_hf_dataset(tokenizer=model.tokenizer, micro_batch_size=args.micro_batch_size, seq_length=args.seq_length, fp8=args.fp8)
 
     llm.api.finetune(
         model=model,
