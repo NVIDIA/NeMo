@@ -66,7 +66,7 @@ class ConfigParams(BaseModel):
         default=None,
         deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
     )
-    max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=256)
+    max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=None)
     max_retries: Optional[int] = Field(description="Number of REST request retries", default=None)
     parallelism: Optional[int] = Field(
         description="Number of parallel requests to be sent to the server", default=None
