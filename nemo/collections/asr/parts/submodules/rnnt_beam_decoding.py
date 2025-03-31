@@ -274,7 +274,7 @@ class BeamRNNTInfer(Typing):
         malsd_max_symbols_per_step: Optional[int] = None,
         blank_lm_score_mode: Optional[str] = "no_score",
         pruning_mode: Optional[str] = "early",
-        allow_cuda_graphs: bool = False
+        allow_cuda_graphs: bool = False,
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -310,13 +310,17 @@ class BeamRNNTInfer(Typing):
                 f"The search type ({search_type}) supplied is not supported!\n"
                 f"Please use one of : (default, tsd, alsd, nsc)"
             )
-            
+
         if malsd_max_symbols_per_step is not None:
-            logging.warning(f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }")
-            
+            logging.warning(
+                f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }"
+            )
+
         if allow_cuda_graphs:
-            logging.warning(f"""Cuda Graphs are not supported for the decoding strategy {self.search_algorithm}.
-                                Decoding will proceed without Cuda Graphs.""")
+            logging.warning(
+                f"""Cuda Graphs are not supported for the decoding strategy {self.search_algorithm}.
+                                Decoding will proceed without Cuda Graphs."""
+            )
 
         strategies = ["default", "tsd", "alsd", "nsc"]
         strategies_batch = ["maes_batch", "malsd_batch"]

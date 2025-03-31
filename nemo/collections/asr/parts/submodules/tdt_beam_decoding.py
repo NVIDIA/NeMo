@@ -167,7 +167,7 @@ class BeamTDTInfer(Typing):
         malsd_max_symbols_per_step: Optional[int] = None,
         blank_lm_score_mode: Optional[str] = "no_score",
         pruning_mode: Optional[str] = "early",
-        allow_cuda_graphs: bool = False
+        allow_cuda_graphs: bool = False,
     ):
         self.joint = joint_model
         self.decoder = decoder_model
@@ -214,11 +214,15 @@ class BeamTDTInfer(Typing):
             )
 
         if malsd_max_symbols_per_step is not None:
-            logging.warning(f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }")
-            
+            logging.warning(
+                f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }"
+            )
+
         if allow_cuda_graphs:
-            logging.warning(f"""Cuda Graphs are not supported for the decoding strategy {self.search_algorithm}.
-                                Decoding will proceed without Cuda Graphs.""")
+            logging.warning(
+                f"""Cuda Graphs are not supported for the decoding strategy {self.search_algorithm}.
+                                Decoding will proceed without Cuda Graphs."""
+            )
 
         strategies = ["default", "maes"]
         strategies_batch = ["malsd_batch"]
