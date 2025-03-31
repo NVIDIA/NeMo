@@ -149,11 +149,16 @@ class AutoConfigurator:
                     * min(context_parallel_sizes)
                     * min(expert_parallel_sizes)
                 )
-
                 assert self.min_model_parallel_size <= gpu_count
 
             if max_model_parallel_size == "auto":
-                self.max_model_parallel_size = gpu_count
+                max_mp = (
+                    max(tensor_parallel_sizes)
+                    * max(pipeline_parallel_sizes)
+                    * max(context_parallel_sizes)
+                    * max(expert_parallel_sizes)
+                )
+                self.max_model_parallel_size = max_mp if max_mp <= gpu_count else gpu_count
 
         self.model_type = model_type
         self.model_size_in_b = self._get_model_size(
