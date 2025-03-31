@@ -30,27 +30,6 @@ from nemo.tron.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, 
 from nemo.tron.utils.sig_utils import DistributedSignalHandler
 
 
-def _timers_write_to_wandb(
-    self,
-    names: list[str],
-    writer,
-    iteration: int,
-    normalizer: float = 1.0,
-    reset: bool = True,
-    barrier: bool = False,
-):
-    """Patch to write timers to wandb for Megatron Core Timers."""
-    # currently when using add_scalars,
-    # torch.utils.add_scalars makes each timer its own run, which
-    # polutes the runs list, so we just add each as a scalar
-    assert normalizer > 0.0
-    name_to_min_max_time = self._get_global_min_max_time(names, reset, barrier, normalizer)
-    if writer is not None:
-        for name in name_to_min_max_time:
-            _, max_time = name_to_min_max_time[name]
-            writer.log({name + "-time": max_time}, iteration)
-
-
 @dataclass
 class TrainState(Stateful):
     step: int = 0
@@ -129,6 +108,7 @@ class GlobalState:
     @cfg.setter
     def cfg(self, value: ConfigContainer):
         self._cfg = value
+        self._signal_handler = self._set_signal_handler()
 
     @property
     def tokenizer(self):
@@ -204,6 +184,8 @@ class GlobalState:
 
     @property
     def signal_handler(self):
+        if self._signal_handler is None:
+            self._set_signal_handler()
         return self._signal_handler
 
     @property
@@ -211,3 +193,31 @@ class GlobalState:
         if self._straggler_timer is None:
             self._straggler_timer = StragglerDetector()
         return self._straggler_timer
+
+
+    def _set_signal_handler(self):
+        cfg = self._cfg
+        assert cfg is not None, "ConfigContainer must be set before initializing signal handler"
+        sig = cfg.train_config.exit_preemption_signal
+        self._signal_handler = DistributedSignalHandler(sig).__enter__()
+
+
+def _timers_write_to_wandb(
+    self,
+    names: list[str],
+    writer,
+    iteration: int,
+    normalizer: float = 1.0,
+    reset: bool = True,
+    barrier: bool = False,
+):
+    """Patch to write timers to wandb for Megatron Core Timers."""
+    # currently when using add_scalars,
+    # torch.utils.add_scalars makes each timer its own run, which
+    # polutes the runs list, so we just add each as a scalar
+    assert normalizer > 0.0
+    name_to_min_max_time = self._get_global_min_max_time(names, reset, barrier, normalizer)
+    if writer is not None:
+        for name in name_to_min_max_time:
+            _, max_time = name_to_min_max_time[name]
+            writer.log({name + "-time": max_time}, iteration)

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import signal
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
 
@@ -162,6 +163,9 @@ class TrainingConfig:
 
     exit_signal_handler_for_dataloader: bool = False
     """Use signal handler for dataloader workers"""
+
+    exit_preemption_signal: int = signal.SIGTERM
+    """Signal for the signal handler to detect."""
 
     manual_gc: bool = False
     """Disable the threshold-based default garbage collector and trigger the garbage collection manually. Manual garbage collection helps to align the timing of the collection across ranks which mitigates the impact of CPU-associated jitters. When the manual gc is enabled, garbage collection is performed only at the start and the end of the validation routine by default."""
