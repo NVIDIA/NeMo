@@ -296,12 +296,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                 with open_dict(self.cfg.decoding):
                     self.cfg.decoding.compute_timestamps = True
                     self.cfg.decoding.preserve_alignments = True
-                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
             else:
                 return_hypotheses = False
                 with open_dict(self.cfg.decoding):
                     self.cfg.decoding.compute_timestamps = False
                     self.cfg.decoding.preserve_alignments = False
+
+            if hasattr(self, 'cur_decoder'):
+                self.change_decoding_strategy(self.cfg.decoding, decoder_type=self.cur_decoder, verbose=False)
+            else:     
                 self.change_decoding_strategy(self.cfg.decoding, verbose=False)
 
         return super().transcribe(
