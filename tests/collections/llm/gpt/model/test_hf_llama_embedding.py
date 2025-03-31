@@ -278,8 +278,9 @@ class TestLlamaBidirectionalForSequenceClassification:
     # Test fused implementation
     torch.cuda.empty_cache()  # Clear CUDA cache
     import gc
+
     gc.collect()  # Run garbage collection
-    
+
     # Get initial memory usage
     torch.cuda.reset_peak_memory_stats()
     initial_memory = torch.cuda.memory_allocated()
