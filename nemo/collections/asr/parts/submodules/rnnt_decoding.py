@@ -872,7 +872,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         word_offsets = None
         if timestamp_type in ['word', 'segment', 'all']:
             if text_type == 'char':
-                word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=self.word_seperator)
+                word_offsets = self._get_word_offsets_chars(char_offsets, 
+                                                            word_delimiter_char=self.word_seperator,
+                                                            supported_punctuation=self.supported_punctuation,)
             else:
                 # utilize the copy of char offsets with the correct integer ids for tokens
                 # so as to avoid tokenize -> detokenize -> compare -> merge steps.
@@ -1026,7 +1028,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _get_word_offsets_chars(
-        offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
+        offsets: Dict[str, Union[str, float]], 
+        word_delimiter_char: str = " ", 
+        supported_punctuation: Optional[Set] = None
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of character time stamps.
@@ -1058,10 +1062,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     end_offset = offset["end_offset"]
                     word += char
                 else:
+                    next_puntuation = (
+                    supported_punctuation and offsets[i+1]['char'][0] in supported_punctuation
+                    ) if i < len(offsets) - 1 else False
                     # Switching state
-                    if state == "SPACE":
+                    if state == "SPACE" and not next_puntuation:
                         # Finishing a word
                         word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+                    elif state == "SPACE" and next_puntuation:
+                        continue
                     else:
                         # Starting a new word
                         start_offset = offset["start_offset"]
