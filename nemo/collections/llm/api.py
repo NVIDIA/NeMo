@@ -188,6 +188,7 @@ def finetune(
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
+    tokenizer: Optional[TokenizerType] = None,
     peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> Path:
     """
@@ -227,7 +228,7 @@ def finetune(
         log=log,
         resume=resume,
         optim=optim,
-        tokenizer="model",
+        tokenizer=tokenizer,  # TODO figure out what this does
         model_transform=peft,
     )
 
