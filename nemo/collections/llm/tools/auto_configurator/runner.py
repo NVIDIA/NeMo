@@ -201,8 +201,6 @@ class AutoConfigurator:
             if v in str(model):
                 return k
 
-        return None
-
     def _get_model_size(
         self,
         model: Config,
@@ -235,7 +233,7 @@ class AutoConfigurator:
                     return size
                 elif measure == 'M':
                     return size / 1000  # Convert millions to billions
-        elif model_type == "bert":
+        else:
             return np.round(
                 _calculate_model_size(
                     vocab_size=vocab_size,
@@ -248,7 +246,6 @@ class AutoConfigurator:
                 ),
                 3,
             )
-        return None
 
 
 def generate_configs(runner_config: AutoConfigurator = None) -> dict:
