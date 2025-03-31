@@ -679,10 +679,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/asr/asr_chunked_inference/aed/speech_to_text_aed_chunked_infer.py \
-        model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
-        audio_dir=/home/TestData/asr/longform/earnings22 \
-        output_filename=preds.json
+        bash tests/functional_tests/L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir.sh
       AFTER_SCRIPT: |
         rm -rf preds.json
 
@@ -694,11 +691,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/asr/asr_chunked_inference/aed/speech_to_text_aed_chunked_infer.py \
-        model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
-        audio_dir=/home/TestData/asr/longform/earnings22 \
-        output_filename=preds.json \
-        timestamps=True
+        bash tests/functional_tests/L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir.sh
       AFTER_SCRIPT: |
         rm -rf preds.json
 
@@ -710,10 +703,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python examples/asr/asr_chunked_inference/aed/speech_to_text_aed_chunked_infer.py \
-        model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
-        dataset_manifest=/home/TestData/asr/longform/earnings22_manifest_1sample.json \
-        output_filename=preds.json
+        bash tests/functional_tests/L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest.sh
       AFTER_SCRIPT: |
         rm -rf preds.json
 
@@ -959,11 +949,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/peft/automodel.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy fsdp2 --liger
+        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2_liger.sh
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8:
     needs: [pre-flight, cicd-test-container-build]
@@ -972,11 +958,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/peft/automodel.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy fsdp2 --fp8
+        bash tests/functional_tests/L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8.sh
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -1030,11 +1012,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/sft/automodel.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy fsdp2 --fp8
+        tests/functional_tests/L2_HF_Transformer_SFT_2gpu_FSDP2_fp8.sh
 
   L2_HF_Transformer_SFT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -1461,6 +1439,24 @@ jobs:
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_T5_LoRA.sh
       AFTER_SCRIPT: |
         rm -rf tests/collections/llm/t5_peft_results/${{ github.run_id }}
+
+  L2_NeMo_2_BERT_Pretraining_Megatron:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_BERT_Pretraining_Megatron')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_BERT_Pretraining_Megatron.sh
+
+  L2_NeMo_2_BERT_Pretraining_HuggingFace:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_BERT_Pretraining_HuggingFace')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_BERT_Pretraining_HuggingFace.sh
 
   L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -2032,13 +2028,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/baichuan2_toy \
-          NEMO_MODEL_TYPE=Baichuan2Model \
-          NEMO_MODEL_CONFIG=Baichuan2Config7B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
-          add-model-name
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Baichuan2.sh
 
   L2_NeMo_2_Conversion_Test_ChatGLM:
     needs: [pre-flight, cicd-test-container-build]
@@ -2047,13 +2037,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/chatglm_toy \
-          NEMO_MODEL_TYPE=ChatGLMModel \
-          NEMO_MODEL_CONFIG=ChatGLM3Config6B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
-          add-model-name
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_ChatGLM.sh
 
   L2_NeMo_2_Conversion_Test_DeepSeek:
     needs: [pre-flight, cicd-test-container-build]
@@ -2062,13 +2046,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/deekseek-v3_toy \
-          NEMO_MODEL_TYPE=DeepSeekModel \
-          NEMO_MODEL_CONFIG=DeepSeekV3Config \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
-          add-model-name
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_DeepSeek.sh
 
   L2_NeMo_2_Conversion_Test_Gemma:
     needs: [pre-flight, cicd-test-container-build]
@@ -2077,12 +2055,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/gemma_toy \
-          NEMO_MODEL_TYPE=GemmaModel \
-          NEMO_MODEL_CONFIG=GemmaConfig2B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Gemma.sh
 
   L2_NeMo_2_Conversion_Test_Gemma2:
     needs: [pre-flight, cicd-test-container-build]
@@ -2091,12 +2064,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/gemma2_toy \
-          NEMO_MODEL_TYPE=Gemma2Model \
-          NEMO_MODEL_CONFIG=Gemma2Config2B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Gemma2.sh
 
   L2_NeMo_2_Conversion_Test_Mistral:
     needs: [pre-flight, cicd-test-container-build]
@@ -2105,12 +2073,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/mistral_toy \
-          NEMO_MODEL_TYPE=MistralModel \
-          NEMO_MODEL_CONFIG=MistralConfig7B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Mistral.sh
 
   L2_NeMo_2_Conversion_Test_Llama:
     needs: [pre-flight, cicd-test-container-build]
@@ -2119,12 +2082,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/llama_31_toy \
-          NEMO_MODEL_TYPE=LlamaModel \
-          NEMO_MODEL_CONFIG=Llama31Config8B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Llama.sh
 
   L2_NeMo_2_Conversion_Test_Llama_Embedding:
     needs: [pre-flight, cicd-test-container-build]
@@ -2132,13 +2090,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/llama_31_toy \
-          NEMO_MODEL_TYPE=LlamaEmbeddingModel \
-          NEMO_MODEL_CONFIG=Llama32EmbeddingConfig1B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
-          HF_TARGET_CLASS=AutoModel
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Llama_Embedding.sh
 
   L2_NeMo_2_Conversion_Test_Nemotron:
     needs: [pre-flight, cicd-test-container-build]
@@ -2147,12 +2099,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/nemotron_toy \
-          NEMO_MODEL_TYPE=NemotronModel \
-          NEMO_MODEL_CONFIG=NemotronConfig \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Nemotron.sh
 
   L2_NeMo_2_Conversion_Test_Phi3Mini:
     needs: [pre-flight, cicd-test-container-build]
@@ -2161,12 +2108,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/phi3mini_toy \
-          NEMO_MODEL_TYPE=Phi3Model \
-          NEMO_MODEL_CONFIG=Phi3ConfigMini \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Phi3Mini.sh
 
   L2_NeMo_2_Conversion_Test_Qwen2:
     needs: [pre-flight, cicd-test-container-build]
@@ -2175,12 +2117,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/qwen2_toy \
-          NEMO_MODEL_TYPE=Qwen2Model \
-          NEMO_MODEL_CONFIG=Qwen2Config500M \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Qwen2.sh
 
   L2_NeMo_2_Conversion_Test_Starcoder:
     needs: [pre-flight, cicd-test-container-build]
@@ -2189,12 +2126,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/starcoder_toy \
-          NEMO_MODEL_TYPE=StarcoderModel \
-          NEMO_MODEL_CONFIG=StarcoderConfig15B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Starcoder.sh
 
   L2_NeMo_2_Conversion_Test_Starcoder2:
     needs: [pre-flight, cicd-test-container-build]
@@ -2203,12 +2135,16 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/starcoder2_toy \
-          NEMO_MODEL_TYPE=Starcoder2Model \
-          NEMO_MODEL_CONFIG=Starcoder2Config15B \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_Starcoder2.sh
+
+  L2_NeMo_2_Conversion_Test_BERT:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_BERT') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test_BERT.sh
 
   Nemo_CICD_Test:
     needs:
@@ -2253,6 +2189,7 @@ jobs:
       - L2_NeMo_2_Conversion_Test_Qwen2
       - L2_NeMo_2_Conversion_Test_Starcoder
       - L2_NeMo_2_Conversion_Test_Starcoder2
+      - L2_NeMo_2_Conversion_Test_BERT
 
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_CitriNet
@@ -2350,6 +2287,8 @@ jobs:
       - L2_NeMo_2_T5_Pretraining
       - L2_NeMo_2_T5_Finetuning
       - L2_NeMo_2_T5_LoRA
+      - L2_NeMo_2_BERT_Pretraining_Megatron
+      - L2_NeMo_2_BERT_Pretraining_HuggingFace
       - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
       - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
       - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
@@ -2581,7 +2520,7 @@ jobs:
           ls -al .
           ls -al coverage-*/
           coverage combine --keep $(ls coverage-*/.coverage)
-          coverage report
+          coverage report -i
           rm -rf coverage-*
           ls -al
 
