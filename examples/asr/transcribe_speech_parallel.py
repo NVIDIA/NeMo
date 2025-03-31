@@ -249,5 +249,6 @@ def main(cfg: ParallelTranscriptionConfig):
 
         print(type(model))
 
+
 if __name__ == '__main__':
     main()

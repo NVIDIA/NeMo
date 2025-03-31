@@ -872,9 +872,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         word_offsets = None
         if timestamp_type in ['word', 'segment', 'all']:
             if text_type == 'char':
-                word_offsets = self._get_word_offsets_chars(char_offsets, 
-                                                            word_delimiter_char=self.word_seperator,
-                                                            supported_punctuation=self.supported_punctuation,)
+                word_offsets = self._get_word_offsets_chars(
+                    char_offsets,
+                    word_delimiter_char=self.word_seperator,
+                    supported_punctuation=self.supported_punctuation,
+                )
             else:
                 # utilize the copy of char offsets with the correct integer ids for tokens
                 # so as to avoid tokenize -> detokenize -> compare -> merge steps.
@@ -1028,9 +1030,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _get_word_offsets_chars(
-        offsets: Dict[str, Union[str, float]], 
-        word_delimiter_char: str = " ", 
-        supported_punctuation: Optional[Set] = None
+        offsets: Dict[str, Union[str, float]],
+        word_delimiter_char: str = " ",
+        supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of character time stamps.
@@ -1063,8 +1065,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     word += char
                 else:
                     next_puntuation = (
-                    supported_punctuation and offsets[i+1]['char'][0] in supported_punctuation
-                    ) if i < len(offsets) - 1 else False
+                        (supported_punctuation and offsets[i + 1]['char'][0] in supported_punctuation)
+                        if i < len(offsets) - 1
+                        else False
+                    )
                     # Switching state
                     if state == "SPACE" and not next_puntuation:
                         # Finishing a word

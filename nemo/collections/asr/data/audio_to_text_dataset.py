@@ -15,10 +15,10 @@
 import copy
 import json
 import random
-import numpy as np
 from math import isclose
 from typing import Any, List, Optional, Union
 
+import numpy as np
 import torch
 from lightning.pytorch import LightningModule
 from lightning.pytorch.callbacks import BasePredictionWriter
@@ -892,8 +892,12 @@ class ASRPredictionWriter(BasePredictionWriter):
                 for timestamp_type, timestamps in hyp.timestamp.items():
                     if timestamp_type in ['char', 'word', 'segment']:
                         item[f'{timestamp_type}_timestamps'] = [
-                            {key: int(value) if isinstance(value, np.int64) else value for key, value in offset.items()}
-                            for offset in timestamps]
+                            {
+                                key: int(value) if isinstance(value, np.int64) else value
+                                for key, value in offset.items()
+                            }
+                            for offset in timestamps
+                        ]
 
             self.outf.write(json.dumps(item) + "\n")
             self.samples_num += 1
