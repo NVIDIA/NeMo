@@ -538,10 +538,10 @@ def fsdp2_strategy_parallelize(
                 "self_attn.q_proj": ColwiseParallel(),
                 "self_attn.k_proj": ColwiseParallel(),
                 "self_attn.v_proj": ColwiseParallel(),
-                "self_attn.o_proj": RowwiseParallel(), # output_layouts=Shard(1)),
+                "self_attn.o_proj": RowwiseParallel(),  # output_layouts=Shard(1)),
                 "mlp.gate_proj": ColwiseParallel(),
                 "mlp.up_proj": ColwiseParallel(),
-                "mlp.down_proj": RowwiseParallel(), # output_layouts=Shard(1)),
+                "mlp.down_proj": RowwiseParallel(),  # output_layouts=Shard(1)),
                 # "input_layernorm": SequenceParallel(),
                 # "post_attention_layernorm": SequenceParallel(),
             }
