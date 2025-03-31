@@ -3,6 +3,23 @@
 <!-- Next changelog -->
 ## NVIDIA Neural Modules 2.2.0
 
+### Detailed Changelogs:
+
+
+</details>
+
+#### Uncategorized:
+
+<details><summary>Changelog</summary>
+
+- Re-add reverted commits after 2.2.0 and set next version to be 2.2.1 by @chtruong814 :: PR: #12587
+- Cherry pick `Fix exporter for llama models with shared embed and output layers (12545)` into `r2.2.0` by @ko3n1g :: PR: #12608
+- Cherry pick `Fix TP for LoRA adapter on `linear_fc1` (12519)` into `r2.2.0` by @ko3n1g :: PR: #12607
+- Bump mcore to use 0.11.1 by @chtruong814 :: PR: #12634
+
+</details>
+## NVIDIA Neural Modules 2.2.0
+
 ### Highlights
 
 - Training
