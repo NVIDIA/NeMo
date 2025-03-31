@@ -108,60 +108,48 @@ jobs:
       SCRIPT: ${{ matrix.script }}
       IS_UNIT_TEST: true
 
-  L0_Unit_Tests_GPU_Core:
+  core-tests:
+    strategy:
+      matrix:
+        include:
+          - script: L0_Unit_Tests_GPU_Core
+            runner: self-hosted-azure-gpus-1
+          - script: L0_Unit_Tests_CPU_Core
+            runner: self-hosted-azure-cpu
+          - script: L0_Unit_Tests_GPU_Hydra
+            runner: self-hosted-azure-gpus-1
+          - script: L0_Unit_Tests_CPU_Hydra
+            runner: self-hosted-azure-cpu
     uses: ./.github/workflows/_test_template.yml
     with:
-      RUNNER: self-hosted-azure-gpus-1
-      TIMEOUT: 20
+      RUNNER: ${{ matrix.runner }}
+      SCRIPT: ${{ matrix.script }}
       IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_GPU_Core
 
-  L0_Unit_Tests_GPU_Hydra:
+  lightning-tests:
+    strategy:
+      matrix:
+        include:
+          - script: L0_Unit_Tests_GPU_Lightning
+            runner: self-hosted-azure-gpus-1
+          - script: L0_Unit_Tests_CPU_Lightning
+            runner: self-hosted-azure-cpu
     uses: ./.github/workflows/_test_template.yml
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: ${{ matrix.runner }}
+      SCRIPT: ${{ matrix.script }}
       IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_GPU_Hydra
 
-  L0_Unit_Tests_GPU_Lightning:
+  other-tests:
+    strategy:
+      matrix:
+        include:
+          - script: L0_Unit_Tests_GPU_Others
+            runner: self-hosted-azure-gpus-1
+          - script: L0_Unit_Tests_CPU_Others
+            runner: self-hosted-azure-cpu
     uses: ./.github/workflows/_test_template.yml
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: ${{ matrix.runner }}
+      SCRIPT: ${{ matrix.script }}
       IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_GPU_Lightning
-
-  L0_Unit_Tests_GPU_Others:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_GPU_Others
-
-  L0_Unit_Tests_CPU_Core:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 20
-      IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_CPU_Core
-
-  L0_Unit_Tests_CPU_Hydra:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-cpu
-      IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_CPU_Hydra
-
-  L0_Unit_Tests_CPU_Lightning:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-cpu
-      IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_CPU_Lightning
-
-  L0_Unit_Tests_CPU_Others:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-cpu
-      IS_UNIT_TEST: true
-      SCRIPT: L0_Unit_Tests_CPU_Others
