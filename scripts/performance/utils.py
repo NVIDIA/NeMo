@@ -189,11 +189,13 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
 
     recompute_layers = config.get("recompute_layers") if args.recompute_layers is None else args.recompute_layers
+    recompute_layers = 0 if recompute_layers is None else int(recompute_layers)
     activation_offload_layers = (
         config.get("activation_offload_layers")
         if args.activation_offload_layers is None
         else args.activation_offload_layers
     )
+    activation_offload_layers = 0 if activation_offload_layers is None else int(activation_offload_layers)
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [
