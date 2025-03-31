@@ -197,7 +197,8 @@ class NeuralDiarizerInferenceConfig(DiarizerComponentConfig):
     def init_config(cls, diar_model_path: str, vad_model_path: str, map_location: str, verbose: bool):
         return NeuralDiarizerInferenceConfig(
             DiarizerConfig(
-                vad=VADConfig(model_path=vad_model_path), msdd_model=MSDDConfig(model_path=diar_model_path),
+                vad=VADConfig(model_path=vad_model_path),
+                msdd_model=MSDDConfig(model_path=diar_model_path),
             ),
             device=map_location,
             verbose=verbose,
