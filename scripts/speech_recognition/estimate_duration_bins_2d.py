@@ -182,7 +182,7 @@ def estimate_duration_buckets(
         print("Duration distribution:")
         print(pd.Series(sizes).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.995, 0.999]))
     if math.isinf(max_duration):
-        max_duration = round(sizes[-1], 3) # Round to 3 decimal places to be consistent for the output format.
+        max_duration = round(sizes[-1], 3)  # Round to 3 decimal places to be consistent for the output format.
 
     bins = []
     tps_thresholds = []
@@ -204,8 +204,8 @@ def estimate_duration_buckets(
         # We empirically determined high TPS examples to cause severe OOMs limiting batch sizes.
         # We cap the TPS for each top-level bucket at 4 standard deviations of TPS.
         # Examples exceeding that TPS value will be discarded during sampling at training time.
-        num_tokens_bucket_all = num_tokens[start_idx : end_idx]
-        sizes_bucket_all = sizes[start_idx : end_idx]
+        num_tokens_bucket_all = num_tokens[start_idx:end_idx]
+        sizes_bucket_all = sizes[start_idx:end_idx]
         non_outlier_indexes = find_non_outliers_z_score(
             num_tokens_bucket_all / sizes_bucket_all, threshold=token_outlier_threshold
         )
@@ -236,7 +236,6 @@ def estimate_duration_buckets(
         bins.append((max_bucket_duration, num_toks))
         tps_thresholds.append(max_tps_bucket)
 
-
     duration_bins = []
 
     # Iterate over data, and whenever we hit size_per_bucket, register it as a new duration bucket.
@@ -253,8 +252,8 @@ def estimate_duration_buckets(
 
     skipped_buckets = 1
     start_idx = 0
-    
-    # Iterate over newly created duration bins to handle cases where some bins have the same value — 
+
+    # Iterate over newly created duration bins to handle cases where some bins have the same value —
     # this usually happens when the data is skewed.
     # If we detect such bins, we skip estimating token buckets for that particular bin.
     # Instead, we keep track of how many bins got skipped because they had the same duration.
@@ -266,26 +265,29 @@ def estimate_duration_buckets(
     # where [20, 40] bucket will have 4 times more subbuckets (as we combined 4 buckets into 1) than usual bucket in that settings.
 
     for i, (duration_bin, bin_idx) in enumerate(zip(duration_bins, bin_indexes[1:])):
-        if (
-        (i != len(duration_bins) - 1 and duration_bins[i + 1] == duration_bin)
-        or (i == len(duration_bins) - 1 and max_duration == duration_bin)
-    ):
+        if (i != len(duration_bins) - 1 and duration_bins[i + 1] == duration_bin) or (
+            i == len(duration_bins) - 1 and max_duration == duration_bin
+        ):
             skipped_buckets += 1
             continue
-        _estimate_token_buckets(max_bucket_duration=duration_bin, 
-                                start_idx=start_idx,
-                                end_idx=binidx,
-                                corr_subbuckets=num_subbuckets * skipped_buckets)
+        _estimate_token_buckets(
+            max_bucket_duration=duration_bin,
+            start_idx=start_idx,
+            end_idx=binidx,
+            corr_subbuckets=num_subbuckets * skipped_buckets,
+        )
         start_idx = bin_idx
         skipped_buckets = 1
 
     # Estimate an extra 2D bin set for global max duration.
     # Also, if the last value in duration_bins is equal to max_duration,
     # we need to make sure we properly handle any previously "skipped" buckets that ended at this max value.
-    _estimate_token_buckets(max_bucket_duration=max_duration, 
-                            start_idx=start_idx,
-                            end_idx=binidx,
-                            corr_subbuckets=num_subbuckets * skipped_buckets)
+    _estimate_token_buckets(
+        max_bucket_duration=max_duration,
+        start_idx=start_idx,
+        end_idx=binidx,
+        corr_subbuckets=num_subbuckets * skipped_buckets,
+    )
     return bins, tps_thresholds
 
 
