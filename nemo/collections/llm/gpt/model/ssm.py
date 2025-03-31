@@ -392,11 +392,7 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
             }
             if "nemotron5" in self.model_config.mapping_type:
                 # This style is a workaround for linting error
-                mapping.update(
-                    {key: key for key in [
-                        'decoder.layers.*.mixer.in_proj.layer_norm_weight'
-                    ]}
-                )
+                mapping.update({key: key for key in ['decoder.layers.*.mixer.in_proj.layer_norm_weight']})
             else:
                 mapping.update(
                     {
@@ -405,14 +401,17 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
                 )
             if "hybrid" in self.model_config.mapping_type:
                 mapping.update(
-                    {key: key for key in [
-                        'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
-                        'decoder.layers.*.mlp.linear_fc1.weight',
-                        'decoder.layers.*.mlp.linear_fc2.weight',
-                        'decoder.layers.*.self_attention.linear_proj.weight',
-                        'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
-                        'decoder.layers.*.self_attention.linear_qkv.weight',
-                    ]}
+                    {
+                        key: key
+                        for key in [
+                            'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
+                            'decoder.layers.*.mlp.linear_fc1.weight',
+                            'decoder.layers.*.mlp.linear_fc2.weight',
+                            'decoder.layers.*.self_attention.linear_proj.weight',
+                            'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
+                            'decoder.layers.*.self_attention.linear_qkv.weight',
+                        ]
+                    }
                 )
         else:
             raise AttributeError(f"mapping type [{self.mapping_type}] not found.")
