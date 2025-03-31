@@ -28,23 +28,31 @@ def test_fused_cross_entropy():
         pytest.skip("This test requires a GPU")
 
     device = torch.device('cuda')
-    batch_size = 32
+    batch_size = 8
+    seq_length = 2048  # Added sequence length dimension
     hidden_dim = 4096
     vocab_size = 128256
     dtype = torch.bfloat16
 
     # Create inputs on GPU
-    hidden_states = torch.randn(batch_size, hidden_dim, dtype=dtype, device=device)
+    hidden_states = torch.randn(batch_size, seq_length, hidden_dim, dtype=dtype, device=device)
     weight = torch.randn(vocab_size, hidden_dim, dtype=dtype, device=device)  # Note: transposed shape
-    targets = torch.randint(0, vocab_size, (batch_size,), device=device)
+    targets = torch.randint(0, vocab_size, (batch_size, seq_length), device=device)
 
     # Measure memory for PyTorch implementation
     torch.cuda.reset_peak_memory_stats()
     with torch.amp.autocast(device_type='cuda', dtype=dtype):
-        logits = torch.matmul(hidden_states, weight.t())  # Use transpose for matmul
-        pytorch_loss = F.cross_entropy(logits, targets, reduction="mean")
+        # Reshape for matmul: [batch_size, seq_length, hidden_dim] -> [batch_size * seq_length, hidden_dim]
+        hidden_states_reshaped = hidden_states.reshape(-1, hidden_dim)
+        logits = torch.matmul(hidden_states_reshaped, weight.t())  # Use transpose for matmul
+        # Reshape targets for loss: [batch_size, seq_length] -> [batch_size * seq_length]
+        targets_reshaped = targets.reshape(-1)
+        pytorch_loss = F.cross_entropy(logits, targets_reshaped, reduction="mean")
     pytorch_memory = torch.cuda.max_memory_allocated()
-    torch.cuda.reset_peak_memory_stats()
+
+    torch.cuda.empty_cache()  # Clear CUDA cache
+    import gc
+    gc.collect() 
 
     # Measure memory for fused implementation
     torch.cuda.reset_peak_memory_stats()
