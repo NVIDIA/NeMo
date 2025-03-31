@@ -23,9 +23,9 @@ from nemo.collections.asr.modules.transformer.transformer_generators import (
     BeamSearchSequenceGeneratorWithNGramLM,
     GreedySequenceGenerator,
 )
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.multitask_beam_decoding import TransformerAEDBeamInfer
 from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import TransformerAEDGreedyInfer
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 
 
