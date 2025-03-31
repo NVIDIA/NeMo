@@ -47,7 +47,7 @@ def make_squad_hf_dataset(tokenizer, micro_batch_size, seq_length, fp8=False):
             context_ids.insert(0, tokenizer.bos_id)
         if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
             answer_ids.append(tokenizer.eos_id)
-        
+
         # Set input and labels, and pad to sequence length.
         combined_query_answer = context_ids + answer_ids
         seq_pad_len_ar = max(0, seq_length - len(combined_query_answer) + 1)
@@ -179,14 +179,25 @@ def main():
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
     parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
-    parser.add_argument('--attn-implementation', type=str, default="sdpa", choices=["flash_attention_2", "sdpa", "eager"], help='Attention implementation to use. Default: sdpa')
+    parser.add_argument(
+        '--attn-implementation',
+        type=str,
+        default="sdpa",
+        choices=["flash_attention_2", "sdpa", "eager"],
+        help='Attention implementation to use. Default: sdpa',
+    )
     parser.add_argument('--enable-grad-ckpt', action='store_true', help='Enables gradient checkpoint')
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
     parser.add_argument('--global-batch-size', default=32, type=int, help='Global batch size to use for training.')
     parser.add_argument('--micro-batch-size', default=1, type=int, help='Micro batch size to use for training.')
-    parser.add_argument('--limit-val-batches', default=0.01, type=float, help='Limit validation batch size to use for training. HFMockDataModule defaults to a validation set of 10,000 samples.')
+    parser.add_argument(
+        '--limit-val-batches',
+        default=0.01,
+        type=float,
+        help='Limit validation batch size to use for training. HFMockDataModule defaults to a validation set of 10,000 samples.',
+    )
     parser.add_argument('--seq-length', default=2048, type=int, help='Sequence length to use for training')
     parser.add_argument(
         '--trust-remote-code',
@@ -195,7 +206,9 @@ def main():
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
     parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate for training.')
-    parser.add_argument('--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.')
+    parser.add_argument(
+        '--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.'
+    )
     parser.add_argument('--mock-dataset', action='store_true', help='Use HFMockDataModule for training.')
 
     args = parser.parse_args()
@@ -266,7 +279,9 @@ def main():
     if args.mock_dataset:
         dataset = HFMockDataModule(seq_length=args.seq_length, micro_batch_size=args.micro_batch_size)
     else:
-        dataset = make_squad_hf_dataset(tokenizer=model.tokenizer, micro_batch_size=args.micro_batch_size, seq_length=args.seq_length, fp8=args.fp8)
+        dataset = make_squad_hf_dataset(
+            tokenizer=model.tokenizer, micro_batch_size=args.micro_batch_size, seq_length=args.seq_length, fp8=args.fp8
+        )
 
     llm.api.finetune(
         model=model,
