@@ -513,12 +513,12 @@ def fsdp2_strategy_parallelize(
         print(f"Parallelizing model: {model}")
         plan = {
             "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
-            "model.output": ColwiseParallel(output_layouts=Replicate(), use_local_output=False),
+            "model.output": ColwiseParallel(output_layouts=Replicate()),
             # "model.norm": SequenceParallel(),
             "lm_head": ColwiseParallel(output_layouts=Replicate()),
             # "model.model.layers.0": PrepareModuleInput(
-            #     input_layouts=(Replicate()),
-            #     desired_input_layouts=(Shard(1)),
+            #     input_layouts=Replicate(),
+            #     desired_input_layouts=Replicate(),
             #     use_local_output=True,
             # ), # This will shard the input to the first transformer block
         }
@@ -528,12 +528,12 @@ def fsdp2_strategy_parallelize(
         for transformer_block in model.model.layers:
             plan = {
                 # "self_attn": PrepareModuleInput(
-                #     input_layouts=(Shard(1)),
-                #     desired_input_layouts=(Replicate()),
+                #     input_layouts=Shard(1),
+                #     desired_input_layouts=Replicate(),
                 # ),
                 # "mlp": PrepareModuleInput(
-                #     input_layouts=(Shard(1)),
-                #     desired_input_layouts=(Replicate()),
+                #     input_layouts=Shard(1),
+                #     desired_input_layouts=Replicate(),
                 # ),
                 "self_attn.q_proj": ColwiseParallel(),
                 "self_attn.k_proj": ColwiseParallel(),
