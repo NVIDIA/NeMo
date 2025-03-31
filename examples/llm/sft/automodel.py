@@ -158,9 +158,14 @@ def main():
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
     parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
-    parser.add_argument('--packed-sequence-size', type=int, default=-1, help='If a positive integer, this arg'
-    'enables training with sequence packing and specifies the pack size. If less than or equal to 0, sequence '
-    'packing is disabled.')
+    parser.add_argument(
+        '--packed-sequence-size',
+        type=int,
+        default=-1,
+        help='If a positive integer, this arg'
+        'enables training with sequence packing and specifies the pack size. If less than or equal to 0, sequence '
+        'packing is disabled.',
+    )
     args = parser.parse_args()
     # CPUOffload WA for known issue
     if args.enable_cpu_offload and args.use_te_optimizer:
@@ -215,7 +220,12 @@ def main():
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer, args.batch_size, args.packed_sequence_size, args.fp8,),
+        data=make_squad_hf_dataset(
+            model.tokenizer,
+            args.batch_size,
+            args.packed_sequence_size,
+            args.fp8,
+        ),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
