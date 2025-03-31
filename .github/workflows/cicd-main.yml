@@ -876,7 +876,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner1-h100
       SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2:
@@ -925,7 +925,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2_fp8') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner1-h100
       SCRIPT: L2_HF_Transformer_SFT_2gpu_FSDP2_fp8
 
   L2_HF_Transformer_SFT_2gpu_nemorun:
