@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import time
+import inspect
 
 import _io
 import lightning.pytorch as pl
@@ -26,7 +27,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
+from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, USE_LINEAR_LOSS_CE
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -213,16 +214,22 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model_transform(self)
             self.model_transform.__num_calls__ = 0
 
-    def forward(self, batch):
+    def forward(self, batch, num_logits_to_keep=0):
         """
         Perform a forward pass of the model.
 
         Args:
             batch (dict): A dictionary of inputs that the model expects.
-
+            num_logits_to_keep (int, optional): The number of logits to keep. 0 means all logits are kept.
         Returns:
             ModelOutput: The output of the underlying Hugging Face model.
         """
+        # Check if num_logits_to_keep parameter exists in model's forward method
+        model_forward_params = inspect.signature(self.model.forward).parameters
+        if 'num_logits_to_keep' in model_forward_params:
+            return self.model(**batch, num_logits_to_keep=num_logits_to_keep)
+        if 'logits_to_keep' in model_forward_params:
+            return self.model(**batch, logits_to_keep=num_logits_to_keep)
         return self.model(**batch)
 
     def training_step(self, batch, batch_idx=None):
@@ -255,13 +262,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if 'input_ids' not in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
-        batch["output_hidden_states"] = True if HAVE_LINEAR_LOSS_CE else False  # Enable hidden states output
+        batch["output_hidden_states"] = (
+            True if USE_LINEAR_LOSS_CE else False
+        )  # Enable hidden states output
 
-
-        outputs = self.forward(batch)
-
-        if not HAVE_LINEAR_LOSS_CE:
-        # Prepare for loss calculation
+        if not USE_LINEAR_LOSS_CE:
+            outputs = self.forward(batch)
+            # Prepare for loss calculation
             logits = outputs.logits
             n_cls = logits.shape[-1]
             logits = logits.view(-1, n_cls)
@@ -269,7 +276,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
             loss = self.loss_fn(logits, labels, loss_mask)
         else:
-            # use linear_cross_entropy
+            # use num_logits_to_keep=1 to avoid full logits matrix in memory
+            outputs = self.forward(batch, num_logits_to_keep=1)
             hidden_states = outputs.hidden_states[-1]
             lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
             labels = labels
@@ -483,8 +491,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Returns:
             dict: dictionary of tensors; keys that are not in model's forward are removed.
         """
-        import inspect
-
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
         return {k: batch[k] for k in allowed_keys if k in batch}
