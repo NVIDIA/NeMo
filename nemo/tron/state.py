@@ -197,7 +197,7 @@ class GlobalState:
     def _set_signal_handler(self):
         cfg = self._cfg
         assert cfg is not None, "ConfigContainer must be set before initializing signal handler"
-        sig = cfg.train_config.exit_preemption_signal
+        sig = cfg.train_config.exit_signal
         self._signal_handler = DistributedSignalHandler(sig).__enter__()
 
 

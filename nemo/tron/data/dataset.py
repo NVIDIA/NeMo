@@ -158,7 +158,7 @@ def build_train_valid_test_data_loaders(
         cfg=cfg, build_train_valid_test_datasets_provider=build_train_valid_test_datasets_provider
     )
 
-    sig = cfg.train_config.exit_preemption_signal
+    sig = cfg.train_config.exit_signal
 
     def worker_init_fn(_):
         DistributedSignalHandler(sig).__enter__()
