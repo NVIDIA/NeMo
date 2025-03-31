@@ -35,11 +35,6 @@ from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 
 RNNT_MODEL="stt_en_conformer_transducer_small"
 TDT_MODEL="nvidia/parakeet-tdt_ctc-110m"
-
-@lru_cache(maxsize=4)
-def get_model(model_name: str, device: torch.device = torch.device("cpu")):
-    return ASRModel.from_pretrained(model_name, map_location=device)
-
 DEVICES = [torch.device("cpu")]
 
 if torch.cuda.is_available():
@@ -52,20 +47,16 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 @pytest.fixture()
 def test_audio_filenames(test_data_dir):
     return tuple(glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav")))
+    
+@lru_cache(maxsize=4)
+def get_model(model_name: str, device: torch.device = torch.device("cpu")):
+    return ASRModel.from_pretrained(model_name, map_location=device)
 
-@pytest.fixture()
-def rnnt_model():
-    return ASRModel.from_pretrained(RNNT_MODEL, map_location="cpu")
-    
-@pytest.fixture()
-def tdt_model():
-    return ASRModel.from_pretrained(TDT_MODEL, map_location="cpu")
-    
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=4)
 def get_model_encoder_output(
     test_audio_filenames,
     num_samples: int,
-    model: ASRModel,
+    model_name: ASRModel,
     device: torch.device = torch.device("cpu"),
     dtype: torch.dtype = torch.float32,
 ):
@@ -84,7 +75,7 @@ def get_model_encoder_output(
         }
 
         with torch.no_grad():
-            model = model.to(device)
+            model = get_model(model_name, device)
             model.preprocessor.featurizer.dither = 0.0
             model.preprocessor.featurizer.pad_to = 0
             model.eval()
@@ -116,295 +107,295 @@ def decode_text_from_nbest_hypotheses(hyps, decoding):
 
 
 class TestRNNTDecoding:
-    # @pytest.mark.skipif(
-    #     not NUMBA_RNNT_LOSS_AVAILABLE,
-    #     reason='RNNTLoss has not been compiled with appropriate numba version.',
-    # )
-    # @pytest.mark.with_downloads
-    # @pytest.mark.unit
-    # @pytest.mark.parametrize("device", DEVICES)
-    # @pytest.mark.parametrize(
-    #     "beam_config",
-    #     [
-    #         {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-    #         {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-    #         {"search_type": "maes_batch", "allow_cuda_graphs": False},
-    #     ],
-    # )
-    # @pytest.mark.parametrize("batch_size", [4, 16])
-    # @pytest.mark.parametrize("beam_size", [2, 4])
-    # def test_rnnt_beam_decoding_return_best_hypothesis(
-    #     self, test_audio_filenames, rnnt_model, beam_config, device, batch_size, beam_size
-    # ):
-    #     num_samples = min(batch_size, len(test_audio_filenames))
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
+            {"search_type": "maes_batch", "allow_cuda_graphs": False},
+        ],
+    )
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("beam_size", [2, 4])
+    def test_rnnt_beam_decoding_return_best_hypothesis(
+        self, test_audio_filenames, beam_config, device, batch_size, beam_size
+    ):
+        num_samples = min(batch_size, len(test_audio_filenames))
 
-    #     model, encoder_output, encoded_lengths = get_model_encoder_output(
-    #         test_audio_filenames, num_samples, rnnt_model, device, dtype=torch.float32
-    #     )
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_audio_filenames, num_samples, RNNT_MODEL, device, dtype=torch.float32
+        )
 
-    #     vocab_size = model.tokenizer.vocab_size
-    #     decoding = BeamBatchedInfer(
-    #         model.decoder,
-    #         model.joint,
-    #         blank_index=vocab_size,
-    #         beam_size=beam_size,
-    #         score_norm=True,
-    #         return_best_hypothesis=True,
-    #         **beam_config,
-    #     )
+        vocab_size = model.tokenizer.vocab_size
+        decoding = BeamBatchedInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            **beam_config,
+        )
 
-    #     with torch.no_grad():
-    #         hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-    #         assert type(hyps) == list
-    #         assert type(hyps[0]) == rnnt_utils.Hypothesis
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
 
-    #         assert len(hyps) == num_samples
-    #         assert hasattr(hyps[0], "y_sequence")
-    #         assert hasattr(hyps[0], "score")
-    #         assert hasattr(hyps[0], "timestamp")
+            assert len(hyps) == num_samples
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
 
-    #         assert len(hyps[0].y_sequence) > 0
-    #         assert len(hyps[0].timestamp) > 0
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
 
-    #         hyps = decode_text_from_hypotheses(hyps, model.decoding)
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
 
-    #         print()
+            print()
 
-    #         print(
-    #             f"""Beam search algorithm: {beam_config['search_type']},
-    #                 beam size: {beam_size},
-    #                 Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
-    #         )
-    #         for hyp_idx, hyp in enumerate(hyps):
-    #             print("Sample: ", hyp_idx)
-    #             print("Decoded text: ", hyp.text)
-    #             print("Score: ", hyp.score)
-    #             print("Transcript", hyp.y_sequence)
-    #             print("Timesteps", hyp.timestamp)
-    #             print()
+            print(
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
+            )
+            for hyp_idx, hyp in enumerate(hyps):
+                print("Sample: ", hyp_idx)
+                print("Decoded text: ", hyp.text)
+                print("Score: ", hyp.score)
+                print("Transcript", hyp.y_sequence)
+                print("Timesteps", hyp.timestamp)
+                print()
 
-    # @pytest.mark.skipif(
-    #     not NUMBA_RNNT_LOSS_AVAILABLE,
-    #     reason='RNNTLoss has not been compiled with appropriate numba version.',
-    # )
-    # @pytest.mark.with_downloads
-    # @pytest.mark.unit
-    # @pytest.mark.parametrize("device", DEVICES)
-    # @pytest.mark.parametrize(
-    #     "beam_config",
-    #     [
-    #         {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-    #         {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-    #         {"search_type": "maes_batch", "allow_cuda_graphs": False},
-    #     ],
-    # )
-    # @pytest.mark.parametrize("batch_size", [4, 16])
-    # @pytest.mark.parametrize("beam_size", [2, 4])
-    # def test_rnnt_beam_decoding_return_nbest(self, test_audio_filenames, rnnt_model, beam_config, device, beam_size, batch_size):
-    #     num_samples = min(batch_size, len(test_audio_filenames))
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
+            {"search_type": "maes_batch", "allow_cuda_graphs": False},
+        ],
+    )
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("beam_size", [2, 4])
+    def test_rnnt_beam_decoding_return_nbest(self, test_audio_filenames, beam_config, device, beam_size, batch_size):
+        num_samples = min(batch_size, len(test_audio_filenames))
 
-    #     model, encoder_output, encoded_lengths = get_model_encoder_output(
-    #         test_audio_filenames, num_samples, rnnt_model, device, dtype=torch.float32
-    #     )
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_audio_filenames, num_samples, RNNT_MODEL, device, dtype=torch.float32
+        )
 
-    #     vocab_size = model.tokenizer.vocab_size
-    #     decoding = BeamBatchedInfer(
-    #         model.decoder,
-    #         model.joint,
-    #         blank_index=vocab_size,
-    #         beam_size=beam_size,
-    #         score_norm=True,
-    #         return_best_hypothesis=False,
-    #         **beam_config,
-    #     )
+        vocab_size = model.tokenizer.vocab_size
+        decoding = BeamBatchedInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=False,
+            **beam_config,
+        )
 
-    #     with torch.no_grad():
-    #         batch_nbest_hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-    #         assert type(batch_nbest_hyps) == list
-    #         assert type(batch_nbest_hyps[0]) == rnnt_utils.NBestHypotheses
+        with torch.no_grad():
+            batch_nbest_hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(batch_nbest_hyps) == list
+            assert type(batch_nbest_hyps[0]) == rnnt_utils.NBestHypotheses
 
-    #         assert len(batch_nbest_hyps) == num_samples
+            assert len(batch_nbest_hyps) == num_samples
 
-    #         assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "y_sequence")
-    #         assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "score")
-    #         assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "timestamp")
+            assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "y_sequence")
+            assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "score")
+            assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "timestamp")
 
-    #         assert len(batch_nbest_hyps[0].n_best_hypotheses[0].y_sequence) > 0
-    #         assert len(batch_nbest_hyps[0].n_best_hypotheses[0].timestamp) > 0
+            assert len(batch_nbest_hyps[0].n_best_hypotheses[0].y_sequence) > 0
+            assert len(batch_nbest_hyps[0].n_best_hypotheses[0].timestamp) > 0
 
-    #         batch_nbest_hyps = decode_text_from_nbest_hypotheses(batch_nbest_hyps, model.decoding)
+            batch_nbest_hyps = decode_text_from_nbest_hypotheses(batch_nbest_hyps, model.decoding)
 
-    #         print()
-    #         print(f"Decoding device: {encoder_output.device}")
-    #         print(
-    #             f"""Beam search algorithm: {beam_config['search_type']},
-    #                 beam size: {beam_size},
-    #                 Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
-    #         )
-    #         for batch_idx, nbest_hyps in enumerate(batch_nbest_hyps):
-    #             print(f"Batch idx: {batch_idx}")
-    #             for idx, hyp in enumerate(nbest_hyps):
-    #                 print(f"Hyp index: {idx + 1}")
-    #                 print("Text: ", hyp.text)
-    #                 print("Score: ", hyp.score)
+            print()
+            print(f"Decoding device: {encoder_output.device}")
+            print(
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
+            )
+            for batch_idx, nbest_hyps in enumerate(batch_nbest_hyps):
+                print(f"Batch idx: {batch_idx}")
+                for idx, hyp in enumerate(nbest_hyps):
+                    print(f"Hyp index: {idx + 1}")
+                    print("Text: ", hyp.text)
+                    print("Score: ", hyp.score)
 
-    #                 assert len(hyp.timestamp) > 0
-    #                 print("Transcripts: ", hyp.y_sequence)
-    #                 print("Timesteps: ", hyp.timestamp)
-    #                 print()
+                    assert len(hyp.timestamp) > 0
+                    print("Transcripts: ", hyp.y_sequence)
+                    print("Timesteps: ", hyp.timestamp)
+                    print()
 
-    #         print()
+            print()
 
-    # @pytest.mark.skipif(
-    #     not NUMBA_RNNT_LOSS_AVAILABLE,
-    #     reason='RNNTLoss has not been compiled with appropriate numba version.',
-    # )
-    # @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
-    # @pytest.mark.with_downloads
-    # @pytest.mark.unit
-    # @pytest.mark.parametrize("device", DEVICES)
-    # @pytest.mark.parametrize(
-    #     "beam_config",
-    #     [
-    #         {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
-    #         {"search_type": "maes_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
-    #         {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3},
-    #     ],
-    # )
-    # @pytest.mark.parametrize("batch_size", [4])
-    # @pytest.mark.parametrize("beam_size", [4])
-    # @pytest.mark.parametrize("pruning_mode", ["late", "early"])
-    # @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
-    # def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, rnnt_model, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
-    #     kenlm_model_path = os.path.join(
-    #         test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-    #     )
-    #     beam_config["ngram_lm_model"] = kenlm_model_path
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
+            {"search_type": "maes_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3},
+        ],
+    )
+    @pytest.mark.parametrize("batch_size", [4])
+    @pytest.mark.parametrize("beam_size", [4])
+    @pytest.mark.parametrize("pruning_mode", ["late", "early"])
+    @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
+    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+        kenlm_model_path = os.path.join(
+            test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        )
+        beam_config["ngram_lm_model"] = kenlm_model_path
 
-    #     num_samples = min(batch_size, len(test_audio_filenames))
+        num_samples = min(batch_size, len(test_audio_filenames))
 
-    #     model, encoder_output, encoded_lengths = get_model_encoder_output(
-    #         test_audio_filenames, num_samples, rnnt_model, device, dtype=torch.float32
-    #     )
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_audio_filenames, num_samples, RNNT_MODEL, device, dtype=torch.float32
+        )
 
-    #     vocab_size = model.tokenizer.vocab_size
-    #     decoding = BeamBatchedInfer(
-    #         model.decoder,
-    #         model.joint,
-    #         blank_index=vocab_size,
-    #         beam_size=beam_size,
-    #         score_norm=True,
-    #         return_best_hypothesis=True,
-    #         pruning_mode=pruning_mode, 
-    #         blank_lm_score_mode=blank_lm_score_mode,
-    #         **beam_config,
-    #     )
+        vocab_size = model.tokenizer.vocab_size
+        decoding = BeamBatchedInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            pruning_mode=pruning_mode, 
+            blank_lm_score_mode=blank_lm_score_mode,
+            **beam_config,
+        )
 
-    #     with torch.no_grad():
-    #         hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-    #         assert type(hyps) == list
-    #         assert type(hyps[0]) == rnnt_utils.Hypothesis
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
 
-    #         assert len(hyps) == num_samples
-    #         assert hasattr(hyps[0], "y_sequence")
-    #         assert hasattr(hyps[0], "score")
-    #         assert hasattr(hyps[0], "timestamp")
+            assert len(hyps) == num_samples
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
 
-    #         assert len(hyps[0].y_sequence) > 0
-    #         assert len(hyps[0].timestamp) > 0
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
 
-    #         hyps = decode_text_from_hypotheses(hyps, model.decoding)
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
 
-    #         print()
+            print()
 
-    #         print(
-    #             f"""Beam search algorithm: {beam_config['search_type']},
-    #                 beam size: {beam_size},
-    #                 Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
-    #         )
-    #         for hyp_idx, hyp in enumerate(hyps):
-    #             print("Sample: ", hyp_idx)
-    #             print("Decoded text: ", hyp.text)
-    #             print("Score: ", hyp.score)
-    #             print("Transcript", hyp.y_sequence)
-    #             print("Timesteps", hyp.timestamp)
-    #             print()
+            print(
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
+            )
+            for hyp_idx, hyp in enumerate(hyps):
+                print("Sample: ", hyp_idx)
+                print("Decoded text: ", hyp.text)
+                print("Score: ", hyp.score)
+                print("Transcript", hyp.y_sequence)
+                print("Timesteps", hyp.timestamp)
+                print()
 
-    # @pytest.mark.skipif(
-    #     not NUMBA_RNNT_LOSS_AVAILABLE,
-    #     reason='RNNTLoss has not been compiled with appropriate numba version.',
-    # )
-    # @pytest.mark.unit
-    # @pytest.mark.with_downloads
-    # @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    # @pytest.mark.parametrize("batch_size", [4, 16])
-    # @pytest.mark.parametrize("beam_size", [4, 8])
-    # def test_cuda_graph_rnnt_batched_alsd_decoder(self, test_audio_filenames, rnnt_model, batch_size, beam_size):
-    #     # Set device to CUDA
-    #     device = torch.device("cuda")
-    #     rnnt_model.to(device)
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.unit
+    @pytest.mark.with_downloads
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("beam_size", [4, 8])
+    def test_cuda_graph_rnnt_batched_alsd_decoder(self, test_audio_filenames, batch_size, beam_size):
+        # Set device to CUDA
+        device = torch.device("cuda")
+        model = get_model(RNNT_MODEL, device=device)
 
-    #     # Modify decoding config
-    #     decoding_config = copy.deepcopy(rnnt_model.cfg.decoding)
-    #     with open_dict(decoding_config):
-    #         decoding_config["strategy"] = "malsd_batch"
-    #         decoding_config["beam"]["beam_size"] = beam_size
-    #         decoding_config["beam"]["allow_cuda_graphs"] = False
-    #         decoding_config["beam"]["return_best_hypothesis"] = False
+        # Modify decoding config
+        decoding_config = copy.deepcopy(model.cfg.decoding)
+        with open_dict(decoding_config):
+            decoding_config["strategy"] = "malsd_batch"
+            decoding_config["beam"]["beam_size"] = beam_size
+            decoding_config["beam"]["allow_cuda_graphs"] = False
+            decoding_config["beam"]["return_best_hypothesis"] = False
 
-    #     # Change decoding strategy
-    #     rnnt_model.change_decoding_strategy(decoding_config)
+        # Change decoding strategy
+        model.change_decoding_strategy(decoding_config)
 
-    #     # Transcribe without CUDA graphs
-    #     actual_hypotheses = rnnt_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-    #     actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
-    #     actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
-    #     actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        # Transcribe without CUDA graphs
+        actual_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
 
-    #     # Re-enable CUDA graphs
-    #     decoding_config["beam"]["allow_cuda_graphs"] = True
-    #     rnnt_model.change_decoding_strategy(decoding_config)
+        # Re-enable CUDA graphs
+        decoding_config["beam"]["allow_cuda_graphs"] = True
+        model.change_decoding_strategy(decoding_config)
 
-    #     # Transcribe with CUDA graphs
-    #     cudagraph_hypotheses = rnnt_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-    #     cudagraph_transcripts = [[hyp.text for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-    #     cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-    #     cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+        # Transcribe with CUDA graphs
+        cudagraph_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        cudagraph_transcripts = [[hyp.text for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+        cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+        cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
 
-    #     for batch_idx in range(min(batch_size, len(test_audio_filenames))):
-    #         assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
-    #         assert cudagraph_scores[batch_idx] == pytest.approx(
-    #             actual_scores[batch_idx], abs=1e-2
-    #         ), f"Scores mismatch for batch_idx {batch_idx}"
-    #         assert (
-    #             cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
-    #         ), f"Timestamps mismatch for batch_idx {batch_idx}"
+        for batch_idx in range(min(batch_size, len(test_audio_filenames))):
+            assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
+            assert cudagraph_scores[batch_idx] == pytest.approx(
+                actual_scores[batch_idx], abs=1e-2
+            ), f"Scores mismatch for batch_idx {batch_idx}"
+            assert (
+                cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
+            ), f"Timestamps mismatch for batch_idx {batch_idx}"
 
-    #         # Calculate WER (Word Error Rate)
-    #         wer_value = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
+            # Calculate WER (Word Error Rate)
+            wer_value = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
 
-    #         # Assert WER is within tolerance
-    #         assert wer_value <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
+            # Assert WER is within tolerance
+            assert wer_value <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
 
-    #         # Print erroneous samples if WER is high
-    #         for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
-    #             if actual != fast:
-    #                 print("Erroneous samples in batch:", batch_idx)
-    #                 print("Original transcript:", actual)
-    #                 print("New transcript:", fast)
+            # Print erroneous samples if WER is high
+            for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
+                if actual != fast:
+                    print("Erroneous samples in batch:", batch_idx)
+                    print("Original transcript:", actual)
+                    print("New transcript:", fast)
 
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-    def test_stated_stateless(self, test_audio_filenames, rnnt_model, force_mode: str):
+    def test_stated_stateless(self, test_audio_filenames, force_mode: str):
         '''Compares stated and stateless implementations'''
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
         batch_size = 16
         device = torch.device("cuda")
-        rnnt_model.to(device)
-        decoding_config = copy.deepcopy(rnnt_model.cfg.decoding)
+        model = get_model(RNNT_MODEL, device)
+        decoding_config = copy.deepcopy(model.cfg.decoding)
 
         with open_dict(decoding_config):
             decoding_config["strategy"] = "malsd_batch"
@@ -412,19 +403,19 @@ class TestRNNTDecoding:
             decoding_config["beam"]["return_best_hypotheses"] = False
             decoding_config["beam"]["allow_cuda_graphs"] = False
 
-        rnnt_model.change_decoding_strategy(decoding_config)
+        model.change_decoding_strategy(decoding_config)
 
-        actual_hypotheses = rnnt_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        actual_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
         actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
         actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
         actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
 
         # transcribe with use implementation with cuda graphs
         decoding_config["beam"]["allow_cuda_graphs"] = True
-        rnnt_model.change_decoding_strategy(decoding_config)
-        rnnt_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+        model.change_decoding_strategy(decoding_config)
+        model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
-        cudagraph_hypotheses = rnnt_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        cudagraph_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
         cudagraph_transcripts = [[hyp.text for hyp in cudagraphs_beam] for cudagraphs_beam in cudagraph_hypotheses]
         cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
         cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
@@ -451,7 +442,7 @@ class TestRNNTDecoding:
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-    def test_stated_stateless(self, test_audio_filenames, rnnt_model, force_mode: str):
+    def test_stated_stateless(self, test_audio_filenames, force_mode: str):
         '''Compares stated and stateless implementations with bfloat16''' 
         # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
         if force_mode == "full_graph":
@@ -459,8 +450,8 @@ class TestRNNTDecoding:
 
         batch_size = 16
         device = torch.device("cuda")
-        rnnt_model.to(device)
-        decoding_config = copy.deepcopy(rnnt_model.cfg.decoding)
+        model = get_model(RNNT_MODEL, device=device)
+        decoding_config = copy.deepcopy(model.cfg.decoding)
 
         with open_dict(decoding_config):
             decoding_config["strategy"] = "malsd_batch"
@@ -468,333 +459,329 @@ class TestRNNTDecoding:
             decoding_config["beam"]["return_best_hypotheses"] = False
             decoding_config["beam"]["allow_cuda_graphs"] = False
 
-        rnnt_model.change_decoding_strategy(decoding_config)
+        model.change_decoding_strategy(decoding_config)
 
         with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-            rnnt_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+            model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
 
         # transcribe with use implementation with cuda graphs
         decoding_config["beam"]["allow_cuda_graphs"] = True
-        rnnt_model.change_decoding_strategy(decoding_config)
-        rnnt_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+        model.change_decoding_strategy(decoding_config)
+        model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
         with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-            rnnt_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+            model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
 
 
-# class TestTDTDecoding:
-#     @pytest.mark.skipif(
-#         not NUMBA_RNNT_LOSS_AVAILABLE,
-#         reason='RNNTLoss has not been compiled with appropriate numba version.',
-#     )
-#     @pytest.mark.with_downloads
-#     @pytest.mark.unit
-#     @pytest.mark.parametrize("device", DEVICES)
-#     @pytest.mark.parametrize(
-#         "beam_config",
-#         [
-#             {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-#             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-#         ],
-#     )
-#     @pytest.mark.parametrize("batch_size", [4, 16])
-#     @pytest.mark.parametrize("beam_size", [2, 4])
-#     def test_rnnt_beam_decoding_return_best_hypothesis(
-#         self, test_data_dir, beam_config, device, batch_size, beam_size
-#     ):
-#         audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
-#         batch_size = min(batch_size, len(audio_filepaths))
+class TestTDTDecoding:
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
+        ],
+    )
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("beam_size", [2, 4])
+    def test_rnnt_beam_decoding_return_best_hypothesis(
+        self, test_audio_filenames, beam_config, device, batch_size, beam_size
+    ):
+        num_samples = min(batch_size, len(test_audio_filenames))
 
-#         model, encoder_output, encoded_lengths = get_model_encoder_output(
-#             tuple(audio_filepaths[:batch_size]), 'nvidia/parakeet-tdt_ctc-110m', device, dtype=torch.float32
-#         )
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_audio_filenames, num_samples, TDT_MODEL, device, dtype=torch.float32
+        )
 
-#         model_config = model.to_config_dict()
-#         durations = list(model_config["model_defaults"]["tdt_durations"])
+        model_config = model.to_config_dict()
+        durations = list(model_config["model_defaults"]["tdt_durations"])
 
-#         vocab_size = model.tokenizer.vocab_size
-#         decoding = BeamBatchedTDTInfer(
-#             model.decoder,
-#             model.joint,
-#             blank_index=vocab_size,
-#             durations=durations,
-#             beam_size=beam_size,
-#             score_norm=True,
-#             return_best_hypothesis=True,
-#             **beam_config,
-#         )
+        vocab_size = model.tokenizer.vocab_size
+        decoding = BeamBatchedTDTInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            durations=durations,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            **beam_config,
+        )
 
-#         with torch.no_grad():
-#             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-#             assert type(hyps) == list
-#             assert type(hyps[0]) == rnnt_utils.Hypothesis
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
 
-#             assert len(hyps) == batch_size
-#             assert hasattr(hyps[0], "y_sequence")
-#             assert hasattr(hyps[0], "score")
-#             assert hasattr(hyps[0], "timestamp")
+            assert len(hyps) == num_samples
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
 
-#             assert len(hyps[0].y_sequence) > 0
-#             assert len(hyps[0].timestamp) > 0
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
 
-#             hyps = decode_text_from_hypotheses(hyps, model.decoding)
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
 
-#             print()
+            print()
 
-#             print(
-#                 f"""Beam search algorithm: {beam_config['search_type']},
-#                     beam size: {beam_size},
-#                     Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
-#             )
-#             for hyp_idx, hyp in enumerate(hyps):
-#                 print("Sample: ", hyp_idx)
-#                 print("Decoded text: ", hyp.text)
-#                 print("Score: ", hyp.score)
-#                 print("Transcript", hyp.y_sequence)
-#                 print("Timesteps", hyp.timestamp)
-#                 print()
+            print(
+                f"""Beam search algorithm: {beam_config['search_type']},
+                    beam size: {beam_size},
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"""
+            )
+            for hyp_idx, hyp in enumerate(hyps):
+                print("Sample: ", hyp_idx)
+                print("Decoded text: ", hyp.text)
+                print("Score: ", hyp.score)
+                print("Transcript", hyp.y_sequence)
+                print("Timesteps", hyp.timestamp)
+                print()
 
-#     @pytest.mark.skipif(
-#         not NUMBA_RNNT_LOSS_AVAILABLE,
-#         reason='RNNTLoss has not been compiled with appropriate numba version.',
-#     )
-#     @pytest.mark.with_downloads
-#     @pytest.mark.unit
-#     @pytest.mark.parametrize("device", DEVICES)
-#     @pytest.mark.parametrize(
-#         "beam_config",
-#         [
-#             {"search_type": "malsd_batch", "allow_cuda_graphs": False},
-#             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
-#         ],
-#     )
-#     @pytest.mark.parametrize("batch_size", [4, 16])
-#     @pytest.mark.parametrize("beam_size", [2, 4])
-#     def test_rnnt_beam_decoding_return_nbest(self, test_data_dir, beam_config, device, beam_size, batch_size):
-#         audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
-#         batch_size = min(batch_size, len(audio_filepaths))
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
+        ],
+    )
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("beam_size", [2, 4])
+    def test_rnnt_beam_decoding_return_nbest(self, test_audio_filenames, beam_config, device, beam_size, batch_size):
+        num_samples = min(batch_size, len(test_audio_filenames))
 
-#         model, encoder_output, encoded_lengths = get_model_encoder_output(
-#             tuple(audio_filepaths[:batch_size]), 'nvidia/parakeet-tdt_ctc-110m', device, dtype=torch.float32
-#         )
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_audio_filenames, num_samples, TDT_MODEL, device, dtype=torch.float32
+        )
 
-#         model_config = model.to_config_dict()
-#         durations = list(model_config["model_defaults"]["tdt_durations"])
+        model_config = model.to_config_dict()
+        durations = list(model_config["model_defaults"]["tdt_durations"])
 
-#         vocab_size = model.tokenizer.vocab_size
-#         decoding = BeamBatchedTDTInfer(
-#             model.decoder,
-#             model.joint,
-#             blank_index=vocab_size,
-#             durations=durations,
-#             beam_size=beam_size,
-#             score_norm=True,
-#             return_best_hypothesis=False,
-#             **beam_config,
-#         )
+        vocab_size = model.tokenizer.vocab_size
+        decoding = BeamBatchedTDTInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            durations=durations,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=False,
+            **beam_config,
+        )
 
-#         with torch.no_grad():
-#             batch_nbest_hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-#             assert type(batch_nbest_hyps) == list
-#             assert type(batch_nbest_hyps[0]) == rnnt_utils.NBestHypotheses
+        with torch.no_grad():
+            batch_nbest_hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(batch_nbest_hyps) == list
+            assert type(batch_nbest_hyps[0]) == rnnt_utils.NBestHypotheses
 
-#             assert len(batch_nbest_hyps) == batch_size
+            assert len(batch_nbest_hyps) == num_samples
 
-#             assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "y_sequence")
-#             assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "score")
-#             assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "timestamp")
+            assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "y_sequence")
+            assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "score")
+            assert hasattr(batch_nbest_hyps[0].n_best_hypotheses[0], "timestamp")
 
-#             assert len(batch_nbest_hyps[0].n_best_hypotheses[0].y_sequence) > 0
-#             assert len(batch_nbest_hyps[0].n_best_hypotheses[0].timestamp) > 0
+            assert len(batch_nbest_hyps[0].n_best_hypotheses[0].y_sequence) > 0
+            assert len(batch_nbest_hyps[0].n_best_hypotheses[0].timestamp) > 0
 
-#             batch_nbest_hyps = decode_text_from_nbest_hypotheses(batch_nbest_hyps, model.decoding)
+            batch_nbest_hyps = decode_text_from_nbest_hypotheses(batch_nbest_hyps, model.decoding)
 
-#             print()
-#             print(f"Decoding device: {encoder_output.device}")
-#             print(
-#                 f"Beam search algorithm : {beam_config['search_type']}, \
-#                     beam size: {beam_size}, \
-#                     Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
-#             )
-#             for batch_idx, nbest_hyps in enumerate(batch_nbest_hyps):
-#                 print(f"Batch idx: {batch_idx}")
-#                 for idx, hyp in enumerate(nbest_hyps):
-#                     print(f"Hyp index: {idx + 1}")
-#                     print("Text: ", hyp.text)
-#                     print("Score: ", hyp.score)
+            print()
+            print(f"Decoding device: {encoder_output.device}")
+            print(
+                f"Beam search algorithm : {beam_config['search_type']}, \
+                    beam size: {beam_size}, \
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+            )
+            for batch_idx, nbest_hyps in enumerate(batch_nbest_hyps):
+                print(f"Batch idx: {batch_idx}")
+                for idx, hyp in enumerate(nbest_hyps):
+                    print(f"Hyp index: {idx + 1}")
+                    print("Text: ", hyp.text)
+                    print("Score: ", hyp.score)
 
-#                     assert len(hyp.timestamp) > 0
-#                     print("Transcripts: ", hyp.y_sequence)
-#                     print("Timesteps: ", hyp.timestamp)
-#                     print()
+                    assert len(hyp.timestamp) > 0
+                    print("Transcripts: ", hyp.y_sequence)
+                    print("Timesteps: ", hyp.timestamp)
+                    print()
 
-#             print()
+            print()
 
-#     @pytest.mark.skipif(
-#         not NUMBA_RNNT_LOSS_AVAILABLE,
-#         reason='RNNTLoss has not been compiled with appropriate numba version.',
-#     )
-#     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
-#     @pytest.mark.with_downloads
-#     @pytest.mark.unit
-#     @pytest.mark.parametrize("device", DEVICES)
-#     @pytest.mark.parametrize(
-#         "beam_config",
-#         [
-#             {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3,},
-#             {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3,}
-#         ],
-#     )
-#     @pytest.mark.parametrize("batch_size", [4])
-#     @pytest.mark.parametrize("beam_size", [4])
-#     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
-#     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
-#     def test_rnnt_beam_decoding_kenlm(self, test_data_dir, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
-#         kenlm_model_path = os.path.join(
-#             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-#         )
-#         beam_config["ngram_lm_model"] = kenlm_model_path
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize(
+        "beam_config",
+        [
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3,},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3,}
+        ],
+    )
+    @pytest.mark.parametrize("batch_size", [4])
+    @pytest.mark.parametrize("beam_size", [4])
+    @pytest.mark.parametrize("pruning_mode", ["late", "early"])
+    @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
+    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+        kenlm_model_path = os.path.join(
+            test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        )
+        beam_config["ngram_lm_model"] = kenlm_model_path
 
-#         audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
-#         batch_size = min(batch_size, len(audio_filepaths))
+        audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
+        num_samples = min(batch_size, len(audio_filepaths))
 
-#         model, encoder_output, encoded_lengths = get_model_encoder_output(
-#             tuple(audio_filepaths[:batch_size]), 'nvidia/parakeet-tdt_ctc-110m', device, dtype=torch.float32
-#         )
+        model, encoder_output, encoded_lengths = get_model_encoder_output(
+            test_audio_filenames, num_samples, TDT_MODEL, device, dtype=torch.float32
+        )
 
-#         model_config = model.to_config_dict()
-#         durations = list(model_config["model_defaults"]["tdt_durations"])
+        model_config = model.to_config_dict()
+        durations = list(model_config["model_defaults"]["tdt_durations"])
 
-#         vocab_size = model.tokenizer.vocab_size
-#         decoding = BeamBatchedTDTInfer(
-#             model.decoder,
-#             model.joint,
-#             blank_index=vocab_size,
-#             durations=durations,
-#             beam_size=beam_size,
-#             score_norm=True,
-#             return_best_hypothesis=True,
-#             pruning_mode=pruning_mode,
-#             blank_lm_score_mode=blank_lm_score_mode,
-#             **beam_config,
-#         )
+        vocab_size = model.tokenizer.vocab_size
+        decoding = BeamBatchedTDTInfer(
+            model.decoder,
+            model.joint,
+            blank_index=vocab_size,
+            durations=durations,
+            beam_size=beam_size,
+            score_norm=True,
+            return_best_hypothesis=True,
+            pruning_mode=pruning_mode,
+            blank_lm_score_mode=blank_lm_score_mode,
+            **beam_config,
+        )
 
-#         with torch.no_grad():
-#             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-#             assert type(hyps) == list
-#             assert type(hyps[0]) == rnnt_utils.Hypothesis
+        with torch.no_grad():
+            hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
+            assert type(hyps) == list
+            assert type(hyps[0]) == rnnt_utils.Hypothesis
 
-#             assert len(hyps) == batch_size
-#             assert hasattr(hyps[0], "y_sequence")
-#             assert hasattr(hyps[0], "score")
-#             assert hasattr(hyps[0], "timestamp")
+            assert len(hyps) == num_samples
+            assert hasattr(hyps[0], "y_sequence")
+            assert hasattr(hyps[0], "score")
+            assert hasattr(hyps[0], "timestamp")
 
-#             assert len(hyps[0].y_sequence) > 0
-#             assert len(hyps[0].timestamp) > 0
+            assert len(hyps[0].y_sequence) > 0
+            assert len(hyps[0].timestamp) > 0
 
-#             hyps = decode_text_from_hypotheses(hyps, model.decoding)
+            hyps = decode_text_from_hypotheses(hyps, model.decoding)
 
-#             print()
+            print()
 
-#             print(
-#                 f"Beam search algorithm : {beam_config['search_type']}, \
-#                     beam size: {beam_size}, \
-#                     Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
-#             )
-#             for hyp_idx, hyp in enumerate(hyps):
-#                 print("Sample: ", hyp_idx)
-#                 print("Decoded text: ", hyp.text)
-#                 print("Score: ", hyp.score)
-#                 print("Transcript", hyp.y_sequence)
-#                 print("Timesteps", hyp.timestamp)
-#                 print()
+            print(
+                f"Beam search algorithm : {beam_config['search_type']}, \
+                    beam size: {beam_size}, \
+                    Cuda Graphs: {beam_config.get('allow_cuda_graphs', True)}"
+            )
+            for hyp_idx, hyp in enumerate(hyps):
+                print("Sample: ", hyp_idx)
+                print("Decoded text: ", hyp.text)
+                print("Score: ", hyp.score)
+                print("Transcript", hyp.y_sequence)
+                print("Timesteps", hyp.timestamp)
+                print()
 
-#     @pytest.mark.with_downloads
-#     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-#     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-#     def test_stated_stateless(self, test_data_dir, force_mode: str):
-#         '''Compares stated and stateless implementations with bfloat16''' 
-#         if force_mode == "full_graph":
-#             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
+    @pytest.mark.with_downloads
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
+    @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
+    def test_stated_stateless(self,test_audio_filenames, force_mode: str):
+        '''Compares stated and stateless implementations with bfloat16''' 
+        if force_mode == "full_graph":
+            skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
-#         batch_size = 16
-#         device = torch.device("cuda")
-#         nemo_model = ASRModel.from_pretrained("nvidia/parakeet-tdt_ctc-110m", map_location=device)
-#         decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
+        batch_size = 16
+        device = torch.device("cuda")
+        nemo_model = get_model(TDT_MODEL, device)
+        decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
 
-#         with open_dict(decoding_config):
-#             decoding_config["strategy"] = "malsd_batch"
-#             decoding_config["beam"]["beam_size"] = 4
-#             decoding_config["beam"]["return_best_hypotheses"] = False
-#             decoding_config["beam"]["allow_cuda_graphs"] = False
+        with open_dict(decoding_config):
+            decoding_config["strategy"] = "malsd_batch"
+            decoding_config["beam"]["beam_size"] = 4
+            decoding_config["beam"]["return_best_hypotheses"] = False
+            decoding_config["beam"]["allow_cuda_graphs"] = False
 
-#         nemo_model.change_decoding_strategy(decoding_config)
-#         audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
+        nemo_model.change_decoding_strategy(decoding_config)
 
-#         actual_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
-#         actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
-#         actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
-#         actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        actual_hypotheses = nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
 
-#         # transcribe with use implementation with cuda graphs
+        # transcribe with use implementation with cuda graphs
 
-#         nemo_model.change_decoding_strategy(decoding_config)
-#         nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+        nemo_model.change_decoding_strategy(decoding_config)
+        nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
-#         cudagraph_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
-#         cudagraph_transcripts = [[hyp.text for hyp in cudagraphs_beam] for cudagraphs_beam in cudagraph_hypotheses]
-#         cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-#         cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+        cudagraph_hypotheses = nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        cudagraph_transcripts = [[hyp.text for hyp in cudagraphs_beam] for cudagraphs_beam in cudagraph_hypotheses]
+        cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+        cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
 
-#         for batch_idx in range(min(batch_size, len(audio_filepaths))):
-#             assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
-#             assert cudagraph_scores[batch_idx] == pytest.approx(
-#                 actual_scores[batch_idx], abs=abs
-#             ), f"Scores mismatch for batch_idx {batch_idx}"
-#             assert (
-#                 cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
-#             ), f"Timestamps mismatch for batch_idx {batch_idx}"
+        for batch_idx in range(min(batch_size, len(test_audio_filenames))):
+            assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
+            assert cudagraph_scores[batch_idx] == pytest.approx(
+                actual_scores[batch_idx], abs=abs
+            ), f"Scores mismatch for batch_idx {batch_idx}"
+            assert (
+                cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
+            ), f"Timestamps mismatch for batch_idx {batch_idx}"
 
-#             wer = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
+            wer = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
 
-#             assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
+            assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
 
-#             for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
+            for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
 
-#                 print("Erroneous samples in batch:", batch_idx)
-#                 print("Original transcript:", actual)
-#                 print("New transcript:", fast)
+                print("Erroneous samples in batch:", batch_idx)
+                print("Original transcript:", actual)
+                print("New transcript:", fast)
 
-#     @pytest.mark.with_downloads
-#     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-#     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-#     def test_stated_stateless(self, test_data_dir, force_mode: str):
-#         '''Compares stated and stateless implementations with bfloat16''' 
-#         # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
-#         if force_mode == "full_graph":
-#             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
+    @pytest.mark.with_downloads
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
+    @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
+    def test_stated_stateless(self, test_audio_filenames, force_mode: str):
+        '''Compares stated and stateless implementations with bfloat16''' 
+        # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
+        if force_mode == "full_graph":
+            skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
-#         batch_size = 16
-#         device = torch.device("cuda")
-#         nemo_model = ASRModel.from_pretrained("nvidia/parakeet-tdt_ctc-110m", map_location=device)
-#         decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
+        batch_size = 16
+        device = torch.device("cuda")
+        nemo_model = get_model(TDT_MODEL, device)
+        decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
 
-#         with open_dict(decoding_config):
-#             decoding_config["strategy"] = "malsd_batch"
-#             decoding_config["beam"]["beam_size"] = 4
-#             decoding_config["beam"]["return_best_hypotheses"] = False
-#             decoding_config["beam"]["allow_cuda_graphs"] = False
+        with open_dict(decoding_config):
+            decoding_config["strategy"] = "malsd_batch"
+            decoding_config["beam"]["beam_size"] = 4
+            decoding_config["beam"]["return_best_hypotheses"] = False
+            decoding_config["beam"]["allow_cuda_graphs"] = False
 
-#         nemo_model.change_decoding_strategy(decoding_config)
-#         audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
+        nemo_model.change_decoding_strategy(decoding_config)
 
-#         with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-#             nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
+            nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
 
-#         # transcribe with use implementation with cuda graphs
-#         decoding_config["beam"]["allow_cuda_graphs"] = True
-#         nemo_model.change_decoding_strategy(decoding_config)
-#         nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+        # transcribe with use implementation with cuda graphs
+        decoding_config["beam"]["allow_cuda_graphs"] = True
+        nemo_model.change_decoding_strategy(decoding_config)
+        nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
-#         with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-#             nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
+            nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
