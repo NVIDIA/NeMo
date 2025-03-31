@@ -151,7 +151,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             else:
                 auto_cls = liger_kernel_trf.AutoLigerKernelForCausalLM
 
-
         quantization_config = None
         if self.load_in_4bit:
             quantization_config = BitsAndBytesConfig(
@@ -161,16 +160,15 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_storage=self.default_dtype,
             )
-        
+
         if self.load_pretrained_weights:
-            m =  auto_cls.from_pretrained(
+            m = auto_cls.from_pretrained(
                 self.model_name,
                 torch_dtype=self.default_dtype,
                 device_map=None if self.load_in_4bit else self.device_map,
                 trust_remote_code=self.trust_remote_code,
                 attn_implementation=attn_implementation,
-                quantization_config=quantization_config
-                
+                quantization_config=quantization_config,
             )
             return m
         else:
@@ -423,7 +421,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Used from HFcheckpointio to load a checkpoint
         TODO(@akoumparouli): refactor
         """
-        
+
         d = {
             "path": path,
             "torch_dtype": torch.bfloat16,  # Always load in bfloat16 first
@@ -443,9 +441,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
 
         d["torch_dtype"] = torch.bfloat16
-        return AutoModelForCausalLM.from_pretrained(
-            **d
-        ).state_dict()
+        return AutoModelForCausalLM.from_pretrained(**d).state_dict()
 
     def load_state_dict(self, state_dict, strict=True, assign=False):
         """Loads the state-dict directly to self.model, therefore FQNs are expected

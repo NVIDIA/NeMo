@@ -215,7 +215,6 @@ class LinearAdapter(nn.Linear):
             lora_dtype=lora_dtype,
         )
 
-
     @torch.no_grad
     @staticmethod
     def _init_adapter(
@@ -418,8 +417,12 @@ class LoRA(PEFT, ModuleMatcher):
                 # Will use the `patch_linear_module` function if:
                 # - is FSDP v1
                 # - is DTensor (has _local_tensor attribute)
-                # - has quant_state attribute 
-                if self._is_fsdp_v1 or hasattr(m.weight.data, '_local_tensor') or (hasattr(m, 'quant_state') and m.quant_state.__class__ == bitsandbytes.functional.QuantState):
+                # - has quant_state attribute
+                if (
+                    self._is_fsdp_v1
+                    or hasattr(m.weight.data, '_local_tensor')
+                    or (hasattr(m, 'quant_state') and m.quant_state.__class__ == bitsandbytes.functional.QuantState)
+                ):
                     lora_cls = patch_linear_module
                 elif HAVE_TE and m.__class__ == te.Linear:
                     lora_cls = TELinearAdapter
