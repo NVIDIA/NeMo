@@ -304,7 +304,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
 
             if hasattr(self, 'cur_decoder'):
                 self.change_decoding_strategy(self.cfg.decoding, decoder_type=self.cur_decoder, verbose=False)
-            else:     
+            else:
                 self.change_decoding_strategy(self.cfg.decoding, verbose=False)
 
         return super().transcribe(
