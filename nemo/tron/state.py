@@ -194,7 +194,6 @@ class GlobalState:
             self._straggler_timer = StragglerDetector()
         return self._straggler_timer
 
-
     def _set_signal_handler(self):
         cfg = self._cfg
         assert cfg is not None, "ConfigContainer must be set before initializing signal handler"
