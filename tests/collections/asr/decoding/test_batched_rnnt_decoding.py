@@ -286,7 +286,7 @@ class TestRNNTDecoding:
             beam_size=beam_size,
             score_norm=True,
             return_best_hypothesis=True,
-            pruning_mode=pruning_mode, 
+            pruning_mode=pruning_mode,
             blank_lm_score_mode=blank_lm_score_mode,
             **beam_config,
         )
@@ -630,8 +630,16 @@ class TestTDTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3,},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3,}
+            {
+                "search_type": "malsd_batch",
+                "allow_cuda_graphs": False,
+                "ngram_lm_alpha": 0.3,
+            },
+            {
+                "search_type": "malsd_batch",
+                "allow_cuda_graphs": True,
+                "ngram_lm_alpha": 0.3,
+            },
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])
