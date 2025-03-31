@@ -818,7 +818,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         del signal
 
         best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
-            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True
         )
 
         if isinstance(sample_id, torch.Tensor):

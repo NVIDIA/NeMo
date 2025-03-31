@@ -490,7 +490,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         return {'loss': loss_value}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        # TODO: add support for CTC decoding
         signal, signal_len, transcript, transcript_len, sample_id = batch
 
         # forward() only performs encoder forward
@@ -500,12 +499,19 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
-        best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
-            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
-        )
+        if self.cur_decoder == 'rnnt':
+            best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True
+                )
+        else:
+            logits = self.ctc_decoder(encoder_output=encoded)
+            best_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
+                decoder_outputs=logits, decoder_lengths=encoded_len, return_hypotheses=True,
+                )
+
         if isinstance(sample_id, torch.Tensor):
             sample_id = sample_id.cpu().detach().numpy()
-        return list(zip(sample_id, best_hyp_text))
+        return list(zip(sample_id, best_hyp))
 
     def validation_pass(self, batch, batch_idx, dataloader_idx):
         if self.is_interctc_enabled():
