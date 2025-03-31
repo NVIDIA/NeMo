@@ -28,6 +28,8 @@ except Exception:
 
 
 class NemoQueryLLMBase(ABC):
+    """Base query class"""
+
     def __init__(self, url, model_name):
         self.url = url
         self.model_name = model_name
@@ -210,7 +212,7 @@ class NemoQueryLLMHF(NemoQueryLLMBase):
             all_probs (Optional[bool]): when using compute_logprob, returns probabilities for all tokens in vocabulary.
             output_logits (Optional[bool]): whether to return logits for each token
             output_scores (Optional[bool]): whether to return scores for each token
-            end_strings (Optional[List[str]]): list of strings which will terminate generation when they appear in the output.
+            end_strings (Optional[List[str]]): list of strs which will stop generation when they appear in the output.
             min_length (Optional[int]): min generated tokens.
             max_length (Optional[int]): max generated tokens.
             init_timeout (float): timeout for the connection.

@@ -27,6 +27,8 @@ from nemo.deploy.utils import cast_output, str_ndarray2list
 
 @wrapt.decorator
 def noop_decorator(func):
+    """A function for safe import"""
+
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
