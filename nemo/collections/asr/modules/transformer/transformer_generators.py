@@ -517,6 +517,8 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
 
         Args:
             *all args of GreedySequenceGenerator class
+            ngram_lm_model: path to the n-gram language model; LM should use the same tokenizer as the current model
+            ngram_lm_alpha: n-gram LM weight
             beam_size: size of the beam
             len_pen: length penalty parameter
         Kwargs:
