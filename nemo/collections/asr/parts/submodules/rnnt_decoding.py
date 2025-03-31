@@ -839,8 +839,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Correctly process the token ids to chars/subwords.
         for i, offsets in enumerate(char_offsets):
             decoded_chars = []
-            for char in offsets['char'][:-1]:  # ignore the RNNT Blank token at end of every timestep with -1 subset
-                decoded_chars.append(self.decode_tokens_to_str([int(char)]))
+            for char in offsets['char']:
+                if char != self.blank_id:  # ignore the RNNT Blank token
+                    decoded_chars.append(self.decode_tokens_to_str([int(char)]))
             char_offsets[i]["char"] = decoded_chars
 
         encoded_char_offsets, char_offsets = self._refine_timestamps(
@@ -880,6 +881,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     hypothesis,
                     decode_ids_to_tokens=self.decode_ids_to_tokens,
                     decode_tokens_to_str=self.decode_tokens_to_str,
+                    rnnt_token=self.blank_id,
+                    supported_punctuation=self.supported_punctuation,
                 )
 
         segment_offsets = None
@@ -983,7 +986,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         """
         # Merge the results per token into a list of dictionaries
         offsets = [
-            {"char": [t, -1], "start_offset": int(s), "end_offset": int(s + d)}
+            {"char": [t], "start_offset": int(s), "end_offset": int(s + d)}
             for t, s, d in zip(hypothesis.text[0], hypothesis.timestamp, hypothesis.token_duration)
         ]
         return offsets
@@ -1078,6 +1081,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         hypothesis: Hypothesis,
         decode_ids_to_tokens: Callable[[List[int]], str],
         decode_tokens_to_str: Callable[[List[int]], str],
+        rnnt_token: int,
+        supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of sub-word time stamps.
@@ -1096,40 +1101,44 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             "end_offset".
         """
         word_offsets = []
-        built_token = []
+        built_word = ""
         previous_token_index = 0
         # For every offset token
         for i, offset in enumerate(offsets):
-            # For every subword token in offset token list (ignoring the RNNT Blank token at the end)
-            for char in offset['char'][:-1]:
-                char = int(char)
+            # For every subword token in offset token list (ignoring the RNNT Blank token if it exists)
+            for char in offset['char']:
+                if char != rnnt_token:
+                    char = int(char)
 
-                # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
-                token = decode_ids_to_tokens([char])[0]
-                token_text = decode_tokens_to_str([char])
+                    # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
+                    token = decode_ids_to_tokens([char])[0]
+                    token_text = decode_tokens_to_str([char])
 
-                # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
-                # after forcing partial text conversion of the token.
-                if token != token_text:
-                    # If there are any partially or fully built sub-word token ids, construct to text.
-                    # Note: This is "old" subword, that occurs *after* current sub-word has started.
-                    if built_token:
-                        word_offsets.append(
-                            {
-                                "word": decode_tokens_to_str(built_token),
-                                "start_offset": offsets[previous_token_index]["start_offset"],
-                                "end_offset": offsets[i - 1]["end_offset"],
-                            }
-                        )
+                    # It is a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
+                    if supported_punctuation and token_text in supported_punctuation:
+                        built_word += token_text.strip()
+                    # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
+                    # after forcing partial text conversion of the token.
+                    elif token != token_text:
+                        # If there is partially or fully built word, append to word offsets.
+                        # Note: This is "old" subword, that occurs *after* current sub-word has started.
+                        if built_word:
+                            word_offsets.append(
+                                {
+                                    "word": built_word.strip(),
+                                    "start_offset": offsets[previous_token_index]["start_offset"],
+                                    "end_offset": offsets[i - 1]["end_offset"],
+                                }
+                            )
 
-                    # Prepare list of new sub-word ids
-                    built_token.clear()
-                    built_token.append(char)
-                    previous_token_index = i
-                else:
-                    # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
-                    # Append to current sub-word list.
-                    built_token.append(char)
+                        # Prepare new built_word
+                        built_word = ""
+                        built_word += token_text
+                        previous_token_index = i
+                    else:
+                        # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
+                        # Append to current built word.
+                        built_word += token_text.strip()
 
         # Inject the start offset of the first token to word offsets
         # This is because we always skip the delay the injection of the first sub-word due to the loop
@@ -1139,25 +1148,24 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         if offsets and word_offsets:
             word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
-        # If there are any remaining tokens left, inject them all into the final word offset.
+        # If there is any built word left, inject it into the final word offset.
         # The start offset of this token is the start time of the next token to process.
         # The end offset of this token is the end time of the last token from offsets.
-        # Note that built_token is a flat list; but offsets contains a nested list which
-        # may have different dimensionality.
-        # As such, we can't rely on the length of the list of built_token to index offsets.
-        if built_token:
+        # Note that as we group tokens into words, we need to keep track of
+        # the index of the first token in each word within the full char_offsets list.
+        # This lets us retrieve the correct start_offset for that word.
+        if built_word:
             # start from the previous token index as this hasn't been committed to word_offsets yet
             # if we still have content in built_token
             start_offset = offsets[previous_token_index]["start_offset"]
             word_offsets.append(
                 {
-                    "word": decode_tokens_to_str(built_token),
+                    "word": built_word.strip(),
                     "start_offset": start_offset,
                     "end_offset": offsets[-1]["end_offset"],
                 }
             )
-        built_token.clear()
-
+        built_word = ""
         return word_offsets
 
     @staticmethod
