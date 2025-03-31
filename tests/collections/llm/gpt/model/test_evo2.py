@@ -163,4 +163,3 @@ def test_convert_hyena():
 
     with pytest.raises(RepositoryNotFoundError):
         exporter.apply("dummy_output_deosnt_exist")
-
