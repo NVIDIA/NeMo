@@ -218,6 +218,7 @@ def predictive_model_streaming_conformer():
 
 class TestPredictiveModelNCSN:
     """Test predictive model with NCSN estimator."""
+
     @pytest.mark.unit
     def test_constructor(self, predictive_model_ncsn):
         """Test that the model can be constructed from a config dict."""
@@ -232,7 +233,7 @@ class TestPredictiveModelNCSN:
         [
             (4, 4),  # Example 1
             (2, 8),  # Example 2
-            (1, 10), # Example 3
+            (1, 10),  # Example 3
         ],
     )
     def test_forward_infer(self, predictive_model_ncsn, batch_size, sample_len):
@@ -250,25 +251,30 @@ class TestPredictiveModelNCSN:
             output_list = []
             output_length_list = []
             for i in range(input_signal.size(0)):
-                output, output_length = model.forward(input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1])
+                output, output_length = model.forward(
+                    input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1]
+                )
                 output_list.append(output)
                 output_length_list.append(output_length)
             output_instance = torch.cat(output_list, 0)
             output_length_instance = torch.cat(output_length_list, 0)
 
             # batch size batch_size
-            output_batch, output_length_batch = model.forward(input_signal=input_signal, input_length=input_signal_length)
+            output_batch, output_length_batch = model.forward(
+                input_signal=input_signal, input_length=input_signal_length
+            )
 
         # Check that the output and output length are the same for the instance and batch
         assert output_instance.shape == output_batch.shape
         assert output_length_instance.shape == output_length_batch.shape
-        
+
         diff = torch.max(torch.abs(output_instance - output_batch))
         assert diff <= abs_tol
 
 
 class TestPredictiveModelConformer:
     """Test predictive model with conformer estimator."""
+
     @pytest.mark.unit
     def test_constructor(self, predictive_model_conformer):
         """Test that the model can be constructed from a config dict."""
@@ -283,7 +289,7 @@ class TestPredictiveModelConformer:
         [
             (4, 4),  # Example 1
             (2, 8),  # Example 2
-            (1, 10), # Example 3
+            (1, 10),  # Example 3
         ],
     )
     def test_forward_infer(self, predictive_model_conformer, batch_size, sample_len):
@@ -301,25 +307,30 @@ class TestPredictiveModelConformer:
             output_list = []
             output_length_list = []
             for i in range(input_signal.size(0)):
-                output, output_length = model.forward(input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1])
+                output, output_length = model.forward(
+                    input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1]
+                )
                 output_list.append(output)
                 output_length_list.append(output_length)
             output_instance = torch.cat(output_list, 0)
             output_length_instance = torch.cat(output_length_list, 0)
 
             # batch size batch_size
-            output_batch, output_length_batch = model.forward(input_signal=input_signal, input_length=input_signal_length)
+            output_batch, output_length_batch = model.forward(
+                input_signal=input_signal, input_length=input_signal_length
+            )
 
         # Check that the output and output length are the same for the instance and batch
         assert output_instance.shape == output_batch.shape
         assert output_length_instance.shape == output_length_batch.shape
-        
+
         diff = torch.max(torch.abs(output_instance - output_batch))
         assert diff <= abs_tol
 
 
 class TestPredictiveModelStreamingConformer:
     """Test predictive model with streaming conformer estimator."""
+
     @pytest.mark.unit
     def test_constructor(self, predictive_model_streaming_conformer):
         """Test that the model can be constructed from a config dict."""
@@ -334,7 +345,7 @@ class TestPredictiveModelStreamingConformer:
         [
             (4, 4),  # Example 1
             (2, 8),  # Example 2
-            (1, 10), # Example 3
+            (1, 10),  # Example 3
         ],
     )
     def test_forward_infer(self, predictive_model_streaming_conformer, batch_size, sample_len):
@@ -352,18 +363,22 @@ class TestPredictiveModelStreamingConformer:
             output_list = []
             output_length_list = []
             for i in range(input_signal.size(0)):
-                output, output_length = model.forward(input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1])
+                output, output_length = model.forward(
+                    input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1]
+                )
                 output_list.append(output)
                 output_length_list.append(output_length)
             output_instance = torch.cat(output_list, 0)
             output_length_instance = torch.cat(output_length_list, 0)
 
             # batch size batch_size
-            output_batch, output_length_batch = model.forward(input_signal=input_signal, input_length=input_signal_length)
+            output_batch, output_length_batch = model.forward(
+                input_signal=input_signal, input_length=input_signal_length
+            )
 
         # Check that the output and output length are the same for the instance and batch
         assert output_instance.shape == output_batch.shape
         assert output_length_instance.shape == output_length_batch.shape
-        
+
         diff = torch.max(torch.abs(output_instance - output_batch))
         assert diff <= abs_tol
