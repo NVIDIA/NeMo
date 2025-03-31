@@ -7,7 +7,7 @@ on:
         type: string
 
 jobs:
-  asr-tests:
+  collections-asr-tests:
     strategy:
       matrix:
         include:
@@ -22,7 +22,7 @@ jobs:
       TIMEOUT: 20
       IS_UNIT_TEST: true
 
-  audio-tests:
+  collections-audio-tests:
     strategy:
       matrix:
         include:
@@ -37,7 +37,7 @@ jobs:
       TIMEOUT: 20
       IS_UNIT_TEST: true
 
-  common-tests:
+  collections-common-tests:
     strategy:
       matrix:
         include:
@@ -52,7 +52,7 @@ jobs:
       TIMEOUT: 20
       IS_UNIT_TEST: true
 
-  llm-tests:
+  collections-llm-tests:
     strategy:
       matrix:
         include:
@@ -66,21 +66,7 @@ jobs:
       SCRIPT: ${{ matrix.script }}
       IS_UNIT_TEST: true
 
-  vlm-tests:
-    strategy:
-      matrix:
-        include:
-          - script: L0_Unit_Tests_GPU_VLM
-            runner: self-hosted-azure-gpus-1
-          - script: L0_Unit_Tests_CPU_VLM
-            runner: self-hosted-azure-cpu
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: ${{ matrix.runner }}
-      SCRIPT: ${{ matrix.script }}
-      IS_UNIT_TEST: true
-
-  multimodal-tests:
+  collections-multimodal-tests:
     strategy:
       matrix:
         include:
@@ -94,13 +80,27 @@ jobs:
       SCRIPT: ${{ matrix.script }}
       IS_UNIT_TEST: true
 
-  tts-tests:
+  collections-tts-tests:
     strategy:
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_TTS
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_TTS
+            runner: self-hosted-azure-cpu
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: ${{ matrix.runner }}
+      SCRIPT: ${{ matrix.script }}
+      IS_UNIT_TEST: true
+
+  collections-vlm-tests:
+    strategy:
+      matrix:
+        include:
+          - script: L0_Unit_Tests_GPU_VLM
+            runner: self-hosted-azure-gpus-1
+          - script: L0_Unit_Tests_CPU_VLM
             runner: self-hosted-azure-cpu
     uses: ./.github/workflows/_test_template.yml
     with:

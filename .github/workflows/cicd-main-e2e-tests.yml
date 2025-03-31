@@ -7,7 +7,7 @@ on:
         type: string
 
 jobs:
-  asr-tests:
+  collections-asr-tests:
     strategy:
       matrix:
         include:
@@ -31,13 +31,31 @@ jobs:
             runner: self-hosted-azure
           - script: L2_Speech_to_Text_AED
             runner: self-hosted-azure-gpus-1
+          - script: L2_Speaker_dev_run_Speaker_Recognition
+            runner: self-hosted-azure-gpus-1
+          - script: L2_Speaker_dev_run_Speaker_Diarization
+            runner: self-hosted-azure-gpus-1
+          - script: L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
+            runner: self-hosted-azure-gpus-1
+          - script: L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
+            runner: self-hosted-azure
+          - script: L2_Speaker_dev_run_Speech_to_Label
+            runner: self-hosted-azure-gpus-1
+          - script: L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
+            runner: self-hosted-azure
+          - script: L2_Speaker_dev_run_Clustering_Diarizer_Inference
+            runner: self-hosted-azure
+          - script: L2_Speaker_dev_run_Neural_Diarizer_Inference
+            runner: self-hosted-azure
+          - script: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
+            runner: self-hosted-azure
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
       IS_OPTIONAL: ${{ matrix.is_optional || false }}
 
-  tts-tests:
+  collections-tts-tests:
     strategy:
       matrix:
         include:
@@ -54,7 +72,7 @@ jobs:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
 
-  llm-tests:
+  collections-llm-tests:
     strategy:
       matrix:
         include:
@@ -95,7 +113,7 @@ jobs:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
 
-  vlm-tests:
+  collections-vlm-tests:
     strategy:
       matrix:
         include:
@@ -124,33 +142,6 @@ jobs:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
 
-  speaker-tests:
-    strategy:
-      matrix:
-        include:
-          - script: L2_Speaker_dev_run_Speaker_Recognition
-            runner: self-hosted-azure-gpus-1
-          - script: L2_Speaker_dev_run_Speaker_Diarization
-            runner: self-hosted-azure-gpus-1
-          - script: L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
-            runner: self-hosted-azure-gpus-1
-          - script: L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
-            runner: self-hosted-azure
-          - script: L2_Speaker_dev_run_Speech_to_Label
-            runner: self-hosted-azure-gpus-1
-          - script: L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
-            runner: self-hosted-azure
-          - script: L2_Speaker_dev_run_Clustering_Diarizer_Inference
-            runner: self-hosted-azure
-          - script: L2_Speaker_dev_run_Neural_Diarizer_Inference
-            runner: self-hosted-azure
-          - script: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
-            runner: self-hosted-azure
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: ${{ matrix.runner }}
-      SCRIPT: ${{ matrix.script }}
-
   core-tests:
     strategy:
       matrix:
@@ -167,15 +158,6 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_Auto_Configurator_t5_TP1_PP1_MBS124
             runner: self-hosted-azure-gpus-1
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: ${{ matrix.runner }}
-      SCRIPT: ${{ matrix.script }}
-
-  conversion-tests:
-    strategy:
-      matrix:
-        include:
           - script: L2_NeMo_2_Conversion_Test_Baichuan2
             runner: self-hosted-azure
           - script: L2_NeMo_2_Conversion_Test_ChatGLM
