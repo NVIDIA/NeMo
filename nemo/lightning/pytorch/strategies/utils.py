@@ -592,6 +592,7 @@ def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool
         enable_loss_parallel (bool): Whether to enable loss parallelism.
         enable_compiled_autograd (bool): Whether to enable compiled autograd.
     """
+
     @contextlib.contextmanager
     def context(cp_context: Optional[Generator[None, None, None]] = None):
         with contextlib.ExitStack() as stack:
