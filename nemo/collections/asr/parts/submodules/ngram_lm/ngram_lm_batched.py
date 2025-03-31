@@ -705,6 +705,57 @@ class NGramGPULanguageModel(ModelPT):
         return NGramGPULanguageModel.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
 
     @classmethod
+    def dummy_unigram_lm(
+        cls,
+        vocab_size: int,
+        use_triton: bool | None = None,
+    ) -> "NGramGPULanguageModel":
+        """
+        Constructs a trivial unigram LM with uniform distribution over the vocabulary.
+        Useful for testing purposes (e.g., decoding).
+
+        Returns:
+            NGramGPULanguageModel instance
+        """
+        model = NGramGPULanguageModel(
+            OmegaConf.structured(
+                NGramLMConfig(
+                    num_states=2,
+                    num_arcs=vocab_size,
+                    max_order=1,
+                    vocab_size=vocab_size,
+                    use_triton=use_triton,
+                )
+            )
+        )
+        unigram_weight = -np.log(vocab_size)
+
+        # start state
+        model.backoff_weights.data[0] = 0.0
+        model.final_weights.data[0] = unigram_weight
+        model.backoff_to_states.data[0] = 0
+        model.start_end_arcs.data[0, :] = torch.tensor([0, vocab_size], dtype=model.start_end_arcs.dtype)
+        model.state_order.data[0] = 1
+
+        # BOS state
+        model.backoff_weights.data[1] = 0.0
+        model.final_weights.data[1] = unigram_weight
+        model.backoff_to_states.data[1] = 0  # to start state
+        model.start_end_arcs.data[1, :] = torch.tensor(
+            [vocab_size, vocab_size], dtype=model.start_end_arcs.dtype
+        )  # no arcs
+        model.state_order.data[1] = 2
+
+        # all tokens - unigrams from start to start state (cycles)
+        model.arcs_weights.data.fill_(unigram_weight)
+        model.from_states.data.fill_(model.START_STATE)
+        model.to_states.data.fill_(model.START_STATE)
+        model.ilabels.data[:vocab_size].copy_(torch.arange(vocab_size, dtype=model.ilabels.dtype))
+
+        model._resolve_final()
+        return model
+
+    @classmethod
     def from_suffix_tree(
         cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None
     ) -> "NGramGPULanguageModel":
