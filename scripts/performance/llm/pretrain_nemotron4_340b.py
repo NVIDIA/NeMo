@@ -159,7 +159,10 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars={
+            "NVTE_NORM_FWD_USE_CUDNN": "1",
+            "NVTE_NORM_BWD_USE_CUDNN": "1",
+        },  # for properly overlapping normalization kernels with FSDP communication
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,

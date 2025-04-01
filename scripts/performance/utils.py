@@ -284,6 +284,11 @@ def set_primary_perf_configs(
         ):
             logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
             recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
+            if tp_size is not None and tp_size > 1:
+                logging.warning(
+                    "Disabling TP overlap because of known performance issues when used with FSDP together."
+                )
+                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     # Recompute configs
     if recompute_layers > 0:
