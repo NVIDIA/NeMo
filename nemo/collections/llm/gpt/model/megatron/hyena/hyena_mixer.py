@@ -235,6 +235,12 @@ class HyenaMixer(MegatronModule):
 
         return sharded_state_dict
 
+    def _maybe_use_fp8(self, func, *args, **kwargs):
+        if self.transformer_config.vortex_style_fp8:
+            with te.fp8_autocast(enabled=True, fp8_recipe=set_format_recipe()):
+                return func(*args, **kwargs)
+        return func(*args, **kwargs)
+
     def forward(self, x, layer_past=None, inference_params=None, _hyena_use_cp=True):
         """
         Applies sequence mixing to a sequence of 1-dimensional embeddings: batch_size, seq_len, d_model
@@ -252,11 +258,7 @@ class HyenaMixer(MegatronModule):
             _proj_use_cp = True
         else:
             _proj_use_cp = False
-        if self.transformer_config.vortex_style_fp8:
-            with te.fp8_autocast(enabled=True, fp8_recipe=set_format_recipe()):
-                features, _ = self.dense_projection(x)
-        else:
-            features, _ = self.dense_projection(x)
+        features, _ = self._maybe_use_fp8(self.dense_projection, x)
         features = rearrange(features, "l b d -> b d l").contiguous()
         features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp) # [B, D, L]
 
