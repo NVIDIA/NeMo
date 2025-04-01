@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Protocol, TypedDict, Union, cast
 
 from datasets import Dataset, DatasetDict, load_dataset
+from tqdm import tqdm
 
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.tron.config import FinetuningDatasetConfig
@@ -126,7 +127,7 @@ def preprocess_and_split_data(
         output_file = dataset_root / f"{split_name}.jsonl"
 
         with output_file.open("w", encoding="utf-8") as f:
-            for example in dataset:
+            for example in tqdm(dataset, desc=f"Processing {split_name} split"):
                 json_line = {}
 
                 processed_example = process_example_fn(example, tokenizer)
