@@ -75,6 +75,7 @@ class DuplexS2SModel(LightningModule):
         self.perception.load_state_dict(asr.state_dict(), strict=False)
 
         self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.llm.config.vocab_size)
+        self.embed_audio_tokens = torch.nn.Embedding(self._codebook_size, self.embed_tokens.embedding_dim)
         self.audio_head = torch.nn.Linear(self.llm.config.hidden_size, self._codebook_size * self._num_codebooks)
 
     def forward(
@@ -177,10 +178,12 @@ class DuplexS2SModel(LightningModule):
 
         text_inputs = input_ids[:, :-1, -1]
         text_labels = input_ids[:, 1:, -1]
+        audio_inputs = input_ids[:, :-1, :-1]
         audio_labels = input_ids[:, 1:, :-1]
 
         input_embeds = self.embed_tokens(text_inputs)
-        input_embeds = input_embeds + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
+        input_embeds.add_(self.embed_audio_tokens(audio_inputs).sum(axis=2))
+        input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3))
 
         return {
             "input_embeds": input_embeds,
@@ -251,7 +254,7 @@ class DuplexS2SModel(LightningModule):
         self.asr = None  # free up GPU memory
         val_loss = torch.mean(torch.stack(self._partial_val_losses))
         self._partial_val_losses = None
-        self.log("val_loss", val_loss, on_epoch=True, sync_dist=False)
+        self.log("val_loss", val_loss, on_epoch=True, sync_dist=True)
         torch.cuda.memory.empty_cache()
 
     def validation_step(self, batch: dict, batch_idx: int):
@@ -308,6 +311,17 @@ class DuplexS2SModel(LightningModule):
 
     def test_step(self, *args: Any, **kwargs: Any):
         return self.validation_step(*args, **kwargs)
+
+    def offline_inference(self, batch: dict, batch_idx: int):
+        # inputs: full source audio
+        # run through ASR simulating streaming
+        # construct initial input frame using BOS token and BOS output audio frame
+        # for frame in audio_frames:
+        #   combine frame with text and last predicted audio frame
+        #   run through single step of AR inference
+        #   store predicted audio codes
+        #   store predicted text
+        pass
 
     def backward(self, *args, **kwargs):
         with loss_parallel():
@@ -443,7 +457,7 @@ class DuplexS2SModel(LightningModule):
                 # layer.mlp = checkpoint_wrapper(layer.mlp)
                 self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
-            # self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
+            self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             # self.lm_head = checkpoint_wrapper(self.lm_head)
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)
