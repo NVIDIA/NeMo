@@ -96,33 +96,11 @@ class HyenaConfig:
     For medium hyena filters specifically, None defaults ot same as hyena_filter_cls (long filters).
     """
 
-    hyena_filter_r_max: float = 0.99  # TODO: Possibly remove, only used in ParallelComplexModalFilter
-
-    hyena_filter_r_min: float = 0.5  # TODO: Possibly remove, only used in ParallelComplexModalFilter
-
-    hyena_filter_emb_dim: int = 33  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
-
-    hyena_filter_fast_decay: float = 0.3  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
-
-    hyena_filter_slow_decay: float = 1.2  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
-
     hyena_filter_order: int = 16
-
-    hyena_filter_num_inner_mlps: int = 2  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
-
-    hyena_filter_w: int = 14  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
 
     hyena_filter_wd: float = 0.0  # TODO: Where to override WD value for filters?
 
-    hyena_filter_omega_0: float = 1  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
-
-    hyena_pos_emb: str = "fourier_fixed"  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
-
     explicit_filter_decay_preset: str = "weak"
-
-    modal_residue_factors: int = 3  # TODO: Possibly remove, only used in ImplicitRealModelFilter
-
-    modal_pole_factors: int = 3  # TODO: Possibly remove, only used in ImplicitRealModelFilter
 
     modal_gamma_min: float = 0.01
 

@@ -1002,10 +1002,7 @@ class ParallelShortHyenaOperator(nn.Module):
             repeat_h_dg=False,
             local_init=local_init,
         )
-        # Initialize kernel function and configs to None
-        self.kernel_fn = None
-        self.fwd_kernel_cfg = None
-        self.bwd_kernel_cfg = None
+
         self.use_conv_bias = use_conv_bias
         if self.use_conv_bias:
             with get_cuda_rng_tracker().fork():
