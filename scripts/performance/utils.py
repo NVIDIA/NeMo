@@ -89,6 +89,14 @@ def slurm_executor(
     mounts.extend(custom_mounts)
     srun_args.extend(custom_srun_args)
 
+    # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
+    segment = None
+    if num_gpus_per_node == 4 and nodes > 18:
+        for segment_candidate in range(18, 0, -1):
+            if nodes % segment_candidate == 0:
+                segment = segment_candidate
+                break
+
     executor = run.SlurmExecutor(
         account=account,
         partition=partition,
@@ -105,6 +113,7 @@ def slurm_executor(
         mem="0",
         exclusive=True,
         packager=run.GitArchivePackager(),
+        segment=segment,
     )
 
     return executor
