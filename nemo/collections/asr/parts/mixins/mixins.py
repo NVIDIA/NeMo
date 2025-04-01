@@ -39,7 +39,6 @@ class CanaryData():
     encoded_speech: torch.Tensor = None
     decoder_input_ids: torch.Tensor = None
     tgt: torch.Tensor = None
-    last_predicted_token: torch.Tensor = None
     decoding_step: int = -1
     decoder_mems_list: list = None
     alignatt_thr: int = 1
@@ -742,10 +741,13 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         # canary decoding
         elif isinstance(self, asr_models.EncDecMultiTaskModel):
             
+            batch_size = encoded.size(0)
             all_hyp_or_transcribed_texts = []
             greedy_predictions = []
             best_hyp = None
             encoder_input_mask = None
+
+            # import pdb; pdb.set_trace()
 
             # prepare encoder embeddings for the decoding
             enc_states = encoded.permute(0, 2, 1)
@@ -756,23 +758,25 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
             
             if cfg.decoding_policy == "waitk":
-                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < cfg.waitk_lagging and not canary_data.is_last_speech_chunk:
+                # import pdb; pdb.set_trace()
+                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < cfg.waitk_lagging and ~canary_data.is_last_speech_chunk.any():
                     # need to wait for more speech
                     if cfg.debug_mode:
                         logging.warning(f"!!! need more initial speech according to the waitk policy !!!")
                         logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
                 else:
-                    if canary_data.decoding_step < 0:
-                    # first decoding step
-                        tgt, batch_size, canary_data.max_generation_length = self.decoding.decoding.greedy_search._prepare_for_search(
+                    if canary_data.decoding_step < 0: 
+                        # first decoding step
+                        tgt, batch_size, _ = self.decoding.decoding.greedy_search._prepare_for_search(
                             canary_data.decoder_input_ids,
                             canary_data.encoded_speech
                         )
                         input_ids = tgt
                     else:
-                        tgt = canary_data.tgt
-                        input_ids = tgt[:, -1:]
+                        input_ids = canary_data.tgt[:, canary_data.current_context_length-1].unsqueeze(-1)
+                        # import pdb; pdb.set_trace()
                     
+                    # import pdb; pdb.set_trace()
                     # shift steps up to len of decoder_input_ids for correct position encoding
                     if canary_data.decoding_step == 0:
                         canary_data.decoding_step += canary_data.decoder_input_ids.size(-1)
@@ -780,7 +784,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     decoder_mems_list = canary_data.decoder_mems_list
                     start_from = canary_data.decoding_step+1
 
-                    if not canary_data.is_last_speech_chunk:
+                    # if not canary_data.is_last_speech_chunk:
+                    # import pdb; pdb.set_trace()
+                    if torch.any(torch.logical_not(canary_data.is_last_speech_chunk)):
                         max_generation_length = start_from + 1
                     else:
                         max_generation_length = canary_data.max_generation_length
@@ -790,6 +796,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         # need to shift steps up to len of decoder_input_ids for correct position encoding
                             i += canary_data.decoder_input_ids.size(-1)
                         # predict only one token per speech chunk
+                        # import pdb; pdb.set_trace()                       
                         logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
                             input_ids,
                             canary_data.encoded_speech,
@@ -800,7 +807,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             return_xatt_scores=True,
                         )
                         next_tokens = torch.argmax(logits[:, -1], dim=-1)
-                        text_token = self.tokenizer.ids_to_tokens(next_tokens.tolist())
+                        text_tokens = self.tokenizer.ids_to_tokens(next_tokens.tolist())
                         
                         if cfg.debug_mode:
                             logging.warning(f"-------------"*5)
@@ -808,11 +815,16 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             logging.warning(f"start_from: {start_from}")
                             logging.warning(f"max_generation_length: {max_generation_length}")
                             logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
-                            logging.warning(f"[predicted token]: {text_token}")
+                            logging.warning(f"[predicted token]: {text_tokens}")
                             logging.warning(f"[predicted token id]: {next_tokens}")
 
-                        if next_tokens == self.tokenizer.eos or next_tokens == 16:
-                            if not canary_data.is_last_speech_chunk:
+                        
+                        # TODO take into account token with id 16
+                        is_eos_tokens = next_tokens == self.tokenizer.eos
+                        # import pdb; pdb.set_trace()
+                        if not torch.any(torch.logical_not(is_eos_tokens)):
+                            # TODO implement asinchronous chunk increasing for batched decoding
+                            if batch_size == 1 and not canary_data.is_last_speech_chunk:
                                 if cfg.debug_mode:
                                     logging.warning(f"!#! EOS predicted before last speech chunk, wait for more speech !#!")
                             else:
@@ -820,17 +832,33 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                                     logging.warning(f"!#! EOS predicted during last speech chunk, end of decoding !#!")
                             break
                         
-                        tgt = torch.cat((tgt, next_tokens.unsqueeze(1)), dim=-1)
+                        # rearange active samples depends on eos prediction
+                        # import pdb; pdb.set_trace()
+                        torch.logical_and(canary_data.active_samples, ~is_eos_tokens, out=canary_data.active_samples)
+
+                        
+                        
+                        # wtire predicted tokens depends on active samples
+                        next_tokens[torch.logical_not(canary_data.active_samples)] = self.tokenizer.eos
+                        # torch.where(canary_data.active_samples, next_tokens, self.tokenizer.eos, out=next_tokens)
+                        canary_data.tgt[:, canary_data.current_context_length] = next_tokens
+
+                        canary_data.samples_decoding_step[canary_data.active_samples] = i
+
                         canary_data.decoder_mems_list = decoder_mems_list
                         canary_data.decoding_step = i
-                        canary_data.last_predicted_token = tgt[:, -1:]
-                        canary_data.tgt = tgt
-                        input_ids = tgt[:, -1:]
+                        input_ids = canary_data.tgt[:, canary_data.current_context_length].unsqueeze(-1)
+                        canary_data.current_context_length += 1
+                        # canary_data.tgt[:, :13]
 
                         # if cfg.debug_mode:
-                        #     import pdb; pdb.set_trace()
+                            # import pdb; pdb.set_trace()
 
-                    greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
+                    for i in range(batch_size):
+                        greedy_predictions.append(canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.samples_decoding_step[i]+1])
+                    # greedy_predictions = [canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.samples_decoding_step[i]] for i in range(batch_size)]
+                    # greedy_predictions = canary_data.tgt[:, :canary_data.samples_decoding_step]
+                    # greedy_predictions = canary_data.tgt[:, canary_data.decoder_input_ids.size(-1)]
 
 
             elif cfg.decoding_policy == "alignatt":
@@ -911,7 +939,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                     canary_data.decoder_mems_list = decoder_mems_list
                     canary_data.decoding_step = i
-                    canary_data.last_predicted_token = tgt[:, -1:]
                     canary_data.pred_tokens_alignment.append([text_token[0], canary_data.encoded_speech.size(-2)])
                     canary_data.tgt = tgt
                     input_ids = tgt[:, -1:]
