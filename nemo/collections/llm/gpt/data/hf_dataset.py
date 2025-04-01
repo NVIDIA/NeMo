@@ -396,7 +396,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             raise ValueError("split_names must None/str/list")
 
         for split_name in split_names:
-            if not self.dataset_splits[split_name] is None:
+            if self.dataset_splits[split_name] is not None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
 
 
@@ -443,7 +443,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         dataset = dataset.map(HellaSwagHFDataModule.process_doc)
 
         def preprocess_batch(batch, tokenizer, max_length):
-            ans = tokenizer(
+            ans = tokenizer.text_to_ids(
                 batch["text"],
                 max_length=max_length,
                 truncation=True,

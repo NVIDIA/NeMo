@@ -27,7 +27,7 @@ from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, USE_LINEAR_LOSS_CE
+from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -53,6 +53,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         use_liger_kernel=False,
         enable_grad_ckpt=False,
         device_map="cpu",
+        use_linear_ce_loss=True,
     ):
         """
         Initialize the HFAutoModelForCausalLM.
@@ -94,6 +95,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.n_tok = 0
         self.timestamp = None
         self.enable_grad_ckpt = enable_grad_ckpt
+        self.use_linear_ce_loss = use_linear_ce_loss
+
+        if self.use_linear_ce_loss and not HAVE_LINEAR_LOSS_CE:
+            raise Warning(
+                "Dependency for linear CE loss is not available. Please refer to https://github.com/apple/ml-cross-entropy."
+            )
+            self.use_linear_ce_loss = False
+        logging.info(f"use_linear_ce_loss: {self.use_linear_ce_loss}")
 
     @property
     def tokenizer(self):
@@ -263,10 +272,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
         batch["output_hidden_states"] = (
-            True if USE_LINEAR_LOSS_CE else False
+            True if self.use_linear_ce_loss else False
         )  # Enable hidden states output
 
-        if not USE_LINEAR_LOSS_CE:
+        if not self.use_linear_ce_loss:
             outputs = self.forward(batch)
             # Prepare for loss calculation
             logits = outputs.logits
@@ -493,6 +502,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
+        # Also filter out use_linear_ce_loss as it's handled at a higher level
+        allowed_keys = [k for k in allowed_keys if k != 'use_linear_ce_loss']
         return {k: batch[k] for k in allowed_keys if k in batch}
 
     @property

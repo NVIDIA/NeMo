@@ -60,7 +60,6 @@
 # copyright notices and license terms - please see the file ACKNOWLEDGEMENTS.md.
 # -------------------------------------------------------------------------------
 
-import os
 import torch
 from nemo.utils.import_utils import safe_import_from
 
@@ -69,9 +68,6 @@ linear_cross_entropy, HAVE_LINEAR_LOSS_CE = safe_import_from(
     "cut_cross_entropy",
     "linear_cross_entropy",
 )
-
-USE_LINEAR_LOSS_CE = int(os.environ.get("USE_LINEAR_LOSS_CE", HAVE_LINEAR_LOSS_CE))
-
 
 def fused_linear_cross_entropy(
     hidden_states: torch.Tensor,
