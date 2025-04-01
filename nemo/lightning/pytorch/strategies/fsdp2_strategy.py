@@ -491,7 +491,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     @torch.no_grad
-    def load_model_state_dict(self, ckpt, strict=False, ):
+    def load_model_state_dict(
+        self,
+        ckpt,
+        strict=False,
+    ):
         """Shards a full state dict"""
         # TODO(@boxiangw): refractor this to match TP plan
         if self._data_parallel_size == 1 and self._tensor_parallel_size > 1 and not self.sequence_parallel:
@@ -500,10 +504,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             colwise_keys = ['self_attn.q_proj', 'self_attn.k_proj', 'self_attn.v_proj', 'mlp.gate_proj', 'mlp.up_proj']
             rowwise_keys = ['self_attn.o_proj', 'mlp.down_proj']
 
-            sharded_state = {
-                k: v
-                for k, v in ckpt['state_dict'].items()
-            }
+            sharded_state = {k: v for k, v in ckpt['state_dict'].items()}
             for k, v in sharded_state.items():
                 if any(x in k for x in ignore_keys):
                     continue

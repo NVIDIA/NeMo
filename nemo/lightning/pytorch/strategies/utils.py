@@ -510,10 +510,10 @@ def fsdp2_strategy_parallelize(
 
         # Parallelize the first embedding and the last linear out projection
         # plan = {
-        #     "lm_head": ColwiseParallel(output_layouts=Replicate()) # input_layouts=Shard(1), 
+        #     "lm_head": ColwiseParallel(output_layouts=Replicate()) # input_layouts=Shard(1),
         # }
         # parallelize_module(model, tp_mesh, plan)
-        
+
         # plan = {
         #     "embed_tokens": RowwiseParallel(
         #         input_layouts=Replicate(),
