@@ -76,8 +76,8 @@ def setup_logging(
 
     for _logger_name in logging.root.manager.loggerDict:
         if _logger_name.startswith("nemo") or set_level_for_all_loggers:
-            logger = logging.getLogger(_logger_name)
-            logger.setLevel(logging_level)
+            _logger = logging.getLogger(_logger_name)
+            _logger.setLevel(logging_level)
 
     if filter_warning:
         add_filter_to_all_loggers(warning_filter)
