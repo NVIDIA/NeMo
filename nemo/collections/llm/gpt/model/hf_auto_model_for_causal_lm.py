@@ -384,9 +384,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
 
         # Log the reduced loss.
-        self.log(
-            'reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False
-        )
+        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
         # log LR
