@@ -285,9 +285,7 @@ class _TextMemMapDataset(Dataset):
             if "newline_int" in idx_info_dict:
                 newline_int = idx_info_dict["newline_int"]
                 if self._newline_int != newline_int:
-                    logger.warning(
-                        f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}"
-                    )
+                    logger.warning(f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}")
 
             # test for version mismatch (useful to force recreation of index files)
             idx_version = idx_info_dict.get("version", "0.0")

@@ -3,14 +3,8 @@ from typing import TYPE_CHECKING
 
 from nemo.collections.llm.gpt.model.llama import HFLlamaExporter as _NeMo2HFLlamaExporter
 from nemo.collections.llm.gpt.model.llama import HFLlamaImporter as _NeMo2HFLlamaImporter
-from nemo.collections.llm.gpt.model.llama import (
-    Llama31Config,
-    LlamaConfig,
-)
-from nemo.tron.converter.common import (
-    BaseExporter,
-    BaseImporter,
-)
+from nemo.collections.llm.gpt.model.llama import Llama31Config, LlamaConfig
+from nemo.tron.converter.common import BaseExporter, BaseImporter
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
