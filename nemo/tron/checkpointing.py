@@ -904,7 +904,9 @@ def _get_non_persistent_iteration(non_persistent_global_dir, cfg: ConfigContaine
     elif cfg.checkpoint_config.non_persistent_ckpt_type == "local":
         return checkpointing_context["local_checkpoint_manager"].find_latest()
     else:
-        assert False, f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        assert (
+            False
+        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
 
 
 def _load_non_persistent_base_checkpoint(
@@ -940,7 +942,9 @@ def _load_non_persistent_base_checkpoint(
         )
         return state_dict, checkpoint_name, False, CheckpointType.LOCAL
     else:
-        assert False, f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        assert (
+            False
+        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
 
 
 def _load_global_dist_base_checkpoint(
