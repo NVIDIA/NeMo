@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Generator, Literal, TypeVar
+from typing import TYPE_CHECKING, Generator, Literal, TypeVar
 
 import torch
 from lightning.fabric.plugins.precision import MixedPrecision
@@ -37,6 +40,12 @@ ConfigT = TypeVar("ConfigT", bound="ModelParallelConfig")
 
 
 class FabricMegatronMixedPrecision(MixedPrecision):
+    """Fabric plugin for mixed precision training with Megatron models.
+
+    Handles precision conversions and mixed precision training settings
+    in the Fabric training framework.
+    """
+
     def __init__(
         self,
         precision: Literal["16-mixed", "bf16-mixed", "32"],
@@ -69,6 +78,10 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             assert HAVE_TE, "FP8 precision requires transformer engine."
             if fp8_params:
                 te_fp8.FP8GlobalStateManager.FP8_PARAMETERS = True
+                # Explicitly set the recipe to delayed scaling.
+                # Otherwise TE v2.0 will assume the default, which is mxfp8 recipe.
+                te_recipe, _ = safe_import("transformer_engine.common.recipe")
+                te_fp8.FP8GlobalStateManager.FP8_RECIPE = te_recipe.DelayedScaling()
                 fp8_param_gather = True
 
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
@@ -146,9 +159,11 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             config = get_model_config(module.module)
             config.fp16 = self.dtype_config.fp16
             config.bf16 = self.dtype_config.bf16
-            if hasattr(module, 'module'):
-                module.module = Float16Module(config, module.module)
-            else:
+            # Avoid rewrapping the module if it's already of type Float16Module
+            if hasattr(module, "module"):
+                if not isinstance(module.module, Float16Module):
+                    module.module = Float16Module(config, module.module)
+            elif not isinstance(module, Float16Module):
                 module = Float16Module(config, module)
 
         return module

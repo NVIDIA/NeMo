@@ -30,9 +30,11 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
+    args_sanity_check,
     get_comm_overlap_callback_idx,
     get_user_configs,
     hf_tokenizer,
+    set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
 )
@@ -48,6 +50,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    enable_cuda_graphs: bool,
 ):
     """
     llama3 405b pre-train recipe aimed at achieving best possible performance.
@@ -57,7 +60,7 @@ def override_recipe_configs(
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
-        args.tensorboard,
+        "pre_train",
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -68,11 +71,15 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        enable_cuda_graphs=enable_cuda_graphs,
     )
+    recipe = set_exp_logging_configs(
+        recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+    )
+
     gpu_type = args.gpu.lower()
 
     # data module configs
-    recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Llama-3.1-405B")
 
     # compute dtype configs
@@ -104,11 +111,14 @@ def override_recipe_configs(
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
+    args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama31", "405b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _ = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs
 
-    recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
+    recipe = override_recipe_configs(
+        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+    )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
@@ -121,10 +131,11 @@ if __name__ == "__main__":
         args.gpus_per_node,
         args.time_limit,
         args.container_image,
-        custom_mounts=[],
+        custom_mounts=args.custom_mounts,
         custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
+        wandb_key=args.wandb_key,
     )
 
     plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None)]

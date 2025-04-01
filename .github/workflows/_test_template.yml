@@ -26,9 +26,9 @@ on:
         description: Failure will cancel all other tests if set to true
         required: false
         default: false
-      SAVE_COVERAGE_REPORT:
+      IS_UNIT_TEST:
         type: boolean
-        description: Upload .coverage file
+        description: Upload coverage as unit test
         required: false
         default: false
     outputs:
@@ -50,18 +50,19 @@ jobs:
       potential_infra_failure: ${{ steps.check.outputs.potential_infra_failure }}
     env:
       DIR: ${{ github.run_id }}
+      IS_OPTIONAL: ${{ inputs.IS_OPTIONAL }}
+      SCRIPT: ${{ inputs.SCRIPT }}
+      IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
     steps:
       - name: Docker system cleanup
         run: |
-          docker system prune -af --filter "until=24h" --force || true
+          docker system prune -af --filter "until=8h" --force || true
 
       - name: Docker pull image
         run: |
           docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
       - name: Start container
-        env:
-          DIR: ${{ github.run_id }}
         run: |
           mkdir -p $DIR
 
@@ -90,22 +91,10 @@ jobs:
           bash $DIR/retry_job.sh
 
       - name: Create run-script
-        env:
-          DIR: ${{ github.run_id }}
-          SCRIPT: ${{ inputs.SCRIPT }}
         id: create
         run: |
-          SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
-          SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
-          [[ "${SCRIPT: -1}" == ";" ]] && SCRIPT="${SCRIPT::-1}"
 
-          if [[ "$SCRIPT" == *pytest* ]]; then
-              COVERAGE_PREFIX="unit-test"
-          else
-              COVERAGE_PREFIX="e2e"
-              SCRIPT=$(echo "$SCRIPT" | sed 's|python|coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo|g')
-
-          fi
+          COVERAGE_PREFIX=$([[ "$IS_UNIT_TEST" == "true" ]] && echo "unit-test" || echo "e2e")
           echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
 
           mkdir -p $DIR
@@ -118,7 +107,7 @@ jobs:
           (
             set -e
 
-            docker exec nemo_container_${{ github.run_id }} bash -c '$SCRIPT && echo "Finished successfully." || echo "Did not finish."'
+            docker exec -t nemo_container_${{ github.run_id }} bash -c 'RUN_ID=${{ github.run_id }} bash tests/functional_tests/$SCRIPT.sh && echo "Finished successfully." || echo "Did not finish."'
           ) 2>&1 | tee $DIR/err.log
 
           RUN_TEST_EOF
@@ -139,9 +128,6 @@ jobs:
 
       - name: Check result
         id: check
-        env:
-          SAVE_COVERAGE_REPORT: ${{ inputs.SAVE_COVERAGE_REPORT }}
-          IS_OPTIONAL: ${{ inputs.IS_OPTIONAL }}
         run: |
           cat $DIR/err.log
 
@@ -151,17 +137,13 @@ jobs:
           potential_infra_failure=$(cat $DIR/err.log | grep -Eqiw "device" && echo true || echo false)
           echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
 
-          if docker exec nemo_container_${{ github.run_id }} coverage xml; then
-            coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
-            echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
+          docker exec nemo_container_${{ github.run_id }} coverage combine
+          docker exec nemo_container_${{ github.run_id }} coverage xml
+          docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage $DIR/.coverage 
+          docker cp nemo_container_${{ github.run_id }}:/workspace/coverage.xml $DIR/coverage.xml
 
-            docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage $DIR/.coverage 
-            docker cp nemo_container_${{ github.run_id }}:/workspace/coverage.xml $DIR/coverage.xml
-          else
-            coverage_report="none"
-            echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
-
-          fi
+          coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
+          echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
 
           IS_SUCCESS=$(tail -n 1 $DIR/err.log | grep -q "Finished successfully." && echo "true" || echo "false")
 
@@ -177,6 +159,11 @@ jobs:
 
           exit $EXIT_CODE
 
+      - name: Test coverage
+        shell: bash -x -e -u -o pipefail {0}
+        run: |
+          docker exec -t nemo_container_${{ github.run_id }} coverage report -i
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: ${{ steps.check.outputs.coverage_report != 'none' }}
@@ -188,7 +175,7 @@ jobs:
           include-hidden-files: true
 
       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-        if: failure() && inputs.IS_OPTIONAL == false && !contains(github.event.pull_request.labels.*.name, 'no-fail-fast')
+        if: failure() && inputs.IS_OPTIONAL == false && github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-fail-fast')
       - name: after_script
         if: always() && inputs.AFTER_SCRIPT != ':'
         run: |

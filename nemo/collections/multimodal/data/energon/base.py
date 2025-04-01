@@ -109,8 +109,6 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.decoder_seq_length = decoder_seq_length
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
-        self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.multimodal_sample_config = multimodal_sample_config
@@ -294,10 +292,27 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
         if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
-            state = dataloader_obj.save_state_global(dst_rank=0)
+
+            state = []
+            # All ranks should be zero except the dp rank.
+            if (
+                parallel_state.get_context_parallel_rank()
+                or parallel_state.get_pipeline_model_parallel_rank()
+                or parallel_state.get_tensor_model_parallel_rank()
+                or parallel_state.get_expert_model_parallel_rank()
+            ) == 0:
+                # Save_state_global in energon assumes that we call it for only the first rank within each group that
+                # shares the same dataloader state. By making sure that current rank is the first rank in a model
+                # parallel group, we ensure this.
+                state = dataloader_obj.save_state_global(global_dst_rank=0)
+
             consumed_samples = self.data_sampler.compute_consumed_samples(
                 self.trainer.global_step - self.init_global_step
             )
+
+            if state is None:
+                state = []  # Megatron core requires all the states on all the ranks to have same python
+            # type. Energon sends the state as a list
             logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
             return {'dataloader_state': state, 'consumed_samples': consumed_samples}
 
@@ -324,7 +339,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         state = state_dict['dataloader_state']
         try:
             if self.trainer:
-                self.trainer.datamodule.train_dataloader().restore_state(state, src_rank=0)
+                self.trainer.datamodule.train_dataloader().restore_state_global(state)
                 logging.info("Multimodal dataloader state restored")
             else:
                 logging.error(f"Cannot restore state from state_dict {state_dict}")

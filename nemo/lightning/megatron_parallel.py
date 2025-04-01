@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+
 import abc
 import collections.abc
 import functools
@@ -43,6 +46,7 @@ from typing import (
 
 import torch
 import torch.distributed
+from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
@@ -188,7 +192,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from megatron.core import parallel_state
-
         from nemo.utils.model_utils import unwrap_model
 
         _pipeline: List[nn.Module]
@@ -584,7 +587,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         for model_module in self:
-            if not self._cpu and (not HAVE_CUSTOM_FSDP or not self.ddp_config.use_custom_fsdp):
+            if not self._cpu and not (HAVE_CUSTOM_FSDP and self.ddp_config and self.ddp_config.use_custom_fsdp):
                 # If Megatron FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
                 model_module.cuda(torch.cuda.current_device())
 
@@ -608,20 +611,28 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
                 msg = (
                     f" > number of parameters on (tensor, pipeline) model parallel rank "
-                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "  # pylint: disable=line-too-long
+                    f"({parallel_state.get_tensor_model_parallel_rank()} ,"
+                    f"{parallel_state.get_pipeline_model_parallel_rank()}): "
                     f"{num_params}"
                 )
                 logging.info(msg)
 
                 if num_params != num_trainable_params:
                     logging.info(
-                        " > number of trainable parameters: "
-                        f"{num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
+                        f" > number of trainable parameters: {num_trainable_params} "
+                        f"({num_trainable_params / num_params:.2%} of total)"
                     )
         if self.convert_module_fn:
             self.apply_convert_module_fn()
 
-        self.init_ddp()
+        # Skip init_ddp for inference i.e testing as it can lead to OOM.
+        try:
+            if not self.trainer.state.fn == TrainerFn.TESTING:
+                self.init_ddp()
+        except RuntimeError as e:
+            # Don't fail if trainer is not attached, re-raise any other RuntimeError
+            if not "is not attached to a `Trainer`" in str(e):
+                raise e
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
@@ -632,6 +643,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return
 
         from megatron.core import parallel_state
+        from megatron.core.transformer.module import Float16Module
+
+        from nemo.utils.model_utils import unwrap_model
 
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
@@ -649,7 +663,13 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
-                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp:
+                # Avoid rewrapping the module if it's already wrapped with FSDP
+                unwrapped_module = unwrap_model(module, Float16Module)
+                if (
+                    HAVE_CUSTOM_FSDP
+                    and self.ddp_config.use_custom_fsdp
+                    and not isinstance(unwrapped_module, FullyShardedDataParallel)
+                ):
                     FSDP = FullyShardedDataParallel
                     dist_module = FSDP(
                         module.config,
@@ -657,7 +677,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         module,
                         disable_bucketing=disable_bucketing,
                     )
-                else:
+                elif not isinstance(unwrapped_module, DDP):
                     dist_module = DDP(
                         module.config,
                         self.ddp_config,
@@ -666,6 +686,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                         disable_bucketing=disable_bucketing,
                     )
+                else:
+                    dist_module = unwrapped_module
             model_chunk.module = dist_module
             model_chunk.buffers = (
                 dist_module.buffers
@@ -1405,14 +1427,13 @@ class MegatronStep(Generic[ModelT, DataT]):
 
             if has_dataloader_idx:
                 packed_data = [(d, batch_idx, dataloader_idx) for d in data]
-                data = [itertools.chain(packed_data)]
+                data = itertools.chain(packed_data)
         else:
             data = self.data
             # for pretraining (fixed sequence length), we use seq_length inferred from the data sampler.
             seq_length = None
 
-        if not has_dataloader_idx:
-            data = self.to_data_iterator_list(data)
+        data = self.to_data_iterator_list(data)
         return data, seq_length
 
     @functools.cached_property

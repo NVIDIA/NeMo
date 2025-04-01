@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
+import logging as _logging
 import os
 import shutil
 from contextlib import contextmanager
@@ -20,21 +22,24 @@ from typing import Any, Dict, Literal, Optional, Union
 
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.utilities.rank_zero import rank_zero_info
+from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
+from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
-from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
+    _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
-    fix_progress_bar,
     fsdp2_strategy_parallelize,
-    setup_data_sampler,
 )
+from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
@@ -42,6 +47,16 @@ try:
 except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
     from torch.distributed._tensor.placement_types import Shard
+
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
+)
+
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
+)
+
+_logger = _logging.getLogger(__name__)
 
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
@@ -55,10 +70,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
+        offload_policy: 'CPUOffloadPolicy' = None,
         data_sampler=None,
         checkpoint_io=None,
         mp_policy=None,
-        parallelize_fn=None,
+        parallelize_fn=fsdp2_strategy_parallelize,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -86,13 +102,16 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.checkpoint = None
         self.mp_policy = mp_policy
         if self.mp_policy is None:
+            assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
             self.mp_policy = MixedPrecisionPolicy(
                 param_dtype=torch.bfloat16,
-                reduce_dtype=torch.float32,
-                output_dtype=None,
+                reduce_dtype=torch.bfloat16,
+                output_dtype=torch.bfloat16,
                 cast_forward_inputs=True,
             )
-        self.parallelize_fn = parallelize_fn or fsdp2_strategy_parallelize
+        self.store: Optional[torch.distributed.Store] = None
+        self.parallelize_fn = parallelize_fn
+        self.offload_policy = offload_policy
 
     @property
     @override
@@ -145,7 +164,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """setup distributed environment and device mesh"""
         from torch.distributed.device_mesh import init_device_mesh
 
-        super().setup_environment()
+        self.accelerator.setup_device(self.root_device)
+
         self._setup_distributed()
         if self._data_parallel_size == "auto":
             self._data_parallel_size = self.num_nodes
@@ -157,6 +177,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             mesh_shape=(self._data_parallel_size,),
             mesh_dim_names=("data_parallel",),
         )
+        self.lightning_module._device_mesh = self._device_mesh
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
@@ -166,17 +187,73 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             trainer (pl.Trainer): The PyTorch Lightning trainer instance.
         """
         self.trainer = trainer
-        setup_data_sampler(self.trainer)
-        fix_progress_bar(trainer)
-        super().setup(trainer)
+        # connect trainer to accelerator.
+        self.accelerator.setup(trainer)
+        # Parallelize model
+        if getattr(self, '_init_model_parallel', True):
+            self.parallelize()
+        # Corner case, as FSDP2 expected to be used multi-device.
+        if self._data_parallel_size == 1:
+            self._lightning_module = self._lightning_module.to(self.root_device)
+
+        # setup optim
+        if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
+            super().setup_optimizers(trainer)
 
     def parallelize(self):
         """Applies fully_shard on model"""
         if self.parallelize_fn is not None:
             # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
             # Apply FSDP2 and TP to the model
-            self.parallelize_fn(self.lightning_module.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+            self.parallelize_fn(
+                self.lightning_module.model,
+                device_mesh=self._device_mesh,
+                mp_policy=self.mp_policy,
+                offload_policy=self.offload_policy,
+            )
+            # Apply this only once
             self.parallelize_fn = None
+        else:
+            logging.warning("Called parallelize more than once.")
+
+    @override
+    def _setup_distributed(self) -> None:
+        """Initializes process group for communications."""
+
+        # Implementation from superclass copied below in order to pass the store to the process group init
+        reset_seed()
+        self.set_world_ranks()
+        self._process_group_backend = self._get_process_group_backend()
+        # See https://github.com/pytorch/pytorch/issues/148532 for details.
+        if self.offload_policy is not None:
+            self._process_group_backend = "cuda:nccl,cpu:gloo"
+
+        assert self.cluster_environment is not None
+        if not torch.distributed.is_available():
+            raise RuntimeError("torch.distributed is not available. Cannot initialize distributed process group")
+        if torch.distributed.is_initialized():
+            _logger.debug("torch.distributed is already initialized. Exiting early")
+            return
+
+        global_rank = self.cluster_environment.global_rank()
+        world_size = self.cluster_environment.world_size()
+        os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
+        os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+        torch.distributed.init_process_group(
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+        )
+
+        if self._process_group_backend == "nccl":
+            atexit.register(_destroy_dist_connection)
+
+        # On rank=0 let everyone know training is starting
+        rank_zero_info(
+            f"{'-' * 100}\n"
+            f"distributed_backend={self._process_group_backend}\n"
+            f"All distributed processes registered. Starting with {world_size} processes\n"
+            f"{'-' * 100}\n"
+        )
 
     def _get_loss_reduction(self, step_type: str):
         """Retrieves the loss reduction method for a given step type.
@@ -215,6 +292,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         return loss, {'avg': loss}
 
     @override
+    def optimizer_state(self, optimizer):
+        """returns the sharded optim state"""
+        return optimizer.state_dict()
+
+    @override
     def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
         """Defines the training step, logging relevant metrics.
 
@@ -225,7 +307,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             STEP_OUTPUT: The loss for backpropagation.
         """
-        self.parallelize()
 
         # See load_optimizer_state_dict to understand why we call this here.
         if self.checkpoint is not None:
@@ -233,23 +314,22 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         assert self.lightning_module is not None
         assert self.model is not None
-        with self.precision_plugin.train_step_context():
-            loss, reduced = self._step_proxy("training", batch, batch_idx)
-            self.lightning_module.log(
-                'global_step',
-                self.trainer.global_step,
-                prog_bar=True,
-                rank_zero_only=True,
-                batch_size=1,
-            )
 
-            self.lightning_module.log(
-                'step',
-                self.trainer.global_step,
-            )
+        loss = self.lightning_module.training_step(batch, batch_idx)
+        self.lightning_module.log(
+            'global_step',
+            self.trainer.global_step,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
 
-            # returns unreduced loss for backward
-            return loss
+        self.lightning_module.log(
+            'step',
+            self.trainer.global_step,
+        )
+
+        return loss
 
     @override
     def validation_step(self, batch, batch_idx=None) -> Any:
@@ -266,7 +346,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
-            self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            if reduced["avg"]:
+                self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
             return loss
 
     @override
@@ -304,14 +385,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         with self.precision_plugin.predict_step_context():
             loss, reduced = self._step_proxy("predict", batch, batch_idx)
             return reduced
-
-    @override
-    def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
-        """Applies data-samples to dataloader"""
-        if self.data_sampler:
-            return self.data_sampler.transform_dataloader(dataloader)
-
-        return dataloader
 
     @contextmanager
     @override
@@ -372,20 +445,23 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def lightning_module_state_dict(self) -> Dict[str, Any]:
-        """Collects the state dict of the model.
-
-        Only returns a non-empty state dict on rank 0 if ``save_distributed_checkpoint=False``.
-
-        """
+        """Collects the state dict of the model."""
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         assert self.lightning_module is not None
         state_dict = self.lightning_module.state_dict()
+        is_adapter_only = getattr(self._checkpoint_io, 'adapter_only', False)
+        name_has_lora = lambda x: 'lora' in x.lower()
 
         module_names = list(state_dict.keys())
         for name in module_names:
             param = state_dict.pop(name)
-            state_dict[name] = to_cpu(param)
+            # @akoumparouli: refactor this.
+            # if any key has "lora" in FQN, then it will only move lora keys to cpu, since only
+            # the adapter weights are saved.
+            if (is_adapter_only and name_has_lora(name)) or not is_adapter_only:
+                state_dict[name] = to_cpu(param)
+        dist.barrier()
         return state_dict
 
     @override
