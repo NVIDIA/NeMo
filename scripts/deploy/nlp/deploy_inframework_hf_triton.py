@@ -49,8 +49,9 @@ def get_args(argv):
     )
     parser.add_argument("-dvm", "--device_map", default=None, type=str, help="HF device_map param")
     parser.add_argument("-tpp", "--tp_plan", default=None, type=str, help="HF tp_plan param")
-    parser.add_argument("-trc", "--trust_remote_code", default=False, action='store_true',
-                        help="HF trust_remote_code param")
+    parser.add_argument(
+        "-trc", "--trust_remote_code", default=False, action='store_true', help="HF trust_remote_code param"
+    )
     parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
     parser.add_argument(
