@@ -98,7 +98,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.use_linear_ce_loss = use_linear_ce_loss
 
         if self.use_linear_ce_loss and not HAVE_LINEAR_LOSS_CE:
-            raise Warning(
+            logging.warning(
                 "Dependency for linear CE loss is not available. Please refer to https://github.com/apple/ml-cross-entropy."
             )
             self.use_linear_ce_loss = False
@@ -286,7 +286,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             loss = self.loss_fn(logits, labels, loss_mask)
         else:
             # use num_logits_to_keep=1 to avoid full logits matrix in memory
-            outputs = self.forward(batch, num_logits_to_keep=1)
+            outputs = self.forward(batch, num_logits_to_keep=0)
             hidden_states = outputs.hidden_states[-1]
             lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
             labels = labels
@@ -502,8 +502,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
-        # Also filter out use_linear_ce_loss as it's handled at a higher level
-        allowed_keys = [k for k in allowed_keys if k != 'use_linear_ce_loss']
         return {k: batch[k] for k in allowed_keys if k in batch}
 
     @property
