@@ -46,7 +46,7 @@ from nemo.utils import logging
 
 __all__ = ['SortformerEncLabelModel']
 
-def concat_and_pad(embs, lengths):
+def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
     """Concatenates lengths[i] first embeddings of embs[i], and pads the rest elements with zeros.
     Args:
         embs: List of embeddings Tensors of (B, T_i, D) shape
