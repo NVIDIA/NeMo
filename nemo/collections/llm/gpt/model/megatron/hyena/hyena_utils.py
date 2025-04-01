@@ -823,7 +823,6 @@ class ParallelHyenaOperator(nn.Module):
         self.bidirectional = hyena_config.bidirectional
         self.use_hyena_filter = hyena_config.use_hyena_filter
         self.use_fast_heads = hyena_config.use_fast_heads
-        self.use_slow_heads = hyena_config.use_slow_heads
 
         self.zigzag = zigzag
 
@@ -917,22 +916,13 @@ class ParallelHyenaOperator(nn.Module):
             raise ValueError(f"Unknown hyena filter class: {self.hyena_filter_cls}")
 
         with get_cuda_rng_tracker().fork():
-            if self.use_slow_heads:
-                self.conv_bias = nn.Parameter(
-                    torch.empty(
-                        self.num_groups,
-                        device=torch.cuda.current_device(),
-                        dtype=torch.float32,
-                    )
+            self.conv_bias = nn.Parameter(
+                torch.empty(
+                    self.width_per_tp_group,
+                    device=torch.cuda.current_device(),
+                    dtype=torch.float32,
                 )
-            else:
-                self.conv_bias = nn.Parameter(
-                    torch.empty(
-                        self.width_per_tp_group,
-                        device=torch.cuda.current_device(),
-                        dtype=torch.float32,
-                    )
-                )
+            )
                 # Add attribute to prevent automatic casting during model conversion
             setattr(self.conv_bias, 'tensor_model_parallel', True)
             bounds = math.sqrt(1 / self.kernel_size)
@@ -941,39 +931,6 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.model_parallel = True
             self.conv_bias.partition_dim = 0
             self.conv_bias.stride = 1
-
-    def multihead_forward(self, q, k, v, h):
-        """
-        Multihead forward pass for the ParallelHyenaOperator.
-        """
-        batch_size = q.shape[0]
-        group_dim = self.group_dim
-        num_groups = self.num_groups
-
-        L = v.shape[-1]
-        fft_size = 2 * L
-        kv = rearrange(k, "b (h d1) l -> b d1 1 h l", d1=group_dim) * rearrange(
-            v, "b (h d2) l -> b 1 d2 h l", d2=group_dim
-        )
-        if self.use_flashfft:
-            # treat mhfftconv as a large batched fftconv
-            kv_reshape = kv.reshape(-1, num_groups, L)
-            y = self.fftconv_fn(kv_reshape, h[0])
-            y = y.view(batch_size, group_dim, group_dim, num_groups, L)
-        else:
-            kv_f = torch.fft.rfft(kv.to(torch.float32), n=fft_size) / fft_size
-            h_f = torch.fft.rfft(h.to(torch.float32), n=fft_size)  # h L+1
-
-            y = torch.fft.irfft(kv_f * h_f, n=fft_size, norm="forward")[..., :L]
-        y = y.to(dtype=q.dtype)
-
-        out = y + kv * self.conv_bias.unsqueeze(-1)
-        q = rearrange(q, "b (h d1) l -> b d1 1 h l", d1=group_dim)
-        z = _mul_sum(out, q)
-        z = rearrange(z, "b d2 h l -> b (h d2) l")
-
-        z = z.to(v.dtype)
-        return z
 
     def forward(self, x1, x2, v, _hyena_use_cp=True):
         """
@@ -1040,9 +997,6 @@ class ParallelHyenaOperator(nn.Module):
 
             local_bias_size = self.width_per_tp_group // get_context_parallel_world_size()
             conv_bias = self.conv_bias[rank * local_bias_size : (rank + 1) * local_bias_size]
-
-        if self.use_slow_heads:
-            return self.multihead_forward(x1, x2, v, h)
 
         elif self.use_long_conv1d:
             h = h.repeat_interleave(self.group_dim, dim=-2)
