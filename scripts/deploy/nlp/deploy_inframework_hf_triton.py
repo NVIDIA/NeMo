@@ -14,7 +14,11 @@
 
 import argparse
 import logging
+import os
 import sys
+
+import torch
+import torch.distributed as dist
 
 from nemo.deploy import DeployPyTriton
 from nemo.deploy.nlp.hf_deployable import HuggingFaceLLMDeploy
@@ -22,12 +26,18 @@ from nemo.deploy.nlp.hf_deployable import HuggingFaceLLMDeploy
 LOGGER = logging.getLogger("NeMo")
 
 
+def setup_torch_dist(rank, world_size):
+    torch.cuda.set_device(rank)
+    # Initialize the process group
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+
+
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
     )
-    parser.add_argument("-hmip", "--hf_model_id_path", type=str, help="Path or ID of a HF model")
+    parser.add_argument("-hp", "--hf_model_id_path", type=str, help="Path or ID of a HF model")
     parser.add_argument(
         "-t",
         "--task",
@@ -37,7 +47,10 @@ def get_args(argv):
         type=str,
         help="Downstream task for the model",
     )
-    parser.add_argument("-did", "--device_id", default=0, type=int, help="Default device id")
+    parser.add_argument("-dvm", "--device_map", default=None, type=str, help="HF device_map param")
+    parser.add_argument("-tpp", "--tp_plan", default=None, type=str, help="HF tp_plan param")
+    parser.add_argument("-trc", "--trust_remote_code", default=False, action='store_true',
+                        help="HF trust_remote_code param")
     parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
     parser.add_argument(
@@ -46,7 +59,6 @@ def get_args(argv):
     parser.add_argument(
         "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
     )
-    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     args = parser.parse_args(argv)
@@ -68,35 +80,53 @@ def hf_deploy(argv):
     if args.hf_model_id_path is None:
         raise ValueError("In-Framework deployment requires a Hugging Face model ID or path.")
 
+    if "RANK" in os.environ:
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+        if world_size > 1:
+            setup_torch_dist(rank, world_size)
+
     hf_deployable = HuggingFaceLLMDeploy(
         hf_model_id_path=args.hf_model_id_path,
-        trust_remote_code=True,
         task=args.task,
-        device_id=args.device_id,
+        trust_remote_code=args.trust_remote_code,
+        device_map=args.device_map,
+        tp_plan=args.tp_plan,
     )
 
-    try:
-        nm = DeployPyTriton(
-            model=hf_deployable,
-            triton_model_name=args.triton_model_name,
-            triton_model_version=args.triton_model_version,
-            max_batch_size=args.max_batch_size,
-            http_port=args.triton_port,
-            address=args.triton_http_address,
-        )
+    start_triton_server = True
+    if dist.is_initialized():
+        if dist.get_rank() > 0:
+            start_triton_server = False
 
-        LOGGER.info("Triton deploy function will be called.")
-        nm.deploy()
-    except Exception as error:
-        LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
-        return
+    if start_triton_server:
+        try:
+            nm = DeployPyTriton(
+                model=hf_deployable,
+                triton_model_name=args.triton_model_name,
+                triton_model_version=args.triton_model_version,
+                max_batch_size=args.max_batch_size,
+                http_port=args.triton_port,
+                address=args.triton_http_address,
+            )
 
-    try:
-        LOGGER.info("Model serving on Triton is will be started.")
-        nm.serve()
-    except Exception as error:
-        LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
-        return
+            LOGGER.info("Triton deploy function will be called.")
+            nm.deploy()
+        except Exception as error:
+            LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
+            if dist.is_initialized():
+                dist.barrier()
+            return
+
+        try:
+            LOGGER.info("Model serving on Triton is will be started.")
+            nm.serve()
+        except Exception as error:
+            LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
+
+    if dist.is_initialized():
+        dist.barrier()
+        dist.destroy_process_group()
 
 
 if __name__ == '__main__':
