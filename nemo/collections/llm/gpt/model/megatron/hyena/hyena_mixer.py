@@ -206,7 +206,6 @@ class HyenaMixer(MegatronModule):
                 self.transformer_config.init_method,
                 operator_type,
                 max_sequence_length,
-                downsample_factor=1,
             )
 
         # Dropout. Note that for a single iteration, this layer will generate

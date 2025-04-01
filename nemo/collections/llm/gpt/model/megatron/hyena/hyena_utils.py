@@ -16,7 +16,6 @@
 # limitations under the License.
 
 import math
-import os
 from functools import partial
 
 import torch
@@ -750,7 +749,6 @@ class ParallelHyenaOperator(nn.Module):
         init_method,
         operator_type,
         max_sequence_length,
-        downsample_factor=1,
         zigzag=True,
     ):
         super().__init__()
@@ -767,7 +765,6 @@ class ParallelHyenaOperator(nn.Module):
         else:
             self.hyena_filter_cls = hyena_config.hyena_filter_cls
 
-        self.downsample_factor = downsample_factor
         self.bidirectional = hyena_config.bidirectional
         self.use_hyena_filter = hyena_config.use_hyena_filter
         self.use_fast_heads = hyena_config.use_fast_heads
@@ -861,20 +858,11 @@ class ParallelHyenaOperator(nn.Module):
         else:
             cp_group = None
 
-        # downsampled = self.downsample_factor > 1
-
         x1 = rearrange(x1, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
         x2 = rearrange(x2, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
         v = rearrange(v, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
 
         x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
-
-        # FIXME: add support post cp refactor
-        # if self.downsample_factor > 1:
-        #     x1 = x1[..., :: self.downsample_factor]
-        #     x2 = x2[..., :: self.downsample_factor]
-        #     v = v[..., :: self.downsample_factor]
-        #     L = L // self.downsample_factor
 
         # The kernel length must be adjusted in CP settings
         _L_kernel = L if cp_group is None else L * len(torch.distributed.get_process_group_ranks(cp_group))
@@ -925,14 +913,6 @@ class ParallelHyenaOperator(nn.Module):
             )
             z = z.to(v.dtype)
             z = x1 * z
-
-        # if downsampled:
-        #     z = z.repeat_interleave(self.downsample_factor, dim=-1)
-
-        # print(
-        #   f"[rank={dist.get_rank()}] shape of z = {z.shape} | "
-        #   f"num_groups = {self.num_groups}, local_size = {local_size}"
-        # )  # DEBUG
 
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
             z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
