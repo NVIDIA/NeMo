@@ -325,6 +325,9 @@ class LoggerConfig:
     modules_to_filter: Optional[list[str]] = None
     """List of modules to filter out from the logs"""
 
+    set_level_for_all_loggers: bool = False
+    """Set the logging level for all loggers. If False, only level for NeMo loggers will be set."""
+
 
 @dataclass(kw_only=True)
 class SchedulerConfig:

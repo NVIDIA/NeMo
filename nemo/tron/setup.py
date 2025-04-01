@@ -78,6 +78,7 @@ def setup(
         logging_level=cfg.logger_config.logging_level,
         filter_warning=cfg.logger_config.filter_warnings,
         modules_to_filter=cfg.logger_config.modules_to_filter,
+        set_level_for_all_loggers=cfg.logger_config.set_level_for_all_loggers,
     )
 
     # Initalize and get arguments, timers, and Tensorboard writer.
