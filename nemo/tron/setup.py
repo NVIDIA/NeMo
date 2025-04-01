@@ -252,7 +252,7 @@ def _update_model_config_funcs(
             model_config.grad_sync_func = model_config.grad_sync_func[0]
     if ddp_config.overlap_param_gather and ddp_config.align_param_gather:
         model_config.param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
-    if len(model) == 1:
-        model_config.param_sync_func = model_config.param_sync_func[0]
+        if len(model) == 1:
+            model_config.param_sync_func = model_config.param_sync_func[0]
     model_config.finalize_model_grads_func = finalize_model_grads
     model_config.grad_scale_func = optimizer.scale_loss
