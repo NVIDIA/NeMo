@@ -171,6 +171,7 @@ def pretrain(
     Returns:
         Path: The directory path where pretraining artifacts are saved.
 
+
     Examples:
         >>> from nemo.collections import llm
         >>> from nemo import lightning as nl
@@ -193,6 +194,18 @@ def pretrain(
         trainer.strategy, "store"
     )
     assert strategy_supports_inprocess, "Strategy does not support in process restart"
+
+    # In process restart is currently incompatible as TransformerEngine by default
+    # relies on MPI during userbuffers initialization.
+    # The bootstrap backend is not initialized at this point to loosen this check.
+    # So to be conservative, raise an exception indicating incompatibility.
+    from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+
+    for cb in trainer.callbacks:
+        if isinstance(cb, MegatronCommOverlapCallback):
+            raise ValueError(
+                "In process restart is incompatible with MegatronCommOverlapCallback due to usage of MPI collectives."
+            )
 
     maybe_set_torch_cpp_log_level_error()
     store = get_tcp_store()
