@@ -73,6 +73,7 @@ def test_transformer(flops_config):
     expected_flops = 118427811840.0
     assert transformer(flops_config) == expected_flops
 
+
 def test_transformer_no_moe(flops_config):
     flops_config.moe_router_topk = 0
     expected_flops = 96684539904.0
