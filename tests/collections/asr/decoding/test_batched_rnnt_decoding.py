@@ -30,10 +30,10 @@ from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatched
 from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
-from nemo.utils import logging
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE
+from nemo.utils import logging
 
 faulthandler.enable()
 
@@ -153,7 +153,7 @@ class TestRNNTDecoding:
             **beam_config,
         )
         logging.info("Successfully ended model initialization")
-        
+
         with torch.no_grad():
             logging.info("Starting decoding")
             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
@@ -172,7 +172,7 @@ class TestRNNTDecoding:
             logging.info("Starting converting to text")
             hyps = decode_text_from_hypotheses(hyps, model.decoding)
             logging.info("Ending converting to text")
-            
+
             print()
 
             print(
@@ -187,6 +187,7 @@ class TestRNNTDecoding:
                 print("Transcript", hyp.y_sequence)
                 print("Timesteps", hyp.timestamp)
                 print()
+
 
 #     @pytest.mark.skipif(
 #         not NUMBA_RNNT_LOSS_AVAILABLE,
