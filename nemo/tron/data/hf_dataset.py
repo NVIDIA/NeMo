@@ -72,16 +72,9 @@ def preprocess_and_split_data(
     val_aliases: list[str] = ["val", "validation", "valid", "eval"],
     delete_raw: bool = False,
     seed: int = 1234,
+    rewrite: bool = False,
 ):
-    """Preprocesses and splits the downloaded dataset into training, validation, and test sets.
-
-    Args:
-        dset (DatasetDict): The downloaded dataset object.
-        split_val_from_train (bool, optional): Whether to split the validation set from the training set.
-            If False, the validation set is split from the test set. Defaults to True.
-        val_proportion (float, optional): The proportion of the training or test set to be used for the validation split.
-            Defaults to 0.05.
-    """
+    """Preprocesses and splits the downloaded dataset into training, validation, and test sets."""
     logger.info(f"Preprocessing {dataset_name} to jsonl format and splitting...")
     save_splits = {}
     train_set: Dataset | None = None
@@ -127,9 +120,12 @@ def preprocess_and_split_data(
     for split_name, dataset in save_splits.items():
         output_file = dataset_root / f"{split_name}.jsonl"
 
-        if output_file.exists() and output_file.is_file():
-            logger.info(f"{output_file} exists, deleting and rewriting...")
-            os.remove(output_file)
+        if output_file.exists() and output_file.is_file() and not rewrite:
+            logger.info(f"{output_file} exists, skipping...")
+            continue
+
+        logger.info(f"{output_file} exists, deleting and rewriting...")
+        os.remove(output_file)
 
         with output_file.open("w", encoding="utf-8") as f:
             for example in tqdm(dataset, desc=f"Processing {split_name} split"):
@@ -233,17 +229,19 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
             dataset = self._load_dataset()
             if self.hf_filter_lambda:
                 dataset = dataset.filter(self.hf_filter_lambda, **self.hf_filter_lambda_kwargs)
-            preprocess_and_split_data(
-                dataset,
-                self.dataset_name,
-                self.dataset_root,
-                tokenizer=self.tokenizer,
-                process_example_fn=self.process_example_fn,
-                split_val_from_train=self.split_val_from_train,
-                val_proportion=self.val_proportion,
-                delete_raw=self.delete_raw,
-                seed=self.seed,
-            )
+
+        preprocess_and_split_data(
+            dataset,
+            self.dataset_name,
+            self.dataset_root,
+            tokenizer=self.tokenizer,
+            process_example_fn=self.process_example_fn,
+            split_val_from_train=self.split_val_from_train,
+            val_proportion=self.val_proportion,
+            delete_raw=self.delete_raw,
+            seed=self.seed,
+            rewrite=self.download_mode == "force_redownload",
+        )
         super().prepare_data()
 
     def _load_dataset(self):
