@@ -33,6 +33,9 @@ from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_grap
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 
+import faulthandler
+faulthandler.enable()
+
 RNNT_MODEL="stt_en_conformer_transducer_small"
 TDT_MODEL="nvidia/parakeet-tdt_ctc-110m"
 DEVICES = [torch.device("cpu")]
@@ -113,7 +116,6 @@ class TestRNNTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -122,8 +124,9 @@ class TestRNNTDecoding:
             {"search_type": "maes_batch", "allow_cuda_graphs": False},
         ],
     )
-    @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("beam_size", [2, 4])
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_best_hypothesis(
         self, test_audio_filenames, beam_config, device, batch_size, beam_size
     ):
@@ -180,7 +183,6 @@ class TestRNNTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -189,8 +191,9 @@ class TestRNNTDecoding:
             {"search_type": "maes_batch", "allow_cuda_graphs": False},
         ],
     )
-    @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("beam_size", [2, 4])
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_nbest(self, test_audio_filenames, beam_config, device, beam_size, batch_size):
         num_samples = min(batch_size, len(test_audio_filenames))
 
@@ -253,7 +256,6 @@ class TestRNNTDecoding:
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -266,6 +268,7 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
+    @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
@@ -328,8 +331,8 @@ class TestRNNTDecoding:
     @pytest.mark.unit
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("beam_size", [4, 8])
+    @pytest.mark.parametrize("batch_size", [4, 16])
     def test_cuda_graph_rnnt_batched_alsd_decoder(self, test_audio_filenames, batch_size, beam_size):
         # Set device to CUDA
         device = torch.device("cuda")
@@ -480,7 +483,6 @@ class TestTDTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -488,8 +490,9 @@ class TestTDTDecoding:
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
-    @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("beam_size", [2, 4])
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_best_hypothesis(
         self, test_audio_filenames, beam_config, device, batch_size, beam_size
     ):
@@ -550,7 +553,6 @@ class TestTDTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -558,8 +560,9 @@ class TestTDTDecoding:
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
-    @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("beam_size", [2, 4])
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_nbest(self, test_audio_filenames, beam_config, device, beam_size, batch_size):
         num_samples = min(batch_size, len(test_audio_filenames))
 
@@ -626,7 +629,6 @@ class TestTDTDecoding:
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -646,6 +648,7 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
+    @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
