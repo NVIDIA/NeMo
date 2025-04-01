@@ -131,11 +131,6 @@ class FinetuningDatasetBuilder:
 
         # This needs to be called on all ranks
         datasets = self._build_datasets()
-
-        if torch.distributed.is_initialized():
-            if not self.is_built_on_rank():
-                return [None, None, None]
-
         return datasets
 
     def _build_datasets(self) -> list[Optional[Any]]:
