@@ -19,6 +19,8 @@ from dataclasses import dataclass
 import torch
 import torch.distributed
 import torch.nn as nn
+from einops import rearrange, repeat
+from torch import einsum, nn
 
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -207,34 +209,69 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
             self.pre_encode.normalize_matrices()
         self.ngpt.normalize_matrices()
 
+def rotate_half(x):
+    x = rearrange(x, '... (d r) -> ... d r', r = 2)
+    x1, x2 = x.unbind(dim = -1)
+    x = torch.stack((-x2, x1), dim = -1)
+    return rearrange(x, '... d r -> ... (d r)')
 
-def apply_rotary_position_embeddings(sinusoidal_pos, tensor):
-    """Applies rotary embeddings to the given tensor (Q or K)."""
-    # Split sinusoidal_pos into sin and cos parts
-    sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-    
-    # Get even and odd dimensions
-    x_even = tensor[..., ::2]
-    x_odd = tensor[..., 1::2]
-    
-    # Apply rotation using the rotation matrix multiplication
-    x_even_new = x_even * cos - x_odd * sin
-    x_odd_new = x_even * sin + x_odd * cos
-    
-    # Interleave the results
-    x_transformed = torch.stack((x_even_new, x_odd_new), dim=-1)
-    x_transformed = x_transformed.flatten(-2)
-    
-    return x_transformed
+def get_sinusoidal_embeddings(seq_len: int, dim: int, theta: float = 10000.0, device: torch.device = torch.device('cpu'), dtype: torch.dtype = torch.float32):
+    """
+    Generates sinusoidal embeddings (complex numbers represented as real/imag pairs)
+    for rotary position embedding.
 
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
+    Args:
+        seq_len: Length of the sequence (T).
+        dim: Dimension of the embeddings (D_rotary <= D). Must be even.
+        theta: Base value for frequency calculation.
+        device: Torch device.
+        dtype: Torch dtype.
+
+    Returns:
+        A tensor of shape (seq_len, dim) containing the embeddings.
+    """
+    assert dim % 2 == 0, "Dimension must be even."
+
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=dtype, device=device)[: (dim // 2)] / dim))
+
+    seq_positions = torch.arange(seq_len, device=device, dtype=dtype)
+
+    freqs = einsum("i , j -> i j", seq_positions, freqs)
+
+    emb = repeat(freqs, '... n -> ... (n r)', r=2)
+
+    return emb
+
+def apply_rotary_embeddings(t: torch.Tensor, freqs: torch.Tensor, scale: float = 1.0):
+    """
+    Applies pre-computed rotary embeddings to a tensor. Handles inputs like BxNxTxD.
+
+    Args:
+        t: The input tensor (e.g., query or key) of shape (..., seq_len, dim) = (..., T, D).
+        freqs: Pre-computed sinusoidal embeddings from get_sinusoidal_embeddings,
+               shape (seq_len, dim_rotary) = (T, D_rotary) where D_rotary <= D.
+        scale: Optional scaling factor.
+
+    Returns:
+        The tensor with rotary embeddings applied, shape (..., T, D).
+    """
+    rot_dim = freqs.shape[-1] # D_rotary
+    seq_len = freqs.shape[-2] # T
+
+    # Ensure freqs broadcast correctly to t's shape (..., T, D_rotary)
+    # Add leading dimensions to freqs to match t's rank, except for the last two.
+    leading_dims = t.shape[:-2]
+    freqs_broadcast = freqs.view((1,) * len(leading_dims) + freqs.shape)
+
+    t_dtype = t.dtype
+    t_rot = t[..., :rot_dim]
+    t_pass = t[..., rot_dim:]
+
+    t_rotated = (t_rot * freqs_broadcast.cos() * scale) + (rotate_half(t_rot) * freqs_broadcast.sin() * scale)
+
+    out = torch.cat((t_rotated, t_pass), dim=-1)
+
+    return out.type(t_dtype)
 
 def justnorm(x, fp32: bool = False, idim: int = -1):
     if fp32:
@@ -308,8 +345,9 @@ class Block(nn.Module):
         v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
 
         sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head, device=q.device)
-        q = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2)).transpose(2, 1)
-        k = apply_rotary_position_embeddings(sinusoidal_pos, k.transpose(1, 2)).transpose(2, 1)
+        q = apply_rotary_embeddings(q.transpose(1, 2), sinusoidal_pos).transpose(2, 1)
+        k = apply_rotary_embeddings(k.transpose(1, 2), sinusoidal_pos).transpose(2, 1)
+        
         
         if self.config.use_nGPT == 1:
             sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
