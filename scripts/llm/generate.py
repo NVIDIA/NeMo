@@ -128,7 +128,7 @@ def get_args():
         action="store_true",
         help="""Whether to run inference in FP8 precision""",
     )
-    praser.add_argument(
+    parser.add_argument(
         "--fp8_recipe",
         type=str,
         default="tensorwise",
