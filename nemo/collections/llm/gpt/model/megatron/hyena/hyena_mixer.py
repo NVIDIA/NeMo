@@ -40,6 +40,7 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     divide,
 )
 
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -67,7 +68,7 @@ except ImportError:
 
 
 def set_format_recipe():
-    """Set the fp8 format recipe. for Hyena"""
+    """Set the fp8 format recipe. for Hyena."""
     fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
     fp8_recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
     return fp8_recipe
@@ -75,18 +76,14 @@ def set_format_recipe():
 
 @dataclass
 class HyenaMixerSubmodules:
-    """
-    Contains the module specs for the input and output linear layers.
-    """
+    """Contains the module specs for the input and output linear layers."""
 
     dense_projection: Union[ModuleSpec, type] = None
     dense: Union[ModuleSpec, type] = None
 
 
 class HyenaMixer(MegatronModule):
-    """
-    A class for the HyenaMixer.
-    """
+    """A class for the HyenaMixer."""
 
     def __init__(
         self,
@@ -222,9 +219,7 @@ class HyenaMixer(MegatronModule):
         )
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
-        """
-        Sharded state dictionary for the HyenaMixer.
-        """
+        """Sharded state dictionary for the HyenaMixer."""
         sharded_state_dict = {}
         # Submodules
         for name, module in self.named_children():
@@ -242,8 +237,7 @@ class HyenaMixer(MegatronModule):
         return func(*args, **kwargs)
 
     def forward(self, x, layer_past=None, inference_params=None, _hyena_use_cp=True):
-        """
-        Applies sequence mixing to a sequence of 1-dimensional embeddings: batch_size, seq_len, d_model
+        """Applies sequence mixing to a sequence of 1-dimensional embeddings: batch_size, seq_len, d_model.
 
         Args:
             u: input to the operator, in format [B, L, D]
