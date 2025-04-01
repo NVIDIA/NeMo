@@ -40,11 +40,6 @@ class HyenaConfig:
     # Weight to apply to lowercase tokens in the loss function, 1.0 is no reweighting.
     # """
 
-    use_flashfft: bool = False
-    """
-    Use flashfftconv instead of torch fft kernel (requires installation of flashfftconv)for hyena
-    """
-
     use_cgcg: bool = False
     """
     Use cgcg (chunked gate-conv-gate) kernel for hyena

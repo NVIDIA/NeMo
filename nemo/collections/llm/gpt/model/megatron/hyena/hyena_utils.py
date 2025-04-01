@@ -862,12 +862,8 @@ class ParallelHyenaOperator(nn.Module):
 
         # TODO: Check which if of these use_* is needed, if any
         self.use_long_conv1d = hyena_config.use_long_conv1d
-        self.use_flashfft = hyena_config.use_flashfft
         self.use_cgcg = hyena_config.use_cgcg
         self.is_medium_cgcg = self.use_cgcg and self.use_medium_hyena
-
-        if self.use_flashfft:
-            self.fftconv_fn = FlashFFTConv(self.L, dtype=torch.float16 if self.fp16 else torch.bfloat16)
 
         if self.use_medium_hyena and self.use_cgcg:
             if os.environ.get("SAVANNA_DEBUG", "0") == "1":
@@ -1065,23 +1061,18 @@ class ParallelHyenaOperator(nn.Module):
         else:
             h = h.repeat_interleave(self.group_dim, dim=-2)
 
-            if self.hyena_config.use_flashfft:
-                # squeeze h dim (kernel), to get rid of leading 1 dim
-                h = h.squeeze(0)
-                z = self.fftconv_fn(v, h, x2, x1)
-            else:
-                z = x2 * v
-                # with torch.autocast("cuda"):
-                z = fftconv_func(
-                    u=z.to(torch.float32),
-                    k=h.to(torch.float32),
-                    D=conv_bias.to(torch.float32),
-                    dropout_mask=None,
-                    gelu=False,
-                    bidirectional=self.bidirectional,
-                )
-                z = z.to(v.dtype)
-                z = x1 * z
+            z = x2 * v
+            # with torch.autocast("cuda"):
+            z = fftconv_func(
+                u=z.to(torch.float32),
+                k=h.to(torch.float32),
+                D=conv_bias.to(torch.float32),
+                dropout_mask=None,
+                gelu=False,
+                bidirectional=self.bidirectional,
+            )
+            z = z.to(v.dtype)
+            z = x1 * z
 
         # if downsampled:
         #     z = z.repeat_interleave(self.downsample_factor, dim=-1)
