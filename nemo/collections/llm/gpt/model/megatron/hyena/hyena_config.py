@@ -186,8 +186,6 @@ class HyenaConfig:
     Use external fast heads in Hyena mixer (reduce BEFORE fftconv)
     """
 
-    use_long_conv1d: bool = False
-
     num_groups_hyena: int = None
     """
     Determines number of unique filters to have, for the hyena long filter.

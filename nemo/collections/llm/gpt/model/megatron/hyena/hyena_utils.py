@@ -861,7 +861,6 @@ class ParallelHyenaOperator(nn.Module):
         self.hyena_medium_conv_len = hyena_config.hyena_medium_conv_len
 
         # TODO: Check which if of these use_* is needed, if any
-        self.use_long_conv1d = hyena_config.use_long_conv1d
         self.use_cgcg = hyena_config.use_cgcg
         self.is_medium_cgcg = self.use_cgcg and self.use_medium_hyena
 
@@ -993,17 +992,6 @@ class ParallelHyenaOperator(nn.Module):
 
             local_bias_size = self.width_per_tp_group // get_context_parallel_world_size()
             conv_bias = self.conv_bias[rank * local_bias_size : (rank + 1) * local_bias_size]
-
-        elif self.use_long_conv1d:
-            h = h.repeat_interleave(self.group_dim, dim=-2)
-            z = x2 * v
-
-            z = (
-                F.conv1d(z, h[:, None].flip(-1), padding=L - 1, groups=v.shape[1])[..., :L]
-                + conv_bias.unsqueeze(-1) * z
-            )
-            z = z.to(v.dtype)
-            z = x1 * z
 
         elif self.is_medium_cgcg:
             # TODO: if the conditions are met, we should not rearrange to l last in the first place
