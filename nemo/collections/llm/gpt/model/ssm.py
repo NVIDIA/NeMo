@@ -47,6 +47,7 @@ except (ImportError, ModuleNotFoundError):
 
 from megatron.core.transformer.transformer_config import TransformerConfig
 
+
 def ssm_forward_step(model, batch) -> torch.Tensor:
     """
     Performs a forward step for the SSM model.
