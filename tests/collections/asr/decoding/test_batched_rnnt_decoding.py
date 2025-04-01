@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import faulthandler
 import glob
 import json
 import os
@@ -33,11 +34,10 @@ from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_grap
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 
-import faulthandler
 faulthandler.enable()
 
-RNNT_MODEL="stt_en_conformer_transducer_small"
-TDT_MODEL="nvidia/parakeet-tdt_ctc-110m"
+RNNT_MODEL = "stt_en_conformer_transducer_small"
+TDT_MODEL = "nvidia/parakeet-tdt_ctc-110m"
 DEVICES = [torch.device("cpu")]
 
 if torch.cuda.is_available():
@@ -272,7 +272,17 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+    def test_rnnt_beam_decoding_kenlm(
+        self,
+        test_data_dir,
+        test_audio_filenames,
+        beam_config,
+        device,
+        batch_size,
+        beam_size,
+        pruning_mode,
+        blank_lm_score_mode,
+    ):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
@@ -652,7 +662,17 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+    def test_rnnt_beam_decoding_kenlm(
+        self,
+        test_data_dir,
+        test_audio_filenames,
+        beam_config,
+        device,
+        batch_size,
+        beam_size,
+        pruning_mode,
+        blank_lm_score_mode,
+    ):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
