@@ -51,8 +51,9 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
     Args:
         wrapped_checkpoint_io (CheckpointIO): previously used checkpoint_io (for global checkpoints).
         local_ckpt_manager (BaseCheckpointManager): local checkpoint manager used to store the local checkpoints
-        get_global_ckpt_iteration_fn (Callable[[_PATH], int]): a function that retrieves the iteration of a global checkpoint
-            that will be compared with local checkpoint iteration in order to decide which to resume from.
+        get_global_ckpt_iteration_fn (Callable[[_PATH], int]): a function that retrieves the iteration
+            of a global checkpoint that will be compared with local checkpoint iteration
+            in order to decide which to resume from.
         async_save (bool, optional): enables asynchronous save. Passed down to the local checkpoint
             manager unless overriden with `local_ckpt_options` in `_save_local_checkpoint`.
             If True, MCoreHierarchicalCheckpointIO must be wrapped with `AsyncFinalizableCheckpointIO` wrapper
@@ -69,7 +70,7 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
         local_ckpt_manager: BaseCheckpointManager,
         get_global_ckpt_iteration_fn: Callable[[_PATH], int],
         async_save: bool = False,
-        local_ckpt_algo: str = 'fully_parallel',
+        local_ckpt_algo: str = "fully_parallel",
         parallelization_group: Optional[torch.distributed.ProcessGroup] = None,
         allow_cache: bool = False,
     ):
@@ -85,8 +86,7 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
         """Specialized implementation using MCoreTensorAwareStateDict.
 
         Wraps the state dict in MCoreTensorAwareStateDict and makes sure
-        that "common" state dict doesn't have any CUDA tensors (this is an
-        NVRx v0.2 limitation).
+        that "common" state dict doesn't have any CUDA tensors.
         """
         state_dict_for_save, _ = MCoreTensorAwareStateDict.from_state_dict(
             checkpoint,
@@ -96,9 +96,9 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
         )
 
         def to_cpu(x):
-            if isinstance(x, torch.Tensor) and x.device.type != 'cpu':
-                logger.debug('Moving CUDA tensor to CPU')
-                x = x.to('cpu', non_blocking=True)
+            if isinstance(x, torch.Tensor) and x.device.type != "cpu":
+                logger.debug("Moving CUDA tensor to CPU")
+                x = x.to("cpu", non_blocking=True)
             return x
 
         dict_list_map_inplace(to_cpu, state_dict_for_save.common)
@@ -112,9 +112,9 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
         """Unwraps MCoreTensorAwareStateDict to a plain state dict."""
         assert isinstance(
             tensor_aware_checkpoint, MCoreTensorAwareStateDict
-        ), f'Unexpected tensor aware state dict type: {type(tensor_aware_checkpoint)}'
+        ), f"Unexpected tensor aware state dict type: {type(tensor_aware_checkpoint)}"
         if strict is not None:
-            logger.warning('MCoreTensorAwareStateDict does not yet support the "strict" argument.')
+            logger.warning("MCoreTensorAwareStateDict does not yet support the 'strict' argument.")
 
         return tensor_aware_checkpoint.to_state_dict(
             sharded_state_dict,
@@ -163,7 +163,7 @@ def update_trainer_local_checkpoint_io(
         repl_strategy = None
 
     local_ckpt_manager = LocalCheckpointManager(
-        f'{local_checkpoint_base_dir}/local_ckpt/{socket.gethostname()}',
+        f"{local_checkpoint_base_dir}/local_ckpt/{socket.gethostname()}",
         repl_strategy=repl_strategy,
     )
     hierarchical_checkpointing_io = MCoreHierarchicalCheckpointIO(
