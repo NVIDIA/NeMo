@@ -191,11 +191,6 @@ class HyenaConfig:
     Use external fast heads in Hyena mixer (reduce BEFORE fftconv)
     """
 
-    use_slow_heads: bool = False
-    """
-    Use external outer-product heads in Hyena.
-    """
-
     use_long_conv1d: bool = False
 
     num_groups_hyena: int = None
