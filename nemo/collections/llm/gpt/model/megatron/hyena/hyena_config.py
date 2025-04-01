@@ -77,11 +77,6 @@ class HyenaConfig:
     Determines number of unique filters to have, for the hyena short filter.
     """
 
-    num_groups_hyena_mlp: int = None  # TODO: Possibly remove, only used if is_mlp is True
-    """
-    Determines number of unique filters to have, for the hyena mlp (filter).
-    """
-
     use_depthwise_short_conv_grouping: bool = True
     """
     Whether to use depthwise convolution grouping for short conv and hyena mlp filters.
@@ -158,31 +153,6 @@ class HyenaConfig:
     Use a custom causal conv layer for the hyena short conv layer.
     """
 
-    hyena_mlp_len: int = 7  # TODO: Possibly remove, only used if is_mlp is True
-    """
-    Length of filter used inside the hyena mlp layer. Defaults to hyena_short_conv_len if not provided.
-    """
-
-    fast_hyena_mlp_conv: bool = False  # TODO: Possibly remove, only used if is_mlp is True
-    """
-    Use a custom causal conv layer for the hyena MLP layer.
-    """
-
-    hyena_mlp_expansion_factor: float = 1.0  # TODO: Possibly remove, only used if is_mlp is True
-    """
-    Factor to expand the projections width within hyena MLP layers only.
-    """
-
-    hyena_mlp_pregate: bool = True  # TODO: Possibly remove, only used if is_mlp is True
-    """
-    Use a pre-gate in the hyena MLP layer.
-    """
-
-    hyena_mlp_postgate: bool = True  # TODO: Possibly remove, only used if is_mlp is True
-    """
-    Use a post-gate in the hyena MLP layer.
-    """
-
     hyena_short_conv_pregate: bool = True
     """
     Use a pre-gate in the hyena short conv layer.
@@ -196,17 +166,3 @@ class HyenaConfig:
     proj_groups: int = 1
 
     grouped_attention: bool = False
-
-    # mlp_type: str = "regular"  # TODO: In Savanna setting this to 'short_hyena' uses hyena for MLP (is_mlp == True)
-    # """
-    # Types:
-    #     regular: Megatron implementation
-    #     llama: LLaMA MLP (SiLU-gated MLP)
-    #     short_hyena
-    #     identity
-    # """
-    #
-    # make_gated_mlp_multiple_of: int = 16  # TODO: Use this or just have user calculate ffn_size themselves?
-    # """
-    # Set the ff_dim to be a multiple of this value for llama mlp. Useful for sharding / using model parallel properly.
-    # """

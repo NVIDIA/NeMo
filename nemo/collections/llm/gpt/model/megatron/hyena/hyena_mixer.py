@@ -96,13 +96,11 @@ class HyenaMixer(MegatronModule):
         submodules,
         layer_number=1,
         operator_type="H",
-        is_mlp=False,  # TODO: Check if needed, only used when using Hyena for the MLP block
     ):
 
         super().__init__(transformer_config)
         self.transformer_config = transformer_config
         self.hyena_config = hyena_config
-        self.is_mlp = is_mlp
         self.operator_type = operator_type
         self.layer_number = layer_number
         self.grouped_attention = self.hyena_config.grouped_attention
@@ -115,11 +113,8 @@ class HyenaMixer(MegatronModule):
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         world_size: int = get_tensor_model_parallel_world_size()
 
-        # Width expansion for Hyena depending on if it's a mixer of mlp
-        if self.is_mlp:
-            self.hyena_width_expansion = self.hyena_config.hyena_mlp_expansion_factor
-        else:
-            self.hyena_width_expansion = self.hyena_config.hyena_width_expansion
+        # Width expansion for Hyena
+        self.hyena_width_expansion = self.hyena_config.hyena_width_expansion
 
         # we might expand the hidden size for hyena
         self.input_size = self.transformer_config.hidden_size
@@ -185,7 +180,6 @@ class HyenaMixer(MegatronModule):
                 self.transformer_config.init_method,
                 short_conv_class=ParallelCausalDepthwiseConv1d,
                 use_fast_causal_conv=self.fast_conv_mixer,
-                is_mlp=self.is_mlp,
                 use_conv_bias=self.transformer_config.use_short_conv_bias,
             )
 

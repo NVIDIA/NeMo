@@ -955,14 +955,12 @@ class ParallelShortHyenaOperator(nn.Module):
         init_method,
         short_conv_class,
         use_fast_causal_conv=False,
-        is_mlp=False,  # TODO: Check if needed, only used when using Hyena for the MLP block
         local_init=False,
         use_conv_bias=True,
     ):
         super().__init__()
         self.transformer_config = transformer_config
         self.hyena_config = hyena_config
-        self.is_mlp = is_mlp
         self.hidden_size = hidden_size
         self.use_fast_causal_conv = use_fast_causal_conv
 
@@ -974,35 +972,7 @@ class ParallelShortHyenaOperator(nn.Module):
         if use_fast_causal_conv:
             assert hyena_config.hyena_short_conv_len <= 4, "fast_conv_mixer requires hyena_short_conv_len <= 4"
 
-        # for mlp type
-        if is_mlp:
-            # option to have a different kernel size for the short conv inside the mlp
-            if hyena_config.hyena_mlp_len is not None:
-                kernel_size = hyena_config.hyena_mlp_len
-            else:
-                kernel_size = hyena_config.hyena_short_conv_len
-
-            # check for fast causal conv
-            if hyena_config.fast_hyena_mlp_conv:
-                assert hyena_config.hyena_mlp_len <= 4, "fast_hyena_mlp_conv requires hyena_mlp_len <= 4"
-                use_fast_causal_conv = True
-
-            self.pregate = hyena_config.hyena_mlp_pregate
-            self.postgate = hyena_config.hyena_mlp_postgate
-
-            self.num_groups = (
-                hyena_config.num_groups_hyena_mlp
-                if hyena_config.num_groups_hyena_mlp is not None
-                else hyena_config.num_groups_hyena
-            )
-
-            if self.num_groups is None:
-                self.num_groups = transformer_config.hidden_size
-
-            self.num_groups = int(self.num_groups * hyena_config.hyena_mlp_expansion_factor)
-        # handle mixer case
         else:
-
             kernel_size = hyena_config.hyena_short_conv_len
             self.pregate = hyena_config.hyena_short_conv_pregate
             self.postgate = hyena_config.hyena_short_conv_postgate
