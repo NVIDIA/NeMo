@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from typing import Dict, Iterable
+
 import torch
 from megatron.core import parallel_state
-from nemo.tron.config import ConfigContainer
+
+from nemo.tron.config import ConfigContainer, FinetuningDatasetConfig
 
 
 def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> Dict[str, torch.Tensor]:
@@ -76,7 +78,7 @@ def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> 
             dtype=torch.float32,
             device=torch.cuda.current_device(),
         )
-        if cfg.dataset_config.create_attention_mask:
+        if cfg.dataset_config.create_attention_mask or isinstance(cfg.dataset_config, FinetuningDatasetConfig):
             attention_mask = torch.empty(
                 (
                     mbs,
