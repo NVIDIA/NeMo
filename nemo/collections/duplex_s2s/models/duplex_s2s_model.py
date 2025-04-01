@@ -75,8 +75,15 @@ class DuplexS2SModel(LightningModule):
         self.perception.load_state_dict(asr.state_dict(), strict=False)
 
         self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.llm.config.vocab_size)
-        self.embed_audio_tokens = torch.nn.Embedding(self._codebook_size, self.embed_tokens.embedding_dim)
+        self.embed_audio_tokens = torch.nn.ModuleList(
+            [
+                torch.nn.Embedding(self._codebook_size, self.embed_tokens.embedding_dim)
+                for _ in range(self._num_codebooks)
+            ]
+        )
         self.audio_head = torch.nn.Linear(self.llm.config.hidden_size, self._codebook_size * self._num_codebooks)
+        # special audio "token" implemented directly as a learnable embedding
+        self.audio_bos_embedding = torch.nn.Parameter(torch.randn(self.embed_tokens.embedding_dim))
 
     def forward(
         self,
@@ -118,11 +125,14 @@ class DuplexS2SModel(LightningModule):
                 builtins.print(f"[{torch.distributed.get_rank()}]", *args, **kwargs)
 
         # Source audio encoding.
+        # Input audio: (B, T_samples)
+        # Encoded: (B, T, H)
         source_encoded, source_encoded_lens = self.perception(
             input_signal=batch["source_audio"], input_signal_length=batch["source_audio_lens"]
         )
 
         # Target text preparation.
+        # Target tokens: (B, T)
         target_tokens = batch["target_tokens"]
         if target_tokens.shape[1] < source_encoded.shape[1]:
             pad_id = self.tokenizer.pad
@@ -139,11 +149,13 @@ class DuplexS2SModel(LightningModule):
             )
 
         # Target audio encoding.
+        # Input target audio: (B, T_samples')
+        # Output target codes: (B, K, T)
         with torch.no_grad(), _safe_audio_codec_inference():
             target_codes, target_codes_lens = self._audio_codec.encode(
                 audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
             )
-            target_codes = target_codes.transpose(1, 2)
+            target_codes = target_codes.transpose(1, 2)  # (B, K, T) -> (B, T, K)
 
         # Note: Because we are using separate models for source and target representations,
         #       despite best-effort attempt to align their frame rates, they may be off by a few frames.
@@ -167,6 +179,7 @@ class DuplexS2SModel(LightningModule):
         # Combine target audio and text into a single tensor to slice them together.
         # It will also help us truncate the sequence lengths to be divisible by TP world size,
         # when TP is enabled.
+        # Input ids: (B, T, K+1)
         input_ids = torch.cat([target_codes, target_tokens[..., None]], dim=-1)
         if self._use_tp:
             tp_world_size = self.device_mesh["tensor_parallel"].size()
@@ -176,13 +189,16 @@ class DuplexS2SModel(LightningModule):
                 input_ids = input_ids[:, :-remainder]
                 source_encoded = source_encoded[:, :-remainder]
 
-        text_inputs = input_ids[:, :-1, -1]
-        text_labels = input_ids[:, 1:, -1]
-        audio_inputs = input_ids[:, :-1, :-1]
-        audio_labels = input_ids[:, 1:, :-1]
+        text_inputs = input_ids[:, :-1, -1]  # (B, T-1)
+        text_labels = input_ids[:, 1:, -1]  # (B, T-1)
+        audio_inputs = input_ids[:, :-2, :-1]  # (B, T-2, K): we explicitly use the learnable audio BOS embedding
+        audio_labels = input_ids[:, 1:, :-1]  # (B, T-1, K)
 
+        # Input embeds: (B, T-1, H)
         input_embeds = self.embed_tokens(text_inputs)
-        input_embeds.add_(self.embed_audio_tokens(audio_inputs).sum(axis=2))
+        input_embeds[:, 0] += self.audio_bos_embedding
+        for cbidx in range(self._num_codebooks):
+            input_embeds[:, 1:].add_(self.embed_audio_tokens[cbidx](audio_inputs[..., cbidx]))
         input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3))
 
         return {
@@ -312,7 +328,7 @@ class DuplexS2SModel(LightningModule):
     def test_step(self, *args: Any, **kwargs: Any):
         return self.validation_step(*args, **kwargs)
 
-    def offline_inference(self, batch: dict, batch_idx: int):
+    def offline_inference(self, input_signal: torch.Tensor):
         # inputs: full source audio
         # run through ASR simulating streaming
         # construct initial input frame using BOS token and BOS output audio frame
@@ -321,6 +337,7 @@ class DuplexS2SModel(LightningModule):
         #   run through single step of AR inference
         #   store predicted audio codes
         #   store predicted text
+        # return: predicted target audio codes and text
         pass
 
     def backward(self, *args, **kwargs):
@@ -457,7 +474,8 @@ class DuplexS2SModel(LightningModule):
                 # layer.mlp = checkpoint_wrapper(layer.mlp)
                 self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
-            self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
+            for idx in range(self._num_codebooks):
+                self.embed_audio_tokens[idx] = fully_shard(self.embed_audio_tokens[idx], **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             # self.lm_head = checkpoint_wrapper(self.lm_head)
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)
