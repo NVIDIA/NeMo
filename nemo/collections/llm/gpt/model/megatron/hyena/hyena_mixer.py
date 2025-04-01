@@ -257,12 +257,11 @@ class HyenaMixer(MegatronModule):
                 features, _ = self.dense_projection(x)
         else:
             features, _ = self.dense_projection(x)
-        features = rearrange(features, "l b d -> b l d").contiguous()
-        features_L_last = features.permute(0, 2, 1)
-        features_D_last = self.hyena_proj_conv(features_L_last, _use_cp=_proj_use_cp).permute(0, 2, 1)
+        features = rearrange(features, "l b d -> b d l").contiguous()
+        features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp) # [B, D, L]
 
         x1, x2, v = rearrange(
-            features_D_last, "b l (g dg p) -> b l g p dg", p=3, g=self.num_groups_per_tp_rank
+            features, "b (g dg p) l -> b l g p dg", p=3, g=self.num_groups_per_tp_rank
         ).unbind(dim=3)
 
         z = self.mixer(x1, x2, v)
