@@ -298,7 +298,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # prprprprpr
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
+        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
         if kenlm_path is not None:
