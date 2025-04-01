@@ -69,6 +69,7 @@ def generate_grid_search_configs(
 
     max_steps = train_cfg.max_steps_per_run
     num_nodes = train_cfg.num_nodes
+
     valid_tp_pp_list = []
     for tp in params.tp:
         for pp in params.pp:
@@ -870,23 +871,22 @@ def _calculate_tp_pp_mbs_grid(
     params = search_class(**kwargs)
     params.init_params()
 
-    mode = train_cfg.mode
     # Override the tp, pp, mbs search if indicated in the config params.
-    if (tp_sizes is not None and tp_sizes != "auto") or mode == "finetune":
+    if tp_sizes is not None and tp_sizes != "auto":
         params.tp = tp_sizes
-    if (pp_sizes is not None and pp_sizes != "auto") or mode == "finetune":
+    if pp_sizes is not None and pp_sizes != "auto":
         params.pp = pp_sizes
-    if (cp_sizes is not None and cp_sizes != "auto") or mode == "finetune":
+    if cp_sizes is not None and cp_sizes != "auto":
         params.cp = cp_sizes
-    if (ep_sizes is not None and ep_sizes != "auto") or mode == "finetune":
+    if ep_sizes is not None and ep_sizes != "auto":
         params.ep = ep_sizes
-    if (mbs_sizes is not None and mbs_sizes != "auto") or mode == "finetune":
+    if mbs_sizes is not None and mbs_sizes != "auto":
         params.mbs = mbs_sizes
-    if (gbs_size is not None and gbs_size != "auto") or mode == "finetune":
+    if gbs_size is not None and gbs_size != "auto":
         params.gbs = gbs_size
-    if (min_model_parallel_size is not None and min_model_parallel_size != "auto") or mode == "finetune":
+    if min_model_parallel_size is not None and min_model_parallel_size != "auto":
         params.min_model_parallel = min_model_parallel_size
-    if (max_model_parallel_size is not None and max_model_parallel_size != "auto") or mode == "finetune":
+    if max_model_parallel_size is not None and max_model_parallel_size != "auto":
         params.max_model_parallel = max_model_parallel_size
 
     return params
