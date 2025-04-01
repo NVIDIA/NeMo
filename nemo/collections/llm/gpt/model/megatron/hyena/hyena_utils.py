@@ -1205,16 +1205,20 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         )
 
 
-def make_upper_case(tokens):
-    """
-    Replace lowercase ASCII characters with uppercase.
-    """
-    # tokens, labels, loss_mask, attention_mask, position_ids = batch
+def make_upper_case(tokens, lowercase_start=97, lowercase_end=122, case_diff=32):
+    """Replace lowercase ASCII characters with uppercase.
 
-    lowercase_mask = (tokens >= 97) & (tokens <= 122)
-    uppercase_tensor = tokens.clone()
-    uppercase_tensor[lowercase_mask] -= 32
+    Args:
+        tokens: Input tensor containing token IDs
+        lowercase_start: ASCII value for the first lowercase character (default: 97 for 'a')
+        lowercase_end: ASCII value for the last lowercase character (default: 122 for 'z')
+        case_diff: Difference between lowercase and uppercase (default: 32)
 
+    Returns:
+        tuple: (uppercase_tensor, lowercase_mask)
+    """
+    lowercase_mask = (tokens >= lowercase_start) & (tokens <= lowercase_end)
+    uppercase_tensor = torch.where(lowercase_mask, tokens - case_diff, tokens)
     return uppercase_tensor, lowercase_mask
 
 
