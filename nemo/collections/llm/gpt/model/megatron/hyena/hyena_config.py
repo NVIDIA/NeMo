@@ -98,8 +98,6 @@ class HyenaConfig:
 
     hyena_filter_order: int = 16
 
-    hyena_filter_wd: float = 0.0  # TODO: Where to override WD value for filters?
-
     explicit_filter_decay_preset: str = "weak"
 
     modal_gamma_min: float = 0.01

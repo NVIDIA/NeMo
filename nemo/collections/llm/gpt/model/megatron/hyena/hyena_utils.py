@@ -21,7 +21,6 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
 from megatron.core.parallel_state import (
     get_context_parallel_group,
     get_context_parallel_rank,
