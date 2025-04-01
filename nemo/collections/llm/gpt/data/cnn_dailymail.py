@@ -20,7 +20,7 @@ class CNNDailyMailFineTuningDataModule(HFFineTuningDataModule):
     This class inherits from the `HFFineTuningDataModule` class including arguments for init and these methods.
     """
 
-    def _make_splits(self, dset):
+    def _make_splits(self, dset, *args, **kwargs):
         """Maps train/validation/test to standard split names."""
         save_splits = {
             "training": dset.get("train"),
@@ -29,7 +29,7 @@ class CNNDailyMailFineTuningDataModule(HFFineTuningDataModule):
         }
         return save_splits
 
-    def _json_line_from_example(self, example):
+    def _json_line_from_example(self, example, split_name, *args, **kwargs):
         """Extract data for summarization task."""
         json_line = {
             "input": example["article"],

@@ -353,11 +353,21 @@ class FineTuningDataModule(pl.LightningDataModule):
 class HFFineTuningDataModule(FineTuningDataModule, IOMixin):
     """A generic data module for downloading and preprocessing HF datasets for fine-tuning.
 
-    This class inherits from the `FineTuningDataModule` class; see this class for argument details.
+    This class inherits from the `FineTuningDataModule` class; see this class for further argument details.
+    It handles data download, preprocessing, splitting, and preparing the data in a format suitable for training, validation, and testing.
+
+    Args:
+        dataset_root (Optional[Union[str, Path]]): The root directory containing the training,
+            validation, and test data. Defaults to None, which by default downloads the data.
+        force_redownload (bool, optional): Whether to force re-download the dataset even if it
+            exists locally. Defaults to False.
+        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing.
+            Defaults to True.
     """
 
     def __init__(
         self,
+        dataset_root: Optional[Union[str, Path]] = None,
         seq_length: int = 2048,
         tokenizer: Optional["TokenizerSpec"] = None,
         micro_batch_size: int = 4,
@@ -377,7 +387,7 @@ class HFFineTuningDataModule(FineTuningDataModule, IOMixin):
         self.delete_raw = delete_raw
 
         super().__init__(
-            dataset_root=get_dataset_root(self.dataset_name),
+            dataset_root=dataset_root if dataset_root is not None else get_dataset_root(self.dataset_name),
             seq_length=seq_length,
             tokenizer=tokenizer,
             micro_batch_size=micro_batch_size,
@@ -426,7 +436,7 @@ class HFFineTuningDataModule(FineTuningDataModule, IOMixin):
 
             with output_file.open("w", encoding="utf-8") as f:
                 for example in dataset:
-                    f.write(json.dumps(self._json_line_from_example(example, *args, **kwargs)) + "\n")
+                    f.write(json.dumps(self._json_line_from_example(example, split_name, *args, **kwargs)) + "\n")
 
             logging.info(f"{split_name} split saved to {output_file}")
 
@@ -450,13 +460,14 @@ class HFFineTuningDataModule(FineTuningDataModule, IOMixin):
         """
         raise NotImplementedError()
 
-    def _json_line_from_example(self, example, *args, **kwargs):
+    def _json_line_from_example(self, example, split_name, *args, **kwargs):
         """Generate and return a dict with input and output data as needed from the given example.
 
         To be overridden by subclasses.
 
         Args:
             example (Dict): A data element from the dataset to be processed.
+            split_name (str): The string key for this split of the dataset.
 
         Returns:
             A dictionary mapping string keys to raw data, to be written in json lines format.

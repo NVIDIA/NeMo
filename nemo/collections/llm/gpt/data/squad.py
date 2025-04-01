@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from datasets import DatasetDict, load_dataset
 
 from nemo.collections.llm.gpt.data.core import get_dataset_root
-from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from nemo.collections.llm.gpt.data.fine_tuning import HFFineTuningDataModule
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
@@ -28,76 +28,11 @@ if TYPE_CHECKING:
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
-class SquadDataModule(FineTuningDataModule, IOMixin):
+class SquadDataModule(HFFineTuningDataModule):
     """A data module for fine-tuning on the Squad dataset.
 
-    This class inherits from the `FineTuningDataModule` class and is specifically designed for
-    fine-tuning models on the Stanford Question Answering Dataset (SQuAD). It handles data download,
-    preprocessing, splitting, and preparing the data in a format suitable for training,
-    validation, and testing.
-
-    Args:
-        dataset_root (Optional[Union[str, Path]]): The root directory containing the training,
-            validation, and test data. Defaults to None, which by default downloads the data.
-        force_redownload (bool, optional): Whether to force re-download the dataset even if it
-            exists locally. Defaults to False.
-        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing.
-            Defaults to True.
-
-        See FineTuningDataModule for the other args
+    This class inherits from the `HFFineTuningDataModule` class including arguments for init and these methods.
     """
-
-    def __init__(
-        self,
-        dataset_root: Optional[Union[str, Path]] = None,
-        seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        micro_batch_size: int = 4,
-        global_batch_size: int = 8,
-        rampup_batch_size: Optional[List[int]] = None,
-        force_redownload: bool = False,
-        delete_raw: bool = True,
-        seed: int = 1234,
-        memmap_workers: int = 1,
-        num_workers: int = 8,
-        pin_memory: bool = True,
-        persistent_workers: bool = False,
-        packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
-        dataset_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        self.force_redownload = force_redownload
-        self.delete_raw = delete_raw
-
-        super().__init__(
-            dataset_root=dataset_root if dataset_root is not None else get_dataset_root("squad"),
-            seq_length=seq_length,
-            tokenizer=tokenizer,
-            micro_batch_size=micro_batch_size,
-            global_batch_size=global_batch_size,
-            rampup_batch_size=rampup_batch_size,
-            seed=seed,
-            memmap_workers=memmap_workers,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-            persistent_workers=persistent_workers,
-            packed_sequence_specs=packed_sequence_specs,
-            dataset_kwargs=dataset_kwargs,
-        )
-
-    def prepare_data(self) -> None:
-        # if train file is specified, no need to do anything
-        if not self.train_path.exists() or self.force_redownload:
-            dset = self._download_data()
-            self._preprocess_and_split_data(dset)
-        super().prepare_data()
-
-    def _download_data(self):
-        logging.info(f"Downloading {self.__class__.__name__}...")
-        return load_dataset(
-            "squad",
-            cache_dir=str(self.dataset_root),
-            download_mode="force_redownload" if self.force_redownload else None,
-        )
 
     def _preprocess_and_split_data(
         self, dset: DatasetDict, split_val_from_train: bool = True, val_proportion: float = 0.05
@@ -111,7 +46,14 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             val_proportion (float, optional): The proportion of the training or test set to be used
                 for the validation split. Defaults to 0.05.
         """
-        logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
+        super()._preprocess_and_split_data(
+            dset,
+            split_val_from_train=split_val_from_train,
+            val_proportion=val_proportion,
+        )
+
+    def _make_splits(self, dset, split_val_from_train, val_proportion, *args, **kwargs):
+        """Maps train/validation/test to standard split names."""
         save_splits = {}
         train_set = dset.get('train')
         val_set = dset.get('validation')
@@ -126,30 +68,21 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             save_splits['training'] = train_set
             save_splits['validation'] = split_dataset['test']
             save_splits['test'] = split_dataset['train']
+        return save_splits
 
-        for split_name, dataset in save_splits.items():
-            output_file = self.dataset_root / f"{split_name}.jsonl"
+    def _json_line_from_example(self, example, split_name, *args, **kwargs):
+        """Extract data for QA task."""
+        json_line = {
+            "input": "Context: " + example["context"] + " Question: " + example['question'] + " Answer:",
+            "output": example["answers"]["text"][0],
+        }
+        if split_name == "test":
+            json_line["original_answers"] = example["answers"]["text"]
+        return json_line
 
-            with output_file.open("w", encoding="utf-8") as f:
-                for example in dataset:
-                    json_line = {}
-                    # Write each example as a JSON line in the output file
-                    json_line["input"] = (
-                        "Context: " + example["context"] + " Question: " + example['question'] + " Answer:"
-                    )
-                    json_line["output"] = example["answers"]["text"][0]
-                    if split_name == "test":
-                        json_line["original_answers"] = example["answers"]["text"]
-                    f.write(json.dumps(json_line) + "\n")
-
-            logging.info(f"{split_name} split saved to {output_file}")
-
-        if self.delete_raw:
-            for p in self.dataset_root.iterdir():
-                if p.is_dir():
-                    shutil.rmtree(p)
-                elif '.jsonl' not in str(p.name):
-                    p.unlink()
+    @property
+    def dataset_name(self) -> str:
+        return "squad"
 
     def reconfigure_limit_batches(self):
         """no op"""
