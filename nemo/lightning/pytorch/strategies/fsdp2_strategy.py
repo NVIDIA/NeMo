@@ -113,6 +113,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.store: Optional[torch.distributed.Store] = None
         self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
+        self.sequence_parallel = sequence_parallel
 
     @property
     @override
@@ -490,11 +491,30 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     @torch.no_grad
-    def load_model_state_dict(self, ckpt, strict=False):
+    def load_model_state_dict(self, ckpt, strict=False, ):
         """Shards a full state dict"""
-        # TODO(@akoumparouli): update `placements` value once TP is enabled.
-        sharded_state = {
-            k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
-            for k, v in ckpt['state_dict'].items()
-        }
+        # TODO(@boxiangw): refractor this to match TP plan
+        if self._data_parallel_size == 1 and self._tensor_parallel_size > 1 and not self.sequence_parallel:
+            # Does not need DTensor if using TP without DP and SP
+            ignore_keys = ['input_layernorm', 'post_attention_layernorm', 'lm_head', 'norm', 'embed_tokens']
+            colwise_keys = ['self_attn.q_proj', 'self_attn.k_proj', 'self_attn.v_proj', 'mlp.gate_proj', 'mlp.up_proj']
+            rowwise_keys = ['self_attn.o_proj', 'mlp.down_proj']
+
+            sharded_state = {
+                k: v
+                for k, v in ckpt['state_dict'].items()
+            }
+            for k, v in sharded_state.items():
+                if any(x in k for x in ignore_keys):
+                    continue
+                elif any(x in k for x in colwise_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
+                elif any(x in k for x in rowwise_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=1),))
+        else:
+            sharded_state = {
+                k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
+                for k, v in ckpt['state_dict'].items()
+            }
+
         self.lightning_module.load_state_dict(sharded_state, strict=strict)

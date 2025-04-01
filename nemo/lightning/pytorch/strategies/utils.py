@@ -503,26 +503,25 @@ def fsdp2_strategy_parallelize(
     # dp_mesh = device_mesh["data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
 
-    print(model)
     if tp_mesh.size() > 1:
         # 1. Parallelize the first embedding and the last linear proj layer
         # 2. Parallelize the root norm layer over the sequence dim
         # 3. Shard the first transformer block's inputs
 
         # Parallelize the first embedding and the last linear out projection
-        print(f"Parallelizing model: {model}")
-        plan = {
-            "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
-            "model.output": ColwiseParallel(output_layouts=Replicate()),
-            # "model.norm": SequenceParallel(),
-            "lm_head": ColwiseParallel(output_layouts=Replicate()),
-            # "model.model.layers.0": PrepareModuleInput(
-            #     input_layouts=Replicate(),
-            #     desired_input_layouts=Replicate(),
-            #     use_local_output=True,
-            # ), # This will shard the input to the first transformer block
-        }
-        parallelize_module(model, tp_mesh, plan)
+        # plan = {
+        #     "lm_head": ColwiseParallel(output_layouts=Replicate()) # input_layouts=Shard(1), 
+        # }
+        # parallelize_module(model, tp_mesh, plan)
+        
+        # plan = {
+        #     "embed_tokens": RowwiseParallel(
+        #         input_layouts=Replicate(),
+        #     ),
+        #     # "rotary_emb": RotaryEmbedParallel(),
+        #     "norm": SequenceParallel()
+        # }
+        # parallelize_module(model.model, tp_mesh, plan)
 
         # Parallelize each transformer block
         for transformer_block in model.model.layers:
@@ -545,12 +544,6 @@ def fsdp2_strategy_parallelize(
                 # "input_layernorm": SequenceParallel(),
                 # "post_attention_layernorm": SequenceParallel(),
             }
-
-            # Adjust attention module to use the local number of heads
-            attn_layer = transformer_block.self_attn
-            attn_layer.config.num_attention_heads = attn_layer.config.num_attention_heads // tp_mesh.size()
-            attn_layer.config.num_key_value_heads = attn_layer.config.num_key_value_heads // tp_mesh.size()
-            attn_layer.config.hidden_size = attn_layer.config.hidden_size // tp_mesh.size()
 
             # Apply the plan for the current transformer block
             parallelize_module(transformer_block, tp_mesh, plan)
