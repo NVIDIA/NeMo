@@ -423,7 +423,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
 
         d = {
-            "path": path,
+            "pretrained_model_name_or_path": path,
             "torch_dtype": torch.bfloat16,  # Always load in bfloat16 first
             "device_map": "cpu",
             "trust_remote_code": self.trust_remote_code,
