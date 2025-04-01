@@ -49,6 +49,11 @@ class MegatronTokenDropCallback(Callback):
         cfg.moe_pad_expert_input_to_capacity = self.moe_pad_expert_input_to_capacity
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+        """Setup callback for token drop in MoE models.
+        
+        Validates that the model is using MegatronStrategy and has compatible MoE configurations.
+        Sets token drop related configurations on the model.
+        """
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronTokenDrop requires MegatronStrategy"
         if hasattr(trainer.model, "config") and isinstance(trainer.model.config, ModelParallelConfig):
             assert trainer.model.config.moe_token_dispatcher_type in [

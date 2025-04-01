@@ -22,8 +22,8 @@ from nemo.collections.llm.recipes.deepseek_v3 import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+# from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
