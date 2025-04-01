@@ -50,7 +50,7 @@ class MegatronTokenDropCallback(Callback):
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """Setup callback for token drop in MoE models.
-        
+
         Validates that the model is using MegatronStrategy and has compatible MoE configurations.
         Sets token drop related configurations on the model.
         """

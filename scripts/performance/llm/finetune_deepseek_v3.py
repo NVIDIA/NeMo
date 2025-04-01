@@ -23,7 +23,6 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-# from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -35,6 +34,9 @@ from ..utils import (
     set_primary_perf_configs,
     slurm_executor,
 )
+
+# from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 
