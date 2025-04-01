@@ -119,7 +119,9 @@ def setup(
         make_vocab_size_divisible_by=cfg.model_config.make_vocab_size_divisible_by,
         tensor_model_parallel_size=cfg.model_config.tensor_model_parallel_size,
     )
-    cfg.model_config.vocab_size = tokenizer.vocab_size
+    if not cfg.model_config.vocab_size:
+        cfg.model_config.vocab_size = tokenizer.vocab_size
+
     cfg.dataset_config.tokenizer = tokenizer
     timers("tokenizer-setup").stop()
     barrier_and_log("after tokenizer is built")
