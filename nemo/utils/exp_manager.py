@@ -27,7 +27,6 @@ from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
 
 import lightning.pytorch
-import multistorageclient as msc
 import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
@@ -38,7 +37,6 @@ from lightning.pytorch.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLo
 from lightning.pytorch.loops import _TrainingEpochLoop
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
-from multistorageclient.types import MSC_PROTOCOL
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
@@ -74,6 +72,13 @@ try:
     HAVE_FT = True
 except (ImportError, ModuleNotFoundError):
     HAVE_FT = False
+
+try:
+    import multistorageclient as msc
+    from multistorageclient.types import MSC_PROTOCOL
+    MSC_AVAILABLE = True
+except ImportError:
+    MSC_AVAILABLE = False
 
 
 class NotFoundError(NeMoBaseException):
@@ -908,7 +913,8 @@ def check_resume(
 
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank
         # to avoid throttling S3.
-        if is_global_rank_zero() or not (is_s3_url(dirpath) and dirpath and dirpath.startswith(MSC_PROTOCOL)):
+
+        if is_global_rank_zero() or not (is_s3_url(dirpath) and is_msc_url(dirpath)):
             checkpoint_dir_exists = False
             if is_s3_url(dirpath):
                 checkpoint_dir = dirpath
@@ -923,7 +929,7 @@ def check_resume(
                 else:
                     end_checkpoints = []
                     last_checkpoints = []
-            elif dirpath and dirpath.startswith(MSC_PROTOCOL):
+            elif is_msc_url(dirpath):
                 checkpoint_dir = dirpath
                 all_keys = msc.glob(f"{dirpath}**/*.ckpt")
                 checkpoint_dir_exists = True if all_keys else False
@@ -1498,3 +1504,7 @@ def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remo
         for filepath in nemo_files:
             os.remove(filepath)
             logging.info(f"Deleted file : {filepath}")
+
+
+def is_msc_url(dirpath):
+            return MSC_AVAILABLE and dirpath and dirpath.startswith(MSC_PROTOCOL)

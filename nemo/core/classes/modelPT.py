@@ -24,9 +24,14 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
-import multistorageclient as msc
 import torch
-from multistorageclient.types import MSC_PROTOCOL
+
+try:
+    import multistorageclient as msc
+    from multistorageclient.types import MSC_PROTOCOL
+    MSC_AVAILABLE = True
+except ImportError:
+    MSC_AVAILABLE = False
 
 from nemo.core.classes.module import NeuralModule
 
@@ -409,7 +414,7 @@ class ModelPT(LightningModule, Model):
                 path.parent.mkdir(parents=True)
 
         is_msc_url = False
-        if save_path.startswith(MSC_PROTOCOL):
+        if MSC_AVAILABLE and save_path.startswith(MSC_PROTOCOL):
             is_msc_url = True
         else:
             save_path = Path(save_path).expanduser().resolve()
@@ -475,14 +480,18 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        is_msc_url = restore_path.startswith(MSC_PROTOCOL)
+        is_msc_url = MSC_AVAILABLE and restore_path.startswith(MSC_PROTOCOL)
         if not is_msc_url:
             if save_restore_connector.model_extracted_dir is None:
                 restore_path = os.path.abspath(os.path.expanduser(restore_path))
             else:
                 restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
 
-        if not msc.os.path.exists(restore_path):
+        if is_msc_url:
+            file_exists = msc.os.path.exists(restore_path)
+        else:
+            file_exists = os.path.exists(restore_path)
+        if not file_exists:
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         app_state = AppState()

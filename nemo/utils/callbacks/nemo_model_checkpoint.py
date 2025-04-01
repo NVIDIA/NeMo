@@ -19,14 +19,12 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
-import multistorageclient as msc
 import torch
 from _weakref import proxy
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from lightning.pytorch.trainer import call
 from lightning.pytorch.utilities import rank_zero_info
-from multistorageclient.types import MSC_PROTOCOL
 from torch import Tensor
 
 from nemo.collections.common.callbacks import EMA
@@ -36,6 +34,12 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
+try:
+    import multistorageclient as msc
+    from multistorageclient.types import MSC_PROTOCOL
+    MSC_AVAILABLE = True
+except ImportError:
+    MSC_AVAILABLE = False
 
 class NeMoModelCheckpoint(ModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
@@ -89,7 +93,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # flag for enabling msc checkpointing
         if 'msc_enabled' in kwargs:
-            self.msc_enabled = kwargs.pop('msc_enabled')
+            self.msc_enabled = MSC_AVAILABLE and kwargs.pop('msc_enabled')
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
@@ -321,8 +325,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if trainer.is_global_zero:
             logging.info(f'{base_path} already exists, moving existing checkpoint to {available_path}')
             if self.msc_enabled:
-                # TODO: handle this mv op, for now just override it
-                # self._fs.mv(base_path, available_path)
+                # TODO: msc doesn't have "rename" function, therefore no-op but we should refactor this once msc have rename function supported.
                 pass
             else:
                 shutil.move(base_path, available_path)
@@ -663,7 +666,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if not is_global_rank_zero():
             raise AssertionError("_remove_unfinished_checkpoints should run only on rank 0")
 
-        msc_enabled = str(checkpoint_dir).startswith(MSC_PROTOCOL)
+        msc_enabled = MSC_AVAILABLE and str(checkpoint_dir).startswith(MSC_PROTOCOL)
 
         # TODO: add msc support for distributed checkpointing
         if msc_enabled:

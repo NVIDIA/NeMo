@@ -22,11 +22,8 @@ import time
 import uuid
 from contextlib import contextmanager
 from typing import Callable, Generator, Optional, Set, Union
-
-import multistorageclient as msc
 import torch
 from lightning.pytorch.trainer.trainer import Trainer
-from multistorageclient.types import MSC_PROTOCOL
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 
@@ -36,6 +33,12 @@ from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
+try:
+    import multistorageclient as msc
+    from multistorageclient.types import MSC_PROTOCOL
+    MSC_AVAILABLE = True
+except ImportError:
+    MSC_AVAILABLE = False
 
 class SaveRestoreConnector:
     def __init__(self) -> None:
@@ -590,22 +593,19 @@ class SaveRestoreConnector:
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
         filename_with_extension = filename.split("/")[-1]  # get the filename and extension
-        is_msc_url = filename.startswith(MSC_PROTOCOL)
+        is_msc_url = MSC_AVAILABLE and filename.startswith(MSC_PROTOCOL)
         with tempfile.TemporaryDirectory() as tmpdir:
             tar_file = os.path.join(tmpdir, filename_with_extension)
             with tarfile.open(tar_file, "w:") as tar:
                 tar.add(source_dir, arcname=".")
-            start_time = time.time()
             if is_msc_url:
+                start_time = time.time()
                 msc.upload_file(filename, tar_file)
-                logging.info(
+                logging.debug(
                     f"time spent for msc.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}"
                 )
             else:
                 shutil.move(tar_file, filename)
-                logging.info(
-                    f"time spent for shutil.move from {tar_file} to {filename}: {time.time() - start_time:.4f}"
-                )
 
     @staticmethod
     def _is_safe_path(member, extract_to):
@@ -690,7 +690,7 @@ class SaveRestoreConnector:
         if not msc.os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
 
-        is_msc_url = path2file.startswith(MSC_PROTOCOL)
+        is_msc_url = MSC_AVAILABLE and path2file.startswith(MSC_PROTOCOL)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             if is_msc_url:
@@ -705,28 +705,16 @@ class SaveRestoreConnector:
             # which should be true for versions 1.7.0 and above
             tar_header = "r:"
             try:
-                taropen_trial_start_time = time.time()
                 tar_test = tarfile.open(path2file, tar_header)
-                logging.info(
-                    f"time spent for trial tarfile.open [{path2file}] with header[{tar_header}]: {time.time() - taropen_trial_start_time:.4f}"
-                )
                 tar_test.close()
             except tarfile.ReadError:
                 # can be older checkpoint => try compressed tar
                 tar_header = "r:gz"
-            taropen_start_time = time.time()
             tar = tarfile.open(path2file, tar_header)
-            logging.info(
-                f"time spent for tarfile.open[{path2file}] with header[{tar_header}]: {time.time() - taropen_start_time:.4f}"
-            )
-            extract_start_time = time.time()
             if members is None:
                 SaveRestoreConnector._safe_extract(tar, out_folder)
             else:
                 SaveRestoreConnector._safe_extract(tar, out_folder, members)
-            logging.info(
-                f"time spent for _safe_extract {path2file} to {out_folder}: {time.time() - extract_start_time:.4f}"
-            )
             tar.close()
             return out_folder
 
