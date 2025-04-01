@@ -91,6 +91,10 @@ def build_token_channel(
     roles: set[str],
     pad_id: int = -1,
 ) -> torch.Tensor:
+    diagnostic = f"Extra info: {cut.id=}"
+    if getattr(cut, "shard_origin", None) is not None:
+        diagnostic = f"{diagnostic} {cut.shard_origin=}"
+
     bos = [] if tokenizer.bos is None else [tokenizer.bos]
     eos = [] if tokenizer.eos is None else [tokenizer.eos]
     total = compute_num_frames(cut.duration, frame_length, cut.sampling_rate)
@@ -103,19 +107,19 @@ def build_token_channel(
             pos = compute_num_frames(offset, frame_length, cut.sampling_rate)
             if pos > len(tokens):
                 logging.warning(
-                    f"Ill-constructed example: the beginning offset of a supervision {pos} is larger than the example's length {len(tokens)}."
+                    f"Ill-constructed example: the beginning offset of a supervision {pos} is larger than the example's length {len(tokens)}. {diagnostic}"
                 )
                 continue
             endpos = pos + len(text_ids)
             if endpos > len(tokens):
                 trunc_len = len(tokens) - pos
                 logging.warning(
-                    f"Truncating training example's text_ids of length {len(text_ids)} by {trunc_len} because {endpos=} > {len(tokens)=}."
+                    f"Truncating training example's text_ids of length {len(text_ids)} by {trunc_len} because {endpos=} > {len(tokens)=}. {diagnostic}"
                 )
                 text_ids = text_ids[:trunc_len]
             try:
                 tokens[pos:endpos] = text_ids
             except Exception as e:
-                raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=}") from e
+                raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=} {diagnostic}") from e
         offset += d
     return tokens
