@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import signal
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
 
@@ -158,10 +159,13 @@ class TrainingConfig:
     """Exit the program after this many minutes."""
 
     exit_signal_handler: bool = False
-    """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
+    """Dynamically save the checkpoint and shutdown the training if the configured exit_signal is received."""
 
     exit_signal_handler_for_dataloader: bool = False
     """Use signal handler for dataloader workers"""
+
+    exit_signal: int = signal.SIGTERM
+    """Signal the signal handler monitors for graceful shutdown (defaults to SIGTERM)."""
 
     manual_gc: bool = False
     """Disable the threshold-based default garbage collector and trigger the garbage collection manually. Manual garbage collection helps to align the timing of the collection across ranks which mitigates the impact of CPU-associated jitters. When the manual gc is enabled, garbage collection is performed only at the start and the end of the validation routine by default."""
