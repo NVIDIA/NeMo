@@ -547,7 +547,7 @@ class ConfigContainer:
         )
 
         # Make sure all functionality that requires Gloo process groups is disabled.
-        if not self.dist_config.enable_gloo_process_groups:
+        if not self.dist_config.use_gloo_process_groups:
             if self.optimizer_config.use_distributed_optimizer:
                 # If using distributed optimizer, must use distributed checkpointing.
                 # Legacy checkpointing uses Gloo process groups to collect full distributed
