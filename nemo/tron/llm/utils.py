@@ -78,7 +78,7 @@ def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> 
             dtype=torch.float32,
             device=torch.cuda.current_device(),
         )
-        if cfg.dataset_config.create_attention_mask or isinstance(cfg.dataset_config, FinetuningDatasetConfig):
+        if isinstance(cfg.dataset_config, FinetuningDatasetConfig) or cfg.dataset_config.create_attention_mask:
             attention_mask = torch.empty(
                 (
                     mbs,
