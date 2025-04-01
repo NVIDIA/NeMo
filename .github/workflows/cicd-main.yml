@@ -1333,6 +1333,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_T5_Squad
       AFTER_SCRIPT: |
+        rm -rf tests/collections/llm/squad_download
         rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
 
   L2_NeMo_2_T5_LoRA:
