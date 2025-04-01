@@ -37,9 +37,11 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 try:
     import multistorageclient as msc
     from multistorageclient.types import MSC_PROTOCOL
+
     MSC_AVAILABLE = True
 except ImportError:
     MSC_AVAILABLE = False
+
 
 class NeMoModelCheckpoint(ModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.

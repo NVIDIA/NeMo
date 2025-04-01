@@ -76,6 +76,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     import multistorageclient as msc
     from multistorageclient.types import MSC_PROTOCOL
+
     MSC_AVAILABLE = True
 except ImportError:
     MSC_AVAILABLE = False
@@ -1507,4 +1508,4 @@ def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remo
 
 
 def is_msc_url(dirpath):
-            return MSC_AVAILABLE and dirpath and dirpath.startswith(MSC_PROTOCOL)
+    return MSC_AVAILABLE and dirpath and dirpath.startswith(MSC_PROTOCOL)

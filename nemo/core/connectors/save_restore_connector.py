@@ -36,9 +36,11 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 try:
     import multistorageclient as msc
     from multistorageclient.types import MSC_PROTOCOL
+
     MSC_AVAILABLE = True
 except ImportError:
     MSC_AVAILABLE = False
+
 
 class SaveRestoreConnector:
     def __init__(self) -> None:
