@@ -10,11 +10,9 @@ import yaml
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy
 from megatron.core.optimizer import OptimizerConfig
-from omegaconf import OmegaConf
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, torch_dtype_from_mcore_config
 from nemo.collections.llm.t5.model.t5 import T5Config
-from nemo.lightning import _strategy_lib
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig, TokenizerConfig
 from nemo.tron.state import GlobalState
@@ -28,6 +26,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 HF_ASSETS_DIR = "hf_assets"
+
+
+@contextmanager
+def megatron_cpu_init_context(config):
+    """ """
+    _orig_use_cpu_initialization = config.use_cpu_initialization
+
+    config.use_cpu_initialization = True
+
+    yield
+
+    config.use_cpu_initialization = _orig_use_cpu_initialization
 
 
 @contextmanager
@@ -51,7 +61,7 @@ def get_full_mcore_state_dict(dist_ckpt_folder: Path, model_cfg):
             )
             model_cfg.params_dtype = torch_dtype_from_mcore_config(model_cfg)
 
-        with _strategy_lib.megatron_cpu_init_context(model_cfg):
+        with megatron_cpu_init_context(model_cfg):
             model = model_cfg.configure_model(None)
 
         strategy = TorchDistLoadShardedStrategy()
@@ -140,7 +150,7 @@ class BaseImporter:
         )
 
     def init_tron_model(self, cfg: GPTConfig | T5Config):
-        with _strategy_lib.megatron_cpu_init_context(cfg):
+        with megatron_cpu_init_context(cfg):
             model = cfg.configure_model(tokenizer=self.tokenizer)
         return [model]
 
