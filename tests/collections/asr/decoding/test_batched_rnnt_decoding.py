@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import faulthandler
 import glob
 import json
 import os
@@ -34,11 +35,10 @@ from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_grap
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 
-import faulthandler
 faulthandler.enable()
 
-RNNT_MODEL="stt_en_conformer_transducer_small"
-TDT_MODEL="nvidia/parakeet-tdt_ctc-110m"
+RNNT_MODEL = "stt_en_conformer_transducer_small"
+TDT_MODEL = "nvidia/parakeet-tdt_ctc-110m"
 DEVICES = [torch.device("cpu")]
 
 if torch.cuda.is_available():
