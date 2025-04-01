@@ -16,8 +16,10 @@ import math
 
 import torch
 import torch.nn as nn
-
+from einops import rearrange, repeat
+from torch import einsum
 from flash_attn import flash_attn_func
+from nemo.collections.asr.modules.transformer.transformer_modules import FixedPositionalEncoding
 
 def justnorm(x, fp32: bool = False, idim: int = -1):
     if fp32:
@@ -45,34 +47,77 @@ class RMSNorm(torch.nn.Module):
         xnorm = xnorm.to(dtype=dtype)
         return xnorm * self.weight
 
-def apply_rotary_position_embeddings(sinusoidal_pos, tensor):
-    """Applies rotary embeddings to the given tensor (Q or K)."""
-    # Split sinusoidal_pos into sin and cos parts
-    sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-    
-    # Get even and odd dimensions
-    x_even = tensor[..., ::2]
-    x_odd = tensor[..., 1::2]
-    
-    # Apply rotation using the rotation matrix multiplication
-    x_even_new = x_even * cos - x_odd * sin
-    x_odd_new = x_even * sin + x_odd * cos
-    
-    # Interleave the results
-    x_transformed = torch.stack((x_even_new, x_odd_new), dim=-1)
-    x_transformed = x_transformed.flatten(-2)
-    
-    return x_transformed
+def rotate_half(x):
+    x = rearrange(x, '... (d r) -> ... d r', r=2)
+    x1, x2 = x.unbind(dim=-1)
+    x = torch.stack((-x2, x1), dim=-1)
+    return rearrange(x, '... d r -> ... (d r)')
 
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
 
+def get_sinusoidal_embeddings(
+    seq_len: int,
+    dim: int,
+    theta: float = 10000.0,
+    device: torch.device = torch.device('cpu'),
+    dtype: torch.dtype = torch.float32,
+):
+    """
+    Generates sinusoidal embeddings (complex numbers represented as real/imag pairs)
+    for rotary position embedding.
+
+    Args:
+        seq_len: Length of the sequence (T).
+        dim: Dimension of the embeddings (D_rotary <= D). Must be even.
+        theta: Base value for frequency calculation.
+        device: Torch device.
+        dtype: Torch dtype.
+
+    Returns:
+        A tensor of shape (seq_len, dim) containing the embeddings.
+    """
+    assert dim % 2 == 0, "Dimension must be even."
+
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=dtype, device=device)[: (dim // 2)] / dim))
+
+    seq_positions = torch.arange(seq_len, device=device, dtype=dtype)
+
+    freqs = einsum("i , j -> i j", seq_positions, freqs)
+
+    emb = repeat(freqs, '... n -> ... (n r)', r=2)
+
+    return emb
+
+
+def apply_rotary_position_embeddings(freqs: torch.Tensor, t: torch.Tensor, scale: float = 1.0):
+    """
+    Applies pre-computed rotary embeddings to a tensor. Handles inputs like BxNxTxD.
+
+    Args:
+        t: The input tensor (e.g., query or key) of shape (..., seq_len, dim) = (..., T, D).
+        freqs: Pre-computed sinusoidal embeddings from get_sinusoidal_embeddings,
+               shape (seq_len, dim_rotary) = (T, D_rotary) where D_rotary <= D.
+        scale: Optional scaling factor.
+
+    Returns:
+        The tensor with rotary embeddings applied, shape (..., T, D).
+    """
+    rot_dim = freqs.shape[-1]  # D_rotary
+    seq_len = freqs.shape[-2]  # T
+
+    # Ensure freqs broadcast correctly to t's shape (..., T, D_rotary)
+    # Add leading dimensions to freqs to match t's rank, except for the last two.
+    leading_dims = t.shape[:-2]
+    freqs_broadcast = freqs.view((1,) * len(leading_dims) + freqs.shape)
+
+    t_dtype = t.dtype
+    t_rot = t[..., :rot_dim]
+    t_pass = t[..., rot_dim:]
+
+    t_rotated = (t_rot * freqs_broadcast.cos() * scale) + (rotate_half(t_rot) * freqs_broadcast.sin() * scale)
+
+    out = torch.cat((t_rotated, t_pass), dim=-1)
+
+    return out.type(t_dtype)
 
 # def n_gpt_norm()
 
@@ -99,6 +144,8 @@ class AttentionBlock(nn.Module):
         # trainable scaling factors for each head
         self.sqk = torch.nn.Parameter(self.sqk_init_scaling * torch.ones(self.config.n_embd, dtype=torch.float32))
 
+        self.positional_embeddings = FixedPositionalEncoding(config.n_embd, max_sequence_length=1024)
+
     def normalize_matrices(self):
         
         self.query.weight.data.copy_(justnorm_fp32(self.query.weight.data, 1))
@@ -120,17 +167,23 @@ class AttentionBlock(nn.Module):
         k = self.key(key)
         v = self.value(value)
 
+        sinusoidal_pos_q = get_sinusoidal_embeddings(Tq, self.config.n_embd // self.config.n_heads, device=q.device)
+        sinusoidal_pos_k = get_sinusoidal_embeddings(Tk, self.config.n_embd // self.config.n_heads, device=k.device)
+        
+        positional_ids = torch.arange(Tq, device=q.device, dtype=torch.long).unsqueeze(0).repeat(B, 1)
+        positional_ids_k = torch.arange(Tk, device=k.device, dtype=torch.long).unsqueeze(0).repeat(B, 1)
+        # import pdb; pdb.set_trace()
+        q = self.positional_embeddings(positional_ids) + q
+        k = self.positional_embeddings(positional_ids_k) + k
         # Divide the embeddings into n_heads
         q = q.view(B, Tq, self.config.n_heads, self.config.n_embd // self.config.n_heads)
         k = k.view(B, Tk, self.config.n_heads, self.config.n_embd // self.config.n_heads)
         v = v.view(B, Tk, self.config.n_heads, self.config.n_embd // self.config.n_heads)
 
         # Apply the sinusoidal positional embeddings
-        sinusoidal_pos_q = get_sinusoidal_embeddings(Tq, self.config.n_embd // self.config.n_heads, device=q.device)
-        sinusoidal_pos_k = get_sinusoidal_embeddings(Tk, self.config.n_embd // self.config.n_heads, device=k.device)
-        
-        q = apply_rotary_position_embeddings(sinusoidal_pos_q, q.transpose(1, 2)).transpose(2, 1) # BxHxTxH_DIM -> BxTxHxH_DIM 
-        k = apply_rotary_position_embeddings(sinusoidal_pos_k, k.transpose(1, 2)).transpose(2, 1)
+
+        # q = apply_rotary_position_embeddings(sinusoidal_pos_q, q.transpose(1, 2)).transpose(2, 1) # BxHxTxH_DIM -> BxTxHxH_DIM 
+        # k = apply_rotary_position_embeddings(sinusoidal_pos_k, k.transpose(1, 2)).transpose(2, 1)
 
         # Scale the query and key
         sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(

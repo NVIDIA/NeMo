@@ -174,18 +174,18 @@ class Embedding(nn.Module):
     def forward(self, input_ids=None, start_pos=0):
         # Embedding layer
         x = self.token_embedding(input_ids)
-        # if self.learn_pos_emb:
-        #     position_ids = self.position_embedding[start_pos: start_pos + x.size(1)]
-        #     x = x + position_ids
-        # else:
-        #     position_ids = torch.arange(start_pos, start_pos + x.size(1), dtype=torch.long, device=x.device)
-        #     position_ids = position_ids.unsqueeze(0).repeat(x.size(0), 1)
-        #     x = x + self.position_embedding(position_ids)
+        if self.learn_pos_emb:
+            position_ids = self.position_embedding[start_pos: start_pos + x.size(1)]
+            x = x + position_ids
+        else:
+            position_ids = torch.arange(start_pos, start_pos + x.size(1), dtype=torch.long, device=x.device)
+            position_ids = position_ids.unsqueeze(0).repeat(x.size(0), 1)
+            x = x + self.position_embedding(position_ids)
         
         # RoPE positional embeddings
         # x -> B x T x C
-        sinusoidal_q = get_sinusoidal_embeddings(x.size(1), x.size(2), x.device)
-        x = apply_rotary_position_embeddings(sinusoidal_pos=sinusoidal_q, tensor=x)
+        # sinusoidal_q = get_sinusoidal_embeddings(x.size(1), x.size(2), device=x.device)
+        # x = apply_rotary_position_embeddings(sinusoidal_q, x)
 
         x = self.drop(x)
         return x

@@ -28,7 +28,7 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
-from nemo.collections.asr.parts.submodules.ngpt_modules import AttentionBlock, MLPBlock
+from nemo.collections.asr.parts.submodules.ngpt_modules import AttentionBlock, MLPBlock, get_sinusoidal_embeddings, apply_rotary_position_embeddings
 
 try:
     from flash_attn import flash_attn_func
@@ -209,28 +209,6 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
             self.pre_encode.normalize_matrices()
         self.ngpt.normalize_matrices()
 
-
-def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
-    # Split the sinusoidal_pos into sin and cos parts
-    sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-    # Apply the rotary embeddings to the query and key
-    q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
-    k_rot = torch.stack((-k[..., 1::2], k[..., ::2]), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    k_rot = torch.reshape(k_rot, k.shape[:-1] + (k.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape)
-    k_rot = torch.reshape(k_rot, k.shape)
-    return q_rot.to(q.dtype), k_rot.to(k.dtype)
-
-
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
 
 
 def justnorm(x, fp32: bool = False, idim: int = -1):
