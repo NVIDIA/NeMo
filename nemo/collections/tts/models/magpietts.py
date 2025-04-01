@@ -97,7 +97,7 @@ def worker_init_fn(worker_id):
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
 
 
-class MagpieTTS_Model(ModelPT):
+class MagpieTTSModel(ModelPT):
     """
     Magpie-TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context
     audio/text
@@ -206,17 +206,14 @@ class MagpieTTS_Model(ModelPT):
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
         # del codec discriminator to free memory
         del codec_model.discriminator
-        codec_model.eval()
-        self.freeze_model(codec_model)
         self._codec_model = codec_model
+        self._codec_model.freeze()  #Lightning does requires_grad = False and self.eval()
 
         if self.model_type == 'single_encoder_sv_tts':
-            speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
+            self._speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
                 model_name='titanet_large'
             )
-            speaker_verification_model.eval()
-            self.freeze_model(speaker_verification_model)
-            self._speaker_verification_model = speaker_verification_model
+            self._speaker_verification_model.freeze()  #Lightning does requires_grad = False and self.eval()
             self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
             self.transcript_decoder_layers = [
                 idx for idx in range(cfg.decoder.n_layers)
@@ -252,10 +249,6 @@ class MagpieTTS_Model(ModelPT):
             self.alignment_loss = ForwardSumLoss(loss_scale=alignment_loss_scale)
         if alignment_encoder_loss_scale > 0.0:
             self.alignment_encoder_loss = ForwardSumLoss(loss_scale=alignment_encoder_loss_scale)
-
-    def freeze_model(self, model):
-        for param in model.parameters():
-            param.requires_grad = False
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         if hasattr(self, '_no_state_dict') and self._no_state_dict:
@@ -293,7 +286,7 @@ class MagpieTTS_Model(ModelPT):
         self._codec_model.eval()
         with torch.no_grad():
             codes, codes_len = self._codec_model.encode(audio=audio, audio_len=audio_len)
-            # Add a timestep to begining and end of codes tensor
+            # Add a timestep to beginning and end of codes tensor
             bos_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
             )
@@ -348,7 +341,7 @@ class MagpieTTS_Model(ModelPT):
 
     def compute_local_transformer_logits(self, dec_out, audio_codes_target):
         """
-        Loss from the autoregrssive codebook predictor (used per frame)
+        Loss from the autoregressive codebook predictor (used per frame)
         """
         # dec_out: (B, T', E)
         # audio_codes: (B, C, T')
@@ -913,7 +906,7 @@ class MagpieTTS_Model(ModelPT):
                 max_codebook_val = self.cfg.get('dec_random_input_max', self.cfg.num_audio_tokens_per_codebook)
                 # @pneekhara: Keeping dec_random_input_max configurable since num_audio_tokens_per_codebook usually has padding tokens
                 # which can cause errors when doing codes_to_audio for audio_codes_input. We are not currently calling codes_to_audio on
-                # audio_codes_input so should not matter if we dont supply dec_random_input_max.
+                # audio_codes_input so should not matter if we don't supply dec_random_input_max.
                 random_audio_tokens = torch.randint(
                     0, max_codebook_val, audio_codes_input.size(), device=audio_codes_input.device
                 )
@@ -1539,7 +1532,7 @@ class MagpieTTS_Model(ModelPT):
         )  # This will be used in worker_init_fn for instantiating tokenizer
         return dataset
 
-    def _setup_train_dataloader(self, cfg):
+    def setup_training_data(self, cfg):
         dataset = self.get_dataset(cfg, dataset_type='train')
         sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
         persistent_workers = True
@@ -1547,7 +1540,7 @@ class MagpieTTS_Model(ModelPT):
             persistent_workers = False
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
             dataset.text_tokenizer, dataset.text_conditioning_tokenizer = self._setup_tokenizers(self.cfg)
-        data_loader = torch.utils.data.DataLoader(
+        self._train_dl = torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
             sampler=sampler,
@@ -1555,9 +1548,8 @@ class MagpieTTS_Model(ModelPT):
             worker_init_fn=worker_init_fn,
             persistent_workers=persistent_workers,
         )
-        return data_loader
 
-    def _setup_test_dataloader(self, cfg):
+    def _setup_test_dataloader(self, cfg) -> torch.utils.data.DataLoader:
         dataset = self.get_dataset(cfg, dataset_type='test')
         persistent_workers = True
         if cfg.dataloader_params.num_workers == 0:
@@ -1574,9 +1566,6 @@ class MagpieTTS_Model(ModelPT):
         )
         return data_loader
 
-    def setup_training_data(self, cfg):
-        self._train_dl = self._setup_train_dataloader(cfg)
-
     def setup_validation_data(self, cfg):
         self._validation_dl = self._setup_test_dataloader(cfg)
 
@@ -1588,8 +1577,8 @@ class MagpieTTS_Model(ModelPT):
         return []
 
 
-class MagpieTTS_ModelInference(MagpieTTS_Model):
-    """Small override of MagpieTTS_Model for parallel multi-GPU inference and metrics calculation.
+class MagpieTTSModelInference(MagpieTTSModel):
+    """Small override of MagpieTTSModel for parallel multi-GPU inference and metrics calculation.
     This class is used in 'test' mode and leverages trainer.test() for multi-GPU/multi-node inference.
     Saves the predicted audio files and logs the CER/WER metrics as individual json files for each audio.
     """
@@ -1601,13 +1590,11 @@ class MagpieTTS_ModelInference(MagpieTTS_Model):
                 model_name="nvidia/parakeet-tdt-1.1b"
             )
             self.eval_asr_model.freeze()
-            self.eval_asr_model.eval()
 
         self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
             model_name='titanet_large'
         )
         self.eval_speaker_verification_model.freeze()
-        self.eval_speaker_verification_model.eval()
 
         if cfg.get('load_whisper_model', False):
             from transformers import WhisperForConditionalGeneration, WhisperProcessor

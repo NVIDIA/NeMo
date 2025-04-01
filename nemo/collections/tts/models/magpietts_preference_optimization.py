@@ -1,20 +1,21 @@
-import numpy as np
-import torch
-from omegaconf import DictConfig
-from lightning.pytorch import Trainer
-from torch import nn
-import os
-import json
-from nemo.utils import logging
-import nemo.collections.asr as nemo_asr
-import soundfile as sf
-import librosa
 import copy
-from omegaconf import open_dict
+import json
+import os
+import random
 import string
+
+import librosa
+import numpy as np
+import soundfile as sf
+import torch
+from lightning.pytorch import Trainer
+from omegaconf import DictConfig, open_dict
+
+import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
-import random
+from nemo.utils import logging
+
 try:
     import torchaudio
     from torchaudio.pipelines import SQUIM_OBJECTIVE
@@ -22,10 +23,10 @@ try:
 except ImportError:
     HAVE_TORCHAUDIO = False
 
-from nemo.collections.tts.models import MagpieTTS_Model
+from nemo.collections.tts.models import MagpieTTSModel
 
 
-class MagpieTTS_Model_PrefDataGen(MagpieTTS_Model):
+class MagpieTTSModelPrefDataGen(MagpieTTSModel):
     """Small override to save inference metrics, used for datagen in Offline PO"""
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
@@ -39,7 +40,7 @@ class MagpieTTS_Model_PrefDataGen(MagpieTTS_Model):
         self.eval_speaker_verification_model.eval()
 
         if cfg.get('load_whisper_model', False):
-            from transformers import WhisperProcessor, WhisperForConditionalGeneration
+            from transformers import WhisperForConditionalGeneration, WhisperProcessor
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()
@@ -138,7 +139,7 @@ class MagpieTTS_Model_PrefDataGen(MagpieTTS_Model):
                 with open(os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_metrics.json'), 'w') as f:
                     json.dump(item_metrics, f)
 
-class MagpieTTS_Model_OfflinePO(MagpieTTS_Model):
+class MagpieTTSModelOfflinePO(MagpieTTSModel):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         # Copy cfg
@@ -146,7 +147,7 @@ class MagpieTTS_Model_OfflinePO(MagpieTTS_Model):
         with open_dict(ref_model_cfg):
             ref_model_cfg.train_ds = None
             ref_model_cfg.validation_ds = None
-        self._reference_model = MagpieTTS_Model(cfg=ref_model_cfg)
+        self._reference_model = MagpieTTSModel(cfg=ref_model_cfg)
         print("Loading reference model from checkpoint")
         self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
         self.freeze_model(self._reference_model)
@@ -371,7 +372,7 @@ class MagpieTTS_Model_OfflinePO(MagpieTTS_Model):
             self.log("val_alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()
 
-class MagpieTTS_Model_OnlinePO(MagpieTTS_Model):
+class MagpieTTSModelOnlinePO(MagpieTTSModel):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         # Copy cfg
@@ -382,7 +383,7 @@ class MagpieTTS_Model_OnlinePO(MagpieTTS_Model):
 
         self.reference_free = self.cfg.get('reference_free', False) # True means we dont use the reference model
         if not self.reference_free:
-            self._reference_model = MagpieTTS_Model(cfg=ref_model_cfg)
+            self._reference_model = MagpieTTSModel(cfg=ref_model_cfg)
             print("Loading reference model from checkpoint")
             self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
             self.freeze_model(self._reference_model)
@@ -395,7 +396,7 @@ class MagpieTTS_Model_OnlinePO(MagpieTTS_Model):
             self.eval_asr_model.freeze()
             self.eval_asr_model.eval()
         elif cfg.get('reward_asr_model', "nemo") == "whisper":
-            from transformers import WhisperProcessor, WhisperForConditionalGeneration
+            from transformers import WhisperForConditionalGeneration, WhisperProcessor
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()
@@ -407,7 +408,7 @@ class MagpieTTS_Model_OnlinePO(MagpieTTS_Model):
         self.eval_speaker_verification_model.eval()
 
         if cfg.get('load_whisper_model', False):
-            from transformers import WhisperProcessor, WhisperForConditionalGeneration
+            from transformers import WhisperForConditionalGeneration, WhisperProcessor
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()

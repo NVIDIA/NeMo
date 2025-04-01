@@ -1,20 +1,23 @@
-from nemo.collections.tts.models import MagpieTTS_Model
-from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
-from omegaconf.omegaconf import OmegaConf, open_dict
-import os
-import glob
-import torch
-import soundfile as sf
-import evaluate_generated_audio
-import evalset_config
-import json
 import argparse
+import copy
+import glob
+import json
+import os
+import shutil
+
+import evalset_config
+import evaluate_generated_audio
 import numpy as np
 import scipy.stats as stats
-import copy
-import shutil
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+import soundfile as sf
+import torch
+from omegaconf.omegaconf import OmegaConf, open_dict
 from PIL import Image
+
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
+from nemo.collections.tts.models import MagpieTTSModel
+
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -65,7 +68,7 @@ def run_inference(
         model_cfg.validation_ds = None
 
 
-    model = MagpieTTS_Model(cfg=model_cfg)
+    model = MagpieTTSModel(cfg=model_cfg)
     model.use_kv_cache_for_inference = True
 
     # Load weights from checkpoint file
