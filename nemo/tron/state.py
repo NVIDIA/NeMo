@@ -96,7 +96,7 @@ class GlobalState:
         self._timers = None
         self._train_state = None
         self.rank_monitor_client = None
-        self._signal_handler = DistributedSignalHandler().__enter__()
+        self._signal_handler = None
         self.start_time = time.time()
         self._ft_state = None
         self._straggler_timer = None
@@ -108,7 +108,7 @@ class GlobalState:
     @cfg.setter
     def cfg(self, value: ConfigContainer):
         self._cfg = value
-        self._signal_handler = self._set_signal_handler()
+        self._set_signal_handler()
 
     @property
     def tokenizer(self):
@@ -194,7 +194,7 @@ class GlobalState:
             self._straggler_timer = StragglerDetector()
         return self._straggler_timer
 
-    def _set_signal_handler(self):
+    def _set_signal_handler(self) -> None:
         cfg = self._cfg
         assert cfg is not None, "ConfigContainer must be set before initializing signal handler"
         sig = cfg.train_config.exit_signal
