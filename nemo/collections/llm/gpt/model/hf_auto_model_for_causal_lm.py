@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 import time
 
 import _io
@@ -385,13 +384,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
 
         # Log the reduced loss.
-        # TODO(@cspades): Skip logging if the loss is NaN as a WAR if all tokens
-        # in the input and label are masked / padding, in which case the CE loss
-        # returned is NaN.
-        if not math.isnan(mean_loss):
-            self.log(
-                'reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False
-            )
+        self.log(
+            'reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False
+        )
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
         # log LR
