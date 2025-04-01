@@ -49,7 +49,6 @@ class PROFILING(Callback):
             torch.cuda.profiler.cudart().cudaProfilerStop()
 
 
-# @hydra.main(config_path="conf", config_name="s2s_duplex")
 @hydra_runner(config_path="conf", config_name="s2s_duplex")
 def train(cfg):
     torch.distributed.init_process_group(backend="nccl")
@@ -64,6 +63,7 @@ def train(cfg):
     with trainer.init_module():
         model = DuplexS2SModel(cfg.model)
 
+    # TODO: see migration guide exp_manager -> NeMo 2
     # exp_manager / NeMo2 _setup provide:
     # * PEFT (possibly from HF)
     # * save/load checkpoint (exp_manager -> .nemo only)

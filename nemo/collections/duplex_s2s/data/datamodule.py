@@ -31,7 +31,13 @@ class S2SDataModule(LightningDataModule):
                     getattr(self.cfg, k).force_finite = True
                     getattr(self.cfg, k).force_map_dataset = True
         self.tokenizer = tokenizer
-        self.dataset = DuplexS2SDataset(self.tokenizer, self.cfg.frame_length, self.cfg.source_sample_rate)
+        self.dataset = DuplexS2SDataset(
+            tokenizer=self.tokenizer,
+            frame_length=self.cfg.frame_length,
+            source_sample_rate=self.cfg.source_sample_rate,
+            input_roles=self.cfg.input_roles,
+            output_roles=self.cfg.output_roles,
+        )
 
     def train_dataloader(self):
         if "train_ds" not in self.cfg:

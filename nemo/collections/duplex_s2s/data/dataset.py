@@ -11,17 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
-import random
-import re
-
-import numpy as np
 import torch
 import torch.utils.data
-from lhotse import CutSet, Recording, Seconds, compute_num_frames
+from lhotse import CutSet, Seconds, compute_num_frames
 from lhotse.cut import Cut
-from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_audio, collate_vectors
+from lhotse.utils import ifnone
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.utils import logging
@@ -32,16 +27,29 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
     TODO: documentation
     """
 
-    def __init__(self, tokenizer: TokenizerSpec, frame_length: Seconds, source_sample_rate: int):
+    def __init__(
+        self,
+        tokenizer: TokenizerSpec,
+        frame_length: Seconds,
+        source_sample_rate: int,
+        input_roles: list[str] = None,
+        output_roles: list[str] = None,
+    ):
         self.tokenizer = tokenizer
         self.frame_length = frame_length
         self.source_sample_rate = source_sample_rate
+        self.input_roles = set(ifnone(input_roles, ["user"]))
+        self.output_roles = set(ifnone(output_roles, ["agent"]))
 
     def __getitem__(self, cuts: CutSet) -> dict:
         source_audio, source_audio_lens = collate_audio(cuts.resample(self.source_sample_rate))
         target_audio, target_audio_lens = collate_audio(cuts, recording_field="target_audio")
-        target_tokens, target_token_lens = collate_token_channel(cuts, self.tokenizer, self.frame_length, role="agent")
-        source_tokens, source_token_lens = collate_token_channel(cuts, self.tokenizer, self.frame_length, role="user")
+        target_tokens, target_token_lens = collate_token_channel(
+            cuts, self.tokenizer, self.frame_length, roles=self.output_roles
+        )
+        source_tokens, source_token_lens = collate_token_channel(
+            cuts, self.tokenizer, self.frame_length, roles=self.input_roles
+        )
 
         return {
             "source_audio": source_audio,
@@ -60,7 +68,7 @@ def collate_token_channel(
     cuts: CutSet,
     tokenizer: TokenizerSpec,
     frame_length: Seconds,
-    role: str,
+    roles: set[str],
 ) -> tuple[torch.Tensor, torch.Tensor]:
     pad_id = tokenizer.pad
     if pad_id is None:
@@ -68,7 +76,8 @@ def collate_token_channel(
     if pad_id is None:
         pad_id = 0  # TODO: cleanup
     tokens = [
-        build_token_channel(c, tokenizer=tokenizer, frame_length=frame_length, role=role, pad_id=pad_id) for c in cuts
+        build_token_channel(c, tokenizer=tokenizer, frame_length=frame_length, roles=roles, pad_id=pad_id)
+        for c in cuts
     ]
     token_lens = torch.tensor([len(tt) for tt in tokens])
     tokens = collate_vectors(tokens, padding_value=pad_id)
@@ -79,7 +88,7 @@ def build_token_channel(
     cut: Cut,
     tokenizer: TokenizerSpec,
     frame_length: Seconds,
-    role: str = "agent",
+    roles: set[str],
     pad_id: int = -1,
 ) -> torch.Tensor:
     bos = [] if tokenizer.bos is None else [tokenizer.bos]
@@ -89,7 +98,7 @@ def build_token_channel(
     offset = 0
     for supervision in cut.supervisions:
         d = supervision.duration
-        if supervision.speaker == role:
+        if supervision.speaker in roles:
             text_ids = torch.as_tensor(bos + tokenizer.text_to_ids(supervision.text) + eos)
             pos = compute_num_frames(offset, frame_length, cut.sampling_rate)
             if pos > len(tokens):

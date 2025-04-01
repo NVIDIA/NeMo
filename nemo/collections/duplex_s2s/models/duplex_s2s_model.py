@@ -46,6 +46,7 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 from nemo.utils import logging
 
 
+# TODO: PyTorchHFHubMixin
 class DuplexS2SModel(LightningModule):
     def __init__(self, cfg) -> None:
         super().__init__()
