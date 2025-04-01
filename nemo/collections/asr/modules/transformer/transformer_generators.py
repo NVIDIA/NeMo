@@ -507,7 +507,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             return tgt
 
 
-class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
+class BeamSearchSequenceGeneratorWithNGramLM(BeamSearchSequenceGenerator):
     def __init__(
         self, embedding, decoder, log_softmax, ngram_lm_model, ngram_lm_alpha=0.0, beam_size=1, len_pen=0, **kwargs
     ):
@@ -516,26 +516,17 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
         log_softmax.
 
         Args:
-            *all args of GreedySequenceGenerator class
+            *all args of BeamSearchSequenceGenerator class
             ngram_lm_model: path to the n-gram language model; LM should use the same tokenizer as the current model
             ngram_lm_alpha: n-gram LM weight
-            beam_size: size of the beam
-            len_pen: length penalty parameter
         Kwargs:
-            all remaining parameters of GreedySequenceGenerator class
+            all remaining parameters of BeamSearchSequenceGenerator class
         """
 
-        super().__init__(embedding, decoder, log_softmax, **kwargs)
-        self.beam_size = beam_size
-        self.len_pen = len_pen
+        super().__init__(embedding, decoder, log_softmax, beam_size=beam_size, len_pen=len_pen, **kwargs)
         # ngram lm
         self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.num_tokens)
         self.ngram_lm_alpha = ngram_lm_alpha
-
-    @staticmethod
-    def compute_len_penalty(lengths, alpha):
-        """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
-        return ((5 + lengths) / 6).pow(alpha)
 
     def _forward(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
@@ -554,9 +545,10 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
         log_probs += self.ngram_lm_alpha * lm_scores[:, None, :]
 
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)  # [Batch, Beam, 1]
-        batch_lm_states = batch_lm_states_candidates.gather(dim=1, index=prefixes.squeeze(-1))  # [Batch, Beam]
+        batch_lm_states = batch_lm_states_candidates.gather(dim=1, index=prefixes.squeeze(-1)).view(
+            -1
+        )  # [Batch, Beam] -> [Batch*Beam]
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)  # [Batch*Beam, 1]
-        batch_lm_states = batch_lm_states.view(-1)  # [Batch*Beam]
 
         # repeat init target prefixes and cached memory states beam_size times
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)
@@ -613,11 +605,10 @@ class BeamSearchSequenceGeneratorWithNGramLM(GreedySequenceGenerator):
             len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
             scores = scores / len_penalties
             scores, indices_i = torch.topk(scores.view(-1, self.beam_size**2), self.beam_size, dim=1)  # [Batch, Beam]
-            batch_lm_states = batch_lm_states.view(-1, self.beam_size**2).gather(
-                dim=1, index=indices_i
-            )  # [Batch, Beam]
+            batch_lm_states = (
+                batch_lm_states.view(-1, self.beam_size**2).gather(dim=1, index=indices_i).view(-1)
+            )  # [Batch, Beam] -> [Batch*Beam]
             scores = scores.view(-1, 1) * len_penalties  # [Batch*Beam, 1]
-            batch_lm_states = batch_lm_states.view(-1)  # [Batch*Beam]
 
             # select prefixes which correspond to the chosen hypotheses
             prefixes = prefixes.unsqueeze(1).repeat(1, self.beam_size, 1)
