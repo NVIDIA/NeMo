@@ -126,13 +126,26 @@ class FinetuningDatasetBuilder:
         if get_rank_safe() == 0:
             self.prepare_data()
 
+        # Use a similar parallel building approach as BlendedMegatronDatasetBuilder
         if torch.distributed.is_initialized():
+            rank = torch.distributed.get_rank()
+
+            datasets = [None, None, None]  # train, valid, test
+
+            # First, build on rank 0
+            if rank == 0 and self.is_built_on_rank():
+                try:
+                    datasets = self._build_datasets()
+                except Exception as err:
+                    logger.error(f"Failed to build datasets on rank 0: {err}")
+                    raise
+
+            # Synchronize all ranks
             torch.distributed.barrier()
 
-            if self.is_built_on_rank():
+            # Then build on other ranks
+            if rank != 0 and self.is_built_on_rank():
                 datasets = self._build_datasets()
-            else:
-                datasets = [None, None, None]
 
             return datasets
         else:
