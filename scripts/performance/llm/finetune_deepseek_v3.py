@@ -20,6 +20,10 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.deepseek_v3 import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from ..argument_parser import parse_cli_args
 from ..utils import (
     args_sanity_check,
@@ -53,13 +57,27 @@ def override_recipe_configs(
     enable_cuda_graphs: bool,
 ):
     """
-    deepseek v3 b200 pre-train recipe aimed at achieving best possible performance.
+    deepseek v3 finetune recipe aimed at achieving best possible performance.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, packed_sequence=False)
+
+    # use mock data module for testing
+    recipe.data = run.Config(MockDataModule, seq_length=4096, global_batch_size=gbs, micro_batch_size=1)
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=60,
+        gc_interval_val=60,
+    )
+    comm_overlap_callback = run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=False,
+        )
+    # token_drop_callback = run.Config(MegatronTokenDropCallback)
+    recipe.trainer.callbacks.extend([garbage_collection_callback, comm_overlap_callback])
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -91,7 +109,17 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+    recipe.model.config.recompute_granularity='full'
+    recipe.model.config.recompute_method='uniform'
+    recipe.model.config.recompute_num_layers=1
+    recipe.model.config.moe_permute_fusion=True
+
+    recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
+    recipe.trainer.strategy.account_for_embedding_in_pipeline_split = False # embedding is not split
+    recipe.model.config.num_layers_in_first_pipeline_stage = None
+    recipe.model.config.num_layers_in_last_pipeline_stage = None
+    recipe.trainer.strategy.sequence_parallel = False
 
     return recipe
 
@@ -127,7 +155,7 @@ if __name__ == "__main__":
 
     plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None)]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
+        plugins.append(NsysPlugin(start_step=10, end_step=12, gen_shape=True))
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
