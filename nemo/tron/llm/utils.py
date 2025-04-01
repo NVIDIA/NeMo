@@ -20,6 +20,22 @@ from megatron.core import parallel_state
 from nemo.tron.config import ConfigContainer, FinetuningDatasetConfig
 
 
+def get_batch_from_iterator(data_iterator: Iterable) -> Dict[str, torch.Tensor]:
+    assert data_iterator is not None, "data_iterator must not be None"
+
+    data = next(data_iterator)
+
+    batch = {
+        "tokens": data["tokens"].cuda(non_blocking=True),
+        "labels": data["labels"].cuda(non_blocking=True),
+        "loss_mask": data["loss_mask"].cuda(non_blocking=True),
+        "attention_mask": None if "attention_mask" not in data else data["attention_mask"].cuda(non_blocking=True),
+        "position_ids": data["position_ids"].cuda(non_blocking=True),
+    }
+
+    return batch
+
+
 def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> Dict[str, torch.Tensor]:
     def _broadcast(item):
         if item is not None:
