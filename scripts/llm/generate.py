@@ -26,7 +26,7 @@ from nemo.collections.llm import api
 
 """
 torchrun --nproc-per-node=8 /opt/NeMo/scripts/llm/generate.py \
-    --model_path=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/final_nm5/nm5_8b_base_8k_phase3 \
+    --model_path=<PATH_TO_NEMO2_MODEL> \
     --tp=8 \
     --devices=8 \
     --num_tokens_to_generate=40 \
