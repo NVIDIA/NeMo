@@ -159,7 +159,7 @@ class TrainingConfig:
     """Exit the program after this many minutes."""
 
     exit_signal_handler: bool = False
-    """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
+    """Dynamically save the checkpoint and shutdown the training if the configured exit_signal is received."""
 
     exit_signal_handler_for_dataloader: bool = False
     """Use signal handler for dataloader workers"""
