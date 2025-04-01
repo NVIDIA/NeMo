@@ -133,16 +133,6 @@ class HyenaConfig:
 
     modal_gamma_max: float = 0.1
 
-    use_custom_hyena_short_kernel: bool = False
-    """
-    Use a custom causal conv layer for the hyena short conv layer.
-    """
-
-    use_custom_hyena_mlp_kernel: bool = False  # TODO: Possibly remove - only relevant if is_mlp is True
-    """
-    Use a custom causal conv layer for the hyena short conv layer.
-    """
-
     bidirectional: bool = False
     """
     A bidirectional version of hyena fftconv

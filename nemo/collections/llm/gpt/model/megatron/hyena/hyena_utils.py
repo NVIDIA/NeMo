@@ -984,8 +984,6 @@ class ParallelShortHyenaOperator(nn.Module):
         self.hyena_config = hyena_config
         self.is_mlp = is_mlp
         self.hidden_size = hidden_size
-        self.use_custom_hyena_mlp_kernel = hyena_config.use_custom_hyena_mlp_kernel
-        self.use_custom_hyena_short_kernel = hyena_config.use_custom_hyena_short_kernel
         self.use_fast_causal_conv = use_fast_causal_conv
 
         # world_size = mpu.get_model_parallel_world_size() if not local_init else 1
@@ -1084,38 +1082,23 @@ class ParallelShortHyenaOperator(nn.Module):
         """
         B, L, G, DG = x1.shape
 
-        if self.use_custom_hyena_mlp_kernel or self.use_custom_hyena_short_kernel:
-            z = self.kernel_fn(
-                x1,
-                x2,
-                v,
-                self.short_conv.short_conv_weight,
-                repeat_interleave=True,
-                use_causal_conv=self.use_fast_causal_conv,
-                autotune=False,
-                fwd_kernel_cfg=self.fwd_kernel_cfg,
-                bwd_kernel_cfg=self.bwd_kernel_cfg,
-            )
-            return rearrange(z, "b l g dg -> b l (g dg)", g=G)
+        x1 = rearrange(x1, "b l g dg -> b (g dg) l")
+        x2 = rearrange(x2, "b l g dg -> b (g dg) l")
+        v = rearrange(v, "b l g dg -> b (g dg) l")
 
+        x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
+
+        z = x2 * v if self.pregate else v
+        if not self.use_conv_bias:
+            z = self.short_conv(z, _use_cp=_hyena_use_cp)
         else:
-            x1 = rearrange(x1, "b l g dg -> b (g dg) l")
-            x2 = rearrange(x2, "b l g dg -> b (g dg) l")
-            v = rearrange(v, "b l g dg -> b (g dg) l")
+            # maybe handle num_groups
+            bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
+            z = self.short_conv(z, _use_cp=_hyena_use_cp) + rearrange(bias, "h -> 1 h 1") * z  # conv(z) + bias * z
 
-            x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
+        z = x1 * z if self.postgate else z
 
-            z = x2 * v if self.pregate else v
-            if not self.use_conv_bias:
-                z = self.short_conv(z, _use_cp=_hyena_use_cp)
-            else:
-                # maybe handle num_groups
-                bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
-                z = self.short_conv(z, _use_cp=_hyena_use_cp) + rearrange(bias, "h -> 1 h 1") * z  # conv(z) + bias * z
-
-            z = x1 * z if self.postgate else z
-
-            return rearrange(z, "b d l -> b l d")
+        return rearrange(z, "b d l -> b l d")
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """
