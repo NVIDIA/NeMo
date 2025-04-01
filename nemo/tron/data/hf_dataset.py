@@ -14,6 +14,7 @@
 
 import json
 import logging
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -125,6 +126,10 @@ def preprocess_and_split_data(
 
     for split_name, dataset in save_splits.items():
         output_file = dataset_root / f"{split_name}.jsonl"
+
+        if output_file.exists() and output_file.is_file():
+            logger.info(f"{output_file} exists, deleting and rewriting...")
+            os.remove(output_file)
 
         with output_file.open("w", encoding="utf-8") as f:
             for example in tqdm(dataset, desc=f"Processing {split_name} split"):
@@ -246,7 +251,11 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         if isinstance(self.dataset_name, str):
             logger.info(f"Loading HF dataset from {self.dataset_name} to {self.dataset_root}")
             dataset = load_dataset(
-                self.dataset_name, cache_dir=str(self.dataset_root), split=self.split, **self.hf_kwargs
+                self.dataset_name,
+                cache_dir=str(self.dataset_root),
+                split=self.split,
+                **self.hf_kwargs,
+                download_mode=self.download_mode,
             )
         else:
             raise ValueError("Expected `dataset_name` to be str, got " + str(type(self.dataset_name)))

@@ -461,9 +461,7 @@ def save_checkpoint(
 
     # Collect rerun state across all ranks
     rerun_state_machine = get_rerun_state_machine()
-    rerun_state = rerun_state_machine.state_dict(
-        data_iterator=train_data_iterator, use_dist_ckpt=ckpt_type != CheckpointType.LEGACY
-    )
+    rerun_state = rerun_state_machine.state_dict(data_iterator=train_data_iterator, ckpt_format=ckpt_cfg.ckpt_format)
 
     # Checkpoint name.
     return_base_dir = ckpt_type != CheckpointType.LEGACY
@@ -906,9 +904,7 @@ def _get_non_persistent_iteration(non_persistent_global_dir, cfg: ConfigContaine
     elif cfg.checkpoint_config.non_persistent_ckpt_type == "local":
         return checkpointing_context["local_checkpoint_manager"].find_latest()
     else:
-        assert (
-            False
-        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        assert False, f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
 
 
 def _load_non_persistent_base_checkpoint(
@@ -944,9 +940,7 @@ def _load_non_persistent_base_checkpoint(
         )
         return state_dict, checkpoint_name, False, CheckpointType.LOCAL
     else:
-        assert (
-            False
-        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        assert False, f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
 
 
 def _load_global_dist_base_checkpoint(
@@ -1203,7 +1197,7 @@ def load_checkpoint(
                 and "rerun_state_machine" in state_dict
             ):
                 rerun_state_machine = get_rerun_state_machine()
-                gen_sd_rerun_state = rerun_state_machine.state_dict(data_iterator=None, use_dist_ckpt=True)
+                gen_sd_rerun_state = rerun_state_machine.state_dict(data_iterator=None, ckpt_format="torch_dist")
             else:
                 gen_sd_rerun_state = None
                 if ckpt_tp_pp != run_tp_pp:
