@@ -5,6 +5,7 @@ set -ex
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
   "trtllm"
+  "te"
   "mcore"
   "nemo"
   "vllm"
