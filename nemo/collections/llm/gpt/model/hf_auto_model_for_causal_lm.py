@@ -98,7 +98,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         if self.use_linear_ce_loss and not HAVE_LINEAR_LOSS_CE:
             logging.warning(
-                "Dependency for linear CE loss is not available. Please refer to https://github.com/apple/ml-cross-entropy."
+                "Dependency for linear CE loss is not available. \
+                    Please refer to https://github.com/apple/ml-cross-entropy."
             )
             self.use_linear_ce_loss = False
         logging.info(f"use_linear_ce_loss: {self.use_linear_ce_loss}")
