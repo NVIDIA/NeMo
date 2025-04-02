@@ -264,8 +264,8 @@ def zigzag_get_overlapping_patches(data, seq_dim, overlap_size):
 class ExchangeOverlappingRegionsCausal(Function):
     """A custom autograd function for exchanging overlapping regions between chunks of data in a causal manner.
 
-    The data is split across multiple GPUs using a distributed process group. The forward method handles the exchange of
-    overlapping regions between chunks, while the backward method computes the gradients.
+    The data is split across multiple GPUs using a distributed process group. The forward method handles the exchange
+    of overlapping regions between chunks, while the backward method computes the gradients.
 
     Attributes:
     - ctx: A context object that stores information for the forward and backward passes.
@@ -605,7 +605,10 @@ class ExplicitSingleDecayFilter(nn.Module):
         setattr(self.decay, 'tensor_model_parallel', True)
 
     def forward(self, L, *args, **kwargs):
-        """Forward pass for the explicit single decay filter. This returns the filter for the requested sequence length."""
+        """Forward pass for the explicit single decay filter.
+
+        This returns the filter for the requested sequence length.
+        """
         return self.filter(L, *args, **kwargs)
 
     @torch.compile(mode="max-autotune")
