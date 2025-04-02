@@ -23,29 +23,54 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="Query a HuggingFace model deployed on Triton Inference Server",
     )
-    parser.add_argument("-u", "--url", default="0.0.0.0", type=str, 
-                       help="URL of the Triton Inference Server (e.g. localhost or IP address)")
-    parser.add_argument("-mn", "--model_name", required=True, type=str,
-                       help="Name of the model as deployed on Triton server")
+    parser.add_argument(
+        "-u",
+        "--url",
+        default="0.0.0.0",
+        type=str,
+        help="URL of the Triton Inference Server (e.g. localhost or IP address)",
+    )
+    parser.add_argument(
+        "-mn", "--model_name", required=True, type=str, help="Name of the model as deployed on Triton server"
+    )
     prompt_group = parser.add_mutually_exclusive_group(required=True)
-    prompt_group.add_argument("-p", "--prompt", required=False, type=str,
-                            help="Text prompt to send to the model")
-    prompt_group.add_argument("-pf", "--prompt_file", required=False, type=str,
-                            help="Path to file containing the prompt text")
-    parser.add_argument("-mol", "--max_output_len", default=128, type=int,
-                       help="Maximum number of tokens to generate in the response")
-    parser.add_argument("-tk", "--top_k", default=1, type=int,
-                       help="Number of highest probability tokens to consider for sampling")
-    parser.add_argument("-tpp", "--top_p", default=0.0, type=float,
-                       help="Cumulative probability threshold for token sampling")
-    parser.add_argument("-t", "--temperature", default=1.0, type=float,
-                       help="Temperature for controlling randomness in sampling (higher = more random)")
-    parser.add_argument("-it", "--init_timeout", default=60.0, type=float,
-                       help="Timeout in seconds when initializing connection to Triton server")
-    parser.add_argument("-ol", "--output_logits", default=False, action='store_true',
-                       help="Return raw logits from model output")
-    parser.add_argument("-os", "--output_scores", default=False, action='store_true',
-                       help="Return token probability scores from model output")
+    prompt_group.add_argument("-p", "--prompt", required=False, type=str, help="Text prompt to send to the model")
+    prompt_group.add_argument(
+        "-pf", "--prompt_file", required=False, type=str, help="Path to file containing the prompt text"
+    )
+    parser.add_argument(
+        "-mol", "--max_output_len", default=128, type=int, help="Maximum number of tokens to generate in the response"
+    )
+    parser.add_argument(
+        "-tk", "--top_k", default=1, type=int, help="Number of highest probability tokens to consider for sampling"
+    )
+    parser.add_argument(
+        "-tpp", "--top_p", default=0.0, type=float, help="Cumulative probability threshold for token sampling"
+    )
+    parser.add_argument(
+        "-t",
+        "--temperature",
+        default=1.0,
+        type=float,
+        help="Temperature for controlling randomness in sampling (higher = more random)",
+    )
+    parser.add_argument(
+        "-it",
+        "--init_timeout",
+        default=60.0,
+        type=float,
+        help="Timeout in seconds when initializing connection to Triton server",
+    )
+    parser.add_argument(
+        "-ol", "--output_logits", default=False, action='store_true', help="Return raw logits from model output"
+    )
+    parser.add_argument(
+        "-os",
+        "--output_scores",
+        default=False,
+        action='store_true',
+        help="Return token probability scores from model output",
+    )
 
     args = parser.parse_args(argv)
     return args
@@ -80,7 +105,7 @@ def query_llm(
     Returns:
         List[str]: Generated text responses for each input prompt
     """
-    
+
     nemo_query = NemoQueryLLMHF(url, model_name)
     return nemo_query.query_llm(
         prompts=prompts,
@@ -117,7 +142,7 @@ def query(argv):
     Returns:
         List[str]: Generated text responses from the model
     """
-    
+
     args = get_args(argv)
 
     if args.prompt_file is not None:

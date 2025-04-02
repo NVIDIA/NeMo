@@ -26,7 +26,7 @@ from nemo.deploy.utils import broadcast_list
 
 @pytest.mark.skip(reason="will be activated once HF ckpt is available")
 def test_hf_generate():
-    """ Tests HF deployable class's generate function. """
+    """Tests HF deployable class's generate function."""
 
     hf_deployable = HuggingFaceLLMDeploy(
         hf_model_id_path="/opt/checkpoints/hf_saved/",
@@ -49,33 +49,33 @@ def test_hf_generate():
 
 @pytest.mark.skip(reason="will be activated once HF ckpt is available")
 def test_hf_multigpu_generate():
-    """ Tests HF deployable class's generate function with multiple GPUs. """
+    """Tests HF deployable class's generate function with multiple GPUs."""
 
     mp.spawn(_run_generate, nprocs=2)
 
 
 def _run_generate(rank):
-    """ Code to run generate in each rank. """
+    """Code to run generate in each rank."""
 
     os.environ['WORLD_SIZE'] = '2'
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
 
     if rank == 0:
-        os.environ['RANK'] = str(rank) 
+        os.environ['RANK'] = str(rank)
         dist.init_process_group("nccl", rank=rank, world_size=2)
         _hf_generate_ranks()
         dist.destroy_process_group()
     else:
-        os.environ['RANK'] = str(rank)        
+        os.environ['RANK'] = str(rank)
         dist.init_process_group("nccl", rank=rank, world_size=2)
         _hf_generate_ranks()
         dist.destroy_process_group()
-    
+
 
 def _hf_generate_ranks():
-    """ Generate by Ranks """
-    
+    """Generate by Ranks"""
+
     torch.cuda.set_device(dist.get_rank())
 
     hf_deployable = HuggingFaceLLMDeploy(
@@ -84,8 +84,8 @@ def _hf_generate_ranks():
         trust_remote_code=True,
         device_map=None,
         tp_plan=None,
-    )    
-    
+    )
+
     if dist.get_rank() == 0:
         temperature = 1.0
         top_k = 1
