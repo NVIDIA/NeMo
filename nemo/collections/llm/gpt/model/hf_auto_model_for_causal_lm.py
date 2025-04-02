@@ -28,6 +28,7 @@ from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
+
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
     A LightningModule wrapper for AutoModelForCausalLm.
@@ -279,27 +280,26 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logits = outputs.logits
             n_cls = logits.shape[-1]
             logits = logits.view(-1, n_cls)
-            labels_ce = labels.view(-1)
-            assert logits.shape[-2] == labels_ce.shape[-1], (
+            labels = labels.view(-1)
+            assert logits.shape[-2] == labels.shape[-1], (
                 "Expected logits & labels to have the same length"
             )
-            loss = self.loss_fn(logits, labels_ce, loss_mask)
+            loss = self.loss_fn(logits, labels, loss_mask)
         else:
             # use num_logits_to_keep=1 to avoid full logits matrix in memory
             outputs = self.forward(batch, num_logits_to_keep=1)
             hidden_states = outputs.hidden_states[-1]
             lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
-            labels_masked = labels.clone()
             if loss_mask is not None:
                 # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
                 # -100 is the default ignore index in PyTorch's cross entropy loss
-                labels_masked = labels_masked.masked_fill(loss_mask == 0, -100)
-            num_items_in_batch = torch.count_nonzero(labels_masked != -100).item()
+                labels = labels.masked_fill(loss_mask == 0, -100)
+            num_items_in_batch = torch.count_nonzero(labels != -100).item()
             logit_softcapping = 0
             loss = fused_linear_cross_entropy(
                 hidden_states=hidden_states,
                 lm_weight=lm_head,
-                labels=labels_masked,
+                labels=labels,
                 num_items_in_batch=num_items_in_batch,
                 logit_softcapping=logit_softcapping,
             )
