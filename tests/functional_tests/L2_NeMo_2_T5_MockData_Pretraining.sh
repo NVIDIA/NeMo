@@ -14,5 +14,5 @@
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/megatron_t5_pretraining.py \
     --devices=2 \
     --max-steps=3 \
-    --experiment-dir=tests/collections/llm/t5_pretrain_results/$RUN_ID \
+    --experiment-dir=tests/collections/llm/t5_pretrain_mockdata_results/$RUN_ID \
     --data-path=mock
