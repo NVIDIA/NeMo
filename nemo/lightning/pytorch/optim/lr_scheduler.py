@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 from nemo.core.optim.lr_scheduler import (
     InverseSquareRootAnnealing,
     NoamAnnealing,
     NoamHoldAnnealing,
-    WarmupHoldAnnealOneMinusSquareRoot,
-    WarmupHoldAnnealLinear,
     PolynomialDecayAnnealing,
     PolynomialHoldDecayAnnealing,
     SquareAnnealing,
     SquareRootAnnealing,
     T5InverseSquareRootAnnealing,
     WarmupAnnealing,
+    WarmupHoldAnnealLinear,
+    WarmupHoldAnnealOneMinusSquareRoot,
     WarmupHoldPolicy,
     WarmupPolicy,
 )
@@ -260,6 +260,7 @@ class NoamHoldAnnealingScheduler(LRSchedulerModule):
             "monitor": self.monitor,
         }
 
+
 class WarmupAnnealingScheduler(LRSchedulerModule):
     """Warmup Annealing Learning Rate Scheduler."""
 
@@ -486,6 +487,7 @@ class CosineAnnealingScheduler(LRSchedulerModule):
             "monitor": self.monitor,
         }
 
+
 class WarmupHoldAnnealScheduler(LRSchedulerModule):
     def __init__(
         self,
@@ -515,7 +517,7 @@ class WarmupHoldAnnealScheduler(LRSchedulerModule):
                 warmup_ratio=self.warmup_ratio,
                 hold_ratio=self.hold_ratio,
                 max_steps=self.max_steps,
-                min_lr=self.min_lr
+                min_lr=self.min_lr,
             )
         elif self.decay_schedule == "linear":
             lr_scheduler = WarmupHoldAnnealLinear(
@@ -523,7 +525,7 @@ class WarmupHoldAnnealScheduler(LRSchedulerModule):
                 warmup_ratio=self.warmup_ratio,
                 hold_ratio=self.hold_ratio,
                 max_steps=self.max_steps,
-                min_lr=self.min_lr
+                min_lr=self.min_lr,
             )
         else:
             raise ValueError(f"Unknown decay schedule: {self.decay_schedule}")

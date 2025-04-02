@@ -24,9 +24,9 @@ from nemo.lightning.pytorch.optim.lr_scheduler import (
     SquareRootAnnealingScheduler,
     T5InverseSquareRootAnnealingScheduler,
     WarmupAnnealingScheduler,
+    WarmupHoldAnnealScheduler,
     WarmupHoldPolicyScheduler,
     WarmupPolicyScheduler,
-    WarmupHoldAnnealScheduler,
 )
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.optim.pytorch import PytorchOptimizerModule
