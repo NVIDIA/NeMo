@@ -69,13 +69,15 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     return datamodule
 
 
-def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False):
+def make_strategy(strategy, model, devices, num_nodes, num_replicas=1, adapter_only=False, enable_cpu_offload=False):
     if strategy == 'auto':
+        assert num_replicas == 1, "num_replicas > 1 only supported with FSDP2"
         return pl.strategies.SingleDeviceStrategy(
             device='cuda:0',
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'ddp':
+        assert num_replicas == 1, "num_replicas > 1 only supported with FSDP2"
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
@@ -87,11 +89,12 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
 
+        assert devices * num_nodes % num_replicas == 0, (devices, num_nodes, num_replicas)
         return nl.FSDP2Strategy(
-            data_parallel_size=devices * num_nodes,
+            num_replicas=num_replicas,
+            data_parallel_size=devices * num_nodes // num_replicas,
             tensor_parallel_size=1,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
-            offload_policy=offload_policy,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -153,6 +156,7 @@ def main():
         help='Enables trust_remote_code to load HF models with unverified sources',
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
+    parser.add_argument('--num-replicas', type=int, default=1, help='Number of replicas to use')
     parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
 
     args = parser.parse_args()
@@ -193,7 +197,7 @@ def main():
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
-    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False, args.enable_cpu_offload)
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, args.num_replicas, False, args.enable_cpu_offload)
 
     resume = (
         nl.AutoResume(
