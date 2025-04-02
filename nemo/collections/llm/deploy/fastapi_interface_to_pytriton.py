@@ -8,8 +8,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
+import os
 
 import numpy as np
 import requests
@@ -49,7 +49,7 @@ triton_settings = TritonSettings()
 
 class CompletionRequest(BaseModel):
     model: str
-    prompt: str ='hello'
+    prompt: str = 'hello'
     messages: list[dict] = [{}]
     max_tokens: int = 512
     temperature: float = 1.0
@@ -82,6 +82,7 @@ async def check_triton_health():
     except requests.RequestException as e:
         raise HTTPException(status_code=503, detail=f"Cannot reach Triton server: {str(e)}")
 
+
 def convert_numpy(obj):
     """
     Convert NumPy arrays in output to lists
@@ -94,6 +95,7 @@ def convert_numpy(obj):
         return [convert_numpy(i) for i in obj]
     else:
         return obj
+
 
 @app.post("/v1/completions/")
 async def completions_v1(request: CompletionRequest):
@@ -110,23 +112,25 @@ async def completions_v1(request: CompletionRequest):
         top_p=request.top_p,
         compute_logprob=True if request.logprobs == 1 else False,
         max_length=request.max_tokens,
-        init_timeout=300
+        init_timeout=300,
     )
 
     output_serializable = convert_numpy(output)
     output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
     if request.logprobs == 1:
-        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = (
-            output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
-            )
-        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = (
-            output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
-        )
+        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0][
+            "logprobs"
+        ]["token_logprobs"][0]
+        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"][
+            "top_logprobs"
+        ][0]
     logging.info(f"Output: {output_serializable}")
     return output_serializable
 
+
 def dict_to_str(messages):
     return json.dumps(messages)
+
 
 @app.post("/v1/chat/completions/")
 async def chat_completions_v1(request: CompletionRequest):
@@ -148,17 +152,17 @@ async def chat_completions_v1(request: CompletionRequest):
         compute_logprob=True if request.logprobs == 1 else False,
         max_length=request.max_tokens,
         apply_chat_template=True,
-        init_timeout=300
+        init_timeout=300,
     )
     # Add 'role' as 'assistant' key to the output dict
-    output["choices"][0]["message"] = {"role": "assistant",
-                                    "content": output["choices"][0]["text"]
-                                    }
+    output["choices"][0]["message"] = {"role": "assistant", "content": output["choices"][0]["text"]}
     output["object"] = "chat.completion"
 
     del output["choices"][0]["text"]
 
     output_serializable = convert_numpy(output)
-    output_serializable["choices"][0]["message"]["content"]= output_serializable["choices"][0]["message"]["content"][0][0]
+    output_serializable["choices"][0]["message"]["content"] = output_serializable["choices"][0]["message"]["content"][
+        0
+    ][0]
     logging.info(f"Output: {output_serializable}")
     return output_serializable

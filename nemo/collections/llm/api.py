@@ -660,7 +660,7 @@ def deploy(
         )
 
     elif backend == "trtllm":
-        unset_environment_variables() ## Required for export to trtllm on clusters.
+        unset_environment_variables()  ## Required for export to trtllm on clusters.
         triton_deployable = get_trtllm_deployable(
             nemo_checkpoint,
             model_type,
@@ -706,7 +706,9 @@ def deploy(
                             reload=True,
                         )
                     except Exception as error:
-                        logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+                        logging.error(
+                            "Error message has occurred during REST service start. Error message: " + str(error)
+                        )
                 logging.info("Model serving on Triton will be started.")
                 nm.serve()
             except Exception as error:
@@ -717,7 +719,6 @@ def deploy(
             nm.stop()
         elif torch.distributed.get_rank() > 0 and backend == "in-framework":
             triton_deployable.generate_other_ranks()
-
 
 
 def evaluate(
