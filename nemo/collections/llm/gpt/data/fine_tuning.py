@@ -130,6 +130,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                     max_seq_length=self.seq_length,
                     seed=self.seed,
                     output_metadata_path=self.pack_metadata,
+                    **self.dataset_kwargs,
                 )
 
             if not self.validation_path_packed.is_file():
@@ -141,6 +142,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                     max_seq_length=self.seq_length,
                     seed=self.seed,
                     output_metadata_path=self.pack_metadata,
+                    **self.dataset_kwargs,
                 )
 
     def setup(self, stage: str):
