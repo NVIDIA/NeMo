@@ -197,7 +197,9 @@ def main():
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
-    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, args.num_replicas, False, args.enable_cpu_offload)
+    strategy = make_strategy(
+        args.strategy, model, args.devices, args.num_nodes, args.num_replicas, False, args.enable_cpu_offload
+    )
 
     resume = (
         nl.AutoResume(
