@@ -333,7 +333,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def get_data_sampler(self, dataset):
         """returns the data sampler"""
         if self.use_dist_sampler:
-            return DistributedSampler(dataset)
+            return DistributedSampler(dataset, num_replicas=1, rank=0)
         else:
             return None
 
