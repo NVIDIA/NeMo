@@ -707,7 +707,7 @@ class SaveRestoreConnector:
                 else:
                     SaveRestoreConnector._safe_extract(tar, out_folder, members)
         return out_folder
-    
+
     @staticmethod
     def _unpack_nemo_file_with_multistorageclient(
         path2file: str, out_folder: str, members: Optional[list[str]] = None
