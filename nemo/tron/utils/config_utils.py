@@ -14,8 +14,9 @@
 
 import copy
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
+from dataclasses import is_dataclass
 from typing import Any, Optional, Type, TypeVar
 
 import yaml
