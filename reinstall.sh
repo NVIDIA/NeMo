@@ -29,6 +29,8 @@ trt() {
   TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
   TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
   TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
+  echo $TRTLLM_REPO
+  exit 1
 
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR" &&
