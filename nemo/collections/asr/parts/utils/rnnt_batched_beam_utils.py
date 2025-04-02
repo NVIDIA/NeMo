@@ -115,7 +115,7 @@ class BatchedBeamHyps:
 
         # non-blank and full lengths
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)  
+        self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
 
         # Initializing tree structure for hypothesis storing
         self.transcript_wb = torch.full(
@@ -131,9 +131,7 @@ class BatchedBeamHyps:
             dtype=torch.long,
         )  # links to prefices
         self.timestamps = torch.zeros(
-            (batch_size, self.beam_size, self._max_length), 
-            device=device, 
-            dtype=torch.long
+            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
         )  # timestamps
 
         # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
@@ -200,7 +198,7 @@ class BatchedBeamHyps:
         next_indices: torch.Tensor,
         next_labels: torch.Tensor,
         next_hyps_prob: torch.Tensor,
-        next_label_durations: Optional[torch.Tensor] = None
+        next_label_durations: Optional[torch.Tensor] = None,
     ):
         """
         Updates batch of beam hypotheses with labels. If the maximum allowed length
@@ -213,7 +211,7 @@ class BatchedBeamHyps:
 
         if self.is_tdt and next_label_durations is None:
             raise ValueError("`next_label_durations` is required when `self.is_tdt` is True.")
-        
+
         if (self.current_lengths_wb + 1).max() >= self._max_length:
             self._allocate_more()
 
@@ -221,7 +219,7 @@ class BatchedBeamHyps:
             next_indices=next_indices,
             next_labels=next_labels,
             next_hyps_prob=next_hyps_prob,
-            next_label_durations=next_label_durations
+            next_label_durations=next_label_durations,
         )
 
     def add_results_no_checks_(
@@ -229,7 +227,7 @@ class BatchedBeamHyps:
         next_indices: torch.Tensor,
         next_labels: torch.Tensor,
         next_hyps_prob: torch.Tensor,
-        next_label_durations: Optional[torch.Tensor] = None
+        next_label_durations: Optional[torch.Tensor] = None,
     ):
         """
         Updates batch of beam hypotheses with labels.
@@ -241,7 +239,7 @@ class BatchedBeamHyps:
         """
         if self.is_tdt and next_label_durations is None:
             raise ValueError("`next_label_durations` is required when `self.is_tdt` is True.")
-        
+
         timesteps = torch.gather(self.next_timestamp, dim=-1, index=next_indices)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(
@@ -256,22 +254,26 @@ class BatchedBeamHyps:
         )
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         torch.where(is_extended, next_hyps_prob, self.scores, out=self.scores)
-        
+
         if not self.is_tdt:
             self.timestamps.scatter_(
-                dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=(timesteps + extended_with_blank).unsqueeze(-1)
+                dim=-1,
+                index=self.current_lengths_wb.unsqueeze(-1),
+                src=(timesteps + extended_with_blank).unsqueeze(-1),
             )
             self.next_timestamp.copy_(self.current_lengths_wb - self.current_lengths_nb)
             torch.where(
                 extended_with_blank,
                 self.ZERO_TENSOR,
                 torch.gather(self.last_timestamp_lasts, dim=-1, index=next_indices) + extended_with_label,
-                out=self.last_timestamp_lasts
+                out=self.last_timestamp_lasts,
             )
         else:
             next_label_durations = torch.where(is_extended, next_label_durations, 0)
             self.timestamps.scatter_(
-                dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=(timesteps + next_label_durations).unsqueeze(-1)
+                dim=-1,
+                index=self.current_lengths_wb.unsqueeze(-1),
+                src=(timesteps + next_label_durations).unsqueeze(-1),
             )
             torch.where(is_extended, timesteps + next_label_durations, timesteps, out=self.next_timestamp)
             torch.where(
@@ -316,7 +318,7 @@ class BatchedBeamHyps:
 
         if self.beam_size <= 1:
             return
-        
+
         hyps_equal = (
             (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
             & (self.last_label[:, :, None] == self.last_label[:, None, :])

@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import faulthandler
 import glob
 import os
-from tqdm import tqdm
-import copy
-import jiwer
 
+import jiwer
 import pytest
 import torch
 from omegaconf import open_dict
+from tqdm import tqdm
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedRNNTInfer
@@ -68,8 +68,10 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 
 def load_audio(file_path, target_sr=16000):
     import librosa
+
     audio, sr = librosa.load(file_path, sr=target_sr)
     return torch.tensor(audio, dtype=torch.float32), sr
+
 
 @pytest.fixture(scope="module")
 def rnnt_model():
@@ -77,20 +79,24 @@ def rnnt_model():
     model.eval()
     return model
 
+
 @pytest.fixture(scope="module")
 def beambatchedrnntinfer():
     model = ASRModel.from_pretrained(model_name=BEAMBATCHEDRNNTINFER, map_location="cpu")
     model.eval()
     return model
 
+
 @pytest.fixture(scope="module")
 def get_rnnt_encoder_output(rnnt_model, test_audio_filenames):
     _, encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, rnnt_model)
     return encoder_output, encoded_lengths
 
+
 @pytest.fixture()
 def test_audio_filenames(test_data_dir):
     return tuple(glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav")))
+
 
 def get_model_encoder_output(
     test_audio_filenames,
@@ -100,7 +106,7 @@ def get_model_encoder_output(
     dtype: torch.dtype = torch.float32,
 ):
     audio_filepaths = test_audio_filenames[:num_samples]
-    
+
     with torch.no_grad():
         model.preprocessor.featurizer.dither = 0.0
         model.preprocessor.featurizer.pad_to = 0
@@ -111,12 +117,12 @@ def get_model_encoder_output(
             audio_tensor, _ = load_audio(audio_file)
             all_inputs.append(audio_tensor)
             all_lengths.append(torch.tensor(audio_tensor.shape[0], dtype=torch.int64))
-            
+
         input_batch = torch.nn.utils.rnn.pad_sequence(all_inputs, batch_first=True).to(device=device, dtype=dtype)
         length_batch = torch.tensor(all_lengths, dtype=torch.int64).to(device)
-        
+
         encoded_outputs, encoded_length = model(input_signal=input_batch, input_signal_length=length_batch)
-    
+
     return model, encoded_outputs, encoded_length
 
 
@@ -218,7 +224,6 @@ class TestRNNTDecoding:
                 print("Timesteps", hyp.timestamp)
                 print()
 
-
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -236,7 +241,9 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("beam_size", [2, 4])
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_return_nbest(self, test_audio_filenames, rnnt_model, beam_config, device, beam_size, batch_size):
+    def test_rnnt_beam_decoding_return_nbest(
+        self, test_audio_filenames, rnnt_model, beam_config, device, beam_size, batch_size
+    ):
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
         model, encoder_output, encoded_lengths = get_model_encoder_output(
@@ -311,7 +318,18 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, rnnt_model, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+    def test_rnnt_beam_decoding_kenlm(
+        self,
+        test_data_dir,
+        test_audio_filenames,
+        rnnt_model,
+        beam_config,
+        device,
+        batch_size,
+        beam_size,
+        pruning_mode,
+        blank_lm_score_mode,
+    ):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
@@ -605,7 +623,9 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("beam_size", [2, 4])
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_return_nbest(self, test_audio_filenames, beambatchedrnntinfer, beam_config, device, beam_size, batch_size):
+    def test_rnnt_beam_decoding_return_nbest(
+        self, test_audio_filenames, beambatchedrnntinfer, beam_config, device, beam_size, batch_size
+    ):
         num_samples = min(batch_size, len(test_audio_filenames))
         model = beambatchedrnntinfer.to(device)
         model, encoder_output, encoded_lengths = get_model_encoder_output(
@@ -692,7 +712,18 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_kenlm(self, test_data_dir, test_audio_filenames, beambatchedrnntinfer, beam_config, device, batch_size, beam_size, pruning_mode, blank_lm_score_mode):
+    def test_rnnt_beam_decoding_kenlm(
+        self,
+        test_data_dir,
+        test_audio_filenames,
+        beambatchedrnntinfer,
+        beam_config,
+        device,
+        batch_size,
+        beam_size,
+        pruning_mode,
+        blank_lm_score_mode,
+    ):
         kenlm_model_path = os.path.join(
             test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         )
