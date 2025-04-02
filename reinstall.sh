@@ -4,6 +4,7 @@ set -ex
 # List of all supported libraries (update this list when adding new libraries)
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
+  "trt"
   "trtllm"
   "mcore"
   "nemo"
@@ -16,6 +17,39 @@ export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 export PIP=pip
+export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
+export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
+export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
+
+trt() {
+  local mode="$1"
+
+  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
+    apt-get install git-lfs &&
+    git lfs install &&
+    apt-get clean
+
+  if [ ! -d "$TRTLLM_DIR/.git" ]; then
+    rm -rf "$TRTLLM_DIR" &&
+      cd $(dirname "$TRTLLM_DIR") &&
+      git clone ${TRTLLM_REPO}
+  fi &&
+    pushd $TRTLLM_DIR &&
+    git checkout -f $TRTLLM_TAG &&
+    git lfs pull &&
+    popd
+
+  if [[ "$mode" == "install" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TRTLLM_DIR &&
+        . docker/common/install_tensorrt.sh \
+          --TRT_VER="10.8.0.43" \
+          --CUDA_VER="12.8" \
+          --CUDNN_VER="9.7.0.66-1" \
+          --NCCL_VER="2.25.1-1+cuda12.8" \
+          --CUBLAS_VER="12.8.3.14-1"
+    fi
+}
 
 trtllm() {
   local mode="$1"
@@ -25,9 +59,6 @@ trtllm() {
     git lfs install &&
     apt-get clean
 
-  TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
-  TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
-  TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR" &&
       cd $(dirname "$TRTLLM_DIR") &&
@@ -40,14 +71,7 @@ trtllm() {
 
   if [[ "$mode" == "build" ]]; then
     if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
-      cd $TRTLLM_DIR &&
-        . docker/common/install_tensorrt.sh \
-          --TRT_VER="10.8.0.43" \
-          --CUDA_VER="12.8" \
-          --CUDNN_VER="9.7.0.66-1" \
-          --NCCL_VER="2.25.1-1+cuda12.8" \
-          --CUBLAS_VER="12.8.3.14-1" \  &&
-        python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
+      python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
     fi
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
