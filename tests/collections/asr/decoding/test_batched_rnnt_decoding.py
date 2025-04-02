@@ -34,6 +34,24 @@ from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_grap
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 from nemo.utils import logging
+import psutil
+
+def get_memory_info(comment):
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    
+    logging.info(comment)
+    logging.info("Memory Usage:")
+    logging.info(f"  Total: {mem.total / (1024 ** 3):.2f} GB")
+    logging.info(f"  Used: {mem.used / (1024 ** 3):.2f} GB")
+    logging.info(f"  Free: {mem.available / (1024 ** 3):.2f} GB")
+    logging.info(f"  Percent Used: {mem.percent}%")
+
+    logging.info("\nSwap Usage:")
+    logging.info(f"  Total: {swap.total / (1024 ** 3):.2f} GB")
+    logging.info(f"  Used: {swap.used / (1024 ** 3):.2f} GB")
+    logging.info(f"  Free: {swap.free / (1024 ** 3):.2f} GB")
+    logging.info(f"  Percent Used: {swap.percent}%")
 
 faulthandler.enable()
 
@@ -68,6 +86,8 @@ def get_model_encoder_output(
     dtype: torch.dtype = torch.float32,
 ):
     audio_filepaths = test_audio_filenames[:num_samples]
+    
+    get_memory_info("Before dataset loading")
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_filepaths:
@@ -88,10 +108,13 @@ def get_model_encoder_output(
             model.eval()
 
             temporary_datalayer = model._setup_transcribe_dataloader(config)
+            get_memory_info("Before loop")
             for test_batch in temporary_datalayer:
                 encoded, encoded_len = model.forward(
-                    input_signal=test_batch[0].to(device, dtype=dtype), input_signal_length=test_batch[1].to(device)
+                    input_signal=test_batch[0].to(device, dtype=dtype),
+                    input_signal_length=test_batch[1].to(device)
                 )
+            get_memory_info("After dataset loading")
     logging.info("Successfully loaded dataset")
     return model, encoded, encoded_len
 
@@ -141,6 +164,7 @@ class TestRNNTDecoding:
             test_audio_filenames, num_samples, RNNT_MODEL, device, dtype=torch.float32
         )
 
+        get_memory_info("Before class init")
         logging.info("Starting model initialization")
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedInfer(
@@ -153,11 +177,14 @@ class TestRNNTDecoding:
             **beam_config,
         )
         logging.info("Successfully ended model initialization")
+        get_memory_info("After class init")
 
         with torch.no_grad():
+            get_memory_info("Before starting decoding")
             logging.info("Starting decoding")
             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
             logging.info("Succesfully ended decoding")
+            get_memory_info("Before ending decoding")
             assert type(hyps) == list
             assert type(hyps[0]) == rnnt_utils.Hypothesis
 
@@ -169,9 +196,11 @@ class TestRNNTDecoding:
             assert len(hyps[0].y_sequence) > 0
             assert len(hyps[0].timestamp) > 0
 
+            get_memory_info("Before converting to text")
             logging.info("Starting converting to text")
             hyps = decode_text_from_hypotheses(hyps, model.decoding)
             logging.info("Ending converting to text")
+            get_memory_info("After converting to text")
 
             print()
 
