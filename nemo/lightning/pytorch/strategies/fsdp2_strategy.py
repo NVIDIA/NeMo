@@ -335,11 +335,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert self.model is not None
 
-        context_parallel = False
         if self.context_parallel_size > 1:
-            context_parallel = True
-
-        loss = self.lightning_module.training_step(batch, batch_idx, context_parallel)
+            # Only pass context_parallel=True if AutoModel supports and has non-trivial CP.
+            loss = self.lightning_module.training_step(batch, batch_idx, context_parallel=True)
+        else:
+            loss = self.lightning_module.training_step(batch, batch_idx)
 
         self.lightning_module.log(
             'global_step',
