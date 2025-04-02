@@ -389,7 +389,6 @@ def save_checkpoint(
     optimizer,
     opt_param_scheduler,
     num_floating_point_operations_so_far,
-    cfg: ConfigContainer,
     checkpointing_context=None,
     pipeline_rank=None,
     expert_rank=None,
@@ -416,6 +415,7 @@ def save_checkpoint(
     """
     train_state = state.train_state
     start_ckpt = time()
+    cfg = state.cfg
     ckpt_cfg = cfg.checkpoint_config
 
     if ckpt_cfg.async_save and not is_empty_async_queue():
@@ -647,15 +647,17 @@ def save_checkpoint(
                 torch.save(train_state_dict, train_state_local_filename)
                 shutil.copy(train_state_local_filename, train_state_global_filename)
 
-                dump_dataclass_to_yaml(cfg, config_filename)
+                cfg.to_yaml(config_filename)
                 print_rank_0(
-                    f"  successfully saved checkpoint from iteration {train_state.step:7d} to {ckpt_cfg.save} "
+                    f"  successfully saved checkpoint from iteration {train_state_dict['step'].item():7d} to {ckpt_cfg.save} "
                     f"[ t {(tensor_rank if tensor_rank is not None else mpu.get_tensor_model_parallel_rank()) + 1}/{mpu.get_tensor_model_parallel_world_size()}, "
                     f"p {(pipeline_rank if pipeline_rank is not None else mpu.get_pipeline_model_parallel_rank()) + 1}/{mpu.get_pipeline_model_parallel_world_size()} ]"
                 )
                 if cfg.logger_config.log_progress and ckpt_cfg.async_save:
                     append_to_progress_log(
-                        ckpt_cfg.save, f"Saved async checkpoint\tIteration: {train_state.step}", barrier=False
+                        ckpt_cfg.save,
+                        f"Saved async checkpoint\tIteration: {train_state_dict['step'].item()}",
+                        barrier=False,
                     )
 
         if ckpt_cfg.async_save:
@@ -905,9 +907,7 @@ def _get_non_persistent_iteration(non_persistent_global_dir, cfg: ConfigContaine
     elif cfg.checkpoint_config.non_persistent_ckpt_type == "local":
         return checkpointing_context["local_checkpoint_manager"].find_latest()
     else:
-        assert (
-            False
-        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        assert False, f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
 
 
 def _load_non_persistent_base_checkpoint(
@@ -943,9 +943,7 @@ def _load_non_persistent_base_checkpoint(
         )
         return state_dict, checkpoint_name, False, CheckpointType.LOCAL
     else:
-        assert (
-            False
-        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        assert False, f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
 
 
 def _load_global_dist_base_checkpoint(
@@ -1202,7 +1200,7 @@ def load_checkpoint(
                 and "rerun_state_machine" in state_dict
             ):
                 rerun_state_machine = get_rerun_state_machine()
-                gen_sd_rerun_state = rerun_state_machine.state_dict(data_iterator=None, use_dist_ckpt=True)
+                gen_sd_rerun_state = rerun_state_machine.state_dict(data_iterator=None, ckpt_format="torch_dist")
             else:
                 gen_sd_rerun_state = None
                 if ckpt_tp_pp != run_tp_pp:
