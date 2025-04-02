@@ -39,9 +39,9 @@ from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
@@ -268,6 +268,7 @@ class ExpManagerConfig:
 
 try:
     from nemo.lightning.io.pl import TrainerContext
+
     HAVE_TRAINER_CONTEXT = True
 except ImportError:
     logging.warning("[Callback] Cannot import TrainerContext. Will not save extra context information.")
@@ -280,7 +281,10 @@ class SaveAtStepsCallback(Callback):
     into a subdirectory at specific global step milestones.
     Ensures saving only happens on global rank 0.
     """
-    def __init__(self, save_steps: list[int], save_path: str, filename_prefix: str = "model_step", save_context: bool = True):
+
+    def __init__(
+        self, save_steps: list[int], save_path: str, filename_prefix: str = "model_step", save_context: bool = True
+    ):
         """
         Args:
             save_steps (list[int]): A list or tuple of global steps at which to save checkpoints.
@@ -297,7 +301,7 @@ class SaveAtStepsCallback(Callback):
         self.save_path = Path(save_path)
         self.filename_prefix = filename_prefix
         self._saved_steps_in_run = set()
-        self.save_context = save_context and HAVE_TRAINER_CONTEXT # Control via init
+        self.save_context = save_context and HAVE_TRAINER_CONTEXT  # Control via init
 
         # Create the save directory if it doesn't exist (only on rank 0)
         if is_global_rank_zero():
@@ -320,12 +324,12 @@ class SaveAtStepsCallback(Callback):
 
         if global_step in self.save_steps and global_step not in self._saved_steps_in_run:
             filename = f"{self.filename_prefix}_{global_step}.ckpt"
-            filepath = self.save_path / filename # Use pathlib join
+            filepath = self.save_path / filename  # Use pathlib join
 
             logging.info(f"[Callback] Saving checkpoint at global step {global_step} to {str(filepath)}")
             try:
                 # 1. Save the .ckpt file using trainer
-                trainer.save_checkpoint(filepath) # Pass Path object directly
+                trainer.save_checkpoint(filepath)  # Pass Path object directly
 
                 # 2. Optionally save the TrainerContext into its subdirectory
                 if self.save_context:
@@ -454,8 +458,6 @@ class TimingCallback(Callback):
     def on_after_backward(self, trainer, pl_module):
         """on_after_backward"""
         self._on_batch_end("train_backward_timing", pl_module)
-
-
 
 
 class DeltaTimingCallback(Callback):
