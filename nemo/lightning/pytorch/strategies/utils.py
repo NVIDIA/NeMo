@@ -503,7 +503,7 @@ def fsdp2_strategy_parallelize(
     dp_mesh = device_mesh["data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
 
-    ## TP sharding
+    # TP sharding
 
     # Parallelize the first embedding and the last linear out projection
     model_tp_plan = {
@@ -542,7 +542,7 @@ def fsdp2_strategy_parallelize(
     for layer in model.model.layers:
         parallelize_module(layer, tp_mesh, layer_tp_plan)
 
-    ## FSDP sharding
+    # FSDP sharding
 
     assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
     assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"

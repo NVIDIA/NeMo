@@ -34,7 +34,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
+def make_squad_hf_dataset(tokenizer, batch_size, fp8=False, num_replicas=1, rank=0):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -59,6 +59,8 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
         pad_token_id=tokenizer.eos_id or 0,
         global_batch_size=batch_size,
         pad_seq_len_divisible=16 if fp8 else 2,  # FP8 training requires seq length to be divisible by 16.
+        num_replicas=num_replicas,
+        rank=rank,
     )
     datamodule.map(
         formatting_prompts_func,
@@ -67,6 +69,28 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
     return datamodule
+
+def verify_parallelism(devices, num_nodes, dp_size, tp_size, sequence_parallel):
+    if tp_size is None:
+        tp_size = 1
+        assert sequence_parallel is False, "SP requires Tensor Parallelism to be set up. Please set tp_size > 1."
+        if dp_size is None:
+            dp_size = devices * num_nodes
+        else:
+            assert (
+                dp_size == devices * num_nodes
+            ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
+    else:
+        if dp_size is None:
+            dp_size = 1
+            assert (
+                tp_size == devices * num_nodes
+            ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
+        else:
+            assert (
+                dp_size * tp_size == devices * num_nodes
+            ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
+    return dp_size, tp_size, sequence_parallel
 
 
 def make_strategy(
@@ -90,25 +114,6 @@ def make_strategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'fsdp2':
-        if tp_size is None:
-            tp_size = 1
-            assert sequence_parallel is False, "SP requires Tensor Parallelism to be set up. Please set tp_size > 1."
-            if dp_size is None:
-                dp_size = devices * num_nodes
-            else:
-                assert (
-                    dp_size == devices * num_nodes
-                ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
-        else:
-            if dp_size is None:
-                dp_size = 1
-                assert (
-                    tp_size == devices * num_nodes
-                ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
-            else:
-                assert (
-                    dp_size * tp_size == devices * num_nodes
-                ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
         print(
             f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}"
         )
@@ -236,6 +241,11 @@ def main():
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
+
+    dp_size, tp_size, sequence_parallel = verify_parallelism(
+        args.devices, args.num_nodes, args.dp_size, args.tp_size, args.sequence_parallel
+    )
+
     strategy = make_strategy(
         args.strategy,
         model,
@@ -243,9 +253,9 @@ def main():
         args.num_nodes,
         False,
         args.enable_cpu_offload,
-        dp_size=args.dp_size,
-        tp_size=args.tp_size,
-        sequence_parallel=args.sequence_parallel,
+        dp_size=dp_size,
+        tp_size=tp_size,
+        sequence_parallel=sequence_parallel,
     )
 
     resume = (
@@ -262,7 +272,7 @@ def main():
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer, args.batch_size, args.fp8),
+        data=make_squad_hf_dataset(model.tokenizer, args.batch_size, args.fp8, num_replicas=dp_size, rank=0),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
