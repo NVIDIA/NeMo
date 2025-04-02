@@ -34,28 +34,12 @@ from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 from nemo.utils import logging
 
 
-def get_memory_info(comment):
-    mem = psutil.virtual_memory()
-    swap = psutil.swap_memory()
-
-    logging.info(comment)
-    logging.info("Memory Usage:")
-    logging.info(f"  Total: {mem.total / (1024 ** 3):.2f} GB")
-    logging.info(f"  Used: {mem.used / (1024 ** 3):.2f} GB")
-    logging.info(f"  Free: {mem.available / (1024 ** 3):.2f} GB")
-    logging.info(f"  Percent Used: {mem.percent}%")
-
-    logging.info("\nSwap Usage:")
-    logging.info(f"  Total: {swap.total / (1024 ** 3):.2f} GB")
-    logging.info(f"  Used: {swap.used / (1024 ** 3):.2f} GB")
-    logging.info(f"  Free: {swap.free / (1024 ** 3):.2f} GB")
-    logging.info(f"  Percent Used: {swap.percent}%")
-
-
 faulthandler.enable()
 
 RNNT_MODEL = "stt_en_conformer_transducer_small"
-BEAMBATCHEDRNNTINFER = "nvidia/parakeet-tdt_ctc-110m"
+TDT_MODEL = "nvidia/parakeet-tdt_ctc-110m"
+MAX_SAMPLES = 10
+
 DEVICES = [torch.device("cpu")]
 
 if torch.cuda.is_available():
@@ -79,10 +63,9 @@ def rnnt_model():
     model.eval()
     return model
 
-
 @pytest.fixture(scope="module")
-def beambatchedrnntinfer():
-    model = ASRModel.from_pretrained(model_name=BEAMBATCHEDRNNTINFER, map_location="cpu")
+def tdt_model():
+    model = ASRModel.from_pretrained(model_name=TDT_MODEL, map_location="cpu")
     model.eval()
     return model
 
@@ -92,8 +75,13 @@ def get_rnnt_encoder_output(rnnt_model, test_audio_filenames):
     _, encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, rnnt_model)
     return encoder_output, encoded_lengths
 
+@pytest.fixture(scope="module")
+def get_tdt_encoder_output(tdt_model, test_audio_filenames):
+    _, encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, tdt_model)
+    return encoder_output, encoded_lengths
 
-@pytest.fixture()
+
+@pytest.fixture(scope="module")
 def test_audio_filenames(test_data_dir):
     return tuple(glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav")))
 
@@ -163,13 +151,12 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_best_hypothesis(
-        self, test_audio_filenames, rnnt_model, beam_config, device, batch_size, beam_size
+        self, test_audio_filenames, rnnt_model, get_rnnt_encoder_output, beam_config, device, batch_size, beam_size
     ):
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(
-            test_audio_filenames, num_samples, model, device, dtype=torch.float32
-        )
+        encoder_output, encoded_lengths = get_rnnt_encoder_output
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         # get_memory_info("Before class init")
         logging.info("Starting model initialization")
@@ -242,13 +229,12 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_nbest(
-        self, test_audio_filenames, rnnt_model, beam_config, device, beam_size, batch_size
+        self, test_audio_filenames, rnnt_model, get_rnnt_encoder_output, beam_config, device, beam_size, batch_size
     ):
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(
-            test_audio_filenames, num_samples, model, device, dtype=torch.float32
-        )
+        encoder_output, encoded_lengths = get_rnnt_encoder_output
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedRNNTInfer(
@@ -323,6 +309,7 @@ class TestRNNTDecoding:
         test_data_dir,
         test_audio_filenames,
         rnnt_model,
+        get_rnnt_encoder_output,
         beam_config,
         device,
         batch_size,
@@ -337,9 +324,8 @@ class TestRNNTDecoding:
 
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(
-            test_audio_filenames, num_samples, model, device, dtype=torch.float32
-        )
+        encoder_output, encoded_lengths = get_rnnt_encoder_output
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedRNNTInfer(
@@ -554,13 +540,12 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_best_hypothesis(
-        self, test_audio_filenames, beambatchedrnntinfer, beam_config, device, batch_size, beam_size
+        self, test_audio_filenames, tdt_model, get_tdt_encoder_output, beam_config, device, batch_size, beam_size
     ):
         num_samples = min(batch_size, len(test_audio_filenames))
-        model = beambatchedrnntinfer.to(device)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(
-            test_audio_filenames, num_samples, model, device, dtype=torch.float32
-        )
+        model = tdt_model.to(device)
+        encoder_output, encoded_lengths = get_tdt_encoder_output
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
@@ -624,13 +609,12 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_nbest(
-        self, test_audio_filenames, beambatchedrnntinfer, beam_config, device, beam_size, batch_size
+        self, test_audio_filenames, tdt_model, get_tdt_encoder_output, beam_config, device, beam_size, batch_size
     ):
         num_samples = min(batch_size, len(test_audio_filenames))
-        model = beambatchedrnntinfer.to(device)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(
-            test_audio_filenames, num_samples, beambatchedrnntinfer, device, dtype=torch.float32
-        )
+        model = tdt_model.to(device)
+        encoder_output, encoded_lengths = get_tdt_encoder_output
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
@@ -706,8 +690,8 @@ class TestTDTDecoding:
             },
         ],
     )
-    @pytest.mark.parametrize("batch_size", [4])
-    @pytest.mark.parametrize("beam_size", [4])
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("beam_size", [4, 16])
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
     @pytest.mark.parametrize("device", DEVICES)
@@ -715,7 +699,8 @@ class TestTDTDecoding:
         self,
         test_data_dir,
         test_audio_filenames,
-        beambatchedrnntinfer,
+        tdt_model,
+        get_tdt_encoder_output,
         beam_config,
         device,
         batch_size,
@@ -728,12 +713,10 @@ class TestTDTDecoding:
         )
         beam_config["ngram_lm_model"] = kenlm_model_path
 
-        audio_filepaths = glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav"))
-        num_samples = min(batch_size, len(audio_filepaths))
-        model = beambatchedrnntinfer.to(device)
-        model, encoder_output, encoded_lengths = get_model_encoder_output(
-            test_audio_filenames, num_samples, beambatchedrnntinfer, device, dtype=torch.float32
-        )
+        num_samples = min(batch_size, len(test_audio_filenames))
+        model = tdt_model.to(device)
+        encoder_output, encoded_lengths = get_tdt_encoder_output
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
@@ -785,14 +768,14 @@ class TestTDTDecoding:
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-    def test_stated_stateless(self, test_audio_filenames, beambatchedrnntinfer, force_mode: str):
+    def test_stated_stateless(self, test_audio_filenames, tdt_model, force_mode: str):
         '''Compares stated and stateless implementations with bfloat16'''
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
         batch_size = 16
         device = torch.device("cuda")
-        nemo_model = beambatchedrnntinfer.to(device)
+        nemo_model = tdt_model.to(device)
         decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
 
         with open_dict(decoding_config):
@@ -809,7 +792,6 @@ class TestTDTDecoding:
         actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
 
         # transcribe with use implementation with cuda graphs
-
         nemo_model.change_decoding_strategy(decoding_config)
         nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
@@ -840,7 +822,7 @@ class TestTDTDecoding:
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-    def test_stated_stateless(self, test_audio_filenames, beambatchedrnntinfer, force_mode: str):
+    def test_stated_stateless(self, test_audio_filenames, tdt_model, force_mode: str):
         '''Compares stated and stateless implementations with bfloat16'''
         # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
         if force_mode == "full_graph":
@@ -848,7 +830,7 @@ class TestTDTDecoding:
 
         batch_size = 16
         device = torch.device("cuda")
-        nemo_model = beambatchedrnntinfer.to(device)
+        nemo_model = tdt_model.to(device)
         decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
 
         with open_dict(decoding_config):
