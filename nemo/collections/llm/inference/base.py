@@ -204,6 +204,8 @@ def setup_model_and_tokenizer(
             Defaults to torch.bfloat16.
         inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller
            than this threshold then we will not use pipelining, otherwise we will.
+        inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
+        Necessary for CUDA graphs. Defaults to 4096.
 
     Returns:
         tuple[MegatronModule, MCoreTokenizerWrappper]:
