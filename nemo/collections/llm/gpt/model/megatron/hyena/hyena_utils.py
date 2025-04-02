@@ -490,9 +490,7 @@ class ImplicitModalFilter(nn.Module):
         self.order = order
         self.d_model = d_model
         # Do not register into buffer, so it doesn't cast to BF16!
-        self.t = rearrange(torch.arange(L_cache, dtype=torch.float32), "L -> 1 1 L").to(
-            device=torch.cuda.current_device()
-        )  # <- this should be arange
+        self.t = torch.arange(L_cache, dtype=torch.float32, device=torch.cuda.current_device()).view(1, 1, -1)  # 1, 1, L_cache
         self.use_cached_t = False
         with get_cuda_rng_tracker().fork():
             gamma = torch.rand(self.d_model, order, dtype=torch.float32) * (gamma_max - gamma_min) + gamma_min
@@ -512,7 +510,7 @@ class ImplicitModalFilter(nn.Module):
         if self.use_cached_t:
             return self.t[..., :L]
 
-        t = rearrange(torch.arange(L, dtype=torch.float32, device=self.t.device), "L -> 1 1 L")
+        t = torch.arange(L, dtype=torch.float32, device=self.t.device).view(1, 1, -1)  # 1, 1, L
         self.t = t
         self.use_cached_t = True
 
