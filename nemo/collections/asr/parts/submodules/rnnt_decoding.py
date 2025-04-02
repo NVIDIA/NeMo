@@ -1178,7 +1178,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "end_offset": offsets[-1]["end_offset"],
                 }
             )
-        built_word = ""
         return word_offsets
 
     @staticmethod
