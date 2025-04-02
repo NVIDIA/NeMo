@@ -864,7 +864,7 @@ class ASRPredictionWriter(BasePredictionWriter):
     ):
         import lhotse
 
-        for sample_id, hyp in prediction:
+        for sample_id, hypotheses in prediction:
             item = {}
             if isinstance(sample_id, lhotse.cut.Cut):
                 sample = sample_id
@@ -879,17 +879,18 @@ class ASRPredictionWriter(BasePredictionWriter):
                 item["text"] = sample.supervisions[0].text or ''
                 if hasattr(sample, 'shard_id'):
                     item["shard_id"] = sample.shard_id
-                item["pred_text"] = hyp.text
+                item["pred_text"] = hypotheses.text
+
             else:
                 sample = self.dataset.get_manifest_sample(sample_id)
                 item["audio_filepath"] = sample.audio_file
                 item["offset"] = sample.offset
                 item["duration"] = sample.duration
                 item["text"] = sample.text_raw
-                item["pred_text"] = hyp.text
+                item["pred_text"] = hypotheses.text
 
-            if hasattr(hyp, "timestamp") and isinstance(hyp.timestamp, dict):
-                for timestamp_type, timestamps in hyp.timestamp.items():
+            if hasattr(hypotheses, "timestamp") and isinstance(hypotheses.timestamp, dict):
+                for timestamp_type, timestamps in hypotheses.timestamp.items():
                     if timestamp_type in ['char', 'word', 'segment']:
                         item[f'{timestamp_type}_timestamps'] = [
                             {
