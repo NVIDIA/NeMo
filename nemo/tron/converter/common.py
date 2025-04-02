@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import logging
-import os
+import socket
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
@@ -56,15 +57,20 @@ def megatron_cpu_init_context(config):
 
 @contextmanager
 def temporary_distributed_context():
-    if "MASTER_ADDR" not in os.environ:
-        os.environ["MASTER_ADDR"] = "localhost"
-    if "MASTER_PORT" not in os.environ:
-        os.environ["MASTER_PORT"] = "12355"
-    dist.init_process_group(backend="gloo", world_size=1, rank=0)
+    # Find an available port dynamically
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("localhost", 0))
+        addr, port = s.getsockname()
+
+    init_method = f"tcp://{addr}:{port}"
+
+    dist.init_process_group(backend="gloo", init_method=init_method, world_size=1, rank=0)
     parallel_state.initialize_model_parallel()
-    yield
-    parallel_state.destroy_model_parallel()
-    dist.destroy_process_group()
+    try:
+        yield
+    finally:
+        parallel_state.destroy_model_parallel()
+        dist.destroy_process_group()
 
 
 def get_full_mcore_state_dict(dist_ckpt_folder: Path, model_cfg):
@@ -142,7 +148,7 @@ class _ModelState:
             self._state_dict[k] = v.to(dtype)
 
 
-class BaseImporter:
+class BaseImporter(ABC):
     def __init__(self, input_path: str | Path, output_path: str | Path):
         self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
         self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
@@ -168,17 +174,21 @@ class BaseImporter:
             model = cfg.configure_model(tokenizer=self.tokenizer)
         return [model]
 
+    @abstractmethod
     def init_hf_model(self):
         raise NotImplementedError
 
+    @abstractmethod
     def convert_state(self, source, target):
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def hf_config(self) -> "PretrainedConfig":
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def tron_config(self) -> GPTConfig | T5Config:
         raise NotImplementedError
 
@@ -224,7 +234,7 @@ class BaseImporter:
         return self.output_path
 
 
-class BaseExporter:
+class BaseExporter(ABC):
     def __init__(self, input_path: str | Path, output_path: str | Path, hf_tokenizer_path: Optional[str] = None):
         self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
         self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
@@ -234,10 +244,12 @@ class BaseExporter:
         self._tokenizer = None
 
     @property
+    @abstractmethod
     def hf_config(self) -> "PretrainedConfig":
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def tron_config(self) -> GPTConfig | T5Config:
         if self._tron_config is None:
             raise ValueError("Tron config is not set")
@@ -253,6 +265,7 @@ class BaseExporter:
 
         return self._tokenizer
 
+    @abstractmethod
     def convert_state(self, source, target):
         raise NotImplementedError
 
