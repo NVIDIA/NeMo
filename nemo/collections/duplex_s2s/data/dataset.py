@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
+
 import torch
 import torch.utils.data
 from lhotse import CutSet, Seconds, compute_num_frames
@@ -40,6 +42,9 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
         self.source_sample_rate = source_sample_rate
         self.input_roles = set(ifnone(input_roles, ["user"]))
         self.output_roles = set(ifnone(output_roles, ["agent"]))
+
+        assert tokenizer.bos is not None, "BOS support in the tokenizer is required for S2S models."
+        assert tokenizer.eos is not None, "EOS support in the tokenizer is required for S2S models."
 
     def __getitem__(self, cuts: CutSet) -> dict:
         source_audio, source_audio_lens = collate_audio(cuts.resample(self.source_sample_rate))
@@ -74,7 +79,10 @@ def collate_token_channel(
     if pad_id is None:
         pad_id = tokenizer.unk_id
     if pad_id is None:
-        pad_id = 0  # TODO: cleanup
+        warnings.warn(
+            "The text tokenizer has no <pad> or <unk> tokens available, using ID 0 for padding (this may lead to silent bugs)."
+        )
+        pad_id = 0
     tokens = [
         build_token_channel(c, tokenizer=tokenizer, frame_length=frame_length, roles=roles, pad_id=pad_id)
         for c in cuts
@@ -95,21 +103,20 @@ def build_token_channel(
     if getattr(cut, "shard_origin", None) is not None:
         diagnostic = f"{diagnostic} {cut.shard_origin=}"
 
-    bos = [] if tokenizer.bos is None else [tokenizer.bos]
-    eos = [] if tokenizer.eos is None else [tokenizer.eos]
     total = compute_num_frames(cut.duration, frame_length, cut.sampling_rate)
     tokens = torch.ones(total, dtype=torch.long) * pad_id
     offset = 0
     for supervision in cut.supervisions:
         d = supervision.duration
         if supervision.speaker in roles:
-            text_ids = torch.as_tensor(bos + tokenizer.text_to_ids(supervision.text) + eos)
+            text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(supervision.text))
             pos = compute_num_frames(offset, frame_length, cut.sampling_rate)
             if pos > len(tokens):
                 logging.warning(
                     f"Ill-constructed example: the beginning offset of a supervision {pos} is larger than the example's length {len(tokens)}. {diagnostic}"
                 )
                 continue
+
             endpos = pos + len(text_ids)
             if endpos > len(tokens):
                 trunc_len = len(tokens) - pos
@@ -121,5 +128,10 @@ def build_token_channel(
                 tokens[pos:endpos] = text_ids
             except Exception as e:
                 raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=} {diagnostic}") from e
+
+            eospos = compute_num_frames(offset + d, frame_length, cut.sampling_rate)
+            tokens[eospos] = tokenizer.eos
+
         offset += d
+
     return tokens

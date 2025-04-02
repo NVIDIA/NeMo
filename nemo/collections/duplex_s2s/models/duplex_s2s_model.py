@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import builtins
+import warnings
 from contextlib import contextmanager
 from itertools import chain
 from pathlib import Path
@@ -35,7 +36,7 @@ from torch.distributed.tensor.parallel import (
     parallelize_module,
 )
 from torchmetrics.text import SacreBLEUScore
-from transformers import AutoModel
+from transformers import AutoModel, AutoModelForCausalLM
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -59,13 +60,20 @@ class DuplexS2SModel(LightningModule):
         self._codebook_size = self._audio_codec.vector_quantizer.codebook_size_per_group
         self._num_codebooks = self._audio_codec.vector_quantizer.num_groups
 
+        # We load the pretrained HF LLM using "ForCausalLM" variant so that we can obtain the
+        # pretrained LM head weights.
+        # However, for S2S we need to access the activations before LM head directly
+        # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
-        self.llm = AutoModel.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
+        llm = AutoModelForCausalLM.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
+        self.llm = llm.model  # fetch PretrainedBaseModel from model "ForCausalLM"
+        self.lm_head = llm.lm_head
         # Note: we have to "move out" the token embedding outside of LLM to avoid
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.embed_tokens
         del self.llm.embed_tokens
 
+        # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
         asr = _load_pretrained(ASRModel, self.cfg.pretrained_asr).to(torch.bfloat16).eval()
         with open_dict(self.cfg):
             self.cfg.perception.preprocessor = asr.cfg.preprocessor
@@ -74,16 +82,40 @@ class DuplexS2SModel(LightningModule):
         self.perception = AudioPerceptionModule(self.cfg.perception).train()
         self.perception.load_state_dict(asr.state_dict(), strict=False)
 
-        self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.llm.config.vocab_size)
         self.embed_audio_tokens = torch.nn.ModuleList(
             [
-                torch.nn.Embedding(self._codebook_size, self.embed_tokens.embedding_dim)
+                # codebook size + 2 (speech BOS and EOS)
+                torch.nn.Embedding(self.speech_vocab_size, self.embed_tokens.embedding_dim)
                 for _ in range(self._num_codebooks)
             ]
         )
-        self.audio_head = torch.nn.Linear(self.llm.config.hidden_size, self._codebook_size * self._num_codebooks)
-        # special audio "token" implemented directly as a learnable embedding
-        self.audio_bos_embedding = torch.nn.Parameter(torch.randn(self.embed_tokens.embedding_dim))
+        self.audio_head = torch.nn.Linear(self.llm.config.hidden_size, self.speech_vocab_size * self._num_codebooks)
+
+    @property
+    def speech_vocab_size(self):
+        """Return the size of the audio codec codebook including extra speech BOS and EOS tokens."""
+        return self._codebook_size + 2
+
+    @property
+    def speech_bos_id(self) -> int:
+        return self._codebook_size
+
+    @property
+    def speech_eos_id(self) -> int:
+        return self._codebook_size + 1
+
+    @property
+    def text_vocab_size(self):
+        """Return the size of the text tokenizer."""
+        return self.tokenizer.vocab_size
+
+    @property
+    def text_bos_id(self) -> int:
+        return self.tokenizer.bos_id
+
+    @property
+    def text_eos_id(self) -> int:
+        return self.tokenizer.eos_id
 
     def forward(
         self,
@@ -97,10 +129,13 @@ class DuplexS2SModel(LightningModule):
         |source speech + prev target text| -> |llm| -|
                                                      |-> |lm_head|    -> |token ids  |
         """
+        # input_embeds and out: (B, T, H)
         out = self.llm(inputs_embeds=input_embeds)
         B, T = input_embeds.shape[:2]
-        text_logits = self.lm_head(out['last_hidden_state'])
-        audio_logits = self.audio_head(out['last_hidden_state']).view(B, T, self._codebook_size, self._num_codebooks)
+        text_logits = self.lm_head(out['last_hidden_state'])  # (B, T, num_text_tokens)
+        audio_logits = self.audio_head(out['last_hidden_state']).view(
+            B, T, self.speech_vocab_size, self._num_codebooks
+        )
         return {
             "text_logits": text_logits,
             "audio_logits": audio_logits,
@@ -139,7 +174,10 @@ class DuplexS2SModel(LightningModule):
             if pad_id is None:
                 pad_id = self.tokenizer.unk_id
             if pad_id is None:
-                pad_id = 0  # TODO: cleanup
+                warnings.warn(
+                    "The text tokenizer has no <pad> or <unk> tokens available, using id 0 for padding (this may lead to silent bugs)."
+                )
+                pad_id = 0
             target_tokens = torch.cat(
                 [
                     target_tokens,
@@ -176,6 +214,11 @@ class DuplexS2SModel(LightningModule):
                     f"This may indicate significant desynchronization in longer sessions."
                 )
 
+        # Insert speech BOS and speech EOS after we know input/output text/audio shapes are matching.
+        btt = target_tokens[..., None]  # broadcast target tokens to num_codebooks dim
+        target_codes = torch.where(btt == self.text_bos_id, self.speech_bos_id, target_codes)
+        target_codes = torch.where(btt == self.text_eos_id, self.speech_eos_id, target_codes)
+
         # Combine target audio and text into a single tensor to slice them together.
         # It will also help us truncate the sequence lengths to be divisible by TP world size,
         # when TP is enabled.
@@ -191,14 +234,13 @@ class DuplexS2SModel(LightningModule):
 
         text_inputs = input_ids[:, :-1, -1]  # (B, T-1)
         text_labels = input_ids[:, 1:, -1]  # (B, T-1)
-        audio_inputs = input_ids[:, :-2, :-1]  # (B, T-2, K): we explicitly use the learnable audio BOS embedding
+        audio_inputs = input_ids[:, :-1, :-1]  # (B, T-1, K)
         audio_labels = input_ids[:, 1:, :-1]  # (B, T-1, K)
 
         # Input embeds: (B, T-1, H)
         input_embeds = self.embed_tokens(text_inputs)
-        input_embeds[:, 0] += self.audio_bos_embedding
         for cbidx in range(self._num_codebooks):
-            input_embeds[:, 1:].add_(self.embed_audio_tokens[cbidx](audio_inputs[..., cbidx]))
+            input_embeds.add_(self.embed_audio_tokens[cbidx](audio_inputs[..., cbidx]))
         input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3))
 
         return {
@@ -328,17 +370,54 @@ class DuplexS2SModel(LightningModule):
     def test_step(self, *args: Any, **kwargs: Any):
         return self.validation_step(*args, **kwargs)
 
-    def offline_inference(self, input_signal: torch.Tensor):
-        # inputs: full source audio
-        # run through ASR simulating streaming
-        # construct initial input frame using BOS token and BOS output audio frame
-        # for frame in audio_frames:
-        #   combine frame with text and last predicted audio frame
-        #   run through single step of AR inference
-        #   store predicted audio codes
-        #   store predicted text
-        # return: predicted target audio codes and text
-        pass
+    def _get_bos_embedding(self):
+        """
+        Return the BOS embedding: sum of text BOS token embedding and audio BOS token embedding.
+        Intended to be added to the input speech representation in the initial frame during inference.
+        The returned shape is (1, embedding_dim).
+        """
+        raise NotImplementedError()
+        embed = self.embed_tokens(torch.full((1,), fill_value=self.tokenizer.bos_id, device=self.device))
+        embed += self.audio_bos_embedding
+        return embed
+
+    def offline_inference(self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor):
+        raise NotImplementedError()
+        # Run through ASR simulating streaming, and pre-multiply by input channel weight
+        # input_embeds: (B, T, H)
+        input_embeds, input_embed_lens = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_lens,
+        )
+        input_embeds *= self.cfg.get("duplex_user_channel_weight", 0.3)
+
+        # Pre-allocate the memory for outputs.
+        # from transformers import DynamicCache
+        # cache = DynamicCache()
+        B, T = input_embeds.shape[:2]
+        gen_audio = torch.empty(B, T, self._num_codebooks, device=self.device, dtype=torch.long)
+        gen_text = torch.empty(B, T, device=self.device, dtype=torch.long)
+
+        # Construct initial input frame using BOS token and BOS output audio frame
+        # and run the first prediction step
+        input_embeds[:, 0] += self._get_bos_embedding()
+        ans = self(input_embeds[:, :1])
+        # ans = self.llm(input_embeds[:, :1], past_key_values=cache, use_cache=True, return_dict=True)
+        # text_logits = self.lm_head(ans.logits)
+        # audio_logits = self.audio_head(ans.logits)
+        # cache = ans.past_key_values
+        gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)
+        gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-2)
+
+        for t in range(1, input_embeds.shape[1]):
+            input_embeds[:, t] += self.embed_tokens(gen_text[:, t])
+            for cbidx in range(self._num_codebooks):
+                input_embeds[:, t] += self.embed_audio_tokens[cbidx](gen_audio[:, t, cbidx])
+            ans = self(input_embeds[:, :t])
+            gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)
+            gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-2)
+
+        return gen_text, gen_audio
 
     def backward(self, *args, **kwargs):
         with loss_parallel():
