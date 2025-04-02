@@ -68,6 +68,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     def __init__(
         self,
+        num_replicas: int = 1,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
         offload_policy: 'CPUOffloadPolicy' = None,
@@ -99,6 +100,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
         self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
+        self._num_replicas = num_replicas
         self.checkpoint = None
         self.mp_policy = mp_policy
         if self.mp_policy is None:
@@ -174,8 +176,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # No TP currently
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
-            mesh_shape=(self._data_parallel_size,),
-            mesh_dim_names=("data_parallel",),
+            mesh_shape=(self._num_replicas, self._data_parallel_size, 1),
+            mesh_dim_names=("replicate", "data_parallel", "cp"),
         )
         self.lightning_module._device_mesh = self._device_mesh
 
@@ -193,7 +195,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if getattr(self, '_init_model_parallel', True):
             self.parallelize()
         # Corner case, as FSDP2 expected to be used multi-device.
-        if self._data_parallel_size == 1:
+        if self._device_mesh['data_parallel'].size() * self._device_mesh['cp'].size() == 1:
             self._lightning_module = self._lightning_module.to(self.root_device)
 
         # setup optim
@@ -207,7 +209,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             # Apply FSDP2 and TP to the model
             self.parallelize_fn(
                 self.lightning_module.model,
-                device_mesh=self._device_mesh,
+                device_mesh=self._device_mesh["data_parallel"],
                 mp_policy=self.mp_policy,
                 offload_policy=self.offload_policy,
             )
