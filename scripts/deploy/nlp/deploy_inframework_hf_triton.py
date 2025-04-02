@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import argparse
 import logging
 import os
@@ -27,49 +28,99 @@ LOGGER = logging.getLogger("NeMo")
 
 
 def setup_torch_dist(rank, world_size):
-    """ Setups torch distributed """
+    """ Sets up PyTorch distributed training environment.
+    
+    Args:
+        rank (int): The rank of the current process
+        world_size (int): Total number of processes for distributed training
+    """
+    
     torch.cuda.set_device(rank)
     # Initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
 def get_args(argv):
-    """ Get script parameters """
+    """ Get command line arguments for deploying HuggingFace models to Triton.
+    
+    Returns:
+        argparse.Namespace: Parsed command line arguments including:
+            - hf_model_id_path: Path to HuggingFace model
+            - task: Model task type (text-generation)
+            - device_map: Device mapping strategy
+            - tp_plan: Tensor parallelism plan
+            - trust_remote_code: Whether to trust remote code
+            - triton_model_name: Name for model in Triton
+            - triton_model_version: Model version number
+            - triton_port: Triton HTTP port
+            - triton_http_address: Triton HTTP address
+            - max_batch_size: Maximum inference batch size
+            - debug_mode: Enable debug logging
+    """
+
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description=f"Deploy nemo models to Triton",
+        description="Deploy HuggingFace models to Triton Inference Server",
     )
-    parser.add_argument("-hp", "--hf_model_id_path", type=str, help="Path or ID of a HF model")
+    parser.add_argument("-hp", "--hf_model_id_path", type=str, help="Path to local HuggingFace "
+                                                                    "model directory or model ID from HuggingFace "
+                                                                    "Hub")
     parser.add_argument(
         "-t",
         "--task",
-        nargs='?',
+        nargs='?', 
         choices=['text-generation'],
         default="text-generation",
         type=str,
-        help="Downstream task for the model",
+        help="Task type for the HuggingFace model (currently only text-generation is supported)",
     )
-    parser.add_argument("-dvm", "--device_map", default=None, type=str, help="HF device_map param")
-    parser.add_argument("-tpp", "--tp_plan", default=None, type=str, help="HF tp_plan param")
+    parser.add_argument("-dvm", "--device_map", default=None, type=str, help="Device mapping "
+                                                                             "strategy for model placement "
+                                                                             "(e.g. 'auto', 'sequential', etc)")
+    parser.add_argument("-tpp", "--tp_plan", default=None, type=str, help="Tensor parallelism "
+                                                                          "plan for distributed inference")
     parser.add_argument(
-        "-trc", "--trust_remote_code", default=False, action='store_true', help="HF trust_remote_code param"
+        "-trc", "--trust_remote_code", default=False, action='store_true', help="Allow loading "
+                                                                                "remote code from HuggingFace "
+                                                                                "Hub"
     )
-    parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
-    parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
+    parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name to "
+                                                                                     "identify the model in "
+                                                                                     "Triton")
+    parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version "
+                                                                                    "number for the model "
+                                                                                    "in Triton")
     parser.add_argument(
-        "-trp", "--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
+        "-trp", "--triton_port", default=8000, type=int, help="Port number for Triton server "
+                                                              "HTTP endpoint"
     )
     parser.add_argument(
-        "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
+        "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="Network interface "
+                                                                           "address for Triton HTTP endpoint"
     )
-    parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
-    parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
+    parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Maximum "
+                                                                              "batch size for model inference")
+    parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable "
+                                                                                        "verbose debug logging")
     args = parser.parse_args(argv)
     return args
 
 
 def hf_deploy(argv):
-    """ Hf deploy function """
+    """ Deploy a HuggingFace model to Triton Inference Server.
+    
+    This function handles the deployment workflow including:
+    - Parsing command line arguments
+    - Setting up distributed training if needed
+    - Initializing the HuggingFace model
+    - Starting the Triton server
+    
+    Args:
+        argv: Command line arguments
+    
+    Raises:
+        ValueError: If required arguments are missing or invalid
+    """
     args = get_args(argv)
 
     if args.debug_mode:

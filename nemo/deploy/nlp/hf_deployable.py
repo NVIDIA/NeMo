@@ -18,30 +18,12 @@ from typing import Any, List, Optional
 
 import numpy as np
 import torch
-import wrapt
+from pytriton.decorators import batch
+from pytriton.model_config import Tensor
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import broadcast_list, cast_output, str_ndarray2list
-
-
-@wrapt.decorator
-def noop_decorator(func):
-    """A function for safe import"""
-
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-use_pytriton = True
-batch = noop_decorator
-try:
-    from pytriton.decorators import batch
-    from pytriton.model_config import Tensor
-except Exception:
-    use_pytriton = False
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -56,13 +38,17 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
     loading, inference, and deployment configurations.
 
     Args:
-        hf_model_id_path: Path to the HuggingFace model or model identifier.
+        hf_model_id_path (Optional[str]): Path to the HuggingFace model or model identifier.
             Can be a local path or a model ID from HuggingFace Hub.
-        model: Pre-loaded HuggingFace model. If provided, hf_model_id_path will be ignored.
-        tokenizer_id_path: Path to the tokenizer or tokenizer identifier.
+        model (Optional[AutoModel]): Pre-loaded HuggingFace model. If provided, hf_model_id_path will be ignored.
+        tokenizer_id_path (Optional[str]): Path to the tokenizer or tokenizer identifier.
             If None, will use the same path as hf_model_id_path.
-        task: HuggingFace task type (e.g., "text-generation", "question-answering").
-            Required if hf_model_id_path is provided.
+        tokenizer (Optional[AutoTokenizer]): Pre-loaded HuggingFace tokenizer.
+        tokenizer_padding (bool): Whether to enable padding in tokenizer. Defaults to True.
+        tokenizer_truncation (bool): Whether to enable truncation in tokenizer. Defaults to True.
+        tokenizer_padding_side (str): Which side to pad on ('left' or 'right'). Defaults to 'left'.
+        task (str): HuggingFace task type (e.g., "text-generation"). Defaults to "text-generation".
+        **hf_kwargs: Additional keyword arguments to pass to HuggingFace model loading.
     Raises:
         ValueError: If neither hf_model_id_path nor model is provided.
         ValueError: If hf_model_id_path is provided but task is not specified.
@@ -74,6 +60,9 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         tokenizer_id_path: Optional[str] = None,
         model: Optional[AutoModel] = None,
         tokenizer: Optional[AutoTokenizer] = None,
+        tokenizer_padding=True,
+        tokenizer_truncation=True,
+        tokenizer_padding_side="left",
         task: Optional[str] = "text-generation",
         **hf_kwargs,
     ):
@@ -90,6 +79,10 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         self.task = task
         self.model = model
         self.tokenizer = tokenizer
+        self.tokenizer_padding = tokenizer_padding
+        self.tokenizer_truncation = tokenizer_truncation
+        self.tokenizer_padding_side = tokenizer_padding_side
+
         if tokenizer_id_path is None:
             self.tokenizer_id_path = hf_model_id_path
         else:
@@ -120,7 +113,13 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.tokenizer_id_path,
             trust_remote_code=hf_kwargs.pop("trust_remote_code", False),
+            padding=self.tokenizer_padding,
+            truncation=self.tokenizer_truncation,
+            padding_side=self.tokenizer_padding_side,
         )
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def generate(
         self,
@@ -152,7 +151,12 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         if not self.model:
             raise RuntimeError("Model is not initialized")
 
-        inputs = self.tokenizer(kwargs["text_inputs"], return_tensors="pt")
+        inputs = self.tokenizer(
+            kwargs["text_inputs"],
+            return_tensors="pt",
+            padding=self.tokenizer_padding,
+            truncation=self.tokenizer_truncation,
+        )
         kwargs = {**inputs, **kwargs}
         kwargs.pop("text_inputs")
         for key, val in kwargs.items():
