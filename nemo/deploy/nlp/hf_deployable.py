@@ -22,7 +22,7 @@ import wrapt
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import cast_output, str_ndarray2list
+from nemo.deploy.utils import broadcast_list, cast_output, str_ndarray2list
 
 
 @wrapt.decorator
@@ -148,6 +148,7 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         Raises:
             RuntimeError: If the pipeline is not initialized.
         """
+
         if not self.model:
             raise RuntimeError("Model is not initialized")
 
@@ -162,6 +163,38 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             generated_ids = self.model.generate(**kwargs)
         output = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
         return output
+
+    def generate_other_ranks(self):
+        """
+        Generate function for ranks other than the rank 0.
+        """
+
+        while True:
+            message = torch.empty(1, dtype=torch.long, device="cuda")
+            torch.distributed.broadcast(message, src=0)
+            if message == 0:
+                prompts = broadcast_list(data=[None], src=0)
+                temperature, top_k, top_p, num_tokens_to_generate, output_logits, output_scores = broadcast_list(
+                    data=[None], src=0
+                )
+
+                return_dict_in_generate = False
+                if output_logits or output_scores:
+                    return_dict_in_generate = True
+
+                self.generate(
+                    text_inputs=prompts,
+                    do_sample=True,
+                    top_k=top_k,
+                    top_p=top_p,
+                    temperature=temperature,
+                    max_new_tokens=num_tokens_to_generate,
+                    output_logits=output_logits,
+                    output_scores=output_scores,
+                    return_dict_in_generate=return_dict_in_generate,
+                )
+            else:
+                return
 
     @property
     def get_triton_input(self):
@@ -187,33 +220,6 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
     def triton_infer_fn(self, **inputs: np.ndarray):
         output_infer = {}
 
-        prompts = str_ndarray2list(inputs.pop("prompts"))
-        temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
-        top_k = int(inputs.pop("top_k")[0][0] if "top_k" in inputs else 1)
-        top_p = inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0
-        num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
-        output_logits = inputs.pop("output_logits")[0][0] if "output_logits" in inputs else False
-        output_scores = inputs.pop("output_scores")[0][0] if "output_scores" in inputs else False
-
-        return_dict_in_generate = False
-        if output_logits or output_scores:
-            return_dict_in_generate = True
-
-        output = self.generate(
-            text_inputs=prompts,
-            do_sample=True,
-            top_k=top_k,
-            top_p=top_p,
-            temperature=temperature,
-            max_new_tokens=num_tokens_to_generate,
-            output_logits=output_logits,
-            output_scores=output_scores,
-            return_dict_in_generate=return_dict_in_generate,
-        )
-
-        output_infer = {"sentences": cast_output(output, np.bytes_)}
-
-        '''
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
             temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
@@ -226,6 +232,22 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             return_dict_in_generate = False
             if output_logits or output_scores:
                 return_dict_in_generate = True
+
+            if torch.distributed.is_initialized():
+                if torch.distributed.get_world_size() > 1:
+                    torch.distributed.broadcast(torch.tensor([0], dtype=torch.long, device="cuda"), src=0)
+                    broadcast_list(prompts, src=0)
+                    broadcast_list(
+                        data=[
+                            temperature,
+                            top_k,
+                            top_p,
+                            num_tokens_to_generate,
+                            output_logits,
+                            output_scores,
+                        ],
+                        src=0,
+                    )
 
             output = self.generate(
                 text_inputs=prompts,
@@ -244,7 +266,5 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
             output_infer["sentences"] = cast_output([err_msg], np.bytes_)
-
-        '''
 
         return output_infer

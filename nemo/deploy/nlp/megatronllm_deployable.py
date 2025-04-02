@@ -26,7 +26,7 @@ from megatron.core.inference.inference_request import InferenceRequest
 import nemo.lightning as nl
 from nemo.collections.llm import inference
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import NEMO2, cast_output, nemo_checkpoint_version, str_ndarray2list
+from nemo.deploy.utils import NEMO2, broadcast_list, cast_output, nemo_checkpoint_version, str_ndarray2list
 
 
 @wrapt.decorator
@@ -46,22 +46,6 @@ except Exception:
     use_pytriton = False
 
 LOGGER = logging.getLogger("NeMo")
-
-
-def broadcast_list(data, src=0, group=None):
-    """Broadcasts a list of text data to all processes.
-
-    Args:
-        data (list): List of strings to broadcast.
-        src (int, optional): Source rank. Defaults to 0.
-        group (ProcessGroup, optional): The process group to work on. If None, the default process group will be used.
-    """
-    if not torch.distributed.is_initialized():
-        raise RuntimeError("Distributed environment is not initialized.")
-
-    object_list = [data] if torch.distributed.get_rank() == src else [None]
-    torch.distributed.broadcast_object_list(object_list, src=src, group=group)
-    return object_list[0]
 
 
 class MegatronLLMDeploy:

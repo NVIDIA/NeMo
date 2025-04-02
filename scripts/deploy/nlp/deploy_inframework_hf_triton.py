@@ -27,12 +27,14 @@ LOGGER = logging.getLogger("NeMo")
 
 
 def setup_torch_dist(rank, world_size):
+    """ Setups torch distributed """
     torch.cuda.set_device(rank)
     # Initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
 def get_args(argv):
+    """ Get script parameters """
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
@@ -66,6 +68,7 @@ def get_args(argv):
 
 
 def hf_deploy(argv):
+    """ Hf deploy function """
     args = get_args(argv)
 
     if args.debug_mode:
@@ -85,6 +88,15 @@ def hf_deploy(argv):
         world_size = int(os.environ["WORLD_SIZE"])
         if world_size > 1:
             setup_torch_dist(rank, world_size)
+    else:
+        if args.device_map == "auto":
+            LOGGER.warning("device_map is set to auto and it is recommended that the script"
+                           "is started with torchrun with a process per GPU. You might "
+                           "see unexpected issues during the inference otherwise.")
+
+        if args.tp_plan is not None:
+            raise ValueError("tp_plan is only available with torchrun.")
+
 
     hf_deployable = HuggingFaceLLMDeploy(
         hf_model_id_path=args.hf_model_id_path,
@@ -119,10 +131,21 @@ def hf_deploy(argv):
             return
 
         try:
-            LOGGER.info("Model serving on Triton is will be started.")
+            LOGGER.info("Model serving on Triton will be started.")
             nm.serve()
         except Exception as error:
             LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
+
+        if dist.is_initialized():
+            if dist.get_world_size() > 1:
+                torch.distributed.broadcast(torch.tensor([1], dtype=torch.long, device="cuda"), src=0)
+
+        LOGGER.info("Model serving will be stopped.")
+        nm.stop()
+    else:
+        if dist.is_initialized():
+            if dist.get_rank() > 0:
+                hf_deployable.generate_other_ranks()
 
     if dist.is_initialized():
         dist.barrier()

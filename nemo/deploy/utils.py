@@ -102,3 +102,19 @@ def cast_output(data, required_dtype):
     if data.ndim < 2:
         data = data[..., np.newaxis]
     return data.astype(required_dtype)
+
+
+def broadcast_list(data, src=0, group=None):
+    """Broadcasts a list of text data to all processes.
+
+    Args:
+        data (list): List of strings to broadcast.
+        src (int, optional): Source rank. Defaults to 0.
+        group (ProcessGroup, optional): The process group to work on. If None, the default process group will be used.
+    """
+    if not torch.distributed.is_initialized():
+        raise RuntimeError("Distributed environment is not initialized.")
+
+    object_list = [data] if torch.distributed.get_rank() == src else [None]
+    torch.distributed.broadcast_object_list(object_list, src=src, group=group)
+    return object_list[0]
