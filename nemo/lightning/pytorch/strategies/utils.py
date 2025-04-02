@@ -15,9 +15,9 @@
 import io
 import signal
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
-from functools import partial
 
 import lightning.pytorch as pl
 import torch
@@ -33,18 +33,17 @@ from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.tensor import DeviceMesh, distribute_module
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
+    ParallelStyle,
     PrepareModuleInput,
     RowwiseParallel,
     SequenceParallel,
     parallelize_module,
-    ParallelStyle,
 )
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
-
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
@@ -615,6 +614,7 @@ def _destroy_dist_connection() -> None:
         torch.distributed.destroy_process_group()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
+
 # cp modeling_llama.py /usr/local/lib/python3.12/dist-packages/transformers/models/llama/
 class RotaryEmbedParallel(ParallelStyle):
 
@@ -623,9 +623,7 @@ class RotaryEmbedParallel(ParallelStyle):
         self.sequence_sharding = (Shard(sequence_dim),)
         self.use_local_output = use_local_output
 
-    def _replicate_module_fn(
-        self, name: str, module: nn.Module, device_mesh: DeviceMesh
-    ):
+    def _replicate_module_fn(self, name: str, module: nn.Module, device_mesh: DeviceMesh):
         for p_name, param in module.named_parameters():
             # simple replication with fixed ones_ init from LayerNorm/RMSNorm, which allow
             # us to simply just use from_local
@@ -636,16 +634,19 @@ class RotaryEmbedParallel(ParallelStyle):
 
     @staticmethod
     def _prepare_input_fn(sequence_sharding, mod, inputs, device_mesh):
-        """NOTE: this function will hang if the sequence length is not properly divisible by TP size
-        """
+        """NOTE: this function will hang if the sequence length is not properly divisible by TP size"""
         new_inputs = list(inputs)
 
         if not isinstance(inputs[0], DTensor):
-            new_inputs[0] = DTensor.from_local(local_tensor=inputs[0], device_mesh=device_mesh, placements=sequence_sharding, run_check=False)
+            new_inputs[0] = DTensor.from_local(
+                local_tensor=inputs[0], device_mesh=device_mesh, placements=sequence_sharding, run_check=False
+            )
 
         if not isinstance(inputs[1], DTensor):
-            new_inputs[1] = DTensor.from_local(local_tensor=inputs[1], device_mesh=device_mesh, placements=sequence_sharding, run_check=False)
-        
+            new_inputs[1] = DTensor.from_local(
+                local_tensor=inputs[1], device_mesh=device_mesh, placements=sequence_sharding, run_check=False
+            )
+
         new_inputs = tuple(new_inputs)
         return new_inputs
 

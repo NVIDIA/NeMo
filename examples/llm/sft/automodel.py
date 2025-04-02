@@ -70,7 +70,15 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
 
 
 def make_strategy(
-    strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False, dp_size=None, tp_size=None, sequence_parallel=False
+    strategy,
+    model,
+    devices,
+    num_nodes,
+    adapter_only=False,
+    enable_cpu_offload=False,
+    dp_size=None,
+    tp_size=None,
+    sequence_parallel=False,
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -101,7 +109,9 @@ def make_strategy(
                 assert (
                     dp_size * tp_size == devices * num_nodes
                 ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
-        print(f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}")
+        print(
+            f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}"
+        )
 
         offload_policy = None
         if enable_cpu_offload:
@@ -157,7 +167,11 @@ def main():
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
     parser.add_argument('--dp-size', type=int, default=None, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=None, help='Tensor Parallel size; to be used with fsdp2')
-    parser.add_argument('--sequence-parallel', action='store_true', help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1')
+    parser.add_argument(
+        '--sequence-parallel',
+        action='store_true',
+        help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
+    )
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
