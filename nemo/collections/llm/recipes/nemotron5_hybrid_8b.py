@@ -32,7 +32,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
-from nemo.lightning.run.plugins import TritonCacheSetup
 torch._dynamo.config.suppress_errors = True
 
 NAME = "nemotron5_hybrid_8b"
@@ -165,7 +164,7 @@ def trainer(
         limit_val_batches=limit_val_batches,
         num_sanity_val_steps=0,
         use_distributed_sampler=False,
-        plugins=[bf16_with_fp8_mixed_current_scaling(), run.Config(TritonCacheSetup)],
+        plugins=[bf16_with_fp8_mixed_current_scaling()],
         val_check_interval=val_check_interval,
         enable_checkpointing=True,
     )

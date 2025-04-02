@@ -404,9 +404,7 @@ class TritonCacheSetup(run.Plugin):
     This should not be neccessay for Triton 3.2.0 and above.
     """
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
-        
-        executor.env_vars["TRITON_CACHE_DIR"] = task.trainer.dir+"triton_cahce"
-        os.environ["TRITON_CACHE_DIR"] = task.trainer.dir+"triton_cahce"
-        executor.env_vars["TRITON_CACHE_MANAGER"] = "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
-        os.environ["TRITON_CACHE_MANAGER"] = "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
+        if task.trainer.strategy.__fn_or_cls__ == MegatronStrategy:
+            executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir+"triton_cahce"
+            executor.env_vars["TRITON_CACHE_MANAGER"] = "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
     
