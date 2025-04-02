@@ -799,22 +799,17 @@ class ParallelHyenaOperator(nn.Module):
     def forward(self, x1, x2, v, _hyena_use_cp=True):
         """Shape specification for inputs and outputs.
 
-        Input shapes: bs, seq_length, (num_groups, group_size)
-        Output shapes: bs, seq_length, num_groups, group_size
+        Input shapes: bs, (num_groups, group_size), seq_length
+        Output shapes: bs, (num_groups, group_size), seq_length
         """
-        B, L, G, DG = x1.shape
+        B, GDG, L = x1.shape
+        x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
 
         # CP control
         if _hyena_use_cp:
             cp_group = get_context_parallel_group()
         else:
             cp_group = None
-
-        x1 = rearrange(x1, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
-        x2 = rearrange(x2, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
-        v = rearrange(v, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
-
-        x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
 
         # The kernel length must be adjusted in CP settings
         _L_kernel = L if cp_group is None else L * len(torch.distributed.get_process_group_ranks(cp_group))
@@ -869,7 +864,7 @@ class ParallelHyenaOperator(nn.Module):
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
             z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
             # [ B, H, L // num_ranks]
-        return rearrange(z, "b d l -> b l d")
+        return z  # [B, (G, DG), L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the ParallelHyenaOperator."""
@@ -972,15 +967,10 @@ class ParallelShortHyenaOperator(nn.Module):
     def forward(self, x1, x2, v, _hyena_use_cp=True):
         """Shape specification for inputs and outputs.
 
-        Input shapes: bs, seq_length, (num_groups, group_size)
-        Output shapes: bs, seq_length, num_groups, group_size
+        Input shapes: bs, (num_groups, group_size), seq_length
+        Output shapes: bs, (num_groups, group_size), seq_length
         """
-        B, L, G, DG = x1.shape
-
-        x1 = rearrange(x1, "b l g dg -> b (g dg) l")
-        x2 = rearrange(x2, "b l g dg -> b (g dg) l")
-        v = rearrange(v, "b l g dg -> b (g dg) l")
-
+        B, GDG, L = x1.shape
         x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
 
         z = x2 * v if self.pregate else v
@@ -993,7 +983,7 @@ class ParallelShortHyenaOperator(nn.Module):
 
         z = x1 * z if self.postgate else z
 
-        return rearrange(z, "b d l -> b l d")
+        return z  # [B, (G, DG), L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the ParallelShortHyenaOperator."""

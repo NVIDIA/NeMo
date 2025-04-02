@@ -237,10 +237,16 @@ class HyenaMixer(MegatronModule):
         return func(*args, **kwargs)
 
     def forward(self, x, layer_past=None, inference_params=None, _hyena_use_cp=True):
-        """Applies sequence mixing to a sequence of 1-dimensional embeddings: batch_size, seq_len, d_model.
+        """Applies the Hyena sequence mixing operation to input embeddings.
 
         Args:
-            u: input to the operator, in format [B, L, D]
+            x: Input tensor of shape [L, B, D] (seq_len, batch_size, hidden_dim)
+            layer_past: Past layer state for inference (default: None)
+            inference_params: Parameters for inference (default: None)
+            _hyena_use_cp: Whether to use context parallelism (default: True)
+
+        Returns:
+            Tuple of (output tensor, bias)
         """
         # CP control
         if _hyena_use_cp:
@@ -257,11 +263,11 @@ class HyenaMixer(MegatronModule):
         features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp) # [B, D, L]
 
         x1, x2, v = rearrange(
-            features, "b (g dg p) l -> b l g p dg", p=3, g=self.num_groups_per_tp_rank
-        ).unbind(dim=3)
+            features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank
+        ).unbind(dim=2)
 
         z = self.mixer(x1, x2, v)
-        z = rearrange(z, "b l d -> l b d").contiguous()
+        z = rearrange(z, "b d l -> l b d").contiguous()
 
         y, bias = self.dense(z)
         return y, bias
