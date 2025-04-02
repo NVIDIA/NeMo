@@ -32,12 +32,12 @@ from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_grap
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 from nemo.utils import logging
-import psutil
+
 
 def get_memory_info(comment):
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
-    
+
     logging.info(comment)
     logging.info("Memory Usage:")
     logging.info(f"  Total: {mem.total / (1024 ** 3):.2f} GB")
@@ -50,6 +50,7 @@ def get_memory_info(comment):
     logging.info(f"  Used: {swap.used / (1024 ** 3):.2f} GB")
     logging.info(f"  Free: {swap.free / (1024 ** 3):.2f} GB")
     logging.info(f"  Percent Used: {swap.percent}%")
+
 
 faulthandler.enable()
 
