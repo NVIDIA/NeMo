@@ -148,7 +148,7 @@ class DuplexS2SModel(LightningModule):
         * Convert source audio to speech representations.
         * Convert target audio to target audio tokens.
         * Convert target text to embeddings.
-        * Combien the input audio and target text embeddings.
+        * Combine the input audio and target text embeddings.
         * Take care of any necessary slicing to align the shapes of source audio,
             target audio, and target token ids.
         """

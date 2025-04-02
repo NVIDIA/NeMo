@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 import warnings
 
 import torch
@@ -109,7 +110,10 @@ def build_token_channel(
     for supervision in cut.supervisions:
         d = supervision.duration
         if supervision.speaker in roles:
-            text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(supervision.text))
+            text = _strip_timestamps(supervision.text)
+            text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(text))
+
+            # Determine the frame offset for the start of the supervision to insert the text tokens.
             pos = compute_num_frames(offset, frame_length, cut.sampling_rate)
             if pos > len(tokens):
                 logging.warning(
@@ -117,6 +121,9 @@ def build_token_channel(
                 )
                 continue
 
+            # Determine the frame offset for the last non-EOS text token to form a valid range for insertion;
+            # Note that EOS will be placed possibly much later, at the frame that coincides with end of speech,
+            # rather than end of text. The gap between last non-EOS token and EOS token will be filled with `pad_id`.
             endpos = pos + len(text_ids)
             if endpos > len(tokens):
                 trunc_len = len(tokens) - pos
@@ -129,6 +136,7 @@ def build_token_channel(
             except Exception as e:
                 raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=} {diagnostic}") from e
 
+            # Insert EOS at the end of the supervision segment.
             eospos = compute_num_frames(offset + d, frame_length, cut.sampling_rate)
             if eospos < len(tokens):  # skip otherwise - unfinished turn
                 tokens[eospos] = tokenizer.eos
@@ -136,3 +144,17 @@ def build_token_channel(
         offset += d
 
     return tokens
+
+
+def _strip_timestamps(
+    text: str, _TIMESTAMP_PATTERN=re.compile(r"<\|\d+\|>"), _SPACE_PATTERN=re.compile(r"\s+")
+) -> str:
+    """
+    Strips timestamp tokens from text, e.g. turns:
+      '<|0|> Hey <|3|> <|3|> how <|5|> <|7|> are <|8|> <|8|> <|10|> you? <|12|>'
+      into:
+      'Hey how are you?'
+    """
+    # Regexp pattern args are cached compiled patterns (micro-optimization).
+    text = _TIMESTAMP_PATTERN.sub("", text)  # strip timestamp tokens if present
+    return _SPACE_PATTERN.sub(" ", text).strip()  # strip multi-whitespaces

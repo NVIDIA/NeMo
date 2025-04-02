@@ -106,7 +106,11 @@ data:
 
   train_ds:
     sample_rate: 22050
-    shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
+    input_cfg:
+      - type: lhotse_shar
+        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
+      - type: lhotse_shar
+        shar_path: /home/pzelasko/exp/duplex_s2s/timestamp_train
     seed: 42
     shard_seed: "randomized"
     num_workers: 2
