@@ -13,8 +13,6 @@ class PosOnlyArgsClass:
 
     def __eq__(self, other: Any) -> Any:
         if isinstance(other, PosOnlyArgsClass):
-            return (
-                self.a == other.a and self.b == other.b and self.kwargs == other.kwargs
-            )
+            return self.a == other.a and self.b == other.b and self.kwargs == other.kwargs
         else:
             return NotImplemented
