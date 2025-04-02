@@ -72,7 +72,8 @@ trtllm() {
 
   if [[ "$mode" == "build" ]]; then
     if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
-      python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
+      cd $TRTLLM_DIR &&
+        python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
     fi
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
