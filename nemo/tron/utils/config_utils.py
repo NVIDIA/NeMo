@@ -14,9 +14,8 @@
 
 import copy
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from dataclasses import fields as dataclass_fields
-from dataclasses import is_dataclass
 from typing import Any, Optional, Type, TypeVar
 
 import yaml
@@ -70,7 +69,7 @@ class ConfigContainer:
 
         if extra_keys:
             if mode == InstantiationMode.STRICT:
-                raise ValueError(f"Dictionary contains extra keys not in {cls.__name__}: {extra_keys}")
+                raise ValueError(f"Dictionary contains extra keys not in {cls.__qualname__}: {extra_keys}")
             else:
                 # In lenient mode, remove extra keys
                 for key in extra_keys:
@@ -115,7 +114,7 @@ class ConfigContainer:
             Dictionary representation of this config
         """
         result = {}
-        result["_target_"] = f"{self.__class__.__module__}.{self.__class__.__name__}"
+        result["_target_"] = f"{self.__class__.__module__}.{self.__class__.__qualname__}"
 
         for f in dataclass_fields(self):
             if f.name.startswith("_"):
@@ -151,7 +150,7 @@ class ConfigContainer:
             result = {}
 
             # Add _target_ field for instantiation
-            result["_target_"] = f"{value.__class__.__module__}.{value.__class__.__name__}"
+            result["_target_"] = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
 
             # Convert each field, handling nested dataclasses properly
             for field in dataclass_fields(value):
