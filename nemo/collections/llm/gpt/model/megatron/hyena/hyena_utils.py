@@ -720,8 +720,6 @@ class ParallelHyenaOperator(nn.Module):
 
         self.bidirectional = hyena_config.bidirectional
         self.use_hyena_filter = hyena_config.use_hyena_filter
-        self.use_fast_heads = hyena_config.use_fast_heads
-
         self.zigzag = zigzag
 
         self.model_parallel_size = get_tensor_model_parallel_world_size()
@@ -787,7 +785,7 @@ class ParallelHyenaOperator(nn.Module):
                     dtype=torch.float32,
                 )
             )
-                # Add attribute to prevent automatic casting during model conversion
+            # Add attribute to prevent automatic casting during model conversion
             setattr(self.conv_bias, 'tensor_model_parallel', True)
             bounds = math.sqrt(1 / self.kernel_size)
             conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
