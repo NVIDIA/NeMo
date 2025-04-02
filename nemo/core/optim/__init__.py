@@ -18,6 +18,8 @@ from nemo.core.optim.lr_scheduler import (
     CosineAnnealing,
     InverseSquareRootAnnealing,
     NoamAnnealing,
+    WarmupHoldAnnealOneMinusSquareRoot,
+    WarmupHoldAnnealLinear,
     PolynomialDecayAnnealing,
     PolynomialHoldDecayAnnealing,
     SquareAnnealing,
