@@ -707,28 +707,7 @@ class SaveRestoreConnector:
                 else:
                     SaveRestoreConnector._safe_extract(tar, out_folder, members)
         return out_folder
-
-    @staticmethod
-    def _save_state_dict_to_disk(state_dict, filepath):
-        torch.save(state_dict, filepath)
-
-    @staticmethod
-    def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu', weights_only=False)
-
-    @staticmethod
-    def _make_nemo_file_from_folder_with_multistorageclient(filename, source_dir):
-        filename_with_extension = filename.split("/")[-1]  # get the filename and extension
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tar_file = os.path.join(tmpdir, filename_with_extension)
-            with tarfile.open(tar_file, "w:") as tar:
-                tar.add(source_dir, arcname=".")
-                start_time = time.time()
-                multistorageclient.upload_file(filename, tar_file)
-                logging.debug(
-                    f"time spent for multistorageclient.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}"
-                )
-
+    
     @staticmethod
     def _unpack_nemo_file_with_multistorageclient(
         path2file: str, out_folder: str, members: Optional[list[str]] = None
