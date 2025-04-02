@@ -27,11 +27,11 @@ import hydra
 import torch
 
 try:
-    import multistorageclient as msc
-    from multistorageclient.types import MSC_PROTOCOL
-    MSC_AVAILABLE = True
-except ImportError:
-    MSC_AVAILABLE = False
+    import multistorageclient
+    from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
+    MULTISTORAGECLIENT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    MULTISTORAGECLIENT_AVAILABLE = False
 
 from nemo.core.classes.module import NeuralModule
 
@@ -409,15 +409,14 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
 
-        def maybe_make_save_dir(path: 'pathlib.Path'):
-            if not path.parent.exists():
-                path.parent.mkdir(parents=True)
+        def maybe_make_save_dir(path: str):
+            if MULTISTORAGECLIENT_AVAILABLE and path.startswith(MULTISTORAGECLIENT_PROTOCOL):    
+                return
+            else:
+                path = Path(path).expanduser().resolve()
+                if not path.parent.exists():
+                    path.parent.mkdir(parents=True)
 
-        is_msc_url = False
-        if MSC_AVAILABLE and save_path.startswith(MSC_PROTOCOL):
-            is_msc_url = True
-        else:
-            save_path = Path(save_path).expanduser().resolve()
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             if app_state.model_parallel_size > 1:
@@ -428,15 +427,13 @@ class ModelPT(LightningModule, Model):
                         'can also use a custom one.'
                     )
             if is_global_rank_zero():
-                if not is_msc_url:
-                    maybe_make_save_dir(save_path)
+                maybe_make_save_dir(save_path)
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             # connector checks for ranks properly, no need to check here
             self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
         elif is_global_rank_zero():
-            if not is_msc_url:
-                maybe_make_save_dir(save_path)
+            maybe_make_save_dir(save_path)
             self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
 
     @classmethod
@@ -480,19 +477,17 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        is_msc_url = MSC_AVAILABLE and restore_path.startswith(MSC_PROTOCOL)
-        if not is_msc_url:
+        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and restore_path.startswith(MULTISTORAGECLIENT_PROTOCOL)
+        if is_multistorageclient_url:
+            restore_path = ModelPT.derive_restore_path_with_multistorageclient_url(restore_path)
+        else:
             if save_restore_connector.model_extracted_dir is None:
                 restore_path = os.path.abspath(os.path.expanduser(restore_path))
             else:
                 restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
 
-        if is_msc_url:
-            file_exists = msc.os.path.exists(restore_path)
-        else:
-            file_exists = os.path.exists(restore_path)
-        if not file_exists:
-            raise FileNotFoundError(f"Can't find {restore_path}")
+            if not path.exists(restore_path):
+                raise FileNotFoundError(f"Can't find {restore_path}")
 
         app_state = AppState()
         app_state.model_restore_path = restore_path
@@ -511,6 +506,13 @@ class ModelPT(LightningModule, Model):
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
         return instance
+    
+    @staticmethod
+    def derive_restore_path_with_multistorageclient_url(multistorageclient_url: str) -> str:
+        file_exists = multistorageclient.os.path.exists(multistorageclient_url)
+        if not file_exists:
+            raise FileNotFoundError(f"Can't find {multistorageclient_url}")
+        return multistorageclient_url
 
     @classmethod
     def load_from_checkpoint(

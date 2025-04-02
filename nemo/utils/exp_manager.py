@@ -74,11 +74,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_FT = False
 
 try:
-    import multistorageclient as msc
-    from multistorageclient.types import MSC_PROTOCOL
-    MSC_AVAILABLE = True
-except ImportError:
-    MSC_AVAILABLE = False
+    import multistorageclient
+    from multistorageclient.types import MSC_PROTOCOL as MUTLISTORAGECLIENT_PROTOCOL
+    MUTLISTORAGECLIENT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    MUTLISTORAGECLIENT_AVAILABLE = False
 
 
 class NotFoundError(NeMoBaseException):
@@ -153,7 +153,7 @@ class CallbackParams:
     async_save: Optional[bool] = False  # save the checkpoint asynchronously
     # a number of last checkpoints to be saved with optimizer states
     save_last_n_optim_states: Optional[int] = -1
-    msc_enabled: Optional[bool] = False
+    multistorageclient_enabled: Optional[bool] = False
 
 
 @dataclass
@@ -914,7 +914,7 @@ def check_resume(
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank
         # to avoid throttling S3.
 
-        if is_global_rank_zero() or not (is_s3_url(dirpath) and is_msc_url(dirpath)):
+        if is_global_rank_zero() or not (is_s3_url(dirpath) and is_multistorageclient_url(dirpath)):
             checkpoint_dir_exists = False
             if is_s3_url(dirpath):
                 checkpoint_dir = dirpath
@@ -929,9 +929,9 @@ def check_resume(
                 else:
                     end_checkpoints = []
                     last_checkpoints = []
-            elif is_msc_url(dirpath):
+            elif is_multistorageclient_url(dirpath):
                 checkpoint_dir = dirpath
-                all_keys = msc.glob(f"{dirpath}**/*.ckpt")
+                all_keys = multistorageclient.glob(f"{dirpath}**/*.ckpt")
                 checkpoint_dir_exists = True if all_keys else False
                 if all_keys:
                     end_checkpoints = sorted([k for k in all_keys if k.endswith('end.ckpt')], reverse=True)
@@ -1506,5 +1506,5 @@ def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remo
             logging.info(f"Deleted file : {filepath}")
 
 
-def is_msc_url(dirpath):
-            return MSC_AVAILABLE and dirpath and dirpath.startswith(MSC_PROTOCOL)
+def is_multistorageclient_url(dirpath):
+    return MUTLISTORAGECLIENT_AVAILABLE and dirpath and dirpath.startswith(MUTLISTORAGECLIENT_PROTOCOL)

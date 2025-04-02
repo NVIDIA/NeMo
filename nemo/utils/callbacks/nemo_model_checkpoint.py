@@ -35,11 +35,11 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
-    import multistorageclient as msc
-    from multistorageclient.types import MSC_PROTOCOL
-    MSC_AVAILABLE = True
-except ImportError:
-    MSC_AVAILABLE = False
+    import multistorageclient
+    from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
+    MULTISTORAGECLIENT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    MULTISTORAGECLIENT_AVAILABLE = False
 
 class NeMoModelCheckpoint(ModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
@@ -91,9 +91,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         else:
             self.prefix = ""
 
-        # flag for enabling msc checkpointing
-        if 'msc_enabled' in kwargs:
-            self.msc_enabled = MSC_AVAILABLE and kwargs.pop('msc_enabled')
+        # flag for enabling multistorageclient checkpointing
+        if 'multistorageclient_enabled' in kwargs:
+            self.multistorageclient_enabled = MULTISTORAGECLIENT_AVAILABLE and kwargs.pop('multistorageclient_enabled')
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
@@ -324,8 +324,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return None
         if trainer.is_global_zero:
             logging.info(f'{base_path} already exists, moving existing checkpoint to {available_path}')
-            if self.msc_enabled:
-                # TODO: msc doesn't have "rename" function, therefore no-op but we should refactor this once msc have rename function supported.
+            if self.multistorageclient_enabled:
+                # TODO: multistorageclient doesn't have "rename" function, therefore no-op but we should refactor this once multistorageclient have rename function supported.
                 pass
             else:
                 shutil.move(base_path, available_path)
@@ -334,7 +334,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _format_nemo_checkpoint_name(self, ver: Optional[int] = None) -> str:
         version_infix = '' if ver is None else f'{self.CHECKPOINT_JOIN_CHAR}v{ver}'
-        if self.msc_enabled:
+        if self.multistorageclient_enabled:
             return f"{self.dirpath}/{self.prefix + version_infix + self.postfix}"
         return os.path.abspath(
             os.path.expanduser(os.path.join(self.dirpath, self.prefix + version_infix + self.postfix))
@@ -525,9 +525,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self, filepath: str, trainer: "lightning.pytorch.Trainer", check_dist_ckpt: bool = True  # noqa: F821
     ) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
-        exists = self._fs.exists(filepath) or (
-            check_dist_ckpt and not self.msc_enabled and self._fs.exists(ckpt_to_dir(filepath))
-        )
+        if self.multistorageclient_enabled:
+            exists = self._fs.exists(filepath)
+        else:
+            exists = self._fs.exists(filepath) or (
+                check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath))
+            )
 
         return trainer.strategy.broadcast(exists)
 
@@ -645,17 +648,20 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # distributed checkpoints are directories so we check for them here
         # we filter out unfinished checkpoints, these should be deleted during next cleanup
 
-        # TODO: support msc distributed checkpointing
-        dist_checkpoints = [d for d in Path(self.dirpath).glob("*") if d.is_dir()] if not self.msc_enabled else []
+        if self.multistorageclient_enabled:
+            # TODO: support multistorageclient distributed checkpointing
+            return NeMoModelCheckpoint._derive_saved_checkpoint_paths_with_multistorageclient(self.dirpath)
+        else:
+            dist_checkpoints = [d for d in Path(self.dirpath).glob("*") if d.is_dir()]
         if dist_checkpoints:
             return filter(lambda p: not self.is_checkpoint_unfinished(p), dist_checkpoints)
         else:
-            if self.msc_enabled:
-                checkpoint_files = msc.glob(f"{self.dirpath}/*.ckpt")
-                return checkpoint_files
-            else:
-                checkpoint_files = [f for f in Path(self.dirpath).rglob("*.ckpt")]
-                return filter(lambda p: not self.is_checkpoint_unfinished(p), checkpoint_files)
+            checkpoint_files = [f for f in Path(self.dirpath).rglob("*.ckpt")]
+            return filter(lambda p: not self.is_checkpoint_unfinished(p), checkpoint_files)
+
+    @staticmethod
+    def _derive_saved_checkpoint_paths_with_multistorageclient(dirpath: str) -> Iterable[Path]:
+        return multistorageclient.glob(f"{dirpath}/*.ckpt")
 
     @staticmethod
     def _remove_unfinished_checkpoints(checkpoint_dir: Union[Path, str]) -> None:
@@ -666,11 +672,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if not is_global_rank_zero():
             raise AssertionError("_remove_unfinished_checkpoints should run only on rank 0")
 
-        msc_enabled = MSC_AVAILABLE and str(checkpoint_dir).startswith(MSC_PROTOCOL)
+        multistorageclient_enabled = MULTISTORAGECLIENT_AVAILABLE and str(checkpoint_dir).startswith(MULTISTORAGECLIENT_PROTOCOL)
 
-        # TODO: add msc support for distributed checkpointing
-        if msc_enabled:
-            existing_marker_filepaths = msc.glob(
+        # TODO: add multistorageclient support for distributed checkpointing
+        if multistorageclient_enabled:
+            existing_marker_filepaths = multistorageclient.glob(
                 f"{checkpoint_dir}*{NeMoModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}"
             )
             fs = get_filesystem(checkpoint_dir)
@@ -735,8 +741,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self, metrics: Dict[str, Tensor], filename: Optional[str] = None, ver: Optional[int] = None
     ) -> str:
         """
-        Override the format_checkpoint_name behavior from lightning's ModelCheckpoint to support msc.
-        Specifically, if msc_enabled = true, use string formatting to construct the full path;
+        Override the format_checkpoint_name behavior from lightning's ModelCheckpoint to support multistorageclient.
+        Specifically, if multistorageclient_enabled = true, use string formatting to construct the full path;
         Otherwise, reuse the original logic of os.path.join to construct the full path
         """
 
@@ -749,7 +755,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             filename = self.CHECKPOINT_JOIN_CHAR.join((filename, f"v{ver}"))
 
         ckpt_name = f"{filename}{self.FILE_EXTENSION}"
-        if self.msc_enabled:
+        if self.multistorageclient_enabled:
             return f"{self.dirpath}/{ckpt_name}" if self.dirpath else ckpt_name
         else:
             return os.path.join(self.dirpath, ckpt_name) if self.dirpath else ckpt_name
