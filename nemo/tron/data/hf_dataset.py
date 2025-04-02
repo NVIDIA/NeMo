@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import json
 import logging
 import os
@@ -120,12 +121,15 @@ def preprocess_and_split_data(
     for split_name, dataset in save_splits.items():
         output_file = dataset_root / f"{split_name}.jsonl"
 
-        if output_file.exists() and output_file.is_file() and not rewrite:
-            logger.info(f"{output_file} exists, skipping...")
-            continue
-
-        logger.info(f"{output_file} exists, deleting and rewriting...")
-        os.remove(output_file)
+        if output_file.exists() and output_file.is_file():
+            if not rewrite:
+                logger.info(f"{output_file} exists, skipping...")
+                continue
+            else:
+                logger.info(f"{output_file} exists, deleting and rewriting...")
+                os.remove(output_file)
+                for p in glob.glob(str(output_file) + "*"):
+                    os.remove(p)
 
         with output_file.open("w", encoding="utf-8") as f:
             for example in tqdm(dataset, desc=f"Processing {split_name} split"):
@@ -225,10 +229,9 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         if self.download_mode != "force_redownload" and self.hf_filter_lambda:
             raise ValueError("`hf_filter_lambda` is not supported when `download_mode` is not `force_redownload`")
 
-        if not self.train_path.exists() or self.download_mode == "force_redownload":
-            dataset = self._load_dataset()
-            if self.hf_filter_lambda:
-                dataset = dataset.filter(self.hf_filter_lambda, **self.hf_filter_lambda_kwargs)
+        dataset = self._load_dataset()
+        if self.hf_filter_lambda:
+            dataset = dataset.filter(self.hf_filter_lambda, **self.hf_filter_lambda_kwargs)
 
         preprocess_and_split_data(
             dataset,
@@ -240,7 +243,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
             val_proportion=self.val_proportion,
             delete_raw=self.delete_raw,
             seed=self.seed,
-            rewrite=self.download_mode == "force_redownload",
+            rewrite=True,
         )
         super().prepare_data()
 
@@ -250,6 +253,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
             logger.info(f"Loading HF dataset from {self.dataset_name} to {self.dataset_root}")
             dataset = load_dataset(
                 self.dataset_name,
+                name=self.dataset_subset,
                 cache_dir=str(self.dataset_root),
                 split=self.split,
                 **self.hf_kwargs,
