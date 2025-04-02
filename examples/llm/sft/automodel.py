@@ -58,7 +58,7 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
         micro_batch_size=batch_size,
         pad_token_id=tokenizer.eos_id or 0,
         global_batch_size=batch_size,
-        pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+        pad_seq_len_divisible=16 if fp8 else 2,  # FP8 training requires seq length to be divisible by 16.
     )
     datamodule.map(
         formatting_prompts_func,
@@ -70,7 +70,7 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
 
 
 def make_strategy(
-    strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False, dp_size=None, tp_size=None
+    strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False, dp_size=None, tp_size=None, sequence_parallel=False
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -84,6 +84,7 @@ def make_strategy(
     elif strategy == 'fsdp2':
         if tp_size is None:
             tp_size = 1
+            assert sequence_parallel is False, "SP requires Tensor Parallelism to be set up. Please set tp_size > 1."
             if dp_size is None:
                 dp_size = devices * num_nodes
             else:
@@ -100,6 +101,7 @@ def make_strategy(
                 assert (
                     dp_size * tp_size == devices * num_nodes
                 ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
+        print(f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}")
 
         offload_policy = None
         if enable_cpu_offload:
@@ -111,6 +113,7 @@ def make_strategy(
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
+            sequence_parallel=sequence_parallel,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
         )
@@ -154,13 +157,14 @@ def main():
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
     parser.add_argument('--dp-size', type=int, default=None, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=None, help='Tensor Parallel size; to be used with fsdp2')
+    parser.add_argument('--sequence-parallel', action='store_true', help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
         '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
-    parser.add_argument('--wandb-project', type=str, default="automodel-fsdp2", help='Wandb project to use')
+    parser.add_argument('--wandb-project', type=str, default='automodel-fsdp2', help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
@@ -188,7 +192,7 @@ def main():
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+            name=f"{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_tp{args.tp_size}_sp{args.sequence_parallel}",
         )
 
     callbacks = []
@@ -227,6 +231,7 @@ def main():
         args.enable_cpu_offload,
         dp_size=args.dp_size,
         tp_size=args.tp_size,
+        sequence_parallel=args.sequence_parallel,
     )
 
     resume = (

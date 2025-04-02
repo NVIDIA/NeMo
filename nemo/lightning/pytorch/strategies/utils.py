@@ -17,6 +17,7 @@ import signal
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
+from functools import partial
 
 import lightning.pytorch as pl
 import torch
@@ -29,13 +30,14 @@ from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
-from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.tensor import DeviceMesh, distribute_module
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
     PrepareModuleInput,
     RowwiseParallel,
     SequenceParallel,
     parallelize_module,
+    ParallelStyle,
 )
 
 from nemo.lightning import _strategy_lib
@@ -458,7 +460,7 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
-    sequence_parallel: bool = True,
+    sequence_parallel: bool = False,
     offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
@@ -500,66 +502,66 @@ def fsdp2_strategy_parallelize(
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-    # dp_mesh = device_mesh["data_parallel"]
+    dp_mesh = device_mesh["data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
 
-    if tp_mesh.size() > 1:
-        # 1. Parallelize the first embedding and the last linear proj layer
-        # 2. Parallelize the root norm layer over the sequence dim
-        # 3. Shard the first transformer block's inputs
+    ### TP sharding
 
-        # Parallelize the first embedding and the last linear out projection
-        # plan = {
-        #     "lm_head": ColwiseParallel(output_layouts=Replicate()) # input_layouts=Shard(1),
-        # }
-        # parallelize_module(model, tp_mesh, plan)
+    # Parallelize the first embedding and the last linear out projection
+    model_tp_plan = {
+        "lm_head": ColwiseParallel(output_layouts=Replicate()),
+        "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+    }
 
-        # plan = {
-        #     "embed_tokens": RowwiseParallel(
-        #         input_layouts=Replicate(),
-        #     ),
-        #     # "rotary_emb": RotaryEmbedParallel(),
-        #     "norm": SequenceParallel()
-        # }
-        # parallelize_module(model.model, tp_mesh, plan)
+    model_sp_plan = {
+        "model.rotary_emb": RotaryEmbedParallel(use_local_output=False),
+        "model.norm": SequenceParallel(),
+    }
 
-        # Parallelize each transformer block
-        for transformer_block in model.model.layers:
-            plan = {
-                # "self_attn": PrepareModuleInput(
-                #     input_layouts=Shard(1),
-                #     desired_input_layouts=Replicate(),
-                # ),
-                # "mlp": PrepareModuleInput(
-                #     input_layouts=Shard(1),
-                #     desired_input_layouts=Replicate(),
-                # ),
-                "self_attn.q_proj": ColwiseParallel(),
-                "self_attn.k_proj": ColwiseParallel(),
-                "self_attn.v_proj": ColwiseParallel(),
-                "self_attn.o_proj": RowwiseParallel(),  # output_layouts=Shard(1)),
-                "mlp.gate_proj": ColwiseParallel(),
-                "mlp.up_proj": ColwiseParallel(),
-                "mlp.down_proj": RowwiseParallel(),  # output_layouts=Shard(1)),
-                # "input_layernorm": SequenceParallel(),
-                # "post_attention_layernorm": SequenceParallel(),
-            }
+    layer_tp_plan = {
+        "self_attn.q_proj": ColwiseParallel(),
+        "self_attn.k_proj": ColwiseParallel(),
+        "self_attn.v_proj": ColwiseParallel(),
+        "self_attn.o_proj": RowwiseParallel(),
+        "mlp.up_proj": ColwiseParallel(),
+        "mlp.gate_proj": ColwiseParallel(),
+        "mlp.down_proj": RowwiseParallel(),
+    }
 
-            # Apply the plan for the current transformer block
-            parallelize_module(transformer_block, tp_mesh, plan)
+    layer_sp_plan = {
+        "input_layernorm": SequenceParallel(),
+        "self_attn.q_proj": ColwiseParallel(),
+        "self_attn.k_proj": ColwiseParallel(),
+        "self_attn.v_proj": ColwiseParallel(),
+        "self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+        "post_attention_layernorm": SequenceParallel(),
+        "mlp.up_proj": ColwiseParallel(),
+        "mlp.gate_proj": ColwiseParallel(),
+        "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+    }
 
-    # if dp_mesh.size() > 1:
-    #     assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
-    #     assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
+    if sequence_parallel:
+        model_tp_plan.update(model_sp_plan)
+        layer_tp_plan.update(layer_sp_plan)
 
-    #     # Find transformer layers and apply parallelisms
-    #     parallelize_helper(model, dp_mesh, mp_policy)
+    parallelize_module(model, tp_mesh, model_tp_plan)
 
-    #     # reshard_after_forward=True based on
-    #     # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
-    #     model = fully_shard(
-    #         model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
-    #     )
+    for layer in model.model.layers:
+        parallelize_module(layer, tp_mesh, layer_tp_plan)
+
+    ### FSDP sharding
+
+    assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
+    assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
+
+    # Find transformer layers and apply parallelisms
+    parallelize_helper(model, dp_mesh, mp_policy)
+
+    # reshard_after_forward=True based on
+    # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
+    model = fully_shard(
+        model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
+    )
 
     return model
 
@@ -612,3 +614,62 @@ def _destroy_dist_connection() -> None:
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+# cp modeling_llama.py /usr/local/lib/python3.12/dist-packages/transformers/models/llama/
+class RotaryEmbedParallel(ParallelStyle):
+
+    def __init__(self, *, sequence_dim: int = 1, use_local_output: bool = False):
+        super().__init__()
+        self.sequence_sharding = (Shard(sequence_dim),)
+        self.use_local_output = use_local_output
+
+    def _replicate_module_fn(
+        self, name: str, module: nn.Module, device_mesh: DeviceMesh
+    ):
+        for p_name, param in module.named_parameters():
+            # simple replication with fixed ones_ init from LayerNorm/RMSNorm, which allow
+            # us to simply just use from_local
+            replicated_param = torch.nn.Parameter(
+                DTensor.from_local(param, device_mesh, [Replicate()], run_check=False)
+            )
+            module.register_parameter(p_name, replicated_param)
+
+    @staticmethod
+    def _prepare_input_fn(sequence_sharding, mod, inputs, device_mesh):
+        """NOTE: this function will hang if the sequence length is not properly divisible by TP size
+        """
+        new_inputs = list(inputs)
+
+        if not isinstance(inputs[0], DTensor):
+            new_inputs[0] = DTensor.from_local(local_tensor=inputs[0], device_mesh=device_mesh, placements=sequence_sharding, run_check=False)
+
+        if not isinstance(inputs[1], DTensor):
+            new_inputs[1] = DTensor.from_local(local_tensor=inputs[1], device_mesh=device_mesh, placements=sequence_sharding, run_check=False)
+        
+        new_inputs = tuple(new_inputs)
+        return new_inputs
+
+    @staticmethod
+    def _prepare_output_fn(use_local_output, mod, outputs, device_mesh):
+        if isinstance(outputs, tuple) and use_local_output:
+            outputs = tuple(output.to_local() for output in outputs)
+            return outputs
+        else:
+            return outputs.to_local() if use_local_output else outputs
+
+    def _apply(self, module: nn.Module, device_mesh: DeviceMesh) -> nn.Module:
+        return distribute_module(
+            module,
+            device_mesh,
+            self._replicate_module_fn,
+            partial(self._prepare_input_fn, self.sequence_sharding),
+            partial(self._prepare_output_fn, self.use_local_output),
+        )
+
+    def __repr__(self) -> str:
+        tmpstr = self.__class__.__name__ + "("
+        if len(self.sequence_sharding) == 1:
+            tmpstr += f"sequence_dim={self.sequence_sharding[0].dim}, "
+        tmpstr += f"use_local_output={self.use_local_output}"
+        tmpstr += ")"
+        return tmpstr

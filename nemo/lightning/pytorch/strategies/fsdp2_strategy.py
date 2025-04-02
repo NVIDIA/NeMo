@@ -182,9 +182,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             [self._data_parallel_size, self._tensor_parallel_size],
             ["data_parallel", "tensor_parallel"],
         ):
-            if dim > 1:
-                mesh_shape.append(dim)
-                mesh_dim_names.append(name)
+            mesh_shape.append(dim)
+            mesh_dim_names.append(name)
 
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
@@ -222,6 +221,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 self.lightning_module.model,
                 device_mesh=self._device_mesh,
                 mp_policy=self.mp_policy,
+                sequence_parallel=self.sequence_parallel,
                 offload_policy=self.offload_policy,
             )
             # Apply this only once
