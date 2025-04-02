@@ -611,6 +611,7 @@ def _destroy_dist_connection() -> None:
 
 class RotaryEmbedParallel(ParallelStyle):
     """RotaryEmbedParallel used for HF models with rotary embeddings."""
+
     def __init__(self, *, sequence_dim: int = 1, use_local_output: bool = False):
         super().__init__()
         self.sequence_sharding = (Shard(sequence_dim),)
