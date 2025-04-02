@@ -277,9 +277,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             from nemo.lightning.pytorch.strategies.utils import create_context_parallel_ctx, get_train_context
 
             input_ids = batch["input_ids"].to(self.model.device)
-            batch["position_ids"] = (
-                torch.arange(0, input_ids.shape[1]).unsqueeze(0).to(self.model.device)
-            )
+            batch["position_ids"] = torch.arange(0, input_ids.shape[1]).unsqueeze(0).to(self.model.device)
             position_ids = batch["position_ids"].to(self.model.device)
 
             context_parallel_ctx = create_context_parallel_ctx(
