@@ -16,7 +16,7 @@ import contextlib
 from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 import lightning.pytorch as L
 import torch
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def gpt_data_step(dataloader_iter) -> dict[str, torch.Tensor]:
     """Process a single batch of data from the dataloader iterator.
 
     This function handles the data loading step for GPT models, managing
@@ -64,7 +64,7 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         dataloader_iter: Iterator over the dataloader
 
     Returns:
-        Dict[str, torch.Tensor]: Processed batch with required tensors moved to appropriate devices
+        dict[str, torch.Tensor]: Processed batch with required tensors moved to appropriate devices
     """
     from megatron.core import parallel_state
 
@@ -229,7 +229,7 @@ def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
         return torch.float
 
 
-def torch_dtype_from_dict_config(config: Dict[str, Any]) -> torch.dtype:
+def torch_dtype_from_dict_config(config: dict[str, Any]) -> torch.dtype:
     """Extract the appropriate torch dtype from a dictionary configuration.
 
     Args:
@@ -514,7 +514,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
-        model_context_managers: Optional[List] = [],
+        model_context_managers: Optional[list] = [],
     ):
         """Initialize the GPT model.
 
@@ -586,14 +586,14 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return output_tensor
 
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+    def data_step(self, dataloader_iter) -> dict[str, torch.Tensor]:
         """Process a batch of data from the dataloader.
 
         Args:
             dataloader_iter: Iterator over the dataloader
 
         Returns:
-            Dict[str, torch.Tensor]: Processed batch
+            dict[str, torch.Tensor]: Processed batch
         """
         return self.config.data_step_fn(dataloader_iter)
 
@@ -702,7 +702,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self._validation_loss_reduction
 
 
-def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
+def get_batch_on_this_context_parallel_rank(batch) -> dict[str, torch.Tensor]:
     """Process batch data for the current context parallel rank.
 
     Handles the slicing of batch data across context parallel dimensions.
@@ -711,7 +711,7 @@ def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
         batch: Input batch
 
     Returns:
-        Dict[str, torch.Tensor]: Processed batch for the current context parallel rank
+        dict[str, torch.Tensor]: Processed batch for the current context parallel rank
     """
     from megatron.core import parallel_state
 
