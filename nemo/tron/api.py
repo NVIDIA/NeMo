@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable
+from typing import Callable, Optional
 
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer
-from nemo.tron.data.dataset import train_valid_test_datasets_provider
+from nemo.tron.data.utils import get_dataset_provider
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.setup import setup
 from nemo.tron.train import _finish_train, train
@@ -26,9 +26,14 @@ from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
 def megatron_pretrain(
     config: ConfigContainer,
     forward_step_func: Callable,
-    dataset_provider: Callable = train_valid_test_datasets_provider,
+    dataset_provider: Optional[Callable] = None,
 ):
+    config.validate()
+
     ## SETUP ##
+    if dataset_provider is None:
+        dataset_provider = get_dataset_provider(config.dataset_config)
+
     setup_output = setup(config, dataset_provider)
     state = setup_output.state
     model = setup_output.model
@@ -63,7 +68,6 @@ def megatron_pretrain(
                 optimizer,
                 scheduler,
                 state.train_state.floating_point_operations_so_far,
-                config,
                 ckpt_context,
                 train_data_iterator=train_data_iterator,
             )
