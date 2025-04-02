@@ -587,7 +587,9 @@ def deploy(
 
     Args:
         nemo_checkpoint (Path): Path for nemo checkpoint.
-        backend (str):
+        backend (str): options: "in-framework" or "trtllm". Deploys nemo2 checkpoint directly on Pytriton server wo any
+        conversion if "in-framework". If "trtllm", exports nemo2 model to trtllm and deploys on PyTriton.
+        Default: "in-framework".
         model_type (str): Type of the model. Choices: gpt, llama, falcon, starcoder. Default: llama.
         triton_model_name (str): Name for the model that gets deployed on PyTriton. Please ensure that the same model
         name is passed to the evalute method for the model to be accessible while sending evalution requests.
@@ -598,9 +600,13 @@ def deploy(
         triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
         triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engine gets saved in this specified
         path. If None, saves it in /tmp dir. Default: None.
-        start_fastapi_server: only supported for in-framework deployment and not with 'trtllm' backend.
-        fastapi_http_address:
-        fastapi_port:
+        start_fastapi_server (bool): Starts FastAPI server which acts as a proxy in between to expose the
+        v1/completions and v1/chat/completions OpenAI (OAI) compatible endpoints as PyTriton does not expose a
+        standard HTTP/REST API. Only supported for "in-framework" deployment and not with "trtllm" backend.
+        Default: True.
+        fastapi_http_address (str): HTTP address for FastAPI interface/server.  Default: "0.0.0.0". OAI endpoints via
+        FastAPI interface are only supported for "in-framework" backend.
+        fastapi_port (int): Port for FastAPI interface/server. Applicable only for "in-framework" backend. Default: 8080.
         num_gpus (int): Number of GPUs per node for export to trtllm and deploy. Default: 1.
         tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
         pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.
@@ -608,32 +614,29 @@ def deploy(
         max_input_len (int): Max input length of the model. Default: 256.
         max_output_len (int): Max output length of the model. Default: 256.
         max_batch_size (int): Max batch size of the model. Default: 8.
-        Needs to be True to be able to run evaluation. Default: True.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
         output_context_logits (bool): If True builds trtllm engine with 'gather_context_logits=True'. Default: True.
-            context_logits are used to compute the logProb of the output token in multi-token prediction benchmarks.
+        context_logits are used to compute the logProb of the output token in multi-token prediction benchmarks.
+        Used only with "trtllm" backend.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
-        benchmarks (like MMLU, lambada). Default: True.
+        benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
     """
     import os
-
     import uvicorn
 
     from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
-    #unset_environment_variables() ## TODO Commenting for in-fw
-    if backend == 'in-framework':
+    if backend == "in-framework":
         assert (
             start_fastapi_server is True
         ), 'in-framework deployment exposes OAI API endpoints v1/completions and \
         v1/chat/completions hence needs fastAPI interface to expose these endpoints to PYtriton. Please set \
         start_fastapi_server to True'
         if triton_http_port == fastapi_port:
-            logging.error("FastAPI port and Triton server port cannot use the same port.")
-            return
+            raise ValueError("FastAPI port and Triton server port cannot use the same port. Please change them")
         # Store triton ip, port relevant for FastAPI as env vars to be accessible by fastapi_interface_to_pytriton.py
         os.environ["TRITON_HTTP_ADDRESS"] = triton_http_address
         os.environ["TRITON_PORT"] = str(triton_http_port)
@@ -648,16 +651,16 @@ def deploy(
 
         triton_deployable = MegatronLLMDeployableNemo2(
             nemo_checkpoint_filepath=nemo_checkpoint,
-            num_devices=num_gpus,  # TODO is this per node or not ? In case of TRTLLM its per node. TRTLLM uses TP and PP size to compute num_gpus. If TP, PP=1 it just uses
-            # 1 GPU, since DP is not supported.
-            num_nodes=num_nodes, # TODO this is also just for in-fw I believe, double check and add that info in docstrings
+            num_devices=num_gpus,
+            num_nodes=num_nodes,
             tensor_model_parallel_size=tensor_parallelism_size,
             pipeline_model_parallel_size=pipeline_parallelism_size,
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
         )
 
-    elif backend == 'trtllm':
+    elif backend == "trtllm":
+        unset_environment_variables() ## Required for export to trtllm on clusters.
         triton_deployable = get_trtllm_deployable(
             nemo_checkpoint,
             model_type,
@@ -673,7 +676,7 @@ def deploy(
             output_generation_logits,
         )
     if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0:  ##has been added for in-fw
+        if torch.distributed.get_rank() == 0:
             try:
                 nm = DeployPyTriton(
                     model=triton_deployable,
@@ -712,7 +715,7 @@ def deploy(
 
             logging.info("Model serving will be stopped.")
             nm.stop()
-        elif torch.distributed.get_rank() > 0: ## TODO added for in-fw
+        elif torch.distributed.get_rank() > 0 and backend == "in-framework":
             triton_deployable.generate_other_ranks()
 
 
@@ -950,7 +953,6 @@ def generate(
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
     inference_batch_times_seqlen_threshold: int = 1000,
-    inference_max_seq_length: int = 4096,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
     output_path: Optional[AnyPath] = None,
@@ -1015,8 +1017,6 @@ def generate(
         random_seed (Optional[int], optional): The random seed. Defaults to None.
         inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than
             this threshold then we will not use pipelining, otherwise we will. Defaults to 1000.
-        inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
-        Deafults to 4096.
         inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
             Mcore's CommonInferenceParams. Defaults to None.
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.

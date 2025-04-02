@@ -196,13 +196,10 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         # TODO: This function doesn't account for parallelism settings currently
 
         inference_params = inference_params or CommonInferenceParams()
-        # prompts_enc = [self.mcore_tokenizer.tokenize(prompt=prompt) for prompt in prompts]
-        # new_prompts = [prompt.replace(self.mcore_tokenizer.detokenize([prompt_enc[-1]]), "") for prompt,prompt_enc in zip(prompts, prompts_enc)]
-        # print("---new_prompts---", new_prompts)
         results = inference.generate(
             model=self.inference_wrapped_model,
             tokenizer=self.mcore_tokenizer,
-            prompts=prompts, #new_prompst
+            prompts=prompts,
             max_batch_size=max_batch_size,
             random_seed=random_seed,
             inference_params=inference_params,
@@ -236,10 +233,11 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 return
 
     def apply_chat_template(self, messages, add_generation_prompt=False):
-        # Load the template
-        # Works when model's tokenizer has chat template (typically chat models)
+        """
+        Load the chat template.
+        Works when model's tokenizer has chat template (typically chat models).
+        """
         try:
-            # tested only with llama3-8b-Instruct
             tokenizer_chat_template = self.mcore_tokenizer.tokenizer.tokenizer.chat_template
             bos_token = self.mcore_tokenizer.tokenizer.tokenizer.bos_token
             template = Template(tokenizer_chat_template)
@@ -295,7 +293,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         output_infer = {}
-        #try: The try execpt block here can obscure the actual error hence commenting
         prompts = str_ndarray2list(inputs.pop("prompts"))
         max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
         random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
@@ -353,8 +350,5 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 else:
                     output_log_probs.append(lp)
             output_infer["log_probs"] = np.array(output_log_probs)
-        # except Exception as error: The try execpt block here can obscure the actual error hence commenting
-        #     err_msg = "An error occurred: {0}".format(str(error))
-        #     output_infer["sentences"] = cast_output([err_msg], np.bytes_)
 
         return output_infer
