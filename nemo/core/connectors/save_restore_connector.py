@@ -40,6 +40,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     MULTISTORAGECLIENT_AVAILABLE = False
 
+
 class SaveRestoreConnector:
     def __init__(self) -> None:
         self._model_config_yaml = "model_config.yaml"

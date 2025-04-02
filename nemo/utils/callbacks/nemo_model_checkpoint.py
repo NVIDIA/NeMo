@@ -41,6 +41,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     MULTISTORAGECLIENT_AVAILABLE = False
 
+
 class NeMoModelCheckpoint(ModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
     Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based
