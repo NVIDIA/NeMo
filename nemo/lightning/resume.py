@@ -104,6 +104,9 @@ class AutoResume:
             raise NotImplementedError("Fabric is not supported yet.")
 
         trainer_ckpt_path = self.get_trainer_ckpt_path(model)
+        # Need a way to actually restore the context.
+        model = _try_restore_tokenizer(model, os.path.join(trainer_ckpt_path.parent, "context"))
+        
         if trainer_ckpt_path:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
@@ -270,7 +273,8 @@ class AutoResume:
         return checkpoint
 
     def get_context_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
-        checkpoint = None
+        
+        checkpoint = None # ??? this is totally wrong.
         app_state = AppState()
         app_state.restore = self.resume_if_exists
         if self.resume_if_exists:
