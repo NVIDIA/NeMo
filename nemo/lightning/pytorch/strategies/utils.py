@@ -609,9 +609,8 @@ def _destroy_dist_connection() -> None:
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 
-# cp modeling_llama.py /usr/local/lib/python3.12/dist-packages/transformers/models/llama/
 class RotaryEmbedParallel(ParallelStyle):
-
+    """RotaryEmbedParallel used for HF models with rotary embeddings."""
     def __init__(self, *, sequence_dim: int = 1, use_local_output: bool = False):
         super().__init__()
         self.sequence_sharding = (Shard(sequence_dim),)
