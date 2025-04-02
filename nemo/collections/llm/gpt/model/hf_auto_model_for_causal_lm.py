@@ -292,10 +292,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         is_ddp = isinstance(self.trainer.strategy, pl.strategies.DDPStrategy)
         device_mesh = getattr(self, '_device_mesh', None)
         if device_mesh is not None or is_ddp:
-            if is_ddp:
-                group = dist.group.WORLD  # Default DDP process group
-            else:
-                group = device_mesh.get_group()
+            # Default DDP process group
+            # Important: If TP is enabled any reduced item needs to be devided by TP
+            group = dist.group.WORLD
 
             def reduce_item(val, op, device, group, dtype):
                 """util function"""
