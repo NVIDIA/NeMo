@@ -29,6 +29,7 @@ import torch
 try:
     import multistorageclient
     from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
+
     MULTISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     MULTISTORAGECLIENT_AVAILABLE = False
@@ -410,7 +411,7 @@ class ModelPT(LightningModule, Model):
         """
 
         def maybe_make_save_dir(path: str):
-            if MULTISTORAGECLIENT_AVAILABLE and path.startswith(MULTISTORAGECLIENT_PROTOCOL):    
+            if MULTISTORAGECLIENT_AVAILABLE and path.startswith(MULTISTORAGECLIENT_PROTOCOL):
                 return
             else:
                 path = Path(path).expanduser().resolve()
@@ -477,7 +478,9 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and restore_path.startswith(MULTISTORAGECLIENT_PROTOCOL)
+        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and restore_path.startswith(
+            MULTISTORAGECLIENT_PROTOCOL
+        )
         if is_multistorageclient_url:
             restore_path = ModelPT.derive_restore_path_with_multistorageclient_url(restore_path)
         else:
@@ -506,7 +509,7 @@ class ModelPT(LightningModule, Model):
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
         return instance
-    
+
     @staticmethod
     def derive_restore_path_with_multistorageclient_url(multistorageclient_url: str) -> str:
         file_exists = multistorageclient.os.path.exists(multistorageclient_url)

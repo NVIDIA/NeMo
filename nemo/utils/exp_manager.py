@@ -76,6 +76,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     import multistorageclient
     from multistorageclient.types import MSC_PROTOCOL as MUTLISTORAGECLIENT_PROTOCOL
+
     MUTLISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     MUTLISTORAGECLIENT_AVAILABLE = False

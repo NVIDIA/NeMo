@@ -36,6 +36,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 try:
     import multistorageclient
     from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
+
     MULTISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     MULTISTORAGECLIENT_AVAILABLE = False
@@ -701,7 +702,7 @@ class SaveRestoreConnector:
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
         return torch.load(model_weights, map_location='cpu', weights_only=False)
-    
+
     @staticmethod
     def _make_nemo_file_from_folder_with_multistorageclient(filename, source_dir):
         filename_with_extension = filename.split("/")[-1]  # get the filename and extension
@@ -711,19 +712,25 @@ class SaveRestoreConnector:
                 tar.add(source_dir, arcname=".")
                 start_time = time.time()
                 multistorageclient.upload_file(filename, tar_file)
-                logging.debug(f"time spent for multistorageclient.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}")
-    
+                logging.debug(
+                    f"time spent for multistorageclient.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}"
+                )
+
     @staticmethod
-    def _unpack_nemo_file_with_multistorageclient(path2file: str, out_folder: str, members: Optional[list[str]] = None) -> str:
+    def _unpack_nemo_file_with_multistorageclient(
+        path2file: str, out_folder: str, members: Optional[list[str]] = None
+    ) -> str:
         if not multistorageclient.os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             filename_with_extension = path2file.split("/")[-1]  # get the filename with extension
             downloaded_file_path = os.path.join(tmpdir, filename_with_extension)
             start_time = time.time()
             multistorageclient.download_file(path2file, downloaded_file_path)
-            logging.info(f"time spent for multistorageclient.download_file from {downloaded_file_path}: {time.time() - start_time:.4f}")
+            logging.info(
+                f"time spent for multistorageclient.download_file from {downloaded_file_path}: {time.time() - start_time:.4f}"
+            )
 
             # we start with an assumption of uncompressed tar,
             # which should be true for versions 1.7.0 and above

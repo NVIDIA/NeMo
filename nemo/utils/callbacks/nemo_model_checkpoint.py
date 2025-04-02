@@ -37,6 +37,7 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 try:
     import multistorageclient
     from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
+
     MULTISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     MULTISTORAGECLIENT_AVAILABLE = False
@@ -529,9 +530,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if self.multistorageclient_enabled:
             exists = self._fs.exists(filepath)
         else:
-            exists = self._fs.exists(filepath) or (
-                check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath))
-            )
+            exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
 
         return trainer.strategy.broadcast(exists)
 
@@ -673,7 +672,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if not is_global_rank_zero():
             raise AssertionError("_remove_unfinished_checkpoints should run only on rank 0")
 
-        multistorageclient_enabled = MULTISTORAGECLIENT_AVAILABLE and str(checkpoint_dir).startswith(MULTISTORAGECLIENT_PROTOCOL)
+        multistorageclient_enabled = MULTISTORAGECLIENT_AVAILABLE and str(checkpoint_dir).startswith(
+            MULTISTORAGECLIENT_PROTOCOL
+        )
 
         # TODO: add multistorageclient support for distributed checkpointing
         if multistorageclient_enabled:
