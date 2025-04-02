@@ -165,7 +165,7 @@ def trainer(
         limit_val_batches=limit_val_batches,
         num_sanity_val_steps=0,
         use_distributed_sampler=False,
-        plugins=[bf16_with_fp8_mixed_current_scaling(), TritonCacheSetup()],
+        plugins=[bf16_with_fp8_mixed_current_scaling(), run.Config(TritonCacheSetup)],
         val_check_interval=val_check_interval,
         enable_checkpointing=True,
     )
