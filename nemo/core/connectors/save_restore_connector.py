@@ -603,7 +603,7 @@ class SaveRestoreConnector:
             os.makedirs(dirname, exist_ok=True)
             with tarfile.open(filename, "w:") as tar:
                 tar.add(source_dir, arcname=".")
-    
+
     @staticmethod
     def _make_nemo_file_from_folder_with_multistorageclient(filename, source_dir):
         filename_with_extension = filename.split("/")[-1]  # get the filename and extension
@@ -613,7 +613,9 @@ class SaveRestoreConnector:
                 tar.add(source_dir, arcname=".")
                 start_time = time.time()
                 multistorageclient.upload_file(filename, tar_file)
-                logging.debug(f"time spent for multistorageclient.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}")
+                logging.debug(
+                    f"time spent for multistorageclient.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}"
+                )
 
     @staticmethod
     def _is_safe_path(member, extract_to):
@@ -707,7 +709,6 @@ class SaveRestoreConnector:
         return out_folder
 
     @staticmethod
-
     def _save_state_dict_to_disk(state_dict, filepath):
         torch.save(state_dict, filepath)
 
