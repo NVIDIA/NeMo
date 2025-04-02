@@ -1559,9 +1559,7 @@ def test_instantiate_node_error_lenient_mode(caplog):
     config = DictConfig(
         {
             "_target_": "utils.instantiate.test_instantiate.SimpleCoverageClass",
-            "a": {
-                "_target_": "nonexistent.module.Class"  # This will fail to resolve
-            },
+            "a": {"_target_": "nonexistent.module.Class"},  # This will fail to resolve
         }
     )
 
@@ -1711,9 +1709,7 @@ def test_instantiate_node_error_strict_mode():
     config = DictConfig(
         {
             "_target_": "utils.instantiate.test_instantiate.SimpleCoverageClass",
-            "a": {
-                "_target_": "nonexistent.module.Class"  # This will fail to resolve
-            },
+            "a": {"_target_": "nonexistent.module.Class"},  # This will fail to resolve
         }
     )
 
