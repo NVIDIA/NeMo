@@ -138,7 +138,6 @@ def trainer(
 
     callbacks=[
         run.Config(MegatronCommOverlapCallback,
-            bucket_size=1073741824,
             tp_comm_bootstrap_backend="nccl",
             tp_comm_overlap=True,
         ),

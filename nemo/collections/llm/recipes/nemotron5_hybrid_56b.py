@@ -33,7 +33,7 @@ from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommO
 from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 
-NAME = "nemotron5_hybrid_8b"
+NAME = "nemotron5_hybrid_56b"
 
 
 @run.cli.factory(name=NAME)
@@ -53,19 +53,19 @@ def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
 @run.cli.factory(name=NAME)
 def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Nemotron5 Hybrid 8B model configuration.
+    Factory function to create a Nemotron5 Hybrid 56B model configuration.
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Nemotron5 Hybrid 8B model.
+        run.Config[pl.LightningModule]: Configuration for the Nemotron5 Hybrid 56B model.
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=nemotron5_hybrid_8b ...
+            $ nemo llm pretrain model=nemotron5_hybrid_56b ...
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
     return run.Config(
         llm.MambaModel,
-        config=run.Config(llm.Nemotron5HybridConfig8B),
+        config=run.Config(llm.Nemotron5HybridConfig56B),
         tokenizer=tokenizer(vocab_file=vocab_file),
     )
 
@@ -90,7 +90,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Nemotron5 Hybrid 8B model.
+    Configure the NeMo Lightning Trainer for Nemotron5 Hybrid 56B model.
     This function sets up the distributed training strategy and other training parameters.
     Args:
         tensor_parallelism (int): Degree of tensor model parallelism.
@@ -107,7 +107,7 @@ def trainer(
         run.Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=nemotron5_hybrid_8b ...
+            $ nemo llm pretrain trainer=nemotron5_hybrid_56b ...
         Python API usage:
             >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
             >>> print(trainer_config)
@@ -138,7 +138,6 @@ def trainer(
 
     callbacks=[
         run.Config(MegatronCommOverlapCallback,
-            bucket_size=1073741824,
             tp_comm_bootstrap_backend="nccl",
             tp_comm_overlap=True,
         ),
@@ -194,7 +193,7 @@ def pretrain_recipe(
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Nemotron5 Hybrid 8B model.
+    Create a pre-training recipe for Nemotron5 Hybrid 56B model.
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
     Args:
@@ -207,10 +206,10 @@ def pretrain_recipe(
         run.Partial: Partial configuration for pre-training.
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory nemotron5_hybrid_8b
-            $ nemo llm pretrain --factory "nemotron5_hybrid_8b(num_nodes=32, name='my_pretrain')"
+            $ nemo llm pretrain --factory nemotron5_hybrid_56b
+            $ nemo llm pretrain --factory "nemotron5_hybrid_56b(num_nodes=32, name='my_pretrain')"
         Python API usage:
-            >>> recipe = pretrain_recipe(name="nemotron5_hybrid_8b_pretrain", num_nodes=32)
+            >>> recipe = pretrain_recipe(name="nemotron5_hybrid_56b_pretrain", num_nodes=32)
             >>> print(recipe)
     Note:
         For more details on pre-training LLMs with NeMo, see the pre-training
@@ -275,7 +274,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Nemotron5 Hybrid 8B model.
+    Create a fine-tuning recipe for Nemotron5 Hybrid 56B model.
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
     Args:
@@ -290,18 +289,18 @@ def finetune_recipe(
         run.Partial: Partial configuration for fine-tuning.
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory nemotron5_hybrid_8b
+            $ nemo llm finetune --factory nemotron5_hybrid_56b
         Python API usage:
-            >>> recipe = finetune_recipe(name="nemotron5_hybrid_8b_finetune", num_nodes=32)
+            >>> recipe = finetune_recipe(name="nemotron5_hybrid_56b_finetune", num_nodes=32)
             >>> print(recipe)
     Note:
         This recipe uses the SQuAD dataset for fine-tuning. For more information
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
         For converting an SSM pytorch checkpoint, use the following line of python code:
-        llm.MambaModel(llm.Nemotron5HybridConfig8B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
+        llm.MambaModel(llm.Nemotron5HybridConfig56B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
             path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
-            model_config=llm.Nemotron5HybridConfig8B())
+            model_config=llm.Nemotron5HybridConfig56B())
         This line will cache the nemo checkpoint to following directory:
             /root/.cache/nemo/models/your_pytorch_state_dict_file
     """
@@ -349,7 +348,7 @@ def finetune_recipe(
 
 def performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Nemotron5 Hybrid 8B model.
+    Create a performance-optimized pre-training recipe for Nemotron5 Hybrid 56B model.
     This method enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
     Args:
