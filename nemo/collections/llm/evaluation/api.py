@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -55,11 +55,12 @@ class ConfigParams(BaseModel):
         description="Temp of 0 indicates greedy decoding, where the token with highest prob is chosen",
         default=0.0000001,
     )
-    limit_samples: Optional[int] = Field(
+    limit_samples: Optional[Union[int, float]] = Field(
         description="Limit evaluation to `limit` samples. Default: use all samples", default=None
     )
     num_fewshot: Optional[int] = Field(
-        description="Number of examples in few-shot context. Default: None.", default=None
+        description="Number of examples in few-shot context. Default: None which means no few_shots are used.",
+        default=None,
     )
     max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=256)
     batch_size: Optional[int] = Field(description="batch size to use for evaluation", default=1)

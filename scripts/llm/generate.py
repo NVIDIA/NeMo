@@ -49,6 +49,12 @@ def get_args():
         help="""Pipeline parallel size""",
     )
     parser.add_argument(
+        "--ep",
+        type=int,
+        default=1,
+        help="""Expert parallel size""",
+    )
+    parser.add_argument(
         "--devices",
         type=int,
         default=1,
@@ -84,7 +90,11 @@ def get_args():
         default=4,
         help="""Number of tokens to generate per prompt""",
     )
-
+    parser.add_argument(
+        "--legacy_ckpt",
+        action="store_true",
+        help="""Load ckpt saved with TE < 1.14""",
+    )
     args = parser.parse_args()
     return args
 
@@ -95,6 +105,7 @@ if __name__ == "__main__":
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
+        expert_model_parallel_size=args.ep,
         context_parallel_size=1,
         sequence_parallel=False,
         setup_optimizers=False,
@@ -114,6 +125,11 @@ if __name__ == "__main__":
             grad_reduce_in_fp32=False,
         ),
     )
+
+    # Load ckpt saved with TE < 1.14
+    if args.legacy_ckpt:
+        trainer.strategy.ckpt_load_strictness = False
+
     prompts = [
         "Hello, how are you?",
         "How many r's are in the word 'strawberry'?",
