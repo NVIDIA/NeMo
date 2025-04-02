@@ -549,25 +549,29 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Configures megatron parallel"""
         assert self.model is not None, "Model is not set"
 
-        convert_module_fn = None
-        if hasattr(self.precision_plugin, "convert_module"):
-            convert_module_fn = self.precision_plugin.convert_module
+        if not hasattr(self, "megatron_parallel"):
+            convert_module_fn = None
+            if hasattr(self.precision_plugin, "convert_module"):
+                convert_module_fn = self.precision_plugin.convert_module
 
-        self.megatron_parallel = MegatronParallel(
-            self.model,
-            precision_plugin=self.precision_plugin,
-            vp_size=self.virtual_pipeline_model_parallel_size,
-            cpu=isinstance(trainer.accelerator, CPUAccelerator),
-            ddp_config=self.ddp_config,
-            convert_module_fn=convert_module_fn,
-        )
+            self.megatron_parallel = MegatronParallel(
+                self.model,
+                precision_plugin=self.precision_plugin,
+                vp_size=self.virtual_pipeline_model_parallel_size,
+                cpu=isinstance(trainer.accelerator, CPUAccelerator),
+                ddp_config=self.ddp_config,
+                convert_module_fn=convert_module_fn,
+            )
+
+            if self._init_model_parallel:
+                self.init_model_parallel()
+        else:
+            print("Auto model already setup")
+            print(self.megatron_parallel)
 
         # Assign trainer to megatron_parallel before init_model_parallel as its required to check stage of trainer
         # (TESTING or not) in init_model_parallel.
         self.megatron_parallel.trainer = trainer
-
-        if self._init_model_parallel:
-            self.init_model_parallel()
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)

@@ -85,13 +85,14 @@ class Trainer(pl.Trainer, IOMixin):
             devices = self.__io__.devices
         if hasattr(self.__io__, "accelerator"):
             accelerator = self.__io__.accelerator
-        if hasattr(self.__io__, "strategy"):
+        if getattr(self.__io__, "strategy", None):
             strategy = self.__io__.strategy
             if isinstance(strategy, fdl.Config):
                 strategy = fdl.build(strategy)
 
-            strategy = to_fabric(strategy)
-        if hasattr(self.__io__, "plugins"):
+            if not isinstance(strategy, str):
+                strategy = to_fabric(strategy)
+        if getattr(self.__io__, "plugins", None):
             plugins = self.__io__.plugins
             if isinstance(plugins, fdl.Config):
                 plugins = fdl.build(plugins)

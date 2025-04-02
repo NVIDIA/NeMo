@@ -140,6 +140,8 @@ class FabricMegatronMixedPrecision(MixedPrecision):
 
         This is optional and depends on the precision limitations during optimization.
         """
+        if getattr(self, "auto_model_setup", None):
+            return config
         return update_config_with_dtype_overrides(self.dtype_config, config)
 
     def convert_module(self, module: nn.Module) -> nn.Module:

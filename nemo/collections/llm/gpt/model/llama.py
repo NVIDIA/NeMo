@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Annotated, Callable, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from torch import nn
+from transformers import LlamaConfig as HFLlamaConfig
+from transformers import LlamaForCausalLM
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
@@ -30,13 +32,15 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
+from nemo.common.ckpt.model import register_context_convert, register_state_convert
+from nemo.common.ckpt.convert.state_converter import StateConverter, ModelT
+from nemo.common.ckpt.impl.hf import HFPreTrained, save_hf_tokenizer_assets
+from nemo.common.ckpt.convert.impl_model.megatron import MegatronStateConvertPlan
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from peft import AutoPeftModelForCausalLM, PeftConfig
-    from transformers import LlamaConfig as HFLlamaConfig
-    from transformers import LlamaForCausalLM
-
+    
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -411,6 +415,29 @@ class MLPerfLoRALlamaModel(LlamaModel):
         )
 
 
+@register_context_convert("megatron", source=LlamaForCausalLM, target=LlamaModel)
+def llama_hf_to_megatron(context: HFPreTrained[LlamaForCausalLM]) -> LlamaModel:
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    
+    config = hf_lama_config_to_megatron_config(context.config, context.path)
+    tokenizer = AutoTokenizer(save_hf_tokenizer_assets(context.path))
+    
+    return LlamaModel(config, tokenizer=tokenizer)
+
+
+@register_state_convert("megatron", source=LlamaForCausalLM, target=LlamaModel)
+class HFLlamaToMegatron(MegatronStateConvertPlan):
+    def __init__(self):
+        super().__init__(HFLamaToMegatronStateConverter())
+
+    def create_source_module(self, input_path) -> nn.Module:
+        from transformers import LlamaForCausalLM
+
+        source_module = LlamaForCausalLM.from_pretrained(input_path, torch_dtype="auto")
+
+        return source_module
+
+
 @io.model_importer(LlamaModel, "hf")
 class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
     """Importer for converting Hugging Face Llama models to NeMo format.
@@ -442,7 +469,8 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
-        self.convert_state(source, target)
+        converter = HFLamaToMegatronStateConverter()
+        converter(source, target)
         self.nemo_save(output_path, trainer)
 
         print(f"Converted Llama model to Nemo, model saved to {output_path} in {source.dtype}.")
@@ -451,50 +479,6 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         del trainer, target
 
         return output_path
-
-    def convert_state(self, source, target):
-        """Convert state dict from HF format to NeMo format.
-
-        Maps the weights from the HF model to the NeMo model according to
-        the appropriate mapping scheme.
-
-        Args:
-            source: Source HF model
-            target: Target NeMo model
-
-        Returns:
-            The result of applying the transforms
-        """
-        mapping = {
-            "model.embed_tokens.weight": "embedding.word_embeddings.weight",
-            "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
-            "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
-            "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-            "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "model.norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight",
-        }
-        if getattr(source.config, "tie_word_embeddings", False):
-            # llama 3.2 1B and 3B models have no shared input output embeddings
-            del mapping["lm_head.weight"]
-
-        transforms = [
-            io.state_transform(
-                source_key=(
-                    "model.layers.*.self_attn.q_proj.weight",
-                    "model.layers.*.self_attn.k_proj.weight",
-                    "model.layers.*.self_attn.v_proj.weight",
-                ),
-                target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-                fn=TransformFns.merge_qkv,
-            ),
-            io.state_transform(
-                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-                target_key="decoder.layers.*.mlp.linear_fc1.weight",
-                fn=TransformFns.merge_fc1,
-            ),
-        ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -505,7 +489,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        return AutoTokenizer(save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> LlamaConfig:
@@ -517,44 +501,86 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         Returns:
             LlamaConfig: NeMo configuration for Llama models
         """
-        from transformers import GenerationConfig
         from transformers import LlamaConfig as HFLlamaConfig
 
-        source = HFLlamaConfig.from_pretrained(str(self))
-        generation_config = GenerationConfig.from_pretrained(str(self))
-        print(generation_config)
+        return hf_lama_config_to_megatron_config(HFLlamaConfig.from_pretrained(str(self)), str(self))
+    
 
-        def make_vocab_size_divisible_by(vocab_size):
-            base = 128
-            while vocab_size % base != 0:
-                base //= 2
-            return base
+def hf_lama_config_to_megatron_config(source: LlamaConfig, path: str) -> LlamaConfig:
+    from transformers import GenerationConfig
+    
+    generation_config = GenerationConfig.from_pretrained(path)
 
-        if getattr(source, 'rope_scaling', None) is not None and source.rope_scaling.get('rope_type') == 'llama3':
-            # Apply Llama3.1 customize rope scaling
-            cls = partial(Llama31Config, scale_factor=source.rope_scaling.get("factor", 8.0))
-        else:
-            cls = LlamaConfig
-        output = cls(
-            num_layers=source.num_hidden_layers,
-            hidden_size=source.hidden_size,
-            ffn_hidden_size=source.intermediate_size,
-            num_attention_heads=source.num_attention_heads,
-            init_method_std=source.initializer_range,
-            layernorm_epsilon=source.rms_norm_eps,
-            num_query_groups=source.num_key_value_heads,
-            seq_length=source.max_position_embeddings,
-            rotary_base=source.rope_theta,
-            gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
-            fp16=(dtype_from_hf(source) == torch.float16),
-            bf16=(dtype_from_hf(source) == torch.bfloat16),
-            params_dtype=dtype_from_hf(source),
-            generation_config=generation_config,
+    def make_vocab_size_divisible_by(vocab_size):
+        base = 128
+        while vocab_size % base != 0:
+            base //= 2
+        return base
+
+    if getattr(source, 'rope_scaling', None) is not None and source.rope_scaling.get('rope_type') == 'llama3':
+        # Apply Llama3.1 customize rope scaling
+        cls = partial(Llama31Config, scale_factor=source.rope_scaling.get("factor", 8.0))
+    else:
+        cls = LlamaConfig
+    output = cls(
+        num_layers=source.num_hidden_layers,
+        hidden_size=source.hidden_size,
+        ffn_hidden_size=source.intermediate_size,
+        num_attention_heads=source.num_attention_heads,
+        init_method_std=source.initializer_range,
+        layernorm_epsilon=source.rms_norm_eps,
+        num_query_groups=source.num_key_value_heads,
+        seq_length=source.max_position_embeddings,
+        rotary_base=source.rope_theta,
+        gated_linear_unit=True,
+        make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+        share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
+        fp16=(dtype_from_hf(source) == torch.float16),
+        bf16=(dtype_from_hf(source) == torch.bfloat16),
+        params_dtype=dtype_from_hf(source),
+        generation_config=generation_config,
+    )
+
+    return output
+
+
+class HFLamaToMegatronStateConverter(StateConverter):
+    def __init__(self):
+        super().__init__(
+            {
+                "model.embed_tokens.weight": "embedding.word_embeddings.weight",
+                "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
+                "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
+                "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "model.norm.weight": "decoder.final_layernorm.weight",
+                "lm_head.weight": "output_layer.weight",
+            },
+            transforms=[
+                io.state_transform(
+                    source_key=(
+                        "model.layers.*.self_attn.q_proj.weight",
+                        "model.layers.*.self_attn.k_proj.weight",
+                        "model.layers.*.self_attn.v_proj.weight",
+                    ),
+                    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                    fn=TransformFns.merge_qkv,
+                ),
+                io.state_transform(
+                    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                    target_key="decoder.layers.*.mlp.linear_fc1.weight",
+                    fn=TransformFns.merge_fc1,
+                ),
+            ]
         )
 
-        return output
+    def execute(self, source: nn.Module, target: ModelT) -> ModelT:
+        if getattr(source.config, "tie_word_embeddings", False):
+            # llama 3.2 1B and 3B models have no shared input output embeddings
+            del self.mapping["lm_head.weight"]
+
+        return super().execute(source, target)
+
 
 
 @io.model_exporter(LlamaModel, "hf")
