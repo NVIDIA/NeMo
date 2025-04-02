@@ -274,6 +274,9 @@ def set_primary_perf_configs(
     recipe.model.config.cross_entropy_fusion_impl = "te"
 
     # Cuda graph configs
+    if use_mcore_fsdp and enable_cuda_graphs:
+        logging.warning("Cuda graphs are not supported with FSDP. Disabling cuda graphs.")
+        enable_cuda_graphs = False
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
     if task == "none" or task == "lora" and hasattr(recipe.data, "packed_sequence_specs"):
