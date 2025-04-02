@@ -684,7 +684,6 @@ class TestTDTDecoding:
 
             print()
 
-
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
