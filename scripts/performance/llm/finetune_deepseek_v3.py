@@ -35,7 +35,7 @@ from ..utils import (
     slurm_executor,
 )
 
-# from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
@@ -45,6 +45,9 @@ HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
 SKIP_IMPORT = True
+
+# Use token drop callback
+UseTokenDrop = True
 
 
 def override_recipe_configs(
@@ -70,6 +73,9 @@ def override_recipe_configs(
 
     # use mock data module for testing
     recipe.data = run.Config(MockDataModule, seq_length=4096, global_batch_size=gbs, micro_batch_size=1)
+    callbacks = []
+    if UseTokenDrop:
+        callbacks.append(run.Config(MegatronTokenDropCallback))
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,
         gc_interval_train=60,
@@ -79,8 +85,8 @@ def override_recipe_configs(
         MegatronCommOverlapCallback,
         tp_comm_overlap=False,
     )
-    # token_drop_callback = run.Config(MegatronTokenDropCallback)
-    recipe.trainer.callbacks.extend([garbage_collection_callback, comm_overlap_callback])
+    callbacks.extend([garbage_collection_callback, comm_overlap_callback])
+    recipe.trainer.callbacks.extend(callbacks)
 
     recipe = set_primary_perf_configs(
         recipe,
