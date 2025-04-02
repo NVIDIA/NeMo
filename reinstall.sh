@@ -17,6 +17,9 @@ export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 export PIP=pip
+export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
+export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
+export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 
 trt() {
   local mode="$1"
@@ -25,12 +28,6 @@ trt() {
     apt-get install git-lfs &&
     git lfs install &&
     apt-get clean
-
-  TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
-  TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
-  TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
-  echo $TRTLLM_REPO
-  exit 1
 
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR" &&
@@ -62,10 +59,6 @@ trtllm() {
     apt-get install git-lfs &&
     git lfs install &&
     apt-get clean
-  
-  TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
-  TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
-  TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR" &&
