@@ -21,6 +21,7 @@ import tempfile
 from functools import lru_cache
 
 import jiwer
+import psutil
 import pytest
 import torch
 from omegaconf import open_dict
@@ -34,12 +35,12 @@ from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_grap
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE
 from nemo.utils import logging
-import psutil
+
 
 def get_memory_info(comment):
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
-    
+
     logging.info(comment)
     logging.info("Memory Usage:")
     logging.info(f"  Total: {mem.total / (1024 ** 3):.2f} GB")
@@ -52,6 +53,7 @@ def get_memory_info(comment):
     logging.info(f"  Used: {swap.used / (1024 ** 3):.2f} GB")
     logging.info(f"  Free: {swap.free / (1024 ** 3):.2f} GB")
     logging.info(f"  Percent Used: {swap.percent}%")
+
 
 faulthandler.enable()
 
@@ -86,7 +88,7 @@ def get_model_encoder_output(
     dtype: torch.dtype = torch.float32,
 ):
     audio_filepaths = test_audio_filenames[:num_samples]
-    
+
     get_memory_info("Before dataset loading")
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
@@ -111,8 +113,7 @@ def get_model_encoder_output(
             get_memory_info("Before loop")
             for test_batch in temporary_datalayer:
                 encoded, encoded_len = model.forward(
-                    input_signal=test_batch[0].to(device, dtype=dtype),
-                    input_signal_length=test_batch[1].to(device)
+                    input_signal=test_batch[0].to(device, dtype=dtype), input_signal_length=test_batch[1].to(device)
                 )
             get_memory_info("After dataset loading")
     logging.info("Successfully loaded dataset")
