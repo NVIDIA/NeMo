@@ -70,6 +70,7 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False, num_replicas=1, rank
     )
     return datamodule
 
+
 def verify_parallelism(devices, num_nodes, dp_size, tp_size, sequence_parallel):
     if tp_size is None:
         tp_size = 1
