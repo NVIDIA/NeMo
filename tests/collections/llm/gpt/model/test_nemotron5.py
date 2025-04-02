@@ -483,7 +483,7 @@ def main():
         log_every_n_steps=args.log_every_n_steps,
         limit_val_batches=args.limit_val_batches,
         num_sanity_val_steps=0,
-        use_distributed_sampler=True,
+        use_distributed_sampler=Flase,
         plugins=nl.MegatronMixedPrecision(
             precision="bf16-mixed",
             params_dtype=torch.bfloat16,
@@ -542,6 +542,22 @@ def main():
     opt = MegatronOptimizerModule(opt_config, sched)
     opt.connect(model)
 
+    # Local executor
+    import os
+    import torch.distributed as dist
+
+    # Check if torch.distributed is initialized
+    if not dist.is_initialized():
+        # Check if we are on rank 0
+        rank = int(os.getenv("RANK", 0))  # Default to 0 if RANK is not set
+        if rank == 0:
+            breakpoint()  # Set a breakpoint for debugging
+
+        # Initialize torch.distributed (if needed)
+        dist.init_process_group(backend="nccl")  # Replace "nccl" with your backend if necessary
+
+    # Add a barrier to synchronize all processes
+    dist.barrier()
     # Start training
     trainer.fit(model, data)
 
