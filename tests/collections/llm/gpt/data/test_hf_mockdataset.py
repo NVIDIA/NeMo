@@ -42,6 +42,7 @@ def mock_tokenizer():
     tokenizer.vocab_size = 1024
     return tokenizer
 
+
 @pytest.fixture
 def mock_data_module():
     """Fixture to create and set up a mock data module."""
