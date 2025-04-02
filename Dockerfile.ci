@@ -46,6 +46,8 @@ apt-get install -y bc libsox-fmt-all -y
 apt-get clean
 EOF
 
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
 RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
   
   bash /tmp/NeMo/reinstall.sh --library trt --mode install
