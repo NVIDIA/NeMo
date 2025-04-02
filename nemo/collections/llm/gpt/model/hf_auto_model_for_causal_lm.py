@@ -399,7 +399,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             torch.save(io_bytes_state, path / 'io_bytes.pt')
 
         self.model.save_pretrained(path, state_dict=state_dict)
-        if self._tokenizer is not None:
+        if self._tokenizer is not None and hasattr(self._tokenizer, 'save_pretrained'):
             self._tokenizer.save_pretrained(path)
         else:
             logging.warning("A tokenizer wasn't created before to save.")
