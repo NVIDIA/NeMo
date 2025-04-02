@@ -773,7 +773,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         )
                         input_ids = tgt
                     else:
-                        input_ids = canary_data.tgt[:, canary_data.current_context_length-1].unsqueeze(-1)
+                        input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1].unsqueeze(-1)
                         # import pdb; pdb.set_trace()
                     
                     # import pdb; pdb.set_trace()
@@ -834,28 +834,36 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         
                         # rearange active samples depends on eos prediction
                         # import pdb; pdb.set_trace()
-                        torch.logical_and(canary_data.active_samples, ~is_eos_tokens, out=canary_data.active_samples)
+                        torch.logical_and(canary_data.active_samples, torch.logical_not(is_eos_tokens), out=canary_data.active_samples)
 
                         
                         
                         # wtire predicted tokens depends on active samples
                         next_tokens[torch.logical_not(canary_data.active_samples)] = self.tokenizer.eos
-                        # torch.where(canary_data.active_samples, next_tokens, self.tokenizer.eos, out=next_tokens)
-                        canary_data.tgt[:, canary_data.current_context_length] = next_tokens
 
-                        canary_data.samples_decoding_step[canary_data.active_samples] = i
+                        canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] = next_tokens
 
                         canary_data.decoder_mems_list = decoder_mems_list
                         canary_data.decoding_step = i
-                        input_ids = canary_data.tgt[:, canary_data.current_context_length].unsqueeze(-1)
-                        canary_data.current_context_length += 1
+                        input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                        canary_data.current_context_lengths[canary_data.active_samples] += 1
+
                         # canary_data.tgt[:, :13]
-
-                        # if cfg.debug_mode:
+                        
+                        # take into account early EOS prediction
+                        reactivation_mask = torch.where((is_eos_tokens) & (torch.logical_not(canary_data.is_last_speech_chunk)), True, False)
+                        if torch.any(reactivation_mask):
+                            logging.warning(f"***** !!! EOS predicted before last speech chunk, reactivating samples !!! *****")
                             # import pdb; pdb.set_trace()
+                            canary_data.active_samples[reactivation_mask] = True
 
+
+                        if cfg.debug_mode:
+                            import pdb; pdb.set_trace()
+
+                    # import pdb; pdb.set_trace()
                     for i in range(batch_size):
-                        greedy_predictions.append(canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.samples_decoding_step[i]+1])
+                        greedy_predictions.append(canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.current_context_lengths[i]])
                     # greedy_predictions = [canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.samples_decoding_step[i]] for i in range(batch_size)]
                     # greedy_predictions = canary_data.tgt[:, :canary_data.samples_decoding_step]
                     # greedy_predictions = canary_data.tgt[:, canary_data.decoder_input_ids.size(-1)]

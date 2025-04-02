@@ -113,6 +113,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     write_transcription,
 )
 from nemo.collections.common.data.utils import move_data_to_device
+from tqdm.auto import tqdm
 
 
 @dataclass
@@ -124,7 +125,7 @@ class CanaryData():
     decoder_mems_list: list = None
     max_generation_length: int = 10
     is_last_speech_chunk: torch.Tensor = False
-    max_generation_length: int = 128
+    max_generation_length: int = 512
 
 
 @dataclass
@@ -302,7 +303,7 @@ def perform_streaming(
     for i in range(len(pred_out_stream)):
         transcription = asr_model.tokenizer.ids_to_text(pred_out_stream[i].tolist()).strip()
         final_streaming_tran.append(transcription)
-        logging.warning(f"[pred_text] {i}: {transcription}")
+        # logging.warning(f"[pred_text] {i}: {transcription}")
 
     return final_streaming_tran, pred_out_stream
 
@@ -424,12 +425,12 @@ def main(cfg: StreamingEvaluationConfig):
                 samples.append(item)
             # import pdb; pdb.set_trace()
             # samples = sorted(samples.items(), key=lambda x:x["duration"], reverse=True)
-            # samples = sorted(samples, key=lambda x: x['duration'], reverse=True)
+            samples = sorted(samples, key=lambda x: x['duration'], reverse=True)
 
         logging.warning(f"Loaded {len(samples)} from the manifest at {cfg.dataset_manifest}.")
 
         start_time = time.time()
-        for sample_idx, sample in enumerate(samples):
+        for sample_idx, sample in tqdm(enumerate(samples), desc=f"Eval streaming Canary...", ncols=120, total=len(samples)):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
                 sample['audio_filepath'], stream_id=-1
             )
@@ -437,8 +438,8 @@ def main(cfg: StreamingEvaluationConfig):
                 all_refs_text.append(sample["text"])
             if "answer" in sample:
                 all_answer_text.append(sample["answer"])
-            logging.warning("================"*10)
-            logging.warning(f'Added this sample to the buffer: {sample["audio_filepath"]}')
+            # logging.warning("================"*10)
+            # logging.warning(f'Added this sample to the buffer: {sample["audio_filepath"]}')
 
             # import pdb; pdb.set_trace()
             canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
@@ -446,15 +447,21 @@ def main(cfg: StreamingEvaluationConfig):
             canary_data.pred_tokens_alignment = []
             
             if (sample_idx + 1) % cfg.batch_size == 0 or sample_idx == len(samples) - 1:
+                logging.warning("\n=====================================================================================")
                 logging.warning(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
-                logging.warning(f'[orig_text]: {sample["text"]}')
+                # logging.warning(f'[orig_text]: {sample["text"]}')
                 
                 # initialize the canary data
-                canary_data.tgt = torch.full([cfg.batch_size, canary_data.max_generation_length], asr_model.tokenizer.eos, dtype=torch.long, device=asr_model.device)
-                canary_data.current_context_length = canary_data.decoder_input_ids.size(-1)
-                canary_data.tgt[:, :canary_data.current_context_length] = canary_data.decoder_input_ids
-                canary_data.active_samples = torch.ones(cfg.batch_size, dtype=torch.bool, device=asr_model.device)
-                canary_data.samples_decoding_step = torch.zeros(cfg.batch_size, dtype=torch.long, device=asr_model.device)
+                
+                current_batch_size = len(streaming_buffer.streams_length)
+                canary_data.batch_idxs = torch.arange(current_batch_size, dtype=torch.long, device=asr_model.device)
+                canary_data.current_context_lengths = torch.zeros_like(canary_data.batch_idxs) + decoder_input_ids.size(-1)
+                canary_data.decoder_input_ids = decoder_input_ids[:current_batch_size]
+                canary_data.tgt = torch.full([current_batch_size, canary_data.max_generation_length], asr_model.tokenizer.eos, dtype=torch.long, device=asr_model.device)
+                canary_data.tgt[:, :canary_data.decoder_input_ids.size(-1)] = canary_data.decoder_input_ids
+                canary_data.active_samples = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
+                
+                # import pdb; pdb.set_trace()
                 
                 streaming_tran, predicted_token_ids = perform_streaming(
                     cfg=cfg,
@@ -466,7 +473,7 @@ def main(cfg: StreamingEvaluationConfig):
                 )
                 # import pdb; pdb.set_trace()
                 all_streaming_tran.extend(streaming_tran)
-                batch_samples = samples[-cfg.batch_size:]
+                batch_samples = samples[-current_batch_size:]
                 for i in range(streaming_buffer.streams_length.size(-1)):
                     batch_samples[i]["audio_length_ms"] = int(streaming_buffer.streams_length[i].item()) * 10
                 # batch_samples["audio_length_ms"] = streaming_buffer.streams_length * 10
