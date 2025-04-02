@@ -34,7 +34,7 @@ def setup_torch_dist(rank, world_size):
         rank (int): The rank of the current process
         world_size (int): Total number of processes for distributed training
     """
-    
+
     torch.cuda.set_device(rank)
     # Initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
@@ -121,6 +121,7 @@ def hf_deploy(argv):
     Raises:
         ValueError: If required arguments are missing or invalid
     """
+
     args = get_args(argv)
 
     if args.debug_mode:
@@ -142,13 +143,14 @@ def hf_deploy(argv):
             setup_torch_dist(rank, world_size)
     else:
         if args.device_map == "auto":
-            LOGGER.warning("device_map is set to auto and it is recommended that the script"
-                           "is started with torchrun with a process per GPU. You might "
-                           "see unexpected issues during the inference otherwise.")
+            LOGGER.warning(
+                "device_map is set to auto and it is recommended that the script"
+                "is started with torchrun with a process per GPU. You might "
+                "see unexpected issues during the inference otherwise."
+            )
 
         if args.tp_plan is not None:
             raise ValueError("tp_plan is only available with torchrun.")
-
 
     hf_deployable = HuggingFaceLLMDeploy(
         hf_model_id_path=args.hf_model_id_path,
