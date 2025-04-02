@@ -252,6 +252,8 @@ class WarmupHoldAnnealLinear(WarmupHoldPolicy):
     1. Warmup phase: LR increases linearly from 0 to base_lr
     2. Hold phase: LR remains constant at base_lr
     3. Annealing phase: LR decreases linearly from base_lr to min_lr
+
+    Reference: https://arxiv.org/pdf/2404.06395
     """
     def __init__(self, optimizer, *, max_steps, last_epoch=-1, min_lr=0.0, **kwargs):
         super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
