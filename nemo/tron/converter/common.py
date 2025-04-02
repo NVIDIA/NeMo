@@ -100,9 +100,9 @@ def dtype_from_str(dtype):
     Convert a str precision to equivalent torch dtype.
     """
     assert isinstance(dtype, str)
-    if dtype in ["float16", "fp16", "16", "16-mixed"]:
+    if dtype in ("float16", "fp16", "16", "16-mixed"):
         return torch.float16
-    elif dtype in ["bfloat16", "bf16-mixed"]:
+    elif dtype in ("bfloat16", "bf16-mixed"):
         return torch.bfloat16
     else:
         return torch.float32
@@ -276,7 +276,7 @@ class BaseExporter:
 
     def init_tron_model(self) -> tuple[dict, dict]:
         """
-        This function loads the state dict directly from a distributed checkpoint, and modify the state dict
+        This function loads the state dict directly from a distributed checkpoint, and modifies the state dict
         so that it is consistent with the key names you would get from loading the checkpoint into a model.
         This is a more memory-efficient method to obtain a state dict without initializing the nemo model.
 
