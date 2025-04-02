@@ -93,8 +93,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.timestamp = None
         self.enable_grad_ckpt = enable_grad_ckpt
 
-        self.pos = 0
-
     @property
     def tokenizer(self):
         """
@@ -280,10 +278,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             input_ids = batch["input_ids"].to(self.model.device)
             batch["position_ids"] = (
-                torch.arange(self.pos, self.pos + input_ids.shape[1]).unsqueeze(0).to(self.model.device)
+                torch.arange(0, input_ids.shape[1]).unsqueeze(0).to(self.model.device)
             )
             position_ids = batch["position_ids"].to(self.model.device)
-            self.pos += input_ids.shape[1]
 
             context_parallel_ctx = create_context_parallel_ctx(
                 cp_mesh=self._device_mesh["context_parallel"],
