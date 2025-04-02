@@ -26,7 +26,7 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeth
 from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
     INACTIVE_SCORE,
     NON_EXISTENT_LABEL_VALUE,
-    BatchedBeamHypsTDT,
+    BatchedBeamHyps,
     BlankLMScoreMode,
     PruningMode,
 )
@@ -79,7 +79,7 @@ class MALSDState:
 
     time_indices: torch.Tensor  # current time indices for each element in batch
     safe_time_indices: torch.Tensor  # current time indices, but guaranteed to be < encoder_output_length
-    last_timesteps: torch.Tensor  # indices of the last timesteps for each element (encoder_output_length - 1)
+    last_timestamps: torch.Tensor  # indices of the last timesteps for each element (encoder_output_length - 1)
     last_labels_wb: torch.Tensor  # last labels with blank
     hyp_scores: torch.Tensor  # scores for hypotheses
 
@@ -95,7 +95,7 @@ class MALSDState:
     init_decoder_state: Any  # current decoder state
     init_decoder_output: torch.Tensor  # output from the decoder (projected)
 
-    batched_hyps: BatchedBeamHypsTDT  # batched hypotheses - decoding result
+    batched_hyps: BatchedBeamHyps  # batched hypotheses - decoding result
 
     # LM-related fields
     ngram_lm_batch: Optional[NGramGPULanguageModel] = None  # N-gram LM for hypotheses
@@ -182,19 +182,20 @@ class MALSDState:
 
         self.time_indices = torch.zeros_like(self.batch_indices)
         self.safe_time_indices = torch.zeros_like(self.batch_indices)
-        self.last_timesteps = torch.zeros_like(self.time_indices)
+        self.last_timestamps = torch.zeros_like(self.time_indices)
 
         self.active_mask = torch.zeros_like(self.batch_indices, dtype=torch.bool)
         self.blank_mask = torch.zeros_like(self.active_mask, dtype=torch.bool)
         self.active_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
 
-        self.batched_hyps = BatchedBeamHypsTDT(
+        self.batched_hyps = BatchedBeamHyps(
             batch_size=batch_size,
             beam_size=self.beam_size,
             blank_index=self.blank_index,
             init_length=max_time * (max_symbols + 1) if max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
+            is_tdt=True
         )
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
@@ -300,6 +301,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
+        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
@@ -397,13 +399,14 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         float_dtype = encoder_output_projected.dtype
 
         # init empty batched beam hypotheses
-        batched_hyps = BatchedBeamHypsTDT(
+        batched_hyps = BatchedBeamHyps(
             batch_size=batch_size,
             beam_size=self.beam_size,
             blank_index=self._blank_index,
             init_length=max_time * (self.max_symbols + 1) if self.max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
+            is_tdt=True
         )
 
         last_labels_wb = torch.full(
@@ -519,7 +522,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
             # step 2.3: force blank extension with respect to self.max_symbols
             if self.max_symbols is not None:
-                force_blank = (batched_hyps.last_timestep_lasts >= self.max_symbols) & active_mask
+                force_blank = (batched_hyps.last_timestamp_lasts >= self.max_symbols) & active_mask
             else:
                 force_blank = torch.full_like(active_mask, fill_value=False)
             # mask beams if forced blank
@@ -1005,7 +1008,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         self.state.time_indices.fill_(0)
         self.state.safe_time_indices.fill_(0)  # safe time indices: guaranteed to be < encoder_output_length
 
-        torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
+        torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timestamps)
 
         # masks for utterances in batch
         # same as: active_mask = self.encoder_output_length > 0
@@ -1099,7 +1102,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
         # step 2.3: force blank extension with respect to self.max_symbols
         if self.max_symbols is not None:
-            force_blank = (self.state.batched_hyps.last_timestep_lasts >= self.max_symbols) & self.state.active_mask
+            force_blank = (self.state.batched_hyps.last_timestamp_lasts >= self.max_symbols) & self.state.active_mask
         else:
             force_blank = torch.full_like(self.state.active_mask, fill_value=False)
         # mask all extensions with -inf
@@ -1260,8 +1263,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
         # step 6: update time indices + active mask
         self.state.time_indices.copy_(self.state.batched_hyps.next_timestamp)
-        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
-        torch.less_equal(self.state.time_indices, self.state.last_timesteps, out=self.state.active_mask)
+        torch.minimum(self.state.time_indices, self.state.last_timestamps, out=self.state.safe_time_indices)
+        torch.less_equal(self.state.time_indices, self.state.last_timestamps, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
     def __call__(

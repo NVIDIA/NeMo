@@ -1526,7 +1526,7 @@ class BeamRNNTInfer(Typing):
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
 
-class BeamBatchedInfer(Typing, ConfidenceMethodMixin):
+class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -1551,9 +1551,9 @@ class BeamBatchedInfer(Typing, ConfidenceMethodMixin):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        blank_lm_score_mode: Optional[str] = BlankLMScoreMode.LM_WEIGHTED_FULL,
-        pruning_mode: Optional[str] = PruningMode.EARLY,
-        allow_cuda_graphs: Optional[str] = True,
+        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.LM_WEIGHTED_FULL,
+        pruning_mode: Optional[str | PruningMode] = PruningMode.LATE,
+        allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: Optional[str] = True,
     ):
         super().__init__()
@@ -1676,7 +1676,7 @@ class BeamRNNTInferConfig:
     ngram_lm_alpha: Optional[float] = 0.0
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0
-    malsd_max_symbols_per_step: Optional[int] = 10
-    blank_lm_score_mode: Optional[str] = None
-    pruning_mode: Optional[str] = None
-    allow_cuda_graphs: bool = True
+    max_symbols_per_step: Optional[int] = 10
+    blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.LM_WEIGHTED_FULL
+    pruning_mode: Optional[str | PruningMode] = PruningMode.LATE
+    allow_cuda_graphs: Optional[bool] = True

@@ -38,6 +38,7 @@ from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypoth
 from nemo.collections.asr.parts.submodules.tdt_malsd_batched_computer import ModifiedALSDBatchedTDTComputer
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
+from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import PruningMode, BlankLMScoreMode
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -851,9 +852,9 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        blank_lm_score_mode: Optional[str] = None,
-        pruning_mode: Optional[str] = None,
-        allow_cuda_graphs: bool = True,
+        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
+        pruning_mode: Optional[str | PruningMode] = PruningMode.EARLY,
+        allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: Optional[str] = True,
     ):
         super().__init__()

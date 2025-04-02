@@ -26,6 +26,7 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding, tdt_beam_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import BlankLMScoreMode, PruningMode
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging, logging_mode
@@ -485,7 +486,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         elif self.cfg.strategy == 'malsd_batch':
             if self.big_blank_durations is None or self.big_blank_durations == []:
                 if not self._is_tdt:
-                    self.decoding = rnnt_beam_decoding.BeamBatchedInfer(
+                    self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
                         blank_index=self.blank_id,
@@ -495,8 +496,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
-                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                         score_norm=self.cfg.beam.get('score_norm', True),
                         allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                         return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
@@ -513,8 +514,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
-                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.NO_SCORE),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.EARLY),
                         score_norm=self.cfg.beam.get('score_norm', True),
                         allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                         return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
@@ -522,10 +523,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         elif self.cfg.strategy == 'maes_batch':
             if self.big_blank_durations is None or self.big_blank_durations == []:
                 if not self._is_tdt:
-                    self.decoding = rnnt_beam_decoding.BeamBatchedInfer(
+                    self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
-                        # durations=self.durations,
                         blank_index=self.blank_id,
                         beam_size=self.cfg.beam.beam_size,
                         search_type='maes_batch',
@@ -535,8 +535,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
-                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                         score_norm=self.cfg.beam.get('score_norm', True),
                     )
         else:

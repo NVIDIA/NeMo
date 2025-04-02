@@ -493,7 +493,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
             # step 2.3: force blank extension with respect to self.max_symbols
             if self.max_symbols is not None:
-                force_blank = (batched_hyps.last_timestep_lasts >= self.max_symbols) & active_mask
+                force_blank = (batched_hyps.last_timestamp_lasts >= self.max_symbols) & active_mask
             else:
                 force_blank = torch.full_like(active_mask, fill_value=False)
             # mask beams if forced blank
@@ -584,7 +584,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
 
             # step 6: update time indices + active mask
-            time_indices = batched_hyps.next_timestep
+            time_indices = batched_hyps.next_timestamp
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
 
@@ -996,7 +996,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         # step 2.3: force blank extension with respect to self.max_symbols
         if self.max_symbols is not None:
-            force_blank = (self.state.batched_hyps.last_timestep_lasts >= self.max_symbols) & self.state.active_mask
+            force_blank = (self.state.batched_hyps.last_timestamp_lasts >= self.max_symbols) & self.state.active_mask
         else:
             force_blank = torch.full_like(self.state.active_mask, fill_value=False)
         # mask beams if forced blank
@@ -1141,7 +1141,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             self.state.lm_scores.copy_(lm_scores)
 
         # step 6: update time indices + active mask
-        self.state.time_indices.copy_(self.state.batched_hyps.next_timestep)
+        self.state.time_indices.copy_(self.state.batched_hyps.next_timestamp)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less_equal(self.state.time_indices, self.state.last_timesteps, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)

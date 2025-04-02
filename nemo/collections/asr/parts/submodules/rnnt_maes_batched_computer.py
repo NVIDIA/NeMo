@@ -52,10 +52,10 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
-        pruning_mode: Optional[str | PruningMode] = None,
+        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
+        pruning_mode: Optional[str | PruningMode] = PruningMode.EARLY,
         score_norm: bool = True,
-        allow_cuda_graphs: bool = False,
+        allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: bool = True,
     ):
         """
@@ -112,7 +112,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         assert not self.preserve_frame_confidence
 
         if allow_cuda_graphs:
-            logging.info("Cuda Graphs is not supported for decoding strategy `maes_batch`")
+            logging.info("CUDA Graphs are unsupported for `maes_batch`; preceeding pure pytorch decoding")
 
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1

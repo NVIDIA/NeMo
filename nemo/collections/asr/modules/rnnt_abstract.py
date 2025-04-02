@@ -278,12 +278,12 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
     @classmethod
     def batch_aggregate_states_beam(
         cls,
-        src_states: Tuple[torch.Tensor, torch.Tensor],
+        src_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
         batch_size: int,
         beam_size: int,
         indices: torch.Tensor,
-        dst_states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-    ):
+        dst_states: Optional[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
         """
         Aggregates decoder states based on the given indices.
         Args:
@@ -307,19 +307,19 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
     @classmethod
     def batch_replace_states_mask(
         cls,
-        src_states: list[torch.Tensor],
-        dst_states: list[torch.Tensor],
+        src_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
+        dst_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
         mask: torch.Tensor,
-        other_src_states: Optional[list[torch.Tensor]] = None,
+        other_src_states: Optional[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]] = None,
     ):
         """
         Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
 
         Args:
             mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
-            src_states (list[torch.Tensor]): Values selected at indices where `mask` is True.
-            dst_states (list[torch.Tensor]), optional): The output states.
-            other_src_states (Optional[list[torch.Tensor]]: Values selected at indices where `mask` is False.
+            src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]): Values selected at indices where `mask` is True.
+            dst_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): The output states.
+            other_src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): Values selected at indices where `mask` is False.
 
         Note:
             This operation is performed non-blocking using `torch.where`.

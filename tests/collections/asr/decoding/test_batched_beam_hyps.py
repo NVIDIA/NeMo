@@ -118,7 +118,7 @@ class TestBatchedBeamHyps:
         hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024)
         assert hyps._max_length == 1
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
+            next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
             next_labels=torch.tensor([[0, 1024, 1], [2, 1024, 1024]], device=device),
             next_hyps_prob=torch.tensor([[0.5, 0.6, 0.8], [0.1, 0.2, 0.3]], device=device),
         )
@@ -142,13 +142,13 @@ class TestBatchedBeamHyps:
         assert hyps._max_length == 1
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
+            next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
             next_labels=torch.tensor([[0, 1024, 1], [2, 1024, 1024]], device=device),
             next_hyps_prob=torch.tensor([[0.5, 0.6, 0.8], [0.1, 0.2, 0.3]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
+            next_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
             next_labels=torch.tensor([[3, 4, 1024], [5, 1024, 6]], device=device),
             next_hyps_prob=torch.tensor([[0.3, 0.2, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
@@ -189,19 +189,19 @@ class TestBatchedBeamHyps:
         assert hyps._max_length == 1
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
+            next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
             next_labels=torch.tensor([[0, 1024, 1], [2, 1024, 1024]], device=device),
             next_hyps_prob=torch.tensor([[0.5, 0.6, 0.8], [0.1, 0.2, 0.3]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
+            next_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
             next_labels=torch.tensor([[3, 4, 1024], [5, 1024, 6]], device=device),
             next_hyps_prob=torch.tensor([[0.3, 0.2, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
+            next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
             next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
         )
@@ -235,19 +235,19 @@ class TestConvertToHypotheses:
         hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024)
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
+            next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
             next_labels=torch.tensor([[0, 1024, 1], [2, 1024, 1024]], device=device),
             next_hyps_prob=torch.tensor([[0.5, 0.6, 0.8], [0.1, 0.2, 0.3]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
+            next_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
             next_labels=torch.tensor([[3, 4, 1024], [5, 1024, 6]], device=device),
             next_hyps_prob=torch.tensor([[0.3, 0.2, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
+            next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
             next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
         )
@@ -280,19 +280,19 @@ class TestConvertToHypotheses:
         hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024)
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
+            next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
             next_labels=torch.tensor([[0, 1024, 1], [2, 1024, 1024]], device=device),
             next_hyps_prob=torch.tensor([[0.5, 0.6, 0.8], [0.1, 0.2, 0.3]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
+            next_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
             next_labels=torch.tensor([[3, 4, 1024], [5, 1024, 6]], device=device),
             next_hyps_prob=torch.tensor([[0.3, 0.2, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
+            next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
             next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
         )
@@ -325,19 +325,19 @@ class TestConvertToHypotheses:
         hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024)
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
+            next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
             next_labels=torch.tensor([[0, 1024, 1], [2, 1024, 1024]], device=device),
             next_hyps_prob=torch.tensor([[0.5, 0.6, 0.8], [0.1, 0.2, 0.3]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
+            next_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
             next_labels=torch.tensor([[3, 4, 1024], [5, 1024, 6]], device=device),
             next_hyps_prob=torch.tensor([[0.3, 0.2, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
+            next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
             next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
         )
@@ -365,19 +365,19 @@ class TestConvertToHypotheses:
         hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024)
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
+            next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
             next_labels=torch.tensor([[0, 1024, 1], [2, 1024, 1024]], device=device),
             next_hyps_prob=torch.tensor([[0.5, 0.6, 0.8], [0.1, 0.2, 0.3]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
+            next_indices=torch.tensor([[0, 1, 1], [2, 1, 0]], device=device),
             next_labels=torch.tensor([[3, 4, 1024], [5, 1024, 6]], device=device),
             next_hyps_prob=torch.tensor([[0.3, 0.2, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hyps.add_results_(
-            hyps_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
+            next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
             next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
         )
