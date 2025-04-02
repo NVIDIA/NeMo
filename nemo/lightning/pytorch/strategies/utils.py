@@ -36,7 +36,6 @@ from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinte
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
-
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
 )
@@ -54,7 +53,6 @@ class RestoreConfig:
 
     Attributes:
         path (str): Path to the checkpoint directory.
-        adapter_path (Optional[str]): Path to adapter checkpoint, if any.
         load_model_state (bool): Whether to load model weights.
         load_optim_state (bool): Whether to load optimizer state.
         load_artifacts (bool): Whether to load additional artifacts (e.g., tokenizer).
@@ -450,7 +448,7 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
-    offload_policy: 'CPUOffloadPolicy' = None,
+    offload_policy: "CPUOffloadPolicy" = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
     NOTE: The passed-in model preferably should be on meta device. Otherwise,

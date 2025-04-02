@@ -139,9 +139,7 @@ class AutoResume:
 
         elif self.restore_config:
             new_path = self._extract_path(
-                model=model,
                 path=self.restore_config.path,
-                adapter_path=None,
             )
             assert not isinstance(new_path, AdapterPath), "AdapterPath is not supported for restore_config"
             self.restore_config.path = str(new_path)
@@ -157,22 +155,13 @@ class AutoResume:
 
                 _try_restore_tokenizer(model, context_path)
 
-    def _extract_path(
-        self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None
-    ) -> BasePath:
+    def _extract_path(self, path: str) -> BasePath:
         if "://" in path:
             assert path.startswith("nemo://"), "Only NeMo based paths starting with nemo:// are currently supported."
             _, _path = path.split("://")
             new_path = os.path.join(NEMO_MODELS_CACHE, _path)
         else:
             new_path = path
-
-        if adapter_path:
-            maybe_weights_path = self.get_weights_path(adapter_path)
-            if maybe_weights_path.is_dir():
-                adapter_path = maybe_weights_path
-
-            new_path = AdapterPath(Path(adapter_path), base_model_path=new_path)
 
         if isinstance(new_path, str):
             new_path = Path(new_path)
