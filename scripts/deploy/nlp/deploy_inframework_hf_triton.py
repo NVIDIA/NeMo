@@ -27,14 +27,14 @@ LOGGER = logging.getLogger("NeMo")
 
 
 def setup_torch_dist(rank, world_size):
-    """ Setups torch distributed """
+    """Setups torch distributed"""
     torch.cuda.set_device(rank)
     # Initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
 def get_args(argv):
-    """ Get script parameters """
+    """Get script parameters"""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy nemo models to Triton",
@@ -69,7 +69,7 @@ def get_args(argv):
 
 
 def hf_deploy(argv):
-    """ Hf deploy function """
+    """Hf deploy function"""
     args = get_args(argv)
 
     if args.debug_mode:
@@ -91,13 +91,14 @@ def hf_deploy(argv):
             setup_torch_dist(rank, world_size)
     else:
         if args.device_map == "auto":
-            LOGGER.warning("device_map is set to auto and it is recommended that the script"
-                           "is started with torchrun with a process per GPU. You might "
-                           "see unexpected issues during the inference otherwise.")
+            LOGGER.warning(
+                "device_map is set to auto and it is recommended that the script"
+                "is started with torchrun with a process per GPU. You might "
+                "see unexpected issues during the inference otherwise."
+            )
 
         if args.tp_plan is not None:
             raise ValueError("tp_plan is only available with torchrun.")
-
 
     hf_deployable = HuggingFaceLLMDeploy(
         hf_model_id_path=args.hf_model_id_path,
