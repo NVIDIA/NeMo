@@ -529,7 +529,7 @@ def main(cfg: StreamingEvaluationConfig):
                         "text": all_refs_text[i],
                         "pred_text": hyp,
                         "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
-                        "laal": all_laal[i]
+                        "laal": int(all_laal[i]),
                     }
                     if all_answer_text:
                         record["answer"] = all_answer_text[i]
