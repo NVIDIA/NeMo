@@ -95,7 +95,7 @@ def save_hf_tokenizer_assets(tokenizer_name_or_path, save_path="/tmp/nemo_tokeni
     return save_path
 
 
-def dtype_from_str(dtype):
+def dtype_from_str(dtype: str) -> torch.dtype:
     """
     Convert a str precision to equivalent torch dtype.
     """
@@ -108,7 +108,7 @@ def dtype_from_str(dtype):
         return torch.float32
 
 
-def dtype_from_hf(config):
+def dtype_from_hf(config) -> torch.dtype:
     """
     Extracts torch dtype from a HF config
     """
@@ -210,9 +210,6 @@ class BaseImporter:
                     async_save=False, save=str(self.output_path), save_optim=False, ckpt_format="torch_dist"
                 ),
                 dist_config=None,
-                ft_config=None,
-                straggler_config=None,
-                profiling_config=None,
             )
             save_checkpoint(
                 state=state,
@@ -291,8 +288,8 @@ class BaseExporter:
         assert tron_yaml.exists(), f"Tron config file {tron_yaml} does not exist"
         with open(tron_yaml, "r") as stream:
             _config = yaml.safe_load(stream)
-        config = _config["model_config"]
-        config = instantiate(config)
+        model_config = _config["model_config"]
+        model_config = instantiate(model_config)
 
         if self._hf_tokenizer_path is None:
             # Try to build tokenizer from the NeMo checkpoint
@@ -308,9 +305,9 @@ class BaseExporter:
                 logger.warning("Failed to find Huggingface tokenizer in the NeMo checkpoint")
 
         state_dict = {}
-        state_dict = get_full_mcore_state_dict(self.input_path, model_cfg=config)
+        state_dict = get_full_mcore_state_dict(self.input_path, model_cfg=model_config)
 
-        return state_dict, config
+        return state_dict, model_config
 
     def apply(self) -> Path:
         """Run the conversion from Tron to HF format."""

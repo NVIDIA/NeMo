@@ -156,7 +156,6 @@ class FinetuningDatasetBuilder:
         test_ds = (
             self._create_dataset(
                 self.test_path,
-                tokens_to_generate=32,
                 is_test=True,
                 **self.dataset_kwargs,
             )

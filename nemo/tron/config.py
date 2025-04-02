@@ -117,6 +117,12 @@ class DataloaderConfig:
     data_sharding: bool = True
     """Disable data sharding."""
 
+    pin_memory: bool = True
+    """Whether to pin memory during data loading for faster GPU training."""
+
+    persistent_workers: bool = False
+    """Whether to keep data loading workers persistent across epochs."""
+
 
 @dataclass
 class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
@@ -131,7 +137,7 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
 @dataclass(kw_only=True)
 class FinetuningDatasetConfig(DataloaderConfig):
     dataset_root: Optional[Union[str, Path]] = None
-    seq_length: int = 1024
+    seq_length: int
     seed: int = 1234
     memmap_workers: int = 1
     max_train_samples: Optional[int] = None

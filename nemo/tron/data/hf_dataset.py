@@ -158,19 +158,6 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
 
     This class extends FinetuningDatasetBuilder to work with Hugging Face datasets instead of file paths.
     It provides methods to build datasets from Hugging Face's datasets library.
-
-    Args:
-        path_or_dataset: Either a string path to a dataset on the Hub or a Dataset/DatasetDict instance
-        split: Which split(s) of the dataset to use (e.g., "train", ["train", "validation"])
-        tokenizer: The tokenizer to use for preprocessing text
-        collate_fn: Function to collate samples into batches
-        seq_length: Maximum sequence length
-        is_built_on_rank: Function that returns True if dataset should be built on current rank
-        seed: Random seed for dataset operations
-        train_aliases: list of aliases for train split
-        test_aliases: list of aliases for test split
-        val_aliases: list of aliases for validation split
-        **kwargs: Additional arguments to pass to load_dataset or Dataset.from_dict
     """
 
     def __init__(

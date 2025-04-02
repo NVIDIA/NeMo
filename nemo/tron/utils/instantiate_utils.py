@@ -45,6 +45,84 @@ class _Keys(str, Enum):
     ARGS = "_args_"
 
 
+def instantiate(
+    config: Any,
+    *args: Any,
+    mode: InstantiationMode = InstantiationMode.LENIENT,
+    **kwargs: Any,
+) -> Any:
+    """
+    :param config: An config object describing what to call and what params to use.
+                   In addition to the parameters, the config must contain:
+                   _target_ : target class or callable name (str)
+                   And may contain:
+                   _args_: List-like of positional arguments to pass to the target
+                   _partial_: If True, return functools.partial wrapped method or object
+                              False by default. Configure per target.
+    :param args: Optional positional parameters pass-through
+    :param kwargs: Optional named parameters to override
+                   parameters in the config object. Parameters not present
+                   in the config objects are being passed as is to the target.
+                   IMPORTANT: dataclasses instances in kwargs are interpreted as config
+                              and cannot be used as passthrough
+    :return: if _target_ is a class name: the instantiated object
+             if _target_ is a callable: the return value of the call
+    """
+
+    # Return None if config is None
+    if config is None:
+        return None
+
+    if isinstance(config, (dict, list)):
+        config = _prepare_input_dict_or_list(config)
+
+    kwargs = _prepare_input_dict_or_list(kwargs)
+
+    # Structured Config always converted first to OmegaConf
+    if is_structured_config(config) or isinstance(config, (dict, list)):
+        config = OmegaConf.structured(config, flags={"allow_objects": True})
+
+    if OmegaConf.is_dict(config):
+        # Finalize config (convert targets to strings, merge with kwargs)
+        config_copy = copy.deepcopy(config)
+        config_copy._set_flag(flags=["allow_objects", "struct", "readonly"], values=[True, False, False])
+        config_copy._set_parent(config._get_parent())
+        config = config_copy
+
+        if kwargs:
+            config = OmegaConf.merge(config, kwargs)
+
+        OmegaConf.resolve(config)
+
+        _partial_ = config.pop(_Keys.PARTIAL, False)
+
+        return instantiate_node(config, *args, partial=_partial_, mode=mode)
+    elif OmegaConf.is_list(config):
+        # Finalize config (convert targets to strings, merge with kwargs)
+        config_copy = copy.deepcopy(config)
+        config_copy._set_flag(flags=["allow_objects", "struct", "readonly"], values=[True, False, False])
+        config_copy._set_parent(config._get_parent())
+        config = config_copy
+
+        OmegaConf.resolve(config)
+
+        _partial_ = kwargs.pop(_Keys.PARTIAL, False)
+
+        if _partial_:
+            raise InstantiationException("The _partial_ keyword is not compatible with top-level list instantiation")
+
+        return instantiate_node(config, *args, partial=_partial_, mode=mode)
+    else:
+        raise InstantiationException(
+            dedent(
+                f"""\
+                Cannot instantiate config of type {type(config).__name__}.
+                Top level config must be an OmegaConf DictConfig/ListConfig object,
+                a plain dict/list, or a Structured Config class or instance."""
+            )
+        )
+
+
 def _locate(path: str) -> Any:
     """
     Locate an object by name or dotted path, importing as necessary.
@@ -194,84 +272,6 @@ def _extract_pos_args(input_args: Any, kwargs: Any) -> Tuple[Any, Any]:
         )
 
     return output_args, kwargs
-
-
-def instantiate(
-    config: Any,
-    *args: Any,
-    mode: InstantiationMode = InstantiationMode.LENIENT,
-    **kwargs: Any,
-) -> Any:
-    """
-    :param config: An config object describing what to call and what params to use.
-                   In addition to the parameters, the config must contain:
-                   _target_ : target class or callable name (str)
-                   And may contain:
-                   _args_: List-like of positional arguments to pass to the target
-                   _partial_: If True, return functools.partial wrapped method or object
-                              False by default. Configure per target.
-    :param args: Optional positional parameters pass-through
-    :param kwargs: Optional named parameters to override
-                   parameters in the config object. Parameters not present
-                   in the config objects are being passed as is to the target.
-                   IMPORTANT: dataclasses instances in kwargs are interpreted as config
-                              and cannot be used as passthrough
-    :return: if _target_ is a class name: the instantiated object
-             if _target_ is a callable: the return value of the call
-    """
-
-    # Return None if config is None
-    if config is None:
-        return None
-
-    if isinstance(config, (dict, list)):
-        config = _prepare_input_dict_or_list(config)
-
-    kwargs = _prepare_input_dict_or_list(kwargs)
-
-    # Structured Config always converted first to OmegaConf
-    if is_structured_config(config) or isinstance(config, (dict, list)):
-        config = OmegaConf.structured(config, flags={"allow_objects": True})
-
-    if OmegaConf.is_dict(config):
-        # Finalize config (convert targets to strings, merge with kwargs)
-        config_copy = copy.deepcopy(config)
-        config_copy._set_flag(flags=["allow_objects", "struct", "readonly"], values=[True, False, False])
-        config_copy._set_parent(config._get_parent())
-        config = config_copy
-
-        if kwargs:
-            config = OmegaConf.merge(config, kwargs)
-
-        OmegaConf.resolve(config)
-
-        _partial_ = config.pop(_Keys.PARTIAL, False)
-
-        return instantiate_node(config, *args, partial=_partial_, mode=mode)
-    elif OmegaConf.is_list(config):
-        # Finalize config (convert targets to strings, merge with kwargs)
-        config_copy = copy.deepcopy(config)
-        config_copy._set_flag(flags=["allow_objects", "struct", "readonly"], values=[True, False, False])
-        config_copy._set_parent(config._get_parent())
-        config = config_copy
-
-        OmegaConf.resolve(config)
-
-        _partial_ = kwargs.pop(_Keys.PARTIAL, False)
-
-        if _partial_:
-            raise InstantiationException("The _partial_ keyword is not compatible with top-level list instantiation")
-
-        return instantiate_node(config, *args, partial=_partial_, mode=mode)
-    else:
-        raise InstantiationException(
-            dedent(
-                f"""\
-                Cannot instantiate config of type {type(config).__name__}.
-                Top level config must be an OmegaConf DictConfig/ListConfig object,
-                a plain dict/list, or a Structured Config class or instance."""
-            )
-        )
 
 
 def _convert_node(node: Any) -> Any:
