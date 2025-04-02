@@ -130,7 +130,8 @@ def build_token_channel(
                 raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=} {diagnostic}") from e
 
             eospos = compute_num_frames(offset + d, frame_length, cut.sampling_rate)
-            tokens[eospos] = tokenizer.eos
+            if eospos < len(tokens):  # skip otherwise - unfinished turn
+                tokens[eospos] = tokenizer.eos
 
         offset += d
 
