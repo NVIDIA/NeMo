@@ -49,6 +49,7 @@ trt() {
           --NCCL_VER="2.25.1-1+cuda12.8" \
           --CUBLAS_VER="12.8.3.14-1"
     fi
+  fi
 }
 
 trtllm() {
