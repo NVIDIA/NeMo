@@ -195,7 +195,7 @@ class MALSDState:
             init_length=max_time * (max_symbols + 1) if max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
-            is_tdt=True
+            is_tdt=True,
         )
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
@@ -406,7 +406,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             init_length=max_time * (self.max_symbols + 1) if self.max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
-            is_tdt=True
+            is_tdt=True,
         )
 
         last_labels_wb = torch.full(
