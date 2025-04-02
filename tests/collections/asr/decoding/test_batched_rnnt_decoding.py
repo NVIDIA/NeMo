@@ -63,6 +63,7 @@ def rnnt_model():
     model.eval()
     return model
 
+
 @pytest.fixture(scope="module")
 def tdt_model():
     model = ASRModel.from_pretrained(model_name=TDT_MODEL, map_location="cpu")
@@ -74,6 +75,7 @@ def tdt_model():
 def get_rnnt_encoder_output(rnnt_model, test_audio_filenames):
     _, encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, rnnt_model)
     return encoder_output, encoded_lengths
+
 
 @pytest.fixture(scope="module")
 def get_tdt_encoder_output(tdt_model, test_audio_filenames):
@@ -156,7 +158,9 @@ class TestRNNTDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
         encoder_output, encoded_lengths = get_rnnt_encoder_output
-        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(
+            device
+        )
 
         # get_memory_info("Before class init")
         logging.info("Starting model initialization")
@@ -234,7 +238,9 @@ class TestRNNTDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
         encoder_output, encoded_lengths = get_rnnt_encoder_output
-        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(
+            device
+        )
 
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedRNNTInfer(
@@ -325,7 +331,9 @@ class TestRNNTDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
         encoder_output, encoded_lengths = get_rnnt_encoder_output
-        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(
+            device
+        )
 
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedRNNTInfer(
@@ -545,7 +553,9 @@ class TestTDTDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = tdt_model.to(device)
         encoder_output, encoded_lengths = get_tdt_encoder_output
-        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(
+            device
+        )
 
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
@@ -614,7 +624,9 @@ class TestTDTDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = tdt_model.to(device)
         encoder_output, encoded_lengths = get_tdt_encoder_output
-        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(
+            device
+        )
 
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
@@ -716,7 +728,9 @@ class TestTDTDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = tdt_model.to(device)
         encoder_output, encoded_lengths = get_tdt_encoder_output
-        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
+        encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(
+            device
+        )
 
         model_config = model.to_config_dict()
         durations = list(model_config["model_defaults"]["tdt_durations"])
