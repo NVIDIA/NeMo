@@ -30,6 +30,7 @@ class PersianG2p(BaseG2p):
     def __init__(
         self,
         phoneme_dict=None,
+        ignore_ambiguous_words=True,
         heteronyms=None,
         encoding='utf-8',
         phoneme_probability: Optional[float] = None,
@@ -43,6 +44,6 @@ class PersianG2p(BaseG2p):
         assert phoneme_dict is not None, "Please set the phoneme_dict path."
         self.phoner = PersianPhonemizer(dictionary_path=phoneme_dict)
         
-        def __call__(self, text):
-            phoneme_seq = self.phoner.phonemize(text)
-            return phoneme_seq
+    def __call__(self, text):
+        phoneme_seq = self.phoner.phonemize(text)
+        return phoneme_seq
