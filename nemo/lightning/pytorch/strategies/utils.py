@@ -541,11 +541,15 @@ def fsdp2_strategy_parallelize(
 
     if custom_tp_plan is not None:
         tp_plan = custom_tp_plan
-        logging.warning("You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored.")
+        logging.warning(
+            "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored."
+        )
     else:
         tp_plan = base_model_tp_plan
-        logging.info("Using default TP plan for parallelization. It is compatible with huggingface llama-style models.")
-    
+        logging.info(
+            "Using default TP plan for parallelization. It is compatible with huggingface llama-style models."
+        )
+
     parallelize_module(model, tp_mesh, tp_plan)
 
     # FSDP sharding

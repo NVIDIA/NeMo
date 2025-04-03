@@ -84,7 +84,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Args:
             data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
             tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
-            sequence_parallel (bool): Whether to enable sequence parallelism. Defaults to False. 
+            sequence_parallel (bool): Whether to enable sequence parallelism. Defaults to False.
                 Only effective when tensor_parallel_size > 1.
             data_sampler (optional): Custom data sampler to process dataloaders.
             mp_policy (optional): Mixed precision policy for parameter and operation casting.
@@ -506,8 +506,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # TODO(@boxiangw): refractor this to match TP plan
         if self._data_parallel_size == 1 and self._tensor_parallel_size > 1 and not self.sequence_parallel:
             # Does not need DTensor if using TP without DP and SP
-            ignore_keys = ['input_layernorm', 'post_attention_layernorm',  'norm']
-            colwise_keys = ['lm_head','self_attn.q_proj', 'self_attn.k_proj', 'self_attn.v_proj', 'mlp.gate_proj', 'mlp.up_proj']
+            ignore_keys = ['input_layernorm', 'post_attention_layernorm', 'norm']
+            colwise_keys = [
+                'lm_head',
+                'self_attn.q_proj',
+                'self_attn.k_proj',
+                'self_attn.v_proj',
+                'mlp.gate_proj',
+                'mlp.up_proj',
+            ]
             rowwise_keys = ['embed_tokens', 'self_attn.o_proj', 'mlp.down_proj']
 
             sharded_state = {k: v for k, v in ckpt['state_dict'].items()}
