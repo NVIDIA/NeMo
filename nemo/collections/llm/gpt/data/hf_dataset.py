@@ -407,6 +407,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         tokenizer.pad_token = tokenizer.eos_token
         self.pad_token_id = tokenizer.eos_id
         dataset = load_dataset(dataset_name)
+        kwargs['split'] = 'train'
         super().__init__(HellaSwagHFDataModule.preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
 
     @staticmethod
