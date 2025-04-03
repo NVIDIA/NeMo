@@ -201,7 +201,7 @@ class TrainingConfig:
     eval_iters: int = 100
     """Number of iterations to run for evaluation validation/test for."""
 
-    eval_interval: int = 1000
+    eval_interval: Optional[int] = 1000
     """Interval between running evaluation on validation set."""
 
     skip_train: bool = False
