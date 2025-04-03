@@ -51,6 +51,7 @@ from nemo.utils import logging
 class DuplexS2SModel(LightningModule):
     def __init__(self, cfg) -> None:
         super().__init__()
+        self.save_hyperparameters()
         self.cfg = cfg
 
         self._audio_codec = (
@@ -117,6 +118,32 @@ class DuplexS2SModel(LightningModule):
     def text_eos_id(self) -> int:
         return self.tokenizer.eos_id
 
+    @property
+    def text_pad_id(self) -> int:
+        """
+        Text pad ID is used as a 'blank' for frames when the model is not speaking
+        and for frames where the model is speaking but has already predicted the
+        entire text channel's content.
+
+        Example:
+
+            flow:         |---user---||-------assistant--------||-user-|
+            text channel:  0000000000  1xxxxxxx0000000000000002  000000
+
+        Where 0 indicates PAD ID, 1 indicates BOS ID, 2 indacates EOS ID,
+        and x indicates tokens corresponding to actual text
+
+        """
+        pad_id = self.tokenizer.pad
+        if pad_id is None:
+            pad_id = self.tokenizer.unk_id
+        if pad_id is None:
+            warnings.warn(
+                "the text tokenizer has no <pad> or <unk> tokens available, using id 0 for padding (this may lead to silent bugs)."
+            )
+            pad_id = 0
+        return pad_id
+
     def forward(
         self,
         input_embeds: Tensor,
@@ -170,18 +197,12 @@ class DuplexS2SModel(LightningModule):
         # Target tokens: (B, T)
         target_tokens = batch["target_tokens"]
         if target_tokens.shape[1] < source_encoded.shape[1]:
-            pad_id = self.tokenizer.pad
-            if pad_id is None:
-                pad_id = self.tokenizer.unk_id
-            if pad_id is None:
-                warnings.warn(
-                    "The text tokenizer has no <pad> or <unk> tokens available, using id 0 for padding (this may lead to silent bugs)."
-                )
-                pad_id = 0
             target_tokens = torch.cat(
                 [
                     target_tokens,
-                    (torch.ones(source_encoded.shape[0], 1, device=source_encoded.device) * pad_id).to(torch.long),
+                    (torch.ones(source_encoded.shape[0], 1, device=source_encoded.device) * self.text_pad_id).to(
+                        torch.long
+                    ),
                 ],
                 dim=-1,
             )
@@ -238,6 +259,9 @@ class DuplexS2SModel(LightningModule):
         audio_labels = input_ids[:, 1:, :-1]  # (B, T-1, K)
 
         # Input embeds: (B, T-1, H)
+        # Note: the order of addition should be consistent with inference code due to
+        #       a low numerical precision, i.e.: Input speech + (Output text + Output speech)
+        #       Remember that addition is not associative in low precision floating point!
         input_embeds = self.embed_tokens(text_inputs)
         for cbidx in range(self._num_codebooks):
             input_embeds.add_(self.embed_audio_tokens[cbidx](audio_inputs[..., cbidx]))
@@ -370,17 +394,26 @@ class DuplexS2SModel(LightningModule):
     def test_step(self, *args: Any, **kwargs: Any):
         return self.validation_step(*args, **kwargs)
 
-    def _get_bos_embedding(self):
+    def _get_bos_embedding(self) -> torch.Tensor:
         """
-        Return the BOS embedding: sum of text BOS token embedding and audio BOS token embedding.
-        Intended to be added to the input speech representation in the initial frame during inference.
+        Return the partial embedding corresponding to the start frame of the model.
+        It consists of the sum of text embedding of pad ID, and sum of audio token embeddings
+        corresponding to an all-zero frame. This is consistent with how the model is trained.
         The returned shape is (1, embedding_dim).
         """
-        raise NotImplementedError()
-        embed = self.embed_tokens(torch.full((1,), fill_value=self.tokenizer.bos_id, device=self.device))
-        embed += self.audio_bos_embedding
-        return embed
+        text_bos = torch.full((1,), fill_value=self.text_pad_id, device=self.device)
+        audio_zeros = torch.zeros((1, self._audio_codec.samples_per_frame), device=self.device, dtype=torch.bfloat16)
+        audio_bos, _ = self._audio_codec.encode(
+            audio=audio_zeros,
+            audio_len=torch.tensor([self._audio_codec.samples_per_frame], device=self.device, dtype=torch.long),
+        )
+        audio_bos = audio_bos.transpose(1, 2)[:, 0]
+        input_embeds = self.embed_tokens(text_bos)
+        for cbidx in range(self._num_codebooks):
+            input_embeds.add_(self.embed_audio_tokens[cbidx](audio_bos[..., cbidx]))
+        return input_embeds
 
+    @torch.inference_mode
     def offline_inference(self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor):
         raise NotImplementedError()
         # Run through ASR simulating streaming, and pre-multiply by input channel weight
@@ -410,12 +443,12 @@ class DuplexS2SModel(LightningModule):
         gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-2)
 
         for t in range(1, input_embeds.shape[1]):
-            input_embeds[:, t] += self.embed_tokens(gen_text[:, t])
+            input_embeds[:, t] += self.embed_tokens(gen_text[:, t - 1])
             for cbidx in range(self._num_codebooks):
-                input_embeds[:, t] += self.embed_audio_tokens[cbidx](gen_audio[:, t, cbidx])
-            ans = self(input_embeds[:, :t])
-            gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)
-            gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-2)
+                input_embeds[:, t] += self.embed_audio_tokens[cbidx](gen_audio[:, t - 1, cbidx])
+            ans = self(input_embeds[:, : t + 1])
+            gen_text[:, t] = ans["text_logits"].argmax(dim=-1)[:, -1]
+            gen_audio[:, t] = ans["audio_logits"].argmax(dim=-2)[:, -1]
 
         return gen_text, gen_audio
 
@@ -429,6 +462,8 @@ class DuplexS2SModel(LightningModule):
             self.llm.parameters(),
             self.lm_head.parameters(),
             self.audio_head.parameters(),
+            self.embed_tokens.parameters(),
+            self.embed_audio_tokens.parameters(),
         )
         optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
         lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
