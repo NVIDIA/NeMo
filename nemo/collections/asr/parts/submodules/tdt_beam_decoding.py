@@ -867,8 +867,6 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             beam_size: beam size
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
-            preserve_frame_confidence: if frame confidence is needed
-            confidence_method_cfg: config for the confidence
             ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
             ngram_lm_alpha: weight for the n-gram LM scores
             blank_lm_score_mode: mode for scoring blank symbol with LM

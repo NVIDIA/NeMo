@@ -48,8 +48,6 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         maes_expansion_beta: int,
         maes_expansion_gamma: int,
         preserve_alignments=False,
-        preserve_frame_confidence=False,
-        confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
@@ -94,7 +92,6 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         self.maes_expansion_gamma = maes_expansion_gamma
         self.preserve_alignments = preserve_alignments
         self._SOS = self._blank_index
-        self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.pruning_mode = pruning_mode
         self.blank_lm_score_mode = blank_lm_score_mode
 
@@ -221,7 +218,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     # step 3.1.2: prune with threshold parameter gamma
                     next_hyps_probs[
                         next_hyps_probs <= next_hyps_probs.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
-                    ] = float('-inf')
+                    ] = INACTIVE_SCORE
                 else:
                     next_labels, next_hyps_probs = self.topk_lm(batched_hyps, lm_scores, logps)
 
@@ -376,20 +373,21 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             NotImplementedError: If the combination of `blank_lm_score_mode` and `pruning_mode` is not implemented.
         """
 
-        if self.pruning_mode is PruningMode.LATE:
-            # step 1: combining LM and ASR outputs + choosing top `beam` most probable
-            log_probs = self.combine_scores(log_probs, lm_scores)
-            label_logps, labels = log_probs.topk(
-                self.beam_size + self.maes_expansion_beta, dim=-1, largest=True, sorted=True
-            )
+        match self.pruning_mode, self.blank_lm_score_mode:
+            case PruningMode.LATE, BlankLMScoreMode.NO_SCORE | BlankLMScoreMode.LM_WEIGHTED_FULL:
+                # step 1: combining LM and ASR outputs + choosing top `beam` most probable
+                log_probs = self.combine_scores(log_probs, lm_scores)
+                label_logps, labels = log_probs.topk(
+                    self.beam_size + self.maes_expansion_beta, dim=-1, largest=True, sorted=True
+                )
 
-            # step 2: pruning with threshold gamma
-            total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
-            total_logps[
-                total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
-            ] = float('-inf')
-        else:
-            if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
+                # step 2: pruning with threshold gamma
+                total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
+                total_logps[
+                    total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
+                ] = INACTIVE_SCORE
+            
+            case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 # step 1: choosing topk from ASR output
                 label_logps, labels = log_probs.topk(
                     self.beam_size + self.maes_expansion_beta, dim=-1, largest=True, sorted=True
@@ -399,7 +397,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                 total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
                 total_logps[
                     total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
-                ] = float('-inf')
+                ] = INACTIVE_SCORE
 
                 # step 3: adding scores from ngram LM
                 masked_labels = torch.where(labels == self._blank_index, 0, labels)
@@ -408,7 +406,8 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     total_logps,
                     total_logps + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            else:
+            
+            case PruningMode.EARLY, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 # step 1: choosing topk from ASR output
                 label_logps, labels = log_probs.topk(
                     self.beam_size + self.maes_expansion_beta, dim=-1, largest=True, sorted=True
@@ -418,7 +417,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                 total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
                 label_logps[
                     total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
-                ] = float('-inf')
+                ] = INACTIVE_SCORE
 
                 # step 3: adding scores from ngram LM
                 blank_logprob = log_probs[..., -1]
@@ -433,6 +432,10 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     + non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha
                     + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
+            
+            case _:
+                raise NotImplementedError(f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}")
+
         return labels, total_logps
 
     def __call__(

@@ -236,8 +236,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         beam_size: int,
         max_symbols_per_step: Optional[int] = 10,
         preserve_alignments=False,
-        preserve_frame_confidence=False,
-        confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
@@ -268,9 +266,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.beam_size = beam_size
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
-        self.preserve_frame_confidence = preserve_frame_confidence
         self._SOS = self._blank_index
-        self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.allow_cuda_graphs = allow_cuda_graphs
 
         if self.preserve_alignments:
@@ -602,13 +598,14 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 - labels_top_k: Corresponding top-k labels, shape [batch_size, beam_size, beam_size].
         """
 
-        if self.pruning_mode is PruningMode.LATE:
-            if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
+        match self.pruning_mode, self.blank_lm_score_mode:
+            case PruningMode.LATE, BlankLMScoreMode.NO_SCORE:
                 log_probs[..., :-1] += lm_scores
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
-            else:
+            
+            case PruningMode.LATE, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
@@ -616,9 +613,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
-        else:
-            if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
-                # log_probs[..., :-1] += lm_scores
+            
+            case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
@@ -628,8 +624,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     log_probs_top_k,
                     log_probs_top_k + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            else:
-                # choosing topk from acoustic model
+            
+            case PruningMode.EARLY, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 log_probs_top_k, labels_top_k = log_probs.topk(self.beam_size, dim=-1, largest=True, sorted=True)
 
                 blank_logprob = log_probs[..., -1]
@@ -643,6 +639,9 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     + non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha
                     + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
+            
+            case _:
+                raise NotImplementedError(f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}")
 
         return log_probs_top_k, labels_top_k
 

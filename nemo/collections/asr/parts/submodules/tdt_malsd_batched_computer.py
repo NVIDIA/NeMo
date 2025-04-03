@@ -247,8 +247,6 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         beam_size: int,
         max_symbols_per_step: Optional[int] = 10,
         preserve_alignments=False,
-        preserve_frame_confidence=False,
-        confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
@@ -264,8 +262,6 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             beam_size: beam size
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
-            preserve_frame_confidence: if frame confidence is needed
-            confidence_method_cfg: config for the confidence
             ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
             ngram_lm_alpha: weight for the n-gram LM scores
             blank_lm_score_mode: mode for scoring blank symbol with LM
@@ -281,14 +277,12 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         self.beam_size = beam_size
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
-        self.preserve_frame_confidence = preserve_frame_confidence
         self._SOS = self._blank_index
-        self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.durations = durations
         self.allow_cuda_graphs = allow_cuda_graphs
 
-        assert not self.preserve_alignments
-        assert not self.preserve_frame_confidence
+        if self.preserve_alignments:
+            raise NotImplementedError("Preserve alignments is not supported")
 
         self.state = None
         self.full_graph = None
@@ -299,7 +293,11 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         if ngram_lm_model is not None:
-            assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            if self._blank_index != expected_blank_index:
+                raise ValueError(
+                    f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}"
+                )
 
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
@@ -637,8 +635,9 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         """
 
         batch_size = log_probs.shape[0]
-        if self.pruning_mode is PruningMode.LATE:
-            if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
+
+        match self.pruning_mode, self.blank_lm_score_mode:
+            case PruningMode.LATE, BlankLMScoreMode.NO_SCORE:
                 log_probs[..., :-1] += lm_scores
                 total_log_probs = log_probs[:, :, :, None] + duration_log_probs[:, :, None, :]
 
@@ -651,7 +650,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = total_idx_top_k // len(self.durations)
                 durations_top_k = total_idx_top_k % len(self.durations)
-            else:
+            
+            case PruningMode.LATE, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
@@ -668,8 +668,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
                 labels_top_k = total_idx_top_k // len(self.durations)
                 durations_top_k = total_idx_top_k % len(self.durations)
-        else:
-            if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
+            
+            case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
@@ -691,8 +691,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
                 durations_top_k = total_idx_top_k % len(self.durations)
-            else:
-                # choosing topk from acoustic model
+            
+            case PruningMode.EARLY, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
@@ -719,6 +719,9 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
                 durations_top_k = total_idx_top_k % len(self.durations)
+            
+            case _:
+                raise NotImplementedError(f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}")
 
         return log_probs_top_k, labels_top_k, durations_top_k
 

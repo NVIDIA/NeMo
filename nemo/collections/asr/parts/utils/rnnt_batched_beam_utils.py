@@ -487,7 +487,7 @@ class BatchedBeamHyps:
                         dec_state=None,
                     )
                     for beam_idx in range(self.beam_size)
-                    if scores[batch_idx][beam_idx] > float('-inf')
+                    if scores[batch_idx][beam_idx] > INACTIVE_SCORE
                 ]
             )
             for batch_idx in range(self.batch_size)

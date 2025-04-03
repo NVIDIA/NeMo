@@ -322,7 +322,7 @@ class BeamRNNTInfer(Typing):
                                 Decoding will proceed without Cuda Graphs."""
             )
 
-        strategies = ["default", "tsd", "alsd", "nsc"]
+        strategies = ["default", "tsd", "alsd", "maes", "nsc"]
         strategies_batch = ["maes_batch", "malsd_batch"]
         if (pruning_mode, blank_lm_score_mode) != ("early", "no_score"):
             logging.warning(
