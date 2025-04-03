@@ -590,7 +590,7 @@ def cluster_download(
             f'gzip > {remote_tar}'
         )
         # Run the remote compression command and stream the progress
-        result = tunnel.run(command, watchers=[OutputWatcher()], pty=True, hide=(not verbose))
+        tunnel.run(command, watchers=[OutputWatcher()], pty=True, hide=(not verbose))
     else:
         command = f'cd {remote_dir_parent} && tar -czf {remote_tar} {remote_dir_name}'
         result = tunnel.run(command, hide=(not verbose))
