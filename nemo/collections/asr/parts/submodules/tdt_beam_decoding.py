@@ -932,7 +932,11 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             encoded_lengths: list of int representing the length of each sequence
                 output sequence.
         Returns:
-            packed list containing batch number of sentences (Hypotheses).
+            Tuple[list[Hypothesis]]: Tuple of a list of hypotheses for each batch. Each hypothesis contains
+                the decoded sequence, timestamps and associated scores. The format of the returned hypotheses depends
+                on the `return_best_hypothesis` attribute:
+                    - If `return_best_hypothesis` is True, returns the best hypothesis for each batch.
+                    - Otherwise, returns the N-best hypotheses for each batch.
         """
         # Preserve decoder and joint training state
         decoder_training_state = self.decoder.training

@@ -127,7 +127,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-    ) -> list[Hypothesis]:
+    ) -> BatchedBeamHyps:
         """
         Pure PyTorch implementation
 
@@ -442,5 +442,5 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-    ) -> list[Hypothesis]:
+    ) -> BatchedBeamHyps:
         return self.batched_modified_adaptive_expansion_search_torch(encoder_output=x, encoder_output_length=out_len)

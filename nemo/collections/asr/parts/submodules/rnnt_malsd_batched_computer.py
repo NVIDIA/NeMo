@@ -361,11 +361,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             encoder_output_length (torch.Tensor): The lengths of the encoder outputs for each batch
                 with shape [batch_size].
         Returns:
-            list[rnnt_utils.Hypothesis]: A list of hypotheses for each batch. Each hypothesis contains
-            the decoded sequence and associated scores. The format of the returned hypotheses depends
-            on the `return_best_hypothesis` attribute:
-                - If `return_best_hypothesis` is True, returns the best hypothesis for each batch.
-                - Otherwise, returns the N-best hypotheses for each batch.
+            BatchedBeamHyps: Batched beam hypotheses.
         """
         batch_size, max_time, _ = encoder_output.shape
         device = encoder_output.device
@@ -658,11 +654,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             encoder_output_length (torch.Tensor): The lengths of the encoder outputs for each batch
                 with shape [batch_size].
         Returns:
-            list[rnnt_utils.Hypothesis]: A list of hypotheses for each batch. Each hypothesis contains
-            the decoded sequence and associated scores. The format of the returned hypotheses depends
-            on the `return_best_hypothesis` attribute:
-                - If `return_best_hypothesis` is True, returns the best hypothesis for each batch.
-                - Otherwise, returns the N-best hypotheses for each batch.
+            BathcedBeamHyps: Batched beam hypotheses.
         """
 
         assert self.cuda_graphs_mode is not None
@@ -1128,7 +1120,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+    ) -> BatchedBeamHyps:
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             return self.modified_alsd_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
