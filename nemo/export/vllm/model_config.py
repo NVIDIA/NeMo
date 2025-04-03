@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional, Union
 
 import torch
 import yaml
+import json
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from transformers import AutoConfig
@@ -233,4 +234,10 @@ class NemoModelConfig(ModelConfig):
         """
         Prevent vLLM from trying to load a generation config
         """
+        nemo_path = Path(self.nemo_checkpoint)
+        generation_config_path = nemo_path / "context" / "artifacts" / "generation_config.json"
+        if generation_config_path.exists():
+            with generation_config_path.open("r") as f:
+                return json.load(f)
+
         return {}
