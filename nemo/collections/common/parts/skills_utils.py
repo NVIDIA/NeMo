@@ -397,7 +397,7 @@ def get_server_command(
         num_tasks = 1
     elif server_type == 'sglang':
         if num_nodes > 1:
-            multinode_args = f" --dist_init_addr $SLURM_MASTER_NODE --node_rank $SLURM_PROCID "
+            multinode_args = " --dist_init_addr $SLURM_MASTER_NODE --node_rank $SLURM_PROCID "
         else:
             multinode_args = ""
         server_start_cmd = (
@@ -686,7 +686,7 @@ def cluster_upload(tunnel: SSHTunnel, local_file: str, remote_dir: str, verbose:
     """
     sftp = tunnel.session.client.open_sftp()
     sftp.put(str(local_file), str(remote_dir), callback=progress_callback if verbose else None)
-    print(f"\nTransfer complete")
+    print("\nTransfer complete")
 
 
 def get_git_repo_path(path: str | Path = None):
