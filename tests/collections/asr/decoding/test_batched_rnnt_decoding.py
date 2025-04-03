@@ -116,20 +116,11 @@ def get_model_encoder_output(
 
 
 def decode_text_from_hypotheses(hyps, decoding):
-    decoded_hyps = decoding.decode_hypothesis(hyps)
-
-    return decoded_hyps
+    return decoding.decode_hypothesis(hyps)
 
 
 def decode_text_from_nbest_hypotheses(hyps, decoding):
-    all_hypotheses = []
-    for nbest_hyp in hyps:
-        n_hyps = nbest_hyp.n_best_hypotheses
-        decoded_hyps = decoding.decode_hypothesis(n_hyps)
-
-        all_hypotheses.append(decoded_hyps)
-
-    return all_hypotheses
+    return [decoding.decode_hypothesis(nbest_hyp.n_best_hypotheses) for nbest_hyp in hyps]
 
 
 class TestRNNTDecoding:
