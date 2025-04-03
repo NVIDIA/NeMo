@@ -1,10 +1,9 @@
 name: "ds_for_fastpitch_align"
 
-manifest_filepath: "train_manifest.json"
+manifest_filepath: "/content/drive/MyDrive/cNotebooks/perTTS/tts-nemo/pertts-speech-dataset-ganji-2nd-part-adabi/train.json"
 sup_data_path: "sup_data"
 sup_data_types: [ "align_prior_matrix", "pitch" ]
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
+phoneme_dict_path: "/content/drive/MyDrive/cNotebooks/perTTS/tts-nemo/persian-dict/persian-v3.0.dict"
 
 dataset:
   _target_: nemo.collections.tts.data.dataset.TTSDataset
