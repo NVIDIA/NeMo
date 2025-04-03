@@ -442,10 +442,11 @@ def get_sandox_command():
 class CustomJobDetails(SlurmJobDetails):
     """
     Custom job details class for handling SLURM job logs.
-    
+
     Extends SlurmJobDetails to manage separate log files for sbatch and srun processes,
     with configurable prefixes for each type of log.
     """
+
     # we have 1 srun per sub-task (e.g. server/sandbox/main), but only a single sbatch
     srun_prefix: str = "main"
     sbatch_prefix: str = ""
