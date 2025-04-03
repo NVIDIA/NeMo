@@ -21,6 +21,7 @@ import functools
 import inspect
 import itertools
 import queue
+import types
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
 from copy import copy
@@ -693,7 +694,20 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             model_chunk.buffers = (
                 dist_module.buffers
             )  # We need to do this explicitly since this is a attr pytorch uses
-            model_chunk.original_getattr = copy(model_chunk.__getattr__)
+
+            ## save a reference to the original getattr function
+            ## so we can restore the class' getattr during teardown
+            original_getattr = types.FunctionType(
+                model_chunk.__getattr__.__code__,
+                model_chunk.__getattr__.__globals__,
+                model_chunk.__getattr__.__name__,
+                model_chunk.__getattr__.__defaults__,
+                model_chunk.__getattr__.__closure__,
+            )
+
+            model_chunk.original_getattr = original_getattr
+            model_chunk.original_getattr.__dict__.update(model_chunk.__getattr__.__dict__)
+
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
