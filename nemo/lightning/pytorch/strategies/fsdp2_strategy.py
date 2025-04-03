@@ -43,10 +43,10 @@ from nemo.utils.import_utils import safe_import_from
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
-    from torch.distributed.tensor.placement_types import Shard, Replicate
+    from torch.distributed.tensor.placement_types import Replicate, Shard
 except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
-    from torch.distributed._tensor.placement_types import Shard, Replicate
+    from torch.distributed._tensor.placement_types import Replicate, Shard
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
