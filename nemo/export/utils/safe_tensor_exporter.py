@@ -34,6 +34,7 @@ np_float8 = np.dtype('V1', metadata={"dtype": "float8"})
 
 
 def numpy_to_torch(x):
+    """Convert numpy to torch"""
     if x.dtype == np_bfloat16:
         return torch.from_numpy(x.view(np.int16)).view(torch.bfloat16)
     elif x.dtype == np_float8:

@@ -49,6 +49,7 @@ class MockModel(ITritonDeployable):
         output_dict["outputs"] = cast_output("I am good, how about you?", np.bytes_)
         return output_dict
 
+
 def test_nemo_deploy_query():
     model_name = "mock_model"
     model = MockModel()
