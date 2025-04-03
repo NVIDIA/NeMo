@@ -117,8 +117,9 @@ def get_unmounted_path(cluster_config, path):
             return mount.split(":")[0] + path[len(mount.split(":")[1]) :]
     raise ValueError(f"The path '{path}' is not mounted. Check cluster config.")
 
-#caching the status assuming it doesn't change while experiment is being scheduled
-#otherwise this results in too many ssh calls
+
+# caching the status assuming it doesn't change while experiment is being scheduled
+# otherwise this results in too many ssh calls
 @lru_cache
 def get_exp_handles(expname: str, ignore_finished=True, ignore_exp_not_exists=True) -> list[str]:
     """Will return the handles of the tasks in the experiment.
@@ -550,7 +551,7 @@ def _get_tunnel_cached(
     identity: str | None = None,
     shell: str | None = None,
     pre_command: str | None = None,
-):  
+):
     """Create and cache an SSH tunnel connection with the given configuration."""
     return run.SSHTunnel(
         host=host,
@@ -563,12 +564,12 @@ def _get_tunnel_cached(
 
 
 def tunnel_hash(tunnel):
-    """ Generate a unique hash string for an SSH tunnel configuration. """
+    """Generate a unique hash string for an SSH tunnel configuration."""
     return f"{tunnel.job_dir}:{tunnel.host}:{tunnel.user}:{tunnel.identity}:{tunnel.shell}:{tunnel.pre_command}"
 
 
 def get_tunnel(cluster_config):
-    """ Create ssh tunnel. """
+    """Create ssh tunnel."""
     if "ssh_tunnel" not in cluster_config:
         LOG.info("No ssh_tunnel configuration found, assuming we are running from the cluster already.")
         return run.LocalTunnel(job_dir="")
@@ -880,8 +881,10 @@ def get_mounts_from_config(cluster_config: dict):
         mount = mounts[mount_id]
 
         if ":" not in mount:
-            raise ValueError(f"Invalid mount format: {mount}. \
-                             The mount path must be separated by a colon.")
+            raise ValueError(
+                f"Invalid mount format: {mount}. \
+                             The mount path must be separated by a colon."
+            )
 
         mount_source, mount_target = mount.split(":")
 
