@@ -24,7 +24,6 @@ import queue
 import types
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
-from copy import copy
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -695,8 +694,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 dist_module.buffers
             )  # We need to do this explicitly since this is a attr pytorch uses
 
-            ## save a reference to the original getattr function
-            ## so we can restore the class' getattr during teardown
+            # save a reference to the original getattr function
+            # so we can restore the class' getattr during teardown
             original_getattr = types.FunctionType(
                 model_chunk.__getattr__.__code__,
                 model_chunk.__getattr__.__globals__,
