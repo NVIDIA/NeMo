@@ -117,7 +117,6 @@ def get_unmounted_path(cluster_config, path):
             return mount.split(":")[0] + path[len(mount.split(":")[1]) :]
     raise ValueError(f"The path '{path}' is not mounted. Check cluster config.")
 
-
 # caching the status assuming it doesn't change while experiment is being scheduled
 # otherwise this results in too many ssh calls
 @lru_cache
@@ -446,18 +445,22 @@ class CustomJobDetails(SlurmJobDetails):
 
     @property
     def stdout(self) -> Path:
+        """"""
         return Path(self.folder) / f"{self.sbatch_prefix}%j_sbatch.log"
 
     @property
     def srun_stdout(self) -> Path:
+        """"""
         return Path(self.folder) / f"{self.srun_prefix}%j_srun.log"
 
     @property
     def stderr(self) -> Path:
+        """"""
         return Path(self.folder) / f"{self.sbatch_prefix}%j_sbatch.log"
 
     @property
     def srun_stderr(self) -> Path:
+        """"""
         return Path(self.folder) / f"{self.srun_prefix}%j_srun.log"
 
     @property
@@ -559,6 +562,7 @@ def tunnel_hash(tunnel):
 
 
 def get_tunnel(cluster_config):
+    """Create ssh tunnel"""
     if "ssh_tunnel" not in cluster_config:
         LOG.info("No ssh_tunnel configuration found, assuming we are running from the cluster already.")
         return run.LocalTunnel(job_dir="")
