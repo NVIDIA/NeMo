@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+@pytest.mark.run_only_on('GPU')
+@pytest.mark.unit
 def test_nemo2_convert_to_safe_tensors():
     """
     Test safe tensor exporter. This tests the whole nemo export until engine building.
