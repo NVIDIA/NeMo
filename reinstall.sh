@@ -49,7 +49,7 @@ trtllm() {
           --NCCL_VER="2.25.1-1+cuda12.8" \
           --CUBLAS_VER="12.8.4.1-1" \
           --NVRTC_VER="12.8.93-1" &&
-        python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
+        python3 ./scripts/build_wheel.py --job_count $(nproc) --clean --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
     fi
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
