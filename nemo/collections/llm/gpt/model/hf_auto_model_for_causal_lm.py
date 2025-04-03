@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import inspect
+import time
 
 import _io
 import lightning.pytorch as pl
@@ -22,12 +22,13 @@ import torch.distributed as dist
 from transformers import AutoModelForCausalLM
 
 from nemo.automodel.loss import masked_cross_entropy
+from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.automodel.loss.linear_ce import fused_linear_cross_entropy, HAVE_LINEAR_LOSS_CE
+
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
@@ -275,9 +276,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if 'input_ids' not in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
-        batch["output_hidden_states"] = (
-            True if self.use_linear_ce_loss else False
-        )  # Enable hidden states output
+        batch["output_hidden_states"] = True if self.use_linear_ce_loss else False  # Enable hidden states output
 
         if not self.use_linear_ce_loss:
             outputs = self.forward(batch)
@@ -286,9 +285,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             n_cls = logits.shape[-1]
             logits = logits.view(-1, n_cls)
             labels = labels.view(-1)
-            assert logits.shape[-2] == labels.shape[-1], (
-                "Expected logits & labels to have the same length"
-            )
+            assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
             loss = self.loss_fn(logits, labels, loss_mask)
         else:
             # use num_logits_to_keep=1 to avoid full logits matrix in memory

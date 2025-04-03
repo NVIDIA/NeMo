@@ -69,6 +69,7 @@ linear_cross_entropy, HAVE_LINEAR_LOSS_CE = safe_import_from(
     "linear_cross_entropy",
 )
 
+
 def fused_linear_cross_entropy(
     hidden_states: torch.Tensor,
     lm_weight: torch.Tensor,
