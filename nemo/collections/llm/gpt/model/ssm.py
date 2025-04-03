@@ -44,8 +44,9 @@ except (ImportError, ModuleNotFoundError):
     logging.warning("The package `megatron.core` was not imported in this environment which is needed for SSMs.")
     HAVE_MEGATRON_CORE_OR_TE = False
 
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.enums import AttnBackend
+from megatron.core.transformer.transformer_config import TransformerConfig
+
 
 def ssm_forward_step(model, batch) -> torch.Tensor:
     """
