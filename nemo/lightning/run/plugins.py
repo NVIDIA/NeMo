@@ -396,3 +396,15 @@ class PerfEnvPlugin(run.Plugin):
                 if (executor.setup_lines and len(executor.setup_lines) > 0)
                 else vboost_cmd
             )
+
+@dataclass(kw_only=True)
+class TritonCacheSetup(run.Plugin):
+    """
+    A plugin for setting up Triton cache environment variables.
+    This should not be neccessay for Triton 3.2.0 and above.
+    """
+    def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+
+        executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir+"triton_cahce"
+        executor.env_vars["TRITON_CACHE_MANAGER"] = "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
+    
