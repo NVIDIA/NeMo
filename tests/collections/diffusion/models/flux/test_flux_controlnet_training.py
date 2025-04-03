@@ -104,7 +104,7 @@ def flux_controlnet_training(
         log=run.Config(
             nl.NeMoLogger,
             ckpt=None,
-            name=NAME,
+            name='flux_controlnet_training_test',
             tensorboard=tensorboard_logger(name=NAME),
             log_dir='/tmp/flux_controlnet_training',
         ),
@@ -175,7 +175,7 @@ def flux_training(
         log=run.Config(
             nl.NeMoLogger,
             ckpt=None,
-            name=NAME,
+            name='flux_training_test',
             tensorboard=tensorboard_logger(name=NAME),
             log_dir='/tmp/flux_training',
         ),
