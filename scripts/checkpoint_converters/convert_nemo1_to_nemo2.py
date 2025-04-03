@@ -79,6 +79,8 @@ MODEL_CONFIG_MAPPING = {
     "nemotron4-15b": (llm.NemotronModel, llm.Nemotron4Config15B),
     "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
     "nemotron5-hybrid8b": (llm.MambaModel, llm.Nemotron5HybridConfig8B),
+    "nemotron5-hybrid47b": (llm.MambaModel, llm.Nemotron5HybridConfig47B),
+    "nemotron5-hybrid56b": (llm.MambaModel, llm.Nemotron5HybridConfig56B),
 }
 
 def get_args():
