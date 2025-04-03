@@ -39,6 +39,9 @@ __all__ = [
 
 @lru_cache(maxsize=2)
 def get_tunnel(**ssh_tunnel):
+    """
+    Establishing ssh tunnel
+    """
     return SSHTunnel(**ssh_tunnel)
 
 
