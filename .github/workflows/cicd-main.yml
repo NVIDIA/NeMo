@@ -1754,7 +1754,6 @@ jobs:
   L2_ONNX_TRT_LLM_Embedding_Export:
     needs: [ pre-flight, cicd-test-container-build ]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ONNX_TRT_LLM_Embedding_Export')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
