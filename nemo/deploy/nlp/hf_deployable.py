@@ -18,6 +18,7 @@ from typing import Any, List, Optional
 
 import numpy as np
 import torch
+from peft import PeftModel
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
@@ -40,7 +41,8 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
     Args:
         hf_model_id_path (Optional[str]): Path to the HuggingFace model or model identifier.
             Can be a local path or a model ID from HuggingFace Hub.
-        model (Optional[AutoModel]): Pre-loaded HuggingFace model. If provided, hf_model_id_path will be ignored.
+        hf_peft_model_id_path (Optional[str]): Path to the PEFT model or model identifier.
+            Can be a local path or a model ID from HuggingFace Hub.
         tokenizer_id_path (Optional[str]): Path to the tokenizer or tokenizer identifier.
             If None, will use the same path as hf_model_id_path.
         tokenizer (Optional[AutoTokenizer]): Pre-loaded HuggingFace tokenizer.
@@ -57,6 +59,7 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
     def __init__(
         self,
         hf_model_id_path: Optional[str] = None,
+        hf_peft_model_id_path: Optional[str] = None,
         tokenizer_id_path: Optional[str] = None,
         model: Optional[AutoModel] = None,
         tokenizer: Optional[AutoTokenizer] = None,
@@ -76,6 +79,7 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         assert task in SUPPORTED_TASKS, "Task {0} is not a support task.".format(task)
 
         self.hf_model_id_path = hf_model_id_path
+        self.hf_peft_model_id_path = hf_peft_model_id_path
         self.task = task
         self.model = model
         self.tokenizer = tokenizer
@@ -106,6 +110,9 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
 
         if self.task == "text-generation":
             self.model = AutoModelForCausalLM.from_pretrained(self.hf_model_id_path, **hf_kwargs)
+
+            if self.hf_peft_model_id_path is not None:
+                self.model = PeftModel.from_pretrained(self.model, self.hf_peft_model_id_path)
         else:
             raise ValueError("Task {0} is not supported.".format(self.task))
 

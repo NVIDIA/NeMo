@@ -24,12 +24,11 @@ from nemo.deploy.nlp.hf_deployable import HuggingFaceLLMDeploy
 from nemo.deploy.utils import broadcast_list
 
 
-@pytest.mark.skip(reason="will be activated once HF ckpt is available")
 def test_hf_generate():
     """Tests HF deployable class's generate function."""
 
     hf_deployable = HuggingFaceLLMDeploy(
-        hf_model_id_path="/opt/checkpoints/hf_saved/",
+        hf_model_id_path="/home/TestData/llm/models/llama3.2-1B-hf/ ",
         task="text-generation",
         trust_remote_code=True,
         device_map=None,
@@ -47,7 +46,6 @@ def test_hf_generate():
     assert len(output[1]) > 0, "Second list in the output should have more than 0 elements."
 
 
-@pytest.mark.skip(reason="will be activated once HF ckpt is available")
 def test_hf_multigpu_generate():
     """Tests HF deployable class's generate function with multiple GPUs."""
 
@@ -79,7 +77,7 @@ def _hf_generate_ranks():
     torch.cuda.set_device(dist.get_rank())
 
     hf_deployable = HuggingFaceLLMDeploy(
-        hf_model_id_path="/opt/checkpoints/hf_saved/",
+        hf_model_id_path="/home/TestData/llm/models/llama3.2-1B-hf/",
         task="text-generation",
         trust_remote_code=True,
         device_map=None,
