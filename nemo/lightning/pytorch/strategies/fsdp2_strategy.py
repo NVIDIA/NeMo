@@ -24,18 +24,13 @@ from typing import Any, Dict, Literal, Optional, Union
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
-from torch.distributed.tensor.parallel import (
-    ColwiseParallel,
-    ParallelStyle,
-    RowwiseParallel,
-    SequenceParallel,
-)
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from torch.distributed.tensor.parallel import ColwiseParallel, ParallelStyle, RowwiseParallel, SequenceParallel
 from typing_extensions import override
 
 from nemo.lightning import io
@@ -50,10 +45,10 @@ from nemo.utils.import_utils import safe_import_from
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
-    from torch.distributed.tensor.placement_types import Shard, Replicate
+    from torch.distributed.tensor.placement_types import Replicate, Shard
 except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
-    from torch.distributed._tensor.placement_types import Shard, Replicate
+    from torch.distributed._tensor.placement_types import Replicate, Shard
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
@@ -105,9 +100,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 )
                 ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
-            custom_tp_plan (Optional[Dict[str, Any]]): Custom tensor parallel plan for the model. 
-                tensor_parallel_size need to be > 1 to use this option. If provided, it overrides the 
-                default tensor parallel plan. sequence_parallel option will be ignored if custom_tp_plan 
+            custom_tp_plan (Optional[Dict[str, Any]]): Custom tensor parallel plan for the model.
+                tensor_parallel_size need to be > 1 to use this option. If provided, it overrides the
+                default tensor parallel plan. sequence_parallel option will be ignored if custom_tp_plan
                 is provided.
             **kwargs: Additional arguments for base class initialization.
         """
@@ -131,7 +126,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         if custom_tp_plan is not None:
             self.tp_shard_plan = custom_tp_plan
-            logging.warning("You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored.")
+            logging.warning(
+                "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored."
+            )
         else:
             # Parallelize the first embedding and the last linear out projection
             base_model_tp_plan = {
@@ -161,7 +158,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 base_model_tp_plan.update(base_model_sp_plan)
 
             self.tp_shard_plan = base_model_tp_plan
-            logging.info("Using default TP plan for parallelization. It is compatible with huggingface llama-style models.")
+            logging.info(
+                "Using default TP plan for parallelization. It is compatible with huggingface llama-style models."
+            )
 
     @property
     @override
@@ -563,7 +562,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                     sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=1)))
                 else:
                     # This is for layers not sharded by TP/SP
-                    sharded_state[k] = distribute_tensor(v, self.device_mesh["data_parallel"], placements=(Shard(dim=0),))
+                    sharded_state[k] = distribute_tensor(
+                        v, self.device_mesh["data_parallel"], placements=(Shard(dim=0),)
+                    )
         else:
             sharded_state = {
                 k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))

@@ -469,7 +469,7 @@ def fsdp2_strategy_parallelize(
         device_mesh (DeviceMesh): The device mesh for distributed training.
         mp_policy (MixedPrecisionPolicy): Mixed precision policy for model parallelism.
         tp_shard_plan (Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]]):
-            A tensor parallel sharding plan. The keys should be the module names and the values should be the 
+            A tensor parallel sharding plan. The keys should be the module names and the values should be the
             corresponding parallel styles (e.g., RowwiseParallel, ColwiseParallel, SequenceParallel).
         offload_policy (CPUOffloadPolicy): The offload policy for FSDP. If None, it will use the default policy.
 
