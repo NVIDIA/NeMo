@@ -32,6 +32,8 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 
 NAME = "nemotron5_hybrid_56b"
 
