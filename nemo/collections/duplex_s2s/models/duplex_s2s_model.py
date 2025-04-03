@@ -36,7 +36,7 @@ from torch.distributed.tensor.parallel import (
     parallelize_module,
 )
 from torchmetrics.text import SacreBLEUScore
-from transformers import AutoModel, AutoModelForCausalLM
+from transformers import AutoModel, AutoModelForCausalLM, DynamicCache
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -147,6 +147,7 @@ class DuplexS2SModel(LightningModule):
     def forward(
         self,
         input_embeds: Tensor,
+        cache=None,
     ) -> dict[str, Tensor]:
         """
         Implements a fully offline forward pass through the entire model.
@@ -157,16 +158,21 @@ class DuplexS2SModel(LightningModule):
                                                      |-> |lm_head|    -> |token ids  |
         """
         # input_embeds and out: (B, T, H)
-        out = self.llm(inputs_embeds=input_embeds)
+        out = self.llm(
+            inputs_embeds=input_embeds, past_key_values=cache, use_cache=cache is not None, return_dict=True
+        )
         B, T = input_embeds.shape[:2]
         text_logits = self.lm_head(out['last_hidden_state'])  # (B, T, num_text_tokens)
         audio_logits = self.audio_head(out['last_hidden_state']).view(
             B, T, self.speech_vocab_size, self._num_codebooks
         )
-        return {
+        ans = {
             "text_logits": text_logits,
             "audio_logits": audio_logits,
         }
+        if cache is not None:
+            ans["cache"] = out["past_key_values"]
+        return ans
 
     def prepare_inputs(self, batch: dict):
         """
@@ -415,7 +421,6 @@ class DuplexS2SModel(LightningModule):
 
     @torch.inference_mode
     def offline_inference(self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor):
-        raise NotImplementedError()
         # Run through ASR simulating streaming, and pre-multiply by input channel weight
         # input_embeds: (B, T, H)
         input_embeds, input_embed_lens = self.perception(
@@ -425,8 +430,7 @@ class DuplexS2SModel(LightningModule):
         input_embeds *= self.cfg.get("duplex_user_channel_weight", 0.3)
 
         # Pre-allocate the memory for outputs.
-        # from transformers import DynamicCache
-        # cache = DynamicCache()
+        cache = DynamicCache()
         B, T = input_embeds.shape[:2]
         gen_audio = torch.empty(B, T, self._num_codebooks, device=self.device, dtype=torch.long)
         gen_text = torch.empty(B, T, device=self.device, dtype=torch.long)
@@ -434,11 +438,7 @@ class DuplexS2SModel(LightningModule):
         # Construct initial input frame using BOS token and BOS output audio frame
         # and run the first prediction step
         input_embeds[:, 0] += self._get_bos_embedding()
-        ans = self(input_embeds[:, :1])
-        # ans = self.llm(input_embeds[:, :1], past_key_values=cache, use_cache=True, return_dict=True)
-        # text_logits = self.lm_head(ans.logits)
-        # audio_logits = self.audio_head(ans.logits)
-        # cache = ans.past_key_values
+        ans = self(input_embeds[:, :1], cache=cache)
         gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)
         gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-2)
 
@@ -446,7 +446,7 @@ class DuplexS2SModel(LightningModule):
             input_embeds[:, t] += self.embed_tokens(gen_text[:, t - 1])
             for cbidx in range(self._num_codebooks):
                 input_embeds[:, t] += self.embed_audio_tokens[cbidx](gen_audio[:, t - 1, cbidx])
-            ans = self(input_embeds[:, : t + 1])
+            ans = self(input_embeds[:, t : t + 1], cache=ans["cache"])
             gen_text[:, t] = ans["text_logits"].argmax(dim=-1)[:, -1]
             gen_audio[:, t] = ans["audio_logits"].argmax(dim=-2)[:, -1]
 
