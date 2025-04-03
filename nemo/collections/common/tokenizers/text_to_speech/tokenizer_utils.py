@@ -31,6 +31,7 @@ __all__ = [
     "LATIN_CHARS_ALL",
     "normalize_unicode_text",
     "japanese_text_preprocessing",
+    "persian_text_preprocessing",
 ]
 
 # Derived from LJSpeech
@@ -211,3 +212,7 @@ def vietnamese_text_preprocessing(text: str) -> str:
 
 def japanese_text_preprocessing(text: str) -> str:
     return text.lower()
+
+
+def persian_text_preprocessing(text: str) -> str:
+    return text

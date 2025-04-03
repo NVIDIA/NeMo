@@ -15,7 +15,7 @@
 
 # fmt: off
 
-SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES", "it-IT", "fr-FR", "vi-VN", "ja-JP"]
+SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES", "it-IT", "fr-FR", "vi-VN", "ja-JP", "fa-IR"]
 
 DEFAULT_PUNCTUATION = (
     ',', '.', '!', '?', '-',
@@ -28,6 +28,15 @@ VITS_PUNCTUATION = (
     ':', ';', '"', '«', '»',
     '“', '”', '¡', '¿', '—', 
     '…',
+)
+
+PERSIAN_PUNCTUATIONS = (
+    ',', '.', '!', '?', '-',
+    ':', ';', '/', '"', '(',
+    ')', '[', ']', '{', '}',
+    '«', '»', '“', '”', '…',
+    '؛', '؟', '،', '‹', '›',
+    '‒'
 )
 
 GRAPHEME_CHARACTER_SETS = {
@@ -73,6 +82,13 @@ GRAPHEME_CHARACTER_SETS = {
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
         'U', 'V', 'W', 'X', 'Y', 'Z', 'À', 'È', 'É', 'Ì',
         'Ò', 'Ù'
+    ),
+    "fa-IR" :(
+        'ء', 'آ', 'أ', 'ؤ', 'ئ', 'ا', 'ب', 'پ', 'ت', 'ث', 
+        'ج', 'چ', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'ژ', 'س', 
+        'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ک',
+        'گ', 'ل', 'م', 'ن', 'ه', 'و', 'ه', 'ی', 'ً', 'َ', 'ُ', 
+        'ِ', 'ّ', 'ْ', 'ٔ', 'ۀ', 'ة',     
     ),
 }
 
@@ -140,6 +156,14 @@ IPA_CHARACTER_SETS = {
         'ɑ̃', 'ĩ', 'ũ', 'ẽ', 'õ', 'ɑ̃', 'ĩ', 'ũ', 'w̃',  
         'ẽ', 'õ', 'hʲ', 'ɪ', 'ː', 'o̞', 'e̞', 
     ),
+    # Non-IPA-phoneme sets
+    "fa-IR": (
+        "A", "Λ", "ą", "ę", "ó", "b", "p", "t", "c", "j", "C", 
+        "H", "x", "d", "D", "r", "z", "ʒ", "s", "S", "ć", "Ć", 
+        "T", "Z", "ʔ", "G", "f", "q", "k", "l", "m", "n", "v",
+        "O", "u", "V", "U", "h", "E", "Y", "y", "i", "I", "a",
+        "e", "o", "Ą", "Ę", "Ó", "ð", "ʊ", "ɔ", "θ", "'",
+    ),
 }
 
 GRAPHEME_CHARACTER_CASES = ["upper", "lower", "mixed"]
@@ -193,9 +217,11 @@ def get_ipa_punctuation_list(locale):
     punct_set = set(DEFAULT_PUNCTUATION)
     # TODO @xueyang: verify potential mismatches with locale-specific punctuation sets used
     #  in nemo_text_processing.text_normalization.en.taggers.punctuation.py
-    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP"]:
+    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "ja-JP", "fa-IR"]:
         # ref: https://en.wikipedia.org/wiki/Guillemet#Uses
         punct_set.update(['«', '»', '‹', '›'])
+    if locale == "fa-IR":
+        punct_set.update(['“', '”', '…', '؛', '؟', '،', '‒'])
     if locale == "de-DE":
         # ref: https://en.wikipedia.org/wiki/German_orthography#Punctuation
         punct_set.update(
