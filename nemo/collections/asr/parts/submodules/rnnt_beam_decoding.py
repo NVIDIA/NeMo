@@ -1650,7 +1650,7 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
         partial_hypotheses: Optional[list[Hypothesis]] = None,
-    ) -> Tuple[list[Hypothesis]]:
+    ) -> Tuple[list[Hypothesis] | List[NBestHypotheses]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-regressively.
         Args:

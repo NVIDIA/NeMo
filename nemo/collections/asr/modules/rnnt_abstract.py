@@ -297,9 +297,6 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
                 updates these tensors in-place.
         Returns:
             tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]: aggregated states
-        Note:
-            - The `indices` tensor is expanded to match the shape of the source states
-            during the gathering operation.
         """
 
         raise NotImplementedError()
