@@ -262,13 +262,14 @@ def main():
     resume = (
         nl.AutoResume(
             resume_if_exists=True,
-            resume_ignore_no_checkpoint=False,
+            resume_ignore_no_checkpoint=True,
         )
         if args.auto_resume
         else None
     )
-    # CPUOffload WA
-    if args.enable_cpu_offload:
+
+    # CPUOffload WA, TP WA
+    if args.enable_cpu_offload or tp_size > 1:
         args.grad_clip = 0.0
 
     llm.api.finetune(

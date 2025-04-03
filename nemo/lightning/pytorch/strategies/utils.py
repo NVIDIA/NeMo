@@ -459,8 +459,7 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
-    sequence_parallel: bool = False,
-    custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
+    tp_shard_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
     offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
@@ -469,11 +468,9 @@ def fsdp2_strategy_parallelize(
         model: The model to be parallelized.
         device_mesh (DeviceMesh): The device mesh for distributed training.
         mp_policy (MixedPrecisionPolicy): Mixed precision policy for model parallelism.
-        sequence_parallel (bool): Whether to use sequence parallelism when TP size > 1, defaults to True. Will only
-            be effective if the TP size is 1.
-        custom_tp_plan (Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]]):
-            A custom tensor parallel plan to override the default one. The keys should be the module names
-            and the values should be the corresponding parallel styles (e.g., RowwiseParallel, ColwiseParallel, SequenceParallel).
+        tp_shard_plan (Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]]):
+            A tensor parallel sharding plan. The keys should be the module names and the values should be the 
+            corresponding parallel styles (e.g., RowwiseParallel, ColwiseParallel, SequenceParallel).
         offload_policy (CPUOffloadPolicy): The offload policy for FSDP. If None, it will use the default policy.
 
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
@@ -511,49 +508,9 @@ def fsdp2_strategy_parallelize(
     tp_mesh = device_mesh["tensor_parallel"]
 
     # TP sharding
-
-    # Parallelize the first embedding and the last linear out projection
-    base_model_tp_plan = {
-        "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
-        "model.layers.*.self_attn.q_proj": ColwiseParallel(),
-        "model.layers.*.self_attn.k_proj": ColwiseParallel(),
-        "model.layers.*.self_attn.v_proj": ColwiseParallel(),
-        "model.layers.*.self_attn.o_proj": RowwiseParallel(),
-        "model.layers.*.mlp.up_proj": ColwiseParallel(),
-        "model.layers.*.mlp.gate_proj": ColwiseParallel(),
-        "model.layers.*.mlp.down_proj": RowwiseParallel(),
-        "lm_head": ColwiseParallel(output_layouts=Replicate()),
-    }
-
-    base_model_sp_plan = {
-        "model.embed_tokens": RowwiseParallel(input_layouts=Replicate(), output_layouts=Shard(1)),
-        "model.norm": SequenceParallel(),
-        "model.layers.*.input_layernorm": SequenceParallel(),
-        "model.layers.*.self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
-        "model.layers.*.post_attention_layernorm": SequenceParallel(),
-        "model.layers.*.mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
-        "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
-    }
-
-    if sequence_parallel:
-        # Enable sequence parallelism only if TP size > 1
-        base_model_tp_plan.update(base_model_sp_plan)
-
-    if custom_tp_plan is not None:
-        tp_plan = custom_tp_plan
-        logging.warning(
-            "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored."
-        )
-    else:
-        tp_plan = base_model_tp_plan
-        logging.info(
-            "Using default TP plan for parallelization. It is compatible with huggingface llama-style models."
-        )
-
-    parallelize_module(model, tp_mesh, tp_plan)
+    parallelize_module(model, tp_mesh, tp_shard_plan)
 
     # FSDP sharding
-
     assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
     assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
 

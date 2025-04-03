@@ -15,6 +15,7 @@
 import atexit
 import logging as _logging
 import os
+import re
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
@@ -23,6 +24,12 @@ from typing import Any, Dict, Literal, Optional, Union
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
+from torch.distributed.tensor.parallel import (
+    ColwiseParallel,
+    ParallelStyle,
+    RowwiseParallel,
+    SequenceParallel,
+)
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 from lightning.fabric.utilities.seed import reset_seed
@@ -43,10 +50,10 @@ from nemo.utils.import_utils import safe_import_from
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
-    from torch.distributed.tensor.placement_types import Shard
+    from torch.distributed.tensor.placement_types import Shard, Replicate
 except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
-    from torch.distributed._tensor.placement_types import Shard
+    from torch.distributed._tensor.placement_types import Shard, Replicate
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
@@ -76,7 +83,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         checkpoint_io=None,
         mp_policy=None,
         parallelize_fn=fsdp2_strategy_parallelize,
-        custom_tp_plan: Optional[Dict[str, Any]] = None,
+        custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -98,7 +105,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 )
                 ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
-            custom_tp_plan (Optional[Dict[str, Any]]): Custom tensor parallel plan for the model.
+            custom_tp_plan (Optional[Dict[str, Any]]): Custom tensor parallel plan for the model. 
+                tensor_parallel_size need to be > 1 to use this option. If provided, it overrides the 
+                default tensor parallel plan. sequence_parallel option will be ignored if custom_tp_plan 
+                is provided.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
@@ -118,7 +128,40 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
         self.sequence_parallel = sequence_parallel
-        self.custom_tp_plan = custom_tp_plan
+
+        if custom_tp_plan is not None:
+            self.tp_shard_plan = custom_tp_plan
+            logging.warning("You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored.")
+        else:
+            # Parallelize the first embedding and the last linear out projection
+            base_model_tp_plan = {
+                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+                "model.layers.*.self_attn.q_proj": ColwiseParallel(),
+                "model.layers.*.self_attn.k_proj": ColwiseParallel(),
+                "model.layers.*.self_attn.v_proj": ColwiseParallel(),
+                "model.layers.*.self_attn.o_proj": RowwiseParallel(),
+                "model.layers.*.mlp.up_proj": ColwiseParallel(),
+                "model.layers.*.mlp.gate_proj": ColwiseParallel(),
+                "model.layers.*.mlp.down_proj": RowwiseParallel(),
+                "lm_head": ColwiseParallel(output_layouts=Replicate()),
+            }
+
+            base_model_sp_plan = {
+                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate(), output_layouts=Shard(1)),
+                "model.norm": SequenceParallel(),
+                "model.layers.*.input_layernorm": SequenceParallel(),
+                "model.layers.*.self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "model.layers.*.post_attention_layernorm": SequenceParallel(),
+                "model.layers.*.mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
+            }
+
+            if self.sequence_parallel:
+                # Enable sequence parallelism only if TP size > 1
+                base_model_tp_plan.update(base_model_sp_plan)
+
+            self.tp_shard_plan = base_model_tp_plan
+            logging.info("Using default TP plan for parallelization. It is compatible with huggingface llama-style models.")
 
     @property
     @override
@@ -226,8 +269,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 self.lightning_module.model,
                 device_mesh=self._device_mesh,
                 mp_policy=self.mp_policy,
-                sequence_parallel=self.sequence_parallel,
-                custom_tp_plan=self.custom_tp_plan,
+                tp_shard_plan=self.tp_shard_plan,
                 offload_policy=self.offload_policy,
             )
             # Apply this only once
@@ -503,28 +545,25 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         strict=False,
     ):
         """Shards a full state dict"""
-        # TODO(@boxiangw): refractor this to match TP plan
-        if self._data_parallel_size == 1 and self._tensor_parallel_size > 1 and not self.sequence_parallel:
-            # Does not need DTensor if using TP without DP and SP
-            ignore_keys = ['input_layernorm', 'post_attention_layernorm', 'norm']
-            colwise_keys = [
-                'lm_head',
-                'self_attn.q_proj',
-                'self_attn.k_proj',
-                'self_attn.v_proj',
-                'mlp.gate_proj',
-                'mlp.up_proj',
-            ]
-            rowwise_keys = ['embed_tokens', 'self_attn.o_proj', 'mlp.down_proj']
+        # Gather TP/SP strategy keys
+        colwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], ColwiseParallel)]
+        rowwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], RowwiseParallel)]
+        seq_parallel_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], SequenceParallel)]
 
+        if self._tensor_parallel_size > 1:
             sharded_state = {k: v for k, v in ckpt['state_dict'].items()}
+
+            # placement is (dp, tp)
             for k, v in sharded_state.items():
-                if any(x in k for x in ignore_keys):
-                    continue
-                elif any(x in k for x in colwise_keys):
-                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
-                elif any(x in k for x in rowwise_keys):
-                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=1),))
+                if any(re.match(x, k) for x in seq_parallel_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Replicate()))
+                elif any(re.match(x, k) for x in colwise_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=0)))
+                elif any(re.match(x, k) for x in rowwise_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=1)))
+                else:
+                    # This is for layers not sharded by TP/SP
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh["data_parallel"], placements=(Shard(dim=0),))
         else:
             sharded_state = {
                 k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
