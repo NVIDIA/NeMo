@@ -27,6 +27,12 @@ import torch
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
 
+try:
+    import multistorageclient
+    MULTISTORAGECLIENT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    MULTISTORAGECLIENT_AVAILABLE = False
+
 __all__ = ["TextMemMapDataset", "CSVMemMapDataset", "build_index_files"]
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
@@ -40,7 +46,10 @@ def _build_index_from_memdata(fn, newline_int):
     Returns a 1D array of ints.
     """
     # use memmap to read file
-    mdata = np.memmap(fn, dtype=np.uint8, mode="r")
+    if MULTISTORAGECLIENT_AVAILABLE:
+        mdata = multistorageclient.numpy.memmap(fn, dtype=np.uint8, mode="r")
+    else:
+        mdata = np.memmap(fn, dtype=np.uint8, mode="r")
     # find newline positions
     midx = np.where(mdata == newline_int)[0]
     midx_dtype = midx.dtype
@@ -250,18 +259,28 @@ class TextMemMapDataset(Dataset):
         idx_fn = _index_fn(fn, index_mapping_dir)
 
         # create data map
-        mdata = np.memmap(fn, dtype=np.uint8, mode="r")
+        if MULTISTORAGECLIENT_AVAILABLE:
+            mdata = multistorageclient.numpy.memmap(fn, dtype=np.uint8, mode="r")
+        else:
+            mdata = np.memmap(fn, dtype=np.uint8, mode="r")
 
         if _index_file_exists(idx_fn):
             # load index file into memory map
-            midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode="r")
+            if MULTISTORAGECLIENT_AVAILABLE:
+                midx = multistorageclient.numpy.load(idx_fn + ".npy", allow_pickle=True, mmap_mode="r")
+            else:
+                midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode="r")
             # test for header
             if len(midx) < self._header_lines:
                 raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
 
             # load meta info
-            with open(idx_fn + ".info", "rb") as fp:
-                idx_info_dict = pickle.load(fp)
+            if MULTISTORAGECLIENT_AVAILABLE:
+                with multistorageclient.open(idx_fn + ".info", "rb") as fp:
+                    idx_info_dict = multistorageclient.pickle.load(fp)
+            else:
+                with open(idx_fn + ".info", "rb") as fp:
+                    idx_info_dict = pickle.load(fp)
             # test for mismatch in expected newline_int
             if "newline_int" in idx_info_dict:
                 newline_int = idx_info_dict["newline_int"]
@@ -438,10 +457,12 @@ class JSONLMemMapDataset(TextMemMapDataset):
 
 def _index_file_exists(idx_fn):
     """Helper function to test if index file exists"""
-    if os.path.exists(idx_fn + ".npy") and os.path.exists(idx_fn + ".info"):
-        return True
+    is_exists = False
+    if MULTISTORAGECLIENT_AVAILABLE:
+        is_exists = multistorageclient.os.path.exists(idx_fn + ".npy") and multistorageclient.os.path.exists(idx_fn + ".info")
     else:
-        return False
+        is_exists = os.path.exists(idx_fn + ".npy") and os.path.exists(idx_fn + ".info")
+    return is_exists
 
 
 def _index_fn(fn: str, index_mapping_dir: str) -> str:
@@ -504,9 +525,16 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn, index_mapping_dir
 
         # save index as numpy array to enable memmap reading
         logging.info(f"Saving idx file = {idx_fn}.npy")
-        np.save(idx_fn + ".npy", midx, allow_pickle=True)
+        if MULTISTORAGECLIENT_AVAILABLE:
+            multistorageclient.numpy.save(idx_fn + ".npy", midx, allow_pickle=True)
+        else:
+            np.save(idx_fn + ".npy", midx, allow_pickle=True)
+
         logging.info(f"Saving metadata file = {idx_fn}.info")
-        pickle.dump(data, open(idx_fn + ".info", "wb"))
+        if MULTISTORAGECLIENT_AVAILABLE:
+            multistorageclient.pickle.dump(data, idx_fn + ".info")
+        else:
+            pickle.dump(data, open(idx_fn + ".info", "wb"))
 
         return True
 
