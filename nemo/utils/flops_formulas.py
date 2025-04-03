@@ -160,7 +160,7 @@ def transformer(config: FLOPSConfig):
     num_layers = config.layers
     num_attention_heads = config.attention_heads
     ffn_hidden_size = config.ffn_hs
-    vocab_size = config.vocab_size or LLM_VOCAB_SIZE_MAP["geneformer"]
+    vocab_size = config.vocab_size
 
     # Handle optional parameters with reasonable defaults
     query_groups = config.query_groups if config.query_groups is not None else num_attention_heads

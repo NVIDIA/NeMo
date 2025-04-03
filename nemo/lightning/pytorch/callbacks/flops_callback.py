@@ -116,26 +116,32 @@ class FLOPsMeasurementCallback(Callback):
         except KeyError:
             print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
 
+        # Only calculate and print total model FLOPs once at the beginning
+        if not hasattr(self, 'model_flops_printed') and self.avg_train_step_time > 0:
+            # Calculate once
+            _, total_model_tflops = self.eval_tflops_per_sec_per_gpu(
+                self.avg_train_step_time / max(1, trainer.global_step)
+            )
+            # Print once
+            print(f"\n===================================")
+            print(f"Total model TFLOPs: {total_model_tflops:.4f}")
+            print(f"===================================\n")
+            # Set flag to prevent future prints
+            self.model_flops_printed = True
+        
+        # Continue with regular tflops_per_sec_per_gpu logging on intervals
         n = trainer.strategy.current_epoch_step
         if n % trainer.log_every_n_steps == 0:
             # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
-            tflops_per_sec_per_gpu, total_model_tflops = self.eval_tflops_per_sec_per_gpu(
+            tflops_per_sec_per_gpu, _ = self.eval_tflops_per_sec_per_gpu(
                 self.avg_train_step_time / trainer.log_every_n_steps
             )
             self.avg_train_step_time = 0
             pl_module.log(
                 "tflops_per_sec_per_gpu",
                 tflops_per_sec_per_gpu,
-                on_step=True,
-                on_epoch=False,
-                batch_size=1,
-                prog_bar=True,
-            )
-            pl_module.log(
-                "total_model_tflops",
-                total_model_tflops,
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
