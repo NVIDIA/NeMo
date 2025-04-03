@@ -56,7 +56,13 @@ def load_audio(file_path, target_sr=16000):
     audio, sr = librosa.load(file_path, sr=target_sr)
     return torch.tensor(audio, dtype=torch.float32), sr
 
+# available audio filename fixtures
+@pytest.fixture(scope="module")
+def test_audio_filenames(test_data_dir):
+    return tuple(glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav")))
 
+
+# model fixtures
 @pytest.fixture(scope="module")
 def rnnt_model():
     model = ASRModel.from_pretrained(model_name=RNNT_MODEL, map_location="cpu")
@@ -69,21 +75,16 @@ def tdt_model():
     model.eval()
     return model
 
-
+# encoder output fixtures
 @pytest.fixture(scope="module")
 def get_rnnt_encoder_output(rnnt_model, test_audio_filenames):
-    _, encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, rnnt_model)
+    encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, rnnt_model)
     return encoder_output, encoded_lengths
 
 @pytest.fixture(scope="module")
 def get_tdt_encoder_output(tdt_model, test_audio_filenames):
-    _, encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, tdt_model)
+    encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, tdt_model)
     return encoder_output, encoded_lengths
-
-
-@pytest.fixture(scope="module")
-def test_audio_filenames(test_data_dir):
-    return tuple(glob.glob(os.path.join(test_data_dir, "asr", "test", "an4", "wav", "*.wav")))
 
 
 def get_model_encoder_output(
@@ -111,21 +112,20 @@ def get_model_encoder_output(
 
         encoded_outputs, encoded_length = model(input_signal=input_batch, input_signal_length=length_batch)
 
-    return model, encoded_outputs, encoded_length
+    return encoded_outputs, encoded_length
 
 
 def decode_text_from_hypotheses(hyps, decoding):
-    decoded_hyps = decoding.decode_hypothesis(hyps)  # type: List[str]
+    decoded_hyps = decoding.decode_hypothesis(hyps)
 
     return decoded_hyps
 
 
 def decode_text_from_nbest_hypotheses(hyps, decoding):
     all_hypotheses = []
-
-    for nbest_hyp in hyps:  # type: rnnt_utils.NBestHypotheses
-        n_hyps = nbest_hyp.n_best_hypotheses  # Extract all hypotheses for this sample
-        decoded_hyps = decoding.decode_hypothesis(n_hyps)  # type: List[str]
+    for nbest_hyp in hyps:
+        n_hyps = nbest_hyp.n_best_hypotheses
+        decoded_hyps = decoding.decode_hypothesis(n_hyps)
 
         all_hypotheses.append(decoded_hyps)
 
@@ -158,8 +158,6 @@ class TestRNNTDecoding:
         encoder_output, encoded_lengths = get_rnnt_encoder_output
         encoder_output, encoded_lengths = encoder_output[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
-        # get_memory_info("Before class init")
-        logging.info("Starting model initialization")
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedRNNTInfer(
             model.decoder,
@@ -170,15 +168,9 @@ class TestRNNTDecoding:
             return_best_hypothesis=True,
             **beam_config,
         )
-        logging.info("Successfully ended model initialization")
-        # get_memory_info("After class init")
 
         with torch.no_grad():
-            # get_memory_info("Before starting decoding")
-            logging.info("Starting decoding")
             hyps = decoding(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0]
-            logging.info("Succesfully ended decoding")
-            # get_memory_info("Before ending decoding")
             assert type(hyps) == list
             assert type(hyps[0]) == rnnt_utils.Hypothesis
 
@@ -190,11 +182,7 @@ class TestRNNTDecoding:
             assert len(hyps[0].y_sequence) > 0
             assert len(hyps[0].timestamp) > 0
 
-            # get_memory_info("Before converting to text")
-            logging.info("Starting converting to text")
             hyps = decode_text_from_hypotheses(hyps, model.decoding)
-            logging.info("Ending converting to text")
-            # get_memory_info("After converting to text")
 
             print()
 
@@ -814,7 +802,6 @@ class TestTDTDecoding:
             assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
 
             for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
-
                 print("Erroneous samples in batch:", batch_idx)
                 print("Original transcript:", actual)
                 print("New transcript:", fast)
