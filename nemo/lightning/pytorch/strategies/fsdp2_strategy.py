@@ -43,10 +43,10 @@ from nemo.utils.import_utils import safe_import_from
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
-    from torch.distributed.tensor.placement_types import Shard
+    from torch.distributed.tensor.placement_types import Shard, Replicate
 except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
-    from torch.distributed._tensor.placement_types import Shard
+    from torch.distributed._tensor.placement_types import Shard, Replicate
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
@@ -115,11 +115,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.store: Optional[torch.distributed.Store] = None
         self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
-        self.parallel_dims = {
-            "data_parallel": self._data_parallel_size,
-            "context_parallel": self.context_parallel_size,
-            "tensor_parallel": self._tensor_parallel_size,
-        }
 
     @property
     @override
@@ -180,8 +175,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
 
-        # TODO: TP is currently not supported. But we still create a device mesh for TP.
-        mesh_dim_names, mesh_shape = zip(*self.parallel_dims.items())
+        # TODO: "tensor_parallel" is currently not supported.
+        mesh_dim_names = ("data_parallel", "context_parallel")
+        mesh_shape = (self._data_parallel_size, self.context_parallel_size)
 
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
@@ -510,8 +506,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     def load_model_state_dict(self, ckpt, strict=False):
         """Shards a full state dict"""
         # TODO(@akoumparouli): update `placements` value once TP is enabled.
+        if self._device_mesh["context_parallel"].size() > 1:
+            # Shard across the CP device mesh, associated with the fully_shard() call
+            # in utils.fsdp2_strategy_parallelize().
+            placement_types = (Replicate(), Shard(dim=0))
+        else:
+            # Default shard across DP for FSDP2.
+            placement_types = (Shard(dim=0), Replicate())
         sharded_state = {
-            k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
+            k: distribute_tensor(v, self.device_mesh, placements=placement_types)
             for k, v in ckpt['state_dict'].items()
         }
         self.lightning_module.load_state_dict(sharded_state, strict=strict)
