@@ -271,7 +271,7 @@ class BeamRNNTInfer(Typing):
         ngram_lm_alpha: float = 0.0,
         hat_subtract_ilm: bool = False,
         hat_ilm_weight: float = 0.0,
-        malsd_max_symbols_per_step: Optional[int] = None,
+        max_symbols_per_step: Optional[int] = None,
         blank_lm_score_mode: Optional[str] = "no_score",
         pruning_mode: Optional[str] = "early",
         allow_cuda_graphs: bool = False,
@@ -311,9 +311,9 @@ class BeamRNNTInfer(Typing):
                 f"Please use one of : (default, tsd, alsd, nsc)"
             )
 
-        if malsd_max_symbols_per_step is not None:
+        if max_symbols_per_step is not None:
             logging.warning(
-                f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }"
+                f"Not supported parameter `max_symbols_per_step` for decoding strategy {self.search_algorithm }"
             )
 
         if allow_cuda_graphs:

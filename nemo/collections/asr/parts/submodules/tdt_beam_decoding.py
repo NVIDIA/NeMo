@@ -165,7 +165,7 @@ class BeamTDTInfer(Typing):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str] = None,
         ngram_lm_alpha: float = 0.3,
-        malsd_max_symbols_per_step: Optional[int] = None,
+        max_symbols_per_step: Optional[int] = None,
         blank_lm_score_mode: Optional[str] = "no_score",
         pruning_mode: Optional[str] = "early",
         allow_cuda_graphs: bool = False,
@@ -214,9 +214,9 @@ class BeamTDTInfer(Typing):
                 f"The search type ({search_type}) supplied is not supported!\n" f"Please use one of : (default, maes)"
             )
 
-        if malsd_max_symbols_per_step is not None:
+        if max_symbols_per_step is not None:
             logging.warning(
-                f"Not supported parameter `malsd_max_symbols_per_step` for decoding strategy {self.search_algorithm }"
+                f"Not supported parameter `max_symbols_per_step` for decoding strategy {self.search_algorithm }"
             )
 
         if allow_cuda_graphs:
