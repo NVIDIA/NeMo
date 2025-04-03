@@ -1774,20 +1774,19 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                     torch.tensor([num_valid_tokens_in_ub], device=torch.cuda.current_device()).clone().detach(),
                 ]
             )
-            torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group())
             return loss_for_ub * cp_size, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
 
-        reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-        return loss_for_ub * cp_size, {"avg": reduced_loss}
+        return loss_for_ub * cp_size, {"avg": loss_for_ub.clone().detach().view(1)}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
                 loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.concat(loss_tensors_list)
+                loss_tensor = torch.concat(loss_tensors_list).mean()
+                reduced_loss = average_losses_across_data_parallel_group([loss_tensor])
 
-                return loss_tensor.mean()
+                return reduced_loss
 
             # Get the total loss since micro batches sizes are not uniform
             loss_sum_tensors_list: List[torch.Tensor] = [
@@ -1800,6 +1799,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                 if len(loss_sum_tensors_list) > 0
                 else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
             )
+            torch.distributed.all_reduce(loss_sum, group=parallel_state.get_data_parallel_group())
             return loss_sum
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
