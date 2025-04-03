@@ -80,6 +80,7 @@ class DtypeConfig:
     fp8_wgrad: bool = True
     fp8_dot_product_attention: bool = False
     fp8_multi_head_attention: bool = False
+    fp8_param: bool = True
     fp8_param_gather: bool = True
     # FP16 Loss scaling
     loss_scale: float = (None,)
@@ -143,6 +144,7 @@ class MegatronMixedPrecision(Precision):
             precision = str(precision)
 
         fp8_param_gather = fp8 is not None and fp8_params
+        fp8_param = fp8_param_gather
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
         self.dtype_config = DtypeConfig(
             fp32=precision in ['fp32', '32'],
@@ -164,6 +166,7 @@ class MegatronMixedPrecision(Precision):
             fp8_wgrad=fp8_wgrad,
             fp8_dot_product_attention=fp8_dot_product_attention,
             fp8_multi_head_attention=fp8_multi_head_attention,
+            fp8_param=fp8_param,
             fp8_param_gather=fp8_param_gather,
             # fp16 loss scale
             loss_scale=fp16_loss_scale,
