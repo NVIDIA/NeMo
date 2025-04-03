@@ -409,10 +409,11 @@ class DuplexS2SModel(LightningModule):
         """
         text_bos = torch.full((1,), fill_value=self.text_pad_id, device=self.device)
         audio_zeros = torch.zeros((1, self._audio_codec.samples_per_frame), device=self.device, dtype=torch.bfloat16)
-        audio_bos, _ = self._audio_codec.encode(
-            audio=audio_zeros,
-            audio_len=torch.tensor([self._audio_codec.samples_per_frame], device=self.device, dtype=torch.long),
-        )
+        with _safe_audio_codec_inference():
+            audio_bos, _ = self._audio_codec.encode(
+                audio=audio_zeros,
+                audio_len=torch.tensor([self._audio_codec.samples_per_frame], device=self.device, dtype=torch.long),
+            )
         audio_bos = audio_bos.transpose(1, 2)[:, 0]
         input_embeds = self.embed_tokens(text_bos)
         for cbidx in range(self._num_codebooks):
