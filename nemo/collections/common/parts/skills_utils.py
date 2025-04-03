@@ -371,7 +371,7 @@ def get_server_command(
 
     if server_type == 'nemo':
         server_start_cmd = (
-            f"python -m nemo_skills.inference.server.serve_nemo "
+            "python -m nemo_skills.inference.server.serve_nemo "
             f"    gpt_model_file={model_path} "
             f"    trainer.devices={num_gpus} "
             f"    trainer.num_nodes={num_nodes} "
@@ -386,7 +386,7 @@ def get_server_command(
             num_tasks = 1
     elif server_type == 'vllm':
         start_vllm_cmd = (
-            f"python3 -m nemo_skills.inference.server.serve_vllm "
+            "python3 -m nemo_skills.inference.server.serve_vllm "
             f"    --model {model_path} "
             f"    --num_gpus {num_gpus} "
             f"    --port {server_port} "
@@ -400,7 +400,7 @@ def get_server_command(
         else:
             multinode_args = ""
         server_start_cmd = (
-            f"python3 -m nemo_skills.inference.server.serve_sglang "
+            "python3 -m nemo_skills.inference.server.serve_sglang "
             f"    --model {model_path} "
             f"    --num_gpus {num_gpus} "
             f"    --num_nodes {num_nodes} "
@@ -412,7 +412,7 @@ def get_server_command(
     else:
         # need this flag for stable Nemotron-4-340B deployment
         server_start_cmd = (
-            f"FORCE_NCCL_ALL_REDUCE_STRATEGY=1 python -m nemo_skills.inference.server.serve_trt "
+            "FORCE_NCCL_ALL_REDUCE_STRATEGY=1 python -m nemo_skills.inference.server.serve_trt "
             f"    --model_path {model_path} "
             f"    --port {server_port} "
             f"    {server_args} "
@@ -420,9 +420,9 @@ def get_server_command(
         num_tasks = num_gpus
 
     server_cmd = (
-        f"nvidia-smi && "
-        f"cd /nemo_run/code && "
-        f"export PYTHONPATH=$PYTHONPATH:/nemo_run/code && "
+        "nvidia-smi && "
+        "cd /nemo_run/code && "
+        "export PYTHONPATH=$PYTHONPATH:/nemo_run/code && "
         f"{server_start_cmd} "
     )
     return server_cmd, num_tasks
@@ -439,6 +439,12 @@ def get_sandox_command():
 
 @dataclass(kw_only=True)
 class CustomJobDetails(SlurmJobDetails):
+    """
+    Custom job details class for handling SLURM job logs.
+    
+    Extends SlurmJobDetails to manage separate log files for sbatch and srun processes,
+    with configurable prefixes for each type of log.
+    """
     # we have 1 srun per sub-task (e.g. server/sandbox/main), but only a single sbatch
     srun_prefix: str = "main"
     sbatch_prefix: str = ""
@@ -574,6 +580,7 @@ class OutputWatcher(StreamWatcher):
     """Class for streaming remote tar/compression process."""
 
     def submit(self, stream):
+        """Process and display a stream of output."""
         print(stream, end='\r')
         sys.stdout.flush()
         return []
