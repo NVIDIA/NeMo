@@ -232,7 +232,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             else:
                 return
 
-    def apply_chat_template(self, messages, add_generation_prompt=False):
+    def apply_chat_template(self, messages, add_generation_prompt=True):
         """
         Load the chat template.
         Works when model's tokenizer has chat template (typically chat models).
@@ -255,6 +255,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         return rendered_output
 
     def remove_eos_token(self, text):
+        """
+        Removes eos token if it exists in the output, otherwise does nothing
+        """
         eos_token = self.mcore_tokenizer.tokenizer.tokenizer.eos_token
         output = []
         for t in text:
@@ -306,7 +309,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         if apply_chat_template:
             # Deserialize the JSON string back to a dictionary
             prompts = self.str_to_dict(prompts[0])
-            prompts = self.apply_chat_template(prompts, add_generation_prompt=True)
+            prompts = self.apply_chat_template(prompts)
             # Input to generate should be list of string, otherwise if its string directly TE raises an error:
             # The provided qkv memory layout is not supported!
             prompts = [prompts]

@@ -575,7 +575,7 @@ def deploy(
     context_parallel_size: int = 1,
     expert_model_parallel_size: int = 1,
     dtype: str = "bfloat16",
-    max_input_len: int = 256,
+    max_input_len: int = 4096,
     max_output_len: int = 256,
     max_batch_size: int = 8,
     output_context_logits: bool = True,
@@ -611,7 +611,7 @@ def deploy(
         tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
         pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.
         dtype (str): dtype of the TensorRT-LLM model. Default: "bfloat16".
-        max_input_len (int): Max input length of the model. Default: 256.
+        max_input_len (int): Max input length of the model. Default: 4096.
         max_output_len (int): Max output length of the model. Default: 256.
         max_batch_size (int): Max batch size of the model. Default: 8.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
@@ -626,14 +626,13 @@ def deploy(
     import os
     import uvicorn
 
-    from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
     if backend == "in-framework":
         assert (
             start_fastapi_server is True
         ), 'in-framework deployment exposes OAI API endpoints v1/completions and \
-        v1/chat/completions hence needs fastAPI interface to expose these endpoints to PYtriton. Please set \
+        v1/chat/completions hence needs fastAPI interface to expose these endpoints to PyTriton. Please set \
         start_fastapi_server to True'
         if triton_http_port == fastapi_port:
             raise ValueError("FastAPI port and Triton server port cannot use the same port. Please change them")
@@ -657,9 +656,54 @@ def deploy(
             pipeline_model_parallel_size=pipeline_parallelism_size,
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
+            inference_max_seq_length=max_input_len
         )
 
+        if torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                try:
+                    nm = DeployPyTriton(
+                        model=triton_deployable,
+                        triton_model_name=triton_model_name,
+                        triton_model_version=triton_model_version,
+                        max_batch_size=max_batch_size,
+                        http_port=triton_http_port,
+                        grpc_port=triton_grpc_port,
+                        address=triton_http_address,
+                    )
+
+                    logging.info("Triton deploy function will be called.")
+                    nm.deploy()
+                    nm.run()
+                except Exception as error:
+                    logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+                    return
+
+                try:
+                    if start_fastapi_server:
+                        try:
+                            logging.info("REST service will be started.")
+                            uvicorn.run(
+                                'nemo.collections.llm.deploy.fastapi_interface_to_pytriton:app',
+                                host=fastapi_http_address,
+                                port=fastapi_port,
+                                reload=True,
+                            )
+                        except Exception as error:
+                            logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+                    logging.info("Model serving on Triton will be started.")
+                    nm.serve()
+                except Exception as error:
+                    logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+                    return
+
+                logging.info("Model serving will be stopped.")
+                nm.stop()
+            elif torch.distributed.get_rank() > 0:
+                triton_deployable.generate_other_ranks()
+
     elif backend == "trtllm":
+        from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
         unset_environment_variables() ## Required for export to trtllm on clusters.
         triton_deployable = get_trtllm_deployable(
             nemo_checkpoint,
@@ -675,48 +719,33 @@ def deploy(
             output_context_logits,
             output_generation_logits,
         )
-    if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0:
-            try:
-                nm = DeployPyTriton(
-                    model=triton_deployable,
-                    triton_model_name=triton_model_name,
-                    triton_model_version=triton_model_version,
-                    max_batch_size=max_batch_size,
-                    http_port=triton_http_port,
-                    grpc_port=triton_grpc_port,
-                    address=triton_http_address,
-                )
+        try:
+            nm = DeployPyTriton(
+                model=triton_deployable,
+                triton_model_name=triton_model_name,
+                triton_model_version=triton_model_version,
+                max_batch_size=max_batch_size,
+                http_port=triton_http_port,
+                grpc_port=triton_grpc_port,
+                address=triton_http_address,
+            )
 
-                logging.info("Triton deploy function will be called.")
-                nm.deploy()
-                nm.run()
-            except Exception as error:
-                logging.error("Error message has occurred during deploy function. Error message: " + str(error))
-                return
+            logging.info("Triton deploy function will be called.")
+            nm.deploy()
+            nm.run()
+        except Exception as error:
+            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+            return
 
-            try:
-                if start_fastapi_server:
-                    try:
-                        logging.info("REST service will be started.")
-                        uvicorn.run(
-                            'nemo.collections.llm.deploy.fastapi_interface_to_pytriton:app',
-                            host=fastapi_http_address,
-                            port=fastapi_port,
-                            reload=True,
-                        )
-                    except Exception as error:
-                        logging.error("Error message has occurred during REST service start. Error message: " + str(error))
-                logging.info("Model serving on Triton will be started.")
-                nm.serve()
-            except Exception as error:
-                logging.error("Error message has occurred during deploy function. Error message: " + str(error))
-                return
+        try:
+            logging.info("Model serving on Triton will be started.")
+            nm.serve()
+        except Exception as error:
+            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+            return
 
-            logging.info("Model serving will be stopped.")
-            nm.stop()
-        elif torch.distributed.get_rank() > 0 and backend == "in-framework":
-            triton_deployable.generate_other_ranks()
+        logging.info("Model serving will be stopped.")
+        nm.stop()
 
 
 

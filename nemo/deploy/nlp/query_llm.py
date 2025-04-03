@@ -148,8 +148,10 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
                     "choices": [{"text": sentences}],
                 }
                 if log_probs_output is not None:
+                    # logprobs are stored under choices in openai format.
                     openai_response["choices"][0]["logprobs"] = {}
                     openai_response["choices"][0]["logprobs"]["token_logprobs"] = log_probs_output
+                    # TODO athitten: get top_n_logprobs from mcore once available
                     openai_response["choices"][0]["logprobs"]["top_logprobs"] = log_probs_output
                 return openai_response
             else:
