@@ -106,10 +106,8 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         if ngram_lm_model is not None:
             expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             if self._blank_index != expected_blank_index:
-                raise ValueError(
-                    f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}"
-                )
-            
+                raise ValueError(f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}")
+
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
             self.pruning_mode = PruningMode.EARLY if pruning_mode is None else PruningMode(pruning_mode)
@@ -326,7 +324,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             time_indices += 1
             active_mask = time_indices <= last_timesteps
             safe_time_indices = torch.where(active_mask, time_indices, last_timesteps)
-            
+
         return batched_hyps
 
     def combine_scores(self, log_probs, lm_scores):
@@ -354,7 +352,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
             res[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
             res[..., -1] *= 1 + self.ngram_lm_alpha
-        
+
         return res
 
     def topk_lm(self, batched_hyps, lm_scores, log_probs):

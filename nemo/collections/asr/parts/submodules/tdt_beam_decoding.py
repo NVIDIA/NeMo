@@ -952,7 +952,7 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
 
             inseq = encoder_output  # [B, T, D]
             batched_beam_hyps = self._decoding_computer(x=inseq, out_len=logitlen)
-            
+
             # Ensures the correct number of hypotheses (batch_size) for CUDA Graphs compatibility
             batch_size = encoder_output.shape[0]
             if self.return_best_hypothesis:
@@ -963,5 +963,4 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
-        return (hyps, )
-
+        return (hyps,)

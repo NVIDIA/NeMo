@@ -278,7 +278,7 @@ class BatchedBeamHyps:
                 torch.gather(self.last_timestamp_lasts, dim=-1, index=next_indices) + extended_with_label,
                 out=self.last_timestamp_lasts,
             )
-            
+
         self.current_lengths_nb.copy_(
             torch.gather(self.current_lengths_nb, dim=-1, index=next_indices) + extended_with_label
         )
@@ -521,7 +521,7 @@ class BatchedBeamHyps:
 
         for idx in range(max_idx, -1, -1):
             self.transcript_wb[..., idx].copy_(self.transcript_wb[self.batch_indices.unsqueeze(-1), ptrs, idx])
-            self.timestamps[..., idx].copy_(self.timestamps[self.batch_indices.unsqueeze(-1), ptrs, idx])            
+            self.timestamps[..., idx].copy_(self.timestamps[self.batch_indices.unsqueeze(-1), ptrs, idx])
             ptrs = self.transcript_wb_prev_ptr[self.batch_indices.unsqueeze(-1), ptrs, idx]
         self.transcript_wb_prev_ptr[..., : max_idx + 1].copy_(self.beam_indices.unsqueeze(0).unsqueeze(-1))
 

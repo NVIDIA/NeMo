@@ -1587,7 +1587,7 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
             allow_cuda_graphs: whether to allow CUDA graphs
             return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
         """
-        
+
         super().__init__()
         self.decoder = decoder_model
         self.joint = joint_model
@@ -1678,7 +1678,7 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
 
             inseq = encoder_output  # [B, T, D]
             batched_beam_hyps = self._decoding_computer(x=inseq, out_len=logitlen)
-            
+
             batch_size = encoder_output.shape[0]
             if self.return_best_hypothesis:
                 hyps = batched_beam_hyps.to_hyps_list(score_norm=self.score_norm)[:batch_size]
