@@ -56,6 +56,8 @@ class FinetuningDatasetBuilder:
         max_train_samples: Optional[int] = None,
         packed_sequence_specs: Optional[dict] = None,
         dataset_kwargs: Optional[dict[str, Any]] = None,
+        do_validation: bool = True,
+        do_test: bool = True,
     ):
         self.dataset_root = Path(dataset_root)
         self.tokenizer = tokenizer
@@ -72,6 +74,9 @@ class FinetuningDatasetBuilder:
         self._pad_cu_seqlens = (
             False if not packed_sequence_specs else packed_sequence_specs.get("pad_cu_seqlens", False)
         )
+
+        self.do_validation = do_validation
+        self.do_test = do_test
 
         print_rank_0(f"Building FinetuningDatasetBuilder with root={self.dataset_root}")
 
@@ -146,22 +151,24 @@ class FinetuningDatasetBuilder:
             **self.dataset_kwargs,
         )
 
-        valid_ds = self._create_dataset(
-            self.validation_path if self.packed_sequence_size <= 0 else self.validation_path_packed,
-            pack_metadata_path=None if self.packed_sequence_size <= 0 else self.pack_metadata,
-            is_test=True,
-            **self.dataset_kwargs,
-        )
+        if self.do_validation:
+            valid_ds = self._create_dataset(
+                self.validation_path if self.packed_sequence_size <= 0 else self.validation_path_packed,
+                pack_metadata_path=None if self.packed_sequence_size <= 0 else self.pack_metadata,
+                is_test=True,
+                **self.dataset_kwargs,
+            )
+        else:
+            valid_ds = None
 
-        test_ds = (
-            self._create_dataset(
+        if self.do_test:
+            test_ds = self._create_dataset(
                 self.test_path,
                 is_test=True,
                 **self.dataset_kwargs,
             )
-            if self.test_path.exists()
-            else None
-        )
+        else:
+            test_ds = None
 
         return [train_ds, valid_ds, test_ds]
 

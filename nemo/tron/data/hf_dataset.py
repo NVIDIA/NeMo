@@ -53,7 +53,7 @@ class HFDatasetConfig(FinetuningDatasetConfig):
     dataset_dict: Optional[DatasetDict] = None
     split: Optional[str] = None
     download_mode: Optional[str] = None
-    val_proportion: float = 0.05
+    val_proportion: Optional[float] = 0.05
     split_val_from_train: bool = True
     delete_raw: bool = False
     hf_kwargs: Optional[dict[str, Any]] = None
@@ -68,7 +68,7 @@ def preprocess_and_split_data(
     tokenizer: MegatronTokenizer,
     process_example_fn: ProcessExampleFn,
     split_val_from_train: bool = True,
-    val_proportion: float = 0.05,
+    val_proportion: Optional[float] = None,
     train_aliases: tuple[str] = ("train", "training"),
     test_aliases: tuple[str] = ("test", "testing"),
     val_aliases: tuple[str] = ("val", "validation", "valid", "eval"),
@@ -101,19 +101,26 @@ def preprocess_and_split_data(
     assert train_set, f"Train set with aliases: {train_aliases} not found in dataset"
     train_set = cast(Dataset, train_set)
 
-    if split_val_from_train:
-        split_dataset = train_set.train_test_split(test_size=val_proportion, seed=seed)
-        save_splits["training"] = split_dataset["train"]
-        save_splits["validation"] = split_dataset["test"]
-        if val_set:
-            save_splits["test"] = val_set
+    if val_proportion:
+        if split_val_from_train:
+            split_dataset = train_set.train_test_split(test_size=val_proportion, seed=seed)
+            save_splits["training"] = split_dataset["train"]
+            save_splits["validation"] = split_dataset["test"]
+            if val_set:
+                save_splits["test"] = val_set
+        else:
+            assert val_set, f"Validation set with aliases: {val_aliases} not found in dataset"
+            val_set = cast(Dataset, val_set)
+            split_dataset = val_set.train_test_split(test_size=val_proportion, seed=seed)
+            save_splits["training"] = train_set
+            save_splits["validation"] = split_dataset["test"]
+            save_splits["test"] = split_dataset["train"]
     else:
-        assert val_set, f"Validation set with aliases: {val_aliases} not found in dataset"
-        val_set = cast(Dataset, val_set)
-        split_dataset = val_set.train_test_split(test_size=val_proportion, seed=seed)
         save_splits["training"] = train_set
-        save_splits["validation"] = split_dataset["test"]
-        save_splits["test"] = split_dataset["train"]
+        if val_set:
+            save_splits["validation"] = val_set
+        if test_set:
+            save_splits["test"] = test_set
 
     if test_set:
         test_set = cast(Dataset, test_set)
@@ -177,7 +184,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         max_train_samples: Optional[int] = None,
         packed_sequence_specs: Optional[dict] = None,
         download_mode: Optional[str] = None,
-        val_proportion: float = 0.05,
+        val_proportion: Optional[float] = 0.05,
         split_val_from_train: bool = True,
         delete_raw: bool = False,
         hf_kwargs: Optional[dict[str, Any]] = None,
@@ -213,6 +220,11 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         self.process_example_fn = process_example_fn
         self.hf_filter_lambda = hf_filter_lambda
         self.hf_filter_lambda_kwargs = hf_filter_lambda_kwargs or {}
+
+        if not val_proportion:
+            self.do_validation = False
+            self.do_test = False
+
         print_rank_0(f"Building HFDataset {self.dataset_name}")
 
     def prepare_data(self) -> None:

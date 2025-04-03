@@ -143,6 +143,8 @@ class FinetuningDatasetConfig(DataloaderConfig):
     max_train_samples: Optional[int] = None
     packed_sequence_specs: Optional[dict] = None
     dataset_kwargs: Optional[dict[str, Any]] = None
+    do_validation: bool = True
+    do_test: bool = True
 
 
 @dataclass
