@@ -541,7 +541,7 @@ def _get_tunnel_cached(
     identity: str | None = None,
     shell: str | None = None,
     pre_command: str | None = None,
-):  
+):
     """Create and cache an SSH tunnel connection with the given configuration."""
     return run.SSHTunnel(
         host=host,
