@@ -161,7 +161,7 @@ def check_res_nbest_hyps(num_samples, batch_nbest_hyps):
                 for hyp_idx in range(len(batch_nbest_hyps[idx].n_best_hypotheses))
             ]
         )
-
+        
         assert all(
             [
                 len(batch_nbest_hyps[idx].n_best_hypotheses[hyp_idx].y_sequence) > 0 and
@@ -363,160 +363,6 @@ class TestRNNTDecoding:
             hyps = decode_text_from_hypotheses(hyps, model.decoding)
             print_res_best_hyps(hyps)
 
-    @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
-    )
-    @pytest.mark.unit
-    @pytest.mark.with_downloads
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    @pytest.mark.parametrize("beam_size", [4, 8])
-    @pytest.mark.parametrize("batch_size", [4, 16])
-    def test_cuda_graph_rnnt_batched_alsd_decoder(self, test_audio_filenames, rnnt_model, batch_size, beam_size):
-        # Set device to CUDA
-        device = torch.device("cuda")
-        model = rnnt_model.to(device)
-
-        # Modify decoding config
-        decoding_config = copy.deepcopy(model.cfg.decoding)
-        with open_dict(decoding_config):
-            decoding_config["strategy"] = "malsd_batch"
-            decoding_config["beam"]["beam_size"] = beam_size
-            decoding_config["beam"]["allow_cuda_graphs"] = False
-            decoding_config["beam"]["return_best_hypothesis"] = False
-
-        # Change decoding strategy
-        model.change_decoding_strategy(decoding_config)
-
-        # Transcribe without CUDA graphs
-        actual_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-        actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
-        actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
-        actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
-
-        # Re-enable CUDA graphs
-        decoding_config["beam"]["allow_cuda_graphs"] = True
-        model.change_decoding_strategy(decoding_config)
-
-        # Transcribe with CUDA graphs
-        cudagraph_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-        cudagraph_transcripts = [[hyp.text for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-        cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-        cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-
-        for batch_idx in range(min(batch_size, len(test_audio_filenames))):
-            assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
-            assert cudagraph_scores[batch_idx] == pytest.approx(
-                actual_scores[batch_idx], abs=1e-2
-            ), f"Scores mismatch for batch_idx {batch_idx}"
-            assert (
-                cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
-            ), f"Timestamps mismatch for batch_idx {batch_idx}"
-
-            # Calculate WER (Word Error Rate)
-            wer_value = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
-
-            # Assert WER is within tolerance
-            assert wer_value <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
-
-            # Print erroneous samples if WER is high
-            for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
-                if actual != fast:
-                    print("Erroneous samples in batch:", batch_idx)
-                    print("Original transcript:", actual)
-                    print("New transcript:", fast)
-                    
-    @pytest.mark.with_downloads
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-    def test_stated_stateless(self, test_audio_filenames, rnnt_model, force_mode: str):
-        '''Compares stated and stateless implementations'''
-        if force_mode == "full_graph":
-            skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
-
-        batch_size = 16
-        device = torch.device("cuda")
-        model = rnnt_model.to(device)
-        decoding_config = copy.deepcopy(model.cfg.decoding)
-
-        with open_dict(decoding_config):
-            decoding_config["strategy"] = "malsd_batch"
-            decoding_config["beam"]["beam_size"] = 4
-            decoding_config["beam"]["return_best_hypotheses"] = False
-            decoding_config["beam"]["allow_cuda_graphs"] = False
-
-        model.change_decoding_strategy(decoding_config)
-
-        actual_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-        actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
-        actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
-        actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
-
-        # transcribe with use implementation with cuda graphs
-        decoding_config["beam"]["allow_cuda_graphs"] = True
-        model.change_decoding_strategy(decoding_config)
-        model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
-
-        cudagraph_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-        cudagraph_transcripts = [[hyp.text for hyp in cudagraphs_beam] for cudagraphs_beam in cudagraph_hypotheses]
-        cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-        cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-
-        for batch_idx in range(min(batch_size, len(test_audio_filenames))):
-            assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
-            assert cudagraph_scores[batch_idx] == pytest.approx(
-                actual_scores[batch_idx], abs=1e-2
-            ), f"Scores mismatch for batch_idx {batch_idx}"
-            assert (
-                cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
-            ), f"Timestamps mismatch for batch_idx {batch_idx}"
-
-            wer = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
-
-            assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
-
-            for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
-                if actual != fast:
-                    print("Erroneous samples in batch:", batch_idx)
-                    print("Original transcript:", actual)
-                    print("New transcript:", fast)
-
-    @pytest.mark.with_downloads
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    def test_stated_stateless(self, test_audio_filenames, rnnt_model):
-        '''Compares stated and stateless implementations with bfloat16'''
-        # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
-        batch_size = 16
-        device = torch.device("cuda")
-        model = rnnt_model.to(device)
-        decoding_config = copy.deepcopy(model.cfg.decoding)
-        
-        # checking pytorch implementation
-        with open_dict(decoding_config):
-            decoding_config["strategy"] = "malsd_batch"
-            decoding_config["beam"]["beam_size"] = 4
-            decoding_config["beam"]["return_best_hypotheses"] = False
-            decoding_config["beam"]["allow_cuda_graphs"] = False
-
-        model.change_decoding_strategy(decoding_config)
-
-        with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-            model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-        
-        modes = ["no_graphs", "no_while_loops", "full_graph"] 
-        for force_mode in modes:   
-            if force_mode == "full_graph":
-                skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
-
-            # transcribe with use implementation with cuda graphs
-            decoding_config["beam"]["allow_cuda_graphs"] = True
-            model.change_decoding_strategy(decoding_config)
-            model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
-
-            with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-                model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-
-
 class TestTDTDecoding:
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -707,18 +553,95 @@ class TestTDTDecoding:
             hyps = decode_text_from_hypotheses(hyps, model.decoding)
             print_res_best_hyps(hyps)
 
+class TestTransducerCudaGraphDecoding:
+    """
+    Tests CudaGraphs implementations from Transducer models (RNN-T and TDT)
+    """
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.unit
+    @pytest.mark.with_downloads
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
+    @pytest.mark.parametrize("beam_size", [4, 8])
+    @pytest.mark.parametrize("batch_size", [4, 16])
+    @pytest.mark.parametrize("model_type", ["rnnt", "tdt"])
+    def test_cuda_graphs_batched_alsd_decoder(self, test_audio_filenames, rnnt_model, tdt_model, model_type, batch_size, beam_size):
+        """
+        Compares pure Pytorch and fully Cuda Graphs decodings.
+        """
+        
+        # Set device to CUDA
+        device = torch.device("cuda")
+        model = rnnt_model.to(device) if model_type == "rnnt" else tdt_model.to(device)
+
+        # Modify decoding config
+        decoding_config = copy.deepcopy(model.cfg.decoding)
+        with open_dict(decoding_config):
+            decoding_config["strategy"] = "malsd_batch"
+            decoding_config["beam"]["beam_size"] = beam_size
+            decoding_config["beam"]["allow_cuda_graphs"] = False
+            decoding_config["beam"]["return_best_hypothesis"] = False
+
+        # Change decoding strategy
+        model.change_decoding_strategy(decoding_config)
+
+        # Transcribe without CUDA graphs
+        actual_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
+        actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
+
+        # Re-enable CUDA graphs
+        decoding_config["beam"]["allow_cuda_graphs"] = True
+        model.change_decoding_strategy(decoding_config)
+
+        # Transcribe with CUDA graphs
+        cudagraph_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        cudagraph_transcripts = [[hyp.text for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+        cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+        cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
+
+        for batch_idx in range(min(batch_size, len(test_audio_filenames))):
+            assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
+            assert cudagraph_scores[batch_idx] == pytest.approx(
+                actual_scores[batch_idx], abs=1e-2
+            ), f"Scores mismatch for batch_idx {batch_idx}"
+            assert (
+                cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
+            ), f"Timestamps mismatch for batch_idx {batch_idx}"
+
+            # Calculate WER (Word Error Rate)
+            wer_value = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
+
+            # Assert WER is within tolerance
+            assert wer_value <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
+
+            # Print erroneous samples if WER is high
+            for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
+                if actual != fast:
+                    print("Erroneous samples in batch:", batch_idx)
+                    print("Original transcript:", actual)
+                    print("New transcript:", fast)
+                    
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-    def test_stated_stateless(self, test_audio_filenames, tdt_model, force_mode: str):
-        '''Compares stated and stateless implementations with bfloat16'''
+    @pytest.mark.parametrize("model_type", ["rnnt", "tdt"])
+    def test_stated_stateless(self, test_audio_filenames, rnnt_model, tdt_model, model_type, force_mode: str):
+        """
+        Compares pure Pytorch and with three modes of statefull implementations for double floating point precision.
+            1. Pure pytorch, but statefull implementation: no_graphs
+            2. With CudaGrpahs: no_while_loops and full_graph.
+        """
         if force_mode == "full_graph":
             skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
         batch_size = 16
         device = torch.device("cuda")
-        nemo_model = tdt_model.to(device)
-        decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
+        model = rnnt_model.to(device) if model_type == "rnnt" else tdt_model.to(device)
+        decoding_config = copy.deepcopy(model.cfg.decoding)
 
         with open_dict(decoding_config):
             decoding_config["strategy"] = "malsd_batch"
@@ -726,18 +649,19 @@ class TestTDTDecoding:
             decoding_config["beam"]["return_best_hypotheses"] = False
             decoding_config["beam"]["allow_cuda_graphs"] = False
 
-        nemo_model.change_decoding_strategy(decoding_config)
+        model.change_decoding_strategy(decoding_config)
 
-        actual_hypotheses = nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        actual_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
         actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
         actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
         actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
 
         # transcribe with use implementation with cuda graphs
-        nemo_model.change_decoding_strategy(decoding_config)
-        nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+        decoding_config["beam"]["allow_cuda_graphs"] = True
+        model.change_decoding_strategy(decoding_config)
+        model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
-        cudagraph_hypotheses = nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        cudagraph_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
         cudagraph_transcripts = [[hyp.text for hyp in cudagraphs_beam] for cudagraphs_beam in cudagraph_hypotheses]
         cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
         cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
@@ -745,7 +669,7 @@ class TestTDTDecoding:
         for batch_idx in range(min(batch_size, len(test_audio_filenames))):
             assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
             assert cudagraph_scores[batch_idx] == pytest.approx(
-                actual_scores[batch_idx], abs=abs
+                actual_scores[batch_idx], abs=1e-2
             ), f"Scores mismatch for batch_idx {batch_idx}"
             assert (
                 cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
@@ -756,39 +680,45 @@ class TestTDTDecoding:
             assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
 
             for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
-                print("Erroneous samples in batch:", batch_idx)
-                print("Original transcript:", actual)
-                print("New transcript:", fast)
+                if actual != fast:
+                    print("Erroneous samples in batch:", batch_idx)
+                    print("Original transcript:", actual)
+                    print("New transcript:", fast)
 
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
-    def test_stated_stateless(self, test_audio_filenames, tdt_model, force_mode: str):
-        '''Compares stated and stateless implementations with bfloat16'''
-        # for bfloat16 computational errors accumulate, so just checking if algorithms run without errors
-        if force_mode == "full_graph":
-            skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
-
+    @pytest.mark.parametrize("model_type", ["rnnt", "tdt"])
+    def test_stated_stateless(self, test_audio_filenames, rnnt_model, tdt_model, model_type):
+        """
+        Checks that we are able to run without errors all decodings in bfloat16. 
+        Computational errors accumulate, so just checking if algorithms run without errors
+        """
         batch_size = 16
         device = torch.device("cuda")
-        nemo_model = tdt_model.to(device)
-        decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
-
+        model = rnnt_model.to(device) if model_type == "rnnt" else tdt_model.to(device)
+        decoding_config = copy.deepcopy(model.cfg.decoding)
+        
+        # checking pytorch implementation
         with open_dict(decoding_config):
             decoding_config["strategy"] = "malsd_batch"
             decoding_config["beam"]["beam_size"] = 4
             decoding_config["beam"]["return_best_hypotheses"] = False
             decoding_config["beam"]["allow_cuda_graphs"] = False
 
-        nemo_model.change_decoding_strategy(decoding_config)
+        model.change_decoding_strategy(decoding_config)
 
         with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-            nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+            model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+        
+        modes = ["no_graphs", "no_while_loops", "full_graph"] 
+        for force_mode in modes:   
+            if force_mode == "full_graph":
+                skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
-        # transcribe with use implementation with cuda graphs
-        decoding_config["beam"]["allow_cuda_graphs"] = True
-        nemo_model.change_decoding_strategy(decoding_config)
-        nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+            # transcribe with use implementation with cuda graphs
+            decoding_config["beam"]["allow_cuda_graphs"] = True
+            model.change_decoding_strategy(decoding_config)
+            model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
-        with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-            nemo_model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
+            with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
+                model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
