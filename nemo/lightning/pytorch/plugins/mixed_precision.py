@@ -90,21 +90,6 @@ class DtypeConfig:
     hysteresis: float = (None,)
 
 
-def get_fp8_recipe(fp8_recipe: str) -> McoreFp8Recipe:
-    """Get the te fp8 recipe object from the fp8_recipe argument."""
-    te_recipe, HAVE_TE = safe_import("transformer_engine.common.recipe")
-    assert HAVE_TE, "Configuring FP8 recipe requires transformer engine."
-
-    if fp8_recipe == McoreFp8Recipe.delayed:
-        return te_recipe.DelayedScaling()
-    elif fp8_recipe == McoreFp8Recipe.tensorwise:
-        return te_recipe.Float8CurrentScaling()
-    elif fp8_recipe == McoreFp8Recipe.mxfp8:
-        return te_recipe.MXFP8BlockScaling()
-    else:
-        raise ValueError(f"Invalid FP8 recipe: {fp8_recipe}.")
-
-
 class MegatronMixedPrecision(Precision):
     """Plugin for mixed precision training with Megatron models.
 
