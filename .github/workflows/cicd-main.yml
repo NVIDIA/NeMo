@@ -1665,9 +1665,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Export_TRT_LLM')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Export_TRT_LLM.sh
-
+      SCRIPT: L2_NeMo_2_Export_TRT_LLM
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
 
