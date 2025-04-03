@@ -1730,14 +1730,14 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_NeMo_2_EVAL
-      
+
   L2_ONNX_TRT_LLM_Embedding_Export:
     needs: [ pre-flight, cicd-test-container-build ]
     uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ONNX_TRT_LLM_Embedding_Export')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/export/test_export_onnx.py --hf_model_path /home/TestData/llm/models/llama-3.2-nv-embedqa-1b-v2 
+      SCRIPT: L2_ONNX_TRT_LLM_Embedding_Export
       AFTER_SCRIPT: |
         rm -rf /tmp/onnx_model /tmp/trt_model
 
@@ -2084,6 +2084,7 @@ jobs:
       - L2_ONNX_TRT_LLM_Embedding_Export
       - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
+      - L2_ONNX_TRT_LLM_Embedding_Export
 
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
