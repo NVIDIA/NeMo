@@ -114,7 +114,7 @@ class FLOPsMeasurementCallback(Callback):
         try:
             self.avg_train_step_time += trainer.progress_bar_metrics['train_step_timing in s']
         except KeyError:
-            print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
+            logging.warning("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
 
         # Only calculate and print total model FLOPs once at the beginning
         if not hasattr(self, 'model_flops_printed') and self.avg_train_step_time > 0:
