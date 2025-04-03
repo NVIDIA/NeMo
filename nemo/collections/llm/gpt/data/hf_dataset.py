@@ -447,10 +447,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             input_ids = tokenizer.text_to_ids(example["text"])
             if max_length > 0:
                 input_ids = input_ids[:max_length]
-            return dict(
-                input_ids=input_ids,
-                labels=input_ids[1:] + [-100]
-            )
+            return dict(input_ids=input_ids, labels=input_ids[1:] + [-100])
 
         # Apply preprocessing to each example of the dataset & and remove "conversations" and "text" fields.
         _preprocessing_function = partial(preprocess, max_length=max_length, tokenizer=tokenizer)
