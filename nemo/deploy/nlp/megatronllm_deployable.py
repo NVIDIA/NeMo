@@ -31,6 +31,17 @@ from nemo.deploy.utils import NEMO2, broadcast_list, cast_output, nemo_checkpoin
 
 @wrapt.decorator
 def noop_decorator(func):
+    """A no-op decorator that returns the original function unchanged.
+
+    Used as a fallback when pytriton's batch decorator is not available.
+
+    Args:
+        func: The function to decorate
+
+    Returns:
+        The original function without any modifications
+    """
+
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
