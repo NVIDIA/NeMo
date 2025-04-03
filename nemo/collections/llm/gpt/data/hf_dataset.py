@@ -456,7 +456,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         dataset = dataset.map(
             _preprocessing_function,
             batched=False,
-        ).select_columns(["input_ids", "attention_mask", "labels"])
+        ).select_columns(["input_ids", "labels"])
 
         # Shuffle dataset.
         dataset = dataset.shuffle(seed=seed)
