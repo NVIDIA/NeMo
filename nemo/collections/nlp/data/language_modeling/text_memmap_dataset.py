@@ -29,6 +29,7 @@ from nemo.utils import AppState, logging
 
 try:
     import multistorageclient
+
     MULTISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     MULTISTORAGECLIENT_AVAILABLE = False
@@ -459,7 +460,9 @@ def _index_file_exists(idx_fn):
     """Helper function to test if index file exists"""
     is_exists = False
     if MULTISTORAGECLIENT_AVAILABLE:
-        is_exists = multistorageclient.os.path.exists(idx_fn + ".npy") and multistorageclient.os.path.exists(idx_fn + ".info")
+        is_exists = multistorageclient.os.path.exists(idx_fn + ".npy") and multistorageclient.os.path.exists(
+            idx_fn + ".info"
+        )
     else:
         is_exists = os.path.exists(idx_fn + ".npy") and os.path.exists(idx_fn + ".info")
     return is_exists
