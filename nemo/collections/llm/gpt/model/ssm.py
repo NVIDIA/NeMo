@@ -37,7 +37,6 @@ try:
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
-    from megatron.core.transformer.enums import AttnBackend
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -46,7 +45,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE_OR_TE = False
 
 from megatron.core.transformer.transformer_config import TransformerConfig
-
+from megatron.core.transformer.enums import AttnBackend
 
 def ssm_forward_step(model, batch) -> torch.Tensor:
     """
