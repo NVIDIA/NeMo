@@ -76,6 +76,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         checkpoint_io=None,
         mp_policy=None,
         parallelize_fn=fsdp2_strategy_parallelize,
+        custom_tp_plan: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -83,6 +84,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Args:
             data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
             tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
+            sequence_parallel (bool): Whether to enable sequence parallelism. Defaults to False. 
+                Only effective when tensor_parallel_size > 1.
             data_sampler (optional): Custom data sampler to process dataloaders.
             mp_policy (optional): Mixed precision policy for parameter and operation casting.
                 Defaults to:
@@ -95,6 +98,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 )
                 ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
+            custom_tp_plan (Optional[Dict[str, Any]]): Custom tensor parallel plan for the model.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
@@ -114,6 +118,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
         self.sequence_parallel = sequence_parallel
+        self.custom_tp_plan = custom_tp_plan
 
     @property
     @override
@@ -222,6 +227,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 device_mesh=self._device_mesh,
                 mp_policy=self.mp_policy,
                 sequence_parallel=self.sequence_parallel,
+                custom_tp_plan=self.custom_tp_plan,
                 offload_policy=self.offload_policy,
             )
             # Apply this only once
@@ -500,9 +506,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # TODO(@boxiangw): refractor this to match TP plan
         if self._data_parallel_size == 1 and self._tensor_parallel_size > 1 and not self.sequence_parallel:
             # Does not need DTensor if using TP without DP and SP
-            ignore_keys = ['input_layernorm', 'post_attention_layernorm', 'lm_head', 'norm', 'embed_tokens']
-            colwise_keys = ['self_attn.q_proj', 'self_attn.k_proj', 'self_attn.v_proj', 'mlp.gate_proj', 'mlp.up_proj']
-            rowwise_keys = ['self_attn.o_proj', 'mlp.down_proj']
+            ignore_keys = ['input_layernorm', 'post_attention_layernorm',  'norm']
+            colwise_keys = ['lm_head','self_attn.q_proj', 'self_attn.k_proj', 'self_attn.v_proj', 'mlp.gate_proj', 'mlp.up_proj']
+            rowwise_keys = ['embed_tokens', 'self_attn.o_proj', 'mlp.down_proj']
 
             sharded_state = {k: v for k, v in ckpt['state_dict'].items()}
             for k, v in sharded_state.items():

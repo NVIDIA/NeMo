@@ -41,6 +41,7 @@ from torch.distributed.tensor.parallel import (
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
+from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
@@ -459,6 +460,7 @@ def fsdp2_strategy_parallelize(
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
     sequence_parallel: bool = False,
+    custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
     offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
@@ -467,13 +469,18 @@ def fsdp2_strategy_parallelize(
         model: The model to be parallelized.
         device_mesh (DeviceMesh): The device mesh for distributed training.
         mp_policy (MixedPrecisionPolicy): Mixed precision policy for model parallelism.
-        sequence_parallel (bool): Whether to use sequence parallelism when TP size > 1, defaults to True. Will be
-            set to False if the TP size is 1.
+        sequence_parallel (bool): Whether to use sequence parallelism when TP size > 1, defaults to True. Will only
+            be effective if the TP size is 1.
+        custom_tp_plan (Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]]):
+            A custom tensor parallel plan to override the default one. The keys should be the module names
+            and the values should be the corresponding parallel styles (e.g., RowwiseParallel, ColwiseParallel, SequenceParallel).
+        offload_policy (CPUOffloadPolicy): The offload policy for FSDP. If None, it will use the default policy.
 
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
     the model must fit on GPU or CPU memory.
     NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
+    NOTE: Currently, the user should make sure that custom_tp_plan is compatible with the model architecture.
     """
 
     if not mp_policy:
@@ -506,43 +513,40 @@ def fsdp2_strategy_parallelize(
     # TP sharding
 
     # Parallelize the first embedding and the last linear out projection
-    model_tp_plan = {
-        "lm_head": ColwiseParallel(output_layouts=Replicate()),
+    base_model_tp_plan = {
         "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+        "model.layers.*.self_attn.q_proj": ColwiseParallel(),
+        "model.layers.*.self_attn.k_proj": ColwiseParallel(),
+        "model.layers.*.self_attn.v_proj": ColwiseParallel(),
+        "model.layers.*.self_attn.o_proj": RowwiseParallel(),
+        "model.layers.*.mlp.up_proj": ColwiseParallel(),
+        "model.layers.*.mlp.gate_proj": ColwiseParallel(),
+        "model.layers.*.mlp.down_proj": RowwiseParallel(),
+        "lm_head": ColwiseParallel(output_layouts=Replicate()),
     }
 
-    model_sp_plan = {
-        "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
+    base_model_sp_plan = {
         "model.embed_tokens": RowwiseParallel(input_layouts=Replicate(), output_layouts=Shard(1)),
         "model.norm": SequenceParallel(),
-    }
-
-    # Parallelize Linear layers in the Decoder layers
-    layer_tp_plan = {
-        "self_attn.q_proj": ColwiseParallel(),
-        "self_attn.k_proj": ColwiseParallel(),
-        "self_attn.v_proj": ColwiseParallel(),
-        "self_attn.o_proj": RowwiseParallel(),
-        "mlp.up_proj": ColwiseParallel(),
-        "mlp.gate_proj": ColwiseParallel(),
-        "mlp.down_proj": RowwiseParallel(),
-    }
-
-    layer_sp_plan = {
-        "input_layernorm": SequenceParallel(),
-        "self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
-        "post_attention_layernorm": SequenceParallel(),
-        "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+        "model.layers.*.input_layernorm": SequenceParallel(),
+        "model.layers.*.self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+        "model.layers.*.post_attention_layernorm": SequenceParallel(),
+        "model.layers.*.mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+        "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
     }
 
     if sequence_parallel:
-        model_tp_plan.update(model_sp_plan)
-        layer_tp_plan.update(layer_sp_plan)
+        # Enable sequence parallelism only if TP size > 1
+        base_model_tp_plan.update(base_model_sp_plan)
 
-    parallelize_module(model, tp_mesh, model_tp_plan)
-
-    for layer in model.model.layers:
-        parallelize_module(layer, tp_mesh, layer_tp_plan)
+    if custom_tp_plan is not None:
+        tp_plan = custom_tp_plan
+        logging.warning("You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored.")
+    else:
+        tp_plan = base_model_tp_plan
+        logging.info("Using default TP plan for parallelization. It is compatible with huggingface llama-style models.")
+    
+    parallelize_module(model, tp_mesh, tp_plan)
 
     # FSDP sharding
 
