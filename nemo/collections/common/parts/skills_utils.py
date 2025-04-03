@@ -162,6 +162,15 @@ def get_exp_handles(expname: str, ignore_finished=True, ignore_exp_not_exists=Tr
 
 
 def get_timeout(cluster_config, partition):
+    """Get the timeout value for a given partition from the cluster configuration.
+
+    Args:
+        cluster_config (dict): The cluster configuration dictionary
+        partition (str): The partition name to get timeout for
+
+    Returns:
+        str: Timeout value in the format 'days:hours:minutes:seconds'
+    """
     if 'timeouts' not in cluster_config:
         timeout = "10000:00:00:00"
     else:
@@ -196,6 +205,15 @@ def get_free_port(exclude: list[int] | None = None, strategy: int | str = 5000) 
 
 
 def get_generation_command(server_address, generation_commands):
+    """Construct the command for running generation tasks.
+
+    Args:
+        server_address (str): Address of the server to connect to
+        generation_commands (str): Commands to run for generation
+
+    Returns:
+        str: Complete command string including environment setup and server connection check
+    """
     cmd = (
         f"export PYTHONPATH=$PYTHONPATH:/nemo_run/code && "
         f"cd /nemo_run/code && "
@@ -218,6 +236,23 @@ def get_reward_server_command(
     server_port: int,
     server_args: str = "",
 ):
+    """Construct the command for starting a reward model server.
+
+    Args:
+        server_type (str): Type of server to start ('nemo', 'vllm', etc.)
+        num_gpus (int): Number of GPUs to use
+        num_nodes (int): Number of nodes to use
+        model_path (str): Path to the model
+        cluster_config (dict): Cluster configuration
+        server_port (int): Port for the server
+        server_args (str, optional): Additional arguments for the server
+
+    Returns:
+        tuple[str, int]: Server command string and number of tasks to run
+
+    Raises:
+        ValueError: If server type is not supported or configuration is invalid
+    """
     num_tasks = num_gpus
 
     # check if the model path is mounted if not vllm;
@@ -280,6 +315,7 @@ def get_reward_server_command(
 
 
 def get_ray_server_cmd(start_cmd):
+    """Generate Ray server command with head and worker node configuration."""
     ports = (
         "--node-manager-port=12345 "
         "--object-manager-port=12346 "
@@ -322,6 +358,7 @@ def get_server_command(
     server_port: int,
     server_args: str = "",
 ):
+    """Generate command to start a model inference server."""
     num_tasks = num_gpus
 
     # check if the model path is mounted if not vllm;
@@ -393,6 +430,11 @@ def get_server_command(
 
 
 def get_sandox_command():
+    """Get the command to start the sandbox environment.
+
+    Returns:
+        str: Command to initialize and start the sandbox
+    """
     return "/entrypoint.sh && /start.sh"
 
 
@@ -429,6 +471,8 @@ class CustomJobDetails(SlurmJobDetails):
 
 
 def read_config(config_file):
+    """Read and parse a YAML configuration file."""
+
     with open(config_file, "rt", encoding="utf-8") as fin:
         cluster_config = yaml.safe_load(fin)
 
@@ -497,7 +541,8 @@ def _get_tunnel_cached(
     identity: str | None = None,
     shell: str | None = None,
     pre_command: str | None = None,
-):
+):  
+    """Create and cache an SSH tunnel connection with the given configuration."""
     return run.SSHTunnel(
         host=host,
         user=user,
@@ -509,6 +554,7 @@ def _get_tunnel_cached(
 
 
 def tunnel_hash(tunnel):
+    """Generate a unique hash string for an SSH tunnel configuration."""
     return f"{tunnel.job_dir}:{tunnel.host}:{tunnel.user}:{tunnel.identity}:{tunnel.shell}:{tunnel.pre_command}"
 
 
@@ -874,6 +920,30 @@ def get_executor(
     total_het_groups=None,
     slurm_kwargs: dict | None = None,
 ):
+    """Create and configure an executor for running tasks locally or on a cluster.
+
+    Args:
+        cluster_config (dict): Configuration for the cluster/execution environment
+        container (str): Container image to use
+        num_nodes (int): Number of nodes to use
+        tasks_per_node (int): Number of tasks to run per node
+        gpus_per_node (int): Number of GPUs to use per node
+        job_name (str): Name of the job
+        log_dir (str): Directory for storing logs
+        log_prefix (str, optional): Prefix for log files. Defaults to "main"
+        mounts (list, optional): List of volume mounts
+        partition (str, optional): Slurm partition to use
+        time_min (int, optional): Minimum time allocation in minutes
+        dependencies (list, optional): List of job dependencies
+        extra_package_dirs (tuple[str], optional): Additional directories to package
+        heterogeneous (bool, optional): Whether this is part of a heterogeneous job
+        het_group (int, optional): Heterogeneous group index
+        total_het_groups (int, optional): Total number of heterogeneous groups
+        slurm_kwargs (dict, optional): Additional kwargs for Slurm configuration
+
+    Returns:
+        DockerExecutor | SlurmExecutor: Configured executor instance
+    """
     env_vars = get_env_variables(cluster_config)
     config_mounts = get_mounts_from_config(cluster_config)
 
@@ -969,6 +1039,16 @@ def get_executor(
 
 @contextmanager
 def temporary_env_update(cluster_config, updates):
+    """Temporarily update environment variables in cluster configuration.
+
+    A context manager that temporarily adds or updates environment variables in the cluster
+    configuration and restores the original configuration when exiting the context.
+
+    Args:
+        cluster_config (dict): The cluster configuration to modify
+        updates (dict): Dictionary of environment variable updates where
+                       keys are environment variable names and values are their values
+    """
     original_env_vars = cluster_config.get("env_vars", []).copy()
     updated_env_vars = original_env_vars.copy()
     for key, value in updates.items():
