@@ -295,9 +295,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         if ngram_lm_model is not None:
             expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             if self._blank_index != expected_blank_index:
-                raise ValueError(
-                    f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}"
-                )
+                raise ValueError(f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}")
 
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
@@ -646,7 +644,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = total_idx_top_k // len(self.durations)
                 durations_top_k = total_idx_top_k % len(self.durations)
-            
+
             case PruningMode.LATE, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
@@ -664,7 +662,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
                 labels_top_k = total_idx_top_k // len(self.durations)
                 durations_top_k = total_idx_top_k % len(self.durations)
-            
+
             case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
@@ -687,7 +685,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
                 durations_top_k = total_idx_top_k % len(self.durations)
-            
+
             case PruningMode.EARLY, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
@@ -715,9 +713,11 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
                 durations_top_k = total_idx_top_k % len(self.durations)
-            
+
             case _:
-                raise NotImplementedError(f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}")
+                raise NotImplementedError(
+                    f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}"
+                )
 
         return log_probs_top_k, labels_top_k, durations_top_k
 

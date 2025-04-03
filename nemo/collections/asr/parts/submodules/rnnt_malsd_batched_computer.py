@@ -598,7 +598,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
-            
+
             case PruningMode.LATE, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
@@ -607,7 +607,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
-            
+
             case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
@@ -618,7 +618,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     log_probs_top_k,
                     log_probs_top_k + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            
+
             case PruningMode.EARLY, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 log_probs_top_k, labels_top_k = log_probs.topk(self.beam_size, dim=-1, largest=True, sorted=True)
 
@@ -633,9 +633,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     + non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha
                     + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            
+
             case _:
-                raise NotImplementedError(f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}")
+                raise NotImplementedError(
+                    f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}"
+                )
 
         return log_probs_top_k, labels_top_k
 
