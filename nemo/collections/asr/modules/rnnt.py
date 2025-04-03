@@ -394,7 +394,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             other_src_states (tuple[torch.Tensor, torch.Tensor], optional): Values selected at indices where `mask` is False.
 
         Note:
-            This operation is performed non-blocking using `torch.where`.
+            This operation is performed without CPU-GPU synchronization by using `torch.where`.
         """
         other = other_src_states if other_src_states is not None else dst_states
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
@@ -1133,7 +1133,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             other_src_states (Tuple[torch.Tensor, torch.Tensor], optional): Values selected at indices where `mask` is False.
 
         Note:
-            This operation is performed non-blocking using `torch.where`.
+            This operation is performed without CPU-GPU synchronization by using `torch.where`.
         """
         # same as `dst_states[i][mask] = src_states[i][mask]`, but non-blocking
         # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled

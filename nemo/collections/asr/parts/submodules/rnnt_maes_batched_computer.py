@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
@@ -26,7 +25,6 @@ from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
     BlankLMScoreMode,
     PruningMode,
 )
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging
 
 

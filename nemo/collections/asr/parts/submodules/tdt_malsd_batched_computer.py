@@ -13,15 +13,13 @@
 # limitations under the License.
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
     INACTIVE_SCORE,

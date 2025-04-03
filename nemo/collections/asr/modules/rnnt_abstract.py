@@ -322,7 +322,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
             other_src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): Values selected at indices where `mask` is False.
 
         Note:
-            This operation is performed non-blocking using `torch.where`.
+            This operation is performed without CPU-GPU synchronization by using `torch.where`.
         """
         raise NotImplementedError()
 
