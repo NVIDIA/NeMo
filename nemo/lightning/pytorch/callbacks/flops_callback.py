@@ -122,10 +122,10 @@ class FLOPsMeasurementCallback(Callback):
             _, total_model_tflops = self.eval_tflops_per_sec_per_gpu(
                 self.avg_train_step_time / max(1, trainer.global_step)
             )
-            # Print once
-            print(f"\n===================================")
-            print(f"Total model TFLOPs: {total_model_tflops:.4f}")
-            print(f"===================================\n")
+            # Use logger instead of print
+            logging.info("===================================")
+            logging.info(f"Total model TFLOPs: {total_model_tflops:.4f}")
+            logging.info("===================================")
             # Set flag to prevent future prints
             self.model_flops_printed = True
         
