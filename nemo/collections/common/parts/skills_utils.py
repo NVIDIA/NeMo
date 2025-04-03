@@ -117,8 +117,8 @@ def get_unmounted_path(cluster_config, path):
             return mount.split(":")[0] + path[len(mount.split(":")[1]) :]
     raise ValueError(f"The path '{path}' is not mounted. Check cluster config.")
 
-# caching the status assuming it doesn't change while experiment is being scheduled
-# otherwise this results in too many ssh calls
+#caching the status assuming it doesn't change while experiment is being scheduled
+#otherwise this results in too many ssh calls
 @lru_cache
 def get_exp_handles(expname: str, ignore_finished=True, ignore_exp_not_exists=True) -> list[str]:
     """Will return the handles of the tasks in the experiment.
@@ -445,22 +445,22 @@ class CustomJobDetails(SlurmJobDetails):
 
     @property
     def stdout(self) -> Path:
-        """"""
+        """Path to sbatch standard output log file."""
         return Path(self.folder) / f"{self.sbatch_prefix}%j_sbatch.log"
 
     @property
     def srun_stdout(self) -> Path:
-        """"""
+        """Path to srun standard output log file."""
         return Path(self.folder) / f"{self.srun_prefix}%j_srun.log"
 
     @property
     def stderr(self) -> Path:
-        """"""
+        """Path to sbatch standard error log file."""
         return Path(self.folder) / f"{self.sbatch_prefix}%j_sbatch.log"
 
     @property
     def srun_stderr(self) -> Path:
-        """"""
+        """Path to srun standard error log file."""
         return Path(self.folder) / f"{self.srun_prefix}%j_srun.log"
 
     @property
@@ -545,7 +545,7 @@ def _get_tunnel_cached(
     shell: str | None = None,
     pre_command: str | None = None,
 ):  
-    """Create and cache an SSH tunnel connection with the given configuration."""
+    """ Create and cache an SSH tunnel connection with the given configuration. """
     return run.SSHTunnel(
         host=host,
         user=user,
@@ -557,12 +557,12 @@ def _get_tunnel_cached(
 
 
 def tunnel_hash(tunnel):
-    """Generate a unique hash string for an SSH tunnel configuration."""
+    """ Generate a unique hash string for an SSH tunnel configuration. """
     return f"{tunnel.job_dir}:{tunnel.host}:{tunnel.user}:{tunnel.identity}:{tunnel.shell}:{tunnel.pre_command}"
 
 
 def get_tunnel(cluster_config):
-    """Create ssh tunnel"""
+    """ Create ssh tunnel. """
     if "ssh_tunnel" not in cluster_config:
         LOG.info("No ssh_tunnel configuration found, assuming we are running from the cluster already.")
         return run.LocalTunnel(job_dir="")
@@ -749,7 +749,8 @@ def get_packager(extra_package_dirs: tuple[str] | None = None):
         )
     else:
         logging.warning(
-            "Not running from a git repo, trying to upload installed package. Make sure there are no extra files in %s",
+            "Not running from a git repo, trying to upload installed package. \
+            Make sure there are no extra files in %s",
             str(nemo_skills_dir / '*'),
         )
         include_patterns.append(str(nemo_skills_dir / '*'))
@@ -872,7 +873,8 @@ def get_mounts_from_config(cluster_config: dict):
         mount = mounts[mount_id]
 
         if ":" not in mount:
-            raise ValueError(f"Invalid mount format: {mount}. The mount path must be separated by a colon.")
+            raise ValueError(f"Invalid mount format: {mount}. \
+                             The mount path must be separated by a colon.")
 
         mount_source, mount_target = mount.split(":")
 
@@ -882,7 +884,8 @@ def get_mounts_from_config(cluster_config: dict):
 
             if mount_source not in os.environ:
                 raise ValueError(
-                    f"Required environment variable {mount_source} not found in env variables passed in cluster configs."
+                    f"Required environment variable {mount_source} not found \
+                        in env variables passed in cluster configs."
                 )
 
             mount_source = os.environ[mount_source]
@@ -893,7 +896,8 @@ def get_mounts_from_config(cluster_config: dict):
 
             if mount_target not in os.environ:
                 raise ValueError(
-                    f"Required environment variable {mount_target} not found in env variables passed in cluster configs."
+                    f"Required environment variable {mount_target} not found \
+                          in env variables passed in cluster configs."
                 )
 
             mount_target = os.environ[mount_target]
