@@ -512,10 +512,12 @@ def fsdp2_strategy_parallelize(
     }
 
     model_sp_plan = {
-        "model.rotary_emb": RotaryEmbedParallel(use_local_output=False),
+        "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
+        "model.embed_tokens": RowwiseParallel(input_layouts=Replicate(), output_layouts=Shard(1)),
         "model.norm": SequenceParallel(),
     }
 
+    # Parallelize Linear layers in the Decoder layers
     layer_tp_plan = {
         "self_attn.q_proj": ColwiseParallel(),
         "self_attn.k_proj": ColwiseParallel(),
