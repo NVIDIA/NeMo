@@ -337,6 +337,7 @@ class Quantizer:
     def export(self, model, model_dir: str, trainer: Optional["Trainer"] = None) -> None:
         """Export model to a TensorRT-LLM or NeMo checkpoint."""
         from accelerate.hooks import remove_hook_from_module
+
         export_dir = self.export_config.path
         export_fmt = self.export_config.export_format
         assert export_fmt in SUPPORTED_EXPORT_FMT, f"Unsupported export format: {export_fmt}"
