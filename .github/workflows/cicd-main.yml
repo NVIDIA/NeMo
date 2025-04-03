@@ -143,6 +143,7 @@ jobs:
 
             # Check that all tests are labeled correctly
             python tests/core_ptl/check_labels.py
+          '
 
   cicd-main-unit-tests:
     needs: [pre-flight, cicd-test-container-build]
