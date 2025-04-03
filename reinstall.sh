@@ -41,6 +41,9 @@ trtllm() {
   if [[ "$mode" == "build" ]]; then
     if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
       cd $TRTLLM_DIR &&
+        bash docker/common/install_base.sh &&
+        bash docker/common/install_cmake.sh &&
+        bash docker/common/install_ccache.sh &&
         . docker/common/install_tensorrt.sh \
           --TRT_VER="10.8.0.43" \
           --CUDA_VER="12.8" \
