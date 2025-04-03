@@ -287,16 +287,16 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         Aggregates decoder states based on the given indices.
         Args:
-            src_states (Tuple[torch.Tensor, torch.Tensor]): source states of
+            src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]): source states of
                 shape `([L x (batch_size * beam_size, H)], [L x (batch_size * beam_size, H)])`
             batch_size (int): The size of the batch.
             beam_size (int): The size of the beam.
             indices (torch.Tensor): A tensor of shape `(batch_size, beam_size)` containing
                 the indices in beam that map the source states to the destination states.
-            dst_states (Optional[Tuple[torch.Tensor, torch.Tensor]]): If provided, the method
+            dst_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): If provided, the method
                 updates these tensors in-place.
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]:
+            tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]: aggregated states
         Note:
             - The `indices` tensor is expanded to match the shape of the source states
             during the gathering operation.

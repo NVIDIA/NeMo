@@ -112,6 +112,7 @@ class BatchedBeamHyps:
         self.blank_index = blank_index
         self.batch_size = batch_size
         self.batch_indices = torch.arange(self.batch_size, device=device)
+        self.beam_indices = torch.arange(self.beam_size, device=device)
 
         # non-blank and full lengths
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
@@ -434,7 +435,7 @@ class BatchedBeamHyps:
             best hypothesis.
         """
 
-        self.flatten_sort(score_norm)
+        self.flatten_sort_(score_norm)
 
         scores = self.scores[self.batch_indices, 0].tolist()
 
@@ -465,7 +466,7 @@ class BatchedBeamHyps:
             N-best hypotheses.
         """
 
-        self.flatten_sort(score_norm)
+        self.flatten_sort_(score_norm)
 
         scores = self.scores.tolist()
 
@@ -493,7 +494,7 @@ class BatchedBeamHyps:
         ]
         return hypotheses
 
-    def flatten_sort(self, score_norm: bool = True) -> list[Hypothesis]:
+    def flatten_sort_(self, score_norm: bool = True):
         """
         Sorts and flattens the tree structure of hypotheses in a batched beam search decoding process.
         Args:
@@ -516,23 +517,13 @@ class BatchedBeamHyps:
         normalized_scores, indices = torch.sort(normalized_scores, dim=-1, descending=True)
 
         max_idx = self.current_lengths_wb.max() - 1
-        tokens_list = []
-        timestamps_list = []
         ptrs = indices
 
         for idx in range(max_idx, -1, -1):
-            tokens = self.transcript_wb[self.batch_indices.unsqueeze(-1), ptrs, idx]
-            timestamps = self.timestamps[self.batch_indices.unsqueeze(-1), ptrs, idx]
+            self.transcript_wb[..., idx].copy_(self.transcript_wb[self.batch_indices.unsqueeze(-1), ptrs, idx])
+            self.timestamps[..., idx].copy_(self.timestamps[self.batch_indices.unsqueeze(-1), ptrs, idx])            
             ptrs = self.transcript_wb_prev_ptr[self.batch_indices.unsqueeze(-1), ptrs, idx]
-            
-            tokens_list.insert(0, tokens)
-            timestamps_list.insert(0, timestamps)
-
-        self.transcript_wb[..., : max_idx + 1] = torch.stack(tokens_list, dim=-1)
-        self.transcript_wb_prev_ptr[..., : max_idx + 1] = torch.arange(self.beam_size)[None, :, None].expand(
-            self.batch_size, self.beam_size, max_idx + 1
-        )
-        self.timestamps[..., : max_idx + 1] = torch.stack(timestamps_list, dim=-1)
+        self.transcript_wb_prev_ptr[..., : max_idx + 1].copy_(self.beam_indices.unsqueeze(0).unsqueeze(-1))
 
         self.scores.copy_(torch.gather(self.scores, dim=-1, index=indices))
         self.current_lengths_nb.copy_(torch.gather(self.current_lengths_nb, dim=-1, index=indices))

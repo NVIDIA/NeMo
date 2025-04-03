@@ -252,6 +252,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             decoder: Prediction network from RNN-T
             joint: Joint module from RNN-T
             blank_index: index of blank symbol
+            beam_size: beam size
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
