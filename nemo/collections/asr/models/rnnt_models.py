@@ -285,6 +285,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
+
         timestamps = timestamps or (override_config.timestamps if override_config is not None else None)
         if timestamps is not None:
             if timestamps or (override_config is not None and override_config.timestamps):
@@ -302,10 +303,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                     self.cfg.decoding.compute_timestamps = False
                     self.cfg.decoding.preserve_alignments = False
 
-            if hasattr(self, 'cur_decoder'):
-                self.change_decoding_strategy(self.cfg.decoding, decoder_type=self.cur_decoder, verbose=False)
-            else:
-                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+            self.change_decoding_strategy(self.cfg.decoding, verbose=False)
 
         return super().transcribe(
             audio=audio,
