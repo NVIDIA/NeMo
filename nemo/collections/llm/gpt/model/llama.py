@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, List, Optional, Union
@@ -29,7 +29,16 @@ from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
+from nemo.collections.llm.gpt.model.base import default_layer_spec
+from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from nemo.utils import logging
+
+try:
+    from megatron.core.transformer.spec_utils import ModuleSpec
+
+    HAVE_TE = True
+except ImportError:
+    HAVE_TE = False
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -358,6 +367,80 @@ class CodeLlamaConfig70B(Llama2Config70B):
 
     pass
 
+
+def get_llama4_layer_spec(config: "LlamaConfig") -> ModuleSpec:
+    """Get llama4 layer spec"""
+    if isinstance(config.moe_layer_freq, list) or config.moe_layer_freq > 1:
+        llama4_layer_spec = get_gpt_decoder_block_spec(
+            config,
+            use_transformer_engine=HAVE_TE)
+    else:
+        llama4_layer_spec = default_layer_spec(config)
+    if config.qk_l2_norm:
+        llama4_layer_spec.submodules.self_attention.submodules.q_layernorm = L2Norm
+        llama4_layer_spec.submodules.self_attention.submodules.k_layernorm = L2Norm
+    return llama4_layer_spec
+
+@dataclass
+class Llama4Config(Llama3Config):
+    """
+    Configuration for Llama4 language model.
+    """
+    rotary_base: int = 500_000
+    seq_length: int = 8192
+    num_layers: int = 48
+    hidden_size: int = 5120
+    ffn_hidden_size: int = 16384
+    num_attention_heads: int = 40
+    vocab_size: int = 25256 * 8
+    add_bias_linear: bool = False
+    gated_linear_unit: bool = True
+    rotary_interleaved: bool = True
+    apply_rope_fusion: bool = False
+    # MOE
+    moe_shared_expert_intermediate_size: int = 8192
+    moe_ffn_hidden_size: int = 8192
+    moe_router_topk: int = 1
+    moe_router_pre_softmax: bool = True,
+    moe_router_score_function: str = 'sigmoid'
+    moe_token_dispatcher_type: str = "allgather"
+
+@dataclass
+class Llama4Experts16Config(Llama4Config):
+    """
+    Configuration for llama4 16-experts model.
+    """
+    num_moe_experts: int = 16
+    rope_scaling: bool = True
+    rope_scaling_factor: float = 8.0
+    qk_l2_norm: bool = True
+    transformer_layer_spec: Union[ModuleSpec, Callable[["LlamaConfig"], ModuleSpec]] = (
+        field(default_factory=lambda: get_llama4_layer_spec))
+
+@dataclass
+class Llama4Experts128Config(Llama4Config):
+    """
+    Configuration for llama4 128-experts model.
+    """
+    num_moe_experts: int = 128
+    rope_scaling: bool = False
+    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0, 1] * 24)
+    qk_l2_norm: bool = False
+    transformer_layer_spec: Union[ModuleSpec, Callable[["LlamaConfig"], ModuleSpec]] = (
+        field(default_factory=lambda: get_llama4_layer_spec))
+
+
+class L2Norm(torch.nn.Module):
+    def __init__(self, config: LlamaConfig, **kwargs):
+        super().__init__()
+        self.eps = 1e-6 # config.layernorm_epsilon
+
+    def _norm(self, x):
+        # Apply L2Norm on the last dimension (head_dim)
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+
+    def forward(self, x):
+        return self._norm(x.float()).type_as(x)
 
 class LlamaModel(GPTModel):
     """Llama model implementation based on the GPT model architecture.

@@ -40,6 +40,11 @@ from nemo.collections.vlm.mllama.model.mllama import (
     MLlamaConfig90BInstruct,
 )
 
+# LLAMA4
+from nemo.collections.vlm.llama4.data import (
+    Llama4MockDataModule
+)
+
 # NEVA
 from nemo.collections.vlm.neva.data import (
     DataConfig,
