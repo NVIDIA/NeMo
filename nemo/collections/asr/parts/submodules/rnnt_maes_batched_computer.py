@@ -382,7 +382,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                 total_logps[
                     total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
                 ] = INACTIVE_SCORE
-            
+
             case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 # step 1: choosing topk from ASR output
                 label_logps, labels = log_probs.topk(
@@ -402,7 +402,7 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     total_logps,
                     total_logps + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            
+
             case PruningMode.EARLY, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 # step 1: choosing topk from ASR output
                 label_logps, labels = log_probs.topk(
@@ -428,9 +428,11 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     + non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha
                     + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            
+
             case _:
-                raise NotImplementedError(f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}")
+                raise NotImplementedError(
+                    f"Unsupported pruning mode {self.pruning_mode} or blank LM score mode {self.blank_lm_score_mode}"
+                )
 
         return labels, total_logps
 
