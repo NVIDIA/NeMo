@@ -932,7 +932,7 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             encoded_lengths: list of int representing the length of each sequence
                 output sequence.
         Returns:
-            Tuple[list[Hypothesis]]: Tuple of a list of hypotheses for each batch. Each hypothesis contains
+            Tuple[list[Hypothesis] | List[NBestHypotheses]]: Tuple of a list of hypotheses for each batch. Each hypothesis contains
                 the decoded sequence, timestamps and associated scores. The format of the returned hypotheses depends
                 on the `return_best_hypothesis` attribute:
                     - If `return_best_hypothesis` is True, returns the best hypothesis for each batch.
