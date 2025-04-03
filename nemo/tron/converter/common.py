@@ -249,7 +249,6 @@ class BaseExporter(ABC):
         raise NotImplementedError
 
     @property
-    @abstractmethod
     def tron_config(self) -> GPTConfig | T5Config:
         if self._tron_config is None:
             raise ValueError("Tron config is not set")
