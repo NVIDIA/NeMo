@@ -50,6 +50,7 @@ class HFDatasetConfig(FinetuningDatasetConfig):
     dataset_name: str
     process_example_fn: ProcessExampleFn
     dataset_subset: Optional[str] = None
+    dataset_dict: Optional[DatasetDict] = None
     split: Optional[str] = None
     download_mode: Optional[str] = None
     val_proportion: float = 0.05
@@ -166,6 +167,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         tokenizer,
         is_built_on_rank: Callable,
         process_example_fn: ProcessExampleFn,
+        dataset_dict: Optional[DatasetDict] = None,
         dataset_subset: Optional[str] = None,
         dataset_root: Optional[Union[str, Path]] = None,
         split=None,
@@ -201,6 +203,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         # HF-specific attributes
         self.dataset_name = dataset_name
         self.dataset_subset = dataset_subset
+        self.dataset_dict = dataset_dict
         self.split = split
         self.download_mode = download_mode
         self.hf_kwargs = hf_kwargs or {}
@@ -216,7 +219,11 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         if self.download_mode != "force_redownload" and self.hf_filter_lambda:
             raise ValueError("`hf_filter_lambda` is not supported when `download_mode` is not `force_redownload`")
 
-        dataset = self._load_dataset()
+        if self.dataset_dict:
+            dataset = self.dataset_dict
+        else:
+            dataset = self._load_dataset()
+
         if self.hf_filter_lambda:
             dataset = dataset.filter(self.hf_filter_lambda, **self.hf_filter_lambda_kwargs)
 
