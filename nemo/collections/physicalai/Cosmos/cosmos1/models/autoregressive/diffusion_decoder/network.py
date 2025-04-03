@@ -16,12 +16,11 @@
 from typing import Optional, Tuple
 
 import torch
+from cosmos1.models.diffusion.module.blocks import PatchEmbed
+from cosmos1.models.diffusion.networks.general_dit import GeneralDIT
 from einops import rearrange
 from torch import nn
 from torchvision import transforms
-
-from cosmos1.models.diffusion.module.blocks import PatchEmbed
-from cosmos1.models.diffusion.networks.general_dit import GeneralDIT
 
 
 class DiffusionDecoderGeneralDIT(GeneralDIT):

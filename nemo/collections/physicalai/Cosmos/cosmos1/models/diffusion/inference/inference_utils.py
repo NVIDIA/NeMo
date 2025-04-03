@@ -709,7 +709,9 @@ def create_condition_latent_from_input_frames(
         f"create latent with input shape {encode_input_frames.shape} including padding {num_frames_encode - num_frames_condition} at the end"
     )
     if hasattr(model, "n_cameras"):
-        encode_input_frames = einops.rearrange(encode_input_frames, "(B V) C T H W -> B C (V T) H W", V=model.n_cameras)
+        encode_input_frames = einops.rearrange(
+            encode_input_frames, "(B V) C T H W -> B C (V T) H W", V=model.n_cameras
+        )
     latent = model.encode(encode_input_frames)
     return latent, encode_input_frames
 

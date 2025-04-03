@@ -23,12 +23,6 @@ from typing import Any, List
 import decord
 import numpy as np
 import torch
-from lru import LRU
-from platformdirs import user_cache_path
-from pyquaternion import Quaternion
-from scipy.spatial.transform import Rotation
-from torch.nn.functional import grid_sample
-
 from dataverse.datasets import DataField
 from dataverse.utils.ndas.av_metadata import (
     extract_calibration_from_tar,
@@ -40,6 +34,11 @@ from dataverse.utils.ndas.av_metadata import (
     key2id,
 )
 from dataverse.utils.ndas.camera_model import FThetaCamera, IdealPinholeCamera
+from lru import LRU
+from platformdirs import user_cache_path
+from pyquaternion import Quaternion
+from scipy.spatial.transform import Rotation
+from torch.nn.functional import grid_sample
 
 from .base import BaseDataset
 
@@ -124,9 +123,7 @@ class MetadataLoaderV1(object):
             return None
 
         # Load rig_info egoparams
-        calibration = extract_calibration_from_tar(
-            sample_key, self.calibration_clip2tar
-        )
+        calibration = extract_calibration_from_tar(sample_key, self.calibration_clip2tar)
         if not calibration:
             return None
 
@@ -136,23 +133,15 @@ class MetadataLoaderV1(object):
         for camera_name in camkeys:
             camera_data = metadata[camera_name]
             lidarkey = camera_data["sensor_name"]
-            camera_data["lidar2rig"] = get_rig_transform(
-                rig_info[lidarkey], rig2sensor=False
-            )
-            camera_data["rig2cam"] = get_rig_transform(
-                rig_info[camera_name + ".mp4"], rig2sensor=True
-            )
-            camera_data["ftheta"] = FThetaCamera.from_dict(
-                rig_info[camera_name + ".mp4"]
-            )
+            camera_data["lidar2rig"] = get_rig_transform(rig_info[lidarkey], rig2sensor=False)
+            camera_data["rig2cam"] = get_rig_transform(rig_info[camera_name + ".mp4"], rig2sensor=True)
+            camera_data["ftheta"] = FThetaCamera.from_dict(rig_info[camera_name + ".mp4"])
         return metadata
 
 
 class AlpamayoV1(BaseDataset):
     MAX_CACHED_VIDEOS = 2
-    ROT_FIXER = torch.from_numpy(
-        Rotation.from_euler("xzy", [0.0, -np.pi / 2, np.pi / 2]).as_matrix()
-    )[None].float()
+    ROT_FIXER = torch.from_numpy(Rotation.from_euler("xzy", [0.0, -np.pi / 2, np.pi / 2]).as_matrix())[None].float()
 
     def __init__(
         self,
@@ -239,9 +228,7 @@ class AlpamayoV1(BaseDataset):
             camera_metadata = mdata[camera_name]
             egopose_lerp, cliptbase = get_egopose_interp(camera_metadata["egopose"])
             if "obstacles" in camera_metadata:
-                obstacle_lerp = get_obstacle_interp(
-                    ["obstacles"], egopose_lerp, cliptbase
-                )
+                obstacle_lerp = get_obstacle_interp(["obstacles"], egopose_lerp, cliptbase)
             else:
                 obstacle_lerp = None
             ego_data[camera_name] = {
@@ -282,9 +269,7 @@ class AlpamayoV1(BaseDataset):
             N = 0
             for id in obstacle_lerp:
                 if obstacle_lerp[id]["tmin"] <= t0 <= obstacle_lerp[id]["tmax"]:
-                    qw, qx, qy, qz, x, y, z, le, wi, he = obstacle_lerp[id]["interp"](
-                        t0
-                    )
+                    qw, qx, qy, qz, x, y, z, le, wi, he = obstacle_lerp[id]["interp"](t0)
                     corn = pose_to_corn(qw, qx, qy, qz, x, y, z, le, wi, he)
                     pts = np.concatenate((pts, corn), 0)
                     N += 1
@@ -315,9 +300,7 @@ class AlpamayoV1(BaseDataset):
 
         # Set fov if randomized
         seed = zlib.adler32(f"{clip_name}-{self.fov_rng_seed}".encode("utf-8"))
-        pinhole_fovd = np.random.RandomState(seed).randint(
-            self.fov_range[0], self.fov_range[1] + 1
-        )
+        pinhole_fovd = np.random.RandomState(seed).randint(self.fov_range[0], self.fov_range[1] + 1)
         # target pinhole image/camera in the original resolution
         tgt_focal = self.frame_width / (2.0 * math.tan(np.deg2rad(pinhole_fovd) / 2.0))
         tgt_focal = np.array([tgt_focal, tgt_focal])
@@ -347,9 +330,7 @@ class AlpamayoV1(BaseDataset):
                 )
                 - 1.0
             )
-            pos_norm = torch.from_numpy(pos_norm).reshape(
-                1, self.frame_height, self.frame_width, 2
-            )
+            pos_norm = torch.from_numpy(pos_norm).reshape(1, self.frame_height, self.frame_width, 2)
             pos_norms[view_idx] = pos_norm
 
         output_dict = {}
@@ -360,15 +341,8 @@ class AlpamayoV1(BaseDataset):
                     cam_key = self.camkeys[view_idx]
                     pos_norm = pos_norms[view_idx]
                     img_fisheye = video_loaders[cam_key][frame_idx].asnumpy()
-                    img = (
-                        torch.from_numpy(img_fisheye)
-                        .permute(2, 0, 1)
-                        .float()
-                        .unsqueeze(0)
-                    )
-                    img = grid_sample(
-                        img, pos_norm, mode="bilinear", align_corners=False
-                    )[0]
+                    img = torch.from_numpy(img_fisheye).permute(2, 0, 1).float().unsqueeze(0)
+                    img = grid_sample(img, pos_norm, mode="bilinear", align_corners=False)[0]
                     img = img.float() / 255.0
                     rgb_list.append(img)
 

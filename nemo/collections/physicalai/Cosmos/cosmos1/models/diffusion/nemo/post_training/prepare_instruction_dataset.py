@@ -21,13 +21,13 @@ import random
 
 import torch
 import torchvision
+from cosmos1.utils import log
 from einops import rearrange
 from huggingface_hub import snapshot_download
-from nemo.collections.diffusion.models.model import DiT7BConfig
 from tqdm import tqdm
 from transformers import T5EncoderModel, T5TokenizerFast
 
-from cosmos1.utils import log
+from nemo.collections.diffusion.models.model import DiT7BConfig
 
 
 def get_parser():

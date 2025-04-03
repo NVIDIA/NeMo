@@ -19,13 +19,12 @@ import os
 from typing import Iterable, Tuple, Union
 
 import torch
-from PIL import Image
-
 from cosmos1.models.guardrail.common.core import ContentSafetyGuardrail, GuardrailRunner
 from cosmos1.models.guardrail.common.io_utils import get_video_filepaths, read_video
 from cosmos1.models.guardrail.video_content_safety_filter.model import ModelConfig, VideoSafetyModel
 from cosmos1.models.guardrail.video_content_safety_filter.vision_encoder import SigLIPEncoder
 from cosmos1.utils import log, misc
+from PIL import Image
 
 DEFAULT_CHECKPOINT_DIR = "checkpoints/Cosmos-1.0-Guardrail/video_content_safety_filter"
 

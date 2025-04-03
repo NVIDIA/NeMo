@@ -23,10 +23,9 @@ from typing import List
 import numpy as np
 import torch
 import torchvision
-from PIL import Image
-
 from cosmos1.models.autoregressive.configs.inference.inference_config import SamplingConfig
 from cosmos1.utils import log
+from PIL import Image
 
 _IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", "webp"]
 _VIDEO_EXTENSIONS = [".mp4"]
@@ -253,7 +252,10 @@ def read_input_videos(
 
 
 def read_input_video(
-    input_path: str, data_resolution: List[int], num_input_frames: int, num_total_frames: int = NUM_TOTAL_FRAMES_DEFAULT
+    input_path: str,
+    data_resolution: List[int],
+    num_input_frames: int,
+    num_total_frames: int = NUM_TOTAL_FRAMES_DEFAULT,
 ) -> dict:
     """
     Function to read input video.

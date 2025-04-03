@@ -21,10 +21,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from cosmos1.models.tokenizer.modules.utils import default, entropy, pack_one, rearrange, round_ste, unpack_one
 from einops import reduce
 from loguru import logger as logging
-
-from cosmos1.models.tokenizer.modules.utils import default, entropy, pack_one, rearrange, round_ste, unpack_one
 
 _PERSISTENT = True
 

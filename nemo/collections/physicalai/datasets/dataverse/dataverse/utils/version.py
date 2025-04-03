@@ -26,9 +26,7 @@ def get_git_commit_sha_short():
     try:
         # Run git command to get the short commit hash (7 characters)
         commit_sha = (
-            subprocess.check_output(
-                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
-            )
+            subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL)
             .decode("utf-8")
             .strip()
         )

@@ -21,8 +21,6 @@ from typing import List
 
 import torch
 import torchvision
-from huggingface_hub import snapshot_download
-
 from cosmos1.models.autoregressive.configs.inference.inference_config import DiffusionDecoderSamplingConfig
 from cosmos1.models.autoregressive.diffusion_decoder.inference import diffusion_decoder_process_tokens
 from cosmos1.models.autoregressive.diffusion_decoder.model import LatentDiffusionDecoderModel
@@ -33,6 +31,7 @@ from cosmos1.models.diffusion.inference.inference_utils import (
 )
 from cosmos1.utils import log
 from cosmos1.utils.config_helper import get_config_module, override
+from huggingface_hub import snapshot_download
 
 DATA_RESOLUTION_DEFAULT = [640, 1024]
 NUM_CONTEXT_FRAMES_DEFAULT = 33
@@ -60,7 +59,9 @@ def resize_input(video: torch.Tensor, resolution: list[int]):
 
 
 def read_input_videos(
-    input_video: str, data_resolution: list[int] = DATA_RESOLUTION_DEFAULT, num_frames: int = NUM_CONTEXT_FRAMES_DEFAULT
+    input_video: str,
+    data_resolution: list[int] = DATA_RESOLUTION_DEFAULT,
+    num_frames: int = NUM_CONTEXT_FRAMES_DEFAULT,
 ) -> torch.tensor:
     """Utility to read the input video and return a torch tensor
 

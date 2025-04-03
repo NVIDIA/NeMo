@@ -16,6 +16,7 @@
 from typing import Any
 
 import torch
+from cosmos1.models.autoregressive.modules.embedding import SinCosPosEmbAxisTE
 from megatron.core import tensor_parallel
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
@@ -24,8 +25,6 @@ from megatron.core.inference.text_generation_controllers.simple_text_generation_
 )
 from megatron.core.models.gpt import GPTModel
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
-from cosmos1.models.autoregressive.modules.embedding import SinCosPosEmbAxisTE
 
 
 class CosmosInferenceWrapper(GPTInferenceWrapper):

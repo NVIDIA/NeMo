@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.collections.physicalai.tokenizer.train_tokenizer import ImageTaskEncoder
+import nemo_run as run
 from tqdm import tqdm
 
-import nemo_run as run
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
+from nemo.collections.physicalai.tokenizer.train_tokenizer import ImageTaskEncoder
+
 
 @run.cli.entrypoint
 def main(path, num_workers=16):
@@ -31,8 +32,10 @@ def main(path, num_workers=16):
     train = datamodule.train_dataloader()
     for i in tqdm(iter(train)):
         pass
-    from IPython import embed; embed()
+    from IPython import embed
+
+    embed()
+
 
 if __name__ == "__main__":
     run.cli.main(main)
-

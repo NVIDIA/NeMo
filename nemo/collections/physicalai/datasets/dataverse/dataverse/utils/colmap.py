@@ -17,13 +17,9 @@ import struct
 
 import numpy as np
 
-CameraModel = collections.namedtuple(
-    "CameraModel", ["model_id", "model_name", "num_params"]
-)
+CameraModel = collections.namedtuple("CameraModel", ["model_id", "model_name", "num_params"])
 Camera = collections.namedtuple("Camera", ["id", "model", "width", "height", "params"])
-BaseImage = collections.namedtuple(
-    "Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"]
-)
+BaseImage = collections.namedtuple("Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"])
 
 
 class Image(BaseImage):
@@ -44,9 +40,7 @@ CAMERA_MODELS = {
     CameraModel(model_id=9, model_name="RADIAL_FISHEYE", num_params=5),
     CameraModel(model_id=10, model_name="THIN_PRISM_FISHEYE", num_params=12),
 }
-CAMERA_MODEL_IDS = dict(
-    [(camera_model.model_id, camera_model) for camera_model in CAMERA_MODELS]
-)
+CAMERA_MODEL_IDS = dict([(camera_model.model_id, camera_model) for camera_model in CAMERA_MODELS])
 
 
 def read_next_bytes(fid, num_bytes, format_char_sequence, endian_character="<"):
@@ -84,9 +78,7 @@ def load_colmap_data(camdata, imdata):
     c2w_mats = np.linalg.inv(w2c_mats)
 
     poses = c2w_mats[:, :3, :4].transpose([1, 2, 0])
-    poses = np.concatenate(
-        [poses, np.tile(hwf[..., np.newaxis], [1, 1, poses.shape[-1]])], 1
-    )
+    poses = np.concatenate([poses, np.tile(hwf[..., np.newaxis], [1, 1, poses.shape[-1]])], 1)
 
     # must switch to [-u, r, -t] from [r, -u, t], NOT [r, u, -t]
     poses = np.concatenate(

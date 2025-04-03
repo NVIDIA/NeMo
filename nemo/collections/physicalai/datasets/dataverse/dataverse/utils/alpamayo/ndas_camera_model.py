@@ -16,14 +16,13 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+import dataverse.utils.alpamayo.constants as constants
+import dataverse.utils.alpamayo.transformation as transformation
 import numpy as np
 import torch
 import torch.nn.functional as F
 from numpy.polynomial.polynomial import Polynomial
 from scipy.optimize import curve_fit
-
-import dataverse.utils.alpamayo.constants as constants
-import dataverse.utils.alpamayo.transformation as transformation
 
 
 class IdealPinholeCamera:
@@ -280,9 +279,7 @@ class FThetaCamera:
         self._max_angle = None
         self._max_ray_angle = None
         # Populate the array of intrinsics
-        self._intrinsics = np.append([cx, cy, width, height], bw_poly).astype(
-            np.float32
-        )
+        self._intrinsics = np.append([cx, cy, width, height], bw_poly).astype(np.float32)
 
         self._update_calibrated_camera()
 
@@ -362,25 +359,16 @@ class FThetaCamera:
 
             if linear_c is not None and linear_d is not None and linear_e is not None:
                 if linear_c != 1.0:
-                    raise ValueError(
-                        f"Expected `linear-c` term to be 1.0 (got {linear_c}. Rig:\n{rig_dict})"
-                    )
+                    raise ValueError(f"Expected `linear-c` term to be 1.0 (got {linear_c}. Rig:\n{rig_dict})")
                 if linear_d != 0.0:
-                    raise ValueError(
-                        f"Expected `linear-d` term to be 1.0 (got {linear_d}. Rig:\n{rig_dict})"
-                    )
+                    raise ValueError(f"Expected `linear-d` term to be 1.0 (got {linear_d}. Rig:\n{rig_dict})")
                 if linear_e != 0.0:
-                    raise ValueError(
-                        f"Expected `linear-e` term to be 1.0 (got {linear_e}. Rig:\n{rig_dict})"
-                    )
+                    raise ValueError(f"Expected `linear-e` term to be 1.0 (got {linear_e}. Rig:\n{rig_dict})")
 
             # If we're here, then it means we can parse the rig successfully.
             poly = props["polynomial"]
         else:
-            raise ValueError(
-                "Unable to parse the rig. "
-                f"Only FTheta rigs are supported! Rig:\n{rig_dict}"
-            )
+            raise ValueError("Unable to parse the rig. " f"Only FTheta rigs are supported! Rig:\n{rig_dict}")
 
         bw_poly = [np.float32(val) for val in poly.split()]
         return cx, cy, width, height, bw_poly
@@ -442,9 +430,7 @@ class FThetaCamera:
             ray_angle = (np.float32(self._max_ray_angle)).copy()
             while ray_angle >= np.float32(0.0):
                 ray_angle -= deg2rad * np.float32(1.0)
-            raise ArithmeticError(
-                "FThetaCamera: derivative of distortion within image interior is negative"
-            )
+            raise ArithmeticError("FThetaCamera: derivative of distortion within image interior is negative")
 
         # Evaluate the forward polynomial at point (self._max_ray_angle, 0)
         # Also evaluate its derivative at the same point
@@ -452,9 +438,7 @@ class FThetaCamera:
         dval = self._fw_poly.deriv()(self._max_ray_angle).item()
 
         if dval < 0:
-            raise ArithmeticError(
-                "FThetaCamera: derivative of distortion at edge of image is negative"
-            )
+            raise ArithmeticError("FThetaCamera: derivative of distortion at edge of image is negative")
 
         self._max_ray_distortion = np.asarray([val, dval], dtype=np.float32)
 
@@ -471,9 +455,7 @@ class FThetaCamera:
             target_resolution_h * normalized_centers[1],
         )
         maglev_conf = transformation.get_video_parameters(constants.CAMERA_NAMES)
-        xbias, ybias, facw, _ = transformation.compute_preprocessing_transform(
-            self, maglev_conf
-        )
+        xbias, ybias, facw, _ = transformation.compute_preprocessing_transform(self, maglev_conf)
         target_focal_length = (
             np.array(
                 [self._fw_poly.coef[1], self._fw_poly.coef[1]],
@@ -488,16 +470,10 @@ class FThetaCamera:
             np.arange(target_resolution[0], dtype=np.int16),
             np.arange(target_resolution[1], dtype=np.int16),
         )  # [0, 1, 2, ..., w-1], [0, 1, 2, ..., h-1]
-        target_pixels = np.stack(
-            [target_pixels_x.flatten(), target_pixels_y.flatten()], axis=1
-        )
+        target_pixels = np.stack([target_pixels_x.flatten(), target_pixels_y.flatten()], axis=1)
         target_image_points = target_pixels.astype(np.float32) + 0.5
-        target_rays = (
-            target_image_points - target_principal_point
-        ) / target_focal_length
-        target_rays = np.concatenate(
-            [target_rays, np.ones_like(target_rays[:, 0:1])], axis=1
-        )
+        target_rays = (target_image_points - target_principal_point) / target_focal_length
+        target_rays = np.concatenate([target_rays, np.ones_like(target_rays[:, 0:1])], axis=1)
 
         source_pixels = self.ray2pixel(target_rays)
         source_pixels[..., 0] -= xbias
@@ -537,9 +513,7 @@ class FThetaCamera:
         """
 
         def get_max_value(p0, p1):
-            return np.linalg.norm(
-                np.asarray([p0, p1], dtype=self._center.dtype) - self._center
-            )
+            return np.linalg.norm(np.asarray([p0, p1], dtype=self._center.dtype) - self._center)
 
         max_value = 0.0
 
@@ -592,9 +566,7 @@ class FThetaCamera:
             ),
         )
         # Return the polynomial and hardcode the bias value to 0
-        return Polynomial(
-            [np.float32(val) if i > 0 else 0 for i, val in enumerate(coeffs)]
-        )
+        return Polynomial([np.float32(val) if i > 0 else 0 for i, val in enumerate(coeffs)])
 
     def pixel2ray(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Backproject 2D pixels into 3D rays.
@@ -653,9 +625,7 @@ class FThetaCamera:
         cos_alpha = rays[:, 2:] / np.linalg.norm(rays, axis=1, keepdims=True)
 
         alpha = np.empty_like(cos_alpha)
-        cos_alpha_condition = np.logical_and(
-            cos_alpha > np.float32(-1.0), cos_alpha < np.float32(1.0)
-        ).squeeze()
+        cos_alpha_condition = np.logical_and(cos_alpha > np.float32(-1.0), cos_alpha < np.float32(1.0)).squeeze()
         alpha[cos_alpha_condition] = np.arccos(cos_alpha[cos_alpha_condition])
         alpha[~cos_alpha_condition] = xy_norm[~cos_alpha_condition]
 
@@ -664,8 +634,7 @@ class FThetaCamera:
         delta[alpha_cond] = self._fw_poly(alpha[alpha_cond])
         # For outside the model (which need to do linear extrapolation)
         delta[~alpha_cond] = (
-            self._max_ray_distortion[0]
-            + (alpha[~alpha_cond] - self._max_ray_angle) * self._max_ray_distortion[1]
+            self._max_ray_distortion[0] + (alpha[~alpha_cond] - self._max_ray_angle) * self._max_ray_distortion[1]
         )
 
         # Determine the bad points with a norm of zero, and avoid div by zero
@@ -719,9 +688,7 @@ class FThetaCamera:
         max_x = self._width - 1
         max_y = self._height - 1
 
-        p = np.asarray(
-            [[0, 0], [max_x, 0], [0, max_y], [max_x, max_y]], dtype=np.float32
-        )
+        p = np.asarray([[0, 0], [max_x, 0], [0, max_y], [max_x, max_y]], dtype=np.float32)
 
         self._max_angle = max(  # noqa: PLW3301
             max(self._get_pixel_fov(p[0, ...]), self._get_pixel_fov(p[1, ...])),

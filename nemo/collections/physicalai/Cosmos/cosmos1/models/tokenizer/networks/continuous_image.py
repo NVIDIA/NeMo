@@ -18,10 +18,9 @@
 from collections import OrderedDict, namedtuple
 
 import torch
+from cosmos1.models.tokenizer.modules import ContinuousFormulation, DecoderType, EncoderType
 from loguru import logger as logging
 from torch import nn
-
-from cosmos1.models.tokenizer.modules import ContinuousFormulation, DecoderType, EncoderType
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "latent"])
 

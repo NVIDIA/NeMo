@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import attrs
-import einops
-
-import torch.nn as nn
-from nemo.collections.physicalai.tokenizer.losses.lpips import LPIPS
-from einops import rearrange
-import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
 from enum import Enum
 
+import attrs
+import einops
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.utils.checkpoint as checkpoint
 import torchvision.models.optical_flow as optical_flow
+from einops import rearrange
+
+from nemo.collections.physicalai.tokenizer.losses.lpips import LPIPS
 
 IMAGE_KEY = "images"
 VIDEO_KEY = "video"
@@ -33,13 +33,16 @@ INPUT_KEY = "INPUT"
 MASK_KEY = "loss_mask"
 RECON_CONSISTENCY_KEY = f"{RECON_KEY}_consistency"
 
+
 def time2batch(x: torch.Tensor) -> tuple[torch.Tensor, int]:
     batch_size = x.shape[0]
     return rearrange(x, "b c t h w -> (b t) c h w"), batch_size
 
+
 def batch2time(x: torch.Tensor, batch_size: int) -> torch.Tensor:
     return rearrange(x, "(b t) c h w -> b c t h w", b=batch_size)
-    
+
+
 class WeightScheduler(torch.nn.Module):
     def __init__(self, boundaries, values):
         super().__init__()
@@ -51,7 +54,8 @@ class WeightScheduler(torch.nn.Module):
             if iteration < boundary:
                 return value
         return self.values[-1]
-    
+
+
 class ColorLoss(torch.nn.Module):
     def __init__(self, config) -> None:
         super().__init__()
@@ -334,8 +338,10 @@ class FlowLoss(torch.nn.Module):
         """
         self.flow_model = torch.compile(self.flow_model, dynamic=False)
 
+
 ######################################
 _VALID_LOSS_NAMES = ["color", "perceptual", "flow", "kl", "video_consistency"]
+
 
 def _mean(recon: torch.Tensor) -> torch.Tensor:
     return torch.mean(recon)
@@ -374,7 +380,7 @@ class TokenizerLoss(nn.Module):
         _reduce = ReduceMode(config.reduce.upper()) if hasattr(config, "reduce") else None
         self.reduce = _reduce.function
 
-        #manually create these losses
+        # manually create these losses
         self.loss_modules = nn.ModuleDict()
         self.loss_modules["color"] = ColorLoss(config=config.color)
         self.loss_modules["perceptual"] = PerceptualLoss(config=config.perceptual)

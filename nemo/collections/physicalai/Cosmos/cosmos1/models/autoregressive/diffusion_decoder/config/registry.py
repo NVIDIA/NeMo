@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos1.models.autoregressive.diffusion_decoder.config.base.conditioner import (
     VideoLatentDiffusionDecoderConditionerConfig,
 )
 from cosmos1.models.autoregressive.tokenizer.discrete_video import DiscreteVideoFSQJITTokenizer
 from cosmos1.models.diffusion.module.pretrained_vae import JITVAE, JointImageVideoSharedJITTokenizer, VideoJITTokenizer
 from cosmos1.utils.lazy_config import LazyCall as L
+from hydra.core.config_store import ConfigStore
 
 
 def get_cosmos_video_discrete_tokenizer_comp8x16x16(

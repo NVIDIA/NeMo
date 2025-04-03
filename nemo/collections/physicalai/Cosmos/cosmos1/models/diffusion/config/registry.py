@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos1.models.diffusion.config.base.conditioner import (
     BaseVideoConditionerConfig,
     VideoConditionerFpsSizePaddingConfig,
@@ -24,6 +22,7 @@ from cosmos1.models.diffusion.config.base.conditioner import (
 )
 from cosmos1.models.diffusion.config.base.net import FADITV2_14B_Config, FADITV2_MultiCam_Config, FADITV2Config
 from cosmos1.models.diffusion.config.base.tokenizer import get_cosmos_diffusion_tokenizer_comp8x8x8
+from hydra.core.config_store import ConfigStore
 
 
 def register_net(cs):

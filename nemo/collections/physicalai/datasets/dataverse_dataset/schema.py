@@ -39,6 +39,6 @@ class DatasetConfig:
     decoders: list  # List of decoder functions for decoding bytestream
     streaming_download: bool = True  # Whether to use streaming loader
     remove_extension_from_keys: bool = True  # True: objects will have a key of data_type; False: data_type.extension
-    sample_keys_full_list_path: Optional[
-        str
-    ] = None  # Path to the file containing all keys present in the dataset, e.g., "index"
+    sample_keys_full_list_path: Optional[str] = (
+        None  # Path to the file containing all keys present in the dataset, e.g., "index"
+    )

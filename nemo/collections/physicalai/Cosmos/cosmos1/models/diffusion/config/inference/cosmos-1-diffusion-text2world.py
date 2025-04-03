@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos1.utils.lazy_config import LazyDict
+from hydra.core.config_store import ConfigStore
 
 Cosmos_1_0_Diffusion_Text2World_7B: LazyDict = LazyDict(
     dict(

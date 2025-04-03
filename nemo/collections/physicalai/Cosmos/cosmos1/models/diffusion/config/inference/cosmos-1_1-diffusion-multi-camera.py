@@ -1,11 +1,10 @@
 # The early-access software is governed by the NVIDIA Evaluation License Agreement – EA Cosmos Code (v. Feb 2025).
 # The license reference will be the finalized version of the license linked above.
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos1.models.diffusion.networks.general_dit_multi_camera import MultiCameraVideoExtendGeneralDIT
 from cosmos1.utils.lazy_config import LazyCall as L
 from cosmos1.utils.lazy_config import LazyDict
+from hydra.core.config_store import ConfigStore
 
 Cosmos_1_1_Diffusion_Multi_Camera_Text2World_7B: LazyDict = LazyDict(
     dict(

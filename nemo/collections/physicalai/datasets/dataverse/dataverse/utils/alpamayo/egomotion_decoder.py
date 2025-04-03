@@ -24,11 +24,10 @@ import numpy as np
 import numpy.typing as npt
 import scipy.spatial.transform as spt
 import torch
-from scipy.interpolate import interp1d
-
 from dataverse.utils import logger
 from dataverse.utils.alpamayo import transformation
 from dataverse.utils.alpamayo.camera import Quaternion
+from scipy.interpolate import interp1d
 
 _VALID_DECODE_STRATEGY_PATTERN = r"^(random|uniform|at)_(-?\d+)_frame$"
 
@@ -56,10 +55,7 @@ def parse_egopose_data(egopose_info: dict):
     (K,) = egopose_info["labels_keys"].shape
     assert K == C, f"{K} {C}"
 
-    info = {
-        egopose_info["labels_keys"][ki]: egopose_info["labels_data"][:, ki]
-        for ki in range(K)
-    }
+    info = {egopose_info["labels_keys"][ki]: egopose_info["labels_data"][:, ki] for ki in range(K)}
 
     # make sure sorted by time
     assert np.all(0 < info["timestamp"][1:] - info["timestamp"][:-1]), info["timestamp"]
@@ -155,9 +151,7 @@ def preprocess_egopose(poses: dict) -> EgoMotionData:
     quat_norm = np.linalg.norm(quats, axis=1)
     EPS = 1e-3
     if not np.all(np.abs(quat_norm - 1.0) < EPS):
-        raise ValueError(
-            f"Raw pose quaternions are too far from normalized; {quat_norm=}"
-        )
+        raise ValueError(f"Raw pose quaternions are too far from normalized; {quat_norm=}")
     # adjust signs so that sequential dot product is always positive
     quats = adjust_orientation(quats / quat_norm[:, None])
 
@@ -186,9 +180,7 @@ def load_dm_egopose(sample: dict) -> dict | None:
             quats: list of lists of floats, the quaternion orientation of
                 the egopose
     """
-    ego_info = pd.read_parquet(io.BytesIO(sample["egomotion_estimate.parquet"]))[
-        "egomotion_estimate"
-    ]
+    ego_info = pd.read_parquet(io.BytesIO(sample["egomotion_estimate.parquet"]))["egomotion_estimate"]
     ego_ts = pd.read_parquet(io.BytesIO(sample["clip.parquet"]))["key"][0]["time_range"]
     ego_start_ts = ego_ts["start_micros"]
     ego_end_ts = ego_ts["end_micros"]
@@ -226,9 +218,7 @@ def load_dm_egopose(sample: dict) -> dict | None:
     }
 
 
-def load_egopose(
-    sample: dict, live: bool = False, min_fps: int = 5
-) -> EgoMotionData | None:
+def load_egopose(sample: dict, live: bool = False, min_fps: int = 5) -> EgoMotionData | None:
     """Load egopose from raw tar files.
 
     If we have fewer than 20 seconds, return None
@@ -257,9 +247,7 @@ def load_egopose(
     egopose_parsed = parse_egopose_data(pose_info)
 
     TMIN = 20.0  # seconds
-    egopose_span = 1e-6 * (
-        egopose_parsed["timestamp"][-1] - egopose_parsed["timestamp"][0]
-    )
+    egopose_span = 1e-6 * (egopose_parsed["timestamp"][-1] - egopose_parsed["timestamp"][0])
     if egopose_span < TMIN:
         logger.warning(f"Insufficient egomotion data for this clip: {egopose_span=}")
         return None
@@ -268,9 +256,7 @@ def load_egopose(
     delta = 1e-6 * (egopose_parsed["timestamp"][1:] - egopose_parsed["timestamp"][:-1])
     max_delta = 1.0 / min_fps
     if not np.all(delta < max_delta):
-        logger.warning(
-            f"Egomotion data does not meet frequency requirement: {max(delta)=}"
-        )
+        logger.warning(f"Egomotion data does not meet frequency requirement: {max(delta)=}")
         return None
 
     ego_lerp_inp = preprocess_egopose(egopose_parsed)
@@ -281,27 +267,17 @@ def load_egopose(
         # of the lidar) that is not the rig frame (origin at the rear axle center projected
         # to ground, oriented front-left-up with respect to the vehicle's body).
         # Here we use the "rig.json" to convert the sensor's pose to the rig's pose.
-        sensors = transformation.parse_rig_sensors_from_dict(
-            json.loads(sample["rig.json"])
-        )
+        sensors = transformation.parse_rig_sensors_from_dict(json.loads(sample["rig.json"]))
         if coordinate_frame not in sensors:
             raise ValueError(f"Egomotion {coordinate_frame=} not found in rig.json.")
         sensor_to_rig = transformation.sensor_to_rig(sensors[coordinate_frame])
-        sensor_to_world_rots = spt.Rotation.from_quat(
-            ego_lerp_inp["quats"], scalar_first=True
-        )
+        sensor_to_world_rots = spt.Rotation.from_quat(ego_lerp_inp["quats"], scalar_first=True)
         # We derive rig_to_world by composing sensor_to_world and rig_to_sensor;
         # with 4x4 rigid transformation matrices this would be:
         # rig_to_world = sensor_to_world @ np.linalg.inv(sensor_to_rig)
-        rig_to_world_rots = sensor_to_world_rots * spt.Rotation.from_matrix(
-            sensor_to_rig[:3, :3].T
-        )
-        ego_lerp_inp["xyzs"] = ego_lerp_inp["xyzs"] - rig_to_world_rots.apply(
-            sensor_to_rig[:3, 3]
-        )
-        ego_lerp_inp["quats"] = adjust_orientation(
-            rig_to_world_rots.as_quat(scalar_first=True)
-        )
+        rig_to_world_rots = sensor_to_world_rots * spt.Rotation.from_matrix(sensor_to_rig[:3, :3].T)
+        ego_lerp_inp["xyzs"] = ego_lerp_inp["xyzs"] - rig_to_world_rots.apply(sensor_to_rig[:3, 3])
+        ego_lerp_inp["quats"] = adjust_orientation(rig_to_world_rots.as_quat(scalar_first=True))
 
     return EgoMotionData(
         tmin=ego_lerp_inp["tmin"],
@@ -413,14 +389,10 @@ def _check_valid_tstamp_0(
     min_random_offset = int(prediction_start_offset_range[0] * 1e6)
     max_random_offset = int(prediction_start_offset_range[1] * 1e6)
     return (
-        tstamp_0 + min_random_offset + int(ego_history_tvals[0] * 1e6)
-        >= history_ego_lerp_inp["tmin"]
-        and tstamp_0 + max_random_offset + int(ego_history_tvals[-1] * 1e6)
-        <= history_ego_lerp_inp["tmax"]
-        and tstamp_0 + min_random_offset + int(ego_future_tvals[0] * 1e6)
-        >= future_ego_lerp_inp["tmin"]
-        and tstamp_0 + max_random_offset + int(ego_future_tvals[-1] * 1e6)
-        <= future_ego_lerp_inp["tmax"]
+        tstamp_0 + min_random_offset + int(ego_history_tvals[0] * 1e6) >= history_ego_lerp_inp["tmin"]
+        and tstamp_0 + max_random_offset + int(ego_history_tvals[-1] * 1e6) <= history_ego_lerp_inp["tmax"]
+        and tstamp_0 + min_random_offset + int(ego_future_tvals[0] * 1e6) >= future_ego_lerp_inp["tmin"]
+        and tstamp_0 + max_random_offset + int(ego_future_tvals[-1] * 1e6) <= future_ego_lerp_inp["tmax"]
     )
 
 
@@ -543,12 +515,9 @@ def interpolate_egopose(
         num_frames = int(match.group(2))
         if num_frames > len(valid_frame_indices):
             raise ValueError(
-                f"Requested {num_frames} frames, but only {len(valid_frame_indices)} "
-                "frames are available."
+                f"Requested {num_frames} frames, but only {len(valid_frame_indices)} " "frames are available."
             )
-        prediction_start_offset = np.random.uniform(
-            *prediction_start_offset_range, size=num_frames
-        )
+        prediction_start_offset = np.random.uniform(*prediction_start_offset_range, size=num_frames)
         if strategy_type == "random":
             # sample randomly from timestamps for which history + future steps (shifted by
             # prediction_start_offset) fit within the available ego data.
@@ -558,18 +527,14 @@ def interpolate_egopose(
             # prediction_start_offset) fit within the available ego data.
             # NOTE: we sample the last frame first to ensure that the last frame is included.
             _step = len(valid_frame_indices) / num_frames
-            ego_t0_frame_idx = [
-                valid_frame_indices[-(int(_step * i) + 1)] for i in range(num_frames)
-            ][::-1]
+            ego_t0_frame_idx = [valid_frame_indices[-(int(_step * i) + 1)] for i in range(num_frames)][::-1]
     elif strategy_type == "at":
         frame_idx = int(match.group(2))
         if frame_idx < 0:
             ego_t0_frame_idx = [len(base_timestamps) + frame_idx]
         else:
             ego_t0_frame_idx = [frame_idx]
-        prediction_start_offset = np.random.uniform(
-            *prediction_start_offset_range, size=1
-        )
+        prediction_start_offset = np.random.uniform(*prediction_start_offset_range, size=1)
 
     tstamp_0 = [
         base_timestamps[_idx] + int(_start_offset * 1e6)
@@ -634,9 +599,7 @@ def interpolate_egopose(
     live_xyz0 = torch.tensor(live_xyz0, dtype=torch.float32)
     live_inv_quat0 = quaternion.invert(torch.tensor(live_quat0, dtype=torch.float32))
 
-    ego_history_xyz = quaternion.apply(
-        live_inv_quat0.unsqueeze(1), ego_history_xyz - live_xyz0.unsqueeze(1)
-    )
+    ego_history_xyz = quaternion.apply(live_inv_quat0.unsqueeze(1), ego_history_xyz - live_xyz0.unsqueeze(1))
     ego_history_quat = quaternion.product(live_inv_quat0.unsqueeze(1), ego_history_quat)
 
     # TODO: remove duplicated code
@@ -657,9 +620,7 @@ def interpolate_egopose(
     )
     xyz0 = torch.tensor(xyz0, dtype=torch.float32)
     inv_quat0 = quaternion.invert(torch.tensor(quat0, dtype=torch.float32))
-    ego_future_xyz = quaternion.apply(
-        inv_quat0.unsqueeze(1), ego_future_xyz - xyz0.unsqueeze(1)
-    )
+    ego_future_xyz = quaternion.apply(inv_quat0.unsqueeze(1), ego_future_xyz - xyz0.unsqueeze(1))
     ego_future_quat = quaternion.product(inv_quat0.unsqueeze(1), ego_future_quat)
 
     # infer ego route from gt pose and transform to ego's body frame at the start of prediction
@@ -668,9 +629,7 @@ def interpolate_egopose(
     route_points = torch.tensor(ego_lerp_inp["xyzs"])[
         np.linspace(0, len(ego_lerp_inp["xyzs"]) - 1, num_route_points, dtype=int)
     ]
-    route_xy = quaternion.apply(
-        inv_quat0.unsqueeze(1), route_points.unsqueeze(0) - xyz0.unsqueeze(1)
-    )[..., :2]
+    route_xy = quaternion.apply(inv_quat0.unsqueeze(1), route_points.unsqueeze(0) - xyz0.unsqueeze(1))[..., :2]
 
     time_base = base_timestamps[0]
     # make sure the relative_timestamp is slightly larger than original timestamp
@@ -722,9 +681,7 @@ class EgoMotionDecoderConfig:
     num_history_steps: int = 15
     num_future_steps: int = 64
     time_step: float = 0.1
-    prediction_start_offset_range: tuple[float, float] = field(
-        default_factory=lambda: (0.0, 1.5)
-    )
+    prediction_start_offset_range: tuple[float, float] = field(default_factory=lambda: (0.0, 1.5))
     force_base_frame_index: int | None = None
     num_route_points: int = 32
     decode_strategy: str = "random_1_frame"
@@ -784,12 +741,8 @@ def decode_egomotion(
     """
     ego_pose = load_egopose(data, live=False)
     live_ego_pose = load_egopose(data, live=True)
-    ego_history_tvals = [
-        config.time_step * t for t in range(-config.num_history_steps + 1, 1)
-    ]
-    ego_future_tvals = [
-        config.time_step * t for t in range(1, config.num_future_steps + 1)
-    ]
+    ego_history_tvals = [config.time_step * t for t in range(-config.num_history_steps + 1, 1)]
+    ego_future_tvals = [config.time_step * t for t in range(1, config.num_future_steps + 1)]
     return interpolate_egopose(
         ego_lerp_inp=ego_pose,
         live_ego_lerp_inp=live_ego_pose,

@@ -1,11 +1,10 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 import os
 
-from omegaconf import DictConfig, OmegaConf
-
 from cosmos1.utils.lazy_config.instantiate import instantiate
 from cosmos1.utils.lazy_config.lazy import LazyCall, LazyConfig
 from cosmos1.utils.lazy_config.omegaconf_patch import to_object
+from omegaconf import DictConfig, OmegaConf
 
 OmegaConf.to_object = to_object
 

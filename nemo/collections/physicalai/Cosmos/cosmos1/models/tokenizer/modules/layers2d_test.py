@@ -22,11 +22,10 @@ import os
 import numpy as np
 import pytest
 import torch
-from torchvision.transforms import CenterCrop
-
 from cosmos1.models.tokenizer.inference.image_lib import ImageTokenizer
 from cosmos1.models.tokenizer.inference.utils import read_image
 from cosmos1.models.tokenizer.networks import TokenizerConfigs
+from torchvision.transforms import CenterCrop
 
 # test configs
 TEST_CONFIGS = [

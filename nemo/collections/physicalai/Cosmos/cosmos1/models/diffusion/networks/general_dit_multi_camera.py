@@ -4,10 +4,6 @@
 from typing import Optional, Tuple
 
 import torch
-from einops import rearrange
-from torch import nn
-from torchvision import transforms
-
 from cosmos1.models.diffusion.conditioner import DataType
 from cosmos1.models.diffusion.module.blocks import GeneralDITTransformerBlock, PatchEmbed
 from cosmos1.models.diffusion.module.position_embedding import (
@@ -16,6 +12,9 @@ from cosmos1.models.diffusion.module.position_embedding import (
 )
 from cosmos1.models.diffusion.networks.general_dit import GeneralDIT
 from cosmos1.utils import log
+from einops import rearrange
+from torch import nn
+from torchvision import transforms
 
 
 class MultiCameraGeneralDIT(GeneralDIT):
@@ -326,7 +325,9 @@ class MultiCameraGeneralDIT(GeneralDIT):
         view_indices = torch.arange(self.n_cameras).to(x_B_C_T_H_W.device)  # View indices [0, 1, ..., V-1]
         view_embedding = self.view_embeddings(view_indices)  # Shape: [V, embedding_dim]
         view_embedding = rearrange(view_embedding, "V D -> D V")
-        view_embedding = view_embedding.unsqueeze(0).unsqueeze(3).unsqueeze(4).unsqueeze(5)  # Shape: [1, D, V, 1, 1, 1]
+        view_embedding = (
+            view_embedding.unsqueeze(0).unsqueeze(3).unsqueeze(4).unsqueeze(5)
+        )  # Shape: [1, D, V, 1, 1, 1]
 
         if self.add_repeat_frame_embedding:
             if frame_repeat is None:

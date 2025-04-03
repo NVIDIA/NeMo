@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.alpamayo_dataloader import DrivingVideoDataLoader, get_driving_dataset
+from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.alpamayo_dataloader import (
+    DrivingVideoDataLoader,
+    get_driving_dataset,
+)
 
 
 if __name__ == '__main__':
@@ -26,4 +29,6 @@ if __name__ == '__main__':
         prefetch_factor=4,
     )
     tmp = next(iter(d))
-    from IPython import embed; embed()
+    from IPython import embed
+
+    embed()

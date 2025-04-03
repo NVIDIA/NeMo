@@ -19,9 +19,6 @@ from typing import Literal
 import huggingface_hub
 import torch
 import typer
-from nemo.collections.diffusion.vae.video_vae import VideoJITTokenizer
-from tqdm import tqdm
-
 from cosmos1.models.autoregressive.nemo.post_training.action_control.prepare_dataset import (
     Split,
     VideoDataset,
@@ -29,6 +26,9 @@ from cosmos1.models.autoregressive.nemo.post_training.action_control.prepare_dat
     get_annotations,
     get_default_output_prefix,
 )
+from tqdm import tqdm
+
+from nemo.collections.diffusion.vae.video_vae import VideoJITTokenizer
 
 
 def create_tokenizer(tokenizer_tag: str = "nvidia/Cosmos-1.0-Tokenizer-CV8x8x8"):

@@ -210,7 +210,9 @@ if __name__ == "__main__":
     parser.add_argument("--targetpath", type=str, required=True, help="Path to the directory of generated videos")
     parser.add_argument("--ext", type=str, default="mp4", help="Video file extension (e.g., mp4)")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use for metrics computation")
-    parser.add_argument("--recursive", action="store_true", help="If set, process videos in subdirectories recursively")
+    parser.add_argument(
+        "--recursive", action="store_true", help="If set, process videos in subdirectories recursively"
+    )
     parser.add_argument("--width", type=int, default=320, help="Target width (shorter side) for video resizing")
     parser.add_argument("--num_frames", type=int, default=17, help="Number of frames to keep for each processed video")
     args = parser.parse_args()
@@ -221,7 +223,9 @@ if __name__ == "__main__":
     gen_processed = os.path.join(args.targetpath, "processed")
     os.makedirs(gen_processed, exist_ok=True)
     print("Processing reference videos ...")
-    process_directory(args.gtpath, gt_processed, recursive=args.recursive, num_frames=args.num_frames, width=args.width)
+    process_directory(
+        args.gtpath, gt_processed, recursive=args.recursive, num_frames=args.num_frames, width=args.width
+    )
     print("Processing generated videos ...")
     process_directory(
         args.targetpath, gen_processed, recursive=args.recursive, num_frames=args.num_frames, width=args.width

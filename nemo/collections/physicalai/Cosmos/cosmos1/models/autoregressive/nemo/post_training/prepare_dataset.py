@@ -19,13 +19,13 @@ from argparse import ArgumentParser
 from glob import glob
 
 import torch
-from einops import rearrange
-from huggingface_hub import snapshot_download
-from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
-
 from cosmos1.models.autoregressive.nemo.utils import read_input_videos
 from cosmos1.models.autoregressive.tokenizer.discrete_video import DiscreteVideoFSQJITTokenizer
 from cosmos1.utils import log
+from einops import rearrange
+from huggingface_hub import snapshot_download
+
+from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
 
 CHUNK_SIZE = 250  # Number of videos per chunk
 

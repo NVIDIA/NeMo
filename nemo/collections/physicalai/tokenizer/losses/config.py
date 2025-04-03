@@ -15,16 +15,18 @@
 import attrs
 from nemo.collections.physicalai.tokenizer.losses.loss import ReduceMode
 
+
 @attrs.define(slots=False)
 class ColorConfig:
     # Color (RGB) basic loss and its weight schedule.
     norm: str = "L1"
     boundaries: list[int] = [0]
-    values: list[float] = [1.0] #TODO: confirm with fitsum
+    values: list[float] = [1.0]  # TODO: confirm with fitsum
+
 
 @attrs.define(slots=False)
 class PerceptualConfig:
-    lpips_boundaries: list[int] = [500000] #TODO: confirm with fitsum
+    lpips_boundaries: list[int] = [500000]  # TODO: confirm with fitsum
     lpips_values: list[float] = [0.1, 0.073]
     # Layer weights for linearly combining the multi-layer vgg-based losses.
     layer_weights: list[float] = [1.0 / 2.6, 1.0 / 4.8, 1.0 / 3.7, 1.0 / 5.6, 10.0 / 1.5]
@@ -43,10 +45,11 @@ class PerceptualConfig:
     # more details in MR:949
     checkpoint_activations: bool = False
 
+
 @attrs.define(slots=False)
 class FlowConfig:
     # Flow loss and its weight schedule.
-    boundaries: list[int] = [250000]  #TODO: confirm with fitsum
+    boundaries: list[int] = [250000]  # TODO: confirm with fitsum
     values: list[float] = [0.0, 0.01]
     scale: int = 2
     # Flow loss depends on RAFT, as such it requires a specific dtype.
@@ -57,6 +60,7 @@ class FlowConfig:
     # from 64.03 GiB to 52.94 GiB for about 18% slowdown
     # more details in MR:949
     checkpoint_activations: bool = False
+
 
 @attrs.define(slots=False)
 class VideoLoss:

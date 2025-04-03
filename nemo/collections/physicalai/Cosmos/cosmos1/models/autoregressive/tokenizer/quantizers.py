@@ -19,9 +19,8 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from einops import rearrange
-
 from cosmos1.models.autoregressive.tokenizer.utils import default, pack_one, round_ste, unpack_one
+from einops import rearrange
 
 
 class FSQuantizer(nn.Module):

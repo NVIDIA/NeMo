@@ -36,7 +36,7 @@ class DataField(Enum):
     OBJECT_BBOX = "object_bbox"
     # TODO [Add description] a list of float32 point cloud.
     POINT_CLOUD = "point_cloud"
-    # [B, N, (3 + 3x3)], N future positions. For the last dim, 
+    # [B, N, (3 + 3x3)], N future positions. For the last dim,
     # the first 3 are xyz locations, and tha last 9 are rots
     # B corresponds to the number of timestamps for the base camera type
-    TRAJECTORY = 'trajectory' 
+    TRAJECTORY = 'trajectory'

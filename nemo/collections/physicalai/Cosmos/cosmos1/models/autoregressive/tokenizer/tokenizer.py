@@ -17,10 +17,9 @@ from collections import defaultdict
 from typing import Optional
 
 import torch
-from einops import rearrange
-
 from cosmos1.models.autoregressive.configs.base.tokenizer import TokenizerConfig
 from cosmos1.utils.lazy_config import instantiate as lazy_instantiate
+from einops import rearrange
 
 
 def update_vocab_size(
@@ -309,7 +308,9 @@ class DiscreteMultimodalTokenizer:
         max_seq_len_in_batch = max([len(token) for token in tokens])
         if self.pad_to_multiple_of is not None:
             # Pad the sequence length to the nearest multiple of pad_to_multiple_of
-            max_seq_len_in_batch = ((max_seq_len_in_batch - 1) // self.pad_to_multiple_of + 1) * self.pad_to_multiple_of
+            max_seq_len_in_batch = (
+                (max_seq_len_in_batch - 1) // self.pad_to_multiple_of + 1
+            ) * self.pad_to_multiple_of
         pad_to_len = min(max_seq_len_in_batch, self.total_seq_len)
         for i in range(len(tokens)):
             if len(tokens[i]) < pad_to_len:

@@ -18,17 +18,17 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
-from megatron.core.inference.common_inference_params import CommonInferenceParams
-from megatron.core.inference.engines.mcore_engine import MCoreEngine
-from nemo import lightning as nl
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-
 from cosmos1.models.autoregressive.nemo.inference.general import MockMCoreTokenizer
 from cosmos1.models.autoregressive.nemo.inference.inference_controller import CosmosActionGenerationController
 from cosmos1.models.autoregressive.nemo.post_training.action_control.action_control_dataset import ActionControlDataset
 from cosmos1.models.autoregressive.nemo.post_training.action_control.prepare_dataset import Split, create_tokenizer
+from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.engines.mcore_engine import MCoreEngine
+
+from nemo import lightning as nl
+from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
+from nemo.lightning import io
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
 LATENT_SHAPE = [1, 30, 40]  # For the nvidia/Cosmos-1.0-Tokenizer-DV8x16x16
 

@@ -88,9 +88,7 @@ def sensor_to_rig(sensor: dict) -> np.ndarray | None:
         correction_T = sensor["correction_rig_T"]
 
     if "correction_sensor_R_FLU" in sensor.keys():
-        assert "roll-pitch-yaw" in sensor["correction_sensor_R_FLU"].keys(), str(
-            sensor["correction_sensor_R_FLU"]
-        )
+        assert "roll-pitch-yaw" in sensor["correction_sensor_R_FLU"].keys(), str(sensor["correction_sensor_R_FLU"])
         correction_R = sensor["correction_sensor_R_FLU"]["roll-pitch-yaw"]
 
     nominal_R = rotation_utils.euler_2_so3(nominal_R)
@@ -245,9 +243,7 @@ def project_points_to_image(
     uv, z = box2camera(points, camera_to_rig, camera_intrinsic)
 
     # account for the cropping and resizing and apply the processing corrections
-    xbias, ybias, facw, _ = compute_preprocessing_transform(
-        camera_intrinsic, maglev_processing_config
-    )
+    xbias, ybias, facw, _ = compute_preprocessing_transform(camera_intrinsic, maglev_processing_config)
     uv[:, 0] -= xbias
     uv[:, 1] -= ybias
     uv /= facw

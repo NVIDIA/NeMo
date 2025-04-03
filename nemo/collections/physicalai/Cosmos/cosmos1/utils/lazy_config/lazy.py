@@ -27,10 +27,9 @@ from typing import Any, Dict, List, Tuple, Union
 
 import attrs
 import yaml
-from omegaconf import DictConfig, ListConfig, OmegaConf
-
 from cosmos1.utils.lazy_config.file_io import PathManager
 from cosmos1.utils.lazy_config.registry import _convert_target_to_string
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 __all__ = ["LazyCall", "LazyConfig"]
 

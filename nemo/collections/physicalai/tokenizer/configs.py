@@ -15,14 +15,7 @@
 
 from enum import Enum
 
-from models import (
-    ContinuousFormulation,
-    DiscreteQuantizer,
-    EncoderType,
-    DecoderType,
-    Encoder3DType,
-    Decoder3DType,
-)
+from models import ContinuousFormulation, Decoder3DType, DecoderType, DiscreteQuantizer, Encoder3DType, EncoderType
 
 continuous_image = dict(
     # The attention resolution for res blocks.

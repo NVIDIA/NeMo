@@ -21,16 +21,16 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 import torch.nn.functional as F
+from cosmos1.utils import log
 from einops import rearrange, repeat
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.transformer.enums import AttnBackend
+from torch import Tensor, nn
+
 from nemo.collections.llm.gpt.model.llama import Llama3Config, LlamaModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
 from nemo.lightning.base import teardown
-from torch import Tensor, nn
-
-from cosmos1.utils import log
 
 
 class RotaryEmbedding3D(RotaryEmbedding):

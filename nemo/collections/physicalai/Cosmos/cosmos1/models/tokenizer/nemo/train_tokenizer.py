@@ -19,6 +19,9 @@ import nemo_run as run
 import pytorch_lightning as pl
 import torch.distributed
 import torch.utils.checkpoint
+from pytorch_lightning.loggers import WandbLogger
+from torch.utils.data import DataLoader
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
@@ -28,8 +31,6 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
 from nemo.lightning.pytorch.optim.pytorch import PytorchOptimizerModule
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.exp_manager import TimingCallback
-from pytorch_lightning.loggers import WandbLogger
-from torch.utils.data import DataLoader
 
 
 class FakeDataset(torch.utils.data.Dataset):

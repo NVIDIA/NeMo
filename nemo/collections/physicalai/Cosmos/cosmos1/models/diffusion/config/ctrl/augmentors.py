@@ -13,7 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cosmos1.models.diffusion.config.ctrl.blurs import BilateralFilterConfig, BlurAugmentorConfig, BlurCombinationConfig
+from cosmos1.models.diffusion.config.ctrl.blurs import (
+    BilateralFilterConfig,
+    BlurAugmentorConfig,
+    BlurCombinationConfig,
+)
 from cosmos1.utils.lazy_config import LazyCall as L
 
 # predefined BilateralFilterConfig with different strength level
@@ -21,7 +25,9 @@ NoFilterConfig = L(BilateralFilterConfig)(use_random=False, d=1, sigma_color=1, 
 
 LowBilateralFilterConfig = L(BilateralFilterConfig)(use_random=False, d=15, sigma_color=100, sigma_space=50, iter=1)
 
-MediumBilateralFilterConfig = L(BilateralFilterConfig)(use_random=False, d=30, sigma_color=150, sigma_space=100, iter=1)
+MediumBilateralFilterConfig = L(BilateralFilterConfig)(
+    use_random=False, d=30, sigma_color=150, sigma_space=100, iter=1
+)
 
 HighBilateralFilterConfig = L(BilateralFilterConfig)(use_random=False, d=50, sigma_color=300, sigma_space=150, iter=1)
 

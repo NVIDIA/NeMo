@@ -26,10 +26,9 @@ import pooch
 import torch
 import torchvision
 import typer
+from cosmos1.models.autoregressive.tokenizer.discrete_video import DiscreteVideoFSQJITTokenizer
 from einops import rearrange
 from tqdm import tqdm
-
-from cosmos1.models.autoregressive.tokenizer.discrete_video import DiscreteVideoFSQJITTokenizer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

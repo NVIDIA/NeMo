@@ -17,12 +17,12 @@ import os
 from typing import Literal, TypedDict
 
 import torch
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.core.classes.dataset import Dataset
-
 from cosmos1.models.autoregressive.nemo.cosmos import CosmosConfig
 from cosmos1.models.autoregressive.nemo.post_training.action_control.action_control_dataset import ActionControlDataset
 from cosmos1.models.autoregressive.nemo.post_training.video2world_dataset import get_abs_pos_embed
+
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.core.classes.dataset import Dataset
 
 BOV_TOKEN = 64000
 PAD_ID = 64002
@@ -153,7 +153,6 @@ class ActionControlDataModule(MockDataModule):
 
 if __name__ == "__main__":
     import typer
-
     from cosmos1.models.autoregressive.nemo.cosmos_action_control import CosmosConfigActionControl5B
 
     def print_shapes(subfolder: str = "autoregressive"):
