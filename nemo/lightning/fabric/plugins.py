@@ -27,7 +27,6 @@ from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.pytorch.plugins.mixed_precision import (
     DtypeConfig,
     MegatronMixedPrecision,
-    get_fp8_recipe,
     get_optim_config,
     update_config_with_dtype_overrides,
 )

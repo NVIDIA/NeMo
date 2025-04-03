@@ -21,12 +21,10 @@ from typing import Generator, Literal, Optional, TypeVar, Union
 
 import torch
 from lightning.pytorch.plugins.precision import Precision
-from megatron.core.enums import Fp8Recipe as McoreFp8Recipe
 from torch.nn import Module
 from torch.optim import Optimizer
 
 from nemo.utils import logging
-from nemo.utils.import_utils import safe_import
 
 AnyT = TypeVar("AnyT")
 
