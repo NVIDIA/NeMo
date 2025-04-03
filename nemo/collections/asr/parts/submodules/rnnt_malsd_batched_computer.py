@@ -286,9 +286,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         if ngram_lm_model is not None:
             expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             if self._blank_index != expected_blank_index:
-                raise ValueError(
-                    f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}"
-                )
+                raise ValueError(f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}")
 
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
@@ -584,7 +582,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             time_indices = batched_hyps.next_timestamp
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
-            
+
         return batched_hyps
 
     def topk_lm(self, lm_scores, log_probs):
@@ -701,7 +699,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 self._loop_update_decoder()
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
-        
+
         return self.state.batched_hyps
 
     @classmethod

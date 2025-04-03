@@ -190,8 +190,8 @@ class TestBatchedBeamHyps:
         ]
         assert hyps.timestamps.tolist() == [
             [
-                [0, 0, 0, 0], 
-                [1, 1, 0, 0], 
+                [0, 0, 0, 0],
+                [1, 1, 0, 0],
                 [0, 2, 0, 0],
             ],
             [
@@ -204,7 +204,7 @@ class TestBatchedBeamHyps:
             [0, 1, 2],
             [1, 2, 0],
         ]
-                
+
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_add_with_invalid_results(self, device: torch.device):
@@ -251,8 +251,8 @@ class TestBatchedBeamHyps:
         ]
         assert hyps.timestamps.tolist() == [
             [
-                [0, 0, 1, 0], 
-                [1, 1, 0, 0], 
+                [0, 0, 1, 0],
+                [1, 1, 0, 0],
                 [0, 2, 2, 0],
             ],
             [
@@ -265,7 +265,7 @@ class TestBatchedBeamHyps:
             [1, 0, 2],
             [0, 1, 2],
         ]
-        
+
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_instantiate(self, device: torch.device):
@@ -470,8 +470,8 @@ class TestConvertToHypotheses:
         ]
         assert hyps.timestamps.tolist() == [
             [
-                [0, 0, 0, 0], 
-                [1, 1, 1, 0], 
+                [0, 0, 0, 0],
+                [1, 1, 1, 0],
                 [1, 2, 2, 0],
             ],
             [
@@ -531,8 +531,8 @@ class TestConvertToHypotheses:
         ]
         assert hyps.timestamps.tolist() == [
             [
-                [1, 1, 1, 0], 
-                [0, 0, 0, 0], 
+                [1, 1, 1, 0],
+                [0, 0, 0, 0],
                 [1, 2, 2, 0],
             ],
             [
@@ -545,7 +545,7 @@ class TestConvertToHypotheses:
             [1, 0, 2],
             [2, 1, 0],
         ]
-        
+
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_to_hyps_list(self, device: torch.device):
