@@ -133,7 +133,7 @@ def bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg.first_last_layers_bf16 = True
     cfg.num_layers_at_start_in_bf16 = 1
     cfg.num_layers_at_end_in_bf16 = 1
-    cfg.fp8_params = False
+    cfg.fp8_params = True
     return cfg
 
 
@@ -154,5 +154,5 @@ def fp16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg.first_last_layers_bf16 = True
     cfg.num_layers_at_start_in_bf16 = 1
     cfg.num_layers_at_end_in_bf16 = 1
-    cfg.fp8_params = False
+    cfg.fp8_params = True
     return cfg
