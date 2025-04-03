@@ -65,7 +65,7 @@ model:
   text_tokenizer:
     _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.PersianPhonemesTokenizer
     punct: true
-    apostrophe: true
+    apostrophe: false
     pad_with_space: true
 
   train_ds:
