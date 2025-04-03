@@ -130,14 +130,14 @@ class CheckpointRegistry:
         else:
             return cfg
 
-    def load_model(
+    def init_model(
         self,
         path: str,
         path_resolver: Optional[Union[Callable[[Path], Optional[Path]], str]] = None,
         **kwargs
     ) -> nn.Module:
         checkpoint_info = self.detect_checkpoint_type(path, path_resolver=path_resolver)
-        return self.handlers[checkpoint_info.checkpoint_type].load_model(path, **kwargs)
+        return self.handlers[checkpoint_info.checkpoint_type].init_model(path, **kwargs)
 
 
 class CheckpointHandler:

@@ -741,16 +741,23 @@ class Plan(Generic[OutputT], metaclass=PlanMeta):
         except Exception as e:
             # Let the exception propagate up through the plan hierarchy
             # Only format and exit at the outermost plan
-            if not hasattr(self, "_parent"):
-                # We're at the root plan, format and exit
-                import sys
-
+            if not hasattr(self, "_parent") or getattr(self, "_parent", None) is None:
+                # We're at the root plan.
+                # Instead of exiting, re-raise the original exception.
+                # The format_exception logic will be handled by run_with_clean_error
+                # or a top-level try/except block if needed.
+                # Check for bdb.BdbQuit specifically, as we don't want to wrap it.
+                if isinstance(e, bdb.BdbQuit):
+                    raise
+                # If it's already a PlanExecutionError, re-raise it directly.
                 if isinstance(e, PlanExecutionError):
-                    print(e.detailed_traceback(), file=sys.stderr)
-                else:
-                    formatted_error = Plan.format_exception(e)
-                    print(formatted_error, file=sys.stderr)
-                sys.exit(1)
+                    raise
+                # Otherwise, wrap it in a PlanExecutionError to ensure consistent formatting upstream.
+                # This ensures even non-PlanExecutionErrors get the nice traceback.
+                plan_error = PlanExecutionError(self, e)
+                # Use the static format_exception to get the full context
+                # formatted_error = Plan.format_exception(plan_error) # No need to format here
+                raise plan_error # Re-raise the (potentially wrapped) error
             raise  # Re-raise to propagate up to parent plan
 
     def _get_name(self) -> str:

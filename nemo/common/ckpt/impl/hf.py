@@ -216,11 +216,11 @@ class HuggingFaceHandler(CheckpointHandler):
             tokenizer=Config(AutoTokenizer.from_pretrained, model_path),
         )
 
-    def load_model(self, path: str, **kwargs) -> nn.Module:
-        return LoadHuggingFaceModel(path, **kwargs)
+    def init_model(self, path: str, **kwargs) -> nn.Module:
+        return InitHuggingFaceModel(path, **kwargs)
     
 
-class LoadHuggingFaceModel(Plan):
+class InitHuggingFaceModel(Plan):
     def __init__(self, path: str, **kwargs):
         self.path = path
         self.context = load_context(path, build=True)

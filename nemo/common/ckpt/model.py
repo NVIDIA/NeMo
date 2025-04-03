@@ -127,10 +127,8 @@ class PreTrainedModel(Plan[nn.Module], IOMixin, ConfigurableMixin, PlanRegistryM
 
         if isinstance(env, (nl.Trainer, nl.Fabric)):
             env = LightningEnv(env)
-
         elif isinstance(env, str):
             env = self.get_env(env, _parse)
-
         self.env = env or Missing()
 
         if _parse:
@@ -147,6 +145,7 @@ class PreTrainedModel(Plan[nn.Module], IOMixin, ConfigurableMixin, PlanRegistryM
         else:
             # TODO: Fix this hardcoded context
             # TODO: add kwargs to init_model
+            # Do we need the env?
             self.init = init_model(self.model, peft=peft)
 
         # Process the additional plans

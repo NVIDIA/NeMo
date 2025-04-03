@@ -31,7 +31,7 @@ try:
 
             raise ValueError("Expected a Fiddle Config object")
         
-        def load_model(self, path: str) -> nn.Module:
+        def init_model(self, path: str) -> nn.Module:
             # TODO: Detect mcore dist-checkpoint and only then use InitMegatronModel
             return InitMegatronModel(path, setup=self.load_context(path))
 

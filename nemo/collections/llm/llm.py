@@ -31,7 +31,7 @@ class LLM(PreTrainedModel):
 
 """
 >>> model
-AutoModel(
+LLM(
   (model): "meta-llama/Llama-3.2-3B"
   (env): LightningEnv(
 	  devices=2,
@@ -47,7 +47,7 @@ AutoModel(
 
 
 >>> finetune_model.plan.materialized
-AutoModel(
+LLM(
   (env): LightningEnv(accelerator=auto, devices=1)
   (parse): MegatronModelConverter(
     context_converter=auto_model.model.llama.llama_hf_to_megatron
@@ -80,7 +80,6 @@ AutoModel(
 	(ddp): MegatronDDP(
 	  (ddp_config): DistributedDataParallelConfig(...)
 	)
-  )
 )
 
 
