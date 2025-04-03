@@ -848,7 +848,7 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         beam_size: int,
         search_type: str = 'malsd_batch',
         score_norm: bool = True,
-        malsd_max_symbols_per_step: Optional[int] = None,
+        max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
@@ -857,6 +857,25 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: Optional[str] = True,
     ):
+        """
+        Init method.
+        Args:
+            decoder_model: Prediction network from RNN-T
+            joint_model: Joint module from RNN-T
+            durations: Token durations tensor for TDT
+            blank_index: index of blank symbol
+            beam_size: beam size
+            max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
+            preserve_alignments: if alignments are needed
+            preserve_frame_confidence: if frame confidence is needed
+            confidence_method_cfg: config for the confidence
+            ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
+            ngram_lm_alpha: weight for the n-gram LM scores
+            blank_lm_score_mode: mode for scoring blank symbol with LM
+            pruning_mode: mode for pruning hypotheses with LM
+            allow_cuda_graphs: whether to allow CUDA graphs
+            score_norm: whether to normalize scores before best hypothesis extraction
+        """
         super().__init__()
         self.decoder = decoder_model
         self.joint = joint_model
@@ -865,10 +884,12 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
         self.beam_size = beam_size
+        self.return_best_hypothesis = return_best_hypothesis
+        self.score_norm = score_norm
 
-        if malsd_max_symbols_per_step is not None and malsd_max_symbols_per_step <= 0:
-            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {malsd_max_symbols_per_step}")
-        self.max_symbols = malsd_max_symbols_per_step
+        if max_symbols_per_step is not None and max_symbols_per_step <= 0:
+            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
+        self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
         if search_type == "malsd_batch":
@@ -885,10 +906,8 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
                 ngram_lm_model=ngram_lm_model,
                 ngram_lm_alpha=ngram_lm_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
-                score_norm=score_norm,
                 pruning_mode=pruning_mode,
                 allow_cuda_graphs=allow_cuda_graphs,
-                return_best_hypothesis=return_best_hypothesis,
             )
         else:
             raise Exception(f"Decoding strategy {search_type} nor implemented.")
@@ -930,9 +949,17 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             self.joint.eval()
 
             inseq = encoder_output  # [B, T, D]
-            hyps = self._decoding_computer(x=inseq, out_len=logitlen)
+            batched_beam_hyps = self._decoding_computer(x=inseq, out_len=logitlen)
+            
+            # Ensures the correct number of hypotheses (batch_size) for CUDA Graphs compatibility
+            batch_size = encoder_output.shape[0]
+            if self.return_best_hypothesis:
+                hyps = batched_beam_hyps.to_hyps_list(score_norm=self.score_norm)[:batch_size]
+            else:
+                hyps = batched_beam_hyps.to_nbest_hyps_list(score_norm=self.score_norm)[:batch_size]
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
-        return (hyps,)
+        return (hyps, )
+

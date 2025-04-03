@@ -242,9 +242,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         pruning_mode: Optional[str | PruningMode] = None,
-        score_norm: bool = True,
         allow_cuda_graphs: bool = True,
-        return_best_hypothesis: bool = True,
     ):
         """
         Init method.
@@ -255,15 +253,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             beam_size: beam size
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
-            preserve_frame_confidence: if frame confidence is needed
-            confidence_method_cfg: config for the confidence
             ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
             ngram_lm_alpha: weight for the n-gram LM scores
             blank_lm_score_mode: mode for scoring blank symbol with LM
             pruning_mode: mode for pruning hypotheses with LM
-            score_norm: whether to normalize scores before best hypothesis extraction
             allow_cuda_graphs: whether to allow CUDA graphs
-            return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
         """
 
         super().__init__()
@@ -277,12 +271,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.preserve_frame_confidence = preserve_frame_confidence
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
-        self.score_norm = score_norm
         self.allow_cuda_graphs = allow_cuda_graphs
-        self.return_best_hypothesis = return_best_hypothesis
 
-        assert not self.preserve_alignments, "Preserve aligments is not supported"
-        assert not self.preserve_frame_confidence, "Preserve frame confidence is not supported"
+        if self.preserve_alignments:
+            raise NotImplementedError("Preserve alignments is not supported")
 
         self.state = None
         self.full_graph = None
@@ -292,7 +284,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.maybe_enable_cuda_graphs()
 
         if ngram_lm_model is not None:
-            assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            if self._blank_index != expected_blank_index:
+                raise ValueError(
+                    f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}"
+                )
 
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
@@ -360,7 +356,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-    ) -> Union[list[rnnt_utils.Hypothesis], list[rnnt_utils.NBestHypotheses]]:
+    ) -> BatchedBeamHyps:
         """
         Pytorch implementation of the batched ALSD algorithm for RNN-T.
         Args:
@@ -588,11 +584,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             time_indices = batched_hyps.next_timestamp
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             active_mask = time_indices <= last_timesteps
-
-        if self.return_best_hypothesis:
-            return batched_hyps.to_hyps_list(score_norm=self.score_norm)
-        else:
-            return batched_hyps.to_nbest_hyps_list(score_norm=self.score_norm)
+            
+        return batched_hyps
 
     def topk_lm(self, lm_scores, log_probs):
         """
@@ -615,7 +608,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+            else:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
@@ -623,12 +616,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
-            else:
-                raise NotImplementedError(
-                    f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
-                    f"and pruning mode '{self.pruning_mode}' is not implemented."
-                )
-        elif self.pruning_mode is PruningMode.EARLY:
+        else:
             if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
                 # log_probs[..., :-1] += lm_scores
                 log_probs_top_k, labels_top_k = torch.topk(
@@ -640,7 +628,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     log_probs_top_k,
                     log_probs_top_k + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+            else:
                 # choosing topk from acoustic model
                 log_probs_top_k, labels_top_k = log_probs.topk(self.beam_size, dim=-1, largest=True, sorted=True)
 
@@ -655,13 +643,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     + non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha
                     + torch.gather(lm_scores, dim=-1, index=masked_labels),
                 )
-            else:
-                raise NotImplementedError(
-                    f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
-                    f"and pruning mode '{self.pruning_mode}' is not implemented."
-                )
-        else:
-            raise NotImplementedError(f"Pruning mode {self.pruning_mode} is not implemented.")
 
         return log_probs_top_k, labels_top_k
 
@@ -669,7 +650,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+    ) -> BatchedBeamHyps:
         """
         Cuda-Graphs implementation of the batched ALSD algorithm.
         Args:
@@ -720,11 +701,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 self._loop_update_decoder()
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
-
-        if self.return_best_hypothesis:
-            return self.state.batched_hyps.to_hyps_list(score_norm=self.score_norm)[:current_batch_size]
-        else:
-            return self.state.batched_hyps.to_nbest_hyps_list(score_norm=self.score_norm)[:current_batch_size]
+        
+        return self.state.batched_hyps
 
     @classmethod
     def _create_loop_body_kernel(cls):

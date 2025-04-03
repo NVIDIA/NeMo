@@ -1547,7 +1547,7 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
         maes_num_steps: Optional[int] = 2,
         maes_expansion_gamma: Optional[float] = 2.3,
         maes_expansion_beta: Optional[int] = 2,
-        malsd_max_symbols_per_step: Optional[int] = 10,
+        max_symbols_per_step: Optional[int] = 10,
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
@@ -1556,6 +1556,38 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
         allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: Optional[str] = True,
     ):
+        """
+        Init method.
+        Args:
+            decoder: Prediction network from RNN-T
+            joint: Joint module from RNN-T
+            blank_index: index of blank symbol
+            beam_size: beam size
+            search_type: strategy from [`maes_batch`. `malsd_batch`]. Defaults to `malsd_batch`
+            score_norm: whether to normalize scores before best hypothesis extraction
+            maes_num_steps:  Number of adaptive steps to take. From the paper, 2 steps is generally sufficient. int > 1.
+            maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+                The default (2.3) is selected from the paper. It performs a comparison
+                (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob
+                is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which
+                can be potential candidates for expansion apart from the "most likely" candidate.
+                Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+                but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+                thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+                tuned on a validation set.
+            maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+                Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+                and affects the speed of inference since large values will perform large beam search in the next step.
+            max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
+            preserve_alignments: if alignments are needed
+            ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
+            ngram_lm_alpha: weight for the n-gram LM scores
+            blank_lm_score_mode: mode for scoring blank symbol with LM
+            pruning_mode: mode for pruning hypotheses with LM
+            allow_cuda_graphs: whether to allow CUDA graphs
+            return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
+        """
+        
         super().__init__()
         self.decoder = decoder_model
         self.joint = joint_model
@@ -1563,10 +1595,12 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
         self.beam_size = beam_size
+        self.score_norm = score_norm
+        self.return_best_hypothesis = return_best_hypothesis
 
-        if malsd_max_symbols_per_step is not None and malsd_max_symbols_per_step <= 0:
-            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {malsd_max_symbols_per_step}")
-        self.max_symbols = malsd_max_symbols_per_step
+        if max_symbols_per_step is not None and max_symbols_per_step <= 0:
+            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
+        self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
         if search_type == "malsd_batch":
@@ -1582,10 +1616,8 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
                 ngram_lm_model=ngram_lm_model,
                 ngram_lm_alpha=ngram_lm_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
-                score_norm=score_norm,
                 pruning_mode=pruning_mode,
                 allow_cuda_graphs=allow_cuda_graphs,
-                return_best_hypothesis=return_best_hypothesis,
             )
         elif search_type == "maes_batch":
             self._decoding_computer = ModifiedAESBatchedRNNTComputer(
@@ -1600,10 +1632,8 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
                 ngram_lm_model=ngram_lm_model,
                 ngram_lm_alpha=ngram_lm_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
-                score_norm=score_norm,
                 pruning_mode=pruning_mode,
                 allow_cuda_graphs=allow_cuda_graphs,
-                return_best_hypothesis=return_best_hypothesis,
             )
 
     @property
@@ -1643,7 +1673,13 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
             self.joint.eval()
 
             inseq = encoder_output  # [B, T, D]
-            hyps = self._decoding_computer(x=inseq, out_len=logitlen)
+            batched_beam_hyps = self._decoding_computer(x=inseq, out_len=logitlen)
+            
+            batch_size = encoder_output.shape[0]
+            if self.return_best_hypothesis:
+                hyps = batched_beam_hyps.to_hyps_list(score_norm=self.score_norm)[:batch_size]
+            else:
+                hyps = batched_beam_hyps.to_nbest_hyps_list(score_norm=self.score_norm)[:batch_size]
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)

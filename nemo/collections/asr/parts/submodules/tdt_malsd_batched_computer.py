@@ -253,9 +253,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         pruning_mode: Optional[str | PruningMode] = None,
-        score_norm: bool = True,
         allow_cuda_graphs: bool = False,
-        return_best_hypothesis: bool = True,
     ):
         """
         Init method.
@@ -272,9 +270,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             ngram_lm_alpha: weight for the n-gram LM scores
             blank_lm_score_mode: mode for scoring blank symbol with LM
             pruning_mode: mode for pruning hypotheses with LM
-            score_norm: whether to normalize scores before best hypothesis extraction
             allow_cuda_graphs: whether to allow CUDA graphs
-            return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
         """
 
         super().__init__()
@@ -288,10 +284,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         self.preserve_frame_confidence = preserve_frame_confidence
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
-        self.score_norm = score_norm
         self.durations = durations
         self.allow_cuda_graphs = allow_cuda_graphs
-        self.return_best_hypothesis = return_best_hypothesis
 
         assert not self.preserve_alignments
         assert not self.preserve_frame_confidence
@@ -373,7 +367,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-    ) -> Union[list[rnnt_utils.Hypothesis], list[rnnt_utils.NBestHypotheses]]:
+    ) -> BatchedBeamHyps:
         """
         Pytorch implementation of the batched ALSD algorithm for TDT models.
         Args:
@@ -625,10 +619,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             torch.less_equal(time_indices, last_timesteps, out=active_mask)
 
-        if self.return_best_hypothesis:
-            return batched_hyps.to_hyps_list(score_norm=self.score_norm)
-        else:
-            return batched_hyps.to_nbest_hyps_list(score_norm=self.score_norm)
+        return batched_hyps
 
     def topk_lm(self, lm_scores, log_probs, duration_log_probs):
         """
@@ -660,7 +651,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = total_idx_top_k // len(self.durations)
                 durations_top_k = total_idx_top_k % len(self.durations)
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+            else:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
@@ -677,12 +668,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
                 labels_top_k = total_idx_top_k // len(self.durations)
                 durations_top_k = total_idx_top_k % len(self.durations)
-            else:
-                raise NotImplementedError(
-                    f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
-                    f"and pruning mode '{self.pruning_mode}' is not implemented."
-                )
-        elif self.pruning_mode is PruningMode.EARLY:
+        else:
             if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
@@ -705,7 +691,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
                 durations_top_k = total_idx_top_k % len(self.durations)
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+            else:
                 # choosing topk from acoustic model
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
@@ -733,13 +719,6 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
                 labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
                 durations_top_k = total_idx_top_k % len(self.durations)
-            else:
-                raise NotImplementedError(
-                    f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
-                    f"and pruning mode '{self.pruning_mode}' is not implemented."
-                )
-        else:
-            raise NotImplementedError(f"Pruning mode {self.pruning_mode} is not implemented.")
 
         return log_probs_top_k, labels_top_k, durations_top_k
 
@@ -747,7 +726,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+    ) -> BatchedBeamHyps:
         """
         Cuda-Graphs implementation of the batched ALSD algorithm.
         Args:
@@ -799,10 +778,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
-        if self.return_best_hypothesis:
-            return self.state.batched_hyps.to_hyps_list(score_norm=self.score_norm)[:current_batch_size]
-        else:
-            return self.state.batched_hyps.to_nbest_hyps_list(score_norm=self.score_norm)[:current_batch_size]
+        return self.state.batched_hyps
 
     @classmethod
     def _create_loop_body_kernel(cls):

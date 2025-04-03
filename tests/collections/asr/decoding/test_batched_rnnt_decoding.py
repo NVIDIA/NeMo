@@ -380,7 +380,7 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("beam_size", [2, 4])
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_return_best_hypothesis(
+    def test_tdt_beam_decoding_return_best_hypothesis(
         self, test_audio_filenames, tdt_model, get_tdt_encoder_output, beam_config, device, batch_size, beam_size
     ):
         num_samples = min(batch_size, len(test_audio_filenames))
@@ -434,7 +434,7 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("beam_size", [2, 4])
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_return_nbest(
+    def test_tdt_beam_decoding_return_nbest(
         self, test_audio_filenames, tdt_model, get_tdt_encoder_output, beam_config, device, beam_size, batch_size
     ):
         num_samples = min(batch_size, len(test_audio_filenames))
@@ -498,7 +498,7 @@ class TestTDTDecoding:
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
     @pytest.mark.parametrize("device", DEVICES)
-    def test_rnnt_beam_decoding_kenlm(
+    def test_tdt_beam_decoding_kenlm(
         self,
         test_data_dir,
         test_audio_filenames,
