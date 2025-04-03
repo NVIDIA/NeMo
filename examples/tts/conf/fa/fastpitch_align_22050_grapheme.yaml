@@ -9,6 +9,8 @@ validation_datasets: ???
 sup_data_path: ???
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
+phoneme_dict_path: ???
+
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
 pitch_fmax: 2093.004522404789
@@ -65,8 +67,13 @@ model:
   text_tokenizer:
     _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.PersianPhonemesTokenizer
     punct: true
+    stresses: false
+    chars: true
     apostrophe: false
     pad_with_space: true
+    g2p:
+      _target_: nemo.collections.tts.g2p.models.fa_ir_persian.PersianG2p
+      phoneme_dict: ${phoneme_dict_path}
 
   train_ds:
     dataset:
