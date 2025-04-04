@@ -18,10 +18,10 @@ import logging
 import os
 import sys
 from pathlib import Path
-from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer
 from typing import Optional
 
 import uvicorn
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.deploy import DeployPyTriton
 
@@ -276,7 +276,7 @@ def get_trtllm_deployable(args):
         try:
             hf_model_cache_dir = "/tmp/hf_model_dir/"
             Path(hf_model_cache_dir).mkdir(parents=True, exist_ok=True)
-            
+
             # Download tokenizer files and config
             tokenizer = AutoTokenizer.from_pretrained(args.hf_model_id, cache_dir=hf_model_cache_dir)
             config = AutoConfig.from_pretrained(args.hf_model_id, cache_dir=hf_model_cache_dir)
@@ -291,17 +291,13 @@ def get_trtllm_deployable(args):
 
             # Download model weights in safetensor format
             model = AutoModelForCausalLM.from_pretrained(
-                args.hf_model_id,
-                cache_dir=hf_model_cache_dir,
-                torch_dtype="auto",
-                use_safetensors=True
+                args.hf_model_id, cache_dir=hf_model_cache_dir, torch_dtype="auto", use_safetensors=True
             )
             model.save_pretrained(args.hf_model_path, safe_serialization=True)
 
             LOGGER.info(f"Downloaded model, tokenizer and config to {args.hf_model_path}")
         except Exception as e:
             raise RuntimeError(f"Error downloading from HuggingFace: {str(e)}")
-            
 
     checkpoint_missing = args.nemo_checkpoint is None and args.hf_model_path is None
     if checkpoint_missing and args.triton_model_repository is None:
@@ -383,13 +379,13 @@ def get_trtllm_deployable(args):
         LOGGER.info("Export operation will be started to export the hugging face checkpoint to TensorRT-LLM.")
         try:
             trt_llm_exporter.export_hf_model(
-                hf_model_path=args.hf_model_path, 
-                max_batch_size=args.max_batch_size, 
-                tensor_parallelism_size=args.tensor_parallelism_size, 
-                max_input_len=args.max_input_len, 
-                max_output_len=args.max_output_len, 
-                dtype=args.dtype, 
-                model_type=args.model_type
+                hf_model_path=args.hf_model_path,
+                max_batch_size=args.max_batch_size,
+                tensor_parallelism_size=args.tensor_parallelism_size,
+                max_input_len=args.max_input_len,
+                max_output_len=args.max_output_len,
+                dtype=args.dtype,
+                model_type=args.model_type,
             )
         except Exception as error:
             raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))

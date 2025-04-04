@@ -30,7 +30,51 @@ import tensorrt_llm
 import torch
 import torch.nn.functional as F
 import wrapt
+from tensorrt_llm._common import check_max_num_tokens
 from tensorrt_llm._utils import numpy_to_torch
+from tensorrt_llm.builder import BuildConfig, Builder
+from tensorrt_llm.commands.build import build as build_trtllm
+from tensorrt_llm.mapping import Mapping
+from tensorrt_llm.models import (
+    BaichuanForCausalLM,
+    BertForQuestionAnswering,
+    BertForSequenceClassification,
+    BertModel,
+    BloomForCausalLM,
+    ChatGLMForCausalLM,
+    CogVLMForCausalLM,
+    CohereForCausalLM,
+    DbrxForCausalLM,
+    DeciLMForCausalLM,
+    DecoderModel,
+    DeepseekForCausalLM,
+    DeepseekV2ForCausalLM,
+    DiT,
+    EagleForCausalLM,
+    EncoderModel,
+    FalconForCausalLM,
+    GemmaForCausalLM,
+    GPTForCausalLM,
+    GPTJForCausalLM,
+    GPTNeoXForCausalLM,
+    GrokForCausalLM,
+    LLaMAForCausalLM,
+    MambaForCausalLM,
+    MedusaForCausalLm,
+    MLLaMAForCausalLM,
+    MPTForCausalLM,
+    OPTForCausalLM,
+    Phi3ForCausalLM,
+    PhiForCausalLM,
+    QWenForCausalLM,
+    RecurrentGemmaForCausalLM,
+    ReDrafterForCausalLM,
+    RobertaForQuestionAnswering,
+    RobertaForSequenceClassification,
+    RobertaModel,
+    WhisperEncoder,
+)
+from tensorrt_llm.plugin import PluginConfig
 from transformers import PreTrainedTokenizerBase
 
 from nemo.deploy import ITritonDeployable
@@ -60,51 +104,6 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
 from nemo.export.trt_llm.utils import is_rank
 from nemo.export.utils import is_nemo_tarfile, prepare_directory_for_export, torch_dtype_from_precision
 from nemo.export.utils.constants import TRTLLM_ENGINE_DIR
-
-from tensorrt_llm.plugin import PluginConfig
-from tensorrt_llm.builder import BuildConfig, Builder
-from tensorrt_llm._common import check_max_num_tokens
-from tensorrt_llm.models import (
-    GPTForCausalLM,
-    LLaMAForCausalLM,
-    OPTForCausalLM,
-    BloomForCausalLM,
-    FalconForCausalLM,
-    PhiForCausalLM,
-    Phi3ForCausalLM,
-    MambaForCausalLM,
-    GPTNeoXForCausalLM,
-    GPTJForCausalLM,
-    MPTForCausalLM,
-    ChatGLMForCausalLM,
-    GrokForCausalLM,
-    MedusaForCausalLm,
-    ReDrafterForCausalLM,
-    BaichuanForCausalLM,
-    GemmaForCausalLM,
-    QWenForCausalLM,
-    WhisperEncoder,
-    EncoderModel,
-    DecoderModel,
-    DbrxForCausalLM,
-    RecurrentGemmaForCausalLM,
-    CogVLMForCausalLM,
-    DiT,
-    DeepseekForCausalLM,
-    DeciLMForCausalLM,
-    DeepseekV2ForCausalLM,
-    EagleForCausalLM,
-    CohereForCausalLM,
-    MLLaMAForCausalLM,
-    BertForQuestionAnswering,
-    BertForSequenceClassification,
-    BertModel,
-    RobertaModel,
-    RobertaForQuestionAnswering,
-    RobertaForSequenceClassification
-    )
-from tensorrt_llm.commands.build import build as build_trtllm
-from tensorrt_llm.mapping import Mapping
 
 use_deploy = True
 try:
@@ -574,8 +573,7 @@ class TensorRTLLM(ITritonDeployable):
 
         if is_export_rank and load_model:
             self._load()
-    
-    
+
     def export_hf_model(
         self,
         hf_model_path: str,
@@ -597,7 +595,8 @@ class TensorRTLLM(ITritonDeployable):
         max_beam_width: int = 1,
         use_refit: bool = False,
         model_type: Optional[str] = None,
-        delete_existing_files: bool = True):
+        delete_existing_files: bool = True,
+    ):
         """
         Export a Hugging Face model checkpoint to TensorRT-LLM format.
 
@@ -632,12 +631,12 @@ class TensorRTLLM(ITritonDeployable):
                 f"Model {model_type} is not currently a supported model type. "
                 f"Supported model types are: {self.get_supported_hf_model_mapping.keys()}."
             )
-        
+
         if dtype is None:
             dtype = self.get_hf_model_dtype(hf_model_path)
             if dtype is None:
                 raise ValueError("No dtype found in hf model config. Please specify a dtype.")
-        
+
         prepare_directory_for_export(
             self.model_dir, delete_existing_files=delete_existing_files, subdir=TRTLLM_ENGINE_DIR
         )
@@ -667,8 +666,8 @@ class TensorRTLLM(ITritonDeployable):
             remove_input_padding=remove_input_padding,
             enable_context_fmha=plugin_config.context_fmha,
             tokens_per_block=tokens_per_block,
-            multiple_profiles=multiple_profiles
-            )
+            multiple_profiles=multiple_profiles,
+        )
         build_dict = {
             'max_input_len': max_input_len,
             'max_output_len': max_output_len,
@@ -680,7 +679,7 @@ class TensorRTLLM(ITritonDeployable):
             'strongly_typed': False,
             'builder_opt': None,
             'multiple_profiles': multiple_profiles,
-            'use_refit': use_refit
+            'use_refit': use_refit,
         }
         build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
         for rank in range(tensor_parallelism_size):
@@ -703,26 +702,25 @@ class TensorRTLLM(ITritonDeployable):
         LOGGER.info(f"Generarated TRT-LLM checkpoint at dir:{self.model_dir}")
         LOGGER.info(f"Loading the TRT-LLM checkpoint:{self.model_dir}")
         self._load()
-    
-    
+
     def get_hf_model_dtype(model_dir: str) -> Optional[str]:
         """
         Read the config file from a Hugging Face model directory and identify the model's data type.
-        
+
         Args:
             model_dir (str): Path to the Hugging Face model directory
-            
+
         Returns:
             Optional[str]: The model's data type if found in config, None otherwise
         """
         config_path = Path(model_dir) / 'config.json'
-        
+
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found at {config_path}")
-            
+
         try:
             with open(config_path, 'r') as f:
-                config = json.load(f)    
+                config = json.load(f)
                 # Check for dtype in different possible locations in the config
                 if 'torch_dtype' in config:
                     return config['torch_dtype']
@@ -730,14 +728,14 @@ class TensorRTLLM(ITritonDeployable):
                     return config['dtype']
                 elif 'pretrained_config' in config and 'dtype' in config['pretrained_config']:
                     return config['pretrained_config']['dtype']
-                    
+
                 # If no explicit dtype found, check for other indicators
                 if 'fp16' in config and config['fp16']:
                     return 'float16'
                 elif 'bf16' in config and config['bf16']:
                     return 'bfloat16'
-                
-            return None   
+
+            return None
         except json.JSONDecodeError:
             raise ValueError(f"Invalid JSON in config file at {config_path}")
         except Exception as e:
@@ -1464,15 +1462,14 @@ class TensorRTLLM(ITritonDeployable):
             'DeepseekV2ForCausalLM': DeepseekV2ForCausalLM,
             'EagleForCausalLM': EagleForCausalLM,
             'CohereForCausalLM': CohereForCausalLM,
-            'MLLaMAModel': MLLaMAForCausalLM,  
-            'MllamaForConditionalGeneration':
-            MLLaMAForCausalLM, 
+            'MLLaMAModel': MLLaMAForCausalLM,
+            'MllamaForConditionalGeneration': MLLaMAForCausalLM,
             'BertForQuestionAnswering': BertForQuestionAnswering,
             'BertForSequenceClassification': BertForSequenceClassification,
             'BertModel': BertModel,
             'RobertaModel': RobertaModel,
             'RobertaForQuestionAnswering': RobertaForQuestionAnswering,
-            'RobertaForSequenceClassification': RobertaForSequenceClassification
+            'RobertaForSequenceClassification': RobertaForSequenceClassification,
         }
         return HF_MODEL_CLASS_MAP
 
