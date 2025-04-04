@@ -456,7 +456,7 @@ class BatchedBeamHyps:
         ]
         return hypotheses
 
-    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[NBestHypotheses]:
         """
         Converts the batched beam search results into a list of N-best hypotheses for each batch.
         Args:
