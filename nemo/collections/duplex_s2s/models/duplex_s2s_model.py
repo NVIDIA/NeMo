@@ -51,7 +51,6 @@ from nemo.utils import logging
 class DuplexS2SModel(LightningModule):
     def __init__(self, cfg) -> None:
         super().__init__()
-        self.save_hyperparameters()
         self.cfg = cfg
 
         self._audio_codec = (
@@ -85,7 +84,6 @@ class DuplexS2SModel(LightningModule):
 
         self.embed_audio_tokens = torch.nn.ModuleList(
             [
-                # codebook size + 2 (speech BOS and EOS)
                 torch.nn.Embedding(self.speech_vocab_size, self.embed_tokens.embedding_dim)
                 for _ in range(self._num_codebooks)
             ]
@@ -169,9 +167,9 @@ class DuplexS2SModel(LightningModule):
             inputs_embeds=input_embeds, past_key_values=cache, use_cache=cache is not None, return_dict=True
         )
         B, T = input_embeds.shape[:2]
-        text_logits = self.lm_head(out['last_hidden_state'])  # (B, T, num_text_tokens)
+        text_logits = self.lm_head(out['last_hidden_state'])  # (B, T, text_vocab_size)
         audio_logits = self.audio_head(out['last_hidden_state']).view(
-            B, T, self.speech_vocab_size, self._num_codebooks
+            B, T, self._num_codebooks, self.speech_vocab_size
         )
         ans = {
             "text_logits": text_logits,
@@ -193,11 +191,11 @@ class DuplexS2SModel(LightningModule):
             target audio, and target token ids.
         """
 
-        def print(*args, **kwargs):
-            if hasattr(self, "device_mesh") and self.device_mesh is not None:
-                builtins.print(f"[{self.device_mesh.get_coordinate()}]", *args, **kwargs)
-            else:
-                builtins.print(f"[{torch.distributed.get_rank()}]", *args, **kwargs)
+        # def print(*args, **kwargs):
+        #     if hasattr(self, "device_mesh") and self.device_mesh is not None:
+        #         builtins.print(f"[{self.device_mesh.get_coordinate()}]", *args, **kwargs)
+        #     else:
+        #         builtins.print(f"[{torch.distributed.get_rank()}]", *args, **kwargs)
 
         # Source audio encoding.
         # Input audio: (B, T_samples)
@@ -206,7 +204,7 @@ class DuplexS2SModel(LightningModule):
             input_signal=batch["source_audio"], input_signal_length=batch["source_audio_lens"]
         )
 
-        # Target text preparation.
+        # Target text preparation. Match the sequence lengths with input audio stream.
         # Target tokens: (B, T)
         target_tokens = batch["target_tokens"]
         if (diff := target_tokens.shape[1] - source_encoded.shape[1]) < 0:
@@ -251,7 +249,7 @@ class DuplexS2SModel(LightningModule):
                 )
 
         # Insert speech BOS and speech EOS after we know input/output text/audio shapes are matching.
-        # Then, insert speech delay ID at the first position to indicate start of inference.
+        # Then, insert speech delay ID at the first position to indicate start of session.
         btt = target_tokens[..., None]  # broadcast target tokens to num_codebooks dim
         target_codes = torch.where(btt == self.text_bos_id, self.speech_bos_id, target_codes)
         target_codes = torch.where(btt == self.text_eos_id, self.speech_eos_id, target_codes)
@@ -297,8 +295,8 @@ class DuplexS2SModel(LightningModule):
 
         return {
             "input_embeds": input_embeds,
-            "input_lens": source_encoded_lens,
-            "output_lens": target_codes_lens,
+            "input_lens": source_encoded_lens - 1,
+            "output_lens": target_codes_lens - 1,
             "text_labels": text_labels,
             "audio_labels": audio_labels,
         }
@@ -310,15 +308,15 @@ class DuplexS2SModel(LightningModule):
         with loss_parallel():
             text_loss = (
                 torch.nn.functional.cross_entropy(
-                    forward_outputs["text_logits"].transpose(1, 2),
-                    inputs["text_labels"],
+                    forward_outputs["text_logits"].flatten(0, 1),  # (B, T, Vt) -> (*, Vt)
+                    inputs["text_labels"].flatten(0, 1),
                     reduction="sum",
                 )
                 / num_frames
             )
             audio_loss = torch.nn.functional.cross_entropy(
-                forward_outputs["audio_logits"].transpose(1, 2),
-                inputs["audio_labels"],
+                forward_outputs["audio_logits"].flatten(0, 2),  # (B, T, K, Vs) -> (*, Vs)
+                inputs["audio_labels"].flatten(0, 2),
                 reduction="sum",
             ) / (num_frames * self._num_codebooks)
 
@@ -327,21 +325,20 @@ class DuplexS2SModel(LightningModule):
         B, T = inputs["input_embeds"].shape[:2]
         print(f"{loss=} {B=} {T=}")
 
-        self.log_dict(
-            {
-                "loss": loss,
-                "learning_rate": torch.as_tensor(self.trainer.optimizers[0].param_groups[0]['lr']),
-                "text_loss": text_loss,
-                "audio_loss": audio_loss,
-                "batch_size": B,
-                "sequence_length": T,
-                "num_frames": num_frames.to(torch.float32),  # avoid warning
-                "padding_ratio": num_frames / (B * T),
-            },
-            on_step=True,
-        )
-
-        return loss
+        ans = {
+            "loss": loss,
+            "learning_rate": (
+                torch.as_tensor(self.trainer.optimizers[0].param_groups[0]['lr'] if self._trainer is not None else 0)
+            ),
+            "text_loss": text_loss,
+            "audio_loss": audio_loss,
+            "batch_size": B,
+            "sequence_length": T,
+            "num_frames": num_frames.to(torch.float32),  # avoid warning
+            "padding_ratio": num_frames / (B * T),
+        }
+        self.log_dict(ans, on_step=True)
+        return ans
 
     def on_validation_epoch_start(self) -> None:
         # Cleaning up GPU memory before we load ASRModel, because it may already
@@ -353,13 +350,18 @@ class DuplexS2SModel(LightningModule):
         # Setup a separate BLEU metric for each validation dataloader through CombinedLoader.
         # See: https://lightning.ai/docs/pytorch/LTS/guides/data.html#accessing-dataloaders-within-lightningmodule
         self._partial_val_losses = []
-        self.bleu = {}
+        self.asr_bleu = {}
+        self.text_bleu = {}
         for name in self.trainer.val_dataloaders.keys():
-            self.bleu[name] = SacreBLEUScore().to(self.device)
+            self.asr_bleu[name] = SacreBLEUScore().to(self.device)
+            self.text_bleu[name] = SacreBLEUScore().to(self.device)
 
     def on_validation_epoch_end(self) -> None:
-        for name, bleu in self.bleu.items():
+        for name, bleu in self.asr_bleu.items():
             self.log(f"val_asr_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
+            bleu.reset()
+        for name, bleu in self.text_bleu.items():
+            self.log(f"val_text_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
             bleu.reset()
         self.asr = None  # free up GPU memory
         val_loss = torch.mean(torch.stack(self._partial_val_losses))
@@ -377,15 +379,15 @@ class DuplexS2SModel(LightningModule):
             with loss_parallel():
                 text_loss = (
                     torch.nn.functional.cross_entropy(
-                        forward_outputs["text_logits"].transpose(1, 2),
-                        inputs["text_labels"],
+                        forward_outputs["text_logits"].flatten(0, 1),
+                        inputs["text_labels"].flatten(0, 1),
                         reduction="sum",
                     )
                     / num_frames
                 )
                 audio_loss = torch.nn.functional.cross_entropy(
-                    forward_outputs["audio_logits"].transpose(1, 2),
-                    inputs["audio_labels"],
+                    forward_outputs["audio_logits"].flatten(0, 2),
+                    inputs["audio_labels"].flatten(0, 2),
                     reduction="sum",
                 ) / (num_frames * self._num_codebooks)
 
@@ -401,7 +403,7 @@ class DuplexS2SModel(LightningModule):
             import torchaudio
 
             with torch.inference_mode():
-                predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=2).transpose(1, 2)
+                predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=-1).transpose(1, 2)
                 with _safe_audio_codec_inference():
                     predicted_audio, predicted_audio_lens = self._audio_codec.decode(
                         tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
@@ -411,7 +413,20 @@ class DuplexS2SModel(LightningModule):
                     batch_size=predicted_audio.shape[0],
                     verbose=False,
                 )
-            self.bleu[name].update([hyp.text for hyp in ans], [[tt] for tt in dataset_batch["target_texts"]])
+            hyp = [hyp.text for hyp in ans]
+            ref = [[tt] for tt in dataset_batch["target_texts"]]
+            # for h, (r,) in zip(hyp, ref):
+            #     print(f"[AUDIO] Ref: {r}\n[AUDIO] Hyp: {h}")
+            self.asr_bleu[name].update(hyp, ref)
+
+            hyp = [
+                self.tokenizer.ids_to_text(hyp_ids) for hyp_ids in forward_outputs["text_logits"].argmax(dim=-1).cpu()
+            ]
+            ref = [[tt] for tt in dataset_batch["target_texts"]]
+            # for h, (r,) in zip(hyp, ref):
+            #     print(f"[TEXT] Ref: {r}\n[TEXT] Hyp: {h}")
+            # Text BLEU
+            self.text_bleu[name].update(hyp, ref)
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()
@@ -457,7 +472,7 @@ class DuplexS2SModel(LightningModule):
         input_embeds[:, 0] += self._get_bos_embedding()
         ans = self(input_embeds[:, :1], cache=cache)
         gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)
-        gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-2)
+        gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-1)
 
         for t in range(1, input_embeds.shape[1]):
             input_embeds[:, t] += self.embed_tokens(gen_text[:, t - 1])
@@ -465,7 +480,7 @@ class DuplexS2SModel(LightningModule):
                 input_embeds[:, t] += self.embed_audio_tokens[cbidx](gen_audio[:, t - 1, cbidx])
             ans = self(input_embeds[:, t : t + 1], cache=ans["cache"])
             gen_text[:, t] = ans["text_logits"].argmax(dim=-1)[:, -1]
-            gen_audio[:, t] = ans["audio_logits"].argmax(dim=-2)[:, -1]
+            gen_audio[:, t] = ans["audio_logits"].argmax(dim=-1)[:, -1]
 
         return gen_text, gen_audio
 
@@ -483,11 +498,11 @@ class DuplexS2SModel(LightningModule):
             self.embed_audio_tokens.parameters(),
         )
         optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
-        lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {"scheduler": lr_scheduler, "interval": "step", "frequency": 1},
-        }
+        ans = {"optimizer": optimizer}
+        if "lr_scheduler" in self.cfg:
+            lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
+            ans["lr_scheduler"] = ({"scheduler": lr_scheduler, "interval": "step", "frequency": 1},)
+        return ans
 
     @property
     def oomptimizer_schema(self) -> dict:
