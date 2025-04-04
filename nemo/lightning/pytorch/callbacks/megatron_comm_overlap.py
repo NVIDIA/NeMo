@@ -210,49 +210,6 @@ class MegatronCommOverlapCallback(Callback):
 
         return comm_overlap_cfg
 
-    def _set_num_cuda_device_max_connections(self):
-        import os
-
-        import torch
-
-        from nemo.utils import AppState
-
-        app_state = AppState()
-        tp_size = app_state.tensor_model_parallel_size
-        cp_size = app_state.context_parallel_size
-        dp_size = app_state.data_parallel_size
-        pp_size = app_state.pipeline_model_parallel_size
-        major, _ = torch.cuda.get_device_capability()
-        if major > 9:
-            if (tp_size > 1 or cp_size > 1) and (dp_size > 1 or pp_size > 1):
-                """
-                We need extra connections to avoid serialization of streams,
-                so we use the max connections of 32 instead of the default
-                device connection of 8.
-                """
-                os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "32"
-                logging.info("Set CUDA_DEVICE_MAX_CONNECTIONS to 32")
-            else:
-                if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
-                    os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
-                logging.info("Unset CUDA_DEVICE_MAX_CONNECTIONS")
-        else:
-            if tp_size > 1 or cp_size > 1:
-                """
-                Set the device connection to 1 to enforce the kernel queuing
-                order from the host to the execution order on GPU. This is
-                needed to schedule a communication kernel before the
-                overlapping persistent GEMM kernel. Otherwise, the
-                communication kernel will be pushed to the end of the GEMM
-                kernel so failing to overlap the kernels.
-                """
-                os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "1"
-                logging.info("Set CUDA_DEVICE_MAX_CONNECTIONS to 1")
-            else:
-                if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
-                    os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
-                logging.info("Unset CUDA_DEVICE_MAX_CONNECTIONS")
-
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """Apply configs set in comm_overlap_cfg on trainer config."""
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
@@ -281,9 +238,6 @@ class MegatronCommOverlapCallback(Callback):
             self._apply_cfgs(comm_overlap_cfg, trainer.strategy.ddp_config)
             if hasattr(trainer.model, '__io__'):
                 self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.optim.config)
-
-        # setup cuda device max connections
-        self._set_num_cuda_device_max_connections()
 
     def _init_te_userbuffers(self, model_parallel_cfg: ModelParallelConfig):
         from megatron.core import parallel_state
