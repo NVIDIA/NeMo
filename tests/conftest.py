@@ -247,7 +247,10 @@ def pytest_configure(config):
         skip_cache = True
 
     if not skip_cache:
-        extract_data_from_tar(test_dir, __TEST_DATA_CACHE, local_data=True)
+        rmtree(test_dir)
+        mkdir(test_dir)
+        with tarfile.open(__TEST_DATA_CACHE) as tar:
+            tar.extractall(path=test_dir)
     elif config.option.use_local_test_data:
         test_data_local_size = get_size_with_fallback(test_data_archive)
         if test_data_local_size == -1:
