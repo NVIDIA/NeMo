@@ -23,6 +23,7 @@ from megatron.core.transformer.enums import ModelType
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
+from nemo.tron.utils.comm_overlap_utils import MegatronCommOverlapConfig
 from nemo.tron.utils.common_utils import get_world_size_safe
 
 
@@ -520,6 +521,7 @@ class ConfigContainer:
     ft_config: Optional[FaultToleranceConfig] = None
     straggler_config: Optional[StragglerDetectionConfig] = None
     profiling_config: Optional[ProfilingConfig] = None
+    comm_overlap_config: Optional[MegatronCommOverlapConfig] = None
 
     def __post_init__(self):
         # Run validations
@@ -573,4 +575,11 @@ class ConfigContainer:
         else:
             self.scheduler_config.lr_warmup_steps = (
                 self.scheduler_config.lr_warmup_iters * self.train_config.global_batch_size
+            )
+
+        if self.comm_overlap_config is not None:
+            self.comm_overlap_config.setup(
+                self.model_config,
+                self.optimizer_config,
+                self.dist_config,
             )

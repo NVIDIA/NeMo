@@ -243,7 +243,7 @@ def _update_model_config_funcs(
 ) -> None:
     """Update model config sync funcs based on initialized model."""
     if isinstance(model[0], DistributedDataParallel) and ddp_config.overlap_grad_reduce:
-        logger.info(
+        logger.warning(
             "overlap_grad_reduce is True, setting model_config.no_sync_func to None; "
             "a custom no_sync_func is not supported when overlapping grad-reduce"
         )

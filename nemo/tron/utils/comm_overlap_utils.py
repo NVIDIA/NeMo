@@ -14,6 +14,7 @@
 
 import logging
 from dataclasses import asdict, dataclass, fields
+from typing import Optional
 
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
@@ -21,12 +22,6 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import TransformerLayerTPOverlapCfg
 from nemo.collections.llm.t5.model.t5 import T5Config
-
-try:
-    from megatron.core.num_microbatches_calculator import get_micro_batch_size
-except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size
 
 try:
     import transformer_engine
@@ -56,38 +51,37 @@ class _CommOverlapConfig:
     wgrad_deferral_limit: int = None
 
 
-class MegatronCommOverlap:
-    def __init__(
-        self,
-        tp_comm_overlap: bool = None,
-        tp_comm_overlap_cfg: TransformerLayerTPOverlapCfg = None,
-        tp_comm_bootstrap_backend: str = None,
-        overlap_p2p_comm: bool = None,
-        batch_p2p_comm: bool = None,
-        overlap_grad_reduce: bool = None,
-        overlap_param_gather: bool = None,
-        overlap_param_gather_with_optimizer_step: bool = None,
-        align_param_gather: bool = None,
-        bucket_size: int = None,
-        defer_embedding_wgrad_compute: bool = None,
-        wgrad_deferral_limit: int = None,
-        data_parallel_size: int = None,
-    ):
+@dataclass(kw_only=True)
+class MegatronCommOverlapConfig:
+    tp_comm_overlap: bool
+    tp_comm_overlap_cfg: Optional[TransformerLayerTPOverlapCfg] = None
+    tp_comm_bootstrap_backend: Optional[str] = None
+    overlap_p2p_comm: Optional[bool] = None
+    batch_p2p_comm: Optional[bool] = None
+    overlap_grad_reduce: Optional[bool] = None
+    overlap_param_gather: Optional[bool] = None
+    overlap_param_gather_with_optimizer_step: Optional[bool] = None
+    align_param_gather: Optional[bool] = None
+    bucket_size: Optional[int] = None
+    defer_embedding_wgrad_compute: Optional[bool] = None
+    wgrad_deferral_limit: Optional[int] = None
+    data_parallel_size: Optional[int] = None
+
+    def __post_init__(self):
         self.user_comm_overlap_cfg = _CommOverlapConfig(
-            tp_comm_overlap=tp_comm_overlap,
-            tp_comm_overlap_cfg=tp_comm_overlap_cfg,
-            tp_comm_bootstrap_backend=tp_comm_bootstrap_backend,
-            overlap_p2p_comm=overlap_p2p_comm,
-            batch_p2p_comm=batch_p2p_comm,
-            overlap_grad_reduce=overlap_grad_reduce,
-            overlap_param_gather=overlap_param_gather,
-            overlap_param_gather_with_optimizer_step=overlap_param_gather_with_optimizer_step,
-            align_param_gather=align_param_gather,
-            bucket_size=bucket_size,
-            defer_embedding_wgrad_compute=defer_embedding_wgrad_compute,
-            wgrad_deferral_limit=wgrad_deferral_limit,
+            tp_comm_overlap=self.tp_comm_overlap,
+            tp_comm_overlap_cfg=self.tp_comm_overlap_cfg,
+            tp_comm_bootstrap_backend=self.tp_comm_bootstrap_backend,
+            overlap_p2p_comm=self.overlap_p2p_comm,
+            batch_p2p_comm=self.batch_p2p_comm,
+            overlap_grad_reduce=self.overlap_grad_reduce,
+            overlap_param_gather=self.overlap_param_gather,
+            overlap_param_gather_with_optimizer_step=self.overlap_param_gather_with_optimizer_step,
+            align_param_gather=self.align_param_gather,
+            bucket_size=self.bucket_size,
+            defer_embedding_wgrad_compute=self.defer_embedding_wgrad_compute,
+            wgrad_deferral_limit=self.wgrad_deferral_limit,
         )
-        self.data_parallel_size = data_parallel_size
         self.tp_comm_overlap_cfg = None
         self.tp_comm_bootstrap_backend = None
 
