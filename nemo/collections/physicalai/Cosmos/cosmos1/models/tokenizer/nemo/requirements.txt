@@ -1,0 +1,3 @@
+pip install megatron-energon==4.0.0 pyav
+pip install git+https://github.com/NVIDIA/NeMo-Run.git
+pip install moviepy==1.0.3 imageio
