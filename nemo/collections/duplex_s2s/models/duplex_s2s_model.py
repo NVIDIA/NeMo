@@ -95,15 +95,22 @@ class DuplexS2SModel(LightningModule):
     @property
     def speech_vocab_size(self):
         """Return the size of the audio codec codebook including extra speech BOS and EOS tokens."""
-        return self._codebook_size + 2
+        return self._codebook_size + 3
 
     @property
     def speech_bos_id(self) -> int:
+        """Indicates start of utterance generation (not start of inference!)."""
         return self._codebook_size
 
     @property
     def speech_eos_id(self) -> int:
+        """Indicates end of utterance generation."""
         return self._codebook_size + 1
+
+    @property
+    def speech_delay_id(self) -> int:
+        """Indicates start of inference (the very first frame)."""
+        return self._codebook_size + 2
 
     @property
     def text_vocab_size(self):
@@ -202,16 +209,18 @@ class DuplexS2SModel(LightningModule):
         # Target text preparation.
         # Target tokens: (B, T)
         target_tokens = batch["target_tokens"]
-        if target_tokens.shape[1] < source_encoded.shape[1]:
+        if (diff := target_tokens.shape[1] - source_encoded.shape[1]) < 0:
             target_tokens = torch.cat(
                 [
                     target_tokens,
-                    (torch.ones(source_encoded.shape[0], 1, device=source_encoded.device) * self.text_pad_id).to(
-                        torch.long
-                    ),
+                    (
+                        torch.ones(source_encoded.shape[0], abs(diff), device=source_encoded.device) * self.text_pad_id
+                    ).to(torch.long),
                 ],
                 dim=-1,
             )
+        elif diff > 0:
+            target_tokens = target_tokens[:, : source_encoded.shape[1]]
 
         # Target audio encoding.
         # Input target audio: (B, T_samples')
@@ -242,9 +251,22 @@ class DuplexS2SModel(LightningModule):
                 )
 
         # Insert speech BOS and speech EOS after we know input/output text/audio shapes are matching.
+        # Then, insert speech delay ID at the first position to indicate start of inference.
         btt = target_tokens[..., None]  # broadcast target tokens to num_codebooks dim
         target_codes = torch.where(btt == self.text_bos_id, self.speech_bos_id, target_codes)
         target_codes = torch.where(btt == self.text_eos_id, self.speech_eos_id, target_codes)
+        target_codes = torch.cat(
+            [
+                torch.full(
+                    [target_codes.shape[0], 1, target_codes.shape[-1]],
+                    fill_value=self.speech_delay_id,
+                    device=self.device,
+                    dtype=torch.long,
+                ),
+                target_codes[:, :-1],
+            ],
+            dim=1,
+        )
 
         # Combine target audio and text into a single tensor to slice them together.
         # It will also help us truncate the sequence lengths to be divisible by TP world size,
@@ -408,13 +430,7 @@ class DuplexS2SModel(LightningModule):
         The returned shape is (1, embedding_dim).
         """
         text_bos = torch.full((1,), fill_value=self.text_pad_id, device=self.device)
-        audio_zeros = torch.zeros((1, self._audio_codec.samples_per_frame), device=self.device, dtype=torch.bfloat16)
-        with _safe_audio_codec_inference():
-            audio_bos, _ = self._audio_codec.encode(
-                audio=audio_zeros,
-                audio_len=torch.tensor([self._audio_codec.samples_per_frame], device=self.device, dtype=torch.long),
-            )
-        audio_bos = audio_bos.transpose(1, 2)[:, 0]
+        audio_bos = torch.full((1, self._codebook_size), fill_value=self.speech_delay_id, device=self.device)
         input_embeds = self.embed_tokens(text_bos)
         for cbidx in range(self._num_codebooks):
             input_embeds.add_(self.embed_audio_tokens[cbidx](audio_bos[..., cbidx]))
@@ -618,6 +634,10 @@ def _safe_audio_codec_inference():
     This is because bf16-true temporarily changes the default float dtype to bf16,
     which cannot represent integers used in shape computations, and truncates them.
     """
+    yield
+    return
+
+    # Note(pzelasko): Disabling to validate that it works with latest updates to codec
     default_dtype = torch.get_default_dtype()
     torch.set_default_dtype(torch.float32)
     with torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.bfloat16):
