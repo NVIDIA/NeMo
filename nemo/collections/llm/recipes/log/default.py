@@ -81,7 +81,7 @@ def default_resume(resume_if_exists=True, resume_ignore_no_checkpoint=True) -> C
 
 def get_global_step_from_global_checkpoint_path(path: Union[str, Path]) -> int:
     """Extract global step based on formatted path.
-    
+
     Args:
         path (Union(str, Path)): Directory name should be formatted as
             {model_name}--{val_loss:.2f}-{step}-{consumed_samples}
@@ -98,7 +98,7 @@ def get_global_step_from_global_checkpoint_path(path: Union[str, Path]) -> int:
 
     # Find the parts after '--'
     double_dash_index = dir_name.index('--')
-    remaining = dir_name[double_dash_index+2:]  # Skip the '--' itself
+    remaining = dir_name[double_dash_index + 2 :]  # Skip the '--' itself
     parts = remaining.split('-')
     assert len(parts) == 3, "Unexpected path format found for {path}"
     # Global step should be at index 1

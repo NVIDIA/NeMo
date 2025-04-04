@@ -21,27 +21,18 @@ import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.types import _PATH
 from megatron.core.dist_checkpointing.tensor_aware_state_dict import MCoreTensorAwareStateDict
-from nemo.lightning.pytorch.trainer import Trainer
-from nemo.utils.callbacks.dist_ckpt_io import (
-    AsyncCompatibleCheckpointIO,
-    AsyncFinalizableCheckpointIO,
-)
-
 from nvidia_resiliency_ext.checkpointing.local.base_state_dict import TensorAwareStateDict
-from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.base_manager import (
-    BaseCheckpointManager,
-)
-from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import (
-    LocalCheckpointManager,
-)
-from nvidia_resiliency_ext.checkpointing.local.replication.strategies import (
-    LazyCliqueReplicationStrategy,
-)
+from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.base_manager import BaseCheckpointManager
+from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import LocalCheckpointManager
+from nvidia_resiliency_ext.checkpointing.local.replication.strategies import LazyCliqueReplicationStrategy
 from nvidia_resiliency_ext.fault_tolerance.dict_utils import dict_list_map_inplace
 from nvidia_resiliency_ext.ptl_resiliency.local_checkpoint_callback import (
     HierarchicalCheckpointIO,
     LocalCheckpointCallback,
 )
+
+from nemo.lightning.pytorch.trainer import Trainer
+from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO, AsyncFinalizableCheckpointIO
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +66,7 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
         parallelization_group: Optional[torch.distributed.ProcessGroup] = None,
         allow_cache: bool = False,
     ):
-        super().__init__(
-            wrapped_checkpoint_io, local_ckpt_manager, get_global_ckpt_iteration_fn, async_save
-        )
+        super().__init__(wrapped_checkpoint_io, local_ckpt_manager, get_global_ckpt_iteration_fn, async_save)
         self.local_ckpt_algo = local_ckpt_algo
         self.parallelization_group = parallelization_group
         self.cached_metadata = None
@@ -131,17 +120,17 @@ def update_trainer_local_checkpoint_io(
     **kwargs,
 ) -> None:
     """Update the Trainer with the corresponding MCoreHierarchicalCheckpointIO if local checkpointing is used.
-    
+
     Args:
         trainer (nl.Trainer): Trainer object to drive training loop.
         local_checkpoint_base_dir (str): Root directory under which to save local checkpoints.
         get_global_ckpt_iteration_fn (Callable): a function that retrieves the iteration of a global checkpoint
             that will be compared with local checkpoint iteration in order to decide which to resume from.
         **kwargs (dict): Additional kwargs passed to initialize MCoreHierarchicalCheckpointIO.
-    
+
     Note:
         Async saving of local checkpoints is inferred based on what was configured on the strategy, if available.
-    
+
     """
     callbacks = trainer.callbacks
     use_local_ckpt = any(isinstance(cb, LocalCheckpointCallback) for cb in callbacks)
