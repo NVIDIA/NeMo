@@ -80,12 +80,20 @@ def get_args(argv):
     parser.add_argument(
         "-dvm",
         "--device_map",
+        nargs='?',
+        choices=['auto', 'balanced', 'balanced_low_0', 'sequential'],
         default=None,
         type=str,
         help="Device mapping " "strategy for model placement " "(e.g. 'auto', 'sequential', etc)",
     )
     parser.add_argument(
-        "-tpp", "--tp_plan", default=None, type=str, help="Tensor parallelism " "plan for distributed inference"
+        "-tpp",
+        "--tp_plan",
+        nargs='?',
+        choices=['auto'],
+        default=None,
+        type=str,
+        help="Tensor parallelism plan for distributed inference"
     )
     parser.add_argument(
         "-trc",

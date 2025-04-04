@@ -30,8 +30,7 @@ def test_hf_generate():
     """Tests HF deployable class's generate function."""
 
     hf_deployable = HuggingFaceLLMDeploy(
-        #hf_model_id_path="/home/TestData/llm/models/llama3.2-1B-hf/",
-        hf_model_id_path="/opt/checkpoints/llama3.2-1B-hf",
+        hf_model_id_path="/home/TestData/llm/models/llama3.2-1B-hf/",
         task="text-generation",
         trust_remote_code=True,
         device_map=None,

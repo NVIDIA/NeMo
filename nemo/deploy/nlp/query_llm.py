@@ -180,7 +180,7 @@ class NemoQueryLLMHF(NemoQueryLLMBase):
         )
 
     # these arguments are explicitly defined in order to make it clear to user what they can pass
-    # names and optionality should exactly match the get_triton_input() results for MegatronGPTDeployable
+    # names and optionality should exactly match the get_triton_input() results for HuggingFaceLLMDeploy
     def query_llm(
         self,
         prompts: List[str],

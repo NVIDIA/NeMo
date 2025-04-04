@@ -45,15 +45,13 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             Can be a local path or a model ID from HuggingFace Hub.
         tokenizer_id_path (Optional[str]): Path to the tokenizer or tokenizer identifier.
             If None, will use the same path as hf_model_id_path.
+        model (Optional[AutoModel]): Pre-loaded HuggingFace model.
         tokenizer (Optional[AutoTokenizer]): Pre-loaded HuggingFace tokenizer.
         tokenizer_padding (bool): Whether to enable padding in tokenizer. Defaults to True.
         tokenizer_truncation (bool): Whether to enable truncation in tokenizer. Defaults to True.
         tokenizer_padding_side (str): Which side to pad on ('left' or 'right'). Defaults to 'left'.
         task (str): HuggingFace task type (e.g., "text-generation"). Defaults to "text-generation".
         **hf_kwargs: Additional keyword arguments to pass to HuggingFace model loading.
-    Raises:
-        ValueError: If neither hf_model_id_path nor model is provided.
-        ValueError: If hf_model_id_path is provided but task is not specified.
     """
 
     def __init__(
