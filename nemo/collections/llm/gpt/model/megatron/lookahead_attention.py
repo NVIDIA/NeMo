@@ -15,6 +15,7 @@ from typing import List, Optional
 
 import torch
 from nemo.utils import logging
+
 try:
     from megatron.core import parallel_state
     from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
@@ -56,6 +57,7 @@ class LookAheadAttentionTransformerLayer(TransformerLayer):
     Transformer layer takes input with size [s, b, h] and returns an
     output of the same size.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
@@ -70,19 +72,21 @@ class LookAheadAttentionTransformerLayer(TransformerLayer):
                 attention. If enabled, layers A to B-1 (inclusive) use lookahead. A-1 is the transition layer
         """
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(
-                "megatron-core is required to use Look Ahead Attention."
-            )
-        super().__init__(config=config, submodules=submodules, layer_number=layer_number, hidden_dropout=hidden_dropout)
+            raise ImportError("megatron-core is required to use Look Ahead Attention.")
+        super().__init__(
+            config=config, submodules=submodules, layer_number=layer_number, hidden_dropout=hidden_dropout
+        )
 
         if len(lookahead_parallel_layers) == 0:
             self.parallel_in = False
             self.parallel_out = False
         else:
-            assert config.pipeline_model_parallel_size == 1, "LookAheadAttention does not support pipeline parallelism."
-            assert (len(lookahead_parallel_layers) == 2)
+            assert (
+                config.pipeline_model_parallel_size == 1
+            ), "LookAheadAttention does not support pipeline parallelism."
+            assert len(lookahead_parallel_layers) == 2
             l = list(lookahead_parallel_layers)
-            assert (l[0] > 0 and l[1] < 61)
+            assert l[0] > 0 and l[1] < 61
             self.parallel_in = self.layer_number in range(l[0], l[1] + 1)
             self.parallel_out = self.layer_number in range(l[0] - 1, l[1])
 
@@ -128,7 +132,7 @@ class LookAheadAttentionTransformerLayer(TransformerLayer):
 
         # Residual connection.
         if self.parallel_in:
-            assert (hidden_states.ndim == 4 and hidden_states.shape[0] == 2)
+            assert hidden_states.ndim == 4 and hidden_states.shape[0] == 2
             hidden_states, residual = torch.split(hidden_states, 1, dim=0)
             hidden_states = hidden_states.squeeze(dim=0)
             residual = residual.squeeze(dim=0)
@@ -204,15 +208,13 @@ class LookAheadAttentionTransformerLayer(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(
-            inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
-        )
+        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         # ========== Code above same as TransformerLayer ==========
         # =========================================================
 
         if self.parallel_out:
-            assert(residual.shape == output.shape)
+            assert residual.shape == output.shape
             output = torch.stack((residual, output), dim=0)
 
         # CUDA graph requires returned values to be Tensors

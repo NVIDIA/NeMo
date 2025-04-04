@@ -1,9 +1,11 @@
-import nemo_run as run
-from nemo.collections import llm
-from typing import Optional, List, TYPE_CHECKING
-from nemo.collections.llm.gpt.model.megatron.lookahead_attention import LookAheadAttentionTransformerLayer
-from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from functools import partial
+from typing import TYPE_CHECKING, List, Optional
+
+import nemo_run as run
+from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
+
+from nemo.collections import llm
+from nemo.collections.llm.gpt.model.megatron.lookahead_attention import LookAheadAttentionTransformerLayer
 
 if TYPE_CHECKING:
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -19,6 +21,7 @@ def get_gpt_decoder_block_spec_lookahead_attn(
         spec.layer_specs[layer_i].module = LookAheadAttentionTransformerLayer
         spec.layer_specs[layer_i].params = {"lookahead_parallel_layers": lookahead_parallel_layers}
     return spec
+
 
 if __name__ == "__main__":
 
