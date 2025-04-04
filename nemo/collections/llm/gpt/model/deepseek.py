@@ -97,11 +97,11 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     persist_layer_norm = True
 
     # fusions
-    apply_rope_fusion = True
-    bias_activation_fusion = True
-    bias_dropout_fusion = True
-    masked_softmax_fusion = True
-    gradient_accumulation_fusion = True
+    apply_rope_fusion: bool = False
+    bias_activation_fusion: bool = True
+    bias_dropout_fusion: bool = True
+    masked_softmax_fusion: bool = True
+    gradient_accumulation_fusion: bool = True
 
 
 @dataclass
