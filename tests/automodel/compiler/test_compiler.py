@@ -162,7 +162,7 @@ def test_compile_module_none():
     mock_module = MagicMock()
     config = None
     with pytest.raises(ValueError):
-        compiled = compile_module(config, mock_module)
+        compile_module(config, mock_module)
     mock_module.compile.assert_not_called()
 
 
