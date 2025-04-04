@@ -127,7 +127,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if custom_tp_plan is not None:
             self.tp_shard_plan = custom_tp_plan
             logging.warning(
-                "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would not raise errors if the custom TP plan is not compatible. SP option will also be ignored."
+                "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would ",
+                "not raise errors if the custom TP plan is not compatible. SP option will also be ignored."
             )
         else:
             # Parallelize the first embedding and the last linear out projection
