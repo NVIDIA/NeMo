@@ -65,7 +65,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         fp8_wgrad: bool = True,
         fp8_dot_product_attention: bool = False,
         fp8_multi_head_attention: bool = False,
-        fp8_params: bool = False,
+        fp8_param_gather: bool = False,
         fp16_loss_scale: float = None,
         fp16_initial_loss_scale: float = 4294967296,
         fp16_min_loss_scale: float = 1.0,
@@ -75,8 +75,6 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         if isinstance(precision, int):
             precision = str(precision)
 
-        fp8_param_gather = fp8 is not None and fp8_params
-        fp8_param = fp8_param_gather
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
         self.dtype_config = DtypeConfig(
             fp32=precision in ['fp32', '32'],
@@ -98,7 +96,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             fp8_wgrad=fp8_wgrad,
             fp8_dot_product_attention=fp8_dot_product_attention,
             fp8_multi_head_attention=fp8_multi_head_attention,
-            fp8_param=fp8_param,
+            fp8_param=fp8_param_gather,
             fp8_param_gather=fp8_param_gather,
             # fp16 loss scale
             loss_scale=fp16_loss_scale,
