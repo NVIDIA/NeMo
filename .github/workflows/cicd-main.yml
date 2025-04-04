@@ -396,7 +396,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_Finetuning')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: ASR_dev_run_Speech_To_Text_Finetuning
+      SCRIPT: Optional_ASR_dev_run_Speech_To_Text_Finetuning
       IS_OPTIONAL: true
 
   Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning:
@@ -405,7 +405,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: ASR_dev_run_Speech_To_Text_HF_Finetuning
+      SCRIPT: Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning
       IS_OPTIONAL: true
 
   ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
@@ -573,7 +573,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Batch_Size_OOMptimizer_Canary')
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_Batch_Size_OOMptimizer_Canary
+      SCRIPT: Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
       IS_OPTIONAL: true
 
   # L2: Speech Transcription
