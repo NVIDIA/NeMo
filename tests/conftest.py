@@ -242,8 +242,11 @@ def pytest_configure(config):
     test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
     test_data_archive = join(dirname(__file__), __TEST_DATA_SUBDIR, __TEST_DATA_FILENAME)
 
+    # if the user does not have the /home/TestData, don't fail and download the file as usual.
+    if not skip_cache and not os.path.exists(__TEST_DATA_CACHE):
+        skip_cache = True
+
     if not skip_cache:
-        assert os.path.exists(__TEST_DATA_CACHE)
         extract_data_from_tar(test_dir, __TEST_DATA_CACHE, local_data=True)
     elif config.option.use_local_test_data:
         test_data_local_size = get_size_with_fallback(test_data_archive)
