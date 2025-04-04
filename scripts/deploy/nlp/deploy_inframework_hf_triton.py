@@ -93,7 +93,7 @@ def get_args(argv):
         choices=['auto'],
         default=None,
         type=str,
-        help="Tensor parallelism plan for distributed inference"
+        help="Tensor parallelism plan for distributed inference",
     )
     parser.add_argument(
         "-trc",
