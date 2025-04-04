@@ -268,8 +268,8 @@ def main():
         else None
     )
 
-    # CPUOffload WA, TP WA
-    if args.enable_cpu_offload or tp_size > 1:
+    # TP WA
+    if tp_size > 1:
         args.grad_clip = 0.0
 
     llm.api.finetune(
