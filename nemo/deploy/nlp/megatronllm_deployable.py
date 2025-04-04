@@ -310,7 +310,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
         temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
         top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
-        top_p = inputs.pop("top_p")[0][0] if "top_k" in inputs else 0.0
+        top_p = inputs.pop("top_p")[0][0] if "top_p" in inputs else 0.0
         num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
         log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
         apply_chat_template = inputs.pop("apply_chat_template")[0][0] if "apply_chat_template" in inputs else False
