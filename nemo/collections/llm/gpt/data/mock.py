@@ -50,6 +50,7 @@ class MockDataModule(pl.LightningDataModule):
         num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total
             test steps times global batch size.
     """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -179,7 +180,7 @@ class _MockGPTDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length+1], dtype=np.int64))
+        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
 
         batch = {
             "tokens": tokens[:-1],
