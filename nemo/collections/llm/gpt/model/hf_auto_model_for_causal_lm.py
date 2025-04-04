@@ -51,6 +51,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         use_liger_kernel=False,
         enable_grad_ckpt=False,
         device_map="cpu",
+        compiler_config=None,
     ):
         """
         Initialize the HFAutoModelForCausalLM.
