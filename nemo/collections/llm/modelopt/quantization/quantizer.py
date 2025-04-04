@@ -535,6 +535,4 @@ def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausa
             if isinstance(model, config_class):
                 return decoder_type
 
-    if isinstance(model, llm.GPTModel):
-        return "gpt"
     return None
