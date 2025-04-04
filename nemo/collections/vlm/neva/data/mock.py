@@ -27,6 +27,10 @@ from nemo.utils import logging
 
 
 class MockDataModule(pl.LightningDataModule):
+    """
+    A PyTorch Lightning DataModule for handling mock data.
+    """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -58,7 +62,7 @@ class MockDataModule(pl.LightningDataModule):
         self.packed_sequence = packed_sequence
 
         if tokenizer is None or image_processor is None:
-            logging.warning(f"Processor or tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
+            logging.warning("Processor or tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
@@ -74,7 +78,10 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        seq_length = self.seq_length
+        """
+        setup
+        """
+        seq_length = self.decoder_seq_len or self.seq_length
         if self.packed_sequence and self.micro_batch_size > 1:
             seq_length = seq_length // self.micro_batch_size
             logging.warning(
@@ -107,21 +114,33 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        """
+        Returns the training dataloader.
+        """
         if not hasattr(self, "_train_ds"):
             self.setup()
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        """
+        Returns the validation dataloader.
+        """
         if not hasattr(self, "_validation_ds"):
             self.setup()
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        """
+        Returns the test dataloader.
+        """
         if not hasattr(self, "_test_ds"):
             self.setup()
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+        """
+        Creates a DataLoader for the given dataset.
+        """
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
@@ -133,6 +152,10 @@ class MockDataModule(pl.LightningDataModule):
 
 
 class _MockNevaDataset(Dataset):
+    """
+    A mock dataset class for testing and validation purposes.
+    """
+
     def __init__(
         self,
         tokenizer,
@@ -162,14 +185,22 @@ class _MockNevaDataset(Dataset):
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self) -> int:
+        """
+        Returns the length of the dataset.
+        """
         return self.length
 
     def _get_text(self, idx: int) -> np.ndarray:
+        """
+        Get random text token ids
+        """
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         return np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
 
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
-        # Generate data of the expected size and datatype (based on GPTDataset).
+        """
+        Returns a single data sample from the dataset.
+        """
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(
             np_gen.integers(

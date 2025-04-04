@@ -400,8 +400,6 @@ def fake_initialize_model_parallel(
     but got {decoder_rank_generator.get_ranks('pp')} and {expert_decoder_rank_generator.get_ranks('pp')}"
 
     def generator_wrapper(group_type, is_expert=False, **kwargs):
-        from itertools import cycle
-
         """The `RankGenerator` class produces a hyper-rectangle for a given set of
         tensor, pipeline, data, expert, and context parallelism. If we have an encoder,
         in addition to the default decoder, we essentially instantiate two `RankGenerator`
@@ -419,7 +417,9 @@ def fake_initialize_model_parallel(
         if group_type == 'pp':
             # Map 1 encoder tp rank to several decoder tp ranks, because
             # these won't be the same size.
-            for x, y in zip(cycle(e_ranks), d_ranks):
+            rep = (len(d_ranks) - 1) // len(e_ranks) + 1
+            for i, y in enumerate(d_ranks):
+                x = e_ranks[i // rep]
                 yield x + y
         elif group_type == 'tp-pp':
             # For this group, we can just return the concatenated
