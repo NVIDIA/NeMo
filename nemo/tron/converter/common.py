@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import os
 import socket
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -57,12 +58,15 @@ def megatron_cpu_init_context(config):
 
 @contextmanager
 def temporary_distributed_context():
-    # Find an available port dynamically
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("localhost", 0))
-        addr, port = s.getsockname()
+    if "MASTER_ADDR" in os.environ and "MASTER_PORT" in os.environ:
+        init_method = None
+    else:
+        # Find an available port dynamically
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("localhost", 0))
+            addr, port = s.getsockname()
 
-    init_method = f"tcp://{addr}:{port}"
+        init_method = f"tcp://{addr}:{port}"
 
     dist.init_process_group(backend="gloo", init_method=init_method, world_size=1, rank=0)
     parallel_state.initialize_model_parallel()

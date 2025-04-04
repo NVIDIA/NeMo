@@ -191,6 +191,8 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         dataset_kwargs: Optional[dict[str, Any]] = None,
         hf_filter_lambda: Optional[Callable] = None,
         hf_filter_lambda_kwargs: Optional[dict[str, Any]] = None,
+        do_validation: bool = True,
+        do_test: bool = True,
     ) -> None:
         dataset_root = Path(dataset_root) if dataset_root else get_dataset_root(dataset_name)
 
@@ -205,6 +207,8 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
             dataset_kwargs=dataset_kwargs,
             max_train_samples=max_train_samples,
             packed_sequence_specs=packed_sequence_specs,
+            do_validation=do_validation,
+            do_test=do_test,
         )
 
         # HF-specific attributes
