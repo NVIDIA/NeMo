@@ -657,7 +657,7 @@ def deploy(
             pipeline_model_parallel_size=pipeline_parallelism_size,
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
-            inference_max_seq_length=max_input_len
+            inference_max_seq_length=max_input_len,
         )
 
         if torch.distributed.is_initialized():
@@ -691,8 +691,9 @@ def deploy(
                                 reload=True,
                             )
                         except Exception as error:
-                            logging.error("Error message has occurred during REST service start. Error message: "
-                                          + str(error))
+                            logging.error(
+                                "Error message has occurred during REST service start. Error message: " + str(error)
+                            )
                     logging.info("Model serving on Triton will be started.")
                     nm.serve()
                 except Exception as error:
@@ -706,7 +707,8 @@ def deploy(
 
     elif backend == "trtllm":
         from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
-        unset_environment_variables() ## Required for export to trtllm on clusters.
+
+        unset_environment_variables()  ## Required for export to trtllm on clusters.
         triton_deployable = get_trtllm_deployable(
             nemo_checkpoint,
             model_type,
@@ -748,7 +750,6 @@ def deploy(
 
         logging.info("Model serving will be stopped.")
         nm.stop()
-
 
 
 def evaluate(

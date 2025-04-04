@@ -34,6 +34,7 @@ class NemoQueryLLMBase(ABC):
     url (str): The URL of the inference server.
     model_name (str): The name of the model to be queried.
     """
+
     def __init__(self, url, model_name):
         self.url = url
         self.model_name = model_name

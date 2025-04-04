@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 from pathlib import Path
 from typing import List, Optional
-from jinja2 import Template
-import json
 
 import numpy as np
 import torch
 import torch.distributed
 import wrapt
+from jinja2 import Template
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.inference_request import InferenceRequest
 
@@ -36,6 +36,7 @@ def noop_decorator(func):
     """
     A no-operation decorator that simply calls the original function without modifying its behavior.
     """
+
     def wrapper(*args, **kwargs):
         """
         Wrapper method returning the func.
@@ -143,7 +144,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         expert_model_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
-        inference_max_seq_length: int = 4096
+        inference_max_seq_length: int = 4096,
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
@@ -177,7 +178,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             trainer=trainer,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            inference_max_seq_length=inference_max_seq_length
+            inference_max_seq_length=inference_max_seq_length,
         )
 
     def generate(
@@ -249,14 +250,14 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             template = Template(tokenizer_chat_template)
         except AttributeError:
             # If the tokenizer does not have chat_template
-            raise ValueError("The tokenizer does not have chat template, if you would like to evaluate chat model \
-                             ensure your model's tokenizer has a chat template")
+            raise ValueError(
+                "The tokenizer does not have chat template, if you would like to evaluate chat model \
+                             ensure your model's tokenizer has a chat template"
+            )
         # Render the template with the provided messages
         rendered_output = template.render(
-                    messages=messages,
-                    bos_token=bos_token,
-                    add_generation_prompt=add_generation_prompt
-                )
+            messages=messages, bos_token=bos_token, add_generation_prompt=add_generation_prompt
+        )
 
         return rendered_output
 
