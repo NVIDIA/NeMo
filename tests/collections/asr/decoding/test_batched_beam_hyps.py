@@ -26,14 +26,18 @@ from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 
 
+NestedFloatList = Union[float, List["NestedFloatList"]]  # recursive type alias
+
 def assert_nested_lists_approx(
-    actual: List[float], expected: List[float], rel_tol: float = 1e-4, abs_tol: float = 1e-4
-):
+    actual: NestedFloatList,
+    expected: NestedFloatList,
+    rel_tol: float = 1e-4,
+    abs_tol: float = 1e-4
+) -> None:
     """
     Recursively asserts that two nested lists of floats are approximately equal
     within a given relative and absolute tolerance.
     """
-
     if isinstance(actual, list) and isinstance(expected, list):
         assert len(actual) == len(expected), f"Length mismatch: {len(actual)} != {len(expected)}"
         for act, exp in zip(actual, expected):

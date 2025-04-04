@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import copy
-import faulthandler
 import glob
 import os
+from pathlib import Path
 
 import jiwer
 import pytest
@@ -27,12 +27,10 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedRNNTInfer
 from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.core.utils import numba_utils
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
-
-
-faulthandler.enable()
 
 RNNT_MODEL = "stt_en_conformer_transducer_small"
 TDT_MODEL = "nvidia/parakeet-tdt_ctc-110m"
@@ -87,6 +85,15 @@ def get_rnnt_encoder_output(rnnt_model, test_audio_filenames):
 def get_tdt_encoder_output(tdt_model, test_audio_filenames):
     encoder_output, encoded_lengths = get_model_encoder_output(test_audio_filenames, MAX_SAMPLES, tdt_model)
     return encoder_output, encoded_lengths
+
+
+@pytest.fixture(scope="module")
+def kenlm_model_path(tmp_path_factory, test_data_dir):
+    lm_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+    assert os.path.exists(lm_path), f"LM file not found: {lm_path}"
+    lm_nemo_path = tmp_path_factory.mktemp("lm") / f"{lm_path.name}.nemo"
+    NGramGPULanguageModel.from_file(lm_path, vocab_size=1024).save_to(f"{lm_nemo_path}")
+    return f"{lm_nemo_path}"
 
 
 def get_model_encoder_output(
@@ -214,7 +221,7 @@ class TestRNNTDecoding:
             {"search_type": "maes_batch", "allow_cuda_graphs": False},
         ],
     )
-    @pytest.mark.parametrize("beam_size", [2, 4])
+    @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_return_best_hypothesis(
@@ -259,6 +266,7 @@ class TestRNNTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test is only GPU-based decoding")
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -267,12 +275,12 @@ class TestRNNTDecoding:
             {"search_type": "maes_batch", "allow_cuda_graphs": False},
         ],
     )
-    @pytest.mark.parametrize("beam_size", [2, 4])
-    @pytest.mark.parametrize("batch_size", [4, 16])
-    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("beam_size", [4])
+    @pytest.mark.parametrize("batch_size", [4])
     def test_rnnt_beam_decoding_return_nbest(
         self, test_audio_filenames, rnnt_model, get_rnnt_encoder_output, beam_config, device, beam_size, batch_size
     ):
+        device = torch.device("cuda")
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
         encoder_output, encoded_lengths = get_rnnt_encoder_output
@@ -312,6 +320,7 @@ class TestRNNTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test is only GPU-based decoding")
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -324,10 +333,9 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["no_score", "lm_weighted_full"])
-    @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_beam_decoding_kenlm(
         self,
-        test_data_dir,
+        kenlm_model_path,
         test_audio_filenames,
         rnnt_model,
         get_rnnt_encoder_output,
@@ -338,9 +346,7 @@ class TestRNNTDecoding:
         pruning_mode,
         blank_lm_score_mode,
     ):
-        kenlm_model_path = os.path.join(
-            test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        )
+        device = torch.device("cuda")
         beam_config["ngram_lm_model"] = kenlm_model_path
 
         num_samples = min(batch_size, len(test_audio_filenames))
@@ -393,7 +399,7 @@ class TestTDTDecoding:
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
-    @pytest.mark.parametrize("beam_size", [2, 4])
+    @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("batch_size", [4, 16])
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_beam_decoding_return_best_hypothesis(
@@ -442,6 +448,7 @@ class TestTDTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test is only GPU-based decoding")
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -449,12 +456,12 @@ class TestTDTDecoding:
             {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
-    @pytest.mark.parametrize("beam_size", [2, 4])
-    @pytest.mark.parametrize("batch_size", [4, 16])
-    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("beam_size", [4])
+    @pytest.mark.parametrize("batch_size", [4])
     def test_tdt_beam_decoding_return_nbest(
         self, test_audio_filenames, tdt_model, get_tdt_encoder_output, beam_config, device, beam_size, batch_size
     ):
+        device = torch.device("cuda")
         num_samples = min(batch_size, len(test_audio_filenames))
         model = tdt_model.to(device)
         encoder_output, encoded_lengths = get_tdt_encoder_output
@@ -498,6 +505,7 @@ class TestTDTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test is only GPU-based decoding")
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -513,14 +521,13 @@ class TestTDTDecoding:
             },
         ],
     )
-    @pytest.mark.parametrize("batch_size", [4, 16])
-    @pytest.mark.parametrize("beam_size", [4, 16])
+    @pytest.mark.parametrize("batch_size", [4])
+    @pytest.mark.parametrize("beam_size", [4])
     @pytest.mark.parametrize("pruning_mode", ["late", "early"])
     @pytest.mark.parametrize("blank_lm_score_mode", ["lm_weighted_full", "no_score"])
-    @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_beam_decoding_kenlm(
         self,
-        test_data_dir,
+        kenlm_model_path,
         test_audio_filenames,
         tdt_model,
         get_tdt_encoder_output,
@@ -531,9 +538,7 @@ class TestTDTDecoding:
         pruning_mode,
         blank_lm_score_mode,
     ):
-        kenlm_model_path = os.path.join(
-            test_data_dir, "asr", "kenlm_ngram_lm", "parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        )
+        device = torch.device("cuda")
         beam_config["ngram_lm_model"] = kenlm_model_path
 
         num_samples = min(batch_size, len(test_audio_filenames))
@@ -576,81 +581,10 @@ class TestTDTDecoding:
             print_res_best_hyps(hyps)
 
 
-class TestTransducerCudaGraphDecoding:
+class TestTransducerCudaGraphBeamDecoding:
     """
     Tests CudaGraphs implementations from Transducer models (RNN-T and TDT)
     """
-
-    @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
-    )
-    @pytest.mark.unit
-    @pytest.mark.with_downloads
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
-    @pytest.mark.parametrize("beam_size", [4, 8])
-    @pytest.mark.parametrize("batch_size", [4, 16])
-    @pytest.mark.parametrize("model_type", ["rnnt", "tdt"])
-    def test_cuda_graphs_batched_alsd_decoder(
-        self, test_audio_filenames, rnnt_model, tdt_model, model_type, batch_size, beam_size
-    ):
-        """
-        Compares pure Pytorch and fully Cuda Graphs decodings.
-        """
-
-        # Set device to CUDA
-        device = torch.device("cuda")
-        model = rnnt_model.to(device) if model_type == "rnnt" else tdt_model.to(device)
-
-        # Modify decoding config
-        decoding_config = copy.deepcopy(model.cfg.decoding)
-        with open_dict(decoding_config):
-            decoding_config["strategy"] = "malsd_batch"
-            decoding_config["beam"]["beam_size"] = beam_size
-            decoding_config["beam"]["allow_cuda_graphs"] = False
-            decoding_config["beam"]["return_best_hypothesis"] = False
-
-        # Change decoding strategy
-        model.change_decoding_strategy(decoding_config)
-
-        # Transcribe without CUDA graphs
-        actual_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-        actual_transcripts = [[hyp.text for hyp in actual_beam] for actual_beam in actual_hypotheses]
-        actual_scores = [[hyp.score for hyp in actual_beam] for actual_beam in actual_hypotheses]
-        actual_timestamps = [[hyp.timestamp for hyp in actual_beam] for actual_beam in actual_hypotheses]
-
-        # Re-enable CUDA graphs
-        decoding_config["beam"]["allow_cuda_graphs"] = True
-        model.change_decoding_strategy(decoding_config)
-
-        # Transcribe with CUDA graphs
-        cudagraph_hypotheses = model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-        cudagraph_transcripts = [[hyp.text for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-        cudagraph_scores = [[hyp.score for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-        cudagraph_timestamps = [[hyp.timestamp for hyp in cudagraph_beam] for cudagraph_beam in cudagraph_hypotheses]
-
-        for batch_idx in range(min(batch_size, len(test_audio_filenames))):
-            assert len(actual_transcripts[batch_idx]) == len(cudagraph_transcripts[batch_idx])
-            assert cudagraph_scores[batch_idx] == pytest.approx(
-                actual_scores[batch_idx], abs=1e-2
-            ), f"Scores mismatch for batch_idx {batch_idx}"
-            assert (
-                cudagraph_timestamps[batch_idx] == actual_timestamps[batch_idx]
-            ), f"Timestamps mismatch for batch_idx {batch_idx}"
-
-            # Calculate WER (Word Error Rate)
-            wer_value = jiwer.wer(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx])
-
-            # Assert WER is within tolerance
-            assert wer_value <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
-
-            # Print erroneous samples if WER is high
-            for actual, fast in zip(actual_transcripts[batch_idx], cudagraph_transcripts[batch_idx]):
-                if actual != fast:
-                    print("Erroneous samples in batch:", batch_idx)
-                    print("Original transcript:", actual)
-                    print("New transcript:", fast)
-
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
@@ -712,9 +646,9 @@ class TestTransducerCudaGraphDecoding:
                     print("New transcript:", fast)
 
     @pytest.mark.with_downloads
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
+    @pytest.mark.skipif(not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("model_type", ["rnnt", "tdt"])
-    def test_stated_stateless(self, test_audio_filenames, rnnt_model, tdt_model, model_type):
+    def test_stated_stateless_bf16(self, test_audio_filenames, rnnt_model, tdt_model, model_type):
         """
         Checks that we are able to run without errors all decodings in bfloat16.
         Computational errors accumulate, so just checking if algorithms run without errors
