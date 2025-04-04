@@ -611,6 +611,12 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             with open_dict(self.cfg):
                 self.cfg.encoder.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
+    
+    # def get_custom_decoder_mems_mask(self, canary_data: CanaryData):
+    #     import pdb; pdb.set_trace()
+    #     pass
+
+    
     def conformer_stream_step(
         self,
         cfg: DictConfig,
@@ -767,7 +773,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         # first decoding step
                         tgt, batch_size, _ = self.decoding.decoding.greedy_search._prepare_for_search(
                             canary_data.decoder_input_ids,
-                            canary_data.encoded_speech
+                            canary_data.encoded_speech,
                         )
                         input_ids = tgt
                     else:
@@ -848,89 +854,167 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             elif cfg.decoding_policy == "alignatt":
                 if canary_data.decoding_step < 0:
                     # first decoding step
-                    tgt, batch_size, canary_data.max_generation_length = self.decoding.decoding.greedy_search._prepare_for_search(canary_data.decoder_input_ids, canary_data.encoded_speech)
+                    tgt, batch_size, _ = self.decoding.decoding.greedy_search._prepare_for_search(
+                        canary_data.decoder_input_ids, 
+                        canary_data.encoded_speech,
+                    )
                     input_ids = tgt
                 else:
-                    tgt = canary_data.tgt
-                    input_ids = tgt[:, -1:]
-                start_from = canary_data.decoding_step + 1
+                    # tgt = canary_data.tgt
+                    # input_ids = tgt[:, -1:]
+                    input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1].unsqueeze(-1)
 
                 decoder_mems_list = canary_data.decoder_mems_list
+                start_from = canary_data.decoding_step + 1
+                
+                # import pdb; pdb.set_trace()
+
+                # if decoder_mems_list:
+                #     # clear decoder_mems_list from non active predicted tokens
+                #     index_mask = torch.zeros(decoder_mems_list[0].shape[-3], decoder_mems_list[0].shape[-2], device=self.device)
+                #     # index_mask = torch.zeros_like(decoder_mems_list[0])
+                #     indeces = torch.arange(0, decoder_mems_list[0].shape[1], device=self.device)
+                #     index_mask += indeces
+                #     index_mask = torch.where(index_mask <= canary_data.current_context_lengths.unsqueeze(-1)-2, True, False)
+                #     for i in range(len(decoder_mems_list)):
+                #         # TODO replace with non-blocking operation
+                #         # decoder_mems_list[i] = torch.where(index_mask <= canary_data.current_context_lengths.unsqueeze(-1)-2, decoder_mems_list[i], 0)
+                #         decoder_mems_list[i][torch.logical_not(index_mask)] = 0
+                #     # import pdb; pdb.set_trace()
+
+                
                 for i in range(start_from, canary_data.max_generation_length):
+                    # TODO do I need to change positional encoding for all the samples? It can have different value because of asynchronous decoding
                     if i != 0 and start_from == 0:
                         # need to shift steps up to len of decoder_input_ids for correct position encoding
                         i += canary_data.decoder_input_ids.size(-1)
+                    positional_indexes = torch.zeros_like(canary_data.current_context_lengths)
+                    if i != 0:
+                        # TODO do I need to apply -1?
+                        positional_indexes = canary_data.current_context_lengths
+                    
+                    # # prepare decoder_mems_list mask:
+                    # if start_from == 0:
+                    #     custom_decoder_mems_mask = None
+                    # else:
+                    #     import pdb; pdb.set_trace()
+                    #     pass
+                    #     # custom_decoder_mems_mask = self.get_custom_decoder_mems_mask(canary_data)
+                    
+                    # import pdb; pdb.set_trace()
+                    
                     logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
                         input_ids,
                         canary_data.encoded_speech,
                         encoder_input_mask,
                         decoder_mems_list,
-                        i,
+                        positional_indexes,
                         return_scores=False,
                         return_xatt_scores=True,
+                        # custom_decoder_mems_mask=canary_data.decoder_mems_list_mask,
                     )
                     # compute the most attended encoder token
-                    # import pdb; pdb.set_trace()
                     xatt_scores = xatt_scores_list[cfg.xatt_scores_layer]
                     xatt_scores = torch.mean(xatt_scores, 1)
-                    if i == 0 and xatt_scores.shape[-1] < cfg.exclude_sink_frames:
+                    if i == 0 and xatt_scores.shape[-1] <= cfg.exclude_sink_frames:
                         exclude_sink_frames = xatt_scores.shape[-1] - 2
                     else:
                         exclude_sink_frames = cfg.exclude_sink_frames
-                    most_attended_idx = torch.argmax(xatt_scores[:,:,exclude_sink_frames:], dim=-1) + cfg.exclude_sink_frames
-                    if i == 0:
-                        most_attended_idx = most_attended_idx[:, -1]
+                    most_attended_idxs = torch.argmax(xatt_scores[:,:,exclude_sink_frames:], dim=-1) + cfg.exclude_sink_frames
                     
+                    # 0 step hase prompt tokens, we need to exclude them from the most attended idxs
+                    if i == 0:
+                        most_attended_idxs = most_attended_idxs[:, -1]
+                    else:
+                        most_attended_idxs = most_attended_idxs.squeeze(-1)
+
                     next_tokens = torch.argmax(logits[:, -1], dim=-1)
                     text_token = self.tokenizer.ids_to_tokens(next_tokens.tolist())
-                    
+
+                    # aligatt condition (True -- continue decoding, False -- wait for more speech)
+                    alignatt_condition = canary_data.encoded_speech.shape[1] - (most_attended_idxs+1) >= cfg.alignatt_thr
+
+                    # alignatt condition is always True for the last speech chunk
+                    torch.logical_or(alignatt_condition, canary_data.is_last_speech_chunk, out=alignatt_condition)
+
+                    # applay alignatt condition for inner loop
+                    torch.logical_and(alignatt_condition, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
+
                     if cfg.debug_mode:
                         logging.warning(f"-------------"*5)
                         logging.warning(f"decoding step i: {i}")
-                        logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
-                        logging.warning(f"[most_attended_idx]: {most_attended_idx}")
-                        logging.warning(f"[predicted token]: {text_token}")
-                        logging.warning(f"[predicted token id]: {next_tokens}")
+                        logging.warning(f"[encoded_speech.shape]     : {canary_data.encoded_speech.shape}")
+                        logging.warning(f"[most_attended_idxs]       : {most_attended_idxs}")
+                        logging.warning(f"[is_last_speech_chunk]     : {canary_data.is_last_speech_chunk}")
+                        logging.warning(f"[active_samples]           : {canary_data.active_samples}")
+                        logging.warning(f"[active_samples_inner_loop]: {canary_data.active_samples_inner_loop}")
+                        logging.warning(f"[current_context_lengths]  : {canary_data.current_context_lengths}")
+                        logging.warning(f"[predicted tokens]         : {text_token}")
+                        logging.warning(f"[predicted tokens id]: {next_tokens}")
 
-                    # aligatt condition
-                    if not canary_data.is_last_speech_chunk and \
-                        canary_data.encoded_speech.shape[1] - (most_attended_idx+1) < cfg.alignatt_thr:
-                        # need to wait for the next speech chunk
+
+                    if cfg.debug_mode:                       
+                        import pdb; pdb.set_trace()
+                        pass
+
+
+
+                    # increase speech chunk if no active samples in inner loop
+                    if not torch.any(canary_data.active_samples_inner_loop) and torch.any(torch.logical_not(canary_data.is_last_speech_chunk)):
                         if cfg.debug_mode:
                             logging.warning(f"!!! need more speech according to the alignatt policy !!!")
-                        greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
+                        canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device)
+                        torch.logical_and(canary_data.active_samples, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
                         break
-                    
-                    # prevent tokens hallucination (repetative predcitions)
-                    # TODO finde a example to test this condition (I noticed this on for ASR only Canary model)
-                    # if i > 15 and next_tokens == tgt[:, -1] and next_tokens == tgt[:, -2] and next_tokens == tgt[:, -3]:
-                    #     logging.warning(f"Tokens hallucination detected: {next_tokens}, stop decoding")
-                    #     return None
 
-                    # prevent earlu stop if we still have speech to process
-                    if next_tokens == self.tokenizer.eos or next_tokens == 16:
-                        if not canary_data.is_last_speech_chunk:
-                            if cfg.debug_mode:
-                                logging.warning(f"!#! EOS predicted before last speech chunk, wait for more speech !#!")
-                        else:
-                            if cfg.debug_mode:
-                                logging.warning(f"!#! EOS predicted during last speech chunk, end of decoding !#!")
-                        greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
+                    # TODO take into account token with id 16
+                    is_eos_tokens = next_tokens == self.tokenizer.eos
+                    # import pdb; pdb.set_trace()
+
+                    # rearange active samples (inner loop) depends on eos prediction
+                    torch.logical_and(canary_data.active_samples_inner_loop, torch.logical_not(is_eos_tokens), out=canary_data.active_samples_inner_loop)
+
+                    # rearange active samples (upper loop) depends on eos and end of speech
+                    eos_and_end_speech_mask = torch.logical_and(is_eos_tokens, canary_data.is_last_speech_chunk)
+                    torch.logical_and(canary_data.active_samples, torch.logical_not(eos_and_end_speech_mask), out=canary_data.active_samples)
+
+                    if not torch.any(canary_data.active_samples_inner_loop):
+                        if cfg.debug_mode:
+                            logging.warning(f"!#! no active samples in inner loop, do next upper step !#!")
+                        canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device)
+                        torch.logical_and(canary_data.active_samples, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
                         break
-                    
-                    tgt = torch.cat((tgt, next_tokens.unsqueeze(1)), dim=-1)
-                    greedy_predictions = tgt[:, canary_data.decoder_input_ids.size(-1):]
 
-                    canary_data.decoder_mems_list = decoder_mems_list
+                    # write predicted tokens to the tgt tensor
+                    next_tokens[torch.logical_not(canary_data.active_samples_inner_loop)] = self.tokenizer.eos
+                    canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] = next_tokens
+
                     canary_data.decoding_step = i
-                    canary_data.pred_tokens_alignment.append([text_token[0], canary_data.encoded_speech.size(-2)])
-                    canary_data.tgt = tgt
-                    input_ids = tgt[:, -1:]
+                    input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                    canary_data.current_context_lengths += canary_data.active_samples_inner_loop
+                    # canary_data.current_context_lengths[canary_data.active_samples_inner_loop] += 1
 
-                    # all_hyp_or_transcribed_texts.append(next_tokens)
+                    # # change decoder_mems_list
+                    # TODO and torch.any(canary_data.active_samples_inner_loop)
+                    if torch.any(torch.logical_not(canary_data.active_samples_inner_loop)):
+                        for i in range(len(decoder_mems_list)):
+                            # decoder_mems_list[i][:, -1] *= torch.logical_not(canary_data.active_samples_inner_loop)
+                            decoder_mems_list[i][:, -1][torch.logical_not(canary_data.active_samples_inner_loop)] = 0
+                    # import pdb; pdb.set_trace()
+                    canary_data.decoder_mems_list = decoder_mems_list
+
+                    # TODO suppoer tokens alignment for laal computation
+                    
+                    # canary_data.pred_tokens_alignment.append([text_token[0], canary_data.encoded_speech.size(-2)])
+
+                    # canary_data.tgt[:, :13]
                 
                     if cfg.debug_mode:
-                        import pdb; pdb.set_trace() 
+                        pass
+                        # import pdb; pdb.set_trace()
+
+                for i in range(batch_size):
+                    greedy_predictions.append(canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.current_context_lengths[i]])
 
             else:
                 raise ValueError("Canary streaming decoding supports only alignatt or waitk decodong policy")

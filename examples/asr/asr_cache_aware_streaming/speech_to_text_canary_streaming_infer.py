@@ -175,17 +175,19 @@ def compute_laal(delays, source_length, target_length):
     return LAAL
 
 
-def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
-    try:
-        assert len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
-    except:
-        logging.warning("The alignment length does not match the predicted token length")
-        return 5000
-    target_length_word = [len(a.split()) for a in sample['text']]
+def compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+    # try:
+    #     assert len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
+    # except:
+    #     logging.warning("The alignment length does not match the predicted token length")
+    #     return 5000
+    # target_length_word = [len(a.split()) for a in batch_samples['text']]
+    target_length_word = [len(a['text'].split()) for a in batch_samples]
+    laal_list = []
     # import pdb; pdb.set_trace()
     for i, tokens in enumerate(predicted_token_ids):
         audio_encoder_fs = 80
-        audio_signal_length = sample["audio_length_ms"]
+        audio_signal_length = batch_samples[i]["audio_length_ms"]
         # obtain lagging for alignatt
         lagging = []
         for cur_t, pred_idx in canary_data.pred_tokens_alignment:
@@ -198,7 +200,8 @@ def compute_alignatt_lagging(sample, predicted_token_ids, canary_data, asr_model
         if len(lagging) == 0:
             lagging.append(0)
         laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
-    return laal
+        laal_list.append(laal)
+    return laal_list
 
 
 def compute_waitk_lagging(batch_samples, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581"):
@@ -303,7 +306,7 @@ def perform_streaming(
     for i in range(len(pred_out_stream)):
         transcription = asr_model.tokenizer.ids_to_text(pred_out_stream[i].tolist()).strip()
         final_streaming_tran.append(transcription)
-        # logging.warning(f"[pred_text] {i}: {transcription}")
+        logging.warning(f"[pred_text] {i}: {transcription}")
 
     return final_streaming_tran, pred_out_stream
 
@@ -355,7 +358,6 @@ def main(cfg: StreamingEvaluationConfig):
     filepaths = sorted_manifest_path if sorted_manifest_path is not None else filepaths
     # cfg = compute_output_filename(cfg, model_name)
 
-
     override_cfg = asr_model.get_transcribe_config()
     override_cfg.batch_size = cfg.batch_size
     override_cfg.num_workers = cfg.num_workers
@@ -380,9 +382,6 @@ def main(cfg: StreamingEvaluationConfig):
     
 
     # default_turns = asr_model.prompt.get_default_dialog_slots()
-
-    # import pdb; pdb.set_trace()
-
     # default_turns[0]["slots"]["prompt_language"] = "spl_tokens"
     # default_turns = [default_turns[0]]
     # decoder_input_ids = asr_model.prompt.encode_dialog(turns=default_turns)["context_ids"].unsqueeze(0).repeat(1, 1).to(cfg.device)
@@ -423,8 +422,7 @@ def main(cfg: StreamingEvaluationConfig):
             for line in f:
                 item = json.loads(line)
                 samples.append(item)
-            # import pdb; pdb.set_trace()
-            # samples = sorted(samples.items(), key=lambda x:x["duration"], reverse=True)
+            # sort the samples by duration to reduce batched decoding time (about 2 times faster than default order)
             samples = sorted(samples, key=lambda x: x['duration'], reverse=True)
 
         logging.warning(f"Loaded {len(samples)} from the manifest at {cfg.dataset_manifest}.")
@@ -452,14 +450,15 @@ def main(cfg: StreamingEvaluationConfig):
                 # logging.warning(f'[orig_text]: {sample["text"]}')
                 
                 # initialize the canary data
-                
                 current_batch_size = len(streaming_buffer.streams_length)
                 canary_data.batch_idxs = torch.arange(current_batch_size, dtype=torch.long, device=asr_model.device)
                 canary_data.current_context_lengths = torch.zeros_like(canary_data.batch_idxs) + decoder_input_ids.size(-1)
                 canary_data.decoder_input_ids = decoder_input_ids[:current_batch_size]
+                # canary_data.decoder_mems_list_mask = torch.ones_like(canary_data.decoder_input_ids)
                 canary_data.tgt = torch.full([current_batch_size, canary_data.max_generation_length], asr_model.tokenizer.eos, dtype=torch.long, device=asr_model.device)
                 canary_data.tgt[:, :canary_data.decoder_input_ids.size(-1)] = canary_data.decoder_input_ids
                 canary_data.active_samples = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
+                canary_data.active_samples_inner_loop = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
                 
                 # import pdb; pdb.set_trace()
                 

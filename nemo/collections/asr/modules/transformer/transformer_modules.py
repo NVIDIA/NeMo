@@ -109,10 +109,28 @@ class TransformerEmbedding(nn.Module):
                 f"Input sequence is longer than maximum allowed sequence length for positional encoding. "
                 f"Got {seq_length} and {self.max_sequence_length}"
             )
+        
+        # prepare position embedding for asynchronius decoding (canary streaming)
+        if torch.is_tensor(start_pos):
+            shift_pos = start_pos.unsqueeze(-1)
+            start_pos = 0
+        else:
+            shift_pos = None
+
         position_ids = torch.arange(
             start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device
         )
         position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
+
+        # import pdb; pdb.set_trace()
+
+        if torch.is_tensor(shift_pos):
+            # shift_pos is a tensor, so we need to add it to the position_ids
+            # and make sure that the resulting position_ids are within the
+            # range of the positional embedding
+            position_ids = position_ids + shift_pos
+            # position_ids = torch.clamp(position_ids, 0, self.max_sequence_length - 1)
+
 
         token_embeddings = self.token_embedding(input_ids)
         position_embeddings = self.position_embedding(position_ids)
@@ -181,6 +199,9 @@ class MultiHeadAttention(nn.Module):
 
         # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
         attention_scores = torch.matmul(query, key.transpose(-1, -2))
+
+        # import pdb; pdb.set_trace()
+
         if attention_mask is not None:
             attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
         attention_probs = torch.softmax(attention_scores, dim=-1)
