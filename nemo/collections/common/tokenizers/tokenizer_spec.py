@@ -64,6 +64,7 @@ class TokenizerSpec(ABC):
 
     @property
     def name(self):
+        """ name of the class """
         return type(self).__name__
 
     @property
