@@ -253,6 +253,9 @@ def pytest_configure(config):
         rmtree(test_dir)
         mkdir(test_dir)
         with tarfile.open(__TEST_DATA_CACHE) as tar:
+            for entry in tar:
+                if os.path.isabs(entry.name) or ".." in entry.name:
+                    raise ValueError(f"Illegal tar archive entry: {entry.name}")
             tar.extractall(path=test_dir)
     elif config.option.use_local_test_data:
         test_data_local_size = get_size_with_fallback(test_data_archive)
