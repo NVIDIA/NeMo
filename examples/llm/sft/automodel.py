@@ -171,6 +171,7 @@ def main():
     jit_config = None
     if args.use_torch_jit:
         from nemo.automodel.compiler import TorchCompileConfig
+
         jit_config = TorchCompileConfig(kwargs={'dynamic': True})
 
     if args.use_te_optimizer:

@@ -281,6 +281,7 @@ def main():
     jit_config = None
     if args.use_torch_jit:
         from nemo.automodel.compiler import TorchCompileConfig
+
         jit_config = TorchCompileConfig(kwargs={'dynamic': True})
 
     model = llm.HFAutoModelForCausalLM(model_name=args.model, compiler_config=jit_config)
