@@ -33,6 +33,7 @@ inprocess, HAVE_RES = safe_import('nvidia_resiliency_ext.inprocess')
 @dataclass
 class InProcessRestartConfig:
     """Settings to configure in process restart wrapper."""
+
     monitor_thread_interval: float = 1.0
     monitor_process_interval: float = 1.0
     progress_watchdog_interval: float = 1.0
@@ -101,7 +102,7 @@ def _destroy_mcore_global_state() -> None:
 
 def get_rank_assignment_layers(config: InProcessRestartConfig) -> List["inprocess.rank_assignment.Layer"]:
     """Support rank-reassignment.
-    
+
     Layers represents a configuration for a layer of branches at a certain
     depth in a topology tree constructed by inprocess.rank_assignment.Tree.
     The first layer here contains all ranks and it's the root of the topology tree,
@@ -129,7 +130,7 @@ def get_rank_assignment_layers(config: InProcessRestartConfig) -> List["inproces
 
 
 def maybe_set_torch_cpp_log_level_error() -> None:
-    """Condtionally set Set TORCH_CPP_LOG_LEVEL to error to avoid logspam. """
+    """Condtionally set Set TORCH_CPP_LOG_LEVEL to error to avoid logspam."""
     if "TORCH_CPP_LOG_LEVEL" not in os.environ or os.environ['TORCH_CPP_LOG_LEVEL'] not in ("error", "fatal"):
         warnings.warn('Setting TORCH_CPP_LOG_LEVEL=error to suppress c10d waitForInput timeout warning messages')
         os.environ["TORCH_CPP_LOG_LEVEL"] = "error"
