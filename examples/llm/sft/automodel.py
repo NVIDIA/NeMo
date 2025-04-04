@@ -34,7 +34,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
+def make_squad_hf_dataset(tokenizer, batch_size, packed_sequence_size, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -60,12 +60,16 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
         global_batch_size=batch_size,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
     )
+    ## tokenization is happening here
     datamodule.map(
         formatting_prompts_func,
         batched=False,
         batch_size=2,
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
+    # Pack the sequences in the dataset if packed_sequence_size > 0
+    if packed_sequence_size > 0:
+        datamodule.pack(packed_sequence_size)
     return datamodule
 
 
@@ -154,7 +158,14 @@ def main():
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
     parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
-
+    parser.add_argument(
+        '--packed-sequence-size',
+        type=int,
+        default=-1,
+        help='If a positive integer, this arg'
+        'enables training with sequence packing and specifies the pack size. If less than or equal to 0, sequence '
+        'packing is disabled.',
+    )
     args = parser.parse_args()
     # CPUOffload WA for known issue
     if args.enable_cpu_offload and args.use_te_optimizer:
@@ -206,7 +217,12 @@ def main():
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer, args.batch_size, args.fp8),
+        data=make_squad_hf_dataset(
+            model.tokenizer,
+            args.batch_size,
+            args.packed_sequence_size,
+            args.fp8,
+        ),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
