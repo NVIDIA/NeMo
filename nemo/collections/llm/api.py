@@ -606,7 +606,8 @@ def deploy(
         Default: True.
         fastapi_http_address (str): HTTP address for FastAPI interface/server.  Default: "0.0.0.0". OAI endpoints via
         FastAPI interface are only supported for "in-framework" backend.
-        fastapi_port (int): Port for FastAPI interface/server. Applicable only for "in-framework" backend. Default: 8080.
+        fastapi_port (int): Port for FastAPI interface/server. Applicable only for "in-framework" backend.
+        Default: 8080.
         num_gpus (int): Number of GPUs per node for export to trtllm and deploy. Default: 1.
         tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
         pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.

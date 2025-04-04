@@ -268,6 +268,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         return output
 
     def str_to_dict(self, json_str):
+        """
+        Convert str to dict
+        """
         return json.loads(json_str)
 
     @property
