@@ -32,7 +32,7 @@ from nemo.utils.metaclasses import Singleton
 __TEST_DATA_FILENAME = "test_data.tar.gz"
 __TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v1.0.0rc1/"
 __TEST_DATA_SUBDIR = ".data"
-
+__TEST_DATA_CACHE = "/home/TestData/akoumparouli/v1.0.0rc1/test_data.tar.gz"
 
 def pytest_addoption(parser):
     """
@@ -48,6 +48,11 @@ def pytest_addoption(parser):
         '--use_local_test_data',
         action='store_true',
         help="pass that argument to use local test data/skip downloading from URL/GitHub (DEFAULT: False)",
+    )
+    parser.addoption(
+        "--no-test-data-cache",
+        action='store_true',
+        help='pass this if you want to avoid using the cached test_data file',
     )
     parser.addoption(
         '--with_downloads',
@@ -204,6 +209,13 @@ def k2_cuda_is_enabled(k2_is_appropriate) -> Tuple[bool, str]:
     else:
         return False, "k2 needs CUDA to be available in torch."
 
+def get_size_with_fallback(path):
+    # Get size of local test_data archive.
+    try:
+        return getsize(path)
+    except:
+        # File does not exist.
+        return -1
 
 def pytest_configure(config):
     """
@@ -224,18 +236,17 @@ def pytest_configure(config):
         "markers",
         "nightly: runs the nightly test for QA.",
     )
+    skip_cache = config.getoption("--no-test-data-cache", default=False)
+
     # Test dir and archive filepath.
     test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
     test_data_archive = join(dirname(__file__), __TEST_DATA_SUBDIR, __TEST_DATA_FILENAME)
 
-    # Get size of local test_data archive.
-    try:
-        test_data_local_size = getsize(test_data_archive)
-    except:
-        # File does not exist.
-        test_data_local_size = -1
-
-    if config.option.use_local_test_data:
+    if not skip_cache:
+        assert os.path.exists(__TEST_DATA_CACHE)
+        extract_data_from_tar(test_dir, __TEST_DATA_CACHE, local_data=True)
+    elif config.option.use_local_test_data:
+        test_data_local_size = get_size_with_fallback(test_data_archive)
         if test_data_local_size == -1:
             pytest.exit("Test data `{}` is not present in the system".format(test_data_archive))
         else:
@@ -244,10 +255,13 @@ def pytest_configure(config):
                     __TEST_DATA_FILENAME, test_data_local_size, test_dir
                 )
             )
+        # untar local test data
+        extract_data_from_tar(test_dir, test_data_archive, local_data=True)
 
     # Get size of remote test_data archive.
-    url = None
-    if not config.option.use_local_test_data:
+    elif not config.option.use_local_test_data:
+        test_data_local_size = get_size_with_fallback(test_data_archive)
+        url = None
         try:
             url = __TEST_DATA_URL + __TEST_DATA_FILENAME
             u = urllib.request.urlopen(url)
@@ -283,10 +297,8 @@ def pytest_configure(config):
                     __TEST_DATA_FILENAME, test_data_local_size, test_dir
                 )
             )
-
     else:
-        # untar local test data
-        extract_data_from_tar(test_dir, test_data_archive, local_data=config.option.use_local_test_data)
+        raise RuntimeError()
 
     if config.option.relax_numba_compat is not None:
         from nemo.core.utils import numba_utils
