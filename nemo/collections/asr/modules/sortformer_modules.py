@@ -30,6 +30,7 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import EncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.core.neural_types.elements import ProbsType
+from typing import Optional, Dict, List, Union
 
 __all__ = ['SortformerModules']
 
@@ -113,7 +114,7 @@ class SortformerModules(NeuralModule, Exportable):
         mask = arange.expand(batch_size, max_length) < lengths.unsqueeze(1)
         return mask
 
-    def streaming_feat_loader(self, feat_seq, feat_seq_length, feat_seq_offset):
+    def streaming_feat_loader(self, feat_seq, feat_seq_length, feat_seq_offset) -> Tuple[int, torch.Tensor, torch.Tensor]:
         """
         Load a chunk of feature sequence for streaming inference.
 
@@ -123,7 +124,7 @@ class SortformerModules(NeuralModule, Exportable):
             feat_seq_length (torch.Tensor): Tensor containing feature sequence lengths
                 Dimension: (batch_size,)
 
-        Yields:
+        Returns:
             step_idx (int): Index of the current step
             chunk_feat_seq (torch.Tensor): Tensor containing the chunk of feature sequence
                 Dimension: (batch_size, diar frame count, feat_dim)
@@ -134,10 +135,8 @@ class SortformerModules(NeuralModule, Exportable):
         num_chunks = math.ceil(feat_len / (self.step_len * self.subsampling_factor))
         if self.log:
             logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}, feat_seq_length={feat_seq_length}, feat_seq_offset={feat_seq_offset}")
-        stt_feat = 0
-        end_feat = 0
+        stt_feat, end_feat, step_idx = 0, 0, 0
         current_step_len = min(self.init_step_len, self.step_len)
-        step_idx = 0
         while end_feat < feat_len:
             left_offset = min(self.step_left_context * self.subsampling_factor, stt_feat)
             end_feat = min(stt_feat + current_step_len * self.subsampling_factor, feat_len)
@@ -157,6 +156,17 @@ class SortformerModules(NeuralModule, Exportable):
                 current_step_len *= 2
      
     def forward_speaker_sigmoids(self, hidden_out):
+        """ 
+        The final layer that renders speaker probabilities in Sigmoid activation function.
+        
+        Args:
+            hidden_out (torch.Tensor): tensor containing hidden states from the encoder
+                Dimension: (batch_size, max_len, hidden_size)
+                
+        Returns:
+            preds (torch.Tensor): tensor containing speaker probabilities in Sigmoid activation function
+                Dimension: (batch_size, num_spks)
+        """
         hidden_out = self.dropout(F.relu(hidden_out))
         hidden_out = self.first_hidden_to_hidden(hidden_out)
         hidden_out = self.dropout(F.relu(hidden_out))
@@ -164,9 +174,20 @@ class SortformerModules(NeuralModule, Exportable):
         preds = nn.Sigmoid()(spk_preds)
         return preds
     
-    def concat_embs(self, list_of_tensors=[], return_lengths=False, dim=1, device=None):
+    def concat_embs(self, list_of_tensors=List[torch.Tensor], return_lengths: bool=False, dim: int=1, device: bool=None):
+        """
+        Concatenate a list of tensors along the specified dimension.
         
-        embs = torch.cat(list_of_tensors, dim=dim).to(device) # B x T x D
+        Args:
+            list_of_tensors (List[torch.Tensor]): List of tensors to concatenate
+            return_lengths (bool): Whether to return lengths of the concatenated tensors
+            dim (int): Dimension along which to concatenate
+            device (torch.device): device to use for tensor operations
+            
+        Returns:
+            embs (torch.Tensor): concatenated tensor
+        """
+        embs = torch.cat(list_of_tensors, dim=dim).to(device) # Shape: (batch_size, frames (max_len), total_emb_dim)
         lengths = torch.tensor(embs.shape[1]).repeat(embs.shape[0]).to(device)
         
         if return_lengths:
@@ -565,7 +586,7 @@ class SortformerModules(NeuralModule, Exportable):
         return frames
 
     
-    def pred_to_frame(self, mem_pred, fifo_pred, chunk_pred, step_idx=0):
+    def pred_to_frame(self, mem_pred, fifo_pred, chunk_pred, step_idx=0, fontsize=20):
         '''
         Generate a frame from the memory, FIFO queue, and chunk predictions at one step.
         Args:
@@ -581,7 +602,6 @@ class SortformerModules(NeuralModule, Exportable):
 
         cmap_str = 'viridis'
         aspect_float = 7.0
-        FS = 20
         offset = round(step_idx * self.step_len * 0.08, 2) 
 
         # Plotting
@@ -591,8 +611,8 @@ class SortformerModules(NeuralModule, Exportable):
         cax0 = axs[0].imshow(mem_pred.T, cmap=cmap_str, interpolation='nearest', aspect=aspect_float)
         cax2 = axs[1].imshow(fifo_pred.T, cmap=cmap_str, interpolation='nearest', aspect=aspect_float)
         cax3 = axs[2].imshow(chunk_pred.T, cmap=cmap_str, interpolation='nearest', aspect=aspect_float)
-        axs[0].set_title('Memory', fontsize=FS)
-        axs[1].set_title('FIFO queue', fontsize=FS)
+        axs[0].set_title('Memory', fontsize=fontsize)
+        axs[1].set_title('FIFO queue', fontsize=fontsize)
         minutes = int(offset // 60)
         seconds = offset % 60
         axs[2].set_title(f'Chunk {minutes:02}:{seconds:05.2f}', fontsize=FS)
