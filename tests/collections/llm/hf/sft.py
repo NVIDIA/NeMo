@@ -27,7 +27,6 @@ from transformers import AutoModelForCausalLM
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 from nemo.lightning.pytorch.strategies.utils import to_cpu
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
@@ -322,9 +321,10 @@ def main():
         model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
 
     callbacks = []
+    jit_config = None
     if args.use_torch_jit:
-        jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
-        callbacks = [JitTransform(jit_config)]
+        from nemo.automodel.compiler import TorchCompileConfig
+        jit_config = TorchCompileConfig(kwargs={'dynamic': True})
 
     if args.auto_resume:
         callbacks.append(ValidateCheckpointRestoreCallback())
@@ -337,7 +337,7 @@ def main():
             return ans
 
     model_cls = ZeroInitHFAutoModelForCausalLM if args.auto_resume else llm.HFAutoModelForCausalLM
-    model = model_cls(model_name=args.model, model_accelerator=model_accelerator)
+    model = model_cls(model_name=args.model, model_accelerator=model_accelerator, compiler_config=jit_config)
 
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 

@@ -21,7 +21,6 @@ from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
-from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
 # Run this example with torchrun, for example:
@@ -170,10 +169,10 @@ def main():
             name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
 
-    callbacks = []
+    jit_config = None
     if args.use_torch_jit:
-        jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
-        callbacks = [JitTransform(jit_config)]
+        from nemo.automodel.compiler import TorchCompileConfig
+        jit_config = TorchCompileConfig(kwargs={'dynamic': True})
 
     if args.use_te_optimizer:
         # Use TE optimizer
@@ -195,6 +194,7 @@ def main():
         use_liger_kernel=args.liger,
         load_in_4bit=args.load_in_4bit,
         enable_grad_ckpt=args.enable_grad_ckpt,
+        compiler_config=args.jit_config,
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True, args.enable_cpu_offload)
 
