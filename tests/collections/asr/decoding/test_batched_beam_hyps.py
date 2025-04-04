@@ -28,11 +28,9 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypothe
 
 NestedFloatList = Union[float, List["NestedFloatList"]]  # recursive type alias
 
+
 def assert_nested_lists_approx(
-    actual: NestedFloatList,
-    expected: NestedFloatList,
-    rel_tol: float = 1e-4,
-    abs_tol: float = 1e-4
+    actual: NestedFloatList, expected: NestedFloatList, rel_tol: float = 1e-4, abs_tol: float = 1e-4
 ) -> None:
     """
     Recursively asserts that two nested lists of floats are approximately equal
