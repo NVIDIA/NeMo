@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import os
 import socket
 from typing import Any, Callable, Dict, Optional
 
@@ -163,11 +164,15 @@ def update_trainer_local_checkpoint_io(
         repl_strategy = None
 
     local_ckpt_manager = LocalCheckpointManager(
-        f"{local_checkpoint_base_dir}/local_ckpt/{socket.gethostname()}",
+        os.path.join(local_checkpoint_base_dir, "local_ckpt", socket.gethostname()),
         repl_strategy=repl_strategy,
     )
     hierarchical_checkpointing_io = MCoreHierarchicalCheckpointIO(
-        checkpoint_io, local_ckpt_manager, get_global_ckpt_iteration_fn, async_save=async_save, **kwargs,
+        checkpoint_io,
+        local_ckpt_manager,
+        get_global_ckpt_iteration_fn,
+        async_save=async_save,
+        **kwargs,
     )
 
     if async_save:
