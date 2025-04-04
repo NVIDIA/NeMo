@@ -30,7 +30,7 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from torch.distributed.tensor.parallel import ColwiseParallel, ParallelStyle, RowwiseParallel, SequenceParallel
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
 from typing_extensions import override
 
 from nemo.lightning import io
