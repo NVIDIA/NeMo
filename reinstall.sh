@@ -5,6 +5,7 @@ set -ex
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
   "trtllm"
+  "te"
   "mcore"
   "nemo"
   "vllm"
@@ -42,12 +43,12 @@ trtllm() {
     if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
       cd $TRTLLM_DIR &&
         . docker/common/install_tensorrt.sh \
-          --TRT_VER="10.8.0.43" \
+          --TRT_VER="10.9.0.34" \
           --CUDA_VER="12.8" \
-          --CUDNN_VER="9.7.0.66-1" \
+          --CUDNN_VER="9.8.0.87-1" \
           --NCCL_VER="2.25.1-1+cuda12.8" \
-          --CUBLAS_VER="12.8.3.14-1" \  &&
-        python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
+          --CUBLAS_VER="12.8.4.1-1" &&
+        python3 ./scripts/build_wheel.py --job_count $(nproc) --clean --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
     fi
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
