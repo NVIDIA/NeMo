@@ -16,9 +16,8 @@ import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
+from nemo.automodel.accelerator.transformer_engine import is_te_accelerated
 from nemo.collections import llm
-from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
-
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -88,17 +87,15 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
-    model_accelerator = None
+    te_config = None
     if args.model_accelerator == "te":
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+        from nemo.automodel.accelerator.transformer_engine import TEConfig
 
-        model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
+        te_config = TEConfig(fp8_autocast=args.fp8_autocast)
 
-    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+    from nemo.automodel.accelerator.transformer_engine import te_accelerate
 
-    model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=model_accelerator, load_pretrained_weights=False
-    )
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, te_config=te_config, load_pretrained_weights=False)
     tokenizer = model.tokenizer
 
     llm.api.finetune(
@@ -122,11 +119,10 @@ if __name__ == '__main__':
         log=None,
     )
 
-    if args.model_accelerator:
-        if args.model_accelerator == "te":
-            te_acc = is_te_accelerated(model.model)
-            assert te_acc, "Transformer Engine acceleration was unsuccessful"
-            print("TE Accelerated: ", te_acc)
+    if args.model_accelerator == "te":
+        te_acc = is_te_accelerated(model.model)
+        assert te_acc, "Transformer Engine acceleration was unsuccessful"
+        print("TE Accelerated: ", te_acc)
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)

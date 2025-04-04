@@ -43,7 +43,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         tokenizer=None,
         loss_fn=masked_cross_entropy,
         model_transform=None,
-        model_accelerator=None,
+        te_config=None,
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
@@ -61,7 +61,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             tokenizer (AutoTokenizer, optional): A pre-configured tokenizer. Defaults to None.
             loss_fn (callable, optional): Loss function to use. Defaults to masked_cross_entropy.
             model_transform (callable, optional): Function to transform the model after creation. Defaults to None.
-            model_accelerator (callable, optional): Function to accelerate or optimize the model. Defaults to None.
+            te_config (TEConfig, optional): Dataclass with TE-related options (FP8). Defaults to None.
             trust_remote_code (bool, optional): Whether to trust remote code during model/tokenizer loading.
                 Defaults to False.
             default_dtype (torch.dtype, optional): Default data type for the model. Defaults to torch.bfloat16.
@@ -80,7 +80,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.load_pretrained_weights = load_pretrained_weights
         self.is_hf_model = True
         self.model_transform = model_transform
-        self.model_accelerator = model_accelerator
+        self.te_config = te_config
         self.trust_remote_code = trust_remote_code
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
@@ -208,10 +208,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             _apply_liger_kernel_to_instance(model=self.model)
 
-        if self.model_accelerator is not None:
-            from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+        if self.te_config is not None:
+            from nemo.automodel._accelerate.transformer_engine import te_accelerate
 
-            te_accelerate(self.model, self.model_accelerator.fp8_autocast)
+            te_accelerate(self.model, self.te_config)
 
         if self.enable_grad_ckpt:
             if getattr(self.model, 'supports_gradient_checkpointing', False):
