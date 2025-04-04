@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
     # Evaluation code
     logging.info("Waiting for server readiness...")
-    server_ready = wait_for_server_ready(max_retries=40)
+    server_ready = wait_for_server_ready(max_retries=60)
     if server_ready:
         logging.info("Starting evaluation...")
         api_endpoint = ApiEndpoint(nemo_checkpoint_path=args.nemo2_ckpt_path)
