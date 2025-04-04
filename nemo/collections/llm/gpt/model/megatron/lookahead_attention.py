@@ -128,12 +128,7 @@ class LookAheadAttentionTransformerLayer(TransformerLayer):
 
         # Residual connection.
         if self.parallel_in:
-            try:
-                assert(hidden_states.ndim == 4 and hidden_states.shape[0] == 2)
-            except AssertionError:
-                print(f"Encountered assertion error in layer {self.layer_number}. {hidden_states.ndim=} {hidden_states.shape=}")
-                import time
-                time.sleep(1000)
+            assert (hidden_states.ndim == 4 and hidden_states.shape[0] == 2)
             hidden_states, residual = torch.split(hidden_states, 1, dim=0)
             hidden_states = hidden_states.squeeze(dim=0)
             residual = residual.squeeze(dim=0)
