@@ -691,7 +691,8 @@ def deploy(
                                 reload=True,
                             )
                         except Exception as error:
-                            logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+                            logging.error("Error message has occurred during REST service start. Error message: "
+                                          + str(error))
                     logging.info("Model serving on Triton will be started.")
                     nm.serve()
                 except Exception as error:

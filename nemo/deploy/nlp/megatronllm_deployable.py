@@ -33,7 +33,13 @@ from nemo.deploy.utils import NEMO2, cast_output, nemo_checkpoint_version, str_n
 
 @wrapt.decorator
 def noop_decorator(func):
+    """
+    A no-operation decorator that simply calls the original function without modifying its behavior.
+    """
     def wrapper(*args, **kwargs):
+        """
+        Wrapper method returning the func.
+        """
         return func(*args, **kwargs)
 
     return wrapper
@@ -269,7 +275,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
 
     def str_to_dict(self, json_str):
         """
-        Convert str to dict
+        Convert str to dict.
         """
         return json.loads(json_str)
 

@@ -632,7 +632,9 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length) -> torch.Tensor:
+    def get_inference_wrapper(
+            self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
+            ) -> torch.Tensor:
         """Get an inference wrapper for the model.
 
         Creates and configures a GPTInferenceWrapper around the model for efficient inference.
