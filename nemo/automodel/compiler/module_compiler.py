@@ -24,7 +24,7 @@ def compile_module(config, module):
     """Jit-compiles an nn.Module
 
     Args:
-        config (JitConfig): jit config
+        config (TorchCompileConfig, ThunderConfig): compiler config
         module (nn.Module): the module to be compiled
 
     Returns:
