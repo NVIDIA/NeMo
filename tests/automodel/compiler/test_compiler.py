@@ -22,13 +22,14 @@ from unittest.mock import MagicMock
 
 import pytest
 import torch
+from unittest.mock import MagicMock, patch
 
-from nemo.lightning.pytorch.callbacks.jit_transform import (
-    JitConfig,
-    JitTransform,
+from nemo.automodel.compiler import (
+    TorchCompileConfig,
     compile_module,
-    extract_module_attr_name,
     get_modules_from_selector,
+    compile_module_from_config,
+    extract_module_attr_name,
     listify,
 )
 
@@ -112,64 +113,93 @@ def test_get_modules_from_selector_wildcard_children():
 
 
 def test_jit_config_assertion():
-    # Should raise if both use_torch and use_thunder
-    with pytest.raises(AssertionError):
-        JitConfig(use_torch=True, use_thunder=True)
-
-
-def test_compile_module_torch():
+    # Should raise if not TorchCompileConfig / ThunderConfig
     mock_module = MagicMock()
-    config = JitConfig(use_torch=True, torch_kwargs={"some_arg": 123})
-    compiled = compile_module(config, mock_module)
-    mock_module.compile.assert_called_once_with(some_arg=123)
-    assert compiled
+    with pytest.raises(ValueError):
+        compile_module({}, mock_module)
 
+@pytest.fixture
+def mock_module_torch():
+    # Create a mock that pretends to be an nn.Module
+    pl_module = MagicMock(spec=torch.nn.Module)
+    # Make sure there's a .model attribute that we can access
+    pl_module.model = MagicMock(spec=torch.nn.Module)
+    # Initially, pretend it is not yet compiled
+    pl_module._compiled = False
+    return pl_module
 
-def test_compile_module_thunder():
-    mock_module = MagicMock()
-    config = JitConfig(use_thunder=True)
-    compiled = compile_module(config, mock_module)
-    mock_module.compile.assert_called_once()
-    assert compiled
+def test_compile_module_torch(mock_module_torch):
+    config = TorchCompileConfig(kwargs={"some_arg": 123})
+    compile_module_from_config(config, mock_module_torch)
+    mock_module_torch.compile.assert_called_once_with(some_arg=123)
+    assert mock_module_torch._compiled == True
+
+def test_compile_module_torch_with_path(mock_module_torch):
+    config = TorchCompileConfig(module_selector="block1", kwargs={"some_arg": 123})
+
+    # Ensure there's a `block1` attribute on the module so getattr(module, "block1") works
+    mock_module_torch.block1 = MagicMock(spec=torch.nn.Module)
+
+    with patch("nemo.automodel.compiler.module_compiler.extract_module_attr_name", return_value="model"), \
+         patch("nemo.automodel.compiler.module_compiler.get_modules_from_selector",
+               return_value=[mock_module_torch.block1]), \
+         patch("nemo.automodel.compiler.module_compiler.compile_module") as mock_compile:
+        
+        compile_module_from_config(config, mock_module_torch)
+        mock_compile.assert_called_once_with(config, mock_module_torch.block1)
+    
+    # Now ensure _compiled was set to True
+    assert mock_module_torch._compiled is True
 
 
 def test_compile_module_none():
     mock_module = MagicMock()
-    config = JitConfig()
-    compiled = compile_module(config, mock_module)
+    config = None
+    with pytest.raises(ValueError):
+        compiled = compile_module(config, mock_module)
     mock_module.compile.assert_not_called()
-    assert not compiled
 
 
-def test_jit_transform_no_config():
-    # If config is None, on_train_epoch_start returns early
-    transform = JitTransform(JitConfig(use_thunder=False, use_torch=False))
-    trainer_mock = MagicMock()
-    pl_module = MagicMock(spec=[])
-    transform.on_train_epoch_start(trainer_mock, pl_module)
-    assert not getattr(pl_module, '_compiled', False)
-
-
-def test_jit_transform_already_compiled():
-    transform = JitTransform(JitConfig(use_torch=True))
-    trainer_mock = MagicMock()
-    pl_module = MagicMock(spec=[])
-    pl_module._compiled = True
-    pl_module.module = True
-    transform.on_train_epoch_start(trainer_mock, pl_module)
-    # Should remain True, and compile should not be called again
-    assert pl_module._compiled is True
-    assert pl_module.module == True
-
-
-def test_jit_transform_compile_once():
-    # simulate successful compile (torch or thunder)
-    transform = JitTransform(JitConfig(use_torch=True))
-    trainer_mock = MagicMock()
-
-    # pl_module with the 'module' attribute (matching whatever name you expect inside transform)
+@pytest.mark.parametrize("config_class", [TorchCompileConfig])
+def test_compile_sets_compiled_flag(config_class):
+    # Arrange
     pl_module = MagicMock()
-    pl_module.module = MagicMock()
+    # By default, pretend it's not compiled yet:
+    setattr(pl_module, "_compiled", False)
+    config = config_class()
 
-    transform.on_train_epoch_start(trainer_mock, pl_module)
-    assert pl_module._compiled is True
+    # Mock out dependencies
+    with patch("nemo.automodel.compiler.extract_module_attr_name", return_value="model"), \
+         patch("nemo.automodel.compiler.get_modules_from_selector", return_value=[MagicMock()]), \
+         patch("nemo.automodel.compiler.compile_module"):
+        # Act
+        compile_module_from_config(config, pl_module)
+
+    # Assert
+    assert getattr(pl_module, "_compiled") is True
+
+def test_compile_does_not_set_compiled_when_config_is_none():
+    # Arrange
+    pl_module = MagicMock()
+    setattr(pl_module, "_compiled", False)
+
+    # Act
+    compile_module_from_config(None, pl_module)
+
+    # Assert
+    assert getattr(pl_module, "_compiled") is False
+
+def test_compile_skips_if_already_compiled():
+    # Arrange
+    pl_module = MagicMock()
+    setattr(pl_module, "_compiled", True)
+    config = TorchCompileConfig()
+
+    with patch("nemo.automodel.compiler.utils.extract_module_attr_name", return_value="model"), \
+         patch("nemo.automodel.compiler.get_modules_from_selector") as mock_selector:
+        # Act
+        compile_module_from_config(config, pl_module)
+
+    # Assert: no further calls should happen if _compiled was True
+    mock_selector.assert_not_called()
+    assert getattr(pl_module, "_compiled") is True  # remains True, unchanged
