@@ -240,4 +240,3 @@ class MegatronCommOverlap:
 
         # setup cuda device max connections
         self._set_num_cuda_device_max_connections(model_config)
-
