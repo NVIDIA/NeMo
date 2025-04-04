@@ -180,15 +180,14 @@ def main():
     else:
         optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr))
 
-    if args.fp8:
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+    te_config = None
+    if args.model_accelerator == "te":
+        from nemo.automodel.accelerator.transformer_engine import TEConfig
+        te_config = TEConfig(fp8_autocast=args.fp8_autocast)
 
-        model_accelerator = TEConfig(fp8_autocast=True)
-    else:
-        model_accelerator = None
     model = llm.HFAutoModelForCausalLM(
         model_name=args.model,
-        model_accelerator=model_accelerator,
+        te_config=te_config,
         trust_remote_code=args.trust_remote_code,
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,

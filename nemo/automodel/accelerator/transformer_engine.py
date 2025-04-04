@@ -29,24 +29,28 @@ class TEConfig:
     Options:
     - fp8_autocast (bool): indicated whether to autocast to FP8 or not.
     """
-
+    insert_te_modules: bool = True
     fp8_autocast: bool = False
 
 
-def te_accelerate(model, fp8_autocast=False):
+def te_accelerate(model, config: TEConfig):
     """
     Replaces original model layers with TE's accelerated layers
     Args:
         model: HF model
-        fp8_autocast (bool): apply autocast or not
+        config: TEConfig
     """
 
     if not HAVE_TE:
         logging.warning("Transformer Engine is not available and the module replacements " "will not be applied.")
-    else:
+        return
+
+    if config.insert_te_modules:
+        assert HAVE_TE
         _apply_basic_module_replacement(model)
-        if fp8_autocast:
-            apply_fp8_autocast(model)
+    if config.fp8_autocast:
+        assert HAVE_TE
+        apply_fp8_autocast(model)
 
 
 @torch.no_grad

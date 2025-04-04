@@ -315,11 +315,10 @@ def main():
             name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
 
-    model_accelerator = None
+    te_config = None
     if args.model_accelerator == "te":
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
-
-        model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
+        from nemo.automodel.accelerator.transformer_engine import TEConfig
+        te_config = TEConfig(fp8_autocast=args.fp8_autocast)
 
     callbacks = []
     if args.use_torch_jit:
@@ -337,7 +336,7 @@ def main():
             return ans
 
     model_cls = ZeroInitHFAutoModelForCausalLM if args.auto_resume else llm.HFAutoModelForCausalLM
-    model = model_cls(model_name=args.model, model_accelerator=model_accelerator)
+    model = model_cls(model_name=args.model, te_config=te_config)
 
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
@@ -380,7 +379,7 @@ def main():
     del trainer
 
     path = get_latest_checkpoint(args.ckpt_folder)
-    verify_sft_checkpoint_structure(path, model_accelerator is not None)
+    verify_sft_checkpoint_structure(path, te_config is not None)
 
     ans = AutoModelForCausalLM.from_pretrained(path / "hf_weights", output_loading_info=True)
     assert len(ans[1]['missing_keys']) == 0, ("NOT LOADABLE #1", ans)
