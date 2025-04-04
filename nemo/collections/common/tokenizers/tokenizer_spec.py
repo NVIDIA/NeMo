@@ -51,6 +51,10 @@ class TokenizerSpec(ABC):
     def add_special_tokens(self, special_tokens: List[str]):
         raise NotImplementedError("To be implemented")
 
+    def apply_chat_template(self, *args, **kwargs):
+        """ Appies chat template and tokenizes results """
+        raise NotImplementedError("To be implemented")
+
     @property
     def name(self):
         return type(self).__name__
