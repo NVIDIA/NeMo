@@ -34,6 +34,7 @@ __TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v1.0.0rc1/"
 __TEST_DATA_SUBDIR = ".data"
 __TEST_DATA_CACHE = "/home/TestData/akoumparouli/v1.0.0rc1/test_data.tar.gz"
 
+
 def pytest_addoption(parser):
     """
     Additional command-line arguments passed to pytest.
@@ -209,6 +210,7 @@ def k2_cuda_is_enabled(k2_is_appropriate) -> Tuple[bool, str]:
     else:
         return False, "k2 needs CUDA to be available in torch."
 
+
 def get_size_with_fallback(path):
     # Get size of local test_data archive.
     try:
@@ -216,6 +218,7 @@ def get_size_with_fallback(path):
     except:
         # File does not exist.
         return -1
+
 
 def pytest_configure(config):
     """
