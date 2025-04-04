@@ -13,9 +13,9 @@
 # limitations under the License.
 
 # VISION
-from nemo.automodel.compiler.configs import TorchCompileConfig, ThunderConfig
+from nemo.automodel.compiler.configs import ThunderConfig, TorchCompileConfig
 from nemo.automodel.compiler.module_compiler import compile_module, compile_module_from_config
-from nemo.automodel.compiler.utils import extract_module_attr_name, listify, get_modules_from_selector
+from nemo.automodel.compiler.utils import extract_module_attr_name, get_modules_from_selector, listify
 
 __all__ = [
     "TorchCompileConfig",
@@ -24,5 +24,5 @@ __all__ = [
     "compile_module_from_config",
     "extract_module_attr_name",
     "listify",
-    "get_modules_from_selector"
+    "get_modules_from_selector",
 ]

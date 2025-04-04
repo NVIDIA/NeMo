@@ -93,4 +93,3 @@ def get_modules_from_selector(model, module_selector):
             raise AttributeError("`" + item + "` is not " "an nn.Module")
 
     yield tmp
-

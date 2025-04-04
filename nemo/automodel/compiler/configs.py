@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass, field
 
+
 @dataclass
 class TorchCompileConfig:
     """Config for torch.compile
@@ -28,6 +29,7 @@ class TorchCompileConfig:
     module_selector: str = ''
     apply_pre_wrap: bool = True
     kwargs: dict = field(default_factory=dict)
+
 
 @dataclass
 class ThunderConfig:

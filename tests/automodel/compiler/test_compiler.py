@@ -18,18 +18,17 @@
 
 import re
 from dataclasses import dataclass, field
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
-from unittest.mock import MagicMock, patch
 
 from nemo.automodel.compiler import (
     TorchCompileConfig,
     compile_module,
-    get_modules_from_selector,
     compile_module_from_config,
     extract_module_attr_name,
+    get_modules_from_selector,
     listify,
 )
 
@@ -118,6 +117,7 @@ def test_jit_config_assertion():
     with pytest.raises(ValueError):
         compile_module({}, mock_module)
 
+
 @pytest.fixture
 def mock_module_torch():
     # Create a mock that pretends to be an nn.Module
@@ -128,11 +128,13 @@ def mock_module_torch():
     pl_module._compiled = False
     return pl_module
 
+
 def test_compile_module_torch(mock_module_torch):
     config = TorchCompileConfig(kwargs={"some_arg": 123})
     compile_module_from_config(config, mock_module_torch)
     mock_module_torch.compile.assert_called_once_with(some_arg=123)
     assert mock_module_torch._compiled == True
+
 
 def test_compile_module_torch_with_path(mock_module_torch):
     config = TorchCompileConfig(module_selector="block1", kwargs={"some_arg": 123})
@@ -140,14 +142,18 @@ def test_compile_module_torch_with_path(mock_module_torch):
     # Ensure there's a `block1` attribute on the module so getattr(module, "block1") works
     mock_module_torch.block1 = MagicMock(spec=torch.nn.Module)
 
-    with patch("nemo.automodel.compiler.module_compiler.extract_module_attr_name", return_value="model"), \
-         patch("nemo.automodel.compiler.module_compiler.get_modules_from_selector",
-               return_value=[mock_module_torch.block1]), \
-         patch("nemo.automodel.compiler.module_compiler.compile_module") as mock_compile:
-        
+    with (
+        patch("nemo.automodel.compiler.module_compiler.extract_module_attr_name", return_value="model"),
+        patch(
+            "nemo.automodel.compiler.module_compiler.get_modules_from_selector",
+            return_value=[mock_module_torch.block1],
+        ),
+        patch("nemo.automodel.compiler.module_compiler.compile_module") as mock_compile,
+    ):
+
         compile_module_from_config(config, mock_module_torch)
         mock_compile.assert_called_once_with(config, mock_module_torch.block1)
-    
+
     # Now ensure _compiled was set to True
     assert mock_module_torch._compiled is True
 
@@ -169,14 +175,17 @@ def test_compile_sets_compiled_flag(config_class):
     config = config_class()
 
     # Mock out dependencies
-    with patch("nemo.automodel.compiler.extract_module_attr_name", return_value="model"), \
-         patch("nemo.automodel.compiler.get_modules_from_selector", return_value=[MagicMock()]), \
-         patch("nemo.automodel.compiler.compile_module"):
+    with (
+        patch("nemo.automodel.compiler.extract_module_attr_name", return_value="model"),
+        patch("nemo.automodel.compiler.get_modules_from_selector", return_value=[MagicMock()]),
+        patch("nemo.automodel.compiler.compile_module"),
+    ):
         # Act
         compile_module_from_config(config, pl_module)
 
     # Assert
     assert getattr(pl_module, "_compiled") is True
+
 
 def test_compile_does_not_set_compiled_when_config_is_none():
     # Arrange
@@ -189,14 +198,17 @@ def test_compile_does_not_set_compiled_when_config_is_none():
     # Assert
     assert getattr(pl_module, "_compiled") is False
 
+
 def test_compile_skips_if_already_compiled():
     # Arrange
     pl_module = MagicMock()
     setattr(pl_module, "_compiled", True)
     config = TorchCompileConfig()
 
-    with patch("nemo.automodel.compiler.utils.extract_module_attr_name", return_value="model"), \
-         patch("nemo.automodel.compiler.get_modules_from_selector") as mock_selector:
+    with (
+        patch("nemo.automodel.compiler.utils.extract_module_attr_name", return_value="model"),
+        patch("nemo.automodel.compiler.get_modules_from_selector") as mock_selector,
+    ):
         # Act
         compile_module_from_config(config, pl_module)
 

@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import re
+
 import torch
 import torch.nn as nn
-from nemo.automodel.compiler.configs import TorchCompileConfig, ThunderConfig
+
+from nemo.automodel.compiler.configs import ThunderConfig, TorchCompileConfig
 from nemo.automodel.compiler.utils import extract_module_attr_name, get_modules_from_selector
+
 
 def compile_module(config, module):
     """Jit-compiles an nn.Module
