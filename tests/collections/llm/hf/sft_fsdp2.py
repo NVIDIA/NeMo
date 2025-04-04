@@ -19,8 +19,8 @@ from packaging.version import Version as PkgVersion
 from utils import get_torch_version_str
 
 from nemo import lightning as nl
-from nemo.collections import llm
 from nemo.automodel.accelerator.transformer_engine import is_te_accelerated
+from nemo.collections import llm
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -81,6 +81,7 @@ if __name__ == '__main__':
         te_config = None
         if args.model_accelerator == "te":
             from nemo.automodel.accelerator.transformer_engine import TEConfig
+
             te_config = TEConfig(fp8_autocast=args.fp8_autocast)
 
         model = llm.HFAutoModelForCausalLM(model_name=args.model, te_config=te_config)

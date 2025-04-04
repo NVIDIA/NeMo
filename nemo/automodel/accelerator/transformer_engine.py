@@ -29,6 +29,7 @@ class TEConfig:
     Options:
     - fp8_autocast (bool): indicated whether to autocast to FP8 or not.
     """
+
     insert_te_modules: bool = True
     fp8_autocast: bool = False
 

@@ -16,9 +16,8 @@ import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
-from nemo.collections import llm
 from nemo.automodel.accelerator.transformer_engine import is_te_accelerated
-
+from nemo.collections import llm
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -91,13 +90,12 @@ if __name__ == '__main__':
     te_config = None
     if args.model_accelerator == "te":
         from nemo.automodel.accelerator.transformer_engine import TEConfig
+
         te_config = TEConfig(fp8_autocast=args.fp8_autocast)
 
     from nemo.automodel.accelerator.transformer_engine import te_accelerate
 
-    model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, te_config=te_config, load_pretrained_weights=False
-    )
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, te_config=te_config, load_pretrained_weights=False)
     tokenizer = model.tokenizer
 
     llm.api.finetune(

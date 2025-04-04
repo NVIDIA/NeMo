@@ -183,6 +183,7 @@ def main():
     te_config = None
     if args.model_accelerator == "te":
         from nemo.automodel.accelerator.transformer_engine import TEConfig
+
         te_config = TEConfig(fp8_autocast=args.fp8_autocast)
 
     model = llm.HFAutoModelForCausalLM(
