@@ -103,6 +103,10 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+    recipe.model.config.recompute_granularity = "full"
+    recipe.model.config.recompute_method = "uniform"
+    recipe.model.config.recompute_num_layers = 1
+
     return recipe
 
 
