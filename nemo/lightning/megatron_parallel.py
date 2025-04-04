@@ -1772,7 +1772,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
             return loss_sum_for_ub, num_valid_tokens_in_ub, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
 
-        loss_for_ub = (loss_sum_for_ub.clone().detach().view(1))/ num_valid_tokens_in_ub
+        loss_for_ub = (loss_sum_for_ub.clone().detach().view(1)) / num_valid_tokens_in_ub
         return loss_sum_for_ub, num_valid_tokens_in_ub, {"avg": loss_for_ub}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
