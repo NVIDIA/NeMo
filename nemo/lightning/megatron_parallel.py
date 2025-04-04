@@ -1746,8 +1746,6 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 ."""  # pylint: disable=line-too-long
         from megatron.core import parallel_state
 
-        from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-
         # neva returns (logits, loss_mask)
         if isinstance(forward_out, tuple):
             forward_out, loss_mask = forward_out
@@ -1782,6 +1780,8 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
+                from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+
                 loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list).mean()
                 reduced_loss = average_losses_across_data_parallel_group([loss_tensor])
