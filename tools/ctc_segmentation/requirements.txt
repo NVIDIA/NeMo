@@ -1,2 +1,2 @@
 num2words
-numpy<2.2
+numpy>=2.0,<2.2
