@@ -32,7 +32,7 @@ from nemo.utils.metaclasses import Singleton
 __TEST_DATA_FILENAME = "test_data.tar.gz"
 __TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v1.0.0rc1/"
 __TEST_DATA_SUBDIR = ".data"
-__TEST_DATA_CACHE = "/home/TestData/akoumparouli/v1.0.0rc1/test_data.tar.gz"
+__TEST_DATA_CACHE = "/home/TestData/ci/v1.0.0rc1/test_data.tar.gz"
 
 
 def pytest_addoption(parser):
