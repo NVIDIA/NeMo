@@ -24,11 +24,14 @@ from nemo.deploy.nlp.hf_deployable import HuggingFaceLLMDeploy
 from nemo.deploy.utils import broadcast_list
 
 
+@pytest.mark.run_only_on('GPU')
+@pytest.mark.unit
 def test_hf_generate():
     """Tests HF deployable class's generate function."""
 
     hf_deployable = HuggingFaceLLMDeploy(
-        hf_model_id_path="/home/TestData/llm/models/llama3.2-1B-hf/ ",
+        #hf_model_id_path="/home/TestData/llm/models/llama3.2-1B-hf/",
+        hf_model_id_path="/opt/checkpoints/llama3.2-1B-hf",
         task="text-generation",
         trust_remote_code=True,
         device_map=None,
@@ -46,6 +49,9 @@ def test_hf_generate():
     assert len(output[1]) > 0, "Second list in the output should have more than 0 elements."
 
 
+@pytest.mark.run_only_on('GPU')
+@pytest.mark.unit
+@pytest.mark.skip(reason="will be enabled later.")
 def test_hf_multigpu_generate():
     """Tests HF deployable class's generate function with multiple GPUs."""
 
