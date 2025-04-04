@@ -324,7 +324,7 @@ def run_inference(
                     tensor_parallelism_size=tp_size,
                     max_input_len=max_input_len,
                     max_num_tokens=max_num_tokens,
-                    model_type=model_type
+                    model_type=model_type,
                 )
             else:
                 exporter.export(
