@@ -32,6 +32,7 @@ inprocess, HAVE_RES = safe_import('nvidia_resiliency_ext.inprocess')
 
 @dataclass
 class InProcessRestartConfig:
+    """Settings to configure in process restart wrapper."""
     monitor_thread_interval: float = 1.0
     monitor_process_interval: float = 1.0
     progress_watchdog_interval: float = 1.0
@@ -68,11 +69,13 @@ def get_tcp_store() -> dist.Store:
 
 
 def get_prefix_store(store: dist.Store, call_wrapper: "inprocess.CallWrapper") -> dist.Store:
+    """Create PrefixStore based on call wrapper's iteration"""
     iteration = call_wrapper.iteration
     return dist.PrefixStore(str(iteration), store)
 
 
 def get_finalize_fns(config: InProcessRestartConfig) -> List["inprocess.finalize.ThreadedFinalize"]:
+    """Utility to clean up state before restart."""
     finalize_fns = [
         inprocess.finalize.ThreadedFinalize(
             timeout=timedelta(seconds=10),
@@ -97,6 +100,14 @@ def _destroy_mcore_global_state() -> None:
 
 
 def get_rank_assignment_layers(config: InProcessRestartConfig) -> List["inprocess.rank_assignment.Layer"]:
+    """Support rank-reassignment.
+    
+    Layers represents a configuration for a layer of branches at a certain
+    depth in a topology tree constructed by inprocess.rank_assignment.Tree.
+    The first layer here contains all ranks and it's the root of the topology tree,
+    If the `node` granularity is selected, a second optional layer is added,
+    which groups ranks by their node.
+    """
     layers = [
         inprocess.rank_assignment.Layer(
             min_ranks=config.active_world_size,
@@ -118,6 +129,7 @@ def get_rank_assignment_layers(config: InProcessRestartConfig) -> List["inproces
 
 
 def maybe_set_torch_cpp_log_level_error() -> None:
+    """Condtionally set Set TORCH_CPP_LOG_LEVEL to error to avoid logspam. """
     if "TORCH_CPP_LOG_LEVEL" not in os.environ or os.environ['TORCH_CPP_LOG_LEVEL'] not in ("error", "fatal"):
         warnings.warn('Setting TORCH_CPP_LOG_LEVEL=error to suppress c10d waitForInput timeout warning messages')
         os.environ["TORCH_CPP_LOG_LEVEL"] = "error"
