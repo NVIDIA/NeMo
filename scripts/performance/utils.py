@@ -275,7 +275,7 @@ def set_primary_perf_configs(
 
     # Cuda graph configs
     if use_mcore_fsdp and enable_cuda_graphs:
-        logging.warning("Cuda graphs are not supported with FSDP. Disabling cuda graphs.")
+        logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
         enable_cuda_graphs = False
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
@@ -298,7 +298,8 @@ def set_primary_perf_configs(
             recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
             if tp_size is not None and tp_size > 1:
                 logging.warning(
-                    "Disabling TP overlap because of known performance issues when used with FSDP together."
+                    "Currently, TP overlap performance is poor when FSDP is used because of jitters. "
+                    "A fix is in progress. Disabling TP overlap."
                 )
                 recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 

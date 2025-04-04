@@ -260,7 +260,7 @@ def parse_cli_args():
     parser.add_argument(
         "-fsdp",
         "--use_mcore_fsdp",
-        help="Enable Mcore FSDP. Disabled by default",
+        help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
         action="store_true",
         required=False,
         default=None,
@@ -269,7 +269,8 @@ def parse_cli_args():
         "-rl",
         "--recompute_layers",
         type=int,
-        help="Number of layers to recompute. Defaults to 0",
+        help="Number of Transformer layers to recompute, where all the intermediate "
+        "activations of a Transformer layer are computed. Defaults to 0",
         required=False,
         default=None,
     )
@@ -277,7 +278,7 @@ def parse_cli_args():
         "-ol",
         "--activation_offload_layers",
         type=int,
-        help="Number of layers to offload to CPU. Defaults to 0",
+        help="Number of Transformer layers to offload to the CPU memory. Defaults to 0",
         required=False,
         default=None,
     )
