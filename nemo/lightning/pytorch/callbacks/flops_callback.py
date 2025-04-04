@@ -35,6 +35,7 @@ _model_flops_map = {
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
     "hyena": hyena,
+    "transformer": flops_formulas.transformer,
 }
 
 
@@ -113,14 +114,30 @@ class FLOPsMeasurementCallback(Callback):
         try:
             self.avg_train_step_time += trainer.progress_bar_metrics['train_step_timing in s']
         except KeyError:
-            print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
+            logging.warning(
+                "'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback."
+            )
 
+        # Only calculate and print total model FLOPs once at the beginning
+        if not hasattr(self, 'model_flops_printed') and self.avg_train_step_time > 0:
+            # Calculate once
+            _, total_model_tflops = self.eval_tflops_per_sec_per_gpu(
+                self.avg_train_step_time / max(1, trainer.global_step)
+            )
+            # Use logger instead of print
+            logging.info("===================================")
+            logging.info(f"Total model TFLOPs: {total_model_tflops:.4f}")
+            logging.info("===================================")
+            # Set flag to prevent future prints
+            self.model_flops_printed = True
+
+        # Continue with regular tflops_per_sec_per_gpu logging on intervals
         n = trainer.strategy.current_epoch_step
         if n % trainer.log_every_n_steps == 0:
             # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
-            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
+            tflops_per_sec_per_gpu, _ = self.eval_tflops_per_sec_per_gpu(
                 self.avg_train_step_time / trainer.log_every_n_steps
             )
             self.avg_train_step_time = 0
@@ -151,7 +168,7 @@ class FLOPsMeasurementCallback(Callback):
         step_time_arr = np.array(train_step_time)
         train_step_time = np.mean(step_time_arr[len(step_time_arr) // 2 :])
 
-        return flops_per_gpu / (1e12 * train_step_time)
+        return flops_per_gpu / (1e12 * train_step_time), total_flops
 
     def eval_model_flops(self):
         """
