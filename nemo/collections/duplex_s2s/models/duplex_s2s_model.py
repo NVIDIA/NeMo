@@ -649,10 +649,6 @@ def _safe_audio_codec_inference():
     This is because bf16-true temporarily changes the default float dtype to bf16,
     which cannot represent integers used in shape computations, and truncates them.
     """
-    yield
-    return
-
-    # Note(pzelasko): Disabling to validate that it works with latest updates to codec
     default_dtype = torch.get_default_dtype()
     torch.set_default_dtype(torch.float32)
     with torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.bfloat16):
