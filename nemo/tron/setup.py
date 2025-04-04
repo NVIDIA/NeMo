@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
+import logging
 import time
 from typing import Any, Dict, NamedTuple, Optional
 
@@ -49,6 +51,8 @@ try:
     HAVE_FSDP2 = True
 except ImportError:
     HAVE_FSDP2 = False
+
+logger = logging.getLogger(__name__)
 
 
 class SetupOutput(NamedTuple):
@@ -239,10 +243,12 @@ def _update_model_config_funcs(
 ) -> None:
     """Update model config sync funcs based on initialized model."""
     if isinstance(model[0], DistributedDataParallel) and ddp_config.overlap_grad_reduce:
-        assert model_config.no_sync_func is None, (
-            "When overlap_grad_reduce is True, config.no_sync_func must be None; "
+        logger.info(
+            "overlap_grad_reduce is True, setting model_config.no_sync_func to None; "
             "a custom no_sync_func is not supported when overlapping grad-reduce"
         )
+        model_config.no_sync_func = None
+
     model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
     if len(model) == 1:
         model_config.no_sync_func = model_config.no_sync_func[0]

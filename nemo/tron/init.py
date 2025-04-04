@@ -160,8 +160,11 @@ def _initialize_tp_communicators(model_config: GPTConfig | T5Config, micro_batch
         )
 
     if model_config.tp_comm_overlap_cfg is not None:
-        with open(model_config.tp_comm_overlap_cfg, "r") as stream:
-            ub_cfgs = yaml.safe_load(stream)
+        if isinstance(model_config.tp_comm_overlap_cfg, str):
+            with open(model_config.tp_comm_overlap_cfg, "r") as stream:
+                ub_cfgs = yaml.safe_load(stream)
+        else:
+            ub_cfgs = model_config.tp_comm_overlap_cfg
     else:
         ub_cfgs = {}
 
