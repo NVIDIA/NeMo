@@ -20,7 +20,7 @@ Example:
 import argparse
 from io import BytesIO
 from pathlib import Path
-from typing import Union, Tuple
+from typing import Tuple, Union
 
 import torch
 import torch.distributed as dist
@@ -107,19 +107,22 @@ def main(args) -> None:
     model.eval()
 
     from transformers import AutoProcessor
+
     model_id = "/path/to/llama4_hf_checkpoint"
     processor = AutoProcessor.from_pretrained(model_id)
     llama_tokenizer = AutoTokenizer(model_id)
     hf_tokenizer = llama_tokenizer.tokenizer
 
     url1 = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
-    url2 = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/datasets/cat_style_layout.png"
+    url2 = (
+        "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/datasets/cat_style_layout.png"
+    )
     messages = [
         {
             "role": "system",
             "content": [
                 {"type": "text", "text": "You are a helpful visual assistant."},
-            ]
+            ],
         },
         {
             "role": "user",
@@ -127,7 +130,7 @@ def main(args) -> None:
                 {"type": "image", "url": url1},
                 {"type": "image", "url": url2},
                 {"type": "text", "text": "Can you describe how these two images are similar, and how they differ?"},
-            ]
+            ],
         },
     ]
 

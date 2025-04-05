@@ -118,6 +118,7 @@ def main(args):
     )
 
     from nemo.lightning.pytorch.callbacks import NsysCallback
+
     # Trainer setup
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,

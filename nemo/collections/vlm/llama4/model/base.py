@@ -24,7 +24,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.vlm.neva.model.base import MCoreNevaModel, NevaConfig, NevaModel, MODEL_CONFIG_ATTR
+from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, MCoreNevaModel, NevaConfig, NevaModel
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 
@@ -128,7 +128,6 @@ class Llama4OmniConfig(NevaConfig):
     forward_step_fn: Callable = llama4_forward_step
     data_step_fn: Callable = llama4_data_step
 
-
     def __post_init__(self):
         # pylint: disable=C0115,C0116
         if self.language_transformer_config is not None:
@@ -176,17 +175,17 @@ class Llama4OmniBaseModel(MCoreNevaModel):
     """llama4 base model combining vision and text models with cross-attention."""
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            images: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: Optional[InferenceParams] = None,
-            runtime_gather_output: Optional[bool] = None,
-            packed_seq_params: Optional[PackedSeqParams] = None,
-            **kwargs,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        images: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: Optional[InferenceParams] = None,
+        runtime_gather_output: Optional[bool] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
+        **kwargs,
     ) -> torch.Tensor:
         # pylint: disable=C0301
         """Forward function of the Llama4 model.
@@ -214,7 +213,7 @@ class Llama4OmniBaseModel(MCoreNevaModel):
         """
 
         use_inference_kv_cache = (
-                inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images is not None and len(images) > 0
 
@@ -239,7 +238,7 @@ class Llama4OmniBaseModel(MCoreNevaModel):
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["image_tokens_count"] = (
-                        image_embeddings.shape[0] * image_embeddings.shape[1]
+                    image_embeddings.shape[0] * image_embeddings.shape[1]
                 )
         else:
             image_embeddings = self.encoder_hidden_state
@@ -289,12 +288,16 @@ class Llama4OmniBaseModel(MCoreNevaModel):
             else:
                 combined_embeddings = language_embeddings
             if not (packed_seq_params is not None and packed_seq_params.qkv_format == "thd"):
-                combined_embeddings = combined_embeddings.transpose(0, 1).contiguous() # [combined_seq_len, b, h_language]
+                combined_embeddings = combined_embeddings.transpose(
+                    0, 1
+                ).contiguous()  # [combined_seq_len, b, h_language]
         else:
             combined_embeddings = language_embeddings
 
-        final_labels, final_loss_mask, final_attention_mask =(
-            labels, loss_mask, attention_mask,
+        final_labels, final_loss_mask, final_attention_mask = (
+            labels,
+            loss_mask,
+            attention_mask,
         )
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
@@ -325,11 +328,11 @@ class Llama4OmniModel(NevaModel):
     """Lightning Module for the Llama4 model."""
 
     def __init__(
-            self,
-            config: Llama4OmniConfig,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: Llama4OmniConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
             config=config,

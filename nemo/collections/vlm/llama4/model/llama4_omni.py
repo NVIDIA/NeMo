@@ -21,9 +21,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
-from nemo.collections.vlm import Llama4OmniModel, Llama4OmniConfig, Llama4VisionConfig, MultimodalProjectorConfig
+from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
+from nemo.collections.vlm import Llama4OmniConfig, Llama4OmniModel, Llama4VisionConfig, MultimodalProjectorConfig
 from nemo.collections.vlm.neva.model.llava import import_qkv
 from nemo.lightning import io, teardown
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
@@ -109,6 +109,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         """
 
         from transformers import Llama4ForConditionalGeneration
+
         source = Llama4ForConditionalGeneration.from_pretrained(str(self), torch_dtype='auto')
 
         target = self.init()
@@ -157,9 +158,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             "vision_model.model.layers.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
             "vision_model.model.layers.*.post_attention_layernorm.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "vision_model.model.layers.*.post_attention_layernorm.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
-
             "multi_modal_projector.linear_1.weight": "vision_projection.encoder.weight",
-
             "language_model.model.embed_tokens.weight": "language_model.embedding.word_embeddings.weight",
             "language_model.model.layers.*.self_attn.o_proj.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
             "language_model.model.layers.*.input_layernorm.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
@@ -168,19 +167,15 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             # Post Attention LayerNorm
             "language_model.model.layers.*.post_attention_layernorm.weight": "language_model.decoder.layers.*.pre_mlp_layernorm.weight",
             "language_model.model.layers.*.dense-post_attention_layernorm.weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-
             # MoE Router
             "language_model.model.layers.*.feed_forward.router.weight": "language_model.decoder.layers.*.mlp.router.weight",
-
             # MoE Shared Experts
             "language_model.model.layers.*.feed_forward.shared_expert.down_proj.weight": "language_model.decoder.layers.*.mlp.shared_experts.linear_fc2.weight",
-
             # MoE Experts
             "language_model.model.layers.*.feed_forward.experts.*.down_proj": "language_model.decoder.layers.*.mlp.experts.linear_fc2.weight*",
             "language_model.model.layers.*.feed_forward.experts.*.gate_up_proj": "language_model.decoder.layers.*.mlp.experts.linear_fc1.weight*",
-
             # Dense MLP (for moe_layer_freq != 1)
-            "language_model.model.layers.*.feed_forward.down_proj.weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight"
+            "language_model.model.layers.*.feed_forward.down_proj.weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
         }
 
         transforms = [
@@ -191,14 +186,16 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             io.state_transform(
                 source_key=(
                     "language_model.model.layers.*.feed_forward.shared_expert.gate_proj.weight",
-                    "language_model.model.layers.*.feed_forward.shared_expert.up_proj.weight"),
+                    "language_model.model.layers.*.feed_forward.shared_expert.up_proj.weight",
+                ),
                 target_key="language_model.decoder.layers.*.mlp.shared_experts.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
             io.state_transform(
                 source_key=(
                     "language_model.model.layers.*.feed_forward.gate_proj.weight",
-                    "language_model.model.layers.*.feed_forward.up_proj.weight"),
+                    "language_model.model.layers.*.feed_forward.up_proj.weight",
+                ),
                 target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
@@ -238,15 +235,15 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
                     state_dict[
-                        f"language_model.model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"] = expert_weight.squeeze().transpose(
-                        0, 1)
+                        f"language_model.model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"
+                    ] = expert_weight.squeeze().transpose(0, 1)
                 # down_proj
                 weight = state_dict.pop(f"language_model.model.layers.{layer_i}.feed_forward.experts.down_proj")
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
-                    state_dict[
-                        f"language_model.model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = expert_weight.squeeze().transpose(
-                        0, 1)
+                    state_dict[f"language_model.model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
+                        expert_weight.squeeze().transpose(0, 1)
+                    )
             else:
                 weight = state_dict.pop(f"language_model.model.layers.{layer_i}.post_attention_layernorm.weight")
                 state_dict[f"language_model.model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
@@ -264,8 +261,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         Returns:
             Llama4OmniConfig: NeMo configuration for Llama models
         """
-        from transformers import GenerationConfig
-        from transformers import AutoConfig
+        from transformers import AutoConfig, GenerationConfig
 
         source = AutoConfig.from_pretrained(str(self))
         try:
@@ -287,8 +283,10 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             'moe_shared_expert_intermediate_size': src_text_config.intermediate_size,
             'moe_ffn_hidden_size': src_text_config.intermediate_size,
         }
-        if getattr(src_text_config, 'rope_scaling', None) is not None and src_text_config.rope_scaling.get(
-                'rope_type') == 'llama3':
+        if (
+            getattr(src_text_config, 'rope_scaling', None) is not None
+            and src_text_config.rope_scaling.get('rope_type') == 'llama3'
+        ):
             args.update({'rope_scaling': True, 'rope_scaling_factor': src_text_config.rope_scaling.get("factor", 8.0)})
         else:
             args.update({'rope_scaling': False})
@@ -301,8 +299,11 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         language_transformer_config = Llama4TextConfig(
             num_layers=src_text_config.num_hidden_layers,
             hidden_size=src_text_config.hidden_size,
-            ffn_hidden_size=src_text_config.intermediate_size if not getattr(src_text_config, 'intermediate_size_mlp',
-                                                                             None) else src_text_config.intermediate_size_mlp,
+            ffn_hidden_size=(
+                src_text_config.intermediate_size
+                if not getattr(src_text_config, 'intermediate_size_mlp', None)
+                else src_text_config.intermediate_size_mlp
+            ),
             num_attention_heads=src_text_config.num_attention_heads,
             init_method_std=src_text_config.initializer_range,
             layernorm_epsilon=src_text_config.rms_norm_eps,
@@ -348,9 +349,9 @@ def _import_cls_token(ctx: io.TransformCTX, cls_token):
 
 @io.state_transform(
     source_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -371,9 +372,9 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
 
 @io.state_transform(
     source_key=(
-            "vision_model.model.layers.*.self_attn.q_proj.weight",
-            "vision_model.model.layers.*.self_attn.k_proj.weight",
-            "vision_model.model.layers.*.self_attn.v_proj.weight",
+        "vision_model.model.layers.*.self_attn.q_proj.weight",
+        "vision_model.model.layers.*.self_attn.k_proj.weight",
+        "vision_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -394,9 +395,9 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
 
 @io.state_transform(
     source_key=(
-            "vision_model.model.layers.*.self_attn.q_proj.bias",
-            "vision_model.model.layers.*.self_attn.k_proj.bias",
-            "vision_model.model.layers.*.self_attn.v_proj.bias",
+        "vision_model.model.layers.*.self_attn.q_proj.bias",
+        "vision_model.model.layers.*.self_attn.k_proj.bias",
+        "vision_model.model.layers.*.self_attn.v_proj.bias",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
 )

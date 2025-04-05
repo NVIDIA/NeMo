@@ -34,11 +34,9 @@ def get_llama4_layer_spec(config: "Llama4Config") -> ModuleSpec:
     """Get llama4 layer spec"""
 
     from megatron.core.transformer.transformer_layer import get_transformer_layer_offset
+
     # Use decoder_block_spec: set layer_specs as a list of individual layer specs
-    llama4_layer_spec = get_gpt_decoder_block_spec(
-        config,
-        use_transformer_engine=HAVE_TE
-    )
+    llama4_layer_spec = get_gpt_decoder_block_spec(config, use_transformer_engine=HAVE_TE)
 
     updated_layer_specs = []
     offset = get_transformer_layer_offset(config)
@@ -47,8 +45,7 @@ def get_llama4_layer_spec(config: "Llama4Config") -> ModuleSpec:
         updated_layer_spec = deepcopy(layer_spec)
 
         updated_layer_spec.module = Llama4TransformerLayer
-        is_nope_layer = (config.nope_layer_interval is not None
-                         and (layer_no + 1) % config.nope_layer_interval == 0)
+        is_nope_layer = config.nope_layer_interval is not None and (layer_no + 1) % config.nope_layer_interval == 0
         updated_layer_spec.params = {
             'use_rope': not is_nope_layer,
         }

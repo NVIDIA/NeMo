@@ -14,21 +14,17 @@
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Callable, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import torch
-from torch import nn
-from torch import einsum
-
 from megatron.core.transformer.module import MegatronModule
+from torch import einsum, nn
 
-from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
 from nemo.collections.vlm.mllama.model.vision import ColumnParallelConv2dPatch
+from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
 
 try:
-    from megatron.core.extensions.transformer_engine import (
-        TENorm,
-    )
+    from megatron.core.extensions.transformer_engine import TENorm
 
     NORM_IMPL = TENorm
 except ImportError:
@@ -43,13 +39,12 @@ except ImportError:
         "`from megatron.core.extensions.transformer_engine import *`"
         "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
     )
+from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 from megatron.core.transformer.enums import ModelType
-from megatron.core.models.common.vision_module.vision_module import VisionModule
-
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_block import TransformerBlock
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.vlm.vision.base import CLIPViTConfig
 
@@ -93,6 +88,7 @@ class Llama4VisionConfig(CLIPViTConfig):
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
+
             transformer_layer_spec = get_layer_spec_te(is_vit=True)
 
         return Llama4ViTModel(
@@ -133,6 +129,7 @@ class PixelShuffle(nn.Module):
     def __init__(self, ps_ratio):
         super().__init__()
         self.ps_ratio = ps_ratio
+
     """Performs pixel shuffle operation on encoded patches.
 
     Rearranges elements in a tensor of shape [B, N, C] representing encoded image patches
@@ -193,6 +190,7 @@ def pixel_shuffle_op(input_x: torch.Tensor, ps_ratio: float) -> torch.Tensor:
     input_x = input_x.permute(0, 2, 1, 3).contiguous()
     return input_x
 
+
 class PixelShuffleMLP(MegatronModule):
     """Applies pixel shuffle followed by an MLP projection.
 
@@ -208,13 +206,14 @@ class PixelShuffleMLP(MegatronModule):
         add_fc (bool): Whether to add an additional fully connected layer (Not Implemented).
                        Defaults to False.
     """
+
     def __init__(
-            self,
-            config: TransformerConfig,
-            ps_ratio: float,
-            input_dim: int,
-            output_dim: int = 4096,
-            add_fc: bool = False,
+        self,
+        config: TransformerConfig,
+        ps_ratio: float,
+        input_dim: int,
+        output_dim: int = 4096,
+        add_fc: bool = False,
     ):
         """Initializes the PixelShuffleMLP module."""
         super().__init__(config)
@@ -260,17 +259,17 @@ class Llama4ViTModel(VisionModule):
     """
 
     def __init__(
-            self,
-            transformer_config: TransformerConfig,
-            transformer_layer_spec: ModuleSpec,
-            ln_pre_impl: Union[ModuleSpec, type] = NORM_IMPL,
-            ln_post_impl: Union[ModuleSpec, type] = NORM_IMPL,
-            add_class_token: bool = True,
-            class_token_len: int = 1,
-            patch_dim: int = 14,
-            img_h: int = 336,
-            img_w: int = 336,
-            model_subtype: str = "llama4",
+        self,
+        transformer_config: TransformerConfig,
+        transformer_layer_spec: ModuleSpec,
+        ln_pre_impl: Union[ModuleSpec, type] = NORM_IMPL,
+        ln_post_impl: Union[ModuleSpec, type] = NORM_IMPL,
+        add_class_token: bool = True,
+        class_token_len: int = 1,
+        patch_dim: int = 14,
+        img_h: int = 336,
+        img_w: int = 336,
+        model_subtype: str = "llama4",
     ) -> None:
         """Initializes the Llama4 Vision Transformer model.
 
@@ -337,7 +336,7 @@ class Llama4ViTModel(VisionModule):
 
         self.add_class_token = add_class_token
         if self.add_class_token:
-            scale = self.visual_hidden_size ** -0.5
+            scale = self.visual_hidden_size**-0.5
             self.class_token = torch.nn.Parameter(
                 scale * torch.randn(1, self.class_token_len, self.visual_hidden_size)
             )
@@ -397,18 +396,14 @@ class Llama4ViTModel(VisionModule):
         packed_img_idx = packed_img_idx.reshape(1, -1, PackingIndex.NUM_METADATA - 1)
 
         # compute rope freqs
-        rope_freq = self.get_rope_freqs(
-            self.config.hidden_size // self.config.num_attention_heads // 2
-        )
+        rope_freq = self.get_rope_freqs(self.config.hidden_size // self.config.num_attention_heads // 2)
         freqs_x = self.compute_rope_freqs(rope_freq, packed_img_idx[:, :, PackingIndex.X] + 1)
         freqs_y = self.compute_rope_freqs(rope_freq, packed_img_idx[:, :, PackingIndex.Y] + 1)
         freqs = torch.cat([freqs_x, freqs_y], dim=-1).float().contiguous()[..., ::2]
         # disable RoPE for padding and cls tokens
         freqs = freqs.masked_fill(packed_img_idx[:, :, PackingIndex.IDX, None] < 0, 0)
         freqs = freqs.squeeze(0)
-        rotary_pos_emb = torch.stack((freqs.view(-1, 1), freqs.view(-1, 1)), dim=-1).view(
-            freqs.shape[0], -1
-        )
+        rotary_pos_emb = torch.stack((freqs.view(-1, 1), freqs.view(-1, 1)), dim=-1).view(freqs.shape[0], -1)
         # emb [seq_length, .., dim]
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
         return rotary_pos_emb.cuda()
@@ -439,8 +434,8 @@ class Llama4ViTModel(VisionModule):
         Returns:
             torch.Tensor: RoPE frequencies corresponding to the input positions `t`.
         """
-        freqs = einsum("..., f -> ... f", t.type(freqs.dtype), freqs) # outer product, t might be multidim
-        freqs = freqs.repeat_interleave(2, dim=-1) # Interleave for sin/cos application
+        freqs = einsum("..., f -> ... f", t.type(freqs.dtype), freqs)  # outer product, t might be multidim
+        freqs = freqs.repeat_interleave(2, dim=-1)  # Interleave for sin/cos application
         return freqs
 
     def set_input_tensor(self, input_tensor: torch.Tensor) -> None:
@@ -451,9 +446,7 @@ class Llama4ViTModel(VisionModule):
         """
         self.decoder.set_input_tensor(input_tensor)
 
-    def _encode(
-            self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
+    def _encode(self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Forward function of the ViT Model. This function passes the input tensors
         through the embedding layer and then the transformer.
 
@@ -468,12 +461,8 @@ class Llama4ViTModel(VisionModule):
         x = self.conv1(x)  # [batch, grid ** 2, hidden_size]
 
         if self.add_class_token:
-            class_token = self.class_token.expand(
-                x.shape[0], -1, -1
-            )  # [batch, class_token_len, hidden_size]
-            x = torch.cat(
-                [x, class_token], dim=1
-            )  # [batch, grid ** 2 + class_token_len, hidden_size]
+            class_token = self.class_token.expand(x.shape[0], -1, -1)  # [batch, class_token_len, hidden_size]
+            x = torch.cat([x, class_token], dim=1)  # [batch, grid ** 2 + class_token_len, hidden_size]
 
         assert x.shape[1] == self.seq_length, f"{x.shape[1]} != {self.seq_length}"
         x = x + self.position_embeddings(self.position_ids)
@@ -484,7 +473,8 @@ class Llama4ViTModel(VisionModule):
         x = x.contiguous()
 
         x = self.decoder(
-            x, attention_mask,
+            x,
+            attention_mask,
             rotary_pos_emb=self.rotary_pos_emb,
         )
         x = x.permute(1, 0, 2)  # [s, b, h] -> [b, s, h]
@@ -495,8 +485,8 @@ class Llama4ViTModel(VisionModule):
         return x
 
     def forward(
-            self,
-            images: torch.Tensor,
+        self,
+        images: torch.Tensor,
     ) -> torch.Tensor:
         # TODO(yuya): Move input processing and output processing to base model
         # to keep vit submodule clean

@@ -1,5 +1,5 @@
-from nemo.collections.llm import import_ckpt
 from nemo.collections import vlm
+from nemo.collections.llm import import_ckpt
 from nemo.collections.vlm.llama4.model.llama4_omni import Llama4ScoutExperts16Config
 
 if __name__ == '__main__':

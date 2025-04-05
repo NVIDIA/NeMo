@@ -138,19 +138,19 @@ class MockDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         """Returns the DataLoader for the training set."""
         if not hasattr(self, "_train_ds"):
-            self.setup('fit') # Ensure dataset is created
+            self.setup('fit')  # Ensure dataset is created
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
         """Returns the DataLoader for the validation set."""
         if not hasattr(self, "_validation_ds"):
-            self.setup('validate') # Ensure dataset is created
+            self.setup('validate')  # Ensure dataset is created
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
         """Returns the DataLoader for the test set."""
         if not hasattr(self, "_test_ds"):
-            self.setup('test') # Ensure dataset is created
+            self.setup('test')  # Ensure dataset is created
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
@@ -270,18 +270,20 @@ class MockLlama4Dataset(Dataset):
         tokens = torch.from_numpy(
             np_gen.integers(
                 # Using a large upper bound for random token IDs
-                high=self.vocab_size, size=[self.seq_length + 1], dtype=np.int64
+                high=self.vocab_size,
+                size=[self.seq_length + 1],
+                dtype=np.int64,
             )
         )
         # Insert placeholder token ID where image embeddings would go
         # Assuming a fixed placeholder ID 200092 for <|patch|>
-        tokens[2: 2 + self._img_seq_len] = 200092  # <|patch|> token index TODO: Use actual token ID if available
+        tokens[2 : 2 + self._img_seq_len] = 200092  # <|patch|> token index TODO: Use actual token ID if available
         labels = tokens.clone()
         images = torch.from_numpy(
             np_gen.random(
                 # num_concurrent_media, num_tiles, nch, h, w
                 size=[self.num_tiles_per_image, 3, self.image_height, self.image_width],
-                dtype=np.float32
+                dtype=np.float32,
             )
         ).bfloat16()
         tokens = tokens[:-1]

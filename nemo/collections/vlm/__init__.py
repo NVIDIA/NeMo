@@ -20,6 +20,11 @@ from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPMo
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
 from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import HFAutoModelForImageTextToText
 
+# LLAMA4
+from nemo.collections.vlm.llama4.data import Llama4MockDataModule
+from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
+from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig, Llama4ViTModel
+
 # LLAVA_NEXT
 from nemo.collections.vlm.llava_next.data import LlavaNextMockDataModule, LlavaNextTaskEncoder
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
@@ -39,13 +44,6 @@ from nemo.collections.vlm.mllama.model.mllama import (
     MLlamaConfig90B,
     MLlamaConfig90BInstruct,
 )
-
-# LLAMA4
-from nemo.collections.vlm.llama4.data import (
-    Llama4MockDataModule
-)
-from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
-from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig, Llama4ViTModel
 
 # NEVA
 from nemo.collections.vlm.neva.data import (
