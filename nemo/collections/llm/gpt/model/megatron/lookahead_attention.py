@@ -17,17 +17,13 @@ import torch
 from nemo.utils import logging
 
 try:
-    from megatron.core import parallel_state
-    from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensor
-    from megatron.core.transformer.enums import AttnMaskType
-    from megatron.core.transformer.spec_utils import build_module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
     from megatron.core.utils import make_viewless_tensor
 
     HAVE_MEGATRON_CORE = True
 
-except (ImportError, ModuleNotFoundError) as e:
+except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
@@ -85,10 +81,9 @@ class LookAheadAttentionTransformerLayer(TransformerLayer):
                 config.pipeline_model_parallel_size == 1
             ), "LookAheadAttention does not support pipeline parallelism."
             assert len(lookahead_parallel_layers) == 2
-            l = list(lookahead_parallel_layers)
-            assert l[0] > 0 and l[1] < 61
-            self.parallel_in = self.layer_number in range(l[0], l[1] + 1)
-            self.parallel_out = self.layer_number in range(l[0] - 1, l[1])
+            parallel_start, parallel_end = lookahead_parallel_layers
+            self.parallel_in = self.layer_number in range(parallel_start, parallel_end + 1)
+            self.parallel_out = self.layer_number in range(parallel_start - 1, parallel_end)
 
         logging.info(f"{self.layer_number=}, {self.parallel_in=}, {self.parallel_out=}")
 
