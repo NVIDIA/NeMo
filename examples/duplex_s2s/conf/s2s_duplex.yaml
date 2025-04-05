@@ -53,12 +53,12 @@ model:
        dropout_emb: 0.0 # The dropout used for embeddings
        dropout_att: 0 # The dropout for multi-headed attention modules
 
-     spec_augment:
-       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-       freq_masks: 2 # set to zero to disable it
-       time_masks: 10 # set to zero to disable it
-       freq_width: 27
-       time_width: 5  # 5 frames = 50ms
+#     spec_augment:
+#       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+#       freq_masks: 2 # set to zero to disable it
+#       time_masks: 10 # set to zero to disable it
+#       freq_width: 27
+#       time_width: 5  # 5 frames = 50ms
 
   optimizer:
     _target_: torch.optim.AdamW
@@ -86,17 +86,17 @@ trainer:
   limit_train_batches: 1000000
   limit_val_batches: 10
   log_every_n_steps: 10
-  val_check_interval: 1000
+  val_check_interval: 100
   num_sanity_val_steps: 2
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
-    _target_: lightning.pytorch.strategies.ModelParallelStrategy
-    tensor_parallel_size: 1
-    data_parallel_size: 2
-#    _target_: lightning.pytorch.strategies.DDPStrategy
-#    gradient_as_bucket_view: true
-#    find_unused_parameters: true
+#    _target_: lightning.pytorch.strategies.ModelParallelStrategy
+#    tensor_parallel_size: 1
+#    data_parallel_size: 2
+    _target_: lightning.pytorch.strategies.DDPStrategy
+    gradient_as_bucket_view: true
+    find_unused_parameters: true
 
 data:
   frame_length: 0.08
@@ -108,28 +108,35 @@ data:
     sample_rate: 22050
     input_cfg:
       - type: lhotse_shar
-        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
-      - type: lhotse_shar
-        shar_path: /home/pzelasko/exp/duplex_s2s/timestamp_train
+        shar_path: /home/pzelasko/exp/duplex_s2s/train_micro
+#      - type: lhotse_shar
+#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
+#      - type: lhotse_shar
+#        shar_path: /home/pzelasko/exp/duplex_s2s/timestamp_train
     seed: 42
     shard_seed: "randomized"
     num_workers: 2
 
-    batch_duration: 100
-    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
-    use_bucketing: true
-    num_buckets: 5
-    bucket_buffer_size: 5000
+    batch_size: 16
+#    batch_duration: 100
+#    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
+#    use_bucketing: true
+#    num_buckets: 5
+#    bucket_buffer_size: 5000
 
   validation_ds:
     # The entries under 'datasets' are a list of separate dataloaders.
     # The structure is <dataset-name>: {<dataloader-dict-config>}
     # They inherit all settings from validation_ds, but can individually override them.
     datasets:
-      valdata:
-        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_val
+      train_micro:
+        shar_path: /home/pzelasko/exp/duplex_s2s/train_micro
+#      traindata:
+#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
+#      valdata:
+#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_val
     sample_rate: 22050
-    batch_size: 8
+    batch_size: 1
     seed: 42
     shard_seed: "randomized"
 

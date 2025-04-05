@@ -415,16 +415,16 @@ class DuplexS2SModel(LightningModule):
                 )
             hyp = [hyp.text for hyp in ans]
             ref = [[tt] for tt in dataset_batch["target_texts"]]
-            # for h, (r,) in zip(hyp, ref):
-            #     print(f"[AUDIO] Ref: {r}\n[AUDIO] Hyp: {h}")
+            for h, (r,) in zip(hyp, ref):
+                print(f"[AUDIO] Ref: {r}\n[AUDIO] Hyp: {h}")
             self.asr_bleu[name].update(hyp, ref)
 
             hyp = [
                 self.tokenizer.ids_to_text(hyp_ids) for hyp_ids in forward_outputs["text_logits"].argmax(dim=-1).cpu()
             ]
             ref = [[tt] for tt in dataset_batch["target_texts"]]
-            # for h, (r,) in zip(hyp, ref):
-            #     print(f"[TEXT] Ref: {r}\n[TEXT] Hyp: {h}")
+            for h, (r,) in zip(hyp, ref):
+                print(f"[TEXT] Ref: {r}\n[TEXT] Hyp: {h}")
             # Text BLEU
             self.text_bleu[name].update(hyp, ref)
 
@@ -501,7 +501,7 @@ class DuplexS2SModel(LightningModule):
         ans = {"optimizer": optimizer}
         if "lr_scheduler" in self.cfg:
             lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
-            ans["lr_scheduler"] = ({"scheduler": lr_scheduler, "interval": "step", "frequency": 1},)
+            ans["lr_scheduler"] = {"scheduler": lr_scheduler, "interval": "step", "frequency": 1}
         return ans
 
     @property
