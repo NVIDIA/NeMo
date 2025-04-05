@@ -70,7 +70,7 @@ def main(args):
     elif args.data_type == "energon":
         raise NotImplementedError("Energon data not yet implemented.")
     elif args.data_type == "mock":
-        llama_tokenizer = AutoTokenizer("/lustre/fsw/coreai_dlalgo_genai/yuya/crush/crush-maverick-17b-128e-instruct-hf-final_vv2")
+        llama_tokenizer = AutoTokenizer("/path/to/llama4_hf_checkpoint")
 
         data = vlm.Llama4MockDataModule(
             seq_length=decoder_seq_length,

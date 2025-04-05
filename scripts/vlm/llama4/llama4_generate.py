@@ -107,7 +107,7 @@ def main(args) -> None:
     model.eval()
 
     from transformers import AutoProcessor
-    model_id = "/lustre/fsw/coreai_dlalgo_genai/yuya/crush/crush-maverick-17b-128e-instruct-hf-final_vv2"
+    model_id = "/path/to/llama4_hf_checkpoint"
     processor = AutoProcessor.from_pretrained(model_id)
     llama_tokenizer = AutoTokenizer(model_id)
     hf_tokenizer = llama_tokenizer.tokenizer
