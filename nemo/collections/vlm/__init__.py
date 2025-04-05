@@ -44,6 +44,8 @@ from nemo.collections.vlm.mllama.model.mllama import (
 from nemo.collections.vlm.llama4.data import (
     Llama4MockDataModule
 )
+from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
+from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig, Llama4ViTModel
 
 # NEVA
 from nemo.collections.vlm.neva.data import (
@@ -139,4 +141,9 @@ __all__ = [
     "CLIPConfigL14",
     "CLIPConfigB32",
     "ClipMockDataModule",
+    "Llama4MockDataModule",
+    "Llama4OmniConfig",
+    "Llama4OmniModel",
+    "Llama4VisionConfig",
+    "Llama4ViTModel",
 ]
