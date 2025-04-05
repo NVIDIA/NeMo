@@ -24,7 +24,7 @@ from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
 
 
-def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int):
+def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int, **kwargs):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
     and prepares it for further processing.
@@ -44,6 +44,7 @@ def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, 
         seq_length=max_seq_length,
         seed=seed,
         is_test=True,
+        **kwargs,
     )
     return np.array([dataset[i] for i in range(len(dataset))])
 
@@ -57,6 +58,7 @@ def prepare_packed_sequence_data(
     max_seq_length: int,
     seed: Optional[int] = 0,
     packing_algorithm: str = "first_fit_shuffle",
+    **kwargs,
 ):
     """
     Prepares a packed sequence dataset from a given input file and saves it to an output file.
@@ -76,7 +78,7 @@ def prepare_packed_sequence_data(
     """
 
     logging.info(f"Preparing packed sequence from {input_path}")
-    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed)
+    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, **kwargs)
     sequences, histogram = create_hist(dataset, max_seq_length)
 
     assignments, packing_metadata = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)
