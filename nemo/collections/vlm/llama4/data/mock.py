@@ -43,6 +43,27 @@ class MockDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         packed_sequence: bool = False,
     ):
+        """A mock LightningDataModule for generating synthetic data for Llama4 models.
+
+        This module creates dummy datasets (train, validation, test) using `MockLlama4Dataset`
+        for testing or development purposes without requiring actual data.
+
+        Args:
+            seq_length (int): The sequence length for text tokens. Defaults to 2048.
+            decoder_seq_length (Optional[int]): The sequence length for the decoder (if applicable). Defaults to None.
+            tokenizer (Optional): Tokenizer object. If None, defaults to "llava-hf/llava-1.5-7b-hf".
+            image_processor (Optional): Image processor object. If None, defaults to the processor from "llava-hf/llava-1.5-7b-hf".
+            micro_batch_size (int): Micro batch size per GPU. Defaults to 4.
+            global_batch_size (int): Global batch size across all GPUs. Defaults to 8.
+            rampup_batch_size (Optional[List[int]]): Ramp-up schedule for batch size. Defaults to None.
+            num_train_samples (int): Number of synthetic samples for the training set. Defaults to 10,000,000.
+            num_val_samples (int): Number of synthetic samples for the validation set. Defaults to 10,000,000.
+            num_test_samples (int): Number of synthetic samples for the test set. Defaults to 10,000,000.
+            num_workers (int): Number of worker processes for data loading. Defaults to 8.
+            pin_memory (bool): Whether to pin memory for faster data transfer to GPU. Defaults to True.
+            persistent_workers (bool): Whether to keep worker processes alive between epochs. Defaults to False.
+            packed_sequence (bool): Whether to use packed sequences for efficiency. Defaults to False.
+        """
         super().__init__()
         self.seq_length = seq_length
         self.decoder_seq_len = decoder_seq_length
@@ -73,6 +94,15 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
+        """Sets up the mock datasets for the specified stage.
+
+        Initializes `MockLlama4Dataset` instances for train, validation, and test splits.
+        Adjusts sequence length if packed sequences are used.
+
+        Args:
+            stage (str): The stage for which to set up data ('fit', 'validate', 'test', or '').
+                         Defaults to "".
+        """
         seq_length = self.seq_length
         if self.packed_sequence and self.micro_batch_size > 1:
             seq_length = seq_length // self.micro_batch_size
@@ -80,7 +110,7 @@ class MockDataModule(pl.LightningDataModule):
                 f"Packed sequence is used with mock dataset. Sequence length for each "
                 f"sample is update to `seq_length // self.micro_batch_size = {seq_length}`!"
             )
-        self._train_ds = _MockNevaDataset(
+        self._train_ds = MockLlama4Dataset(
             self.tokenizer,
             self.image_processor,
             "train",
@@ -88,7 +118,7 @@ class MockDataModule(pl.LightningDataModule):
             seq_length,
             packed_sequence=self.packed_sequence,
         )
-        self._validation_ds = _MockNevaDataset(
+        self._validation_ds = MockLlama4Dataset(
             self.tokenizer,
             self.image_processor,
             "valid",
@@ -96,7 +126,7 @@ class MockDataModule(pl.LightningDataModule):
             seq_length,
             packed_sequence=self.packed_sequence,
         )
-        self._test_ds = _MockNevaDataset(
+        self._test_ds = MockLlama4Dataset(
             self.tokenizer,
             self.image_processor,
             "test",
@@ -106,21 +136,33 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        """Returns the DataLoader for the training set."""
         if not hasattr(self, "_train_ds"):
-            self.setup()
+            self.setup('fit') # Ensure dataset is created
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        """Returns the DataLoader for the validation set."""
         if not hasattr(self, "_validation_ds"):
-            self.setup()
+            self.setup('validate') # Ensure dataset is created
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        """Returns the DataLoader for the test set."""
         if not hasattr(self, "_test_ds"):
-            self.setup()
+            self.setup('test') # Ensure dataset is created
         return self._create_dataloader(self._test_ds)
 
-    def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+    def _create_dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
+        """Creates a DataLoader for the given dataset.
+
+        Args:
+            dataset (Dataset): The dataset to wrap in a DataLoader.
+            **kwargs: Additional arguments passed to the DataLoader constructor.
+
+        Returns:
+            DataLoader: The configured DataLoader instance.
+        """
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
@@ -131,7 +173,7 @@ class MockDataModule(pl.LightningDataModule):
         )
 
 
-class _MockNevaDataset(Dataset):
+class MockLlama4Dataset(Dataset):
     def __init__(
         self,
         tokenizer,
@@ -145,6 +187,27 @@ class _MockNevaDataset(Dataset):
         num_image_embeddings_per_tile=576,
         num_tiles_per_image=1,
     ) -> None:
+        """A mock Dataset implementation for generating synthetic Llama4 data.
+
+        Produces batches containing dummy image tensors and random token sequences,
+        mimicking the structure expected by Llama4 models.
+
+        Args:
+            tokenizer: Tokenizer object to determine vocabulary size.
+            image_processor: Image processor object to determine image dimensions.
+            name (str): Name of the dataset split (e.g., "train", "valid", "test").
+            num_samples (int): Total number of synthetic samples in this dataset.
+            seq_length (int): Sequence length for the generated token sequences.
+            seed (int): Random seed for data generation reproducibility. Defaults to 42.
+            packed_sequence (bool): Whether the data should be formatted for packed sequences.
+                                    Defaults to False.
+            pixel_shuffle_ratio (float): Ratio used for calculating the image sequence length
+                                         after potential pixel shuffling. Defaults to 0.5.
+            num_image_embeddings_per_tile (int): Number of embeddings produced per image tile
+                                                 by the vision encoder (before pixel shuffle).
+                                                 Defaults to 576.
+            num_tiles_per_image (int): Number of tiles the image is split into. Defaults to 1.
+        """
         super().__init__()
         self.name = name
         self.seq_length = seq_length
@@ -168,26 +231,56 @@ class _MockNevaDataset(Dataset):
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self) -> int:
+        """Returns the number of samples in the dataset."""
         return self.length
 
     def _get_text(self, idx: int) -> np.ndarray:
+        """Generates a random sequence of token IDs (unused in current __getitem__).
+
+        Args:
+            idx (int): Index of the sample, used for seeding the random generator.
+
+        Returns:
+            np.ndarray: An array of random token IDs.
+        """
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         return np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
 
-    def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        """Generates a single synthetic data sample.
+
+        Creates random tensors for 'media' (images), 'tokens', and 'labels'.
+        The 'tokens' sequence includes placeholder IDs where image features
+        would normally be inserted.
+
+        Args:
+            idx (int): Index of the sample to generate. Used for seeding.
+
+        Returns:
+            Dict[str, torch.Tensor]: A dictionary containing:
+                - "media": A dummy image tensor [num_tiles, 3, H, W].
+                - "tokens": Input token sequence [seq_length].
+                - "labels": Target token sequence (shifted tokens) [seq_length].
+                - "loss_mask": Mask indicating which tokens contribute to loss [seq_length].
+                - "position_ids": Positional IDs for the sequence [seq_length].
+        """
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
+        # Generate tokens + 1 for creating labels by shifting
         tokens = torch.from_numpy(
             np_gen.integers(
-                200000, size=[self.seq_length + 1], dtype=np.int64
+                # Using a large upper bound for random token IDs
+                high=self.vocab_size, size=[self.seq_length + 1], dtype=np.int64
             )
         )
-        tokens[2: 2 + self._img_seq_len] = 200092  # <|patch|> token index
+        # Insert placeholder token ID where image embeddings would go
+        # Assuming a fixed placeholder ID 200092 for <|patch|>
+        tokens[2: 2 + self._img_seq_len] = 200092  # <|patch|> token index TODO: Use actual token ID if available
         labels = tokens.clone()
         images = torch.from_numpy(
             np_gen.random(
                 # num_concurrent_media, num_tiles, nch, h, w
-                size=[1, self.num_tiles_per_image, 3, self.image_height, self.image_width],
+                size=[self.num_tiles_per_image, 3, self.image_height, self.image_width],
                 dtype=np.float32
             )
         ).bfloat16()
@@ -201,13 +294,29 @@ class _MockNevaDataset(Dataset):
             "position_ids": self.position_ids,
         }
 
-    def _collate_fn(self, batch):
-        """
-        A default implementation of a collation function.
-        Users should override this method to define custom data loaders.
+    def _collate_fn(self, batch: List[Dict[str, torch.Tensor]]) -> Dict[str, Optional[torch.Tensor]]:
+        """Collates a batch of samples from the dataset.
+
+        Uses the default PyTorch collate function and then performs specific adjustments:
+        - Sets 'attention_mask' to None.
+        - Reshapes 'media' tensor.
+        - If `packed_sequence` is True, it prepares the batch for packed sequence format
+          by calculating cumulative sequence lengths (`cu_seqlens`) and reshaping
+          relevant tensors ('tokens', 'labels', 'loss_mask', 'position_ids').
+
+        Args:
+            batch (List[Dict[str, torch.Tensor]]): A list of individual samples (dictionaries)
+                                                  from `__getitem__`.
+
+        Returns:
+            Dict[str, Optional[torch.Tensor]]: The collated batch, ready for model input.
+                                               Includes 'packed_seq_params' if packing is enabled.
         """
         collated_batch = data.dataloader.default_collate(batch)
+        # Mock dataset doesn't typically need a specific attention mask
         collated_batch["attention_mask"] = None
+        # Reshape media: [B, num_tiles, C, H, W] -> [B * num_tiles, C, H, W]
+        collated_batch["media"] = collated_batch["media"].reshape(-1, *collated_batch["media"].shape[2:])
         if self.packed_sequence:
             from megatron.core.packed_seq_params import PackedSeqParams
 
@@ -234,26 +343,19 @@ class _MockNevaDataset(Dataset):
 
             for key in ["tokens", "labels", "loss_mask", "position_ids"]:
                 collated_batch[key] = collated_batch[key].reshape(1, -1)
-            collated_batch["media"] = collated_batch["media"].reshape(1, -1, *collated_batch["media"].shape[2:])
 
         return collated_batch
 
     def collate_fn(self, batch):
-        """Method that user pass as functor to DataLoader.
+        """Method passed to the DataLoader's `collate_fn` argument.
 
-        The method optionally performs neural type checking and add types to the outputs.
+        Simply calls the internal `_collate_fn` implementation. This structure allows for
+        potential future additions like neural type checking within this wrapper method.
 
-        Please note, subclasses of Dataset should not implement `input_types`.
+        Args:
+            batch: A list of samples fetched from the dataset.
 
-        # Usage:
-        dataloader = torch.utils.data.DataLoader(
-                ....,
-                collate_fn=dataset.collate_fn,
-                ....
-        )
-
-        Returns
-        -------
-            Collated batch, with or without types.
+        Returns:
+            The collated batch dictionary.
         """
         return self._collate_fn(batch)

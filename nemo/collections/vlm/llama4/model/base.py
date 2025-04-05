@@ -15,7 +15,6 @@
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-import lightning.pytorch as L
 import torch
 import torch.distributed
 from megatron.core import parallel_state as ps
@@ -25,15 +24,12 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm import fn
-from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.collections.vlm.neva.model.base import MCoreNevaModel, NevaConfig, NevaModel, MODEL_CONFIG_ATTR
-from nemo.lightning import io
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 
 def llama4_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
-    """Llama Omni Data Step"""
+    """Llama4 Omni Data Step"""
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -85,7 +81,7 @@ def llama4_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def llama4_forward_step(model, batch) -> torch.Tensor:
-    """Llama Omni Forward Step"""
+    """Llama4 Omni Forward Step"""
     forward_args = {
         "images": batch["media"],
         "input_ids": batch["tokens"],
@@ -102,7 +98,7 @@ def llama4_forward_step(model, batch) -> torch.Tensor:
 
 
 @dataclass
-class Llama4Config(NevaConfig):
+class Llama4OmniConfig(NevaConfig):
     """Llama4 Model Base Config"""
 
     language_transformer_config: Optional[TransformerConfig] = None
@@ -125,6 +121,9 @@ class Llama4Config(NevaConfig):
     freeze_language_model: bool = False
     freeze_vision_model: bool = False
     freeze_vision_projection: bool = False
+
+    bf16: bool = True
+    params_dtype: torch.dtype = torch.bfloat16
 
     forward_step_fn: Callable = llama4_forward_step
     data_step_fn: Callable = llama4_data_step
@@ -159,7 +158,7 @@ class Llama4Config(NevaConfig):
                 self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
                 self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        model = Llama4BaseModel(
+        model = Llama4OmniBaseModel(
             config=self,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage(),
@@ -173,8 +172,8 @@ class Llama4Config(NevaConfig):
         return model
 
 
-class Llama4BaseModel(MCoreNevaModel):
-    """Mllama base model combining vision and text models with cross-attention."""
+class Llama4OmniBaseModel(MCoreNevaModel):
+    """llama4 base model combining vision and text models with cross-attention."""
 
     def forward(
             self,
@@ -185,34 +184,28 @@ class Llama4BaseModel(MCoreNevaModel):
             images: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
             inference_params: Optional[InferenceParams] = None,
-            num_image_tiles: Optional[List[int]] = None,
-            image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
             runtime_gather_output: Optional[bool] = None,
-            image_token_mask: Optional[torch.Tensor] = None,
             packed_seq_params: Optional[PackedSeqParams] = None,
+            **kwargs,
     ) -> torch.Tensor:
         # pylint: disable=C0301
         """Forward function of the Llama4 model.
 
         Args:
-            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w]. num_tiles means the number of
-            image tiles in this batch.
-            input_ids (torch.Tensor): input text ids [batch, text_seq_len].
-            position_ids (torch.Tensor): input text position ids [batch, text_seq_len].
-            attention_mask (torch.Tensor): Attention mask for the language model [batch, 1, combined_seq_len,
-            combined_seq_len].
-            labels (torch.Tensor): Optional target text labels [batch, combined_seq_len].
-            loss_mask (torch.Tensor): Text loss mask [batch, text_seq_len].
-            inference_params (InferenceParams): Inference-time parameters including KV cache.
-            num_image_tiles (list of int): Number of tiles per image. Default 1 tile per image.
-            image_token_index (int): ID for input images. Default None means `image_token_index`
-                arg in the constructor will be used.
-            runtime_gather_output (bool): Gather output at runtime. Default None means
-                `parallel_output` arg in the constructor will be used.
-            image_token_mask (torch.Tensor): Tensor indicating the location of
-                image token index in input_ids.
-            packed_seq_params (PackedSeqParams): Dict with padded token information.
-                Required for using SP/CP with padding mask type.
+            input_ids (torch.Tensor): Input text token IDs of shape [batch, text_seq_len].
+            position_ids (torch.Tensor): Positional IDs for the input text tokens of shape [batch, text_seq_len].
+            loss_mask (Optional[torch.Tensor]): Mask indicating which tokens should contribute to the loss,
+                of shape [batch, text_seq_len].
+            attention_mask (Optional[torch.Tensor]): Attention mask for the model of shape
+                [batch, 1, combined_seq_len, combined_seq_len].
+            images (Optional[torch.Tensor]): Input images represented as a list of image tile tensors
+                per sample. Each tile tensor is of shape [C, H, W].
+            labels (Optional[torch.Tensor]): Target labels for language modeling, of shape [batch, combined_seq_len].
+            inference_params (Optional[InferenceParams]): Parameters for inference, such as KV cache.
+            runtime_gather_output (Optional[bool]): Whether to gather outputs during runtime. If None, falls back to
+                the `parallel_output` setting from the constructor.
+            packed_seq_params (Optional[PackedSeqParams]): Parameters for handling packed sequences, including
+                padding information (used for SP/CP).
 
         Returns:
             output (torch.Tensor): Loss of shape [b, s] if labels are provided,
@@ -236,13 +229,7 @@ class Llama4BaseModel(MCoreNevaModel):
         elif self.add_encoder and has_images:
             # images is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
-            image_mask = (input_ids == self.tokenizer.token_to_id("<|patch|>")).unsqueeze(-1)
-            h_ref = torch.zeros_like(input_ids, dtype=next(self.vision_model.parameters()).dtype, device=input_ids.device).unsqueeze(-1)
-            image_embeddings = self.vision_model(
-                image_batch=images,
-                image_mask=image_mask,
-                h_ref=h_ref,
-            )  # [num_tiles, img_seq_len, h_vision]
+            image_embeddings = self.vision_model(images)  # [num_tiles, img_seq_len, h_vision]
 
             # map vision model output size to language model input size.
             image_embeddings = self.vision_projection(image_embeddings)  # [num_tiles, img_seq_len, h_language]
@@ -277,7 +264,28 @@ class Llama4BaseModel(MCoreNevaModel):
 
             # Preprocess input, labels and loss mask.
             if has_images:
-                combined_embeddings = language_embeddings * ~image_mask + image_embeddings * image_mask
+                original_inputs_embeds_shape = language_embeddings.shape
+
+                image_embeddings_flattened = image_embeddings.view(-1, image_embeddings.size(-1))
+
+                special_image_mask = (input_ids == self.tokenizer.token_to_id("<|patch|>")).unsqueeze(-1)
+                final_mask = special_image_mask.to(language_embeddings.device)
+                combined_embeddings = language_embeddings.view(-1, language_embeddings.size(-1))
+
+                final_mask_1d = final_mask[..., 0].reshape(-1)
+                num_tokens_to_fill = final_mask_1d.sum()
+
+                if num_tokens_to_fill != image_embeddings_flattened.size(0):
+                    raise ValueError(
+                        f"Mismatch: final_mask wants {num_tokens_to_fill} embeddings, "
+                        f"but image_embeddings has {image_embeddings_flattened.size(0)} embeddings."
+                    )
+
+                expanded_mask = final_mask_1d.unsqueeze(-1).expand(-1, combined_embeddings.size(-1))
+                combined_embeddings = combined_embeddings.masked_scatter(expanded_mask, image_embeddings_flattened)
+
+                combined_embeddings = combined_embeddings.view(original_inputs_embeds_shape)
+
             else:
                 combined_embeddings = language_embeddings
             if not (packed_seq_params is not None and packed_seq_params.qkv_format == "thd"):
@@ -313,12 +321,12 @@ class Llama4BaseModel(MCoreNevaModel):
         return output, final_loss_mask.contiguous()
 
 
-class Llama4Model(NevaModel):
-    """Lightning Module for the MLlama model."""
+class Llama4OmniModel(NevaModel):
+    """Lightning Module for the Llama4 model."""
 
     def __init__(
             self,
-            config: Llama4Config,
+            config: Llama4OmniConfig,
             optim: Optional[OptimizerModule] = None,
             tokenizer: Optional["TokenizerSpec"] = None,
             model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,

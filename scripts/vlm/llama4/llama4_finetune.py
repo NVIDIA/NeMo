@@ -28,7 +28,7 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.model.llama import Llama4Experts16Config as Llama4TextConfig
-from nemo.collections.vlm.llama4.model.base import Llama4Config, Llama4Model
+from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -50,7 +50,7 @@ def main(args):
 
     # Submodules configurations
     vision_config = Llama4VisionConfig(num_layers=34)
-    text_config = Llama4TextConfig(num_layers=12)
+    text_config = Llama4TextConfig(num_layers=2)
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type="mcore_affine",
         input_size=vision_config.output_dim,
@@ -59,7 +59,7 @@ def main(args):
         bias=False,
         bias_activation_fusion=False,
     )
-    llama4_config = Llama4Config(
+    llama4_config = Llama4OmniConfig(
         language_transformer_config=text_config,
         vision_transformer_config=vision_config,
         vision_projection_config=vision_projection_config,
@@ -70,7 +70,8 @@ def main(args):
     elif args.data_type == "energon":
         raise NotImplementedError("Energon data not yet implemented.")
     elif args.data_type == "mock":
-        llama_tokenizer = AutoTokenizer(args.tokenizer_path)
+        llama_tokenizer = AutoTokenizer("/lustre/fsw/coreai_dlalgo_genai/yuya/crush/crush-maverick-17b-128e-instruct-hf-final_vv2")
+
         data = vlm.Llama4MockDataModule(
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
@@ -105,7 +106,7 @@ def main(args):
         ckpt_load_strictness="log_all",
     )
 
-    model = Llama4Model(llama4_config, tokenizer=data.tokenizer)
+    model = Llama4OmniModel(llama4_config, tokenizer=data.tokenizer)
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
@@ -208,9 +209,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
-    )
-    parser.add_argument(
-        "--tokenizer_path", type=str, required=False, default=None, help="Path to llama4 tokenizer"
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)

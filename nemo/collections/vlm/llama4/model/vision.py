@@ -22,7 +22,7 @@ from torch import einsum
 
 from megatron.core.transformer.module import MegatronModule
 
-from nemo.collections.vlm import MultimodalProjectorConfig
+from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
 from nemo.collections.vlm.mllama.model.vision import ColumnParallelConv2dPatch
 
 try:
@@ -56,7 +56,7 @@ from nemo.collections.vlm.vision.base import CLIPViTConfig
 
 @dataclass
 class Llama4VisionConfig(CLIPViTConfig):
-    """Intern ViT Base Config"""
+    """Configuration class for the Llama4 Vision Transformer model."""
 
     vision_model_type: str = "llama4"
     patch_dim: int = 14
@@ -89,6 +89,7 @@ class Llama4VisionConfig(CLIPViTConfig):
 
     def configure_model(self) -> "Llama4ViTModel":
         # pylint: disable=C0115,C0116
+        """Configures and returns an instance of the Llama4ViTModel."""
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
@@ -132,8 +133,34 @@ class PixelShuffle(nn.Module):
     def __init__(self, ps_ratio):
         super().__init__()
         self.ps_ratio = ps_ratio
+    """Performs pixel shuffle operation on encoded patches.
 
-    def forward(self, x):
+    Rearranges elements in a tensor of shape [B, N, C] representing encoded image patches
+    by moving spatial dimensions from the channel dimension.
+
+    Args:
+        ps_ratio (float): The ratio for pixel shuffling (e.g., sqrt of downscaling factor).
+    """
+
+    def __init__(self, ps_ratio: float):
+        """Initializes the PixelShuffle module.
+
+        Args:
+            ps_ratio (float): The ratio for pixel shuffling.
+        """
+        super().__init__()
+        self.ps_ratio = ps_ratio
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Applies the pixel shuffle operation.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape [B, N, C], where N is the number of patches.
+
+        Returns:
+            torch.Tensor: Tensor after pixel shuffle, shape [B, N', C'],
+                          where N' = N * ps_ratio^2 and C' = C / ps_ratio^2.
+        """
         # x: [B, N, C], N = number of patches
         assert self.ps_ratio is not None, "ps_ratio is required for pixel shuffle"
         assert x.dim() == 3, "pixel shuffle requires encoded patches [B, N, C]"
@@ -144,7 +171,16 @@ class PixelShuffle(nn.Module):
         return pixel_shuffle_patches
 
 
-def pixel_shuffle_op(input_x, ps_ratio):
+def pixel_shuffle_op(input_x: torch.Tensor, ps_ratio: float) -> torch.Tensor:
+    """Helper function to perform the core pixel shuffle logic.
+
+    Args:
+        input_x (torch.Tensor): Input tensor of shape [n, w, h, c].
+        ps_ratio (float): Pixel shuffle ratio.
+
+    Returns:
+        torch.Tensor: Output tensor after pixel shuffle.
+    """
     n, w, h, c = input_x.size()
     input_x = input_x.view(n, w, int(h * ps_ratio), int(c / ps_ratio))
     input_x = input_x.permute(0, 2, 1, 3).contiguous()
@@ -158,6 +194,20 @@ def pixel_shuffle_op(input_x, ps_ratio):
     return input_x
 
 class PixelShuffleMLP(MegatronModule):
+    """Applies pixel shuffle followed by an MLP projection.
+
+    Takes encoded patches, performs pixel shuffling, and then projects
+    them using a configurable MLP.
+
+    Args:
+        config (TransformerConfig): Megatron core transformer configuration.
+        ps_ratio (float): Ratio for the pixel shuffle operation.
+        input_dim (int): Input dimension before pixel shuffle. The dimension after
+                         pixel shuffle (input to MLP) will be input_dim / (ps_ratio**2).
+        output_dim (int): Output dimension of the MLP projection. Defaults to 4096.
+        add_fc (bool): Whether to add an additional fully connected layer (Not Implemented).
+                       Defaults to False.
+    """
     def __init__(
             self,
             config: TransformerConfig,
@@ -166,6 +216,7 @@ class PixelShuffleMLP(MegatronModule):
             output_dim: int = 4096,
             add_fc: bool = False,
     ):
+        """Initializes the PixelShuffleMLP module."""
         super().__init__(config)
         self.pixel_shuffle = PixelShuffle(ps_ratio)
         self.mlp_config = MultimodalProjectorConfig(
@@ -181,13 +232,21 @@ class PixelShuffleMLP(MegatronModule):
             raise NotImplementedError
 
     def forward(self, encoded_patches: torch.Tensor) -> torch.Tensor:
+        """Forward pass through pixel shuffle and MLP.
+
+        Args:
+            encoded_patches (torch.Tensor): Input encoded patches of shape [B, N, C_in].
+
+        Returns:
+            torch.Tensor: Output tensor after projection, shape [B, N', C_out].
+        """
         encoded_patches = self.pixel_shuffle(encoded_patches)
         activation_func = self.mlp.encoder.activation_func
         return activation_func(self.mlp(encoded_patches))
 
 
 class Llama4ViTModel(VisionModule):
-    """CLIP ViT vision model.
+    """LLama vision model.
 
     Args:
         transformer_config (TransformerConfig): Transformer config.
@@ -213,7 +272,24 @@ class Llama4ViTModel(VisionModule):
             img_w: int = 336,
             model_subtype: str = "llama4",
     ) -> None:
+        """Initializes the Llama4 Vision Transformer model.
 
+        Args:
+            transformer_config (TransformerConfig): Transformer configuration object.
+            transformer_layer_spec (ModuleSpec): Specification for the transformer layer module.
+            ln_pre_impl (Union[ModuleSpec, type]): Implementation for pre-layer normalization.
+                                                    Defaults to NORM_IMPL.
+            ln_post_impl (Union[ModuleSpec, type]): Implementation for post-layer normalization.
+                                                     Defaults to NORM_IMPL.
+            add_class_token (bool): Whether to prepend a class token to the patch sequence.
+                                    Defaults to True.
+            class_token_len (int): Length of the class token sequence. Defaults to 1.
+            patch_dim (int): Dimension of the square patches the image is divided into.
+                             Defaults to 14.
+            img_h (int): Height of the input images. Defaults to 336.
+            img_w (int): Width of the input images. Defaults to 336.
+            model_subtype (str): Subtype identifier for the model. Defaults to "llama4".
+        """
         super().__init__(config=transformer_config)
 
         self.class_token_len = class_token_len
@@ -288,7 +364,17 @@ class Llama4ViTModel(VisionModule):
         self.output_dim = transformer_config.output_dim
         self.rotary_pos_emb = self.get_rope_emb()
 
-    def get_rope_emb(self):
+    def get_rope_emb(self) -> torch.Tensor:
+        """Computes the Rotary Position Embedding (RoPE) based on image patch coordinates.
+
+        Generates 2D RoPE embeddings using the packed image index metadata. The embeddings
+        are computed separately for X and Y coordinates and concatenated. RoPE is disabled
+        for padding and CLS tokens.
+
+        Returns:
+            torch.Tensor: The computed RoPE tensor of shape [seq_length, 1, 1, dim],
+                          ready to be applied in the attention mechanism.
+        """
         # Adapted from Llama4
         patch_h = patch_w = self.patch_dim
         idx_h, idx_w = self.img_h // patch_h, self.img_w // patch_w
@@ -309,7 +395,6 @@ class Llama4ViTModel(VisionModule):
         packed_img_idx[:, :, PackingIndex.WIDTH].fill_(idx_w)
         packed_img_idx[:, :, PackingIndex.IDX] = img_idx
         packed_img_idx = packed_img_idx.reshape(1, -1, PackingIndex.NUM_METADATA - 1)
-        self.packed_img_idx = packed_img_idx  # for positional embedding load hook
 
         # compute rope freqs
         rope_freq = self.get_rope_freqs(
@@ -328,37 +413,48 @@ class Llama4ViTModel(VisionModule):
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
         return rotary_pos_emb.cuda()
 
-    def get_rope_freqs(self, dim, theta=10000):
+    def get_rope_freqs(self, dim: int, theta: int = 10000) -> torch.Tensor:
+        """Calculates the base frequencies for RoPE.
+
+        Args:
+            dim (int): The dimension of the embeddings for which RoPE is calculated (usually head_dim // 2).
+            theta (int): The base period for the sinusoidal embeddings. Defaults to 10000.
+
+        Returns:
+            torch.Tensor: A 1D tensor containing the RoPE frequencies.
+        """
         freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
         return freqs
 
     @torch.amp.autocast("cuda", enabled=False)
-    def compute_rope_freqs(self, freqs, t):
-        freqs = einsum("..., f -> ... f", t.type(freqs.dtype), freqs)
-        freqs = freqs.repeat_interleave(2, dim=-1)
+    def compute_rope_freqs(self, freqs: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Computes RoPE frequencies for given positions `t`.
+
+        Applies the base frequencies to the position indices and interleaves them.
+
+        Args:
+            freqs (torch.Tensor): Base RoPE frequencies (output of get_rope_freqs).
+            t (torch.Tensor): Tensor containing position indices (e.g., X or Y coordinates).
+
+        Returns:
+            torch.Tensor: RoPE frequencies corresponding to the input positions `t`.
+        """
+        freqs = einsum("..., f -> ... f", t.type(freqs.dtype), freqs) # outer product, t might be multidim
+        freqs = freqs.repeat_interleave(2, dim=-1) # Interleave for sin/cos application
         return freqs
 
     def set_input_tensor(self, input_tensor: torch.Tensor) -> None:
-        """Sets input tensor to the model.
+        """Sets input tensor to the model's decoder block.
 
         Args:
-            input_tensor (Tensor): Sets the input tensor for the model.
+            input_tensor (torch.Tensor): Input tensor to set.
         """
         self.decoder.set_input_tensor(input_tensor)
-
-    def _get_empty_sequence(self, h):
-        return torch.zeros(
-            h.shape[0],
-            h.shape[1],
-            self.output_dim,
-            device=h.device,
-            dtype=h.dtype,
-        )
 
     def _encode(
             self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        """Forward function of the CLIP ViT Model. This function passes the input tensors
+        """Forward function of the ViT Model. This function passes the input tensors
         through the embedding layer and then the transformer.
 
         Args:
@@ -368,15 +464,6 @@ class Llama4ViTModel(VisionModule):
         Returns:
             x (torch.Tensor): output after final transformer block of shape [b, s, h].
         """
-
-        # NOTE(from Llama4 reference): in Llama4 bsz=bsz*num_tiles, num_chunks=1
-        # TODO(yuya): clean up logic for dims
-        if x.ndim == 5:
-            num_concurrent_media = 1
-            bsz, num_chunks, nch, h, w = x.shape
-        else:
-            bsz, num_concurrent_media, num_chunks, nch, h, w = x.shape
-        x = x.reshape(bsz * num_concurrent_media * num_chunks, nch, h, w)
 
         x = self.conv1(x)  # [batch, grid ** 2, hidden_size]
 
@@ -409,52 +496,24 @@ class Llama4ViTModel(VisionModule):
 
     def forward(
             self,
-            image_batch: List[List[torch.Tensor]],
-            image_mask: torch.Tensor,
-            h_ref: torch.Tensor,
+            images: torch.Tensor,
     ) -> torch.Tensor:
         # TODO(yuya): Move input processing and output processing to base model
         # to keep vit submodule clean
+        """Processes input images through the ViT encoder and adapter.
 
-        images_flattened = [image for sample in image_batch for image in sample]
-        images_flattened = torch.vstack(images_flattened).unsqueeze(1)
-        embedding = self._encode(images_flattened)
+        Args:
+            images (torch.Tensor): Input image tensor of shape [batch, channels, height, width].
+
+        Returns:
+            torch.Tensor: Projected embeddings after passing through the encoder and adapter,
+                          typically of shape [batch, num_output_patches, output_dim].
+                          The CLS token output (if used) is removed before the adapter.
+        """
+
+        embedding = self._encode(images)
         # remove cls token output
         embedding = embedding[:, :-1, :]
         projected_embedding = self.adapter(embedding)
 
-        h_image = self._get_empty_sequence(h_ref)
-        return scatter_embeddings(image_batch, image_mask, h_image, projected_embedding)
-
-
-def scatter_embeddings(image_batch, image_mask, h_image, encoded_patches_proj):
-    # If dynamic transform is used and the batch contains 2 images (where image_1 has 2 chunks and image_2 has 3 chunks),
-    # `num_images_per_sequence` now records the number of chunks per image as `[2, 3]`.
-    # `encoded_patches_proj.split` will then split the image chunks into 2 groups: `[image_1_chunks, image_2_chunks]`.
-    num_images_per_sequence = [sum(image.size(0) for image in sample_images) for sample_images in image_batch]
-
-    assert not torch.isnan(encoded_patches_proj).any()
-    assert sum(num_images_per_sequence) == encoded_patches_proj.size(0), (
-        f"{sum(num_images_per_sequence)=} != {encoded_patches_proj.shape=}"
-    )
-
-    encoded_patches_list = encoded_patches_proj.split(num_images_per_sequence, dim=0)
-    for index in range(h_image.size(0)):
-        encoded_patches_per_sample = encoded_patches_list[index]
-        sample_image_mask = image_mask[index]
-
-        if encoded_patches_per_sample.numel() == 0:
-            continue
-        encoded_patches_per_sample = encoded_patches_per_sample.contiguous().view(
-            -1, encoded_patches_per_sample.size(-1)
-        )
-
-        n_tokens_to_fill = sample_image_mask.sum()
-        assert n_tokens_to_fill <= encoded_patches_per_sample.size(0)
-
-        h_image[index].masked_scatter_(
-            sample_image_mask.expand(-1, h_image.size(-1)),
-            encoded_patches_per_sample[:n_tokens_to_fill],
-        )
-
-    return h_image
+        return projected_embedding
