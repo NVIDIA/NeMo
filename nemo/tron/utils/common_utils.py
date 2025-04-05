@@ -18,8 +18,11 @@ from datetime import datetime
 from typing import Any, Optional
 
 import torch.distributed
+import yaml
 from megatron.core import DistributedDataParallel as DDP
 from megatron.core.transformer.module import Float16Module
+
+from nemo.tron.utils.yaml_utils import safe_yaml_representers
 
 try:
     from megatron.core.distributed import TorchFullyShardedDataParallel as torch_FSDP
@@ -150,22 +153,9 @@ def _safe_object_representer(dumper, data):
 
 
 def dump_dataclass_to_yaml(obj: Any, filename: Optional[str] = None):
-    import fiddle._src.experimental.dataclasses as fdl_dc
-    import yaml
-    from nemo_run.core.serialization.yaml import YamlSerializer
-
-    cfg = fdl_dc.convert_dataclasses_to_configs(obj, allow_post_init=True)
-    original_representers = yaml.SafeDumper.yaml_representers.copy()
-
-    yaml.SafeDumper.add_multi_representer(object, _safe_object_representer)
-
-    serializer = YamlSerializer()
-    result = serializer.serialize(cfg)
-
-    yaml.SafeDumper.yaml_representers = original_representers
-
-    if filename is not None:
-        with open(filename, "w+") as f:
-            f.write(result)
-
-    return result
+    with safe_yaml_representers():
+        if filename is not None:
+            with open(filename, "w+") as f:
+                yaml.safe_dump(obj, f)
+        else:
+            return yaml.safe_dump(obj)

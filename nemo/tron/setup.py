@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import time
+from functools import partial
 from typing import Any, Dict, NamedTuple, Optional
 
 import torch
@@ -31,7 +33,7 @@ from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer
-from nemo.tron.data.dataset import setup_data_iterators
+from nemo.tron.data.loaders import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
@@ -64,7 +66,7 @@ class SetupOutput(NamedTuple):
 
 def setup(
     cfg: ConfigContainer,
-    train_valid_test_dataset_provider,
+    train_valid_test_datasets_provider,
     get_embedding_ranks=None,
     get_position_embedding_ranks=None,
 ):
@@ -72,7 +74,12 @@ def setup(
     state.cfg = cfg
     # TODO: Freeze state.cfg
 
-    setup_logging(cfg)
+    setup_logging(
+        logging_level=cfg.logger_config.logging_level,
+        filter_warning=cfg.logger_config.filter_warnings,
+        modules_to_filter=cfg.logger_config.modules_to_filter,
+        set_level_for_all_loggers=cfg.logger_config.set_level_for_all_loggers,
+    )
 
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(
@@ -113,7 +120,9 @@ def setup(
         make_vocab_size_divisible_by=cfg.model_config.make_vocab_size_divisible_by,
         tensor_model_parallel_size=cfg.model_config.tensor_model_parallel_size,
     )
-    cfg.model_config.vocab_size = tokenizer.vocab_size
+    if not cfg.model_config.vocab_size:
+        cfg.model_config.vocab_size = tokenizer.vocab_size
+
     cfg.dataset_config.tokenizer = tokenizer
     timers("tokenizer-setup").stop()
     barrier_and_log("after tokenizer is built")
@@ -164,11 +173,14 @@ def setup(
 
     # Data stuff.
     timers("train/valid/test-data-iterators-setup", log_level=0).start(barrier=True)
+    if "tokenizer" in inspect.signature(train_valid_test_datasets_provider).parameters:
+        train_valid_test_datasets_provider = partial(train_valid_test_datasets_provider, tokenizer=tokenizer)
+
     train_data_iterator, valid_data_iterator, test_data_iterator = setup_data_iterators(
         cfg=cfg,
         train_state=state.train_state,
         model_length=len(model),
-        train_valid_test_dataset_provider=train_valid_test_dataset_provider,
+        train_valid_test_datasets_provider=train_valid_test_datasets_provider,
     )
     timers("train/valid/test-data-iterators-setup").stop()
     barrier_and_log("after dataloaders are built")

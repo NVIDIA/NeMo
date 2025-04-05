@@ -14,7 +14,8 @@
 
 import os
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional
+from pathlib import Path
+from typing import Any, List, Literal, Optional, Union
 
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -24,6 +25,7 @@ from megatron.core.transformer.enums import ModelType
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron.utils.common_utils import get_world_size_safe
+from nemo.tron.utils.config_utils import ConfigContainer as Container
 
 
 @dataclass
@@ -104,8 +106,8 @@ class TokenizerConfig:
     padded_vocab_size: Optional[int] = None
 
 
-@dataclass
-class GPTDatasetConfig(MCoreGPTDatasetConfig):
+@dataclass(kw_only=True)
+class DataloaderConfig:
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
 
@@ -115,12 +117,34 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig):
     data_sharding: bool = True
     """Disable data sharding."""
 
+    pin_memory: bool = True
+    """Whether to pin memory during data loading for faster GPU training."""
+
+    persistent_workers: bool = False
+    """Whether to keep data loading workers persistent across epochs."""
+
+
+@dataclass
+class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
     def __post_init__(self) -> None:
         super(MCoreGPTDatasetConfig, self).__post_init__()
 
         assert self.reset_position_ids is not None
         assert self.reset_attention_mask is not None
         assert self.eod_mask_loss is not None
+
+
+@dataclass(kw_only=True)
+class FinetuningDatasetConfig(DataloaderConfig):
+    dataset_root: Optional[Union[str, Path]] = None
+    seq_length: int
+    seed: int = 1234
+    memmap_workers: int = 1
+    max_train_samples: Optional[int] = None
+    packed_sequence_specs: Optional[dict] = None
+    dataset_kwargs: Optional[dict[str, Any]] = None
+    do_validation: bool = True
+    do_test: bool = True
 
 
 @dataclass
@@ -177,7 +201,7 @@ class TrainingConfig:
     eval_iters: int = 100
     """Number of iterations to run for evaluation validation/test for."""
 
-    eval_interval: int = 1000
+    eval_interval: Optional[int] = 1000
     """Interval between running evaluation on validation set."""
 
     skip_train: bool = False
@@ -302,6 +326,15 @@ class LoggerConfig:
 
     logging_level: Optional[int] = None
     """Set default logging level"""
+
+    filter_warnings: bool = True
+    """Filter out warning messages"""
+
+    modules_to_filter: Optional[list[str]] = None
+    """List of modules to filter out from the logs"""
+
+    set_level_for_all_loggers: bool = False
+    """Set the logging level for all loggers. If False, only level for NeMo loggers will be set."""
 
 
 @dataclass(kw_only=True)
@@ -504,7 +537,7 @@ class StragglerDetectionConfig:
 
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
-class ConfigContainer:
+class ConfigContainer(Container):
     rng_config: RNGConfig = field(default_factory=RNGConfig)
     rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     train_config: TrainingConfig
@@ -512,7 +545,7 @@ class ConfigContainer:
     optimizer_config: OptimizerConfig
     ddp_config: DistributedDataParallelConfig = field(default_factory=DistributedDataParallelConfig)
     scheduler_config: SchedulerConfig
-    dataset_config: GPTDatasetConfig
+    dataset_config: GPTDatasetConfig | FinetuningDatasetConfig
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig
@@ -521,7 +554,7 @@ class ConfigContainer:
     straggler_config: Optional[StragglerDetectionConfig] = None
     profiling_config: Optional[ProfilingConfig] = None
 
-    def __post_init__(self):
+    def validate(self):
         # Run validations
 
         # Distributed

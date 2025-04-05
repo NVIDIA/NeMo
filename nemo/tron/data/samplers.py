@@ -8,7 +8,6 @@ from typing import Callable, Optional
 import numpy as np
 import torch
 from megatron.core import mpu
-from megatron.training import get_args
 from torch.utils.data import Dataset
 
 
@@ -20,6 +19,9 @@ def build_pretraining_data_loader(
     num_workers: int,
     data_sharding: bool,
     worker_init_fn: Optional[Callable] = None,
+    collate_fn: Optional[Callable] = None,
+    pin_memory: bool = True,
+    persistent_workers: bool = False,
 ):
     """Build dataloader given an input dataset."""
 
@@ -57,8 +59,9 @@ def build_pretraining_data_loader(
         dataset,
         batch_sampler=batch_sampler,
         num_workers=num_workers,
-        pin_memory=True,
-        persistent_workers=True if num_workers > 0 else False,
+        pin_memory=pin_memory,
+        collate_fn=collate_fn,
+        persistent_workers=persistent_workers,
         worker_init_fn=worker_init_fn,
     )
 
@@ -113,10 +116,9 @@ class MegatronPretrainingSampler:
 
 
 class RandomSeedDataset(Dataset):
-    def __init__(self, dataset):
-        args = get_args()
-        self.base_seed = args.seed
-        self.curr_seed = args.seed
+    def __init__(self, dataset, seed: int):
+        self.base_seed = seed
+        self.curr_seed = seed
         self.dataset = dataset
 
     def __len__(self):
