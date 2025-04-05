@@ -940,7 +940,7 @@ def check_resume(
                 if end_chkpt_cnt > 0 and finished_end_chkpt_cnt == 0:
                     raise ValueError(
                         "End checkpoint is unfinished and cannot be used to resume the training."
-                        " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                        " Please remove the checkpoint manually to avoid unexpected consequences, such as"
                         " restarting from scratch."
                     )
 
@@ -953,7 +953,7 @@ def check_resume(
                 if last_chkpt_cnt > 0 and finished_last_chkpt_cnt == 0:
                     raise ValueError(
                         "Last checkpoint is unfinished and cannot be used to resume the training."
-                        " Please remove the checkpoint manually to avoid unexpected cosequences, "
+                        " Please remove the checkpoint manually to avoid unexpected consequences, "
                         " such as restarting from scratch. Hint: Iteration number can be added "
                         " to the checkpoint name pattern"
                         " to maximize chance that there is at least one finished last checkpoint to"
