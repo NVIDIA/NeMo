@@ -15,6 +15,7 @@
 import io
 import signal
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
@@ -29,13 +30,19 @@ from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
-from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.tensor import DeviceMesh, distribute_module
+from torch.distributed.tensor.parallel import (
+    ColwiseParallel,
+    ParallelStyle,
+    RowwiseParallel,
+    SequenceParallel,
+    parallelize_module,
+)
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
-
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
@@ -451,13 +458,25 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
+    tp_shard_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
     offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
+
+    Args:
+        model: The model to be parallelized.
+        device_mesh (DeviceMesh): The device mesh for distributed training.
+        mp_policy (MixedPrecisionPolicy): Mixed precision policy for model parallelism.
+        tp_shard_plan (Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]]):
+            A tensor parallel sharding plan. The keys should be the module names and the values should be the
+            corresponding parallel styles (e.g., RowwiseParallel, ColwiseParallel, SequenceParallel).
+        offload_policy (CPUOffloadPolicy): The offload policy for FSDP. If None, it will use the default policy.
+
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
     the model must fit on GPU or CPU memory.
     NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
+    NOTE: Currently, the user should make sure that custom_tp_plan is compatible with the model architecture.
     """
 
     if not mp_policy:
@@ -484,20 +503,24 @@ def fsdp2_strategy_parallelize(
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-    # assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
     dp_mesh = device_mesh["data_parallel"]
-    if dp_mesh.size() > 1:
-        assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
+    tp_mesh = device_mesh["tensor_parallel"]
 
-        assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
-        # Find transformer layers and apply parallelisms
-        parallelize_helper(model, dp_mesh, mp_policy)
+    # TP sharding
+    parallelize_module(model, tp_mesh, tp_shard_plan)
 
-        # reshard_after_forward=True based on
-        # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
-        model = fully_shard(
-            model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
-        )
+    # FSDP sharding
+    assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
+    assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
+
+    # Find transformer layers and apply parallelisms
+    parallelize_helper(model, dp_mesh, mp_policy)
+
+    # reshard_after_forward=True based on
+    # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
+    model = fully_shard(
+        model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
+    )
 
     return model
 
@@ -550,3 +573,64 @@ def _destroy_dist_connection() -> None:
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
+class RotaryEmbedParallel(ParallelStyle):
+    """RotaryEmbedParallel used for HF models with rotary embeddings."""
+
+    def __init__(self, *, sequence_dim: int = 1, use_local_output: bool = False):
+        super().__init__()
+        self.sequence_sharding = (Shard(sequence_dim),)
+        self.use_local_output = use_local_output
+
+    def _replicate_module_fn(self, name: str, module: nn.Module, device_mesh: DeviceMesh):
+        for p_name, param in module.named_parameters():
+            # simple replication with fixed ones_ init from LayerNorm/RMSNorm, which allow
+            # us to simply just use from_local
+            replicated_param = torch.nn.Parameter(
+                DTensor.from_local(param, device_mesh, [Replicate()], run_check=False)
+            )
+            module.register_parameter(p_name, replicated_param)
+
+    @staticmethod
+    def _prepare_input_fn(sequence_sharding, mod, inputs, device_mesh):
+        """NOTE: this function will hang if the sequence length is not properly divisible by TP size"""
+        new_inputs = list(inputs)
+
+        if not isinstance(inputs[0], DTensor):
+            new_inputs[0] = DTensor.from_local(
+                local_tensor=inputs[0], device_mesh=device_mesh, placements=sequence_sharding, run_check=False
+            )
+
+        if not isinstance(inputs[1], DTensor):
+            new_inputs[1] = DTensor.from_local(
+                local_tensor=inputs[1], device_mesh=device_mesh, placements=sequence_sharding, run_check=False
+            )
+
+        new_inputs = tuple(new_inputs)
+        return new_inputs
+
+    @staticmethod
+    def _prepare_output_fn(use_local_output, mod, outputs, device_mesh):
+        if isinstance(outputs, tuple) and use_local_output:
+            outputs = tuple(output.to_local() for output in outputs)
+            return outputs
+        else:
+            return outputs.to_local() if use_local_output else outputs
+
+    def _apply(self, module: nn.Module, device_mesh: DeviceMesh) -> nn.Module:
+        return distribute_module(
+            module,
+            device_mesh,
+            self._replicate_module_fn,
+            partial(self._prepare_input_fn, self.sequence_sharding),
+            partial(self._prepare_output_fn, self.use_local_output),
+        )
+
+    def __repr__(self) -> str:
+        tmpstr = self.__class__.__name__ + "("
+        if len(self.sequence_sharding) == 1:
+            tmpstr += f"sequence_dim={self.sequence_sharding[0].dim}, "
+        tmpstr += f"use_local_output={self.use_local_output}"
+        tmpstr += ")"
+        return tmpstr

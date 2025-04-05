@@ -268,6 +268,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # GPTSFTDataset emits `tokens` instead of `input_ids`
         if not 'input_ids' in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
+
+        # TODO(@boxiangw): Refractor. Needed for SP support
+        batch["position_ids"] = torch.arange(0, batch['input_ids'].shape[1]).unsqueeze(0).to(self.model.device)
+
         batch = self._remove_extra_batch_keys(batch)
 
         outputs = self.forward(batch)
@@ -310,7 +314,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
-                group = device_mesh.get_group()
+                group = device_mesh["data_parallel"].get_group()
 
             def reduce_item(val, op, device, group, dtype):
                 """util function"""
