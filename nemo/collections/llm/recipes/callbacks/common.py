@@ -18,6 +18,7 @@ This module provides factory functions for creating various callbacks used in LL
 including straggler detection and performance monitoring.
 """
 
+from datetime import timedelta
 from typing import Optional
 
 from nemo_run import Config, cli
@@ -64,4 +65,25 @@ def straggler_det_callback(
         gpu_individual_perf_threshold=gpu_individual_perf_threshold,
         stop_if_detected=stop_if_detected_straggler,
         enable_ptl_logging=True,
+    )
+
+
+@cli.factory(is_target_default=True)
+def local_checkpoint_callback(
+    every_n_train_steps: Optional[int] = None,
+    train_time_interval: Optional[timedelta] = None,
+) -> Config[res_module.LocalCheckpointCallback]:
+    """Creates a callback for saving local checkpoints for fault tolerance.
+
+    This callback from nvidia-resiliency-ext saves ephemeral checkpoints.
+    Each node saves checkpoint parts locally, either on SSDs or RAM disks, as configured by the user.
+
+    Args:
+        every_n_train_steps: How frequently to save a local checkpoint in terms of elapsed training steps.
+        train_time_interval: How frequently to save a local checkpoint in terms of elapsed time.
+    """
+    return Config(
+        res_module.LocalCheckpointCallback,
+        every_n_train_steps=every_n_train_steps,
+        train_time_interval=train_time_interval,
     )
