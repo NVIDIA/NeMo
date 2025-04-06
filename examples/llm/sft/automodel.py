@@ -220,6 +220,7 @@ def main():
     if args.wandb_project is not None:
         model = '_'.join(args.model.split('/')[-2:])
         from lightning.pytorch.loggers import WandbLogger
+
         wandb = WandbLogger(
             project=args.wandb_project,
             name=f"{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}_lr{args.lr}",

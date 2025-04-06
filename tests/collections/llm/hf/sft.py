@@ -309,6 +309,7 @@ def main():
     wandb = None
     if args.wandb_project is not None:
         from lightning.pytorch.loggers import WandbLogger
+
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
