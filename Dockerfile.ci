@@ -31,7 +31,7 @@ git checkout -f $NEMO_TAG
 EOF
 
 
-FROM ${BASE_IMAGE} AS trt-base
+FROM ${BASE_IMAGE} AS final
 ARG IMAGE_LABEL
 LABEL "nemo.library"=${IMAGE_LABEL}
 
@@ -54,17 +54,13 @@ RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/N
 EOF
 
 
-FROM trt-base AS trt-llm-wheel
-
-ARG TRTLLM_REPO
-ARG TRTLLM_TAG
+FROM final AS trt-llm-wheel
 RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
-  
   bash /tmp/NeMo/reinstall.sh --library trtllm --mode build
 EOF
 
 
-FROM trt-base AS test-image
+FROM final
 
 ARG MLM_REPO
 ARG MLM_TAG

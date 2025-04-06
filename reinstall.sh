@@ -4,6 +4,7 @@ set -ex
 # List of all supported libraries (update this list when adding new libraries)
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
+  "trt"
   "trtllm"
   "mcore"
   "nemo"
@@ -351,12 +352,6 @@ else
 
   # Validate each library is supported
   for lib in "${LIBRARIES[@]}"; do
-    # "trt" is a valid option but not in ALL_LIBRARIES
-    # It does not get installed at the same time as the rest
-    if [[ "$lib" == "trt" ]]; then
-      continue
-    fi
-
     if [[ ! " ${ALL_LIBRARIES[@]} " =~ " ${lib} " ]]; then
       echo "Error: Unsupported library '$lib'"
       exit 1
