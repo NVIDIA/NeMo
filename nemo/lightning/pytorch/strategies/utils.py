@@ -16,7 +16,6 @@ import contextlib
 import io
 import signal
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Tuple, Union, cast
 
@@ -31,10 +30,9 @@ from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
-from torch.distributed.tensor import DeviceMesh, distribute_module
+from torch.distributed.tensor import DeviceMesh
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
-    ParallelStyle,
     RowwiseParallel,
     SequenceParallel,
     parallelize_module,
