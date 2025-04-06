@@ -199,9 +199,10 @@ def main():
         '--limit-val-batches',
         default=0.0,
         type=float,
-        help=('How much of validation dataset to check. Useful when debugging or testing '
-              'something that happens at the end of an epoch. Default to 0.0 (disabled)'
-        )
+        help=(
+            'How much of validation dataset to check. Useful when debugging or testing '
+            'something that happens at the end of an epoch. Default to 0.0 (disabled)'
+        ),
     )
     parser.add_argument('--seq-length', default=2048, type=int, help='Sequence length to use for training')
     parser.add_argument(
@@ -215,8 +216,12 @@ def main():
         '--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.'
     )
     parser.add_argument('--mock-dataset', action='store_true', help='Use HFMockDataModule for training.')
-    parser.add_argument('--limit-dataset-samples', type=int, default=None, help='If set will limit num of dataset samples. Default None (disabled)')
-
+    parser.add_argument(
+        '--limit-dataset-samples',
+        type=int,
+        default=None,
+        help='If set will limit num of dataset samples. Default None (disabled)',
+    )
 
     args = parser.parse_args()
 
@@ -228,6 +233,7 @@ def main():
     if args.wandb_project is not None:
         model = '_'.join(args.model.split('/')[-2:])
         from lightning.pytorch.loggers import WandbLogger
+
         wandb = WandbLogger(
             project=args.wandb_project,
             name=f"{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}_lr{args.lr}",
@@ -286,12 +292,14 @@ def main():
     dataset = None
     if args.mock_dataset:
         dataset = HFMockDataModule(
-            seq_length=args.seq_length, micro_batch_size=args.micro_batch_size,
+            seq_length=args.seq_length,
+            micro_batch_size=args.micro_batch_size,
             pad_seq_len_divisible=16 if args.fp8 else None,
         )
     else:
         dataset = make_squad_hf_dataset(
-            tokenizer=model.tokenizer, micro_batch_size=args.micro_batch_size,
+            tokenizer=model.tokenizer,
+            micro_batch_size=args.micro_batch_size,
             seq_length=args.seq_length,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
