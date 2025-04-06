@@ -1,20 +1,22 @@
 import json
 import os
-import webdataset as wds
-from tqdm import tqdm
-from argparse import ArgumentParser
-from webdataset.writer import default_handlers, add_handlers, imageencoder
 import pickle
-from torchvision.io import encode_jpeg
+from argparse import ArgumentParser
 
-os.environ["FORCE_QWENVL_VIDEO_READER"]='torchvision'
+import webdataset as wds
+from torchvision.io import encode_jpeg
+from tqdm import tqdm
+from webdataset.writer import add_handlers, default_handlers, imageencoder
+
+os.environ["FORCE_QWENVL_VIDEO_READER"] = 'torchvision'
 from qwen_vl_utils import fetch_image, fetch_video
 import numpy as np
 import torch
 
+
 def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
     """
-        Here we provide an example to convert llava-pretrain dataset to webdataset 
+    Here we provide an example to convert llava-pretrain dataset to webdataset
     """
 
     # Paths to the dataset files
@@ -30,7 +32,9 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
 
     # custom webdataset ShardWriter Encoder
     add_handlers(default_handlers, "jpgs", lambda data: pickle.dumps([np.array(d) for d in data]))
-    add_handlers(default_handlers, "videos", lambda data: pickle.dumps([[np.array(d) for d in video] for video in data]))
+    add_handlers(
+        default_handlers, "videos", lambda data: pickle.dumps([[np.array(d) for d in video] for video in data])
+    )
 
     has_idx = None
     with wds.ShardWriter(os.path.join(output, 'pretrain-%d.tar'), maxcount=max_count) as shard_writer:
@@ -42,7 +46,7 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
             elif 'images' in entry:
                 pop_item = entry.pop('images')
             else:
-                pop_item = [] 
+                pop_item = []
 
             if not isinstance(pop_item, list):
                 pop_item = [pop_item]
@@ -56,8 +60,8 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
             elif 'videos' in entry:
                 pop_item = entry.pop('videos')
             else:
-                pop_item = [] 
-            
+                pop_item = []
+
             if not isinstance(pop_item, list):
                 pop_item = [pop_item]
             for video in pop_item:
@@ -83,10 +87,11 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
                 "json": conv,
             }
             shard_writer.write(sample)
-    
+
     print(f"Dataset successfully converted to wds")
     return output
-    
+
+
 if __name__ == '__main__':
     argparser = ArgumentParser()
     argparser.add_argument('--dataset-root', required=True, type=str)
@@ -95,6 +100,7 @@ if __name__ == '__main__':
     argparser.add_argument('--mediate-path', default='', type=str)
     args = argparser.parse_args()
 
-
-    output_dir = convert(args.dataset_root, args.json, max_count=args.max_samples_per_tar, mediate_path=args.mediate_path)
+    output_dir = convert(
+        args.dataset_root, args.json, max_count=args.max_samples_per_tar, mediate_path=args.mediate_path
+    )
     print(f"convert done")

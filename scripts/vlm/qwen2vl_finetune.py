@@ -45,10 +45,12 @@ from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageP
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.vlm import Qwen2VLDataConfig
+
+# from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.vlm.qwen2vl.data.energon import Qwen2VLTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.vlm.qwen2vl.data.energon import Qwen2VLTaskEncoder
 
 def main(args):
     # pylint: disable=C0115,C0116
@@ -92,9 +94,7 @@ def main(args):
             num_workers=1,
         )
     elif args.data_type == "energon":
-        from nemo.collections.multimodal.data.energon import (
-            EnergonMultiModalDataModule,
-        )
+        from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
 
         # Initialize the data module
         use_packed_sequence = False
@@ -109,7 +109,7 @@ def main(args):
             task_encoder=Qwen2VLTaskEncoder(
                 tokenizer=tokenizer,
                 image_processor=image_processor,
-                max_padding_length=int(max_sequence_length*0.9),
+                max_padding_length=int(max_sequence_length * 0.9),
             ),
             packing_buffer_size=200 if use_packed_sequence else None,
         )
