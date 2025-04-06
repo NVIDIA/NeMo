@@ -680,7 +680,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             source,
             target,
             mapping=mapping,
-            transforms=transforms=transforms,
+            transforms=transforms,
             state_dict_ignored_entries=["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"],
         )
 
