@@ -663,12 +663,8 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
         if source.config.position_embedding_type != 'relative':
             del mapping["encoder_relative_pos_emb.relative_attention_bias.weight"]
             del mapping["decoder_relative_pos_emb.relative_attention_bias.weight"]
-        
-        transforms = [
-            _export_encoder_qkv,
-            _export_decoder_qkv,
-            _export_decoder_kv
-        ]
+
+        transforms = [_export_encoder_qkv, _export_decoder_qkv, _export_decoder_kv]
         if source.config.gated_linear_unit:
             transforms.append(_export_encoder_linear_fc1)
             transforms.append(_export_decoder_linear_fc1)
