@@ -72,6 +72,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
+        context_parallel_size: Optional[int] = 1,
         sequence_parallel: bool = False,
         offload_policy: 'CPUOffloadPolicy' = None,
         data_sampler=None,
@@ -84,8 +85,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """Initializes the FSDP2Strategy with specified parallelization settings.
 
         Args:
-            data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
-            tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
+            data_parallel_size (Union[Literal["auto"], int]): Size of data parallel. Defaults to "auto".
+            tensor_parallel_size (Union[Literal["auto"], int]): Size of tensor parallel. Defaults to "auto".
+            context_parallel_size (optional): Number of context-parallel groups. Defaults to 1.
             sequence_parallel (bool): Whether to enable sequence parallelism. Defaults to False.
                 Only effective when tensor_parallel_size > 1.
             data_sampler (optional): Custom data sampler to process dataloaders.
@@ -108,6 +110,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
         self._checkpoint_io = checkpoint_io
+        self.context_parallel_size = context_parallel_size
         self.data_sampler = data_sampler
         self.checkpoint = None
         self.mp_policy = mp_policy
@@ -227,8 +230,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         mesh_shape = []
         mesh_dim_names = []
         for dim, name in zip(
-            [self._data_parallel_size, self._tensor_parallel_size],
-            ["data_parallel", "tensor_parallel"],
+            [self._data_parallel_size, self._tensor_parallel_size, self.context_parallel_size],
+            ["data_parallel", "tensor_parallel", "context_parallel"],
         ):
             mesh_shape.append(dim)
             mesh_dim_names.append(name)
@@ -238,6 +241,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             mesh_shape=tuple(mesh_shape),
             mesh_dim_names=mesh_dim_names,
         )
+
+        # Construct sharding and reduction meshes for specific configurations.
+        # Replace existing mesh strategies if a custom mesh design is provided.
+        # WARNING: ADDING MESHES INCREASES MEMORY USAGE. Use device meshes for
+        # multiple dimensions of parallelism if possible.
+        if self._device_mesh["context_parallel"].size() > 1:
+            # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
+            self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
+
         self.lightning_module._device_mesh = self._device_mesh
 
     @override
@@ -376,7 +388,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert self.model is not None
 
-        loss = self.lightning_module.training_step(batch, batch_idx)
+        if self.context_parallel_size > 1:
+            # Only pass context_parallel=True if AutoModel supports and has non-trivial CP.
+            loss = self.lightning_module.training_step(batch, batch_idx, context_parallel=True)
+        else:
+            loss = self.lightning_module.training_step(batch, batch_idx)
+
         self.lightning_module.log(
             'global_step',
             self.trainer.global_step,
@@ -549,12 +566,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         strict=False,
     ):
         """Shards a full state dict"""
-        # Gather TP/SP strategy keys
-        colwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], ColwiseParallel)]
-        rowwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], RowwiseParallel)]
-        seq_parallel_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], SequenceParallel)]
+        if self._tensor_parallel_size > 1 and self._device_mesh["context_parallel"].size() == 1:
+            # Gather TP/SP strategy keys
+            colwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], ColwiseParallel)]
+            rowwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], RowwiseParallel)]
+            seq_parallel_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], SequenceParallel)]
 
-        if self._tensor_parallel_size > 1:
             sharded_state = {k: v for k, v in ckpt['state_dict'].items()}
 
             # placement is (dp, tp)
@@ -570,9 +587,20 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                     sharded_state[k] = distribute_tensor(
                         v, self.device_mesh["data_parallel"], placements=(Shard(dim=0),)
                     )
-        else:
+        # TODO(@akoumparouli): update `placements` value once TP is enabled.
+        elif self._tensor_parallel_size == 1 and self._device_mesh["context_parallel"].size() > 1:
+            # Shard across the CP device mesh, associated with the fully_shard() call
+            # in utils.fsdp2_strategy_parallelize().
             sharded_state = {
-                k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
+                k: distribute_tensor(
+                    v, self._device_mesh[("data_parallel", "context_parallel")], placements=(Replicate(), Shard(dim=0))
+                )
+                for k, v in ckpt['state_dict'].items()
+            }
+        else:
+            # Default shard across DP for FSDP2.
+            sharded_state = {
+                k: distribute_tensor(v, self._device_mesh["data_parallel"], placements=(Shard(dim=0),))
                 for k, v in ckpt['state_dict'].items()
             }
 

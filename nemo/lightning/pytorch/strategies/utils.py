@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import io
 import signal
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Tuple, Union, cast
 
 import lightning.pytorch as pl
 import torch
@@ -503,8 +504,11 @@ def fsdp2_strategy_parallelize(
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-    dp_mesh = device_mesh["data_parallel"]
+    # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
+    dp_mesh = device_mesh["context_parallel" if device_mesh["context_parallel"].size() > 1 else "data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
+    if dp_mesh.size() > 1:
+        assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
     # TP sharding
     parallelize_module(model, tp_mesh, tp_shard_plan)
@@ -575,62 +579,64 @@ def _destroy_dist_connection() -> None:
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 
-class RotaryEmbedParallel(ParallelStyle):
-    """RotaryEmbedParallel used for HF models with rotary embeddings."""
+# based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/distributed/utils.py#L113
+def create_context_parallel_ctx(
+    cp_mesh: DeviceMesh,
+    cp_buffers: List[torch.Tensor],
+    cp_seq_dims: List[int],
+    cp_no_restore_buffers: Set[torch.Tensor],
+    cp_rotate_method: str,
+):
+    """
+    Create a context parallel context.
 
-    def __init__(self, *, sequence_dim: int = 1, use_local_output: bool = False):
-        super().__init__()
-        self.sequence_sharding = (Shard(sequence_dim),)
-        self.use_local_output = use_local_output
+    Args:
+        cp_mesh (DeviceMesh): The device mesh for context parallel.
+        cp_buffers (List[torch.Tensor]): The buffers for context parallel.
+        cp_seq_dims (List[int]): The sequence dimensions for context parallel.
+        cp_no_restore_buffers (Set[torch.Tensor]): The no restore buffers for context parallel.
+        cp_rotate_method (str): The rotation method for context parallel, such as "allgather" or "addtoall".
+    """
+    from torch.distributed.tensor.experimental import context_parallel
 
-    def _replicate_module_fn(self, name: str, module: nn.Module, device_mesh: DeviceMesh):
-        for p_name, param in module.named_parameters():
-            # simple replication with fixed ones_ init from LayerNorm/RMSNorm, which allow
-            # us to simply just use from_local
-            replicated_param = torch.nn.Parameter(
-                DTensor.from_local(param, device_mesh, [Replicate()], run_check=False)
-            )
-            module.register_parameter(p_name, replicated_param)
+    # TODO: uncomment this when torch.distributed.tensor.experimental._attention.set_rotate_method is available
+    # from torch.distributed.tensor.experimental._attention import set_rotate_method
+    # set_rotate_method(cp_rotate_method)
+    return context_parallel(
+        cp_mesh,
+        buffers=cp_buffers,
+        buffer_seq_dims=cp_seq_dims,
+        no_restore_buffers=cp_no_restore_buffers,
+    )
 
-    @staticmethod
-    def _prepare_input_fn(sequence_sharding, mod, inputs, device_mesh):
-        """NOTE: this function will hang if the sequence length is not properly divisible by TP size"""
-        new_inputs = list(inputs)
 
-        if not isinstance(inputs[0], DTensor):
-            new_inputs[0] = DTensor.from_local(
-                local_tensor=inputs[0], device_mesh=device_mesh, placements=sequence_sharding, run_check=False
-            )
+# based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/distributed/utils.py#L138
+def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool):
+    """
+    Create a train context.
 
-        if not isinstance(inputs[1], DTensor):
-            new_inputs[1] = DTensor.from_local(
-                local_tensor=inputs[1], device_mesh=device_mesh, placements=sequence_sharding, run_check=False
-            )
+    Args:
+        enable_loss_parallel (bool): Whether to enable loss parallelism.
+        enable_compiled_autograd (bool): Whether to enable compiled autograd.
+    """
 
-        new_inputs = tuple(new_inputs)
-        return new_inputs
+    @contextlib.contextmanager
+    def context(cp_context: Optional[Generator[None, None, None]] = None):
+        with contextlib.ExitStack() as stack:
+            if enable_loss_parallel:
+                stack.enter_context(torch.distributed.tensor.parallel.loss_parallel())
 
-    @staticmethod
-    def _prepare_output_fn(use_local_output, mod, outputs, device_mesh):
-        if isinstance(outputs, tuple) and use_local_output:
-            outputs = tuple(output.to_local() for output in outputs)
-            return outputs
-        else:
-            return outputs.to_local() if use_local_output else outputs
+            if enable_compiled_autograd:
+                stack.enter_context(torch._dynamo.utils.maybe_enable_compiled_autograd(True))
 
-    def _apply(self, module: nn.Module, device_mesh: DeviceMesh) -> nn.Module:
-        return distribute_module(
-            module,
-            device_mesh,
-            self._replicate_module_fn,
-            partial(self._prepare_input_fn, self.sequence_sharding),
-            partial(self._prepare_output_fn, self.use_local_output),
-        )
+            if cp_context is not None:
+                from torch.nn.attention import SDPBackend, sdpa_kernel
 
-    def __repr__(self) -> str:
-        tmpstr = self.__class__.__name__ + "("
-        if len(self.sequence_sharding) == 1:
-            tmpstr += f"sequence_dim={self.sequence_sharding[0].dim}, "
-        tmpstr += f"use_local_output={self.use_local_output}"
-        tmpstr += ")"
-        return tmpstr
+                # currently we only support these two SDP backends.
+                # TODO (xilunwu): support cuDNN backend
+                stack.enter_context(sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]))
+                stack.enter_context(cp_context)
+
+            yield
+
+    return context
