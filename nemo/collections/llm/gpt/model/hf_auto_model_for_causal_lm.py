@@ -209,9 +209,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         try:
             self.model = self._configure_model(attn_implementation=self.attn_implementation)
+            logging.info("Configuring model with attn_implementation:", self.attn_implementation)
         except ValueError as e:
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
             if 'does not support an attention' in str(e):
+                logging.warning("Falling back to 'eager' attention implementation.")
                 self.model = self._configure_model(attn_implementation="eager")
             else:
                 raise e
@@ -257,7 +259,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             return self.model(**batch, logits_to_keep=num_logits_to_keep)
         return self.model(**batch)
 
-    def training_step(self, batch, batch_idx=None):
+    def training_step(self, batch, batch_idx=None, context_parallel=False):
         """
         Execute a single training step.
 
@@ -268,7 +270,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Args:
             batch (dict): A dictionary containing the batch data, including 'labels' and optionally 'loss_mask'.
             batch_idx (int, optional): The index of the batch. Defaults to None.
-
+            context_parallel (bool, optional): Whether to use context parallelism. Defaults to False.
         Returns:
             torch.Tensor: The computed loss for the batch.
         """
@@ -282,42 +284,79 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
-
         # GPTSFTDataset emits `tokens` instead of `input_ids`
         if 'input_ids' not in batch and 'tokens' in batch:
             batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
-        batch["output_hidden_states"] = True if self.use_linear_ce_loss else False  # Enable hidden states output
 
-        if not self.use_linear_ce_loss:
-            outputs = self.forward(batch)
-            # Prepare for loss calculation
-            logits = outputs.logits
-            n_cls = logits.shape[-1]
-            logits = logits.view(-1, n_cls)
-            labels = labels.view(-1)
-            assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
-            loss = self.loss_fn(logits, labels, loss_mask)
-        else:
-            # use num_logits_to_keep=1 to avoid full logits matrix in memory
-            outputs = self.forward(batch, num_logits_to_keep=1)
-            hidden_states = outputs.hidden_states[-1]
-            lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
-            if loss_mask is not None:
-                # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
-                # -100 is the default ignore index in PyTorch's cross entropy loss
-                labels = labels.masked_fill(loss_mask == 0, -100)
-            num_items_in_batch = torch.count_nonzero(labels != -100).item()
-            logit_softcapping = 0
-            loss = fused_linear_cross_entropy(
-                hidden_states=hidden_states,
-                lm_weight=lm_head,
-                labels=labels,
-                num_items_in_batch=num_items_in_batch,
-                logit_softcapping=logit_softcapping,
+        # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
+        if context_parallel:
+
+            from nemo.lightning.pytorch.strategies.utils import create_context_parallel_ctx, get_train_context
+
+            input_ids = batch["input_ids"].to(self.model.device)
+            batch["position_ids"] = torch.arange(0, input_ids.shape[1]).unsqueeze(0).to(self.model.device)
+            position_ids = batch["position_ids"].to(self.model.device)
+
+            context_parallel_ctx = create_context_parallel_ctx(
+                cp_mesh=self._device_mesh["context_parallel"],
+                cp_buffers=[input_ids, labels, position_ids, loss_mask],
+                cp_seq_dims=[1, 1, 1, 1],
+                cp_no_restore_buffers={input_ids, labels, loss_mask},
+                cp_rotate_method="allgather",  # TODO add "alltoall" option
             )
+            train_context = get_train_context(
+                False,
+                False,
+            )
+            with train_context(context_parallel_ctx):
+                outputs = self.forward(batch)
+
+                # Prepare for loss calculation
+                logits = outputs.logits.float()
+                n_cls = logits.shape[-1]
+                logits = logits.view(-1, n_cls)
+                labels = labels.view(-1)
+                assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+                loss = self.loss_fn(logits, labels, loss_mask)
+
+                self.loss_buffer.append(loss.item())
+                self.n_tok += labels.numel()
+
+        else:
+            batch["output_hidden_states"] = True if self.use_linear_ce_loss else False  # Enable hidden states output
+
+            if not self.use_linear_ce_loss:
+                outputs = self.forward(batch)
+                # Prepare for loss calculation
+                logits = outputs.logits
+                n_cls = logits.shape[-1]
+                logits = logits.view(-1, n_cls)
+                labels = labels.view(-1)
+                assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+                loss = self.loss_fn(logits, labels, loss_mask)
+            else:
+                # use num_logits_to_keep=1 to avoid full logits matrix in memory
+                # TODO: test CE with CP enabled
+                outputs = self.forward(batch, num_logits_to_keep=1)
+                hidden_states = outputs.hidden_states[-1]
+                lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
+                if loss_mask is not None:
+                    # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
+                    # -100 is the default ignore index in PyTorch's cross entropy loss
+                    labels = labels.masked_fill(loss_mask == 0, -100)
+                num_items_in_batch = torch.count_nonzero(labels != -100).item()
+                logit_softcapping = 0
+                loss = fused_linear_cross_entropy(
+                    hidden_states=hidden_states,
+                    lm_weight=lm_head,
+                    labels=labels,
+                    num_items_in_batch=num_items_in_batch,
+                    logit_softcapping=logit_softcapping,
+                )
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel()
+
         return loss
 
     def on_before_optimizer_step(self, optimizer) -> None:
@@ -346,7 +385,15 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
-                group = device_mesh.get_group()
+                # Use the flattened DP / CP device mesh for loss reduction
+                # if it exists (CP > 1), else default to the data parallel mesh.
+                group = device_mesh[
+                    (
+                        "dp_cp"
+                        if device_mesh.mesh_dim_names is not None and "dp_cp" in device_mesh.mesh_dim_names
+                        else "data_parallel"
+                    )
+                ].get_group()
 
             def reduce_item(val, op, device, group, dtype):
                 """util function"""
@@ -363,11 +410,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     val /= dist.get_world_size(group)
                 return val
 
+            # Reduce loss across DP (or DP x CP) ranks.
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
             )
             tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
 
+        # Log the reduced loss.
         self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
