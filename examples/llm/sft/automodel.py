@@ -35,7 +35,9 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, micro_batch_size, seq_length, limit_dataset_samples=None, fp8=False, num_replicas=1, rank=0):
+def make_squad_hf_dataset(
+    tokenizer, micro_batch_size, seq_length, limit_dataset_samples=None, fp8=False, num_replicas=1, rank=0
+):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -283,9 +285,9 @@ def main():
         enable_grad_ckpt=args.enable_grad_ckpt,
     )
 
-    assert args.devices * args.num_nodes == args.dp_size * args.tp_size * args.cp_size, (
-        f"Total devices {args.devices * args.num_nodes} must equal Data Parallel size {args.dp_size} * Tensor Parallel size {args.tp_size} * Context Parallel size {args.cp_size}."
-    )
+    assert (
+        args.devices * args.num_nodes == args.dp_size * args.tp_size * args.cp_size
+    ), f"Total devices {args.devices * args.num_nodes} must equal Data Parallel size {args.dp_size} * Tensor Parallel size {args.tp_size} * Context Parallel size {args.cp_size}."
 
     strategy = make_strategy(
         args.strategy,
