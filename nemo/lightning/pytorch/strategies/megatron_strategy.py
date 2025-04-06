@@ -169,7 +169,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
-        fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"]. Defaults to None.
+        fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"]. 
+            Defaults to None.
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
@@ -331,19 +332,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.fsdp_sub_modules_to_wrap = fsdp_sub_modules_to_wrap
 
         self._ddp = ddp
-        self._fsdp = None
-        if fsdp == "pytorch":
-            if version.parse(torch.__version__) >= version.parse("2.4.0a"):
-                # FSDP 2 is only supported after torch 2.4
-                self._fsdp = fsdp
-                logging.info("FSDP option is set to Torch. Using MCore's Torch FSDP2 for DP.")
-            else:
-                logging.warning("Setting FSDP2 to False. FSDP2 require torch version >= 2.4.")
-        elif fsdp == "megatron":
-            raise NotImplementedError("MCore FSDP2 is not supported yet, will be added in the future.")
-        elif fsdp is not None:
-            raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
-
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
         elif isinstance(ddp, DistributedDataParallelConfig):
@@ -355,6 +343,31 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.no_ddp_communication_hook = False
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
+        
+        self._fsdp = None
+        if fsdp == "pytorch":
+            if version.parse(torch.__version__) >= version.parse("2.4.0a"):
+                # FSDP 2 is only supported after torch 2.4
+
+                assert pipeline_model_parallel_size == 1, (
+                    "FSDP2 does not support pipeline parallelism. Please set pipeline_model_parallel_size=1."
+                )
+                assert expert_model_parallel_size == 1, (
+                    "FSDP2 does not support expert model parallelism. Please set expert_model_parallel_size=1."
+                )
+                assert save_ckpt_format == "torch_dist", ( 
+                    "FSDP2 with PyTorch only supports torch_dist format for saving checkpoints. "
+                    "Please set save_ckpt_format='torch_dist'."
+                )
+
+                self._fsdp = fsdp
+                logging.info("FSDP option is set to Torch. Using MCore's Torch FSDP2 for DP.")
+            else:
+                logging.warning("Setting FSDP2 to False. FSDP2 require torch version >= 2.4.")
+        elif fsdp == "megatron":
+            raise NotImplementedError("MCore FSDP2 is not supported yet, will be added in the future.")
+        elif fsdp is not None:
+            raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
@@ -408,6 +421,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 if dtype_config:
                     model.optim.config = update_config_with_dtype_overrides(dtype_config, model.optim.config)
                     self.ddp_config = update_config_with_dtype_overrides(dtype_config, self.ddp_config)
+
+                if self._fsdp is not None:
+                    # FSDP2 does not support distributed optimizer
+                    mcore_opt_config.use_distributed_optimizer = False
 
                 if mcore_opt_config.use_distributed_optimizer != ddp_config.use_distributed_optimizer:
                     logging.info("Fixing mis-match between ddp-config & mcore-optimizer config")

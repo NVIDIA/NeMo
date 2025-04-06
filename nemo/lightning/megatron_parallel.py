@@ -695,12 +695,11 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         disable_bucketing=disable_bucketing,
                     )
                 elif self.fsdp == "pytorch" and HAVE_MCORE_TORCH_FSDP2:
-                    dist_module = TorchFSDP(
+                    dist_module = McoreTorchFSDP(
                         module.config,
                         self.ddp_config,
                         module,
                         sub_modules_to_wrap=self.fsdp_sub_modules_to_wrap,
-                        disable_bucketing=disable_bucketing,
                     )
                 elif not isinstance(unwrapped_module, DDP):
                     dist_module = DDP(
@@ -945,7 +944,6 @@ if HAVE_MCORE_TORCH_FSDP2:
                 RotaryEmbedding,
                 tensor_parallel.ColumnParallelLinear,
             ],
-            disable_bucketing: bool = False,
             **kwargs,
         ):
             init_parameters = inspect.signature(McoreDDP.__init__).parameters
@@ -958,9 +956,9 @@ if HAVE_MCORE_TORCH_FSDP2:
                 ddp_config=ddp_config,
                 module=module,
                 sub_modules_to_wrap=sub_modules_to_wrap,
-                disable_bucketing=disable_bucketing,
                 **filtered_kwargs,
             )
+            self.ddp_config = ddp_config
 
         def state_dict(self, prefix='', keep_vars=False, **kwargs):
             self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
