@@ -8,7 +8,7 @@ import pickle
 from torchvision.io import encode_jpeg
 
 os.environ["FORCE_QWENVL_VIDEO_READER"]='torchvision'
-from vision_process import fetch_image, fetch_video
+from qwen_vl_utils import fetch_image, fetch_video
 import numpy as np
 import torch
 
@@ -36,7 +36,7 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
     with wds.ShardWriter(os.path.join(output, 'pretrain-%d.tar'), maxcount=max_count) as shard_writer:
         for idx, entry in enumerate(tqdm(data)):
             # NOTE: read a dataset in sharegpt format
-            image_datas = []
+            images_data = []
             if 'image' in entry:
                 pop_item = entry.pop('image')
             elif 'images' in entry:
@@ -48,9 +48,9 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
                 pop_item = [pop_item]
             for image in pop_item:
                 file_path = os.path.normpath(os.path.join(dataset_dir, mediate_path, image))
-                image_datas.append(fetch_image({"image": file_path}))
+                images_data.append(fetch_image({"image": file_path}))
  
-            video_datas = []
+            videos_data = []
             if 'video' in entry:
                 pop_item = entry.pop('video')
             elif 'videos' in entry:
@@ -63,7 +63,7 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
             for video in pop_item:
                 file_path = os.path.normpath(os.path.join(dataset_dir, mediate_path, video))
                 fvideo = fetch_video({"video": file_path})
-                video_datas.append(fvideo)
+                videos_data.append(fvideo)
 
             if has_idx is None:
                 has_idx = 'id' in entry
@@ -78,8 +78,8 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
 
             sample = {
                 "__key__": entry.pop('id', str(idx)), 
-                "jpgs": image_datas,
-                'videos': video_datas,
+                "jpgs": images_data,
+                'videos': videos_data,
                 "json": conv,
             }
             shard_writer.write(sample)

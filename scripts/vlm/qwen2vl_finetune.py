@@ -48,7 +48,6 @@ from nemo.collections.vlm import Qwen2VLDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-#from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm.qwen2vl.data.energon import Qwen2VLTaskEncoder
 
 def main(args):

@@ -39,6 +39,8 @@ from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
     VIDEO_TOKEN_INDEX,
     VISION_END_TOKEN_INDEX,
     PAD_TOKEN_INDEX,
+    HF_IMAGE_TOKEN_INDEX,
+    HF_VIDEO_TOKEN_INDEX,
 )
 
 @dataclass
@@ -159,35 +161,23 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         self,
         tokenizer,
         image_processor,
-        #data_paths: str | List[str],
-        #data_config,
-        #global_batch_size: int = 8,
-        #micro_batch_size: int = 1,
         temporal_patch_size: int = 2,
         spatial_merge_size: int = 2,
         patch_size: int = 14,
         max_padding_length: int = 4096,
     ):
-        # Specify the batch_type for default batching (batching is performed here "manually" by
-        # overwriting the `batch` method)
         super().__init__()
-
 
         self.tokenizer = tokenizer 
         self.image_processor = image_processor
-        #self.data_paths = data_paths
-        
-        #self.data_config = data_config
         self.seq_length = max_padding_length 
-        #self.gbs = global_batch_size
-        #self.mbs = micro_batch_size 
 
         self.temporal_patch_size = temporal_patch_size
         self.merge_size = spatial_merge_size
         self.patch_size = patch_size
 
         self.seq_len = max_padding_length
-        self.image_token_id, self.video_token_id = self.tokenizer.encode(['<|image_pad|>', '<|video_pad|>'])
+        self.image_token_id, self.video_token_id = HF_IMAGE_TOKEN_INDEX, HF_VIDEO_TOKEN_INDEX
 
     def encode_sample(self, sample: ChatMLSample):
 
@@ -294,7 +284,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             assert len(video_token_indices) == len(video_thw_grids), f"With {len(video_thw_grids)} videos in the sample, but {len(video_token_indices)} video placeholders!"
         if image_thw_grids is not None and video_thw_grids is not None:
             image_thw_grids, video_thw_grids = np.array(image_thw_grids, dtype=np.int64), np.array(video_thw_grids, dtype=np.int64)
-
+            # xxx_thw_grids.shape[0] indicates how many <image> or <video> inside conversation text, minus it and then get patch number
+            # this would get exact number of visual padding size
             target_length = (
                 input_ids.shape[0] 
                 - image_thw_grids.shape[0] + image_thw_grids.prod(axis=-1).sum() // merge_length
@@ -349,6 +340,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             final_input_ids[cur_y:] = input_ids[cur_x:]
             final_input_masks[cur_y:] = target[cur_x:]
 
+        # left shift token by one for labels.
         target = np.roll(final_input_masks, shift=-1)
         target[-1] = pad_token_id
 
@@ -375,47 +367,32 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         )
     
     def batch(self, samples: List[Qwen2VLTaskSample]) -> Qwen2VLTaskBatch:
-        # Stack images to [num_tiles, c, h, w]. If there are no images (text-only), then use a dummy image.
         imgs, image_thw_grids = [], []
         for s in samples:
             if len(s.imgs) > 0:
                 s_imgs = [img for img in s.imgs.unsqueeze(0)]
-                if len(s_imgs) > 0:
-                    cat_imgs = torch.cat([img for img in s_imgs])
-                    imgs.append(cat_imgs)
-                else:
-                    imgs.append(torch.empty([0, 3 * self.temporal_patch_size * self.patch_size * self.patch_size], dtype=torch.float32))
+                cat_imgs = torch.cat([img for img in s_imgs])
+                imgs.append(cat_imgs)
             if len(s.image_thw_grids) > 0:
                 s_image_thw_grids = [thw_grids for thw_grids in s.image_thw_grids]
-                if len(s_image_thw_grids) > 0:
-                    image_thw_grids.extend(s_image_thw_grids)
-                else:
-                    image_thw_grids = torch.cat((image_thw_grids, torch.empty([0, 3], dtype=torch.long)))
-        # Stack videos to [num_tiles, c, h, w]. If there are no videos (text-only), then use a dummy video.
+                image_thw_grids.extend(s_image_thw_grids)
         videos, video_thw_grids = [], []
         for s in samples:
             if len(s.videos) > 0:
                 s_videos = [video for video in s.videos.unsqueeze(0)]
-                if len(s_videos) > 0:
-                    cat_videos = torch.cat([video for video in s_videos])
-                    videos.append(cat_videos)
-                else:
-                    videos = torch.cat(torch.empty([0, 3 * self.temporal_patch_size * self.patch_size * self.patch_size], dtype=torch.float32))
+                cat_videos = torch.cat([video for video in s_videos])
+                videos.append(cat_videos)
             if len(s.video_thw_grids) > 0:
                 s_video_thw_grids = [thw_grids for thw_grids in s.video_thw_grids]
-                if len(s_video_thw_grids) > 0:
-                    video_thw_grids.extend(s_video_thw_grids) 
-                    #assert s_video_thw_grids.prod(dim=-1).sum() == s_videos.shape[0]
-                else:
-                    video_thw_grids = torch.cat(torch.empty([0, 3], dtype=torch.long))
+                video_thw_grids.extend(s_video_thw_grids)
+                #assert s_video_thw_grids.prod(dim=-1).sum() == s_videos.shape[0]
 
-        # If the user hasn't defined a target sequence length, then use the max along the sample lengths.
+        # use the max sample lengths in the batch.
         max_seq_len = max(len(s.text) for s in samples)
         if max_seq_len > self.seq_len:
            log.warning("max sequence length larger than passed parameter")
 
         text_mat = np.full((len(samples), max_seq_len), self.tokenizer.pad_token_id, dtype=np.int64)
-        # +1 to accommodate shift to left by one later.
         target_mat = np.full((len(samples), max_seq_len), self.tokenizer.pad_token_id, dtype=np.int64)
         
         image_input_masks = np.zeros_like(text_mat, dtype=bool)
@@ -434,6 +411,10 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             target_mat[i, :target_len] = np.array(s.target)[:target_len]
 
         tokens = torch.from_numpy(text_mat)
+        torch.set_printoptions(threshold=100000)
+        # replace image/video token in tokenizer to representation in NeMo
+        # 151655 -> -200
+        # 151656 -> -300
         tokens[tokens == self.image_token_id] = IMAGE_TOKEN_INDEX 
         tokens[tokens == self.video_token_id] = VIDEO_TOKEN_INDEX 
         tokens[tokens == PAD_TOKEN_INDEX] = 0 
@@ -447,9 +428,6 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             eod_mask_loss=False,
             reset_attention_mask=False,
             reset_position_ids=False,
-            #eod_mask_loss=self.data_config.eod_mask_loss,
-            #reset_attention_mask=self.data_config.reset_attention_mask,
-            #reset_position_ids=self.data_config.reset_position_ids,
         )
 
         loss_mask[labels < 0] = 0.0
@@ -459,8 +437,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             __subflavors__=[s.__subflavors__ for s in samples],
             pixel_values = torch.vstack(imgs) if len(imgs) > 0 else None,
             pixel_values_videos = torch.vstack(videos) if len(videos) > 0 else None,
-            image_grid_thw = image_thw_grids if len(image_thw_grids) > 0 else None,
-            video_grid_thw = video_thw_grids if len(video_thw_grids) > 0 else None,
+            image_grid_thw = torch.from_numpy(np.array(image_thw_grids)) if len(image_thw_grids) > 0 else None,
+            video_grid_thw = torch.from_numpy(np.array(video_thw_grids)) if len(video_thw_grids) > 0 else None,
             image_input_mask = torch.from_numpy(image_input_masks),    
             video_input_mask = torch.from_numpy(video_input_masks),
             input_ids=tokens,
