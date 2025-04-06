@@ -51,6 +51,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
+
 def main(args):
     # pylint: disable=C0115,C0116
 
