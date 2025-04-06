@@ -41,7 +41,8 @@ try:
 
 except (ImportError, ModuleNotFoundError) as e:
 
-    MegatronModule = ModuleSpec = BaseTransformerLayer = ApexGuardDefaults
+    ModuleSpec = BaseTransformerLayer = ApexGuardDefaults
+    MegatronModule = object
 
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
