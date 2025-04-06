@@ -169,7 +169,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
-        fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"]. 
+        fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"].
             Defaults to None.
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
@@ -343,19 +343,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.no_ddp_communication_hook = False
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
-        
+
         self._fsdp = None
         if fsdp == "pytorch":
             if version.parse(torch.__version__) >= version.parse("2.4.0a"):
                 # FSDP 2 is only supported after torch 2.4
 
-                assert pipeline_model_parallel_size == 1, (
-                    "FSDP2 does not support pipeline parallelism. Please set pipeline_model_parallel_size=1."
-                )
-                assert expert_model_parallel_size == 1, (
-                    "FSDP2 does not support expert model parallelism. Please set expert_model_parallel_size=1."
-                )
-                assert save_ckpt_format == "torch_dist", ( 
+                assert (
+                    pipeline_model_parallel_size == 1
+                ), "FSDP2 does not support pipeline parallelism. Please set pipeline_model_parallel_size=1."
+                assert (
+                    expert_model_parallel_size == 1
+                ), "FSDP2 does not support expert model parallelism. Please set expert_model_parallel_size=1."
+                assert save_ckpt_format == "torch_dist", (
                     "FSDP2 with PyTorch only supports torch_dist format for saving checkpoints. "
                     "Please set save_ckpt_format='torch_dist'."
                 )
