@@ -3,9 +3,16 @@ import re
 import json
 import torch
 
+from collections import defaultdict
+
+import inflect
+plural = inflect.engine()
+
 from nemo.collections.multimodal.data.energon import (
     ImageToken,
     AudioToken,
+    SoundToken,
+    SpeechToken,
     VideoToken,
 )
 from nemo.collections.avlm.data.energon import AVLMMediaDict
@@ -121,11 +128,11 @@ sample_000003.json
 
 ```json structure 1
 {
-  "audios": "sample_000001.2345ew.flac,sample_000001.gd1dtg.wav",
+  "audios": "sample_000001.2345ew.flac,sample_000001.gd1dtg.wav", # or "audios": [sample_000001.2345ew.flac,sample_000001.gd1dtg.wav]
   "audio_durations": [5.3058125, 3.06238],
-  "videos": "sample_000001.35tags.mp4",
+  "videos": "sample_000001.35tags.mp4", # or "videos": [sample_000001.35tags.mp4]
   "video_durations": [5.607625],
-  "images": "sample_000001.as23ds.jpg,sample_000001.gds233.jpg",
+  "images": "sample_000001.as23ds.jpg,sample_000001.gds233.jpg", # or "images": [sample_000001.as23ds.jpg,sample_000001.gds233.jpg]
   "conversations": [
     {
       "from": "User",
@@ -189,47 +196,38 @@ sample_000003.json
 
 
 QAMediaTokenTypeMapping = {
-    "audio": AudioToken().token_str,
-    "video": VideoToken().token_str,
-    "image": ImageToken().token_str,
+    AudioToken().media_type: AudioToken().token_str,
+    SoundToken().media_type: SoundToken().token_str,
+    SpeechToken().media_type: SpeechToken().token_str,
+    VideoToken().media_type: VideoToken().token_str,
+    ImageToken().media_type: ImageToken().token_str,
 }
 
-def sample_loader_QA(raw: dict) -> dict:
-    # Note that only the images are decoded, all other files are read as raw bytes
-    jsn = json.loads(raw["json"])
-    output_dict = {
-        "context": [],
-        "answers": [],
-        "audios": [],
-        "videos": [],
-        "images": [],
-    }
+MediaKeys = [k for k in QAMediaTokenTypeMapping]
 
+def sample_loader_QA(raw: dict) -> dict:
+    # Note that all files are read as raw bytes
+    jsn = json.loads(raw["json"])
+    output_dict = defaultdict(list)
 
     # process structure 1
-    if "audio" in jsn or "audios" in jsn:
-        audio_files = jsn["audio"].split(",") if "audio" in jsn else jsn["audios"].split(",")
-        offsets = jsn.get("audio_offsets") or [None] * len(audio_files)
-        durations = jsn.get("audio_durations") or [None] * len(audio_files)
-        if not isinstance(offsets, list):
-            offsets = [offsets]
-        if not isinstance(durations, list):
-            durations = [durations]
-        output_dict["audios"] = [get_media(raw, "audio", f.split('.',1)[1], offsets[i], durations[i]) for i,f in enumerate(audio_files)]
+    for media in MediaKeys:
+        media_plural = plural.plural_noun(media)
+        media_key = media if media in jsn else media_plural if media_plural in jsn else None
 
-    if "video" in jsn or "videos" in jsn:
-        video_files = jsn["video"].split(",") if "video" in jsn else jsn["videos"].split(",")
-        offsets = jsn.get("video_offsets") or [None] * len(video_files)
-        durations = jsn.get("video_durations") or [None] * len(video_files)
-        if not isinstance(offsets, list):
-            offsets = [offsets]
-        if not isinstance(durations, list):
-            durations = [durations]
-        output_dict["videos"] = [get_media(raw, "video", f.split('.',1)[1], offsets[i], durations[i]) for i,f in enumerate(video_files)]
-
-    if "image" in jsn or "images" in jsn:
-        image_files = jsn["image"].split(",") if "image" in jsn else jsn["images"].split(",")
-        output_dict["images"] = [get_media(raw, "image", f.split('.',1)[1]) for i,f in enumerate(image_files)]
+        if media_key:
+            media_files = jsn[media_key]
+            if isinstance(media_files, str):
+                media_files = media_files.split(",")
+            assert isinstance(media_files, list)
+            offsets = jsn.get(media+"_offsets") or [None] * len(media_files)
+            durations = jsn.get(media+"_durations") or [None] * len(media_files)
+            if not isinstance(offsets, list):
+                offsets = [offsets]
+            if not isinstance(durations, list):
+                durations = [durations]
+            output_dict[media_plural] = [get_media(raw, media, f.split('.',1)[1], offsets[i], durations[i]) 
+                for i,f in enumerate(media_files)]
 
     for turn in jsn["conversations"]:
         if "type" not in turn:

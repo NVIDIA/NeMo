@@ -18,6 +18,8 @@ from nemo.collections.multimodal.data.energon.config import (
     ImageTextSample,
     ImageToken,
     AudioToken,
+    SoundToken,
+    SpeechToken,
     VideoToken,
     LLaVATemplateConfig,
     MultiModalSampleConfig,

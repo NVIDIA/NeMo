@@ -41,11 +41,23 @@ class AudioToken(MultiModalToken):
     token_id: int = -300
     media_type: str = "audio"
 
+@dataclass
+class SoundToken(MultiModalToken):
+    token_str: str = "<sound>"
+    token_id: int = -400
+    media_type: str = "sound"
+
+@dataclass
+class SpeechToken(MultiModalToken):
+    token_str: str = "<speech>"
+    token_id: int = -500
+    media_type: str = "speech"
+
 
 @dataclass
 class VideoToken(MultiModalToken):
     token_str: str = "<video>"
-    token_id: int = -400
+    token_id: int = -600
     media_type: str = "video"
 
 
