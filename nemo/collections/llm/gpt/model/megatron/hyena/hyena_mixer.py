@@ -93,6 +93,7 @@ class HyenaMixer(MegatronModule):
         submodules,
         layer_number=1,
         operator_type="H",
+        use_b2b_causal_conv1d=False,
     ):
 
         super().__init__(transformer_config)
@@ -104,6 +105,7 @@ class HyenaMixer(MegatronModule):
 
         self.fast_conv_proj = self.hyena_config.fast_conv_proj
         self.fast_conv_mixer = self.hyena_config.fast_conv_mixer
+        self.use_b2b_causal_conv1d = use_b2b_causal_conv1d
 
         # Per attention head and per partition values.
         assert torch.distributed.is_initialized()
@@ -164,7 +166,7 @@ class HyenaMixer(MegatronModule):
             init_method=transformer_config.init_method,
             bias=self.hyena_config.conv_proj_bias,
             use_fast_causal_conv=self.fast_conv_proj,
-        )
+        )  # hyena_proj_conv.short_conv_weight
 
         if self.operator_type == "hyena_short_conv":
             self.num_groups = self.hyena_config.num_groups_hyena_short
@@ -178,7 +180,43 @@ class HyenaMixer(MegatronModule):
                 short_conv_class=ParallelCausalDepthwiseConv1d,
                 use_fast_causal_conv=self.fast_conv_mixer,
                 use_conv_bias=self.transformer_config.use_short_conv_bias,
-            )
+            )  # mixer.short_conv.short_conv_weight
+
+            if self.use_b2b_causal_conv1d:
+                from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
+
+                # Create a wrapper module that doesn't register parameters
+                class B2BCausalConv1dModule(nn.Module):
+                    def __init__(self, proj_conv_module, short_conv_module):
+                        super().__init__()
+                        self.b2b_causal_conv1d_fn = b2b_causal_conv1d
+                        # Store references to the modules, not their weights
+                        self._proj_conv_module = proj_conv_module
+                        self._short_conv_module = short_conv_module
+
+                    def forward(self, x):
+                        # Extract weights at runtime to avoid parameter registration
+                        # and reshape them to the expected dimensions
+                        proj_weight = self._proj_conv_module.short_conv_weight
+                        short_weight = self._short_conv_module.short_conv_weight
+
+                        # Reshape proj_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
+                        if proj_weight.dim() == 3:
+                            proj_weight = proj_weight.reshape(-1, proj_weight.size(-1))
+
+                        # Reshape short_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
+                        if short_weight.dim() == 3:
+                            # If the middle dimension is 1, we can just squeeze it
+                            if short_weight.size(1) == 1:
+                                short_weight = short_weight.squeeze(1)
+                            else:
+                                # Otherwise reshape to flatten the first two dimensions
+                                short_weight = short_weight.reshape(-1, short_weight.size(-1))
+
+                        return self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+
+                # Use the existing weights from the original model
+                self.b2b_kernel = B2BCausalConv1dModule(self.hyena_proj_conv, self.mixer.short_conv)
 
         if self.operator_type in [
             "hyena",
@@ -223,7 +261,7 @@ class HyenaMixer(MegatronModule):
         sharded_state_dict = {}
         # Submodules
         for name, module in self.named_children():
-            if name != 'attention_dropout':
+            if name != 'attention_dropout' and name != 'b2b_kernel':
                 module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
 
                 sharded_state_dict.update(module_sharded_sd)
@@ -260,14 +298,17 @@ class HyenaMixer(MegatronModule):
             _proj_use_cp = False
         features, _ = self._maybe_use_fp8(self.dense_projection, x)
         features = rearrange(features, "l b d -> b d l").contiguous()
-        features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
 
-        x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
-            dim=2
-        )
+        if self.use_b2b_causal_conv1d and self.operator_type == "hyena_short_conv":
+            # Use the B2B mixer with the original weights
+            z = self.b2b_kernel(features)
+        else:
+            features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
+            x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
+                dim=2
+            )
+            z = self.mixer(x1, x2, v)
 
-        z = self.mixer(x1, x2, v)
         z = rearrange(z, "b d l -> l b d").contiguous()
-
         y, bias = self.dense(z)
         return y, bias
