@@ -68,7 +68,20 @@ linear_cross_entropy, HAVE_LINEAR_LOSS_CE = safe_import_from(
     "cut_cross_entropy",
     "linear_cross_entropy",
 )
+if HAVE_LINEAR_LOSS_CE:
+    # Get the module and patch triton version check
+    import cut_cross_entropy.tl_utils as tl_utils
 
+    # Create replacement functions
+    def new_is_triton_greater_or_equal(version_str):
+        return True
+
+    def new_is_triton_greater_or_equal_3_2_0():
+        return True
+
+    # Apply the monkey patches
+    tl_utils.is_triton_greater_or_equal = new_is_triton_greater_or_equal
+    tl_utils.is_triton_greater_or_equal_3_2_0 = new_is_triton_greater_or_equal_3_2_0
 
 def fused_linear_cross_entropy(
     hidden_states: torch.Tensor,
