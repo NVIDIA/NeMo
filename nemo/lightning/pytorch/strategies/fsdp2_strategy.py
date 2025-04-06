@@ -510,7 +510,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             # Shard across the CP device mesh, associated with the fully_shard() call
             # in utils.fsdp2_strategy_parallelize().
             sharded_state = {
-                k: distribute_tensor(v, self._device_mesh[("data_parallel", "context_parallel")], placements=(Replicate(), Shard(dim=0)))
+                k: distribute_tensor(
+                    v, self._device_mesh[("data_parallel", "context_parallel")], placements=(Replicate(), Shard(dim=0))
+                )
                 for k, v in ckpt['state_dict'].items()
             }
         else:
