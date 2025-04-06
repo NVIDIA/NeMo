@@ -35,7 +35,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, micro_batch_size, seq_length, fp8=False):
+def make_squad_hf_dataset(tokenizer, micro_batch_size, seq_length, limit_dataset_samples=None, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -57,9 +57,13 @@ def make_squad_hf_dataset(tokenizer, micro_batch_size, seq_length, fp8=False):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids) + [0] * seq_pad_len_ar,
         )
 
+    splits = ['train', 'validation']
+    if limit_dataset_samples is not None:
+        assert isinstance(limit_dataset_samples, int), "Expected limit_dataset_samples to be an int"
+        splits = list(map(lambda x: f'{x}[:{limit_dataset_samples}]', splits))
     datamodule = llm.HFDatasetDataModule(
         "rajpurkar/squad",
-        split=["train", "validation"],
+        split=splits,
         micro_batch_size=micro_batch_size,
         pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
@@ -172,7 +176,7 @@ def main():
         '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
-    parser.add_argument('--log-every-n-steps', type=int, default=10, help='Log every n steps')
+    parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
@@ -193,9 +197,11 @@ def main():
     parser.add_argument('--micro-batch-size', default=1, type=int, help='Micro batch size to use for training.')
     parser.add_argument(
         '--limit-val-batches',
-        default=0.01,
+        default=0.0,
         type=float,
-        help='Limit validation batch size to use for training. HFMockDataModule defaults to a validation set of 10,000 samples.',
+        help=('How much of validation dataset to check. Useful when debugging or testing '
+              'something that happens at the end of an epoch. Default to 0.0 (disabled)'
+        )
     )
     parser.add_argument('--seq-length', default=2048, type=int, help='Sequence length to use for training')
     parser.add_argument(
@@ -209,6 +215,8 @@ def main():
         '--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.'
     )
     parser.add_argument('--mock-dataset', action='store_true', help='Use HFMockDataModule for training.')
+    parser.add_argument('--limit-dataset-samples', type=int, default=None, help='If set will limit num of dataset samples. Default None (disabled)')
+
 
     args = parser.parse_args()
 
@@ -220,7 +228,6 @@ def main():
     if args.wandb_project is not None:
         model = '_'.join(args.model.split('/')[-2:])
         from lightning.pytorch.loggers import WandbLogger
-
         wandb = WandbLogger(
             project=args.wandb_project,
             name=f"{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}_lr{args.lr}",
@@ -278,10 +285,16 @@ def main():
     # Instantiate training dataset.
     dataset = None
     if args.mock_dataset:
-        dataset = HFMockDataModule(seq_length=args.seq_length, micro_batch_size=args.micro_batch_size)
+        dataset = HFMockDataModule(
+            seq_length=args.seq_length, micro_batch_size=args.micro_batch_size,
+            pad_seq_len_divisible=16 if args.fp8 else None,
+        )
     else:
         dataset = make_squad_hf_dataset(
-            tokenizer=model.tokenizer, micro_batch_size=args.micro_batch_size, seq_length=args.seq_length, fp8=args.fp8
+            tokenizer=model.tokenizer, micro_batch_size=args.micro_batch_size,
+            seq_length=args.seq_length,
+            limit_dataset_samples=args.limit_dataset_samples,
+            fp8=args.fp8,
         )
 
     llm.api.finetune(
@@ -294,6 +307,7 @@ def main():
             accelerator='gpu',
             strategy=strategy,
             log_every_n_steps=args.log_every_n_steps,
+            num_sanity_val_steps=0,
             limit_val_batches=args.limit_val_batches,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
