@@ -16,8 +16,8 @@ export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 export PIP=pip
-export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
-export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
+export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt-llm".repo')}
+export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt-llm".ref')}
 export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 
 trt() {
@@ -354,7 +354,7 @@ else
     # "trt" is a valid option but not in ALL_LIBRARIES
     # It does not get installed at the same time as the rest
     if [[ "$lib" == "trt" ]]; then
-        continue
+      continue
     fi
 
     if [[ ! " ${ALL_LIBRARIES[@]} " =~ " ${lib} " ]]; then
