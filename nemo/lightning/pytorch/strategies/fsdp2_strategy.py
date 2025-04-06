@@ -509,12 +509,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self._device_mesh["context_parallel"].size() > 1:
             # Shard across the CP device mesh, associated with the fully_shard() call
             # in utils.fsdp2_strategy_parallelize().
-            placement_types = (Replicate(), Shard(dim=0))
+            sharded_state = {
+                k: distribute_tensor(v, self._device_mesh[("data_parallel", "context_parallel")], placements=(Replicate(), Shard(dim=0)))
+                for k, v in ckpt['state_dict'].items()
+            }
         else:
             # Default shard across DP for FSDP2.
-            placement_types = (Shard(dim=0), Replicate())
-        sharded_state = {
-            k: distribute_tensor(v, self.device_mesh, placements=placement_types)
-            for k, v in ckpt['state_dict'].items()
-        }
+            sharded_state = {
+                k: distribute_tensor(v, self._device_mesh["data_parallel"], placements=(Shard(dim=0),))
+                for k, v in ckpt['state_dict'].items()
+            }
+
         self.lightning_module.load_state_dict(sharded_state, strict=strict)
