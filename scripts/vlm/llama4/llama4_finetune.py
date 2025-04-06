@@ -14,7 +14,7 @@
 
 """
 Mock Data Example:
-  torchrun --nproc_per_node=8 scripts/vlm/llama4_finetune.py \
+  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_finetune.py \
   --devices=8 --tp=8 --data_type=mock --mbs=1 --gbs=8
 """
 
@@ -49,8 +49,8 @@ def main(args):
         decoder_seq_length = 8192
 
     # Submodules configurations
-    vision_config = Llama4VisionConfig(num_layers=34)
-    text_config = Llama4TextConfig(num_layers=2)
+    vision_config = Llama4VisionConfig()
+    text_config = Llama4TextConfig()
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type="mcore_affine",
         input_size=vision_config.output_dim,

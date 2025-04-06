@@ -14,7 +14,7 @@
 
 """
 Example:
-  python scripts/vlm/llama4_generate.py --load_from_hf
+  python scripts/vlm/llama4/llama4_generate.py --local_model_path="path/to/converted_nemo_checkpoint"
 """
 
 import argparse
@@ -97,7 +97,7 @@ def main(args) -> None:
 
     # Decide whether to import or load the model based on the input arguments
     if args.load_from_hf:
-        raise NotImplementedError
+        raise NotImplementedError("Please use the convert script to convert the HF checkpoint first.")
     else:
         path = Path(args.local_model_path)
         model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
