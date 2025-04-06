@@ -31,12 +31,7 @@ from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.tensor import DeviceMesh
-from torch.distributed.tensor.parallel import (
-    ColwiseParallel,
-    RowwiseParallel,
-    SequenceParallel,
-    parallelize_module,
-)
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel, parallelize_module
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
