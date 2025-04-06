@@ -30,15 +30,14 @@ from torchvision.io import decode_jpeg
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
+    HF_IMAGE_TOKEN_INDEX,
+    HF_VIDEO_TOKEN_INDEX,
     IGNORE_INDEX,
     IMAGE_TOKEN_INDEX,
     PAD_TOKEN_INDEX,
     SPECIAL_TOKEN_MAP,
     VIDEO_TOKEN_INDEX,
     VISION_END_TOKEN_INDEX,
-    PAD_TOKEN_INDEX,
-    HF_IMAGE_TOKEN_INDEX,
-    HF_VIDEO_TOKEN_INDEX,
 )
 from nemo.collections.vlm.qwen2vl.data.preloaded import process_vision
 from nemo.utils import logging
@@ -165,9 +164,9 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
     ):
         super().__init__()
 
-        self.tokenizer = tokenizer 
+        self.tokenizer = tokenizer
         self.image_processor = image_processor
-        self.seq_length = max_padding_length 
+        self.seq_length = max_padding_length
 
         self.temporal_patch_size = temporal_patch_size
         self.merge_size = spatial_merge_size
@@ -278,7 +277,9 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
                 video_thw_grids
             ), f"With {len(video_thw_grids)} videos in the sample, but {len(video_token_indices)} video placeholders!"
         if image_thw_grids is not None and video_thw_grids is not None:
-            image_thw_grids, video_thw_grids = np.array(image_thw_grids, dtype=np.int64), np.array(video_thw_grids, dtype=np.int64)
+            image_thw_grids, video_thw_grids = np.array(image_thw_grids, dtype=np.int64), np.array(
+                video_thw_grids, dtype=np.int64
+            )
             # xxx_thw_grids.shape[0] indicates how many <image> or <video> inside conversation text, minus it and then get patch number
             # this would get exact number of visual padding size
             target_length = (
@@ -377,7 +378,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             if len(s.video_thw_grids) > 0:
                 s_video_thw_grids = [thw_grids for thw_grids in s.video_thw_grids]
                 video_thw_grids.extend(s_video_thw_grids)
-                #assert s_video_thw_grids.prod(dim=-1).sum() == s_videos.shape[0]
+                # assert s_video_thw_grids.prod(dim=-1).sum() == s_videos.shape[0]
 
         # use the max sample lengths in the batch.
         max_seq_len = max(len(s.text) for s in samples)
@@ -406,9 +407,9 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         # replace image/video token in tokenizer to representation in NeMo
         # 151655 -> -200
         # 151656 -> -300
-        tokens[tokens == self.image_token_id] = IMAGE_TOKEN_INDEX 
-        tokens[tokens == self.video_token_id] = VIDEO_TOKEN_INDEX 
-        tokens[tokens == PAD_TOKEN_INDEX] = 0 
+        tokens[tokens == self.image_token_id] = IMAGE_TOKEN_INDEX
+        tokens[tokens == self.video_token_id] = VIDEO_TOKEN_INDEX
+        tokens[tokens == PAD_TOKEN_INDEX] = 0
 
         labels = torch.from_numpy(target_mat)
         labels[labels == PAD_TOKEN_INDEX] = IGNORE_INDEX
@@ -426,12 +427,12 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         batch = Qwen2VLTaskBatch(
             __keys__=[s.__key__ for s in samples],
             __subflavors__=[s.__subflavors__ for s in samples],
-            pixel_values = torch.vstack(imgs) if len(imgs) > 0 else None,
-            pixel_values_videos = torch.vstack(videos) if len(videos) > 0 else None,
-            image_grid_thw = torch.from_numpy(np.array(image_thw_grids)) if len(image_thw_grids) > 0 else None,
-            video_grid_thw = torch.from_numpy(np.array(video_thw_grids)) if len(video_thw_grids) > 0 else None,
-            image_input_mask = torch.from_numpy(image_input_masks),    
-            video_input_mask = torch.from_numpy(video_input_masks),
+            pixel_values=torch.vstack(imgs) if len(imgs) > 0 else None,
+            pixel_values_videos=torch.vstack(videos) if len(videos) > 0 else None,
+            image_grid_thw=torch.from_numpy(np.array(image_thw_grids)) if len(image_thw_grids) > 0 else None,
+            video_grid_thw=torch.from_numpy(np.array(video_thw_grids)) if len(video_thw_grids) > 0 else None,
+            image_input_mask=torch.from_numpy(image_input_masks),
+            video_input_mask=torch.from_numpy(video_input_masks),
             input_ids=tokens,
             labels=labels,
             loss_mask=loss_mask,

@@ -9,9 +9,9 @@ from tqdm import tqdm
 from webdataset.writer import add_handlers, default_handlers, imageencoder
 
 os.environ["FORCE_QWENVL_VIDEO_READER"] = 'torchvision'
-from qwen_vl_utils import fetch_image, fetch_video
 import numpy as np
 import torch
+from qwen_vl_utils import fetch_image, fetch_video
 
 
 def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
@@ -53,7 +53,7 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
             for image in pop_item:
                 file_path = os.path.normpath(os.path.join(dataset_dir, mediate_path, image))
                 images_data.append(fetch_image({"image": file_path}))
- 
+
             videos_data = []
             if 'video' in entry:
                 pop_item = entry.pop('video')
@@ -81,7 +81,7 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
             assert conv is not None, "No conversation texts"
 
             sample = {
-                "__key__": entry.pop('id', str(idx)), 
+                "__key__": entry.pop('id', str(idx)),
                 "jpgs": images_data,
                 'videos': videos_data,
                 "json": conv,
