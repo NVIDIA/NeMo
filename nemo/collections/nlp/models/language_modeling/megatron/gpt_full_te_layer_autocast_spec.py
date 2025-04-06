@@ -41,8 +41,7 @@ try:
 
 except (ImportError, ModuleNotFoundError) as e:
 
-    MegatronModule = ModuleSpec = ApexGuardDefaults
-    BaseTransformerLayer = object  # to avoid invalid method resolution order(MRO) for TETransformerLayerAutocast
+    MegatronModule = ModuleSpec = BaseTransformerLayer = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
@@ -187,7 +186,7 @@ class AutocastTransformerLayer(TransformerLayer):
             )
 
 
-class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):
+class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer): # codeql[py/mro-violation]
     """
     A MegatronModule that wraps the AutocastTransformerLayer.
     """
