@@ -242,7 +242,7 @@ class HyenaMixer(MegatronModule):
 
         return sharded_state_dict
 
-    def forward(self, x, layer_past=None, inference_params=None, _hyena_use_cp=True):
+    def forward(self, x, layer_past=None, inference_context=None, _hyena_use_cp=True):
         """
         Applies sequence mixing to a sequence of 1-dimensional embeddings: batch_size, seq_len, d_model
 
