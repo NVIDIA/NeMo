@@ -1092,7 +1092,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             self.state.labels,
             self.state.time_indices_current_labels,
             self.state.scores,
-            self.state.durations
+            self.state.durations,
         )
 
         if self.ngram_lm_batch is not None:

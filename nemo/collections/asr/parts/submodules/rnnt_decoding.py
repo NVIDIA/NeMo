@@ -227,7 +227,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.word_seperator = self.cfg.get('word_seperator', ' ')
         self.segment_seperators = self.cfg.get('segment_seperators', ['.', '?', '!'])
         self.segment_gap_threshold = self.cfg.get('segment_gap_threshold', None)
-        
 
         self._is_tdt = self.durations is not None and self.durations != []  # this means it's a TDT model.
         if self._is_tdt:
