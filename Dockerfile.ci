@@ -64,6 +64,15 @@ RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/N
   bash /tmp/NeMo/reinstall.sh --library trtllm --mode build
 EOF
 
+FROM trt-base AS te-wheel
+
+ARG TE_REPO
+ARG TE_TAG
+RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library te --mode build
+EOF
+
 
 FROM trt-base AS test-image
 
@@ -78,6 +87,7 @@ EOF
 WORKDIR /workspace
 RUN \
   --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
+  --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/requirements,target=/tmp/NeMo/requirements \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/tools/ctc_segmentation/requirements.txt,target=/tmp/NeMo/tools/ctc_segmentation/requirements.txt \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/NeMo/reinstall.sh \
