@@ -477,13 +477,14 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
 
     def _convert_to_tensors(self, pack: PACK_TYPE) -> PACK_TYPE:
         """Converts a pack into tensors. Pack comes in as a dict of lists and is converted to tensors."""
-        return {
+        tensor_pack = {
             "tokens": torch.tensor(pack["tokens"], dtype=torch.long),
             "labels": torch.tensor(pack["labels"], dtype=torch.long),
-            "loss_mask": torch.tensor(pack["loss_mask"], dtype=torch.long),
             "input_pos": torch.tensor(pack["input_pos"], dtype=torch.long),
             "seq_lens": torch.tensor(pack["seq_lens"], dtype=torch.long),
         }
+        if self.contains_loss_mask: tensor_pack["loss_mask"] = torch.tensor(pack["loss_mask"], dtype=torch.long)
+        return tensor_pack
 
     def _pad_pack(self, pack: PACK_TYPE, padding_idx: int) -> PACK_TYPE:
         """Pads a pack to ``self.packed_sequence_size``."""
@@ -505,11 +506,12 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         # Pad loss_mask
         #TODO loss_mask is very specific to Squad. For ex: Dolly does not have loss_mask.
         # Can it be gneralized ?
-        padded_loss_mask = F.pad(
-            pack["loss_mask"],
-                 (0, self.packed_sequence_size - len(pack["loss_mask"])),
-                 value=0,
-        )
+        if self.contains_loss_mask:
+            padded_loss_mask = F.pad(
+                pack["loss_mask"],
+                    (0, self.packed_sequence_size - len(pack["loss_mask"])),
+                    value=0,
+            )
 
         # Add padding tokens as a last seq len to ensure sum is max_seq_len
         padded_seq_lens = (
@@ -529,13 +531,14 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         clamped_num_range = torch.clamp(num_range, 0, self.packed_sequence_size - 1)
         padded_input_pos = torch.cat([pack["input_pos"], clamped_num_range])
 
-        return {
+        padded_pack = {
             "tokens": padded_tokens,
             "labels": padded_labels,
-            "loss_mask": padded_loss_mask,
             "input_pos": padded_input_pos,
             "seq_lens": padded_seq_lens,
         }
+        if self.contains_loss_mask: padded_pack["loss_mask"] = padded_loss_mask
+        return padded_pack
 
     def _add_pack(self, pack: PACK_TYPE) -> None:
         """Processes, pads and adds a pack to ``self.packs``."""
@@ -561,10 +564,10 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         pack = {
             "tokens": current_pack["tokens"][:boundary],
             "labels": current_pack["labels"][:boundary],
-            "loss_mask": current_pack["loss_mask"][:boundary],
             "input_pos": current_pack["input_pos"][:boundary],
             "seq_lens": current_pack["seq_lens"][:-1] + seq_len_padding,
         }
+        if self.contains_loss_mask: pack["loss_mask"] = current_pack["loss_mask"][:boundary]
 
         # Process and add the pack
         self._add_pack(pack)
@@ -577,13 +580,16 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             else current_pack["seq_lens"][-1]
         )
 
-        return {
+        output_dict = {
             "tokens": current_pack["tokens"][boundary:],
             "labels": current_pack["labels"][boundary:],
-            "loss_mask": current_pack["loss_mask"][boundary:],
             "input_pos": current_pack["input_pos"][boundary:],
             "seq_lens": [next_seq_len],
         }
+        if self.contains_loss_mask:
+            output_dict["loss_mask"] = current_pack["loss_mask"][boundary:]
+        return output_dict
+
 
     def _should_stop_packing(self) -> bool:
         """If max packs is set, stop packing when we reach that number."""
@@ -608,6 +614,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         self.max_packs = max_packs
         ## 'TODO' check if nemo's impl also does this padding
         self.padding_idx = 0 # Padding value to pack a sequence to self.packed_sequence_size
+        self.contains_loss_mask = False
 
         # Only show progress bar on rank 0
         rank = (
@@ -621,20 +628,24 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             if ds is None:
                 continue
             self.packs: List[PACK_TYPE] = []
+            if "loss_mask" in ds[0]:
+                self.contains_loss_mask = True
             # Buffer to hold samples until they are long enough to be added to self.packs
             current_pack = {
                 "tokens": [],
                 "labels": [],
-                "loss_mask": [],
                 "input_pos": [],
                 "seq_lens": [],
             }
+            if self.contains_loss_mask: current_pack["loss_mask"] = []
             self.previous_sample_boundary: int = 0
             if rank == 0:
                 pbar = tqdm(total=len(ds), desc=f"Packing {split} dataset", dynamic_ncols=True)
             for sample in ds:
                 #print("-----sample----",sample)
-                tokens, labels, loss_mask = sample["input_ids"], sample["labels"], sample["loss_mask"]
+                tokens, labels = sample["input_ids"], sample["labels"]
+                if self.contains_loss_mask:
+                    loss_mask = sample["loss_mask"]
                 # If the dataset outputs samples that are larger than the specified
                 # packed_sequence_size and we're unable to split it, user needs to modify
                 # one of the two parameters
@@ -648,9 +659,10 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
                 # "input_pos" is the pos ids, "seq_lens" is the len of each seq within the pack
                 current_pack["tokens"] += tokens
                 current_pack["labels"] += labels
-                current_pack["loss_mask"] += loss_mask
                 current_pack["input_pos"] += [x % packed_sequence_size for x in range(seq_len)]
                 current_pack["seq_lens"] += [seq_len]
+                if self.contains_loss_mask:
+                    current_pack["loss_mask"] += loss_mask
 
                 # If the current pack is over the packed_sequence_size, add it to self.packs and
                 # retain any truncated or bumped samples for next pack
