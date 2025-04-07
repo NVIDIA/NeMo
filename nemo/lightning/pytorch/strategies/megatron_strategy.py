@@ -841,7 +841,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
         )
 
-        if not strict:
+        if strict in [StrictHandling.ASSUME_OK_UNEXPECTED, StrictHandling.LOG_UNEXPECTED, StrictHandling.LOG_ALL]:
             # This is a WAR for loading non-fp8 weights into fp8 model
             def skip_fp8_load(x):
                 if isinstance(x, ShardedObject) and '_extra_state' in x.key:
