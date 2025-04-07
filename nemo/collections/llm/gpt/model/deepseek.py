@@ -111,6 +111,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     account_for_loss_in_pipeline_split: bool = False
 
     # fusions
+    apply_rope_fusion: bool = False
     bias_activation_fusion: bool = True
     bias_dropout_fusion: bool = True
     masked_softmax_fusion: bool = True
