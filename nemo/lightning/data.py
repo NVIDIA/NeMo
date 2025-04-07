@@ -102,7 +102,7 @@ def setup_microbatch_calculator(
             global_batch_size_for_local_world_split = global_batch_split_range[1] - global_batch_split_range[0]
         else:
             data_parallel_size = app_state.data_parallel_size
-            global_batch_size_for_local_world_split = None
+            global_batch_size_for_local_world_split = global_batch_size
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             init_num_microbatches_calculator(
