@@ -956,7 +956,7 @@ class ParallelShortHyenaOperator(nn.Module):
                     torch.empty(
                         self.num_groups,
                         device=torch.cuda.current_device(),
-                        dtype=torch.float32,
+                        dtype=transformer_config.params_dtype,
                     )
                 )
                 setattr(self.conv_bias, 'tensor_model_parallel', True)
