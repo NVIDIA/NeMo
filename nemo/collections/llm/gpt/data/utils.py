@@ -803,6 +803,7 @@ def _preprocess(
     return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
 '''
 
+
 def transform_to_chat_message(conversations):
     """
     Convert JSONL conversation format to chat message format.
@@ -820,6 +821,7 @@ def transform_to_chat_message(conversations):
         messages.append(message)
     return messages
 
+
 def _preprocess(
     source: dict,
     tokenizer: TokenizerSpec,
@@ -829,20 +831,17 @@ def _preprocess(
     num_turn_start_tokens: int,
 ):
     """
-    Given a conversation list. This transform:
-    1. Add signal '### ' at the beginning each sentence, with end signal '\n';
-    2. Concatenate conversations together;
-    3. Tokenize the concatenated conversation;
-    4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
+    Given a conversation list (source) this function applies the following transformations:
+    1. Convert JSONL conversation format to chat message format.
+    2. Tokenize the chat message by applying the chat template.
+    3. Calculate the mask for the assistant tokens.
     """
-    # header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
-    # tokenize conversations
     messages = transform_to_chat_message(source['conversations'])
-    tokens = tokenizer.tokenizer.apply_chat_template(messages, return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt')
+    tokens = tokenizer.tokenizer.apply_chat_template(
+        messages, return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt'
+    )
     input_ids = tokens['input_ids'][0]
     mask = torch.tensor(tokens['assistant_masks']).to(bool)
-    #target = copy.deepcopy(input_ids)
-    #mask = torch.ones_like(input_ids).to(bool)
     return dict(input_ids=input_ids, mask=mask)
 
 
