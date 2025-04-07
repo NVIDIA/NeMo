@@ -123,9 +123,8 @@ class CanaryData():
     tgt: torch.Tensor = None
     decoding_step: int = -1
     decoder_mems_list: list = None
-    max_generation_length: int = 10
     is_last_speech_chunk: torch.Tensor = False
-    max_generation_length: int = 512
+    max_generation_length: int = 1024
 
 
 @dataclass
@@ -139,6 +138,7 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     batch_size: int = 1 # The batch size to be used to perform streaming in batch mode with multiple streams
     att_context_size: Optional[list] = None # Sets the att_context_size for the models which support multiple lookaheads
+    sort_input_manifest: bool = False # Whether to sort the input manifest by duration to reduce batched decoding time
 
     decoding_policy: str = "alignatt" # streaming decoding policy ["alignatt" or "waitk"]
     waitk_lagging: int = 3 # The frame lagging to be used for waitk decoding policy
@@ -182,16 +182,21 @@ def compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, as
     #     logging.warning("The alignment length does not match the predicted token length")
     #     return 5000
     # target_length_word = [len(a.split()) for a in batch_samples['text']]
+    tokens_idx_shift = canary_data.decoder_input_ids.size(-1)
     target_length_word = [len(a['text'].split()) for a in batch_samples]
     laal_list = []
-    # import pdb; pdb.set_trace()
     for i, tokens in enumerate(predicted_token_ids):
+        if len(tokens) == 0:
+            laal_list.append(5000)
+            continue
         audio_encoder_fs = 80
         audio_signal_length = batch_samples[i]["audio_length_ms"]
         # obtain lagging for alignatt
         lagging = []
-        for cur_t, pred_idx in canary_data.pred_tokens_alignment:
-            cur_t = cur_t
+        for j, cur_t in enumerate(tokens):
+            # import pdb; pdb.set_trace()
+            pred_idx = canary_data.tokens_frame_alignment[i, tokens_idx_shift+j]
+            cur_t = asr_model.tokenizer.vocab[cur_t]
             eos_token = asr_model.tokenizer.vocab[asr_model.tokenizer.eos_id]
             if (cur_t.startswith(BOW_PREFIX) and cur_t != BOW_PREFIX) or cur_t == eos_token:  # word boundary
                 lagging.append(pred_idx * audio_encoder_fs)
@@ -200,7 +205,12 @@ def compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, as
         if len(lagging) == 0:
             lagging.append(0)
         laal = compute_laal(lagging, audio_signal_length, target_length_word[i])
-        laal_list.append(laal)
+        # import pdb; pdb.set_trace()
+        if torch.is_tensor(laal):
+            laal_list.append(laal.item())
+        else:
+            laal_list.append(laal)
+    # import pdb; pdb.set_trace()
     return laal_list
 
 
@@ -302,12 +312,24 @@ def perform_streaming(
     # else:
     #     final_streaming_tran = [""]*batch_size
     # logging.warning(f"[pred_text]: {final_streaming_tran}")
+
+    # canary_data.pred_tokens_alignment = [[]] * batch_size
+    # for i in range(batch_size):
+    #                 greedy_predictions.append(canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.current_context_lengths[i]])
+    
     final_streaming_tran = []
-    for i in range(len(pred_out_stream)):
-        transcription = asr_model.tokenizer.ids_to_text(pred_out_stream[i].tolist()).strip()
+    pred_out_stream = []
+    for i in range(batch_size):
+        transcription_idx = canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.current_context_lengths[i]]
+        pred_out_stream.append(transcription_idx)
+        transcription = asr_model.tokenizer.ids_to_text(transcription_idx.tolist()).strip()
         final_streaming_tran.append(transcription)
+        # import pdb; pdb.set_trace()
+        # canary_data.pred_tokens_alignment[i].append(canary_data.tokens_frame_alignment[i, canary_data.decoder_input_ids.size(-1):canary_data.current_context_lengths[i]])
         logging.warning(f"[pred_text] {i}: {transcription}")
 
+    # import pdb; pdb.set_trace()
+    
     return final_streaming_tran, pred_out_stream
 
 
@@ -423,7 +445,8 @@ def main(cfg: StreamingEvaluationConfig):
                 item = json.loads(line)
                 samples.append(item)
             # sort the samples by duration to reduce batched decoding time (about 2 times faster than default order)
-            samples = sorted(samples, key=lambda x: x['duration'], reverse=True)
+            if cfg.sort_input_manifest:
+                samples = sorted(samples, key=lambda x: x['duration'], reverse=True)
 
         logging.warning(f"Loaded {len(samples)} from the manifest at {cfg.dataset_manifest}.")
 
@@ -457,6 +480,7 @@ def main(cfg: StreamingEvaluationConfig):
                 # canary_data.decoder_mems_list_mask = torch.ones_like(canary_data.decoder_input_ids)
                 canary_data.tgt = torch.full([current_batch_size, canary_data.max_generation_length], asr_model.tokenizer.eos, dtype=torch.long, device=asr_model.device)
                 canary_data.tgt[:, :canary_data.decoder_input_ids.size(-1)] = canary_data.decoder_input_ids
+                canary_data.tokens_frame_alignment = torch.zeros_like(canary_data.tgt)
                 canary_data.active_samples = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
                 canary_data.active_samples_inner_loop = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
                 
@@ -482,8 +506,10 @@ def main(cfg: StreamingEvaluationConfig):
                 # import pdb; pdb.set_trace()
                 if cfg.decoding_policy == "waitk":
                     laal_list = compute_waitk_lagging(batch_samples, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581")
-                else:
+                elif cfg.decoding_policy == "alignatt":
                     laal_list = compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581")
+                else:
+                    raise ValueError(f"Unknown decoding policy: {cfg.decoding_policy}")
                 all_laal.extend(laal_list)
                 # import pdb; pdb.set_trace()
         
