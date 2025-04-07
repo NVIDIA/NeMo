@@ -227,6 +227,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.word_seperator = self.cfg.get('word_seperator', ' ')
         self.segment_seperators = self.cfg.get('segment_seperators', ['.', '?', '!'])
         self.segment_gap_threshold = self.cfg.get('segment_gap_threshold', None)
+        
 
         self._is_tdt = self.durations is not None and self.durations != []  # this means it's a TDT model.
         if self._is_tdt:
@@ -947,7 +948,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         """
         start_index = 0
-
         # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
         if hypothesis.timestamp is not None and len(hypothesis.timestamp) > 0:
@@ -988,9 +988,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         Returns:
 
         """
+        if isinstance(hypothesis.timestamp, torch.Tensor):
+            hypothesis.token_duration = hypothesis.token_duration.cpu().tolist()
+
+        if isinstance(hypothesis.timestamp, torch.Tensor):
+            hypothesis.timestamp = hypothesis.timestamp.cpu().tolist()
+
         # Merge the results per token into a list of dictionaries
         offsets = [
-            {"char": [t], "start_offset": int(s), "end_offset": int(s + d)}
+            {"char": [t], "start_offset": s, "end_offset": s + d}
             for t, s, d in zip(hypothesis.text[0], hypothesis.timestamp, hypothesis.token_duration)
         ]
         return offsets

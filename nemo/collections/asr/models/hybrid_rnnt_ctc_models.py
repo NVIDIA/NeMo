@@ -150,12 +150,11 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 with open_dict(decoding_cfg):
                     decoding_cfg.compute_timestamps = True
                     decoding_cfg.preserve_alignments = True
-                self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
             else:
                 with open_dict(decoding_cfg):
                     decoding_cfg.compute_timestamps = False
                     decoding_cfg.preserve_alignments = False
-                self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
+            self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
 
         return ASRTranscriptionMixin.transcribe(
             self,
