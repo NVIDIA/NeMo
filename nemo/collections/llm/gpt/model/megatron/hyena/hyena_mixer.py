@@ -213,6 +213,10 @@ class HyenaMixer(MegatronModule):
                                 # Otherwise reshape to flatten the first two dimensions
                                 short_weight = short_weight.reshape(-1, short_weight.size(-1))
 
+                        # maybe handle num_groups
+                        proj_weight = proj_weight.repeat_interleave(self._proj_conv_module.group_dim, dim=0)
+                        short_weight = short_weight.repeat_interleave(self._short_conv_module.group_dim, dim=0)
+
                         return self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
 
                 # Use the existing weights from the original model
