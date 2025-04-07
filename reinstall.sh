@@ -21,6 +21,8 @@ export PIP=pip
 export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
 export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
 export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
+export TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
+export TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
 
 trt() {
   local mode="$1"
@@ -92,8 +94,6 @@ trtllm() {
 te() {
   local mode="$1"
 
-  TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
-  TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
   TE_DIR="$INSTALL_DIR/TransformerEngine"
   if [ ! -d "$TE_DIR/.git" ]; then
     rm -rf "$TE_DIR"
