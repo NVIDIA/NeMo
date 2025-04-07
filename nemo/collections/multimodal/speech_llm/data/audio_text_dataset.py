@@ -26,6 +26,7 @@ from nemo.collections.asr.data.audio_to_text import (
     cache_datastore_manifests,
     expand_sharded_filepaths,
     shard_manifests_if_needed,
+    sharded_filepaths_to_webdataset_urls,
 )
 from nemo.collections.asr.data.audio_to_text_dataset import ConcatDataset, convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -742,11 +743,13 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
 
-        audio_tar_filepaths = expand_sharded_filepaths(
-            sharded_filepaths=audio_tar_filepaths,
-            shard_strategy=shard_strategy,
-            world_size=world_size,
-            global_rank=global_rank,
+        audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
+            expand_sharded_filepaths(
+                sharded_filepaths=audio_tar_filepaths,
+                shard_strategy=shard_strategy,
+                world_size=world_size,
+                global_rank=global_rank,
+            )
         )
 
         # Put together WebDataset
