@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CUDA_VISIBLE_DEVICES=0 pytest tests/collections/diffusion/models/flux/test_flux_recipe.py --with_downloads --cov-branch --cov-report=xml --cov=nemo --cov-append
+CUDA_VISIBLE_DEVICES=0 coverage run -a --data-file=/workspace/.coverage --source=/workspace/ -m pytest tests/collections/diffusion/models/flux/test_flux_recipe.py --with_downloads
