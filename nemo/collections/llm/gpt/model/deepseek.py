@@ -400,7 +400,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             v3_kwargs = {
                 "moe_router_score_function": "sigmoid",
                 "moe_router_enable_expert_bias": True,
-                "mtp_num_layers": source.num_nextn_predict_layers,
+                "mtp_num_layers": source.num_nextn_predict_layers if self.convert_mtp else None,
             }
         else:
             v3_kwargs = {}
