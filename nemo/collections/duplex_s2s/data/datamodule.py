@@ -35,6 +35,7 @@ class S2SDataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             frame_length=self.cfg.frame_length,
             source_sample_rate=self.cfg.source_sample_rate,
+            target_sample_rate=self.cfg.target_sample_rate,
             input_roles=self.cfg.input_roles,
             output_roles=self.cfg.output_roles,
         )

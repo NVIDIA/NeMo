@@ -101,11 +101,12 @@ trainer:
 data:
   frame_length: 0.08
   source_sample_rate: 16000
+  target_sample_rate: 22050
   input_roles: ["user", "User"]
   output_roles: ["agent", "Assistant"]
 
   train_ds:
-    sample_rate: 22050
+    sample_rate: ${data.target_sample_rate}
     input_cfg:
       - type: lhotse_shar
         shar_path: /home/pzelasko/exp/duplex_s2s/train_micro
@@ -135,7 +136,7 @@ data:
 #        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
 #      valdata:
 #        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_val
-    sample_rate: 22050
+    sample_rate: ${data.target_sample_rate}
     batch_size: 1
     seed: 42
     shard_seed: "randomized"

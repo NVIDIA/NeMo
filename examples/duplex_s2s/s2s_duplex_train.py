@@ -16,6 +16,7 @@ import os
 import hydra
 import torch
 from lightning.pytorch import Callback, Trainer
+from omegaconf import OmegaConf
 
 from nemo.collections.duplex_s2s.data.datamodule import S2SDataModule
 from nemo.collections.duplex_s2s.models.duplex_s2s_model import DuplexS2SModel
@@ -51,6 +52,7 @@ class PROFILING(Callback):
 
 @hydra_runner(config_path="conf", config_name="s2s_duplex")
 def train(cfg):
+    OmegaConf.resolve(cfg)
     torch.distributed.init_process_group(backend="nccl")
     torch.set_float32_matmul_precision("medium")
     # TODO: decide on exp_manager or adopting NeMo 2.0 API with _setup function, or sth else ?

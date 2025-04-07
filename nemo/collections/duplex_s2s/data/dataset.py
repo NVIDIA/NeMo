@@ -35,12 +35,14 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
         tokenizer: TokenizerSpec,
         frame_length: Seconds,
         source_sample_rate: int,
+        target_sample_rate: int,
         input_roles: list[str] = None,
         output_roles: list[str] = None,
     ):
         self.tokenizer = tokenizer
         self.frame_length = frame_length
         self.source_sample_rate = source_sample_rate
+        self.target_sample_rate = target_sample_rate
         self.input_roles = set(ifnone(input_roles, ["user"]))
         self.output_roles = set(ifnone(output_roles, ["agent"]))
 
@@ -49,7 +51,9 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, cuts: CutSet) -> dict:
         source_audio, source_audio_lens = collate_audio(cuts.resample(self.source_sample_rate))
-        target_audio, target_audio_lens = collate_audio(cuts, recording_field="target_audio")
+        target_audio, target_audio_lens = collate_audio(
+            cuts.resample(self.target_sample_rate), recording_field="target_audio"
+        )
         target_tokens, target_token_lens = collate_token_channel(
             cuts, self.tokenizer, self.frame_length, roles=self.output_roles
         )
@@ -108,15 +112,13 @@ def build_token_channel(
 
     total = compute_num_frames(cut.duration, frame_length, cut.sampling_rate)
     tokens = torch.ones(total, dtype=torch.long) * pad_id
-    offset = 0
     for supervision in cut.supervisions:
-        d = supervision.duration
         if supervision.speaker in roles:
             text = _strip_timestamps(supervision.text)
             text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(text))
 
             # Determine the frame offset for the start of the supervision to insert the text tokens.
-            pos = compute_num_frames(offset, frame_length, cut.sampling_rate)
+            pos = compute_num_frames(supervision.start, frame_length, cut.sampling_rate)
             if pos > len(tokens):
                 logging.warning(
                     f"Ill-constructed example: the beginning offset of a supervision {pos} is larger than the example's length {len(tokens)}. {diagnostic}"
@@ -139,11 +141,9 @@ def build_token_channel(
                 raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=} {diagnostic}") from e
 
             # Insert EOS at the end of the supervision segment.
-            eospos = compute_num_frames(offset + d, frame_length, cut.sampling_rate)
+            eospos = compute_num_frames(supervision.end, frame_length, cut.sampling_rate)
             if eospos < len(tokens):  # skip otherwise - unfinished turn
                 tokens[eospos] = tokenizer.eos
-
-        offset += d
 
     return tokens
 
