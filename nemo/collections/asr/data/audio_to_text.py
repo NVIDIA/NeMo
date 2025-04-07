@@ -235,10 +235,7 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
 
 
 def sharded_filepaths_to_webdataset_urls(sharded_filepaths):
-    return [
-        datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p
-        for p in sharded_filepaths
-    ]
+    return [datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p for p in sharded_filepaths]
 
 
 def cache_datastore_manifests(
