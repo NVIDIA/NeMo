@@ -487,7 +487,6 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
 class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
-
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]], use_feat: bool = False):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
@@ -640,7 +639,7 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         logging.warning(
-        "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
+            "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
         )
         self._update_decoder_config(cfg.labels, cfg.decoder)
         if hasattr(cfg, 'is_regression_task') and cfg.is_regression_task is not None:
@@ -652,8 +651,6 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             self.crop_or_pad = ASRModel.from_config_dict(cfg.crop_or_pad_augment)
         else:
             self.crop_or_pad = None
-
-
 
     def change_labels(self, new_labels: List[str]):
         """
