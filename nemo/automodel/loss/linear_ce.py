@@ -74,10 +74,32 @@ if HAVE_LINEAR_LOSS_CE:
 
     # Create replacement functions
     def new_is_triton_greater_or_equal(version_str):
-        return True
+        """Check if pytorch-triton version is greater than or equal to the specified version.
+        
+        Args:
+            version_str: Version string to check
+            
+        Returns:
+            bool: True if pytorch-triton version >= specified version
+        """
+        import pkg_resources
+        try:
+            pytorch_triton_version = pkg_resources.get_distribution('pytorch-triton').version
+            current = pkg_resources.parse_version(pytorch_triton_version)
+            required = pkg_resources.parse_version(version_str)
+            print(f"Current pytorch-triton version: {pytorch_triton_version}, Required: {version_str}")
+            return current >= required
+        except pkg_resources.DistributionNotFound:
+            print("pytorch-triton not found")
+            return False
 
     def new_is_triton_greater_or_equal_3_2_0():
-        return True
+        """Check if pytorch-triton version is greater than or equal to 3.1.0
+        
+        Returns:
+            bool: True if pytorch-triton version >= 3.1.0
+        """
+        return new_is_triton_greater_or_equal('3.1.0')
 
     # Apply the monkey patches
     tl_utils.is_triton_greater_or_equal = new_is_triton_greater_or_equal
