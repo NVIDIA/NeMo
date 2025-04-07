@@ -374,18 +374,11 @@ class Quantizer:
                     )
                 else:
                     context = io.load_context(model_dir, subpath="model")
-                    try:
-                        exporter = context.exporter("hf", model_dir)
-                        config = exporter.config
-                        with tempfile.TemporaryDirectory() as tmp_dir:
-                            config.save_pretrained(tmp_dir)
-                            pretrained_path = Path(str(tmp_dir))
-                            mte.export_mcore_gpt_to_hf(unwrapped_model, pretrained_path, export_dir=str(export_dir))
-                    except Exception as e:
-                        # Mcore GPT Models are supported, but do not have HF config.
-                        if "No connector found for extension 'hf'" not in str(e):
-                            raise e
-                        mte.export_mcore_gpt_to_hf(unwrapped_model, export_dir=str(export_dir))
+                    exporter = context.exporter("hf", model_dir)
+                    config = exporter.config
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        config.save_pretrained(tmp_dir)
+                        mte.export_mcore_gpt_to_hf(unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir))
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
