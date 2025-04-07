@@ -378,7 +378,9 @@ class Quantizer:
                     config = exporter.config
                     with tempfile.TemporaryDirectory() as tmp_dir:
                         config.save_pretrained(tmp_dir)
-                        mte.export_mcore_gpt_to_hf(unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir))
+                        mte.export_mcore_gpt_to_hf(
+                            unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir)
+                        )
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
