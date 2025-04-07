@@ -40,7 +40,6 @@ from nemo.utils.data_utils import (
     datastore_path_to_webdataset_url,
     is_datastore_cache_shared,
     is_datastore_path,
-    is_tarred_path,
 )
 from nemo.utils.decorators import deprecated
 from nemo.utils.distributed import webdataset_split_by_workers
@@ -209,12 +208,6 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
         # Brace expand, set escape=False for Windows compatibility
         sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths, escape=False))
 
-    # Expand store paths into WebDataset URLs
-    sharded_filepaths = [
-        datastore_path_to_webdataset_url(p) if is_datastore_path(p) and is_tarred_path(p) else p
-        for p in sharded_filepaths
-    ]
-
     # Check for distributed and partition shards accordingly
     if world_size > 1:
         if shard_strategy == 'scatter':
@@ -239,6 +232,13 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
             raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
     return sharded_filepaths
+
+
+def sharded_filepaths_to_webdataset_urls(sharded_filepaths):
+    return [
+        datastore_path_to_webdataset_url(p) if is_datastore_path(p) else p
+        for p in sharded_filepaths
+    ]
 
 
 def cache_datastore_manifests(
@@ -885,13 +885,14 @@ class _TarredAudioToTextDataset(IterableDataset):
         self.pad_id = pad_id
         self.return_sample_id = return_sample_id
 
-        audio_tar_filepaths = expand_sharded_filepaths(
-            sharded_filepaths=audio_tar_filepaths,
-            shard_strategy=shard_strategy,
-            world_size=world_size,
-            global_rank=global_rank,
+        audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
+            expand_sharded_filepaths(
+                sharded_filepaths=audio_tar_filepaths,
+                shard_strategy=shard_strategy,
+                world_size=world_size,
+                global_rank=global_rank,
+            )
         )
-
         # Put together WebDataset pipeline
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),

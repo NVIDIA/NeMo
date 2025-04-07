@@ -1325,12 +1325,14 @@ class AugmentationDataset(IterableDataset):
         shard_strategy: str = "replicate",
     ):
         # import here to avoid circular import error
-        from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
+        from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths, sharded_filepaths_to_webdataset_urls
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
 
-        tar_filepaths = expand_sharded_filepaths(
-            tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
+        tar_filepaths = sharded_filepaths_to_webdataset_urls(
+            expand_sharded_filepaths(
+                tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
+                )
         )
 
         if not HAVE_OMEGACONG_WEBDATASET:

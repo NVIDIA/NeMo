@@ -18,7 +18,11 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import torch
 import webdataset as wds
 
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
+from nemo.collections.asr.data.audio_to_text import (
+    cache_datastore_manifests, 
+    expand_sharded_filepaths, 
+    sharded_filepaths_to_webdataset_urls
+)
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
@@ -587,11 +591,13 @@ class _TarredVideoToTextDataset(IterableDataset):
         self.pad_id = pad_id
         self.return_sample_id = return_sample_id
 
-        audio_tar_filepaths = expand_sharded_filepaths(
-            audio_tar_filepaths=audio_tar_filepaths,
-            shard_strategy=shard_strategy,
-            world_size=world_size,
-            global_rank=global_rank,
+        audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
+            expand_sharded_filepaths(
+                audio_tar_filepaths=audio_tar_filepaths,
+                shard_strategy=shard_strategy,
+                world_size=world_size,
+                global_rank=global_rank,
+            )
         )
 
         # Put together WebDataset
