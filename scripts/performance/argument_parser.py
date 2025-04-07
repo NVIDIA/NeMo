@@ -251,6 +251,31 @@ def parse_cli_args():
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
     )
     parser.add_argument(
+        "-fsdp",
+        "--use_mcore_fsdp",
+        help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
+        action="store_true",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-rl",
+        "--recompute_layers",
+        type=int,
+        help="Number of Transformer layers to recompute, where all the intermediate "
+        "activations of a Transformer layer are computed. Defaults to 0",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-ol",
+        "--activation_offload_layers",
+        type=int,
+        help="Number of Transformer layers to offload to the CPU memory. Defaults to 0",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "--num_distributed_optimizer_instances",
         type=int,
         help="Number of distributed optimizer instances. Defaults to 1",
