@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-TRANSFORMERS_OFFLINE=1 \
-      coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-      tests/collections/llm/hf/sft_fsdp2.py \
-      --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home \
-      coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-      examples/llm/sft/automodel.py \
-      --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy fsdp2 \
-      --mock-dataset
+
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/export/nemo_export.py \
+  --model_name test \
+  --model_dir /tmp/trt_llm_model_dir/ \
+  --model_type LlamaForCausalLM \
+  --use_huggingface True \
+  --checkpoint_dir /home/TestData/llm/models/llama3.2-1B-hf/ \
+  --min_tps 1 \
+  --test_deployment True \
+  --debug
