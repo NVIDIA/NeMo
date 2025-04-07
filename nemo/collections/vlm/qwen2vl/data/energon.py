@@ -39,7 +39,7 @@ from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
     VIDEO_TOKEN_INDEX,
     VISION_END_TOKEN_INDEX,
 )
-from nemo.collections.vlm.qwen2vl.data.preloaded import process_vision
+from nemo.collections.vlm.qwen2vl.data.preloaded import process_vision, find_pattern_indices
 from nemo.utils import logging
 
 
@@ -241,26 +241,17 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
 
         # NOTE: we need to mask all system/user input tokens and assistant generation prefix tokens
         input_ids = self.tokenizer.apply_chat_template(conversation, tokenize=True, return_tensors="np")[0]
-        target = input_ids.copy()
-
-        system_prompt_prefix = len(self.tokenizer.apply_chat_template([conversation[0]], tokenize=True))
-        assistant_generation_prefix = 3
         pad_token_id = self.tokenizer.pad_token_id
-
-        target[:system_prompt_prefix] = pad_token_id
-        offset = system_prompt_prefix
+        target = [pad_token_id for _ in range(len(input_ids))]
+        search_start_index = 0
         for turn_idx, turn in enumerate(conversation[1:]):
-            turn_tokens = self.tokenizer.apply_chat_template([turn], tokenize=True, return_tensors="np")[0]
-            turn_content = turn_tokens[system_prompt_prefix:]
-            n_tokens = len(turn_content)
-            if (target[offset : offset + n_tokens] != turn_content).any():
-                logging.warning("Encode Error")
-
-            if turn['role'] == 'user':
-                target[offset : offset + n_tokens] = pad_token_id
-            elif turn['role'] == 'assistant':
-                target[offset : offset + assistant_generation_prefix] = pad_token_id
-            offset += n_tokens
+            if turn['role'] == 'assistant':
+                answer = turn['content'] + "<|im_end|>" + "\n"
+                answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False)
+                answer_start, answer_end = find_pattern_indices(input_ids, answer_tokens, search_start_index)
+                assert answer_start > 0, "Not found valid answer in conversation."
+                target[answer_start:answer_end] = input_ids[answer_start:answer_end]
+                search_start_index = answer_end
 
         # NOTE: expand image_pad & video_pad
         merge_length = self.merge_size**2
