@@ -15,9 +15,8 @@
 import logging
 from typing import Any, Dict, Literal
 
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS
-from megatron.core import parallel_state
-from megatron.energon import DefaultTaskEncoder, WorkerConfig, get_savable_loader, get_train_dataset
+from megatron.energon import DefaultTaskEncoder, get_train_dataset
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS
 
 from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 
@@ -57,12 +56,9 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
         pin_memory: bool = True,
         task_encoder: DefaultTaskEncoder = None,
         use_train_split_for_val: bool = False,
-        virtual_epoch_length: int = 1_000_000_000,  # a hack to avoid energon end of epoch warning
-        packing_buffer_size: int | None = None,
-        max_samples_per_sequence: int | None = None,
     ) -> None:
         """
-        Initialize the EnergonMultiModalDataModule.
+        Initialize the SimpleMultiModalDataModule.
 
         Parameters:
         path (str): Path to the dataset.
@@ -86,10 +82,6 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
             task_encoder=task_encoder,
         )
         self.use_train_split_for_val = use_train_split_for_val
-        self.virtual_epoch_length = virtual_epoch_length
-        self.num_workers_val = 1
-        self.packing_buffer_size = packing_buffer_size
-        self.max_samples_per_sequence = max_samples_per_sequence
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
         """
@@ -114,55 +106,29 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
             batch_size=self.micro_batch_size,
             task_encoder=self.task_encoder,
             worker_config=worker_config,
-            max_samples_per_sequence=self.max_samples_per_sequence,
-            shuffle_buffer_size=None,
+            max_samples_per_sequence=None,
+            shuffle_buffer_size=100,
             split_part=split,
-            virtual_epoch_length=self.virtual_epoch_length,
-            packing_buffer_size=self.packing_buffer_size,
+            batch_drop_last=True,
+            virtual_epoch_length=1_000_000_000,  # a hack to avoid energon end of epoch warning
         )
         return _dataset
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
         """
-        Initialize and return the validation DataLoader.
+        Configure the validation DataLoader.
 
-        This method initializes the DataLoader for the validation dataset. It ensures that the parallel state
-        is initialized correctly for distributed training and returns a configured DataLoader object.
+        This method configures the DataLoader for validation data.
+
+        Parameters:
+        worker_config: Configuration for the data loader workers.
 
         Returns:
-        EVAL_DATALOADERS: The DataLoader for the validation dataset.
+        DataLoader: The DataLoader for validation data.
         """
         if self.use_train_split_for_val:
             return self.train_dataloader()
-        if self.val_dataloader_object:
-            return self.val_dataloader_object
-
-        if not parallel_state.is_initialized():
-            message = (
-                "Muiltimodal val data loader parallel state is not initialized "
-                f"using default worker config with no_workers {self.num_workers}"
-            )
-            logging.info(message)
-
-            worker_config = WorkerConfig.default_worker_config(self.num_workers_val)
-        else:
-            rank = parallel_state.get_data_parallel_rank()
-            world_size = parallel_state.get_data_parallel_world_size()
-            data_parallel_group = parallel_state.get_data_parallel_group()
-
-            logging.info(f"rank {rank} world_size {world_size} data_parallel_group {data_parallel_group}")
-            worker_config = WorkerConfig(
-                rank=rank,
-                world_size=world_size,
-                num_workers=self.num_workers_val,
-                data_parallel_group=data_parallel_group,
-                worker_debug_path=None,
-                worker_log_level=0,
-            )
-        val_dataset = self.datasets_provider(worker_config, split='val')
-        energon_loader = get_savable_loader(val_dataset, worker_config=worker_config)
-        self.val_dataloader_object = energon_loader
-        return self.val_dataloader_object
+        return super().val_dataloader()
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         """

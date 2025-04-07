@@ -345,6 +345,8 @@ class FabricMegatronStrategy(DDPStrategy):
                     sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True)
 
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
+        # TODO: Remove this once we have proper strictness handling in fabric
+        strict = False
 
         if isinstance(state, Module):
             self.load_module_state_dict(module=state, state_dict=checkpoint, strict=strict)

@@ -14,8 +14,37 @@
 
 import torch
 from torch import Tensor
-from torch.distributed import ProcessGroup, all_gather, get_world_size
+from torch.distributed import ProcessGroup, all_gather, get_world_size, get_process_group_ranks
 
+def split_inputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup) -> Tensor:
+    """
+    Split input tensor along the sequence dimension for checkpoint parallelism.
+
+    This function divides the input tensor into equal parts along the specified
+    sequence dimension, based on the number of ranks in the checkpoint parallelism group.
+    It then selects the part corresponding to the current rank.
+
+    Args:
+        x: Input tensor to be split.
+        seq_dim: The dimension along which to split the input (sequence dimension).
+        cp_group: The process group for checkpoint parallelism.
+
+    Returns:
+        A slice of the input tensor corresponding to the current rank.
+
+    Raises:
+        AssertionError: If the sequence dimension is not divisible by the number of ranks.
+    """
+    cp_ranks = get_process_group_ranks(cp_group)
+    cp_size = len(cp_ranks)
+
+    assert x.shape[seq_dim] % cp_size == 0, f"{x.shape[seq_dim]} cannot divide cp_size {cp_size}"
+    x = x.view(*x.shape[:seq_dim], cp_size, x.shape[seq_dim] // cp_size, *x.shape[(seq_dim + 1) :])
+    seq_idx = torch.tensor([cp_group.rank()], device=x.device)
+    x = x.index_select(seq_dim, seq_idx)
+    # Note that the new sequence length is the original sequence length / cp_size
+    x = x.view(*x.shape[:seq_dim], -1, *x.shape[(seq_dim + 2) :])
+    return x
 
 def cat_outputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup) -> Tensor:
     """

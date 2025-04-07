@@ -1,0 +1,8 @@
+{
+    "1a1c7950-01f0-4e37-9949-dad68e3d1072.camera_front_wide_120fov": "cosmos1/models/diffusion/nemo/post_training/multicamera/AV-V2.2/alpamayo_caption_t5/qwen_t5_tars/trainv2-2-chunk-00/part_000000/001365.tar",
+    "1a1c7950-01f0-4e37-9949-dad68e3d1072.camera_cross_left_120fov": "cosmos1/models/diffusion/nemo/post_training/multicamera/AV-V2.2/alpamayo_caption_t5/qwen_t5_tars/trainv2-2-chunk-00/part_000000/001365.tar",
+    "1a1c7950-01f0-4e37-9949-dad68e3d1072.camera_cross_right_120fov": "cosmos1/models/diffusion/nemo/post_training/multicamera/AV-V2.2/alpamayo_caption_t5/qwen_t5_tars/trainv2-2-chunk-00/part_000000/001365.tar",
+    "1a1c7950-01f0-4e37-9949-dad68e3d1072.camera_rear_tele_30fov": "cosmos1/models/diffusion/nemo/post_training/multicamera/AV-V2.2/alpamayo_caption_t5/qwen_t5_tars/trainv2-2-chunk-00/part_000000/001365.tar",
+    "1a1c7950-01f0-4e37-9949-dad68e3d1072.camera_rear_left_70fov": "cosmos1/models/diffusion/nemo/post_training/multicamera/AV-V2.2/alpamayo_caption_t5/qwen_t5_tars/trainv2-2-chunk-00/part_000000/001365.tar",
+    "1a1c7950-01f0-4e37-9949-dad68e3d1072.camera_rear_right_70fov": "cosmos1/models/diffusion/nemo/post_training/multicamera/AV-V2.2/AV-V2.2/alpamayo_caption_t5/qwen_t5_tars/trainv2-2-chunk-00/part_000000/001365.tar"    
+}

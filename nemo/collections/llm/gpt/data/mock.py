@@ -102,6 +102,11 @@ class MockDataModule(pl.LightningDataModule):
             self.setup()
         return self._create_dataloader(self._test_ds)
 
+    def predict_dataloader(self) -> EVAL_DATALOADERS:
+        if not hasattr(self, "_predict_ds"):
+            self.setup()
+        return self._create_dataloader(self._predict_ds)
+
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
@@ -137,6 +142,7 @@ class _MockGPTDataset(Dataset):
 
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
+        self.data_batches = data_batches
 
     def __len__(self) -> int:
         return self.length
@@ -156,6 +162,7 @@ class _MockGPTDataset(Dataset):
             "labels": labels,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
+            'a': tokens,
         }
 
         if self.create_attention_mask:

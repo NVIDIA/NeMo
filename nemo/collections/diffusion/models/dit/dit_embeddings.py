@@ -27,6 +27,70 @@ from megatron.core.models.common.embeddings.rotary_pos_embedding import get_pos_
 from megatron.core.transformer.module import MegatronModule
 from torch import nn
 
+import logging
+
+log = logging.getLogger(__name__)
+
+class SDXLTimestepEmbedding(nn.Module):
+    def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False):
+        super().__init__()
+        log.critical(
+            f"Using AdaLN LoRA Flag:  {use_adaln_lora}. We enable bias if no AdaLN LoRA for backward compatibility."
+        )
+        self.linear_1 = nn.Linear(in_features, out_features, bias=not use_adaln_lora)
+        self.activation = nn.SiLU()
+        self.use_adaln_lora = use_adaln_lora
+        if use_adaln_lora:
+            self.linear_2 = nn.Linear(out_features, 3 * out_features, bias=False)
+        else:
+            self.linear_2 = nn.Linear(out_features, out_features, bias=True)
+
+    def forward(self, sample: torch.Tensor) -> torch.Tensor:
+        emb = self.linear_1(sample)
+        emb = self.activation(emb)
+        emb = self.linear_2(emb)
+
+        if self.use_adaln_lora:
+            adaln_lora_B_3D = emb
+            emb_B_D = sample
+        else:
+            emb_B_D = emb
+            adaln_lora_B_3D = None
+
+        return emb_B_D, adaln_lora_B_3D
+
+class ParallelSDXLTimestepEmbedding(SDXLTimestepEmbedding):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        use_adaln_lora: bool = False,
+        seed: Optional[int] = None,
+    ):
+        super().__init__(
+            in_features=in_features,
+            out_features=out_features,
+            use_adaln_lora=use_adaln_lora,
+        )
+        if seed is not None:
+            with torch.random.fork_rng():
+                torch.manual_seed(seed)
+                self.linear_1.reset_parameters()
+                self.linear_2.reset_parameters()
+        
+        # Check for pipeline model parallelism and set attributes accordingly
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            setattr(self.linear_1.weight, "pipeline_parallel", True)
+            if self.linear_1.bias is not None:
+                setattr(self.linear_1.bias, "pipeline_parallel", True)
+            setattr(self.linear_2.weight, "pipeline_parallel", True)
+            if self.linear_2.bias is not None:
+                setattr(self.linear_2.bias, "pipeline_parallel", True)
+
+    def forward(self, sample: torch.Tensor) -> torch.Tensor:
+        sample = sample.to(torch.bfloat16, non_blocking=True)
+        return super().forward(sample)
+
 
 class ParallelTimestepEmbedding(TimestepEmbedding):
     """
@@ -54,12 +118,13 @@ class ParallelTimestepEmbedding(TimestepEmbedding):
                 torch.manual_seed(seed)
                 self.linear_1.reset_parameters()
                 self.linear_2.reset_parameters()
-
+            
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             setattr(self.linear_1.weight, "pipeline_parallel", True)
             setattr(self.linear_1.bias, "pipeline_parallel", True)
             setattr(self.linear_2.weight, "pipeline_parallel", True)
             setattr(self.linear_2.bias, "pipeline_parallel", True)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -92,7 +157,6 @@ def get_pos_emb_on_this_cp_rank(pos_emb, seq_dim):
     pos_emb = pos_emb.index_select(seq_dim, cp_idx)
     pos_emb = pos_emb.view(*pos_emb.shape[:seq_dim], -1, *pos_emb.shape[(seq_dim + 2) :])
     return pos_emb
-
 
 class SinCosPosEmb3D(MegatronModule):
     """
@@ -143,7 +207,6 @@ class SinCosPosEmb3D(MegatronModule):
         pos_id = pos_ids[..., 0] * self.h * self.w + pos_ids[..., 1] * self.w + pos_ids[..., 2]
         return self.pos_embedding(pos_id)
 
-
 class FactorizedLearnable3DEmbedding(MegatronModule):
     def __init__(
         self,
@@ -169,16 +232,16 @@ class FactorizedLearnable3DEmbedding(MegatronModule):
         else:
             if config.perform_initialization:
                 self.customize_init_param()
-
+    
     def customize_init_param(self):
         self.config.init_method(self.emb_t.weight)
         self.config.init_method(self.emb_h.weight)
         self.config.init_method(self.emb_w.weight)
-
+    
     def reset_parameters(self):
         self.emb_t.reset_parameters()
         self.emb_h.reset_parameters()
         self.emb_w.reset_parameters()
-
+    
     def forward(self, pos_ids: torch.Tensor):
         return self.emb_t(pos_ids[..., 0]) + self.emb_h(pos_ids[..., 1]) + self.emb_w(pos_ids[..., 2])
