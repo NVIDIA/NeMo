@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/collections/llm/test_hf_import.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/test_hf_import.py \
   --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf \
   --output_path /tmp/nemo2_ckpt
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/setup/data/create_sample_lambada.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/setup/data/create_sample_lambada.py \
   --output_file /tmp/lambada.json
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/export/nemo_export.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/export/nemo_export.py \
   --model_name test \
   --model_type llama \
   --checkpoint_dir /tmp/nemo2_ckpt \

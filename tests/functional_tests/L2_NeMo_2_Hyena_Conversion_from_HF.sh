@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/collections/llm/conversion/test_hyena_import_from_hf.py \
+TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/conversion/test_hyena_import_from_hf.py \
     --output-path=tests/collections/llm/hyena_conversion_results/$RUN_ID

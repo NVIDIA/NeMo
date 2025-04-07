@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/collections/llm/gpt_finetuning.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/gpt_finetuning.py \
     --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
     --devices 2 \
     --max_steps 3 \
@@ -22,7 +22,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
     --mbs 1 \
     --dataset chat
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/collections/llm/gpt_finetuning.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/gpt_finetuning.py \
     --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
     --devices 2 \
     --max_steps 6 \

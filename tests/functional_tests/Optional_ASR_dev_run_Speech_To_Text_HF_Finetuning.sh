@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/asr/speech_to_text_finetune.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/asr/speech_to_text_finetune.py \
     --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
     ~model.train_ds.hf_data_cfg \
     model.train_ds.num_workers=1 \

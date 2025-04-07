@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/vision/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 \
+TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/vision/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
   tests/collections/vlm/vision/test_llava_next_InternVIT.py \
   --devices=1 \
   --max-steps=5

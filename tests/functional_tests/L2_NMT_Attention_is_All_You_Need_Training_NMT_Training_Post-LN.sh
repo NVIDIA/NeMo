@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/nlp/machine_translation/enc_dec_nmt.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/nlp/machine_translation/enc_dec_nmt.py \
   --config-path=conf \
   --config-name=aayn_base \
   do_testing=false \
@@ -39,7 +39,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
   +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
   +exp_manager.create_checkpoint_callback=true
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/nlp/machine_translation/enc_dec_nmt.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/nlp/machine_translation/enc_dec_nmt.py \
   --config-path=conf \
   --config-name=aayn_base \
   do_testing=true \

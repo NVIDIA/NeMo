@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/nlp/machine_translation/enc_dec_nmt_finetune.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/nlp/machine_translation/enc_dec_nmt_finetune.py \
     model_path=/home/TestData/nlp/nmt/toy_data/enes_v16k_s100k_6x6.nemo \
     trainer.devices=1 \
     ~trainer.max_epochs \

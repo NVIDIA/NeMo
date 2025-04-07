@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/clip_ci/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 scripts/vlm/clip_pretrain.py --data_path /home/TestData/vlm/clip_ci/cc3m_training --num_workers 5 --imagenet_val /home/TestData/vlm/clip_ci/imagenet_validation --val_check_interval 4 --max_steps 8
+TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/clip_ci/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/vlm/clip_pretrain.py --data_path /home/TestData/vlm/clip_ci/cc3m_training --num_workers 5 --imagenet_val /home/TestData/vlm/clip_ci/imagenet_validation --val_check_interval 4 --max_steps 8
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/clip_ci/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 scripts/vlm/clip_pretrain.py --devices 2 --data_path /home/TestData/vlm/clip_ci/cc3m_training --num_workers 5 --imagenet_val /home/TestData/vlm/clip_ci/imagenet_validation --val_check_interval 4 --max_steps 8
+TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/clip_ci/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/vlm/clip_pretrain.py --devices 2 --data_path /home/TestData/vlm/clip_ci/cc3m_training --num_workers 5 --imagenet_val /home/TestData/vlm/clip_ci/imagenet_validation --val_check_interval 4 --max_steps 8

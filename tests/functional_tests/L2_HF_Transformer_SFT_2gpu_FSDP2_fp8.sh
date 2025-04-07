@@ -1,5 +1,5 @@
 TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home \
-    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 \
+    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
     examples/llm/sft/automodel.py \
     --model /home/TestData/nlp/hf_gemma/hf_gemma_2b \
     --max-steps 3 \

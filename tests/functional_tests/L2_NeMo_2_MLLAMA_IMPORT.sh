@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 TRANSFORMERS_OFFLINE=1 \
-  coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 \
+  coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
   scripts/vlm/import_hf.py --input_name_or_path="meta-llama/Llama-3.2-11B-Vision-Instruct"

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/export/nemo_export.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/export/nemo_export.py \
   --model_name test \
   --model_dir /tmp/trt_llm_model_dir/ \
   --model_type LlamaForCausalLM \
