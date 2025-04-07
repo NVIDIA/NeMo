@@ -18,7 +18,6 @@ This module provides factory functions for creating various callbacks used in LL
 including straggler detection and performance monitoring.
 """
 
-from datetime import timedelta
 from typing import Optional
 
 from nemo_run import Config, cli
