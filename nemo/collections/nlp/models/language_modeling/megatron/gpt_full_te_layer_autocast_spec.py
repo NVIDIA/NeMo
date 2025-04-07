@@ -186,7 +186,7 @@ class AutocastTransformerLayer(TransformerLayer):
             )
 
 
-class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # codeql[py/inconsistent-mro]
+class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # noqa: codeql[py/inconsistent-mro]
     """
     A MegatronModule that wraps the AutocastTransformerLayer.
     """
