@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from rotary_embedding_torch import RotaryEmbedding
 
 import math
 from collections import OrderedDict
@@ -433,7 +434,7 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
             max_audio_length = max_audio_length + cache_len
             padding_length = length + cache_len
             offset = torch.neg(cache_last_channel_len) + cache_len
-            border = offset.item()
+            border = offset[0].item()
         else:
             padding_length = length
             cache_last_channel_next = None
@@ -533,41 +534,41 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
         self.ngpt.normalize_matrices()
 
 
-def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
-    # Ensure q and k have correct positional embeddings
-    sin_q, cos_q = sinusoidal_pos[-q.shape[2]:].chunk(2, dim=-1)  # Select for q length
-    sin_k, cos_k = sinusoidal_pos[-k.shape[2]:].chunk(2, dim=-1)  # Select for k length
-
-    # Apply rotary embeddings
-    def apply_rotary(q, sin, cos):
-        q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
-        q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-        return torch.reshape(q_rot, q.shape)
-
-    q_rot = apply_rotary(q, sin_q, cos_q)
-    k_rot = apply_rotary(k, sin_k, cos_k)
-
-    return q_rot.to(q.dtype), k_rot.to(k.dtype)
-
-
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
-
-
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
+#def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
+#    # Ensure q and k have correct positional embeddings
+#    sin_q, cos_q = sinusoidal_pos[-q.shape[2]:].chunk(2, dim=-1)  # Select for q length
+#    sin_k, cos_k = sinusoidal_pos[-k.shape[2]:].chunk(2, dim=-1)  # Select for k length
+#
+#    # Apply rotary embeddings
+#    def apply_rotary(q, sin, cos):
+#        q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
+#        q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
+#        return torch.reshape(q_rot, q.shape)
+#
+#    q_rot = apply_rotary(q, sin_q, cos_q)
+#    k_rot = apply_rotary(k, sin_k, cos_k)
+#
+#    return q_rot.to(q.dtype), k_rot.to(k.dtype)
+#
+#
+#def get_sinusoidal_embeddings(n_positions, dim, device):
+#    """Generate sinusoidal positional embeddings."""
+#    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
+#    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
+#    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
+#    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
+#    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
+#    return sinusoidal_emb
+#
+#
+#def get_sinusoidal_embeddings(n_positions, dim, device):
+#    """Generate sinusoidal positional embeddings."""
+#    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
+#    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
+#    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
+#    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
+#    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
+#    return sinusoidal_emb
 
 
 def justnorm(x, fp32: bool = False, idim: int = -1,eps: float = 1e-10):
@@ -596,6 +597,7 @@ class Block(nn.Module):
         self.query = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.value = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.att_c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
+        self.rotary_emb = RotaryEmbedding(dim =config.n_embd // config.n_head)
 
         self.c_fc = nn.Linear(config.n_embd, 2 * 4 * config.n_embd, bias=config.bias)
         self.silu = nn.SiLU()
@@ -648,9 +650,15 @@ class Block(nn.Module):
         k = k.view(B, k.shape[1], self.config.n_head, self.config.n_embd // self.config.n_head)
         
         v = v.view(B, k.shape[1], self.config.n_head, self.config.n_embd // self.config.n_head)
-        sinusoidal_pos = get_sinusoidal_embeddings(k.shape[1], self.config.n_embd // self.config.n_head, device=q.device)
-        q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
-
+        q = q.transpose(2, 1)
+        k = k.transpose(2, 1)
+        # q = self.rotary_emb.rotate_queries_or_keys(q)
+        # k = self.rotary_emb.rotate_queries_or_keys(k)
+        if not offset:
+            q = self.rotary_emb.rotate_queries_or_keys(q)
+            k = self.rotary_emb.rotate_queries_or_keys(k)
+        else:
+            q, k = self.rotary_emb.rotate_queries_with_cached_keys(q, k)
 
         q = q.transpose(2, 1)
         k = k.transpose(2, 1)
@@ -692,7 +700,7 @@ class Block(nn.Module):
             )
 
         y = y.to(dtype=q.dtype)
-        y = y.contiguous().view(B, T, self.config.n_embd)
+        y = y.transpose(1, 2).contiguous().view(B, T, self.config.n_embd)
 
         h_att = self.att_c_proj(y)
 
