@@ -522,7 +522,7 @@ def run_train_mnist_litautoencoder_with_megatron_fsdp2_strategy_single_gpu():
                 tensor_model_parallel_size=1,
                 pipeline_model_parallel_size=1,
                 ddp="megatron",
-                fsdp=True,
+                fsdp="pytorch",
                 find_unused_parameters=True,
                 enable_nemo_ckpt_io=True,
             )
@@ -554,7 +554,7 @@ def run_train_mnist_litautoencoder_with_megatron_fsdp2_strategy_single_gpu():
                 tensor_model_parallel_size=1,
                 pipeline_model_parallel_size=1,
                 ddp="megatron",
-                fsdp=True,
+                fsdp="pytorch",
                 find_unused_parameters=True,
                 enable_nemo_ckpt_io=True,
                 data_sampler=MegatronDataSampler(
