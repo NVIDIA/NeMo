@@ -97,9 +97,11 @@ class AutoResume:
     WEIGHTS_PATH = "weights"
 
     def get_weights_path(self, path):
+        """Return the weights subdirectory under the checkpoint path."""
         return Path(path) / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
+        """Initialize the checkpoint and restore paths."""
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
 
@@ -208,7 +210,7 @@ class AutoResume:
         if end_chkpt_cnt > 0 and finished_end_chkpt_cnt == 0:
             raise ValueError(
                 "End checkpoint is unfinished and cannot be used to resume the training."
-                " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                " Please remove the checkpoint manually to avoid unexpected consequences, such as"
                 " restarting from scratch."
             )
 
@@ -218,7 +220,7 @@ class AutoResume:
         if last_chkpt_cnt > 0 and finished_last_chkpt_cnt == 0:
             raise ValueError(
                 "Last checkpoint is unfinished and cannot be used to resume the training."
-                " Please remove the checkpoint manually to avoid unexpected cosequences, such as"
+                " Please remove the checkpoint manually to avoid unexpected consequences, such as"
                 " restarting from scratch. Hint: Iteration number can be added to the checkpoint name pattern"
                 " to maximize chance that there is at least one finished last checkpoint to resume from."
             )
@@ -270,6 +272,7 @@ class AutoResume:
         return checkpoint
 
     def get_context_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
+        """Return the context subdirectory under the checkpoint path, if available."""
         checkpoint = None
         app_state = AppState()
         app_state.restore = self.resume_if_exists
@@ -283,6 +286,7 @@ class AutoResume:
         return checkpoint
 
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
+        """Return the checkpoint path, if available."""
         if self.resume_from_path:
             maybe_weights_path = self.get_weights_path(self.resume_from_path)
             if maybe_weights_path.is_dir():

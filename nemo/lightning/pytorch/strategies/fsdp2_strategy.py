@@ -37,9 +37,11 @@ from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     create_checkpoint_io,
     fsdp2_strategy_parallelize,
+    warmup_torch_dist,
 )
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
+from nemo.utils.inprocess_restart import get_prefix_store
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
@@ -112,9 +114,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 output_dtype=torch.bfloat16,
                 cast_forward_inputs=True,
             )
-        self.store: Optional[torch.distributed.Store] = None
         self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
+
+        # Used for in process restart
+        self.store: Optional[torch.distributed.Store] = None
+        self.inprocess_call_wrapper = None
 
     @property
     @override
@@ -256,9 +261,16 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
         os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
         _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+
+        store = self.store
+        if self.inprocess_call_wrapper is not None:
+            assert self.store is not None
+            store = get_prefix_store(store, self.inprocess_call_wrapper)
+
         torch.distributed.init_process_group(
-            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=store
         )
+        warmup_torch_dist(self.root_device)
 
         if self._process_group_backend == "nccl":
             atexit.register(_destroy_dist_connection)
