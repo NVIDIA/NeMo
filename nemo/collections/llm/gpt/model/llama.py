@@ -570,14 +570,22 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             llama4_mapping = {
                 # Post Attention LayerNorm
                 "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.pre_mlp_layernorm.weight",
-                "model.layers.*.dense-post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "model.layers.*.dense-post_attention_layernorm.weight": (
+                    "decoder.layers.*.mlp.linear_fc1.layer_norm_weight"
+                ),
                 # MoE Router
                 "model.layers.*.feed_forward.router.weight": "decoder.layers.*.mlp.router.weight",
                 # MoE Shared Experts
-                "model.layers.*.feed_forward.shared_expert.down_proj.weight": "decoder.layers.*.mlp.shared_experts.linear_fc2.weight",
+                "model.layers.*.feed_forward.shared_expert.down_proj.weight": (
+                    "decoder.layers.*.mlp.shared_experts.linear_fc2.weight"
+                ),
                 # MoE Experts
-                "model.layers.*.feed_forward.experts.*.down_proj": "decoder.layers.*.mlp.experts.linear_fc2.weight*",
-                "model.layers.*.feed_forward.experts.*.gate_up_proj": "decoder.layers.*.mlp.experts.linear_fc1.weight*",
+                "model.layers.*.feed_forward.experts.*.down_proj": (
+                    "decoder.layers.*.mlp.experts.linear_fc2.weight*"
+                ),
+                "model.layers.*.feed_forward.experts.*.gate_up_proj": (
+                    "decoder.layers.*.mlp.experts.linear_fc1.weight*"
+                ),
                 # Dense MLP (for moe_layer_freq != 1)
                 "model.layers.*.feed_forward.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             }
@@ -609,7 +617,9 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             # Dense Mapping
             mapping.update(
                 {
-                    "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                    "model.layers.*.post_attention_layernorm.weight": (
+                        "decoder.layers.*.mlp.linear_fc1.layer_norm_weight"
+                    ),
                     "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
                 }
             )
@@ -650,21 +660,27 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 is_moe_layer = self.config.moe_layer_freq[layer_i]
             if is_moe_layer:
                 # gate_up_proj
-                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj")
+                weight = state_dict.pop(
+                    f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj"
+                )
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
                     state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"] = (
                         expert_weight.squeeze().transpose(0, 1)
                     )
                 # down_proj
-                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.down_proj")
+                weight = state_dict.pop(
+                    f"model.layers.{layer_i}.feed_forward.experts.down_proj"
+                )
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
                     state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
                         expert_weight.squeeze().transpose(0, 1)
                     )
             else:
-                weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
+                weight = state_dict.pop(
+                    f"model.layers.{layer_i}.post_attention_layernorm.weight"
+                )
                 state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
 
         source = _ModelState(state_dict)
