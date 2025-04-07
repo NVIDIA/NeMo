@@ -28,24 +28,40 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 
 
 class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
+    EOU_LABEL = 2
+    EOB_LABEL = 3
+    EOU_STRING = '<eou>'
+    EOB_STRING = '<eob>'
     """
     This dataset processes the audio data and the corresponding text data to generate the ASR labels,
     along with EOU labels for each frame. The audios used in this dataset should only contain speech with
     NO precedding or following silence. The dataset also randomly pads non-speech frames before and after
     the audio signal for training EOU prediction task.
 
-    To generate EOU labels, the first frame of the audio will be marked as "start of utterance" (labeled as `2`),
-    while the last frame will be marked as "end of utterance" (labeled as `3`). The rest of the frames in between
-    will be marked as "speech" (labeled as `1`).
+    To generate EOU labels, the last frame of utterance will be marked as "end of utterance" (labeled as `2`),
+    while if it's a backchannel utterance it'll be marked asd "end of backchannel" (labeled as `3`). 
+    The rest of the speech frames will be marked as "speech" (labeled as `1`).
     The padded non-speech signals will be marked as "non-speech" (labeled as 0).
 
     Returns:
         audio: torch.Tensor of audio signal
         audio_lens: torch.Tensor of audio signal length
-        eou_targets: torch.Tensor of EOU labels
-        eou_target_lens: torch.Tensor of EOU label length
         text_tokens: torch.Tensor of text text_tokens
         text_token_lens: torch.Tensor of text token length
+        eou_targets (optional): torch.Tensor of EOU labels 
+        eou_target_lens (optional): torch.Tensor of EOU label length
+
+    The input manifest should be a jsonl file where each line is a python dictionary. 
+    Example manifest sample:
+    {
+        "audio_filepath": "/path/to/audio.wav",
+        "offset": 0.0,
+        "duration": 6.0,
+        "sou_time": [0.3, 4.0],
+        "eou_time": [1.3, 4.5],
+        "utterances": ["Tell me a joke", "Ah-ha"],
+        "is_backchannel": [False, True],
+    }
 
     Padding logic:
     0. Don't pad when `random_padding` is None or during validation/test
@@ -96,8 +112,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             self.cfg.get('window_stride', 0.01) * self.cfg.get('sample_rate', 16000)
         )  # 160 samples for every 1ms by default
         self.num_mel_frame_per_target_frame = int(self.cfg.get('subsampling_factor', 8))
-        self.eou_token = self.cfg.get('eou_token', '<eou>')
-        self.sou_token = self.cfg.get('sou_token', '<sou>')
+        self.eou_string = self.cfg.get('eou_string', self.EOU_STRING)
+        self.eob_string = self.cfg.get('eob_string', self.EOB_STRING)
+        self.add_sep_before_eou = self.cfg.get('add_sep_before_eou', False)
         self.padding_cfg = self.cfg.get('random_padding', None)
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
@@ -146,8 +163,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         if not cut.has_custom("sou_time") or not cut.has_custom("eou_time"):
             # assume only single speech segment
             eou_targets = torch.ones(hidden_length).long()  # speech label
-            eou_targets[0] = 2  # start of utterance
-            eou_targets[-1] = 3  # end of utterance
+            eou_targets[-1] = self.EOU_LABEL  # by default it's end of utterance
+            if cut.has_custom("is_backchannel") and cut.custom["is_backchannel"]:
+                eou_targets[-1] = self.EOB_LABEL  # end of backchannel
             return eou_targets
 
         sou_time = cut.custom["sou_time"]
@@ -159,7 +177,17 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         assert len(sou_time) == len(
             eou_time
-        ), f"Number of SOU and EOU do not match: SOU ({len(sou_time)}) vs EOU ({len(eou_time)})"
+        ), f"Number of SOU time and EOU time do not match: SOU ({len(sou_time)}) vs EOU ({len(eou_time)})"
+
+        if cut.has_custom("is_backchannel"):
+            is_backchannel = cut.custom["is_backchannel"]
+            if not isinstance(is_backchannel, list):
+                is_backchannel = [is_backchannel]
+            assert len(sou_time) == len(
+                cut.custom["is_backchannel"]
+            ), f"Number of SOU and backchannel do not match: SOU ({len(sou_time)}) vs backchannel ({len(is_backchannel)})"
+        else:
+            is_backchannel = [False] * len(sou_time)
 
         eou_targets = torch.zeros(hidden_length).long()
         for i in range(len(sou_time)):
@@ -167,8 +195,10 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             seg_len_in_secs = eou_time[i] - sou_time[i]
             seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.cfg.sample_rate))
             eou_targets[sou_idx : sou_idx + seg_len] = 1
-            eou_targets[sou_idx] = 2  # start of utterance
-            eou_targets[sou_idx + seg_len - 1] = 3  # end of utterance
+            if is_backchannel[i]:
+                eou_targets[sou_idx + seg_len - 1] = self.EOB_LABEL  # end of backchannel
+            else:
+                eou_targets[sou_idx + seg_len - 1] = self.EOU_LABEL  # end of utterance
 
         return eou_targets
 
@@ -178,20 +208,26 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             utterances = [cut.supervisions[0].text]
         else:
             utterances = cut.custom["utterances"]
-            sou_time = cut.custom["sou_time"]
-            eou_time = cut.custom["eou_time"]
-            if not isinstance(utterances, list):
-                utterances = [utterances]
-            if not isinstance(sou_time, list):
-                sou_time = [sou_time]
-            if not isinstance(eou_time, list):
-                eou_time = [eou_time]
+
+        if not isinstance(utterances, list):
+            utterances = [utterances]
+
+        if cut.has_custom("is_backchannel"):
+            is_backchannel = cut.custom["is_backchannel"]
+            if not isinstance(is_backchannel, list):
+                is_backchannel = [is_backchannel]
+            assert len(utterances) == len(
+                cut.custom["is_backchannel"]
+            ), f"Number of utterances and backchannel do not match: utterance ({len(utterances)}) vs backchannel ({len(is_backchannel)})"
+        else:
+            is_backchannel = [False] * len(utterances)
 
         total_text = ""
-        for text in utterances:
-            if getattr(cut, 'add_sou_eou', True):
-                text = f"{self.sou_token} {text} {self.eou_token}"
-            total_text += text + " "
+        for i, text in enumerate(utterances):
+            eou_string = self.eob_string if is_backchannel[i] else self.eou_string
+            if self.add_sep_before_eou:
+                eou_string = " " + eou_string
+            total_text += text + eou_string + " "
         total_text = total_text.strip()
         return torch.as_tensor(self.tokenizer(total_text))
 
