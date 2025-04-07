@@ -87,7 +87,7 @@ if HAVE_LINEAR_LOSS_CE:
             pytorch_triton_version = pkg_resources.get_distribution('pytorch-triton').version
             current = pkg_resources.parse_version(pytorch_triton_version)
             required = pkg_resources.parse_version(version_str)
-            print(f"Current pytorch-triton version: {pytorch_triton_version}, Required: {version_str}")
+            print(f"Current pytorch-triton version: {pytorch_triton_version}, Required triton version: {version_str}")
             return current >= required
         except pkg_resources.DistributionNotFound:
             print("pytorch-triton not found")
