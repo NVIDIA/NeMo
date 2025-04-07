@@ -40,14 +40,14 @@ class TestMockTrain:
         # Use tmp_path fixture from pytest for temporary directory
         checkpoint_dir = str(tmp_path / "checkpoints")
         tensorboard_dir = str(tmp_path / "tensorboard")
-        
+
         try:
             # Training parameters
             global_batch_size = 8
             micro_batch_size = 1
             seq_length = 512
             total_iters = 20
-            
+
             # Model - very small for testing
             model_cfg = llm.Llama32Config1B(
                 tensor_model_parallel_size=1,
@@ -130,18 +130,18 @@ class TestMockTrain:
                 ),
                 rng_config=RNGConfig(seed=1234),
             )
-            
+
             # Run training
             megatron_pretrain(cfg, forward_step)
-            
+
             # Check for the latest checkpoint tracker file
             latest_tracker_file = os.path.join(checkpoint_dir, "latest_train_state.pt")
             assert os.path.exists(latest_tracker_file), "Latest checkpoint tracker file not found"
-            
+
             # Check for the final checkpoint directory (should be iter_0000020)
             final_iter_dir = os.path.join(checkpoint_dir, f"iter_{total_iters:07d}")
             assert os.path.exists(final_iter_dir), f"Final checkpoint directory not found at {final_iter_dir}"
-            
+
             # For distributed checkpoints, check for the metadata file
             metadata_file = os.path.join(final_iter_dir, ".metadata")
             assert os.path.exists(metadata_file), "Checkpoint metadata file not found"
