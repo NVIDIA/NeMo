@@ -75,14 +75,15 @@ if HAVE_LINEAR_LOSS_CE:
     # Create replacement functions
     def new_is_triton_greater_or_equal(version_str):
         """Check if pytorch-triton version is greater than or equal to the specified version.
-        
+
         Args:
             version_str: Version string to check
-            
+
         Returns:
             bool: True if pytorch-triton version >= specified version
         """
         import pkg_resources
+
         try:
             pytorch_triton_version = pkg_resources.get_distribution('pytorch-triton').version
             current = pkg_resources.parse_version(pytorch_triton_version)
@@ -95,7 +96,7 @@ if HAVE_LINEAR_LOSS_CE:
 
     def new_is_triton_greater_or_equal_3_2_0():
         """Check if pytorch-triton version is greater than or equal to 3.1.0
-        
+
         Returns:
             bool: True if pytorch-triton version >= 3.1.0
         """
@@ -104,6 +105,7 @@ if HAVE_LINEAR_LOSS_CE:
     # Apply the monkey patches
     tl_utils.is_triton_greater_or_equal = new_is_triton_greater_or_equal
     tl_utils.is_triton_greater_or_equal_3_2_0 = new_is_triton_greater_or_equal_3_2_0
+
 
 def fused_linear_cross_entropy(
     hidden_states: torch.Tensor,
