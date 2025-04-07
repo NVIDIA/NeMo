@@ -593,7 +593,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             # Update the main mapping dictionary with Llama4-specific mappings
             mapping.update(llama4_mapping)
 
-            transforms.append(
+            transforms.extend(
                 [
                     io.state_transform(
                         source_key=(
