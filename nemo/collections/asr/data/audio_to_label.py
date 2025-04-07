@@ -19,22 +19,18 @@ import torch
 import webdataset as wds
 
 from nemo.collections.asr.data.audio_to_text import (
-    cache_datastore_manifests, 
-    expand_sharded_filepaths, 
-    sharded_filepaths_to_webdataset_urls
-    )
+    cache_datastore_manifests,
+    expand_sharded_filepaths,
+    sharded_filepaths_to_webdataset_urls,
+)
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
 from nemo.utils import logging
+from nemo.utils.data_utils import datastore_path_to_webdataset_url, is_datastore_path
 from nemo.utils.distributed import webdataset_split_by_workers
-
-from nemo.utils.data_utils import (
-    datastore_path_to_webdataset_url,
-    is_datastore_path,
-    )
 
 # List of valid file formats (prioritized by order of importance)
 VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
@@ -592,11 +588,11 @@ class _TarredAudioLabelDataset(IterableDataset):
 
         audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
             expand_sharded_filepaths(
-            sharded_filepaths=audio_tar_filepaths,
-            shard_strategy=shard_strategy,
-            world_size=world_size,
-            global_rank=global_rank,
-        )
+                sharded_filepaths=audio_tar_filepaths,
+                shard_strategy=shard_strategy,
+                world_size=world_size,
+                global_rank=global_rank,
+            )
         )
 
         # Put together WebDataset
@@ -1201,11 +1197,11 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
 
         audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
             expand_sharded_filepaths(
-            sharded_filepaths=audio_tar_filepaths,
-            shard_strategy=shard_strategy,
-            world_size=world_size,
-            global_rank=global_rank,
-        )
+                sharded_filepaths=audio_tar_filepaths,
+                shard_strategy=shard_strategy,
+                world_size=world_size,
+                global_rank=global_rank,
+            )
         )
 
         # Put together WebDataset

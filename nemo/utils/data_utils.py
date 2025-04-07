@@ -144,6 +144,7 @@ def ais_binary() -> str:
     else:
         raise RuntimeError('AIS binary not found.')
 
+
 def check_ais_binary_installed() -> bool:
     """Check if ais binary is installed."""
     return ais_binary() is not None
