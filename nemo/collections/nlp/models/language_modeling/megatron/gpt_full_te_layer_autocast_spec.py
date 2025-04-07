@@ -203,7 +203,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
         else:
             kwargs = {}
         super().__init__(**kwargs)
-        self.layer_number = layer_number + +self._get_layer_offset()
+        self.layer_number = layer_number + self._get_layer_offset()
 
         self.config = config
         self.is_first_microbatch = True
@@ -272,14 +272,8 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
         attention_mask=None,
         context=None,
         context_mask=None,
-        rotary_pos_emb=None,
-        rotary_pos_cos=None,
-        rotary_pos_sin=None,
-        attention_bias=None,
         inference_params=None,
-        packed_seq_params=None,  # TODO: handle this
-        sequence_len_offset=None,  # TODO: handle this
-        inference_context=None,
+        **kwargs,
     ):
         """Forward function of TETransformerLayerAutocast. Called by MCore's TransformerBlock.forward."""
         # Use is_first_microbatch argument during CUDA graph capture. Use self.is_first_microbatch otherwise.
