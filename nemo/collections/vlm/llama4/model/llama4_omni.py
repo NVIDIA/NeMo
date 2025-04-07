@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
@@ -26,9 +24,7 @@ from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
 from nemo.collections.vlm import Llama4OmniConfig, Llama4OmniModel, Llama4VisionConfig, MultimodalProjectorConfig
 from nemo.collections.vlm.neva.model.llava import import_qkv
 from nemo.lightning import io, teardown
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.state import TransformFns, _ModelState
-from nemo.lightning.pytorch.utils import dtype_from_hf
 
 try:
     from megatron.core.transformer.spec_utils import ModuleSpec
@@ -39,9 +35,6 @@ except ImportError:
     HAVE_TE = False
 
 if TYPE_CHECKING:
-    from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-    from transformers import Llama4OmniConfig as HFLlama4OmniConfig
-
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
@@ -114,6 +107,8 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
 
         target = self.init()
         trainer = self.nemo_setup(target)
+        source = source.to(torch.bfloat16)
+        target = target.to(torch.bfloat16)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
@@ -284,8 +279,8 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             'moe_ffn_hidden_size': src_text_config.intermediate_size,
         }
         if (
-            getattr(src_text_config, 'rope_scaling', None) is not None
-            and src_text_config.rope_scaling.get('rope_type') == 'llama3'
+                getattr(src_text_config, 'rope_scaling', None) is not None
+                and src_text_config.rope_scaling.get('rope_type') == 'llama3'
         ):
             args.update({'rope_scaling': True, 'rope_scaling_factor': src_text_config.rope_scaling.get("factor", 8.0)})
         else:
@@ -335,6 +330,8 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             language_transformer_config=language_transformer_config,
             vision_transformer_config=vision_transformer_config,
             vision_projection_config=vision_projection_config,
+            bf16=True,
+            params_dtype=torch.bfloat16,
         )
 
 
@@ -349,9 +346,9 @@ def _import_cls_token(ctx: io.TransformCTX, cls_token):
 
 @io.state_transform(
     source_key=(
-        "language_model.model.layers.*.self_attn.q_proj.weight",
-        "language_model.model.layers.*.self_attn.k_proj.weight",
-        "language_model.model.layers.*.self_attn.v_proj.weight",
+            "language_model.model.layers.*.self_attn.q_proj.weight",
+            "language_model.model.layers.*.self_attn.k_proj.weight",
+            "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -372,9 +369,9 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
 
 @io.state_transform(
     source_key=(
-        "vision_model.model.layers.*.self_attn.q_proj.weight",
-        "vision_model.model.layers.*.self_attn.k_proj.weight",
-        "vision_model.model.layers.*.self_attn.v_proj.weight",
+            "vision_model.model.layers.*.self_attn.q_proj.weight",
+            "vision_model.model.layers.*.self_attn.k_proj.weight",
+            "vision_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -395,9 +392,9 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
 
 @io.state_transform(
     source_key=(
-        "vision_model.model.layers.*.self_attn.q_proj.bias",
-        "vision_model.model.layers.*.self_attn.k_proj.bias",
-        "vision_model.model.layers.*.self_attn.v_proj.bias",
+            "vision_model.model.layers.*.self_attn.q_proj.bias",
+            "vision_model.model.layers.*.self_attn.k_proj.bias",
+            "vision_model.model.layers.*.self_attn.v_proj.bias",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
 )
