@@ -41,7 +41,8 @@ try:
 
 except (ImportError, ModuleNotFoundError) as e:
 
-    MegatronModule = ModuleSpec = BaseTransformerLayer = ApexGuardDefaults
+    MegatronModule = ModuleSpec = ApexGuardDefaults
+    BaseTransformerLayer = object  # try to avoid inconsistent-mro for TETransformerLayerAutocast
 
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
@@ -196,7 +197,12 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
             HAVE_MEGATRON_CORE and HAVE_TE
         ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
 
-        super().__init__(config=config)
+        # to make type check happy
+        if HAVE_MEGATRON_CORE:
+            kwargs = {'config': config}
+        else:
+            kwargs = {}
+        super().__init__(**kwargs)
         self.layer_number = layer_number + +self._get_layer_offset()
 
         self.config = config
