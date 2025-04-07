@@ -164,7 +164,7 @@ class Llama4OmniConfig(NevaConfig):
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
-                        or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
 
@@ -175,17 +175,17 @@ class Llama4OmniBaseModel(MCoreNevaModel):
     """llama4 base model combining vision and text models with cross-attention."""
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            images: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: Optional[InferenceParams] = None,
-            runtime_gather_output: Optional[bool] = None,
-            packed_seq_params: Optional[PackedSeqParams] = None,
-            **kwargs,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        images: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: Optional[InferenceParams] = None,
+        runtime_gather_output: Optional[bool] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
+        **kwargs,
     ) -> torch.Tensor:
         # pylint: disable=C0301
         """Forward function of the Llama4 model.
@@ -213,7 +213,7 @@ class Llama4OmniBaseModel(MCoreNevaModel):
         """
 
         use_inference_kv_cache = (
-                inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images is not None and len(images) > 0
 
@@ -238,7 +238,7 @@ class Llama4OmniBaseModel(MCoreNevaModel):
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["image_tokens_count"] = (
-                        image_embeddings.shape[0] * image_embeddings.shape[1]
+                    image_embeddings.shape[0] * image_embeddings.shape[1]
                 )
         else:
             image_embeddings = self.encoder_hidden_state
@@ -328,11 +328,11 @@ class Llama4OmniModel(NevaModel):
     """Lightning Module for the Llama4 model."""
 
     def __init__(
-            self,
-            config: Llama4OmniConfig,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: Llama4OmniConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
             config=config,

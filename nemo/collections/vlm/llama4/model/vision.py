@@ -207,19 +207,19 @@ class PixelShuffleMLP(MegatronModule):
     """
 
     def __init__(
-            self,
-            config: TransformerConfig,
-            ps_ratio: float,
-            input_dim: int,
-            output_dim: int = 4096,
-            add_fc: bool = False,
+        self,
+        config: TransformerConfig,
+        ps_ratio: float,
+        input_dim: int,
+        output_dim: int = 4096,
+        add_fc: bool = False,
     ):
         """Initializes the PixelShuffleMLP module."""
         super().__init__(config)
         self.pixel_shuffle = PixelShuffle(ps_ratio)
         self.mlp_config = MultimodalProjectorConfig(
             projector_type="mcore_mlp",
-            input_size=int(input_dim // (ps_ratio ** 2)),
+            input_size=int(input_dim // (ps_ratio**2)),
             hidden_size=output_dim,
             ffn_hidden_size=output_dim,
             bias=False,
@@ -258,17 +258,17 @@ class Llama4ViTModel(VisionModule):
     """
 
     def __init__(
-            self,
-            transformer_config: TransformerConfig,
-            transformer_layer_spec: ModuleSpec,
-            ln_pre_impl: Union[ModuleSpec, type] = NORM_IMPL,
-            ln_post_impl: Union[ModuleSpec, type] = NORM_IMPL,
-            add_class_token: bool = True,
-            class_token_len: int = 1,
-            patch_dim: int = 14,
-            img_h: int = 336,
-            img_w: int = 336,
-            model_subtype: str = "llama4",
+        self,
+        transformer_config: TransformerConfig,
+        transformer_layer_spec: ModuleSpec,
+        ln_pre_impl: Union[ModuleSpec, type] = NORM_IMPL,
+        ln_post_impl: Union[ModuleSpec, type] = NORM_IMPL,
+        add_class_token: bool = True,
+        class_token_len: int = 1,
+        patch_dim: int = 14,
+        img_h: int = 336,
+        img_w: int = 336,
+        model_subtype: str = "llama4",
     ) -> None:
         """Initializes the Llama4 Vision Transformer model.
 
@@ -335,7 +335,7 @@ class Llama4ViTModel(VisionModule):
 
         self.add_class_token = add_class_token
         if self.add_class_token:
-            scale = self.visual_hidden_size ** -0.5
+            scale = self.visual_hidden_size**-0.5
             self.class_token = torch.nn.Parameter(
                 scale * torch.randn(1, self.class_token_len, self.visual_hidden_size)
             )
@@ -484,8 +484,8 @@ class Llama4ViTModel(VisionModule):
         return x
 
     def forward(
-            self,
-            images: torch.Tensor,
+        self,
+        images: torch.Tensor,
     ) -> torch.Tensor:
         # TODO(yuya): Move input processing and output processing to base model
         # to keep vit submodule clean

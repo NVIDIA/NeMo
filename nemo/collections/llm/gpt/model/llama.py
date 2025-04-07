@@ -580,9 +580,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                     "decoder.layers.*.mlp.shared_experts.linear_fc2.weight"
                 ),
                 # MoE Experts
-                "model.layers.*.feed_forward.experts.*.down_proj": (
-                    "decoder.layers.*.mlp.experts.linear_fc2.weight*"
-                ),
+                "model.layers.*.feed_forward.experts.*.down_proj": ("decoder.layers.*.mlp.experts.linear_fc2.weight*"),
                 "model.layers.*.feed_forward.experts.*.gate_up_proj": (
                     "decoder.layers.*.mlp.experts.linear_fc1.weight*"
                 ),
@@ -660,27 +658,21 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 is_moe_layer = self.config.moe_layer_freq[layer_i]
             if is_moe_layer:
                 # gate_up_proj
-                weight = state_dict.pop(
-                    f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj"
-                )
+                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj")
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
                     state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"] = (
                         expert_weight.squeeze().transpose(0, 1)
                     )
                 # down_proj
-                weight = state_dict.pop(
-                    f"model.layers.{layer_i}.feed_forward.experts.down_proj"
-                )
+                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.down_proj")
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
                     state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
                         expert_weight.squeeze().transpose(0, 1)
                     )
             else:
-                weight = state_dict.pop(
-                    f"model.layers.{layer_i}.post_attention_layernorm.weight"
-                )
+                weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
                 state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
 
         source = _ModelState(state_dict)

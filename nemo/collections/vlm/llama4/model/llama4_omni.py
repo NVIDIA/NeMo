@@ -279,8 +279,8 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             'moe_ffn_hidden_size': src_text_config.intermediate_size,
         }
         if (
-                getattr(src_text_config, 'rope_scaling', None) is not None
-                and src_text_config.rope_scaling.get('rope_type') == 'llama3'
+            getattr(src_text_config, 'rope_scaling', None) is not None
+            and src_text_config.rope_scaling.get('rope_type') == 'llama3'
         ):
             args.update({'rope_scaling': True, 'rope_scaling_factor': src_text_config.rope_scaling.get("factor", 8.0)})
         else:
@@ -346,9 +346,9 @@ def _import_cls_token(ctx: io.TransformCTX, cls_token):
 
 @io.state_transform(
     source_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -369,9 +369,9 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
 
 @io.state_transform(
     source_key=(
-            "vision_model.model.layers.*.self_attn.q_proj.weight",
-            "vision_model.model.layers.*.self_attn.k_proj.weight",
-            "vision_model.model.layers.*.self_attn.v_proj.weight",
+        "vision_model.model.layers.*.self_attn.q_proj.weight",
+        "vision_model.model.layers.*.self_attn.k_proj.weight",
+        "vision_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -392,9 +392,9 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
 
 @io.state_transform(
     source_key=(
-            "vision_model.model.layers.*.self_attn.q_proj.bias",
-            "vision_model.model.layers.*.self_attn.k_proj.bias",
-            "vision_model.model.layers.*.self_attn.v_proj.bias",
+        "vision_model.model.layers.*.self_attn.q_proj.bias",
+        "vision_model.model.layers.*.self_attn.k_proj.bias",
+        "vision_model.model.layers.*.self_attn.v_proj.bias",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
 )
