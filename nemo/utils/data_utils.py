@@ -144,6 +144,10 @@ def ais_binary() -> str:
     else:
         raise RuntimeError('AIS binary not found.')
 
+def check_ais_binary_installed() -> bool:
+    """Check if ais binary is installed."""
+    return ais_binary() is not None
+
 
 def datastore_path_to_local_path(store_path: str) -> str:
     """Convert a data store path to a path in a local cache.
@@ -295,6 +299,7 @@ def datastore_path_to_webdataset_url(store_path: str):
         URL which can be directly used with WebDataset.
     """
     if is_datastore_path(store_path):
+        check_ais_binary_installed()
         url = f'pipe:ais get {store_path} - || true'
     else:
         raise ValueError(f'Unknown store path format: {store_path}')

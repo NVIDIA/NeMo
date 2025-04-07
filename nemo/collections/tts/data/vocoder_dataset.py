@@ -23,7 +23,10 @@ import soundfile as sf
 import torch.utils.data
 import webdataset as wds
 
-from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
+from nemo.collections.asr.data.audio_to_text import (
+    expand_sharded_filepaths, 
+    sharded_filepaths_to_webdataset_urls
+)
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
@@ -337,11 +340,13 @@ class TarredVocoderDataset(IterableDataset):
                 )
 
         logging.info(f"world size: {world_size}")
-        audio_tar_filepaths = expand_sharded_filepaths(
-            sharded_filepaths=audio_tar_filepaths,
-            global_rank=global_rank,
-            world_size=world_size,
-            shard_strategy=shard_strategy,
+        audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
+            expand_sharded_filepaths(
+                sharded_filepaths=audio_tar_filepaths,
+                global_rank=global_rank,
+                world_size=world_size,
+                shard_strategy=shard_strategy,
+            )
         )
 
         self._dataset = wds.DataPipeline(
