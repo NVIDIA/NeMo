@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 TRANSFORMERS_OFFLINE=1 \
-    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/mllama_finetune.py \
+    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 scripts/vlm/mllama_finetune.py \
     --devices=2 --data_type=llava --use_toy_model \
     --mbs=1 --gbs=4 --max_steps=4 \
     --tp=2 \

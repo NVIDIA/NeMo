@@ -20,6 +20,6 @@ TIME=$(date +"%Y-%m-%d-%T")
     --LANGUAGE=ru \
     --ADDITIONAL_SPLIT_SYMBOLS=";"
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo /home/TestData/ctc_segmentation/verify_alignment.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 /home/TestData/ctc_segmentation/verify_alignment.py \
     -r /home/TestData/ctc_segmentation/ru/valid_ru_segments_1.7.txt \
     -g /tmp/ctc_seg_ru/output${TIME}/verified_segments/ru_segments.txt

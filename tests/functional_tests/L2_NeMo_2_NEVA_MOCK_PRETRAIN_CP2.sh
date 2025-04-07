@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/neva_pretrain.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 scripts/vlm/neva_pretrain.py \
     --devices=2 --data_type=mock --use_toy_model \
     --mbs=2 --gbs=4 --max_steps=4 \
-    --cp=2  \
+    --cp=2 \
     --log_dir=/tmp/nemo2_neva_results/$RUN_ID

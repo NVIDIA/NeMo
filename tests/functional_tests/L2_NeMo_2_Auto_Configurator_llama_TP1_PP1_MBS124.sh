@@ -13,22 +13,22 @@
 # limitations under the License.
 mkdir examples/llm/auto_configurator/auto_conf_logs_llama
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/llm/auto_configurator/auto_config.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/llm/auto_configurator/auto_config.py \
     --model_type=llama \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_llama \
     --run_number=1
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/llm/auto_configurator/auto_config.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/llm/auto_configurator/auto_config.py \
     --model_type=llama \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_llama \
     --run_number=2
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/llm/auto_configurator/auto_config.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/llm/auto_configurator/auto_config.py \
     --model_type=llama \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_llama \
     --run_number=3
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/llm/auto_configurator/auto_config.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 examples/llm/auto_configurator/auto_config.py \
     --model_type=llama \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_llama \
     --get_results

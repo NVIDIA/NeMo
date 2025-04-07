@@ -34,7 +34,7 @@ CUDA_DEVICE_MAX_CONNECTIONS=1 CUDA_LAUNCH_BLOCKING=1 TORCH_COMPILE_DISABLE=1 \
 
 # Run NeMo
 CUDA_LAUNCH_BLOCKING=1 TORCH_COMPILE_DISABLE=1 NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 \
-    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/bitexact/mixtral/pretrain_mini_mixtral.py \
+    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/collections/llm/bitexact/mixtral/pretrain_mini_mixtral.py \
     --devices=1 \
     --data-path="$DATA_PATH" \
     --vocab-path="$VOCAB_FILE" \
@@ -42,5 +42,5 @@ CUDA_LAUNCH_BLOCKING=1 TORCH_COMPILE_DISABLE=1 NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN
     --exp-dir="$NEMO_OUTPUT_PATH"
 
 # Compare outputs
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/bitexact/mixtral/compare_ckpts.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 tests/collections/llm/bitexact/mixtral/compare_ckpts.py \
     "$NEMO_OUTPUT_PATH/checkpoints/--None=0.0000-epoch=0-consumed_samples=20.0/weights" "$MCORE_OUTPUT_PATH/iter_0000010/"
