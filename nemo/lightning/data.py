@@ -238,28 +238,29 @@ class WrappedDataLoader(DataLoader):
     def __init__(self, mode="train", **dataloader_kwargs):
         super().__init__(**dataloader_kwargs)
         self.mode = mode
-        self._iterator = None
-        self._current_epoch = 0
-        self._current_index = 0
 
-    def __iter__(self):
-        if self._iterator is None:
-            self._iterator = super().__iter__()
-        return self._iterator
+    #     self._iterator = None
+    #     self._current_epoch = 0
+    #     self._current_index = 0
 
-    def state_dict(self):
-        return {
-            'current_epoch': self._current_epoch,
-            'current_index': self._current_index
-        }
+    # def __iter__(self):
+    #     if self._iterator is None:
+    #         self._iterator = super().__iter__()
+    #     return self._iterator
 
-    def load_state_dict(self, state_dict):
-        self._current_epoch = state_dict['current_epoch']
-        self._current_index = state_dict['current_index']
-        # Skip to the correct position
-        self._iterator = super().__iter__()
-        for _ in range(self._current_index):
-            next(self._iterator)
+    # def state_dict(self):
+    #     return {
+    #         'current_epoch': self._current_epoch,
+    #         'current_index': self._current_index
+    #     }
+
+    # def load_state_dict(self, state_dict):
+    #     self._current_epoch = state_dict['current_epoch']
+    #     self._current_index = state_dict['current_index']
+    #     # Skip to the correct position
+    #     self._iterator = super().__iter__()
+    #     for _ in range(self._current_index):
+    #         next(self._iterator)
 
 
 # TODO: Replace this with megatron.core.data.data_samplers after we upgrade
