@@ -49,9 +49,9 @@ from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core import Timers
-from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from torch import nn
@@ -844,7 +844,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if not strict:
             # This is a WAR for loading non-fp8 weights into fp8 model
             def skip_fp8_load(x):
-                if isinstance(x, ShardedObject) and  '_extra_state' in x.key:
+                if isinstance(x, ShardedObject) and '_extra_state' in x.key:
                     x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
                 return x
 
