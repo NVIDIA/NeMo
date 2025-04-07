@@ -40,6 +40,7 @@ trt() {
 
   pushd $TRTLLM_DIR
   git checkout -f $TRTLLM_TAG
+  git submodule update --init --recursive
   sed -i "/torch/d" requirements.txt
   git lfs pull
   popd
@@ -74,6 +75,7 @@ trtllm() {
   fi
   pushd $TRTLLM_DIR
   git checkout -f $TRTLLM_TAG
+  git submodule update --init --recursive
   sed -i "/torch/d" requirements.txt
   git lfs pull
   popd
