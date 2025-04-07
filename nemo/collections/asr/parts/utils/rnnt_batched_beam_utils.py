@@ -283,7 +283,9 @@ class BatchedBeamHyps:
             torch.gather(self.current_lengths_nb, dim=-1, index=next_indices) + extended_with_label
         )
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
-        torch.where(is_extended, next_hyps_prob, self.scores, out=self.scores)
+        torch.where(is_extended, 
+            next_hyps_prob, torch.gather(self.scores, dim=-1, index=next_indices), out=self.scores
+        )
 
         prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=next_indices)
         last_labels = torch.gather(self.last_label, dim=-1, index=next_indices)
