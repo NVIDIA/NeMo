@@ -860,7 +860,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 ckpt_io = self.checkpoint_io
                 if isinstance(ckpt_io, _WrappingCheckpointIO):
                     ckpt_io = ckpt_io.checkpoint_io
-                with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():   
+                with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
                     mto.plugins.save_sharded_modelopt_state(
                         [core_model],
                         ckpt_to_weights_subdir(filepath, is_saving=True),
