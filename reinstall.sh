@@ -74,6 +74,7 @@ trtllm() {
   fi
   pushd $TRTLLM_DIR
   git checkout -f $TRTLLM_TAG
+  sed -i "/torch/d" requirements.txt
   git lfs pull
   popd
 
