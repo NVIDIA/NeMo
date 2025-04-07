@@ -212,7 +212,8 @@ def run_inference(
                 asr_model_name=asr_model_name,
                 predicted_codes=predicted_codes,
                 predicted_codes_lens=predicted_codes_lens,
-                codecmodel_path=codecmodel_path
+                codecmodel_path=codecmodel_path,
+                num_codebooks=model_cfg.num_audio_codebooks
             )
             metrics_n_repeated.append(metrics)
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:

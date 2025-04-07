@@ -78,7 +78,7 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
 
     return embeddings.squeeze()
 
-def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large", codecmodel_path=None, predicted_codes=None, predicted_codes_lens=None):
+def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large", codecmodel_path=None, predicted_codes=None, predicted_codes_lens=None, num_codebooks=None):
     audio_file_lists = find_sample_audios(generated_audio_dir)
     records = read_manifest(manifest_path)
     assert len(audio_file_lists) == len(records)
@@ -113,8 +113,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         codec = AudioCodecModel.restore_from(codecmodel_path, strict=False)
         codec = codec.to(device)
         codec.eval()
-        num_codebooks = 8 # Hardcoded for now
-        codec_feature_dim = num_codebooks * 4
+        codec_feature_dim = num_codebooks * 4 # Hardcoded for now
         fd_metric = FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim, device=device)
     else:
         print("No codec model provided, skipping FID metric")
@@ -142,18 +141,23 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
 
         pred_audio_filepath = audio_file_lists[ridx]
 
-        if language == "en":
-            with torch.no_grad():
-                # import ipdb; ipdb.set_trace()
-                pred_text = asr_model.transcribe([pred_audio_filepath])[0].text
+        try:
+            if language == "en":
+                with torch.no_grad():
+                    # import ipdb; ipdb.set_trace()
+                    pred_text = asr_model.transcribe([pred_audio_filepath])[0].text
+                    pred_text = process_text(pred_text)
+                    gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
+                    gt_audio_text = process_text(gt_audio_text)
+            else:
+                pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
                 pred_text = process_text(pred_text)
-                gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
+                gt_audio_text = transcribe_with_whisper(whisper_model, whisper_processor, gt_audio_filepath, language, device)
                 gt_audio_text = process_text(gt_audio_text)
-        else:
-            pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
-            pred_text = process_text(pred_text)
-            gt_audio_text = transcribe_with_whisper(whisper_model, whisper_processor, gt_audio_filepath, language, device)
-            gt_audio_text = process_text(gt_audio_text)
+        except Exception as e:
+            print("Error during ASR: {}".format(e))
+            pred_text = ""
+            gt_audio_text = ""
 
         if 'normalized_text' in record:
             gt_text = process_text(record['normalized_text'])
