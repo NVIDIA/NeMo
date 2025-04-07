@@ -33,13 +33,11 @@ ENDPOINT_TYPES = {
 }
 
 EVAL_TASKS = (
-    "arc_challenge",
     "bbh",
     "gpqa",
     "gpqa_diamond_cot",
     "gsm8k",
     "gsm8k_cot_instruct",
-    "hellaswag",
     "ifeval",
     "mgsm",
     "mgsm_cot",
@@ -50,9 +48,7 @@ EVAL_TASKS = (
     "mmlu_redux",
     "mmlu_redux_instruct",
     "musr",
-    "truthfulqa",
     "wikilingua",
-    "winogrande",
 )
 
 
@@ -96,7 +92,7 @@ def get_parser():
     parser.add_argument(
         "--eval_task",
         type=str,
-        default="arc_challenge",
+        default="mmlu",
         help="Evaluation benchmark to run.",
         choices=EVAL_TASKS,
     )
