@@ -317,6 +317,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
         if val_data_layer_config.get("is_audio_pair", False):
             val_data_layer_config['labels'] = ["0", "1"]
+            self._macro_accuracy = Accuracy(num_classes=2, top_k=1, average='macro', task='multiclass')
         else:
             val_data_layer_config['labels'] = self.labels
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
@@ -325,6 +326,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         if hasattr(self, 'dataset'):
             if test_data_layer_params.get("is_audio_pair", False):
                 test_data_layer_params['labels'] = ["0", "1"]
+                self._macro_accuracy = Accuracy(num_classes=2, top_k=1, average='macro', task='multiclass')
             else:
                 test_data_layer_params['labels'] = self.labels
 
