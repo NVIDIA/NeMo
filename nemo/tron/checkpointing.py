@@ -462,7 +462,8 @@ def save_checkpoint(
     # Collect rerun state across all ranks
     rerun_state_machine = get_rerun_state_machine()
     rerun_state = rerun_state_machine.state_dict(
-        data_iterator=train_data_iterator, use_dist_ckpt=ckpt_type != CheckpointType.LEGACY
+        data_iterator=train_data_iterator,
+        ckpt_format=ckpt_cfg.ckpt_format,
     )
 
     # Checkpoint name.
