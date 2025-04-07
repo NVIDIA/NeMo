@@ -504,7 +504,8 @@ def fsdp2_strategy_parallelize(
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
     # TP sharding
-    parallelize_module(model, tp_mesh, tp_shard_plan)
+    if tp_mesh.size() > 1:
+        parallelize_module(model, tp_mesh, tp_shard_plan)
 
     # FSDP sharding
     assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
