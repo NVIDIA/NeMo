@@ -19,7 +19,7 @@ from lightning.pytorch import Callback, Trainer
 from omegaconf import OmegaConf
 
 from nemo.collections.duplex_s2s.data.datamodule import S2SDataModule
-from nemo.collections.duplex_s2s.models.duplex_s2s_model import DuplexS2SModel
+from nemo.collections.duplex_s2s.models.duplex_s2s_model import DuplexS2SModel, DuplexS2SModelSpeechDecoder
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
@@ -63,8 +63,8 @@ def train(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     with trainer.init_module():
-        model = DuplexS2SModel(cfg.model)
-
+       # model = DuplexS2SModel(cfg.model)
+        model = DuplexS2SModelSpeechDecoder(cfg.model)
     # TODO: see migration guide exp_manager -> NeMo 2
     # exp_manager / NeMo2 _setup provide:
     # * PEFT (possibly from HF)

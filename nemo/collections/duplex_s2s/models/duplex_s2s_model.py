@@ -42,6 +42,7 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
+from nemo.collections.duplex_s2s.modules import SpeechDecoder
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -632,6 +633,378 @@ class DuplexS2SModel(LightningModule):
             #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
             # self.perception = checkpoint_wrapper(self.perception)
             self.perception = fully_shard(self.perception, **fsdp_config)
+
+class DuplexS2SModelSpeechDecoder(DuplexS2SModel):
+    def __init__(self, cfg) -> None:
+        super().__init__(cfg)
+        self.speech_decoder = SpeechDecoder(
+            speech_decoder_parms=dict(self.cfg.speech_decoder_parms),
+            lantent_dim=self.llm.config.hidden_size,
+            num_audio_codebooks=self._num_codebooks,
+            num_audio_tokens_per_codebook=self._codebook_size
+        )
+
+    def forward(
+        self,
+        input,
+    ) -> dict[str, Tensor]:
+        """
+        Implements a fully offline forward pass through the entire model.
+        The flow is the following:
+
+                                                     |-> |audio_head| -> |audio codes|
+        |source speech + prev target text| -> |llm| -|
+                                                     |-> |lm_head|    -> |token ids  |
+        """
+        out = self.llm(inputs_embeds=input["input_embeds"])
+        B, T = input["input_embeds"].shape[:2]
+        speech_mask = input['loss_mask'][:, :, -1].reshape(input['loss_mask'].size(0), input['loss_mask'].size(1))
+        # import pdb; pdb.set_trace()
+        text_logits = self.lm_head(out['last_hidden_state'])
+        _, audio_logits = self.speech_decoder(out['last_hidden_state'].transpose(0,1), speech_mask, input_audio_tokens=input['input_audio_tokens'])
+        audio_logits = audio_logits.view(B, T, self._codebook_size, self._num_codebooks)
+
+
+        return {
+            "text_logits": text_logits,
+            "audio_logits": audio_logits,
+        }
+
+
+    def prepare_inputs(self, batch: dict):
+
+        """
+        Performs additional processing on the mini-batch collected from dataloader.
+        Notably:
+        * Convert source audio to speech representations.
+        * Convert target audio to target audio tokens.
+        * Convert target text to embeddings.
+        * Combine the input audio and target text embeddings.
+        * Take care of any necessary slicing to align the shapes of source audio,
+          target audio, and target token ids.
+
+
+        """
+
+        source_encoded, source_encoded_lens = self.perception(
+            input_signal=batch["source_audio"], input_signal_length=batch["source_audio_lens"]
+        )
+
+        target_tokens = batch["target_tokens"]
+        if target_tokens.shape[1] < source_encoded.shape[1]:
+            pad_id = self.tokenizer.pad
+            if pad_id is None:
+                pad_id = self.tokenizer.unk_id
+            if pad_id is None:
+                pad_id = 0  # fallback
+            target_tokens = torch.cat(
+                [
+                    target_tokens,
+                    (torch.ones(source_encoded.shape[0], 1, device=source_encoded.device) * pad_id).to(torch.long),
+                ],
+                dim=-1,
+            )
+
+
+        with torch.no_grad(), _safe_audio_codec_inference():
+            target_codes, target_codes_lens = self._audio_codec.encode(
+                audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
+            )
+            # shape: [B, D, T] =>  [B, T, D]
+            target_codes = target_codes.transpose(1, 2)
+
+
+        if (tl := target_codes.shape[1]) != (sl := source_encoded.shape[1]):
+            if tl < sl:
+                diff = sl - tl
+                source_encoded = source_encoded[:, :tl]
+                target_tokens = target_tokens[:, :tl]
+                torch.clamp_(source_encoded_lens, max=tl)
+            else:
+                diff = tl - sl
+                target_codes = target_codes[:, :sl]
+                torch.clamp_(target_codes_lens, max=sl)
+            if diff > 2:
+                logging.warning(
+                    f"A mismatch between source ({sl}) and target ({tl}) sequence length greater than 2 detected. "
+                    f"This may indicate significant desynchronization in longer sessions."
+                )
+
+
+        input_ids = torch.cat([target_codes, target_tokens[..., None]], dim=-1)
+
+        if self._use_tp:
+            tp_world_size = self.device_mesh["tensor_parallel"].size()
+            if (remainder := (input_ids.shape[1] - 1) % tp_world_size) != 0:
+
+                input_ids = input_ids[:, :-remainder]
+                source_encoded = source_encoded[:, :-remainder]
+
+
+
+        text_inputs = input_ids[:, :-1, -1]
+        input_embeds = self.embed_tokens(text_inputs)
+
+
+        # embedding = source_encoded * duplex_user_channel_weight
+
+        input_embeds = input_embeds + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
+
+
+        text_labels = input_ids[:, 1:, -1]  # [B, T-1]
+        audio_labels = input_ids[:, 1:, :-1]  # [B, T-1, audio_dim]
+
+        labels = torch.cat([text_labels.unsqueeze(-1), audio_labels], dim=-1)  # [B, T-1, 1 + audio_dim]
+
+
+        loss_mask = torch.ones_like(labels)
+
+
+        input_audio_tokens = input_ids[:, :-1, :-1]  # [B, T-1, audio_dim]
+
+
+        return {
+            "input_embeds": input_embeds,
+            "input_lens": source_encoded_lens,
+            "output_lens": target_codes_lens,
+            "text_labels": text_labels,
+            "audio_labels": audio_labels,
+            "loss_mask": loss_mask,
+            "input_audio_tokens": input_audio_tokens,
+         }
+
+    def training_step(self, batch: dict, batch_idx: int):
+        inputs = self.prepare_inputs(batch)
+        forward_outputs = self(inputs)
+
+        num_frames = inputs["input_lens"].sum()
+        import pdb;
+        pdb.set_trace()
+        with loss_parallel():
+            text_loss = (
+                torch.nn.functional.cross_entropy(
+                    forward_outputs["text_logits"].flatten(0, 1),  # (B, T, Vt) -> (*, Vt)
+                    inputs["text_labels"].flatten(0, 1),
+                    reduction="sum",
+                )
+                / num_frames
+            )
+            audio_logits = forward_outputs["audio_logits"].permute(0, 1, 3, 2)  # [B, T, K, V]
+            audio_logits = audio_logits.reshape(-1, audio_logits.shape[-1])  # [B*T*K, V]
+            audio_labels = inputs["audio_labels"].reshape(-1)  # [B*T*K]
+            audio_loss = torch.nn.functional.cross_entropy(audio_logits, audio_labels, reduction="sum") / (
+                    num_frames * self._num_codebooks
+            )
+
+        loss = text_loss + audio_loss
+
+        B, T = inputs["input_embeds"].shape[:2]
+        print(f"{loss=} {B=} {T=}")
+
+        ans = {
+            "loss": loss,
+            "learning_rate": (
+                torch.as_tensor(self.trainer.optimizers[0].param_groups[0]['lr'] if self._trainer is not None else 0)
+            ),
+            "text_loss": text_loss,
+            "audio_loss": audio_loss,
+            "batch_size": B,
+            "sequence_length": T,
+            "num_frames": num_frames.to(torch.float32),  # avoid warning
+            "padding_ratio": num_frames / (B * T),
+        }
+        self.log_dict(ans, on_step=True)
+        return ans
+
+    def validation_step(self, batch: dict, batch_idx: int):
+        for name, dataset_batch in batch.items():
+            if dataset_batch is None:
+                continue  # some dataset is exhausted
+            inputs = self.prepare_inputs(dataset_batch)
+
+            forward_outputs = self(inputs)
+            num_frames = inputs["input_lens"].sum()
+
+            with loss_parallel():
+                text_loss = (
+                        torch.nn.functional.cross_entropy(
+                            forward_outputs["text_logits"].flatten(0, 1),  # (B, T, Vt) -> (*, Vt)
+                            inputs["text_labels"].flatten(0, 1),
+                            reduction="sum",
+                        )
+                        / num_frames
+                )
+                audio_logits = forward_outputs["audio_logits"].permute(0, 1, 3, 2)  # [B, T, K, V]
+                audio_logits = audio_logits.reshape(-1, audio_logits.shape[-1])  # [B*T*K, V]
+                audio_labels = inputs["audio_labels"].reshape(-1)  # [B*T*K]
+                audio_loss = torch.nn.functional.cross_entropy(audio_logits, audio_labels, reduction="sum") / (
+                        num_frames * self._num_codebooks
+                )
+
+            loss = text_loss + audio_loss
+            self._partial_val_losses.append(loss)
+
+            B = inputs["input_embeds"].shape[0]
+            self.log(f"val_loss_{name}", loss, on_epoch=True, sync_dist=True, batch_size=B)
+            self.log(f"val_text_loss_{name}", text_loss, on_epoch=True, sync_dist=True, batch_size=B)
+            self.log(f"val_audio_loss_{name}", audio_loss, on_epoch=True, sync_dist=True, batch_size=B)
+
+            # ASR BLEU
+            # import torchaudio
+            #
+            # with torch.inference_mode():
+            #     predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=-1).transpose(1, 2)
+            #     with _safe_audio_codec_inference():
+            #         predicted_audio, predicted_audio_lens = self._audio_codec.decode(
+            #             tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
+            #         )
+            #     ans = self.asr.transcribe(
+            #         list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
+            #         batch_size=predicted_audio.shape[0],
+            #         verbose=False,
+            #     )
+            # hyp = [hyp.text for hyp in ans]
+            # ref = [[tt] for tt in dataset_batch["target_texts"]]
+            # for h, (r,) in zip(hyp, ref):
+            #     print(f"[AUDIO] Ref: {r}\n[AUDIO] Hyp: {h}")
+            # self.asr_bleu[name].update(hyp, ref)
+            #
+            # hyp = [
+            #     self.tokenizer.ids_to_text(hyp_ids) for hyp_ids in forward_outputs["text_logits"].argmax(dim=-1).cpu()
+            # ]
+            # ref = [[tt] for tt in dataset_batch["target_texts"]]
+            # for h, (r,) in zip(hyp, ref):
+            #     print(f"[TEXT] Ref: {r}\n[TEXT] Hyp: {h}")
+            # # Text BLEU
+            # self.text_bleu[name].update(hyp, ref)
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": dict,
+            "inputs": [
+                {"name": "source_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "source_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {"name": "target_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "target_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "target_tokens",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+            ],
+        }
+
+    def configure_model(self) -> None:
+        self._use_fsdp = False
+        self._use_tp = False
+        device_mesh = self.device_mesh
+        if device_mesh is None:
+            return
+
+        if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
+            self._use_tp = True
+
+            plan = {
+                "layers.0": PrepareModuleInput(
+                    input_layouts=(Replicate(),),  # , None)
+                    desired_input_layouts=(Shard(1),),  # , None)
+                    use_local_output=True,
+                ),
+                "norm": SequenceParallel(),
+            }
+            parallelize_module(self.llm, tp_mesh, plan)
+
+            # Parallelize each transformer block
+            for transformer_block in self.llm.layers:
+                plan = {
+                    "input_layernorm": SequenceParallel(),
+                    "self_attn.q_proj": ColwiseParallel(),
+                    "self_attn.k_proj": ColwiseParallel(),
+                    "self_attn.v_proj": ColwiseParallel(),
+                    "self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    "post_attention_layernorm": SequenceParallel(),
+                    "mlp": PrepareModuleInput(
+                        input_layouts=(Shard(1),),
+                        desired_input_layouts=(Replicate(),),
+                    ),
+                    "mlp.gate_proj": ColwiseParallel(),
+                    "mlp.up_proj": ColwiseParallel(),
+                    "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    # "pre_feedforward_layernorm": SequenceParallel(),
+                    # "post_feedforward_layernorm": SequenceParallel(),
+                }
+
+                # Adjust attention module to use the local number of heads
+                attn_layer = transformer_block.self_attn
+                for attr in ("num_heads", "num_key_value_heads", "hidden_size"):
+                    val = getattr(attn_layer, attr)
+                    if val % tp_mesh.size() != 0:
+                        logging.warning(
+                            f"attn_layer.{attr}={val} is not divisible by {tp_mesh.size()=}: set a different tensor parallelism size to avoid errors."
+                        )
+                    setattr(attn_layer, attr, val // tp_mesh.size())
+
+                # Apply the plan for the current transformer block
+                parallelize_module(transformer_block, tp_mesh, plan)
+
+            for m in (self.lm_head, self.audio_head):
+                parallelize_module(
+                    m,
+                    tp_mesh,
+                    ColwiseParallel(
+                        input_layouts=Shard(1),
+                        # Optional: Shard the output along the class dimension to compute the loss in parallel.
+                        # See `loss_parallel` in `train.py`
+                        output_layouts=Shard(-1),
+                        use_local_output=False,
+                    ),
+                )
+
+        if (dp_mesh := device_mesh["data_parallel"]).size() > 1:
+            assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
+            self._use_fsdp = True
+
+            fsdp_config = {"mesh": dp_mesh, "mp_policy": MixedPrecisionPolicy(torch.bfloat16)}
+
+            for idx, layer in enumerate(self.llm.layers):
+                # layer.self_attn = checkpoint_wrapper(layer.self_attn)
+                # layer.mlp = checkpoint_wrapper(layer.mlp)
+                self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
+            self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
+            # self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
+            self.llm = fully_shard(self.llm, **fsdp_config)
+            # self.lm_head = checkpoint_wrapper(self.lm_head)
+            self.lm_head = fully_shard(self.lm_head, **fsdp_config)
+            # self.audio_head = checkpoint_wrapper(self.audio_head)
+            self.audio_head = fully_shard(self.audio_head, **fsdp_config)
+
+            # for idx, layer in enumerate(self.perception.encoder.layers):
+            #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
+            # self.perception = checkpoint_wrapper(self.perception)
+            self.perception = fully_shard(self.perception, **fsdp_config)
+
+    def configure_optimizers(self):
+        parameters = chain(
+            self.perception.parameters(),
+            self.llm.parameters(),
+            self.lm_head.parameters(),
+            self.audio_head.parameters(),
+            self.embed_tokens.parameters(),
+            self.embed_audio_tokens.parameters(),
+            self.speech_decoder.parameters(),
+        )
+        optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
+        ans = {"optimizer": optimizer}
+        if "lr_scheduler" in self.cfg:
+            lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
+            ans["lr_scheduler"] = {"scheduler": lr_scheduler, "interval": "step", "frequency": 1}
+        return ans
 
 
 def _load_pretrained(cls, model_path_or_name: str):
