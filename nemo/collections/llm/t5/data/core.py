@@ -121,7 +121,7 @@ class T5SFTDataset(Dataset):
             )
 
     def _process_src(self, src):
-        src = self.src_tokenizer.text_to_ids(src.strip())
+        src = self.src_tokenizer.tokenize(src.strip())
         if self.add_bos_to_input:
             src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
         if self.add_eos_to_input:
@@ -133,7 +133,7 @@ class T5SFTDataset(Dataset):
     def _process_tgt(self, tgt):
         tgt = (
             [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
-            + self.tgt_tokenizer.text_to_ids(tgt.strip())
+            + self.tgt_tokenizer.tokenize(tgt.strip())
             + [self.tgt_tokenizer.eos_id]
         )
         if len(tgt) > self.max_tgt_seq_length:

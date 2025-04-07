@@ -230,8 +230,8 @@ class BertEmbeddingDataset(Dataset):
 
         metadata = {k: v for k, v in example.items()}
         if self.data_type == 'train':
-            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
-            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            q = self.tokenizer.tokenize("query: " + example['query'].strip())
+            d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             # handle cases where the required number of hard negatives are not present
             if len(example['neg_doc']) < self.num_hard_negatives:
                 nd = example['neg_doc']
@@ -246,15 +246,15 @@ class BertEmbeddingDataset(Dataset):
                     # Choose the first self.num_hard_negatives samples
                     nd = example['neg_doc'][: self.num_hard_negatives]
             assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
-            nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
+            nd = [self.tokenizer.tokenize("passage: " + ex.strip()) for ex in nd]
 
         elif self.data_type == 'query':
-            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            q = self.tokenizer.tokenize("query: " + example['query'].strip())
             d, nd = None, None
             assert "query_id" in example, "query_id is required for query dataset"
             assert "doc_id" in example, "doc_id is required for query dataset"
         elif self.data_type == 'doc':
-            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             assert "doc_id" in example, "doc_id is required for doc dataset"
             q, nd = None, None
         else:

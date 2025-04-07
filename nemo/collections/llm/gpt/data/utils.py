@@ -250,7 +250,7 @@ class _TextMemMapDataset(Dataset):
         """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
         # tokenize text if tokenizer is given
         if self.tokenizer is not None:
-            data = self.tokenizer.text_to_ids(text)
+            data = self.tokenizer.tokenize(text)
         else:
             data = text
 
@@ -749,9 +749,9 @@ def _preprocess(
     """
     header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
     # tokenize conversations
-    input_ids = tokenizer.text_to_ids(conversation)
+    input_ids = tokenizer.tokenize(conversation)
     target = copy.deepcopy(input_ids)
-    header_tokens = tokenizer.text_to_ids(header)
+    header_tokens = tokenizer.tokenize(header)
     header_len = len(header_tokens)
 
     ids = []
@@ -759,8 +759,8 @@ def _preprocess(
     assert torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens))
     for s in source['conversations']:
         # hack to remove the extra empty token in front
-        id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
-        id2 = tokenizer.text_to_ids(PREFIX_STR)
+        id1 = tokenizer.tokenize(PREFIX_STR + s["value"])
+        id2 = tokenizer.tokenize(PREFIX_STR)
         tokenized_sentence = id1[len(id2) :]
         ids.append(torch.tensor(tokenized_sentence))
         tokenized_lens.append(len(tokenized_sentence))
@@ -838,8 +838,8 @@ def _mask_targets(
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. has to compute the diff
-        id1 = tokenizer.text_to_ids(PREFIX_STR)
-        id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
+        id1 = tokenizer.tokenize(PREFIX_STR)
+        id2 = tokenizer.tokenize(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
         skip_name_len = len(id2) - len(
             id1
         )  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_SIGNAL'
