@@ -38,7 +38,7 @@ export NVTE_FLASH_ATTN=1; export NVTE_FUSED_ATTN=0; export CUDA_DEVICE_MAX_CONNE
 
 torchrun --nproc-per-node 1 /opt/NeMo/tests/collections/llm/gpt/model/test_nm5_nemo2_mlm_accuracy_match.py \
             --use-checkpoint-args \
-            --load /lustre/fsw/portfolios/llmservice/users/kezhik/nemotron-5.1-hybrid/nemotron5/8b_hybrid/checkpoints/1t-hybrid-phase3/ \
+            --load /lustre/fsw/portfolios/llmservice/users/kezhik/nemotronh/8b_hybrid/checkpoints/1t-hybrid-phase3/ \
             --bf16 \
             --tensor-model-parallel-size 1 \
             --attention-backend flash \

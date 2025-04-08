@@ -38,16 +38,16 @@ from nemo.utils.exp_manager import TimingCallback
 torch._dynamo.config.suppress_errors = True
 
 model_options: dict[str, Type[llm.SSMConfig]] = {
-    "8B": llm.Nemotron5HybridConfig8B,
-    "47B": llm.Nemotron5HybridConfig47B,
-    "56B": llm.Nemotron5HybridConfig56B,
+    "8B": llm.NemotronHConfig8B,
+    "47B": llm.NemotronHConfig47B,
+    "56B": llm.NemotronHConfig56B,
 }
 
 
 def parse_args():
     """Parse arguments for NM5 model training."""
     parser = argparse.ArgumentParser(
-        description="Train a nemotron5 model using NeMo 2.0.",
+        description="Train a nemotronh model using NeMo 2.0.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     data_group = parser.add_mutually_exclusive_group()
@@ -88,7 +88,7 @@ def parse_args():
         "--context-parallel-size", type=int, default=1, help="Order of context parallelism. Defaults to 1."
     )
     parser.add_argument("--no-wandb", action="store_true", default=False, help="Disable Wandb logging")
-    parser.add_argument("--wandb-project", type=str, default="nemotron5", help="Wandb project name")
+    parser.add_argument("--wandb-project", type=str, default="nemotronh", help="Wandb project name")
     parser.add_argument("--wandb-run-id", type=str, default=None, help="Wandb run identifier")
     parser.add_argument(
         "--wandb-group", type=str, default=None, help="A unique string shared by all runs in a given group"
@@ -549,7 +549,7 @@ def main():
 if __name__ == "__main__":
     """ Example command to run the script, use --help for more options.:
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 \
-        /opt/NeMo/tests/collections/llm/gpt/model/test_nemotron5.py \
+        /opt/NeMo/tests/collections/llm/gpt/model/test_nemotronh.py \
             --num-nodes=1 \
             --devices=8 \
             --max-steps=500000 \
@@ -568,7 +568,7 @@ if __name__ == "__main__":
             --clip-grad 1 \
             --lr=0.0003 \
             --warmup-steps=2500 \
-            --wandb-project=nemotron5
+            --wandb-project=nemotronh
             
     """
     main()
