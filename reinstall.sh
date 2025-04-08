@@ -240,6 +240,7 @@ nemo() {
   fi
 
   NEMO_DIR=${NEMO_DIR:-"$INSTALL_DIR/NeMo"}
+  NEMO_TAG=${NEMO_TAG:-""}
   if [[ -n "$NEMO_TAG" ]]; then
     if [ ! -d "$NEMO_DIR/.git" ]; then
       rm -rf "$NEMO_DIR"
