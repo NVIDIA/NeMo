@@ -283,7 +283,8 @@ class BaseMegatronSampler:
             raise RuntimeError(f"data parallel size must be greater than 0, but {data_parallel_size}")
         if data_parallel_rank >= data_parallel_size:
             raise RuntimeError(
-                f"data_parallel_rank should be smaller than data size, but {data_parallel_rank} >= {data_parallel_size}"
+                f"data_parallel_rank should be smaller than data size, \
+                but {data_parallel_rank} >= {data_parallel_size}"
             )
 
         if global_batch_split_range is not None:
