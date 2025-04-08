@@ -8,7 +8,8 @@ This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints usi
     * IFEval,
     * MGSM,
     * MMLU,
-    * MMLU-Pro, and
+    * MMLU-Pro,
+    * MMLU-Redux, and
     * Wikilingua.
 
 
