@@ -691,12 +691,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # 11 warmup steps required in DDP mode
         # see https://pytorch.org/docs/stable/notes/cuda.html#usage-with-distributeddataparallel
         num_runs = 11 if is_ddp else 3
-        for _ in range(num_runs):
-            self._before_outer_loop()
-            self._before_inner_loop_get_decoder_output()
-            self._before_inner_loop_get_joint_output()
-            self._inner_loop_code()
-            self._after_inner_loop()
+        self.state.encoder_output_projected.fill_(0.0)
+        self.state.encoder_output_length.fill_(1)
+        s = torch.cuda.Stream()
+        s.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(s):
+            for _ in range(num_runs):
+                self._before_outer_loop()
+                self._before_inner_loop_get_decoder_output()
+                self._before_inner_loop_get_joint_output()
+                self._inner_loop_code()
+                self._after_inner_loop()
+        torch.cuda.current_stream().wait_stream(s)
+        self.state.encoder_output_length.fill_(0)
 
     def _partial_graphs_compile(self):
         """Compile decoding by parts"""
@@ -831,7 +838,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
         self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
-        decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        # decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        decoder_output_projected = decoder_output @ self.joint.pred.weight.transpose(0, 1) + self.joint.pred.bias
         self.state.decoder_output.copy_(decoder_output_projected)
 
         # get lm scores/states
