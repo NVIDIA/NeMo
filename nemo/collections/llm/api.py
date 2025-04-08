@@ -792,7 +792,8 @@ def evaluate(
         evaluate = importlib.import_module(".evaluate", package=framework_module_name)
     except ImportError:
         raise ImportError(
-            f"Please ensure that {framework_module_name} is installed in your env as it is required to run {eval_cfg.type} evaluation"
+            f"Please ensure that {framework_module_name} is installed in your env "
+            f"as it is required to run {eval_cfg.type} evaluation"
         )
 
     base_url, _ = target_cfg.api_endpoint.url.split('/v1')
