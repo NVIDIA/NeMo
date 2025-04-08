@@ -33,7 +33,6 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
-from nemo.utils.nemo_logging import LogMode
 
 try:
     from cuda import cudart
