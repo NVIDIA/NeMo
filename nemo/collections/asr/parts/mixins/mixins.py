@@ -932,11 +932,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         import pdb; pdb.set_trace()
                         pass
 
-
-
-                    # # increase speech chunk if no active samples in inner loop
-                    # if not torch.any(canary_data.active_samples_inner_loop) and torch.any(torch.logical_not(canary_data.is_last_speech_chunk)):
-                    # # if not torch.any(canary_data.active_samples_inner_loop):
+                    # # # increase speech chunk if no active samples in inner loop
+                    # # if not torch.any(canary_data.active_samples_inner_loop) and torch.any(torch.logical_not(canary_data.is_last_speech_chunk)):
+                    # if not torch.any(canary_data.active_samples_inner_loop):
                     #     if cfg.debug_mode:
                     #         logging.warning(f"!!! need more speech according to the alignatt policy !!!")
                     #     canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
@@ -964,7 +962,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                     # write predicted tokens to the tgt tensor
                     # TODO looks a bit strange, need to check
+                    # import pdb; pdb.set_trace()
                     next_tokens[torch.logical_not(canary_data.active_samples_inner_loop)] = self.tokenizer.eos
+                    # TODO need to create a tensor with eos indeces
+                    # torch.where(canary_data.active_samples_inner_loop, next_tokens, self.tokenizer.eos, out=next_tokens)
                     canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] = next_tokens
 
                     # TODO fix tokens alignment for laal computation
@@ -974,7 +975,21 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                     # import pdb; pdb.set_trace()
                     canary_data.decoding_step += input_ids.size(-1)
-                    input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                    input_ids = next_tokens.unsqueeze(-1)
+                    # input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                    # import pdb; pdb.set_trace()
+                    
+                    # check for hallucinations
+                    # TODO add check for the last speech chunk
+                    hallucination_mask = torch.logical_and(
+                        canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] == canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1],
+                        canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1] == canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-2]
+                    )
+                    if torch.any(hallucination_mask):
+                        logging.warning(f"!!! hallucination detected !!!")
+                        canary_data.active_samples *= torch.logical_not(hallucination_mask)
+                        canary_data.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
+
                     canary_data.current_context_lengths += canary_data.active_samples_inner_loop
 
                     # disable samples with maximum context length

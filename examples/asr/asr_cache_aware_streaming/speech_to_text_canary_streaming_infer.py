@@ -138,7 +138,7 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     batch_size: int = 1 # The batch size to be used to perform streaming in batch mode with multiple streams
     att_context_size: Optional[list] = None # Sets the att_context_size for the models which support multiple lookaheads
-    sort_input_manifest: bool = False # Whether to sort the input manifest by duration to reduce batched decoding time
+    sort_input_manifest: bool = True # Whether to sort the input manifest by duration to reduce batched decoding time
 
     decoding_policy: str = "alignatt" # streaming decoding policy ["alignatt" or "waitk"]
     waitk_lagging: int = 3 # The frame lagging to be used for waitk decoding policy
