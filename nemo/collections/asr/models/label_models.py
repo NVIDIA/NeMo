@@ -172,6 +172,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
 
         self._macro_accuracy = Accuracy(num_classes=num_classes, top_k=1, average='macro', task='multiclass')
+        self._pair_macro_accuracy = Accuracy(num_classes=2, top_k=1, average='macro', task='multiclass')
 
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecSpeakerLabelModel.from_config_dict(self._cfg.spec_augment)
@@ -317,7 +318,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
         if val_data_layer_config.get("is_audio_pair", False):
             val_data_layer_config['labels'] = ["0", "1"]
-            self._macro_accuracy = Accuracy(num_classes=2, top_k=1, average='macro', task='multiclass')
         else:
             val_data_layer_config['labels'] = self.labels
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
@@ -326,7 +326,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         if hasattr(self, 'dataset'):
             if test_data_layer_params.get("is_audio_pair", False):
                 test_data_layer_params['labels'] = ["0", "1"]
-                self._macro_accuracy = Accuracy(num_classes=2, top_k=1, average='macro', task='multiclass')
             else:
                 test_data_layer_params['labels'] = self.labels
 
@@ -465,8 +464,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         logits = torch.stack([1 - cosine_sim, cosine_sim], dim=-1)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        self._macro_accuracy.update(preds=logits, target=labels)
-        stats = self._macro_accuracy._final_state()
+        self._pair_macro_accuracy.update(preds=logits, target=labels)
+        stats = self._pair_macro_accuracy._final_state()
 
         output = {
             f'{tag}_loss': loss_value,
@@ -510,14 +509,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        self._macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
-        macro_accuracy_score = self._macro_accuracy.compute()
+        self._pair_macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
+        self._pair_macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
+        self._pair_macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
+        self._pair_macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
+        macro_accuracy_score = self._pair_macro_accuracy.compute()
 
         self._accuracy.reset()
-        self._macro_accuracy.reset()
+        self._pair_macro_accuracy.reset()
 
         tensorboard_logs = {f'{tag}_loss': loss_mean, f"{tag}_eer": eer}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
