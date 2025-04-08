@@ -23,7 +23,6 @@ import numpy as np
 import wrapt
 from tensorrt_llm.runtime import MultimodalModelRunner as TRTLLMRunner
 
-import nemo.lightning.io  # WAR for trtllm and lightning conflict
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import (
     build_mllama_engine,
