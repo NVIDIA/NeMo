@@ -15,8 +15,8 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Optional
 
 import torch
-from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.inference.contexts import BaseInferenceContext
+from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.packed_seq_params import PackedSeqParams
 
 try:
@@ -73,20 +73,20 @@ class Llama4TransformerLayer(MCoreTransformerLayer):
         super(Llama4TransformerLayer, self).__init__(*args, **kwargs)
 
     def _forward_attention(
-            self,
-            hidden_states: Tensor,
-            attention_mask: Optional[Tensor] = None,
-            context: Optional[Tensor] = None,
-            context_mask: Optional[Tensor] = None,
-            rotary_pos_emb: Optional[Tensor] = None,
-            rotary_pos_cos: Optional[Tensor] = None,
-            rotary_pos_sin: Optional[Tensor] = None,
-            attention_bias: Optional[Tensor] = None,
-            inference_context: Optional[BaseInferenceContext] = None,
-            packed_seq_params: Optional[PackedSeqParams] = None,
-            sequence_len_offset: Optional[Tensor] = None,
-            *,
-            inference_params: Optional[BaseInferenceContext] = None,
+        self,
+        hidden_states: Tensor,
+        attention_mask: Optional[Tensor] = None,
+        context: Optional[Tensor] = None,
+        context_mask: Optional[Tensor] = None,
+        rotary_pos_emb: Optional[Tensor] = None,
+        rotary_pos_cos: Optional[Tensor] = None,
+        rotary_pos_sin: Optional[Tensor] = None,
+        attention_bias: Optional[Tensor] = None,
+        inference_context: Optional[BaseInferenceContext] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
+        sequence_len_offset: Optional[Tensor] = None,
+        *,
+        inference_params: Optional[BaseInferenceContext] = None,
     ):
 
         if self.is_nope_layer:
@@ -109,6 +109,7 @@ class Llama4TransformerLayer(MCoreTransformerLayer):
             sequence_len_offset=sequence_len_offset,
             inference_params=inference_params,
         )
+
 
 class L2Norm(torch.nn.Module):
     """
