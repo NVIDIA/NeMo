@@ -570,7 +570,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             max_seq_len = seq_lens.max()
             # padding for SP and CP
             shard_factor, _ = self._get_shard_factor(packed_seq_params)
-            max_seq_len = (max_seq_len - 1) // shard_factor + shard_factor
+            max_seq_len = (max_seq_len - 1) // shard_factor * shard_factor + shard_factor
             # Pipeline parallel expects fixed input size. Check if we need to pad.
             if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
                 max_seq_len = self._language_max_sequence_length
