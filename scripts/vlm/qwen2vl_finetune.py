@@ -45,7 +45,7 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.vlm import Qwen2VLDataConfig
-from nemo.collections.vlm.qwen2vl.data.energon import Qwen2VLTaskEncoder
+from nemo.collections.vlm.qwen2vl.data.task_encoder import Qwen2VLTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
