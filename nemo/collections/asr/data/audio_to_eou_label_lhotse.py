@@ -161,6 +161,10 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         if not cut.has_custom("sou_time") or not cut.has_custom("eou_time"):
             # assume only single speech segment
+            text = cut.supervisions[0].text
+            if not text:
+                # skip empty utterances
+                return torch.zeros(hidden_length).long()
             eou_targets = torch.ones(hidden_length).long()  # speech label
             eou_targets[-1] = self.EOU_LABEL  # by default it's end of utterance
             if cut.has_custom("is_backchannel") and cut.custom["is_backchannel"]:
@@ -190,6 +194,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         eou_targets = torch.zeros(hidden_length).long()
         for i in range(len(sou_time)):
+            if sou_time[i] is None or eou_time[i] is None or sou_time[i] < 0 or eou_time[i] < 0:
+                # skip empty utterances
+                continue
             sou_idx = self._audio_len_to_frame_len(int((sou_time[i] - cut.start) * self.cfg.sample_rate))
             seg_len_in_secs = eou_time[i] - sou_time[i]
             seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.cfg.sample_rate))
@@ -223,6 +230,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         total_text = ""
         for i, text in enumerate(utterances):
+            if not text:
+                # skip empty utterances
+                continue
             eou_string = self.eob_string if is_backchannel[i] else self.eou_string
             if self.add_sep_before_eou:
                 eou_string = " " + eou_string
