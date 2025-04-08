@@ -100,7 +100,6 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
             }
             shard_writer.write(sample)
 
-    print("Dataset successfully converted to wds")
     return output
 
 
@@ -115,4 +114,4 @@ if __name__ == '__main__':
     output_dir = convert(
         args.dataset_root, args.json, max_count=args.max_samples_per_tar, mediate_path=args.mediate_path
     )
-    print("convert done")
+    print(f"Dataset is successfully converted to wds, output dir: {output_dir}")
