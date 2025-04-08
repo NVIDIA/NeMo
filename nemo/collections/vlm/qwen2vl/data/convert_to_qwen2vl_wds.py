@@ -18,13 +18,11 @@ import pickle
 from argparse import ArgumentParser
 
 import webdataset as wds
-from torchvision.io import encode_jpeg
 from tqdm import tqdm
-from webdataset.writer import add_handlers, default_handlers, imageencoder
+from webdataset.writer import add_handlers, default_handlers
 
 os.environ["FORCE_QWENVL_VIDEO_READER"] = 'torchvision'
 import numpy as np
-import torch
 from qwen_vl_utils import fetch_image, fetch_video
 
 
@@ -102,7 +100,7 @@ def convert(dataset_dir, json_name, max_count=10000, mediate_path=''):
             }
             shard_writer.write(sample)
 
-    print(f"Dataset successfully converted to wds")
+    print("Dataset successfully converted to wds")
     return output
 
 
@@ -117,4 +115,4 @@ if __name__ == '__main__':
     output_dir = convert(
         args.dataset_root, args.json, max_count=args.max_samples_per_tar, mediate_path=args.mediate_path
     )
-    print(f"convert done")
+    print("convert done")

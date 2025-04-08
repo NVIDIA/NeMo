@@ -13,20 +13,19 @@
 # limitations under the License.
 
 import dataclasses
+import json
 import pickle
 import re
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Dict, List
 
 import numpy as np
 import torch
-from megatron.energon import Batch, DefaultTaskEncoder, batch_list, batch_pad_stack
+from megatron.energon import Batch, DefaultTaskEncoder
 from megatron.energon.flavors.base_dataset import Sample
-from megatron.energon.flavors.vqa import VQASample
 from megatron.energon.task_encoder.cooking import Cooker, basic_sample_keys
 from PIL import Image
-from torchvision.io import decode_jpeg
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
@@ -35,9 +34,7 @@ from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
     IGNORE_INDEX,
     IMAGE_TOKEN_INDEX,
     PAD_TOKEN_INDEX,
-    SPECIAL_TOKEN_MAP,
     VIDEO_TOKEN_INDEX,
-    VISION_END_TOKEN_INDEX,
 )
 from nemo.collections.vlm.qwen2vl.data.preloaded import find_pattern_indices, process_vision
 from nemo.utils import logging
@@ -45,6 +42,8 @@ from nemo.utils import logging
 
 @dataclass
 class ChatMLSample(Sample):
+    """ Intermediate Sample Format """
+
     # __key__: str
     # __subflavors__: Dict
     imgs: List[Image.Image]
@@ -52,9 +51,10 @@ class ChatMLSample(Sample):
     conversation: str  # JSON string of GPT-format conversations
 
 
-# Type for encoded sample
 @dataclass
 class Qwen2VLTaskSample:
+    """ Encoded Sample Format For Qwen2VL """
+
     __key__: str
     __subflavors__: Dict
 
@@ -69,9 +69,10 @@ class Qwen2VLTaskSample:
     target: torch.Tensor
 
 
-# Typing for the resulting batch data after encode_batch()
 @dataclass
 class Qwen2VLTaskBatch(Batch):
+    """ Encoded Batch Format For Qwen2VL """
+
     __keys__: List[str]
     __subflavors__: List[Dict]
     # (num_tiles, c, h, w)
@@ -89,9 +90,8 @@ class Qwen2VLTaskBatch(Batch):
 
 
 def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', video_pattern: str = '<video>'):
-    """
-    Split user input into format Qwen2VL tokenizer accepts.
-    """
+    """ Split user input into format Qwen2VL tokenizer accepts.  """
+
     pattern = r"({image}|{video})".format(image=image_pattern, video=video_pattern)
     contents = []
     cur = 0
@@ -118,6 +118,15 @@ def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', 
 
 
 def cook_chatml_sample(sample: dict) -> ChatMLSample:
+    """
+    Convert crude sampel to ChatMLSample.
+
+    Args:
+        sample: Crude sample in pickle serialized format
+
+    Returns:
+        sample in ChatMLSample format
+    """
     imgs = sample.get('jpgs', None)
     if imgs:
         imgs = pickle.loads(imgs)
@@ -133,9 +142,9 @@ def cook_chatml_sample(sample: dict) -> ChatMLSample:
         else:
             videos = None
     if "<image>" in sample['json'] and imgs is None:
-        log.warning("<image> in conversation text but no image data")
+        logging.warning("<image> in conversation text but no image data")
     if "<video>" in sample['json'] and videos is None:
-        log.warning("<video> in conversation text but no video data")
+        logging.warning("<video> in conversation text but no video data")
 
     chat_sample = ChatMLSample(
         **basic_sample_keys(sample),
@@ -176,12 +185,18 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         self.image_token_id, self.video_token_id = HF_IMAGE_TOKEN_INDEX, HF_VIDEO_TOKEN_INDEX
 
     def encode_sample(self, sample: ChatMLSample):
+        """
+        Encode sample to meet training requirement.
 
+        Args:
+            sample.imgs: list[PIL.Image.Image]
+            sample.videos: list[Tensor]
+
+        Returns:
+            sample with necessary fields
+        """
         # NOTE: flatten all images
         #     Input of process_vision:
-        #      sample.imgs in list[PIL.Image.Image]
-        #      sample.videos in list[Tensor]
-        #   see definition of ChatMLSample or convert_to_qwen2vl_wds.py, structure is restored by Cooker
         processed_vision = process_vision(self.image_processor, sample.imgs, sample.videos)
         image_thw_grids = processed_vision['image_grid_thw']
         video_thw_grids = processed_vision['video_grid_thw']
@@ -211,7 +226,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
                 role = turn[role_key]
                 if role != EXPECTED_ROLE[turn_idx % len(EXPECTED_ROLE)]:
                     logging.warning(
-                        f"Expect conversation organized in order: [sys] human gpt human gpt..., but got role '{role}' in turn {turn_idx}"
+                        f"Expect conversation organized in order: [sys] human gpt human gpt...,"
+                        f"but got role '{role}' in turn {turn_idx}"
                     )
                 content = turn[content_key]
 
@@ -228,7 +244,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
                 role = turn[role_key]
                 if role != EXPECTED_ROLE[turn_idx % len(EXPECTED_ROLE)]:
                     logging.warning(
-                        f"Expect conversation organized in order: [sys] user assistant user assistant..., but got role '{role}' in turn {turn_idx}"
+                        f"Expect conversation organized in order: [sys] user assistant user assistant...,"
+                        f" but got role '{role}' in turn {turn_idx}"
                     )
                 content = turn[content_key]
 
@@ -270,8 +287,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             image_thw_grids, video_thw_grids = np.array(image_thw_grids, dtype=np.int64), np.array(
                 video_thw_grids, dtype=np.int64
             )
-            # xxx_thw_grids.shape[0] indicates how many <image> or <video> inside conversation text, minus it and then get patch number
-            # this would get exact number of visual padding size
+            # xxx_thw_grids.shape[0] indicates how many '<image>' or '<video>' inside conversation text,
+            # minus it and then get patch number, this would get exact number of visual padding size
             target_length = (
                 input_ids.shape[0]
                 - image_thw_grids.shape[0]
@@ -331,7 +348,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         target[-1] = pad_token_id
 
         if (target == pad_token_id).all():
-            log.warning("Sample with all masked label, dropped.")
+            logging.warning("Sample with all masked label, dropped.")
 
         image_input_mask = torch.from_numpy(final_input_ids == image_token_id)
         video_input_mask = torch.from_numpy(final_input_ids == video_token_id)
@@ -350,6 +367,15 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         )
 
     def batch(self, samples: List[Qwen2VLTaskSample]) -> Qwen2VLTaskBatch:
+        """
+        Put encoded sample into Batch, do padding, add labels and visual input masks
+
+        Args:
+            samples: List of encoded samples
+
+        Returns:
+            Batch with necessary fields
+        """
         imgs, image_thw_grids = [], []
         for s in samples:
             if len(s.imgs) > 0:
@@ -373,7 +399,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         # use the max sample lengths in the batch.
         max_seq_len = max(len(s.text) for s in samples)
         if max_seq_len > self.seq_len:
-            log.warning("max sequence length larger than passed parameter")
+            logging.warning("max sequence length larger than passed parameter")
 
         text_mat = np.full((len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64)
         target_mat = np.full((len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64)
@@ -430,6 +456,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         return batch
 
     def encode_batch(self, batch: Qwen2VLTaskBatch) -> dict:
+        """ Encode batch in dict """
+
         raw = dataclasses.asdict(batch)
         del raw["__subflavors__"]
         return raw
