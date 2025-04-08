@@ -45,7 +45,7 @@ model_options: dict[str, Type[llm.SSMConfig]] = {
 
 
 def parse_args():
-    """Parse arguments for NM5 model training."""
+    """Parse arguments for NMH model training."""
     parser = argparse.ArgumentParser(
         description="Train a nemotronh model using NeMo 2.0.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -316,7 +316,7 @@ def parse_args():
 
 
 def main():
-    """Main function to run NM5 training."""
+    """Main function to run NMH training."""
     args = parse_args()
 
     # Instantiate tokenizer.
@@ -430,7 +430,7 @@ def main():
     if (not args.no_wandb) and args.wandb_project:
         wandb_logger = WandbLogger(
             name=(
-                f"nm5-ux-size-{args.model_size}-TP{args.tensor_parallel_size}-"
+                f"nemotronh-size-{args.model_size}-TP{args.tensor_parallel_size}-"
                 f"PP{args.pipeline_model_parallel_size}-CP{args.context_parallel_size}"
                 f"-GBS{global_batch_size}-MBS{args.micro_batch_size}"
                 f"FP8{args.fp8}"
