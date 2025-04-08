@@ -42,7 +42,7 @@ from nemo.utils import logging
 
 @dataclass
 class ChatMLSample(Sample):
-    """ Intermediate Sample Format """
+    """Intermediate Sample Format"""
 
     # __key__: str
     # __subflavors__: Dict
@@ -53,7 +53,7 @@ class ChatMLSample(Sample):
 
 @dataclass
 class Qwen2VLTaskSample:
-    """ Encoded Sample Format For Qwen2VL """
+    """Encoded Sample Format For Qwen2VL"""
 
     __key__: str
     __subflavors__: Dict
@@ -71,7 +71,7 @@ class Qwen2VLTaskSample:
 
 @dataclass
 class Qwen2VLTaskBatch(Batch):
-    """ Encoded Batch Format For Qwen2VL """
+    """Encoded Batch Format For Qwen2VL"""
 
     __keys__: List[str]
     __subflavors__: List[Dict]
@@ -90,7 +90,7 @@ class Qwen2VLTaskBatch(Batch):
 
 
 def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', video_pattern: str = '<video>'):
-    """ Split user input into format Qwen2VL tokenizer accepts.  """
+    """Split user input into format Qwen2VL tokenizer accepts."""
 
     pattern = r"({image}|{video})".format(image=image_pattern, video=video_pattern)
     contents = []
@@ -456,7 +456,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         return batch
 
     def encode_batch(self, batch: Qwen2VLTaskBatch) -> dict:
-        """ Encode batch in dict """
+        """Encode batch in dict"""
 
         raw = dataclasses.asdict(batch)
         del raw["__subflavors__"]
