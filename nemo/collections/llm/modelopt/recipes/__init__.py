@@ -11,21 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Model optimization recipes."""
 
-import lightning.pytorch as pl
+from .distillation_recipe import distillation_recipe
+from .prune_recipe import prune_recipe
 
-from nemo.collections.vlm.neva.data.mock import MockDataModule
-from nemo.collections.vlm.neva.data.preloaded import NevaPreloadedDataModule
-
-
-def mock() -> pl.LightningDataModule:
-    """Mock Neva Data Module"""
-    return MockDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
-
-
-def preloaded() -> pl.LightningDataModule:
-    """Preloaded Llava-like Data Module"""
-    return NevaPreloadedDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
-
-
-__all__ = ["mock", "preloaded"]
+__all__ = ["distillation_recipe", "prune_recipe"]
