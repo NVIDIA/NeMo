@@ -666,7 +666,7 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
             AutoTokenizer: The tokenizer object.
         """
 
-        return AutoTokenizer.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
+        return AutoTokenizer.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
 
     @property
     def config(self):
@@ -679,7 +679,7 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
 
         # TODO @ataghibakhsh: Change AutoConfig to NemotronHConfig once merged to HF
 
-        hf_config = AutoConfig.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
+        hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
         hf_config.hybrid_override_pattern = source.hybrid_override_pattern
         hf_config.n_groups = source.mamba_num_groups
         hf_config.num_hidden_layers = source.num_layers
