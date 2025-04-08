@@ -39,13 +39,12 @@ import argparse
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from nemo.collections.common.tokenizers import AutoTokenizer
 from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.vlm import Qwen2VLDataConfig
-
 from nemo.collections.vlm.qwen2vl.data.energon import Qwen2VLTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
