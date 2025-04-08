@@ -28,12 +28,12 @@ class ApiEndpoint(BaseModel):
     nemo_checkpoint_path: Optional[str] = Field(
         description="Path for nemo 2.0 checkpoint",
         default=None,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+        deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory.",
     )
     nemo_triton_http_port: Optional[int] = Field(
         description="HTTP port that was used for the PyTriton server in the deploy method. Default: 8000.",
         default=8000,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+        deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory.",
     )
 
 
@@ -64,7 +64,7 @@ class ConfigParams(BaseModel):
     num_fewshot: Optional[int] = Field(
         description="Number of examples in few-shot context. Default: None.",
         default=None,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals. "
+        deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory. "
         "In order to specify few-shot please use extra.num_fewshot.",
     )
     max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=None)
@@ -80,22 +80,22 @@ class ConfigParams(BaseModel):
     batch_size: Optional[int] = Field(
         description="batch size to use for evaluation",
         default=1,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+        deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory.",
     )
     top_k: Optional[int] = Field(
         description="Limits to a certain number (K) of the top tokens to consider",
         default=1,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+        deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory.",
     )
     add_bos: Optional[bool] = Field(
         description="whether a special bos token should be added when encoding a string",
         default=False,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+        deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory.",
     )
     bootstrap_iters: int = Field(
         description="Number of iterations for bootstrap statistics",
         default=100000,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+        deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory.",
     )
 
 
