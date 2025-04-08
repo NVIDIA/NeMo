@@ -170,7 +170,16 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
 
         with torch.no_grad():
             generated_ids = self.model.generate(**kwargs)
-        output = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
+        return_dict_in_generate = kwargs.get("return_dict_in_generate", False)
+        if return_dict_in_generate:
+            output = {"sentences": self.tokenizer.batch_decode(generated_ids["sequences"], skip_special_tokens=True)}
+            if kwargs.get("output_logit", False):
+                output["logit"] = generated_ids["sequences"]
+            if kwargs.get("output_scores", False):
+                output["scores"] = generated_ids["scores"]
+        else:
+            output = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
         return output
 
     def generate_other_ranks(self):
@@ -270,7 +279,10 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                 return_dict_in_generate=return_dict_in_generate,
             )
 
-            output_infer = {"sentences": cast_output(output, np.bytes_)}
+            if isinstance(output, dict):
+                output_infer = {"sentences": cast_output(output["sentences"], np.bytes_)}
+            else:
+                output_infer = {"sentences": cast_output(output, np.bytes_)}
 
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
