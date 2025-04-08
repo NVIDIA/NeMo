@@ -35,19 +35,12 @@ b. Convert a model weight directory.
 
 """
 
-"""
-python /lustre/fsw/portfolios/coreai/users/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
-    --input_path=/lustre/fsw/portfolios/llmservice/users/dmosallanezh/models/nm5_reasoning_ckpt.nemo  \
-    --output_path=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/nm5_8b_32k_reasoning \
-    --tokenizer_vocab_file=/lustre/fsw/portfolios/coreai/users/ataghibakhsh/nm5_56b_final/multiMixV8.gpt4o_nc_sd.500000.128k.vocab.json \
-    --tokenizer_library=tiktoken \
-    --model_id=nemotron5-hybrid8b \
-"""
 import os
 import shutil
 import tempfile
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import Any, Dict
 
 import torch
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
@@ -64,6 +57,7 @@ from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
+from nemo.utils.model_utils import load_config
 
 MODEL_CONFIG_MAPPING = {
     "meta-llama/Llama-2-7b-hf": (llm.LlamaModel, llm.Llama2Config7B),
@@ -141,7 +135,23 @@ def get_args():
     return args
 
 
-def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
+def load_fp8_config(model_path: str) -> Dict[str, Any]:
+    """
+    Loads fp8 configuration of the NeMo 1.0 model.
+
+    Args:
+        model_path (str): Path to NeMo 1.0 checkpoint.
+
+    Returns:
+        (dict): NeMo 1.0 model fp8 settings.
+    """
+    fp8_params = ['fp8', 'fp8_amax_history_len', 'fp8_interval', 'fp8_margin', 'fp8_amax_compute_algo']
+    config = load_config(model_path)
+    fp8_config = {key: config[key] for key in fp8_params if key in config}
+    return fp8_config
+
+
+def get_nemo2_model(model_id, tokenizer, input_path) -> llm.GPTModel:
     """
     Get NeMo 2.0 model class from model_id and tokenizer. Use bf16 for NeMo 1.0 ckpts.
 
@@ -160,8 +170,10 @@ def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
         valid_ids = "\n- ".join([""] + list(MODEL_CONFIG_MAPPING.keys()))
         raise ValueError(f"Unsupported model_id: {model_id}. Please provide a valid model_id from {valid_ids}")
     model_cls, config_cls = MODEL_CONFIG_MAPPING[model_id]
+
+    fp8_config = load_fp8_config(input_path)
     # nemo1 ckpts are bf16
-    return model_cls(config_cls(bf16=True, params_dtype=torch.bfloat16), tokenizer=tokenizer)
+    return model_cls(config_cls(bf16=True, params_dtype=torch.bfloat16, **fp8_config), tokenizer=tokenizer)
 
 
 def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
@@ -173,12 +185,10 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
         AutoTokenizer: tokenizer instance
     """
     if args.tokenizer_vocab_file:
-        return get_nmt_tokenizer(
-            library=args.tokenizer_library,
-            model_name=args.tokenizer_model_name,
-            vocab_file=args.tokenizer_vocab_file,
-            use_fast=True,
-        )
+        return get_nmt_tokenizer(library=args.tokenizer_library, 
+                                model_name=args.tokenizer_model_name, 
+                                vocab_file=args.tokenizer_vocab_file, 
+                                use_fast=True)
     if not input_path.is_dir():  # if .nemo tar
         with tempfile.TemporaryDirectory() as tmp_dir:  # we want to clean up this tmp dir
             NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
@@ -191,9 +201,7 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
                 HFAutoTokenizer.from_pretrained(cfg.tokenizer.type).save_pretrained(tokenizer_tmp_dir)
             tokenizer_model = f"{tokenizer_tmp_dir}/{tokenizer_model}" if tokenizer_model else None
     else:
-        if (
-            args.tokenizer_path or args.tokenizer_vocab_file
-        ):  # not .nemo file, only weight dir need to specify tokenizer lib and path
+        if args.tokenizer_path or args.tokenizer_vocab_file:  # not .nemo file, only weight dir need to specify tokenizer lib and path
             tokenizer_lib = args.tokenizer_library or "sentencepiece"
             if args.tokenizer_library is None:
                 logging.warning(
@@ -217,7 +225,7 @@ def main() -> None:
     tokenizer_tmp_dir = Path("/tmp/nemo_tokenizer")
     tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)
     tokenizer = get_tokenizer(Path(args.input_path), tokenizer_tmp_dir)
-    model = get_nemo2_model(args.model_id, tokenizer=tokenizer)
+    model = get_nemo2_model(args.model_id, tokenizer=tokenizer, input_path=args.input_path)
     model.optim = None
 
     trainer = Trainer(
