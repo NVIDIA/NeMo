@@ -173,6 +173,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_val_samples: Optional[int] = None,
         num_test_samples: Optional[int] = None,
         dataset_cls: Type[MegatronDataset] = GPTDataset,
+        mmap_bin_files: bool = True,
+        mid_level_dataset_surplus: float = 0.005,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
@@ -222,6 +224,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
+        self.mmap_bin_files = mmap_bin_files
+        self.mid_level_dataset_surplus = mid_level_dataset_surplus
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -379,6 +383,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             reset_attention_mask=self.reset_attention_mask,
             eod_mask_loss=self.eod_mask_loss,
             num_dataset_builder_threads=self.num_dataset_builder_threads,
+            mmap_bin_files=self.mmap_bin_files,
+            mid_level_dataset_surplus=self.mid_level_dataset_surplus,
             **self.build_kwargs,
         )
 
