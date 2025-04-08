@@ -75,6 +75,9 @@ from nemo.collections.llm.recipes import (
     nemotron5_hybrid_8b,
     nemotron5_hybrid_47b,
     nemotron5_hybrid_56b,
+    nemotronh_8b,
+    nemotronh_47b,
+    nemotronh_56b,
     phi3_mini_4k_instruct,
     qwen2,
     qwen2_1p5b,
@@ -95,9 +98,6 @@ from nemo.collections.llm.recipes import (
     t5_3b,
     t5_11b,
     t5_220m,
-    nemotronh_8b,
-    nemotronh_47b,
-    nemotronh_56b,
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam, sgd

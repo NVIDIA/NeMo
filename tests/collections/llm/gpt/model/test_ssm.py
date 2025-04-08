@@ -21,14 +21,14 @@ from nemo.collections.llm.gpt.model.ssm import (
     Nemotron5HybridConfig8B,
     Nemotron5HybridConfig47B,
     Nemotron5HybridConfig56B,
+    NemotronHConfig8B,
+    NemotronHConfig47B,
+    NemotronHConfig56B,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
     SSMConfig,
     gpt_data_step,
     ssm_forward_step,
-    NemotronHConfig8B,
-    NemotronHConfig47B,
-    NemotronHConfig56B,
 )
 
 

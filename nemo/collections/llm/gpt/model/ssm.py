@@ -695,7 +695,7 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         hf_config.vocab_size = source.vocab_size
         hf_config.mlp_hidden_act = 'relu2'
         hf_config.mamba_hidden_act = "silu"
-        
+
         return hf_config
 
 
