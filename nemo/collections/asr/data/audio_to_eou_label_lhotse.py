@@ -104,7 +104,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
     def __init__(self, cfg: DictConfig, tokenizer: TokenizerSpec):
         super().__init__()
         self.cfg = cfg
-        self.return_eou_labels = cfg.get('return_eou_labels', True)
+        self.return_eou_labels = cfg.get('return_eou_labels', False)
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.num_sample_per_mel_frame = int(
