@@ -430,7 +430,6 @@ def _legacy_evaluate(
             "Please ensure that lm-evaluation-harness is installed in your env as it is required to run evaluations"
         )
 
-    from nemo.collections.llm.evaluation.base import NeMoFWLMEval, wait_for_server_ready
     from nemo.lightning import io
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
