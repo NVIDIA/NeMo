@@ -101,10 +101,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             'text_token_lens': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, cfg: DictConfig, tokenizer: TokenizerSpec, is_train: bool = False):
+    def __init__(self, cfg: DictConfig, tokenizer: TokenizerSpec):
         super().__init__()
         self.cfg = cfg
-        self.is_train = is_train
         self.return_eou_labels = cfg.get('return_eou_labels', True)
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
@@ -245,7 +244,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             padded_eou_targets_len: torch.Tensor of padded EOU label length, shape [1]
         """
         p = np.random.rand()
-        if self.padding_cfg is None or not self.is_train or p > self.padding_cfg.padding_prob:
+        if self.padding_cfg is None or p > self.padding_cfg.padding_prob:
             return audio, audio_len, eou_targets, eou_targets.size(0)
 
         duration = audio_len.item() / self.cfg.sample_rate
