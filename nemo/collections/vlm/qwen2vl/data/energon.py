@@ -39,7 +39,7 @@ from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
     VIDEO_TOKEN_INDEX,
     VISION_END_TOKEN_INDEX,
 )
-from nemo.collections.vlm.qwen2vl.data.preloaded import process_vision, find_pattern_indices
+from nemo.collections.vlm.qwen2vl.data.preloaded import find_pattern_indices, process_vision
 from nemo.utils import logging
 
 
