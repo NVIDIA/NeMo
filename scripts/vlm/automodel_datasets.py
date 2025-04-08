@@ -15,9 +15,45 @@
 import json
 import random
 
+from nemo.collections.llm.gpt.data.hf_dataset import has_dist_env_init_or_rank_env_var
 import torch
 
-from nemo.collections import vlm
+from nemo.collections import vlm, llm
+
+def mk_hf_vlm_dataset_fineweb_edu(data_path, processor, mbs, gbs):
+    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
+
+    def collate_fn(examples, processor):
+        # Simply tokenize the text directly
+        texts = [example["text"] for example in examples]
+        
+        # Tokenize the text
+        batch = processor(
+            text=texts,
+            padding=True,
+            return_tensors="pt",
+        )
+
+        # Shift labels by 1 and truncate input_ids
+
+
+        labels = batch["input_ids"].clone()[:, 1:]
+        labels = torch.cat([labels, -100 * torch.ones_like(labels[:, :1])], dim=1)
+        labels[torch.isin(labels, skipped_tokens)] = -100
+        batch["labels"] = labels
+        return batch
+
+    return llm.HFDatasetDataModule(
+        data_path,
+        split="train",
+        micro_batch_size=mbs,
+        global_batch_size=gbs,
+        collate_fn=lambda x: collate_fn(x, processor=processor),
+        num_workers=4,
+        persistent_workers=True,
+        streaming=not has_dist_env_init_or_rank_env_var(),
+    )
+
 
 
 def mk_hf_vlm_dataset_rdr(data_path, processor, mbs, gbs):
@@ -57,7 +93,9 @@ def mk_hf_vlm_dataset_rdr(data_path, processor, mbs, gbs):
         )
 
         batch["pixel_values"] = batch["pixel_values"].to(torch.bfloat16)
-        labels = batch["input_ids"].clone()
+        labels = batch["input_ids"].clone()[:, 1:] # shift labels by 1
+        # Add a -100 to the end of the labels to make it same length as input_ids
+        labels = torch.cat([labels, -100 * torch.ones_like(labels[:, :1])], dim=1)
         labels[torch.isin(labels, skipped_tokens)] = -100
         batch["labels"] = labels
         return batch
@@ -141,9 +179,14 @@ def mk_hf_vlm_dataset_cord_v2(data_path, processor, mbs, gbs):
 
         batch = processor(text=texts, images=images, padding=True, truncation=True, return_tensors="pt")
 
-        labels = batch["input_ids"].clone()
+
+        batch["pixel_values"] = batch["pixel_values"].to(torch.bfloat16)
+        labels = batch["input_ids"].clone()[:, 1:] # shift labels by 1
+        # Add a -100 to the end of the labels to make it same length as input_ids
+        labels = torch.cat([labels, -100 * torch.ones_like(labels[:, :1])], dim=1)
         labels[torch.isin(labels, skipped_tokens)] = -100
         batch["labels"] = labels
+
         return batch
 
     return vlm.HFDatasetDataModule(

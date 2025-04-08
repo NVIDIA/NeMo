@@ -24,7 +24,7 @@ import fiddle as fdl
 import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from scripts.vlm.automodel_datasets import mk_hf_vlm_dataset_cord_v2, mk_hf_vlm_dataset_rdr
+from scripts.vlm.automodel_datasets import mk_hf_vlm_dataset_cord_v2, mk_hf_vlm_dataset_fineweb_edu, mk_hf_vlm_dataset_rdr
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
@@ -85,13 +85,14 @@ if __name__ == '__main__':
         dataset_fn = mk_hf_vlm_dataset_rdr
     elif "cord-v2" in args.data_path:
         dataset_fn = mk_hf_vlm_dataset_cord_v2
+    elif "fineweb-edu" in args.data_path:
+        dataset_fn = mk_hf_vlm_dataset_fineweb_edu
     else:
         raise NotImplementedError
 
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
 
     model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor)
-
     peft = None
     if args.peft == 'lora':
         peft = llm.peft.LoRA(
