@@ -380,8 +380,13 @@ def _iter_namespace(ns_pkg):
 
 
 def find_framework(eval_task: str) -> str:
+    """
+    Find framework for executing the evaluation eval_task.
+
+    This function serches for framework (module) that defines a task with given name and returns the framework name.
+    """
     # this import can be moved outside of this function when NeMoFWLMEval is
-    # removed and we completed switch to core_evals
+    # removed and we completed switch to NVIDIA Evals Factory
     try:
         import core_evals
     except ImportError:
