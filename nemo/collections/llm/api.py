@@ -29,7 +29,7 @@ from typing_extensions import Annotated
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
-from nemo.collections.llm.evaluation.base import find_framework, wait_for_fastapi_server
+from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -754,69 +754,6 @@ def deploy(
         nm.stop()
 
 
-def _legacy_evaluate(
-    target_cfg: EvaluationTarget,
-    eval_cfg: EvaluationConfig,
-):
-    """
-    Evaluates nemo model deployed on PyTriton server (via trtllm) using lm-evaluation-harness
-    (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
-
-    Args:
-        target_cfg (EvaluationTarget): target of the evaluation. Providing nemo_checkpoint_path, model_id, and
-            url in EvaluationTarget.api_endpoint is required to run evaluations.
-        eval_cfg (EvaluationConfig): configuration for evaluations
-    """
-
-    if target_cfg.api_endpoint.nemo_checkpoint_path is None:
-        raise ValueError("Please provide nemo_checkpoint_path in your target_cfg.")
-
-    try:
-        # lm-evaluation-harness import
-        from lm_eval import evaluator
-    except ImportError:
-        raise ImportError(
-            "Please ensure that lm-evaluation-harness is installed in your env as it is required to run evaluations"
-        )
-
-    from nemo.collections.llm.evaluation.base import NeMoFWLMEval, wait_for_server_ready
-
-    # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
-    endpoint = target_cfg.api_endpoint
-    tokenizer = io.load_context(endpoint.nemo_checkpoint_path + "/context", subpath="model.tokenizer")
-
-    # Wait for server to be ready before starting evaluation
-    server_ready = wait_for_server_ready(
-        url=endpoint.url, triton_http_port=endpoint.nemo_triton_http_port, model_name=endpoint.model_id
-    )
-    if not server_ready:
-        raise RuntimeError("Server not ready for evaluation")
-    # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
-    params = eval_cfg.params
-    model = NeMoFWLMEval(
-        model_name=endpoint.model_id,
-        api_url=endpoint.url,
-        tokenizer=tokenizer,
-        batch_size=params.batch_size,
-        max_tokens_to_generate=params.max_new_tokens,
-        temperature=params.temperature,
-        top_p=params.top_p,
-        top_k=params.top_k,
-        add_bos=params.add_bos,
-    )
-
-    eval_task = eval_cfg.type
-    results = evaluator.simple_evaluate(
-        model=model,
-        tasks=eval_task,
-        limit=params.limit_samples,
-        num_fewshot=params.num_fewshot,
-        bootstrap_iters=params.bootstrap_iters,
-    )
-
-    print("score", results["results"][eval_task])
-
-
 @run.cli.entrypoint(namespace="llm")
 def evaluate(
     target_cfg: EvaluationTarget,
@@ -869,8 +806,8 @@ def evaluate(
     )
     results_dict = results.model_dump()
 
-    print("========== RESULTS ==========")
-    print(yaml.dump(results_dict))
+    logging.info("========== RESULTS ==========")
+    logging.info(yaml.dump(results_dict))
 
     return results_dict
 
