@@ -27,10 +27,7 @@ from nemo.collections.llm import deploy, evaluate
 from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 
 
-ENDPOINT_TYPES = {
-    "chat": "chat/completions/",
-    "completions": "completions/"
-}
+ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
 EVAL_TASKS = (
     "bbh",
@@ -64,7 +61,13 @@ def get_parser():
         "--triton_http_address", type=str, default="0.0.0.0", help="IP address at which PyTriton server is created"
     )
     parser.add_argument("--fastapi_port", type=int, default=8080, help="Port at which FastAPI server is created")
-    parser.add_argument("--endpoint_type", type=str, default="completions", help="Whether to use completions or chat endpoint", choices=list(ENDPOINT_TYPES))
+    parser.add_argument(
+        "--endpoint_type",
+        type=str,
+        default="completions",
+        help="Whether to use completions or chat endpoint",
+        choices=list(ENDPOINT_TYPES),
+    )
     parser.add_argument(
         "--max_input_len",
         type=int,
@@ -100,10 +103,16 @@ def get_parser():
         "--limit", type=int, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
     )
     parser.add_argument(
-        "--parallel_requests", type=int, default=None, help="Number of parallel requests to send to server. Default: use default for the task."
+        "--parallel_requests",
+        type=int,
+        default=None,
+        help="Number of parallel requests to send to server. Default: use default for the task.",
     )
     parser.add_argument(
-        "--request_timeout", type=int, default=None, help="Request timeout for querying the server. Default: use default for the task."
+        "--request_timeout",
+        type=int,
+        default=None,
+        help="Request timeout for querying the server. Default: use default for the task.",
     )
     parser.add_argument(
         "--tag",
@@ -224,7 +233,12 @@ def main():
         type=args.endpoint_type,
     )
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
-    eval_params = run.Config(ConfigParams, limit_samples=args.limit, parallelism=args.parallel_requests, request_timeout=args.request_timeout)
+    eval_params = run.Config(
+        ConfigParams,
+        limit_samples=args.limit,
+        parallelism=args.parallel_requests,
+        request_timeout=args.request_timeout,
+    )
     eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params)
 
     eval_fn = run.Partial(evaluate, target_cfg=eval_target, eval_cfg=eval_config)
