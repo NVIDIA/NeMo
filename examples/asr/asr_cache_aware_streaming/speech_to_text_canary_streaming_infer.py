@@ -373,12 +373,11 @@ def main(cfg: StreamingEvaluationConfig):
     # override_cfg = asr_model.get_transcribe_config()
 
 
-    # setup lhotse dataloader
+    # setup lhotse dataloader to obtain promt ids
     logging.warning(f"Setup lhotse dataloader from {cfg.dataset_manifest}")
     filepaths, sorted_manifest_path = prepare_audio_data(cfg)
     remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
     filepaths = sorted_manifest_path if sorted_manifest_path is not None else filepaths
-    # cfg = compute_output_filename(cfg, model_name)
 
     override_cfg = asr_model.get_transcribe_config()
     override_cfg.batch_size = cfg.batch_size
@@ -403,11 +402,6 @@ def main(cfg: StreamingEvaluationConfig):
         decoder_input_ids = batch_example.prompt
     
 
-    # default_turns = asr_model.prompt.get_default_dialog_slots()
-    # default_turns[0]["slots"]["prompt_language"] = "spl_tokens"
-    # default_turns = [default_turns[0]]
-    # decoder_input_ids = asr_model.prompt.encode_dialog(turns=default_turns)["context_ids"].unsqueeze(0).repeat(1, 1).to(cfg.device)
-
     # initialize the canary data
     canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
 
@@ -423,6 +417,7 @@ def main(cfg: StreamingEvaluationConfig):
     )
     if cfg.audio_file is not None:
         # stream a single audio file
+        raise NotImplementedError("Single audio file streaming is not implemented yet.")
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
             cfg.audio_file, stream_id=-1
         )

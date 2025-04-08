@@ -914,24 +914,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     # torch.logical_and(alignatt_condition, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
                     canary_data.active_samples_inner_loop = canary_data.active_samples_inner_loop * alignatt_condition
 
-                    if cfg.debug_mode:
-                        logging.warning(f"-------------"*5)
-                        logging.warning(f"canary_data.decoding_step  : {canary_data.decoding_step}")
-                        logging.warning(f"decoding step i: {i}")
-                        logging.warning(f"[encoded_speech.shape]     : {canary_data.encoded_speech.shape}")
-                        logging.warning(f"[most_attended_idxs]       : {most_attended_idxs}")
-                        logging.warning(f"[is_last_speech_chunk]     : {canary_data.is_last_speech_chunk}")
-                        logging.warning(f"[active_samples]           : {canary_data.active_samples}")
-                        logging.warning(f"[active_samples_inner_loop]: {canary_data.active_samples_inner_loop}")
-                        logging.warning(f"[current_context_lengths]  : {canary_data.current_context_lengths}")
-                        logging.warning(f"[predicted tokens]         : {text_token}")
-                        logging.warning(f"[predicted tokens id]: {next_tokens}")
-
-
-                    if cfg.debug_mode:                       
-                        import pdb; pdb.set_trace()
-                        pass
-
                     # # # increase speech chunk if no active samples in inner loop
                     # # if not torch.any(canary_data.active_samples_inner_loop) and torch.any(torch.logical_not(canary_data.is_last_speech_chunk)):
                     # if not torch.any(canary_data.active_samples_inner_loop):
@@ -952,6 +934,25 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     # disable samples (upper loop) with eos and end of speech
                     eos_and_end_speech_mask = torch.logical_and(is_eos_tokens, canary_data.is_last_speech_chunk)
                     torch.logical_and(canary_data.active_samples, torch.logical_not(eos_and_end_speech_mask), out=canary_data.active_samples)
+
+
+                    if cfg.debug_mode:
+                        logging.warning(f"-------------"*5)
+                        logging.warning(f"canary_data.decoding_step  : {canary_data.decoding_step}")
+                        logging.warning(f"decoding step i: {i}")
+                        logging.warning(f"[encoded_speech.shape]     : {canary_data.encoded_speech.shape}")
+                        logging.warning(f"[most_attended_idxs]       : {most_attended_idxs}")
+                        logging.warning(f"[is_last_speech_chunk]     : {canary_data.is_last_speech_chunk}")
+                        logging.warning(f"[active_samples]           : {canary_data.active_samples}")
+                        logging.warning(f"[active_samples_inner_loop]: {canary_data.active_samples_inner_loop}")
+                        logging.warning(f"[current_context_lengths]  : {canary_data.current_context_lengths}")
+                        logging.warning(f"[predicted tokens]         : {text_token}")
+                        logging.warning(f"[predicted tokens id]: {next_tokens}")
+
+
+                    if cfg.debug_mode:                       
+                        import pdb; pdb.set_trace()
+                        pass
 
                     if not torch.any(canary_data.active_samples_inner_loop):
                         if cfg.debug_mode:
@@ -980,7 +981,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     # import pdb; pdb.set_trace()
                     
                     # check for hallucinations
-                    # TODO add check for the last speech chunk
+                    # TODO add more consequtive tokens? Now we are checking only 3 same tokens 
                     hallucination_mask = torch.logical_and(
                         canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] == canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1],
                         canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1] == canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-2]
