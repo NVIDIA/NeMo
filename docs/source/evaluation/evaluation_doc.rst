@@ -3,14 +3,12 @@ Evaluate NeMo 2.0 Checkpoints
 
 This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the integrated `nvidia-lm-eval
 <https://pypi.org/project/nvidia-lm-eval/>`__ within the NeMo Framework. Supported benchmarks include:
-    * BBH,
     * GPQA,
     * GSM8K,
     * IFEval,
     * MGSM,
     * MMLU,
-    * MMLU-Pro,
-    * MUSR, and
+    * MMLU-Pro, and
     * Wikilingua.
 
 

@@ -29,24 +29,26 @@ from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, Evalu
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
-EVAL_TASKS = (
-    "bbh",
-    "gpqa",
-    "gpqa_diamond_cot",
+COMPLETIONS_TASKS = (
     "gsm8k",
+    "mgsm",
+    "mmlu",
+    "mmlu_pro",
+    "mmlu_redux",
+)
+
+CHAT_TASKS = (
+    "gpqa_diamond_cot",
     "gsm8k_cot_instruct",
     "ifeval",
-    "mgsm",
     "mgsm_cot",
-    "mmlu",
     "mmlu_instruct",
-    "mmlu_pro",
     "mmlu_pro_instruct",
-    "mmlu_redux",
     "mmlu_redux_instruct",
-    "musr",
     "wikilingua",
 )
+
+EVAL_TASKS = COMPLETIONS_TASKS + CHAT_TASKS
 
 
 def get_parser():
