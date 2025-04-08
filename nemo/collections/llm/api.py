@@ -1268,7 +1268,8 @@ def _validate_config(
                         )
                     )
                     == 0
-                ), "Global batch size split must be divisible by the product of its corresponding micro batch size and data parallel size"
+                ), "Global batch size split must be divisible by the product of its corresponding \
+                    micro batch size and data parallel size"
         else:
             assert (
                 data.global_batch_size

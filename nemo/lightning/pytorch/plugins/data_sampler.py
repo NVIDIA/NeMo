@@ -97,12 +97,14 @@ class MegatronDataSampler(DataSampler):
             if isinstance(self.micro_batch_size, list):
                 assert (
                     len(self.micro_batch_size) == num_world_size_split_ranges
-                ), f"The length of micro_batch_size: {self.micro_batch_size} should be same as the number of world size split ranges: {num_world_size_split_ranges}!"
+                ), f"The length of micro_batch_size: {self.micro_batch_size} should be same as the number of \
+                    world size split ranges: {num_world_size_split_ranges}!"
                 self.micro_batch_size = self.micro_batch_size[world_size_split_range_id]
 
             assert (
                 self.cu_global_batch_splits[0] == 0 and self.cu_global_batch_splits[-1] == self.global_batch_size
-            ), f"cu_global_batch_splits: {self.cu_global_batch_splits} should start with 0 and end with {self.global_batch_size}!"
+            ), f"cu_global_batch_splits: {self.cu_global_batch_splits} should start with 0 and end with \
+                {self.global_batch_size}!"
             self.global_batch_split_range = (
                 self.cu_global_batch_splits[world_size_split_range_id],
                 self.cu_global_batch_splits[world_size_split_range_id + 1],
