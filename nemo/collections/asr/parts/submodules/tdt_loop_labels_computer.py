@@ -1119,12 +1119,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         x: torch.Tensor,
         out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
-        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            if not is_ddp:
-                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
-            else:
-                logging.warning("CUDA graphs are temporary disabled in distributed environment", mode=LogMode.ONCE)
+            return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
         return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
