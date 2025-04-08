@@ -18,6 +18,7 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
+import torch._dynamo
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
@@ -29,10 +30,10 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed_current_scaling
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
-import torch._dynamo
+
 torch._dynamo.config.suppress_errors = True
 
 NAME = "nemotron5_hybrid_56b"
@@ -138,19 +139,21 @@ def trainer(
         ),
     )
 
-    callbacks=[
-        run.Config(MegatronCommOverlapCallback,
+    callbacks = [
+        run.Config(
+            MegatronCommOverlapCallback,
             tp_comm_bootstrap_backend="nccl",
             tp_comm_overlap=True,
         ),
-        run.Config(ModelCheckpoint,
+        run.Config(
+            ModelCheckpoint,
             every_n_train_steps=val_check_interval,
             dirpath=dir,
             save_top_k=save_top_k,
             always_save_context=True,
             save_optim_on_train_end=True,
             save_context_on_train_end=True,
-        )
+        ),
     ]
     trainer = run.Config(
         nl.Trainer,
