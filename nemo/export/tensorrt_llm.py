@@ -26,7 +26,6 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import safetensors
-import nemo.lightning.io # WAR for trtllm and lightning conflict
 import tensorrt_llm
 import torch
 import torch.nn.functional as F
@@ -78,6 +77,7 @@ from tensorrt_llm.models import (
 from tensorrt_llm.plugin import PluginConfig
 from transformers import PreTrainedTokenizerBase
 
+import nemo.lightning.io  # WAR for trtllm and lightning conflict
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, model_to_trtllm_ckpt

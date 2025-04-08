@@ -21,9 +21,9 @@ from typing import List
 
 import numpy as np
 import wrapt
-import nemo.lightning.io # WAR for trtllm and lightning conflict
 from tensorrt_llm.runtime import MultimodalModelRunner as TRTLLMRunner
 
+import nemo.lightning.io  # WAR for trtllm and lightning conflict
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import (
     build_mllama_engine,
