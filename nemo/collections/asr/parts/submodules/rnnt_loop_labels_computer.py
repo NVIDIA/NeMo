@@ -673,6 +673,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
         # do warmup
+        # NB: looks like warmup is not necessary, at least everything works without warmup
         self._warmup_for_cuda_graphs()
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
@@ -838,8 +839,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
         self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
+        # self.joint.project_prednet calls self.joint.pred, which is an instance of nn.Linear
+        # the following line works only when not training in DDP mode
         # decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        # the following line performs F.linear, which is called in nn.Linear; also does not work in validation in DDP
+        # decoder_output_projected = F.linear(decoder_output, self.joint.pred.weight, self.joint.pred.bias)
+        # this line does the same as F.linear, but works in DDP mode in validation
         decoder_output_projected = decoder_output @ self.joint.pred.weight.transpose(0, 1) + self.joint.pred.bias
+
         self.state.decoder_output.copy_(decoder_output_projected)
 
         # get lm scores/states
