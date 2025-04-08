@@ -100,7 +100,7 @@ class HyenaLayer(MegatronModule):
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,  # Not used in HyenaLayer
-        inference_params=None,
+        inference_context=None,
         rotary_pos_emb: Tensor = None,  # Not used in HyenaLayer
     ):
         """Forward pass for the HyenaLayer."""
@@ -114,7 +114,7 @@ class HyenaLayer(MegatronModule):
         hidden_states = hidden_states.to(dtype=self.transformer_config.params_dtype)
         hidden_states = self.norm(hidden_states)
 
-        mixer_out_with_bias = self.mixer(hidden_states, inference_params=inference_params)
+        mixer_out_with_bias = self.mixer(hidden_states, inference_context=inference_context)
 
         with self.bias_dropout_add_exec_handler():
             hidden_states = self.hyena_bda(self.training, self.transformer_config.bias_dropout_fusion)(

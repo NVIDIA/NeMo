@@ -19,8 +19,9 @@ from copy import deepcopy
 from typing import Literal, Optional
 
 import torch
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
+from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
@@ -60,7 +61,7 @@ class HyenaModel(LanguageModule):
         parallel_output: bool = True,
         post_layer_norm: bool = True,
         share_embeddings_and_output_weights: bool = True,
-        position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'rope',
+        position_embedding_type: Literal["learned_absolute", "rope", "none"] = "rope",
         rotary_percent: float = 1.0,
         rotary_base: int = 10000,
         seq_len_interpolation_factor: Optional[float] = None,
@@ -113,7 +114,7 @@ class HyenaModel(LanguageModule):
                 position_embedding_type=position_embedding_type,
             )
 
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == "rope":
             self.rotary_pos_emb = RotaryEmbedding(
                 kv_channels=self.transformer_config.kv_channels,
                 rotary_percent=rotary_percent,
@@ -164,11 +165,11 @@ class HyenaModel(LanguageModule):
                     # Always initialize bias to zero.
                     with torch.no_grad():
                         linear_proj.bias.zero_()
-                    setattr(linear_proj.bias, 'allreduce', True)
-                    setattr(linear_proj, 'te_return_bias', True)
-                    setattr(linear_proj, 'return_bias', True)
-                    setattr(linear_proj, 'use_bias', True)
-                    setattr(linear_proj.bias, 'sequence_parallel', linear_proj.config.sequence_parallel)
+                    setattr(linear_proj.bias, "allreduce", True)
+                    setattr(linear_proj, "te_return_bias", True)
+                    setattr(linear_proj, "return_bias", True)
+                    setattr(linear_proj, "use_bias", True)
+                    setattr(linear_proj.bias, "sequence_parallel", linear_proj.config.sequence_parallel)
 
         # Output
         if post_process:
@@ -215,7 +216,7 @@ class HyenaModel(LanguageModule):
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
 
-        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for gpt/bert'
+        assert len(input_tensor) == 1, "input_tensor should only be length 1 for gpt/bert"
         self.decoder.set_input_tensor(input_tensor[0])
 
     def forward(
@@ -226,7 +227,8 @@ class HyenaModel(LanguageModule):
         decoder_input: Tensor = None,
         labels: Tensor = None,
         loss_mask: Tensor = None,
-        inference_params: InferenceParams = None,
+        inference_context: Optional[BaseInferenceContext] = None,
+        runtime_gather_output: Optional[bool] = None,
     ) -> Tensor:
         """Forward pass for the HyenaModel."""
         # If decoder_input is provided (not None), then input_ids and position_ids are ignored.
@@ -243,9 +245,9 @@ class HyenaModel(LanguageModule):
             decoder_input = None
 
         rotary_pos_emb = None
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == "rope":
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
-                inference_params, self.decoder, decoder_input, self.transformer_config, None
+                inference_context, self.decoder, decoder_input, self.transformer_config, None
             )
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
 
@@ -263,7 +265,7 @@ class HyenaModel(LanguageModule):
         hidden_states = self.decoder(
             hidden_states=decoder_input,
             attention_mask=attention_mask,
-            inference_params=inference_params,
+            inference_context=inference_context,
             rotary_pos_emb=rotary_pos_emb,
         )
 
