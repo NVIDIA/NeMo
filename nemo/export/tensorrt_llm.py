@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import safetensors
+import nemo.lightning.io # WAR for trtllm and lightning conflict
 import tensorrt_llm
 import torch
 import torch.nn.functional as F
