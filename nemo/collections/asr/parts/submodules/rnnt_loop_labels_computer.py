@@ -672,6 +672,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
+        # do warmup
+        self._warmup_for_cuda_graphs()
+
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -681,6 +684,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             pass
         else:
             raise NotImplementedError
+
+    def _warmup_for_cuda_graphs(self):
+        """Warmup before compiling CUDA graphs"""
+        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
+        # 11 warmup steps required in DDP mode
+        # see https://pytorch.org/docs/stable/notes/cuda.html#usage-with-distributeddataparallel
+        num_runs = 11 if is_ddp else 3
+        for _ in range(num_runs):
+            self._before_outer_loop()
+            self._before_inner_loop_get_decoder_output()
+            self._before_inner_loop_get_joint_output()
+            self._inner_loop_code()
+            self._after_inner_loop()
 
     def _partial_graphs_compile(self):
         """Compile decoding by parts"""
