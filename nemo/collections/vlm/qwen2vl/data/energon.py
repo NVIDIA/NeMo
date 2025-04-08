@@ -164,7 +164,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
     ):
         super().__init__()
 
-        self.tokenizer = tokenizer
+        self.hf_tokenizer = tokenizer.tokenizer
         self.image_processor = image_processor
         self.seq_length = max_padding_length
 
@@ -188,7 +188,6 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         flattened_imgs = processed_vision['image_inputs']
         flattened_videos = processed_vision['video_inputs']
 
-        # NOTE: generate qwen2vl conversations
         conversation = (
             json.loads(sample.conversation) if isinstance(sample.conversation, (str, bytes)) else sample.conversation
         )
@@ -240,14 +239,14 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         conversation = converted_conversation
 
         # NOTE: we need to mask all system/user input tokens and assistant generation prefix tokens
-        input_ids = self.tokenizer.apply_chat_template(conversation, tokenize=True, return_tensors="np")[0]
-        pad_token_id = self.tokenizer.pad_token_id
+        input_ids = self.hf_tokenizer.apply_chat_template(conversation, tokenize=True, return_tensors="np")[0]
+        pad_token_id = self.hf_tokenizer.pad_token_id
         target = [pad_token_id for _ in range(len(input_ids))]
         search_start_index = 0
         for turn_idx, turn in enumerate(conversation[1:]):
             if turn['role'] == 'assistant':
                 answer = turn['content'] + "<|im_end|>" + "\n"
-                answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False)
+                answer_tokens = self.hf_tokenizer.encode(answer, add_special_tokens=False)
                 answer_start, answer_end = find_pattern_indices(input_ids, answer_tokens, search_start_index)
                 assert answer_start > 0, "Not found valid answer in conversation."
                 target[answer_start:answer_end] = input_ids[answer_start:answer_end]
@@ -376,8 +375,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         if max_seq_len > self.seq_len:
             log.warning("max sequence length larger than passed parameter")
 
-        text_mat = np.full((len(samples), max_seq_len), self.tokenizer.pad_token_id, dtype=np.int64)
-        target_mat = np.full((len(samples), max_seq_len), self.tokenizer.pad_token_id, dtype=np.int64)
+        text_mat = np.full((len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64)
+        target_mat = np.full((len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64)
 
         image_input_masks = np.zeros_like(text_mat, dtype=bool)
         video_input_masks = np.zeros_like(text_mat, dtype=bool)
@@ -407,7 +406,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
 
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
             data=tokens,
-            eod_token=self.tokenizer.eos_token_id,
+            eod_token=self.hf_tokenizer.eos_token_id,
             eod_mask_loss=False,
             reset_attention_mask=False,
             reset_position_ids=False,

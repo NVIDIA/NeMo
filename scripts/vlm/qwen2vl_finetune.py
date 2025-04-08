@@ -39,7 +39,7 @@ import argparse
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from transformers import Qwen2Tokenizer
+from nemo.collections.common.tokenizers import AutoTokenizer
 from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageProcessor
 
 from nemo import lightning as nl
@@ -71,7 +71,7 @@ def main(args):
     )
 
     max_sequence_length = args.max_sequence_length
-    tokenizer = Qwen2Tokenizer.from_pretrained(hf_model_name)
+    tokenizer = AutoTokenizer(hf_model_name)
     image_processor = Qwen2VLImageProcessor()
     if args.data_type == "qwen2vl":
         # Data configuration
@@ -173,6 +173,7 @@ def main(args):
     checkpoint_callback = nl.ModelCheckpoint(
         save_last=True,
         monitor="reduced_train_loss",
+        save_optim_on_train_end=False,
         save_top_k=2,
         every_n_train_steps=1000,
         dirpath=args.log_dir,
