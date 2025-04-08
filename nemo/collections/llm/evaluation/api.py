@@ -113,4 +113,8 @@ class EvaluationConfig(BaseModel):
 
 
 class MisconfigurationError(Exception):
+    """
+    Exception raised when evaluation is not correctly configured.
+    """
+
     pass
