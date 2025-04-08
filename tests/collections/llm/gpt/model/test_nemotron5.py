@@ -541,6 +541,7 @@ def main():
     opt = MegatronOptimizerModule(opt_config, sched)
     opt.connect(model)
 
+    # Start training
     trainer.fit(model, data)
 
 

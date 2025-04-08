@@ -37,14 +37,15 @@ try:
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
-    from megatron.core.transformer.enums import AttnBackend
-    from megatron.core.transformer.transformer_config import TransformerConfig
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("The package `megatron.core` was not imported in this environment which is needed for SSMs.")
     HAVE_MEGATRON_CORE_OR_TE = False
+
+from megatron.core.transformer.enums import AttnBackend
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 
 def ssm_forward_step(model, batch) -> torch.Tensor:
