@@ -64,7 +64,8 @@ class ConfigParams(BaseModel):
     num_fewshot: Optional[int] = Field(
         description="Number of examples in few-shot context. Default: None.",
         default=None,
-        deprecated="This parameter is deprecated and not used for evaluations with core_evals.",
+        deprecated="This parameter is deprecated and not used for evaluations with core_evals. "
+        "In order to specify few-shot please use extra.num_fewshot.",
     )
     max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=None)
     max_retries: Optional[int] = Field(description="Number of REST request retries", default=None)
@@ -74,7 +75,7 @@ class ConfigParams(BaseModel):
     task: Optional[str] = Field(description="Name of the task", default=None)
     request_timeout: Optional[int] = Field(description="REST response timeout", default=300)
     extra: Optional[Dict[str, Any]] = Field(
-        description="Framework specific parameters to be used for evaluation", default_factory=dict
+        description="Framework specific parameters to be used for evaluation (e.g. num_fewshot)", default_factory=dict
     )
     batch_size: Optional[int] = Field(
         description="batch size to use for evaluation",
