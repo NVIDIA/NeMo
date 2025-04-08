@@ -18,12 +18,11 @@ Example:
 """
 
 import argparse
-from io import BytesIO
 from pathlib import Path
-from typing import Tuple, Union
 
 import torch
 import torch.distributed as dist
+
 from megatron.core import parallel_state
 from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -46,7 +45,7 @@ class SingleBatchIterator:
         self._yielded = False
 
     def __iter__(self):
-        return self.batch
+        return self
 
     def __next__(self):
         if self._yielded:

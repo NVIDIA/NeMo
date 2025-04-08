@@ -401,6 +401,7 @@ class Llama4Config(Llama3Config):
     qk_l2_norm: bool = False
     rope_scaling: bool = True
     rope_scaling_factor: float = 8.0
+    attention_chunk_size: int = 8192
 
 
 @dataclass

@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
-from torch import Tensor
+from megatron.core.inference.contexts import BaseInferenceContext
+from megatron.core.packed_seq_params import PackedSeqParams
 
 try:
     from megatron.core.transformer.spec_utils import ModuleSpec
@@ -47,7 +48,8 @@ def get_llama4_layer_spec(config: "Llama4Config") -> ModuleSpec:
         updated_layer_spec.module = Llama4TransformerLayer
         is_nope_layer = config.nope_layer_interval is not None and (layer_no + 1) % config.nope_layer_interval == 0
         updated_layer_spec.params = {
-            'use_rope': not is_nope_layer,
+            'is_nope_layer': is_nope_layer,
+            'attention_chunk_size': config.attention_chunk_size,
         }
         if config.qk_l2_norm and not is_nope_layer:
             # Use QK Norm
@@ -65,15 +67,48 @@ def get_llama4_layer_spec(config: "Llama4Config") -> ModuleSpec:
 class Llama4TransformerLayer(MCoreTransformerLayer):
     """Updated Transformer Layer to enable skip rope in some layers"""
 
-    def __init__(self, use_rope=True, *args, **kwargs):
-        self.use_rope = use_rope
+    def __init__(self, is_nope_layer=False, attention_chunk_size=8192, *args, **kwargs):
+        self.is_nope_layer = is_nope_layer
+        self.attention_chunk_size = attention_chunk_size
         super(Llama4TransformerLayer, self).__init__(*args, **kwargs)
 
-    def forward(self, rotary_pos_emb: Optional[Tensor] = None, **kwargs):
-        if not self.use_rope:
-            rotary_pos_emb = None
-        return super().forward(rotary_pos_emb=rotary_pos_emb, **kwargs)
+    def _forward_attention(
+            self,
+            hidden_states: Tensor,
+            attention_mask: Optional[Tensor] = None,
+            context: Optional[Tensor] = None,
+            context_mask: Optional[Tensor] = None,
+            rotary_pos_emb: Optional[Tensor] = None,
+            rotary_pos_cos: Optional[Tensor] = None,
+            rotary_pos_sin: Optional[Tensor] = None,
+            attention_bias: Optional[Tensor] = None,
+            inference_context: Optional[BaseInferenceContext] = None,
+            packed_seq_params: Optional[PackedSeqParams] = None,
+            sequence_len_offset: Optional[Tensor] = None,
+            *,
+            inference_params: Optional[BaseInferenceContext] = None,
+    ):
 
+        if self.is_nope_layer:
+            # nope layer skip rope and use global attention
+            rotary_pos_emb = None
+            rotary_pos_cos = None
+            rotary_pos_sin = None
+
+        return super()._forward_attention(
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            context=context,
+            context_mask=context_mask,
+            rotary_pos_emb=rotary_pos_emb,
+            rotary_pos_cos=rotary_pos_cos,
+            rotary_pos_sin=rotary_pos_sin,
+            attention_bias=attention_bias,
+            inference_context=inference_context,
+            packed_seq_params=packed_seq_params,
+            sequence_len_offset=sequence_len_offset,
+            inference_params=inference_params,
+        )
 
 class L2Norm(torch.nn.Module):
     """
