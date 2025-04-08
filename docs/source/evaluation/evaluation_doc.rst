@@ -16,9 +16,7 @@ This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints usi
 
 Introduction
 --------------
-The evaluation process employs a server-client approach, comprising two main phases. In Phase 1, the NeMo 2.0
-checkpoint is deployed on a PyTriton server by exporting it to TRT-LLM. Phase 2 involves running the evaluation
-on the model using the deployed URL and port.
+
 
 Some of the benchmarks (e.g. GPQA) use a gated dataset. In order to use them, you must authenticate to 
 `HuggingFace Hub <https://huggingface.co/docs/huggingface_hub/quick-start#authentication>`__
@@ -125,6 +123,9 @@ You can also run evaluations of NeMo 2.0 checkpoints using the integrated `lm-ev
 ``MMLU``, ``GSM8k``, ``lambada_openai``, ``winogrande``, ``arc_challenge``, ``arc_easy``, and ``copa``.
 Please note that this path is deprecated and will be removed in NeMo 25.06 release.
 
+The evaluation process employs a server-client approach, comprising two main phases. In Phase 1, the NeMo 2.0
+checkpoint is deployed on a PyTriton server by exporting it to TRT-LLM. Phase 2 involves running the evaluation
+on the model using the deployed URL and port.
 
 The ``evaluate`` method defined in ``nemo/collections/llm/api.py`` supports the legacy way of evaluating the models.
 To run evaluations on the deployed model, use the following command. Make sure to pass `nemo_checkpoint_path` and
