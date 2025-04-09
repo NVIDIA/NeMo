@@ -525,8 +525,8 @@ class DuplexS2SModel(LightningModule):
         # and run the first prediction step
         input_embeds[:, 0] += self._get_bos_embedding()
         ans = self(input_embeds[:, :1], cache=cache)
-        gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)
-        gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-1)
+        gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)[:, -1]
+        gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-1)[:, -1]
 
         for t in range(1, input_embeds.shape[1]):
             input_embeds[:, t] += self.embed_tokens(gen_text[:, t - 1])
