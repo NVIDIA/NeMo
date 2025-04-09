@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Optional, List, Union
+from typing import List, Optional, Union
 
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
 
@@ -230,6 +230,7 @@ def flux(config: FLOPSConfig):
 
     return joint_layer_flops + single_layer_flops + other_flops
 
+
 def deepseekv3(config: FLOPSConfig):
     """Model FLOPs for DeepSeek V3"""
 
@@ -251,20 +252,14 @@ def deepseekv3(config: FLOPSConfig):
     ffn_params = 0
 
     if isinstance(config.moe_layer_freq, int):
-        moe_layer_pattern = [
-            1 if (i % config.moe_layer_freq == 0) else 0 for i in range(config.layers)
-        ]
+        moe_layer_pattern = [1 if (i % config.moe_layer_freq == 0) else 0 for i in range(config.layers)]
     else:
         moe_layer_pattern = config.moe_layer_freq
     for i in moe_layer_pattern:
         if i == 0:
             ffn_params += dense_layer_ffn_params
         else:
-            ffn_params += (
-                per_shared_expert_params + (
-                    per_selected_expert_params * config.moe_router_topk
-                )
-            )
+            ffn_params += per_shared_expert_params + (per_selected_expert_params * config.moe_router_topk)
     per_input_params = mla_params + ffn_params
     per_input_linear_flops = 6 * per_input_params * config.enc_seq_len
 

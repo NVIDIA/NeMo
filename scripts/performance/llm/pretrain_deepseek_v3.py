@@ -70,9 +70,16 @@ def override_recipe_configs(
         activation_offload_layers=activation_offload_layers,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "deepseekv3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        "pre_train",
+        "llm",
+        "deepseekv3",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
-    
+
     # modify model to proxy
     if args.proxy_num_layers is not None:
         recipe.model.config.num_layers = args.proxy_num_layers
