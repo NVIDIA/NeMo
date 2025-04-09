@@ -1,0 +1,173 @@
+model:
+  # Every name/path here starting with 'pretrained' is used to initialize the model weights.
+  pretrained_llm: TinyLlama/TinyLlama_v1.1
+#  pretrained_llm: google/gemma-2-2b-it
+#  pretrained_llm: google/gemma-2-9b-it
+#  pretrained_llm: meta-llama/Llama-3.2-3B-Instruct
+#  pretrained_llm: meta-llama/Llama-3.1-8B-Instruct
+#  pretrained_llm: Qwen/Qwen2.5-7B-Instruct
+  pretrained_asr: stt_en_fastconformer_hybrid_large_streaming_80ms
+
+  audio_locator_tag: "<0x00>"  # placeholder token for audio turn is expected
+
+  perception:
+     target: nemo.collections.multimodal.speech_llm.modules.perception_modules.AudioPerceptionModule
+
+     preprocessor:
+       normalize: 'NA'
+
+     encoder:
+       self_attention_model:
+       att_context_size: [70, 1]
+       conv_context_size: causal
+       conv_norm_type: layer_norm
+
+     modality_adapter:
+       _target_: nemo.collections.asr.modules.ConformerEncoder
+       feat_in: 512
+       feat_out: -1 # you may set it if you need different output size other than the default d_model
+       n_layers: 2
+       d_model: 512
+       subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
+       subsampling_factor: 1 # must be power of 2 for striding and vggnet
+       subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
+       causal_downsampling: true
+       ff_expansion_factor: 4
+       self_attention_model: rel_pos_local_attn # rel_pos or abs_pos
+       n_heads: 8 # may need to be lower for smaller d_models
+       # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
+       att_context_size: [70, 1] # -1 means unlimited context
+       att_context_style: chunked_limited # regular or chunked_limited
+       xscaling: true # scales up the input embeddings by sqrt(d_model)
+       untie_biases: true # unties the biases of the TransformerXL layers
+       pos_emb_max_len: 5000
+       conv_kernel_size: 9
+       conv_norm_type: layer_norm # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
+       # conv_context_size can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size
+       # null means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0]
+       conv_context_size: causal
+       ### regularization
+       dropout: 0 # The dropout used in most of the Conformer Modules
+       dropout_pre_encoder: 0 # The dropout used before the encoder
+       dropout_emb: 0.0 # The dropout used for embeddings
+       dropout_att: 0 # The dropout for multi-headed attention modules
+
+     spec_augment:
+       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+       freq_masks: 2 # set to zero to disable it
+       time_masks: 10 # set to zero to disable it
+       freq_width: 27
+       time_width: 5  # 5 frames = 50ms
+
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 3e-4
+    betas: [0.9, 0.98]
+    weight_decay: 0
+    foreach: true # set to false if having issues with tensor-parallelism
+
+  lr_scheduler:
+    _target_: nemo.core.optim.lr_scheduler.CosineAnnealing
+    warmup_steps: 0
+    min_lr: 1e-6
+    max_steps: ${trainer.max_steps}
+
+trainer:
+  devices: -1
+  accelerator: gpu
+  num_nodes: 1
+  precision: bf16-true
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  use_distributed_sampler: False
+  max_steps: 100000
+  limit_train_batches: 1000000
+  log_every_n_steps: 10
+  val_check_interval: 100
+  num_sanity_val_steps: 2
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
+  strategy:
+#    _target_: lightning.pytorch.strategies.ModelParallelStrategy
+#    tensor_parallel_size: 1
+#    data_parallel_size: 2
+    _target_: lightning.pytorch.strategies.DDPStrategy
+    gradient_as_bucket_view: true
+    find_unused_parameters: true
+
+data:
+  train_ds:
+    sample_rate: 16000
+    prompt_format: llama2
+    token_equivalent_duration: 0.08
+    input_cfg:
+      - type: lhotse_as_conversation
+        cuts_path: /home/pzelasko/data/mini-libri/cuts_train-clean-5.jsonl.gz
+        tags:
+          system_prompt: "Repeat after me:"
+          audio_locator_tag: ${model.audio_locator_tag}
+#      - type: lhotse_shar
+#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
+#      - type: lhotse_shar
+#        shar_path: /home/pzelasko/exp/duplex_s2s/timestamp_train
+    seed: 42
+    shard_seed: "randomized"
+    num_workers: 2
+
+    batch_size: 16
+#    batch_duration: 100
+#    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
+#    use_bucketing: true
+#    num_buckets: 5
+#    bucket_buffer_size: 5000
+
+  validation_ds:
+    # The entries under 'datasets' are a list of separate dataloaders.
+    # The structure is <dataset-name>: {<dataloader-dict-config>}
+    # They inherit all settings from validation_ds, but can individually override them.
+    prompt_format: llama2
+    token_equivalent_duration: 0.08
+    datasets:
+      train_micro:
+      input_cfg:
+        - type: lhotse_as_conversation
+          cuts_path: /home/pzelasko/data/mini-libri/cuts_dev-clean-2.jsonl.gz
+          tags:
+            system_prompt: "Repeat after me:"
+            audio_locator_tag: ${model.audio_locator_tag}
+#      traindata:
+#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
+#      valdata:
+#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_val
+    sample_rate: 16000
+    batch_size: 1
+    seed: 42
+    shard_seed: "randomized"
+
+exp_manager:
+   exp_dir: null
+   explicit_log_dir: salm_results/
+   name: salm
+   create_tensorboard_logger: false
+   create_checkpoint_callback: true
+   use_datetime_version: true
+   max_time_per_run: 00:03:50:00
+
+   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+   # you need to set these two to True to continue the training
+   resume_if_exists: true
+   resume_ignore_no_checkpoint: true
+
+   # You may use this section to create a W&B logger
+   create_wandb_logger: true
+   wandb_logger_kwargs:
+     name: development-run
+     project: salm
+     resume: true
+
+   checkpoint_callback_params:
+     filename: "{step}"
+     every_n_train_steps: ${trainer.val_check_interval}
+     every_n_epochs: null
+     save_top_k: 1
+     always_save_nemo: false

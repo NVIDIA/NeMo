@@ -31,10 +31,13 @@ from nemo.collections.common.data.lhotse.nemo_adapters import (
     expand_sharded_filepaths,
 )
 from nemo.collections.common.data.lhotse.text_adapters import (
+    AudioTurn,
     LhotseTextAdapter,
     LhotseTextPairAdapter,
+    NeMoMultimodalConversation,
     NeMoMultimodalConversationJsonlAdapter,
     NeMoSFTJsonlAdapter,
+    TextTurn,
 )
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
@@ -436,6 +439,24 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
         # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
         path = config.cuts_path
         cuts = CutSet.from_file(path).map(partial(resolve_relative_paths, manifest_path=path))
+    return cuts, is_tarred
+
+
+@data_type_parser(["lhotse_as_conversation"])
+def read_lhotse_as_conversation(config) -> tuple[CutSet, bool]:
+    def cut_to_conversation(cut: Cut) -> NeMoMultimodalConversation:
+        return NeMoMultimodalConversation(
+            id=cut.id,
+            turns=[
+                AudioTurn(cut=cut, role="user", audio_locator_tag=config.audio_locator_tag),
+                TextTurn(value=cut.supervisions[0].text, role="assistant"),
+            ],
+            token_equivalent_duration=config.token_equivalent_duration,
+            custom=cut.custom,
+        )
+
+    cuts, is_tarred = read_lhotse_manifest(config)
+    cuts = cuts.map(cut_to_conversation)
     return cuts, is_tarred
 
 
