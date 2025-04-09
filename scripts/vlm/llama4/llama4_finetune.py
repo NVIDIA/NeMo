@@ -44,9 +44,9 @@ def main(args):
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 4096
+    decoder_seq_length = 8192
     if args.use_packed_sequence:
-        decoder_seq_length = 8192
+        decoder_seq_length = 16384
 
     # Submodules configurations
     vision_config = Llama4VisionConfig()
@@ -70,7 +70,7 @@ def main(args):
     elif args.data_type == "energon":
         raise NotImplementedError("Energon data not yet implemented.")
     elif args.data_type == "mock":
-        llama_tokenizer = AutoTokenizer("/path/to/llama4_hf_checkpoint")
+        llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
 
         data = vlm.Llama4MockDataModule(
             seq_length=decoder_seq_length,
