@@ -47,6 +47,7 @@ class MockDataModule(pl.LightningDataModule):
         persistent_workers (bool): Whether to keep worker processes alive between epochs. Defaults to False.
         packed_sequence (bool): Whether to use packed sequences for efficiency. Defaults to False.
     """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -218,6 +219,7 @@ class MockLlama4Dataset(Dataset):
                                              Defaults to 576.
         num_tiles_per_image (int): Number of tiles the image is split into. Defaults to 1.
     """
+
     def __init__(
         self,
         tokenizer,

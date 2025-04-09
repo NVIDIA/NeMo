@@ -106,6 +106,7 @@ class Llama4VisionConfig(CLIPViTConfig):
 
 class PackingIndex:
     """Defines constant indices for accessing packed token metadata."""
+
     Z = 0  # Z (time) coordinate of the token in the original sample
     Y = 1  # Y (height) coordinate of the token in the original sample
     X = 2  # X (width) coordinate of the token in the original sample
