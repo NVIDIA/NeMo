@@ -172,8 +172,8 @@ class TextMemMapDataset(Dataset):
         start_time = time.time()
         mdata_midx_list = [self.load_file(fn, index_mapping_dir) for fn in self._files_list]
         logging.info(
-            f"Time loading {len(mdata_midx_list)} mem-mapped files: 
-            {datetime.timedelta(seconds=time.time() - start_time)}"
+            f"Time loading {len(mdata_midx_list)} mem-mapped files: "
+            f"{datetime.timedelta(seconds=time.time() - start_time)}"
         )
 
         logging.info("Computing global indices")
@@ -227,8 +227,8 @@ class TextMemMapDataset(Dataset):
             data = self._build_data_from_text(sample)
         except Exception as e:
             logging.error(
-                f"Error while building data from text, possible issue with sample expected format 
-                (see offending sample below): {e}"
+                "Error while building data from text, possible issue with sample expected format "
+                f"(see offending sample below): {e}"
             )
             logging.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
             raise e
@@ -300,8 +300,8 @@ class TextMemMapDataset(Dataset):
             idx_version = idx_info_dict.get("version", "0.0")
             if __idx_version__ != idx_version:
                 raise RuntimeError(
-                    f"Version mismatch: Please delete existing '.{__idx_suffix__}' files. Expected version = 
-                    {__idx_version__}, but file version = {idx_version}. File path = {idx_fn}"
+                    f"Version mismatch: Please delete existing '.{__idx_suffix__}' files. Expected version = "
+                    f"{__idx_version__}, but file version = {idx_version}. File path = {idx_fn}"
                 )
         else:
             raise ValueError(
@@ -579,8 +579,8 @@ def build_index_files(
         )
 
     logging.info(
-        f"Time building {sum(build_status)} / {len(build_status)} mem-mapped files: 
-        {datetime.timedelta(seconds=time.time() - start_time)}"
+        f"Time building {sum(build_status)} / {len(build_status)} mem-mapped files: "
+        "{datetime.timedelta(seconds=time.time() - start_time)}"
     )
 
 
