@@ -23,6 +23,7 @@ from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import H
 # LLAMA4
 from nemo.collections.vlm.llama4.data import Llama4MockDataModule
 from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
+from nemo.collections.vlm.llama4.model.llama4_omni import Llama4ScoutExperts16Config, Llama4MaverickExperts128Config
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig, Llama4ViTModel
 
 # LLAVA_NEXT
@@ -148,4 +149,6 @@ __all__ = [
     "Llama4OmniModel",
     "Llama4VisionConfig",
     "Llama4ViTModel",
+    "Llama4ScoutExperts16Config",
+    "Llama4MaverickExperts128Config",
 ]

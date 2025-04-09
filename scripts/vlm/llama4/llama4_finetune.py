@@ -52,21 +52,8 @@ def main(args):
         decoder_seq_length = 16384
 
     # Submodules configurations
-    vision_config = Llama4VisionConfig()
-    text_config = Llama4TextConfig()
-    vision_projection_config = vlm.MultimodalProjectorConfig(
-        projector_type="mcore_affine",
-        input_size=vision_config.output_dim,
-        hidden_size=text_config.hidden_size,
-        ffn_hidden_size=text_config.hidden_size,
-        bias=False,
-        bias_activation_fusion=False,
-    )
-    llama4_config = Llama4OmniConfig(
-        language_transformer_config=text_config,
-        vision_transformer_config=vision_config,
-        vision_projection_config=vision_projection_config,
-    )
+    # switch to 128E with  vlm.Llama4MaverickExperts128Config()
+    llama4_config = vlm.Llama4ScoutExperts16Config()
     if args.use_toy_model:
         decoder_seq_length = 4096
         llama4_config.vision_transformer_config.num_layers = 2
@@ -76,7 +63,7 @@ def main(args):
         raise NotImplementedError
     elif args.data_type == "energon":
 
-        model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+        model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
 
         task_encoder = Llama4TaskEncoder(
             config=Llama4TaskEncoderConfig(
@@ -89,7 +76,7 @@ def main(args):
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
-            num_workers=23,
+            num_workers=4,
         )
     elif args.data_type == "mock":
         llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
