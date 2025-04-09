@@ -120,7 +120,7 @@ def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
 
 
 def perform_streaming(
-    asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
+    asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False, new_batch = True
 ):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
@@ -128,8 +128,13 @@ def perform_streaming(
         # the output of the model in the offline and streaming mode should be exactly the same
         with torch.inference_mode():
             with autocast:
+                import pdb; 
+                #pdb.set_trace()
+
                 processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
                 with torch.no_grad():
+                    # import pdb; 
+                    # pdb.set_trace()
                     (
                         pred_out_offline,
                         transcribed_texts,
@@ -142,6 +147,7 @@ def perform_streaming(
                         processed_signal_length=processed_signal_length,
                         return_transcription=True,
                     )
+                  
         final_offline_tran = extract_transcriptions(transcribed_texts)
         logging.info(f" Final offline transcriptions:   {final_offline_tran}")
     else:
@@ -155,6 +161,7 @@ def perform_streaming(
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
+
         with torch.inference_mode():
             with autocast:
                 # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
@@ -358,6 +365,7 @@ def main():
         online_normalization=online_normalization,
         pad_and_drop_preencoded=args.pad_and_drop_preencoded,
     )
+
     if args.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
@@ -394,6 +402,8 @@ def main():
 
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
+                import pdb
+                #pdb.set_trace()
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
@@ -401,6 +411,8 @@ def main():
                     debug_mode=args.debug_mode,
                     pad_and_drop_preencoded=args.pad_and_drop_preencoded,
                 )
+                for block in asr_model.encoder.ngpt.transformer["h"]:
+                    block.offset = 0
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:
                     all_offline_tran.extend(offline_tran)

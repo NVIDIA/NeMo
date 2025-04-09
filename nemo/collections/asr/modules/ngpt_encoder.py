@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from rotary_embedding_torch import RotaryEmbedding
 
 import math
 from collections import OrderedDict
@@ -23,7 +24,7 @@ import torch.distributed
 from omegaconf import DictConfig, ListConfig, open_dict
 import torch.nn as nn
 import random
-
+import pdb
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -168,17 +169,6 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
                 feat_out=d_model,
                 use_bias=use_bias,
                 base_scale=base_scale,
-            )
-        else:  # temporary back-compat with 1st expts
-            self.pre_encode = ConvSubsampling(
-                subsampling=subsampling,
-                subsampling_factor=subsampling_factor,
-                feat_in=feat_in,
-                feat_out=d_model,
-                conv_channels=subsampling_conv_channels,
-                subsampling_conv_chunking_factor=subsampling_conv_chunking_factor,
-                activation=nn.ReLU(True),
-                is_causal=causal_downsampling,
             )
         self.ngpt = GPT(
             config=GPTConfig(
@@ -375,6 +365,7 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
         raise NotImplementedError()
 
     def streaming_post_process(self, rets, keep_all_outputs=True):
+
         if len(rets) == 2:
             return rets[0], rets[1], None, None, None
         # keeping cache_last_time for support current cache-aware streaming
@@ -396,6 +387,7 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
+        #cache_last_channel=None
         return self.forward_internal(
             audio_signal,
             length,
@@ -403,7 +395,7 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
             cache_last_time=cache_last_time,
             cache_last_channel_len=cache_last_channel_len,
         )
-
+    
     def forward_internal(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
@@ -418,8 +410,8 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
 
         audio_signal = audio_signal.transpose(1, 2)
         x, length = self.pre_encode(x=audio_signal, lengths=length)
+        
         length = length.to(torch.int64)
-            # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
         if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
             x = x[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
             length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
@@ -428,43 +420,50 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
 
         if cache_last_channel is not None:
             cache_len = self.streaming_cfg.last_channel_cache_size
-            #Implement streaming param massing 
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
             max_audio_length = max_audio_length + cache_len
+        
             padding_length = length + cache_len
+
             offset = torch.neg(cache_last_channel_len) + cache_len
-            border = offset.item()
+            border = offset[0].item()
         else:
             padding_length = length
             cache_last_channel_next = None
             cache_len = 0
-            offset = None
+            offset = None 
             border = None
             cache_keep_size = None
         
-    
+
         pad_mask = torch.arange(0, max_audio_length, device=x.device).expand(
             padding_length.size(0), -1
         ) < padding_length.unsqueeze(-1)
+
+        if cache_last_channel is not None:
+            pad_mask = pad_mask[:, cache_len:]
+                
         if self.att_context_style == "regular":
             block_mask = None
-                
+        
         elif self.att_context_style == "chunked_limited":
-            # Currently implemented with left and right context limited chunks
+            # Currently implemented with left and righ
+            # t context limited chunks
 
-            # When right context is unlimited, just the left side of the masking need to get updated
             # if cur_att_context_size[1] == -1:
             #     if cur_att_context_size[0] >= 0:
             #         att_mask = att_mask.triu(diagonal=-cur_att_context_size[0])
             # else:
-
             chunk_size = cur_att_context_size[1] + 1
             # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
             if cur_att_context_size[0] >= 0:
                 left_chunks_num = cur_att_context_size[0] // chunk_size
             else:
                 left_chunks_num = 10000
-
+            
+            # Concatenate the True values with the original tensor
+            
+        
             #Function that creates block_mask for flex attention, This function support out chunked logic
                 
             def chunked_causal_mask(b, h, q_idx, kv_idx):
@@ -485,7 +484,7 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
                 # Apply the chunked limited mask logic
                 diff_chunks = q_chunk_idx - k_chunk_idx
                 return (0 <= diff_chunks) & (diff_chunks <= left_chunks_num) & pad_cur[q_idx] & pad_cur[kv_idx]
-            #We can later remove this no need for it    
+
             def chunked_causal_mask_inference(b, h, q_idx, kv_idx):
                 """
                 Implements a chunked causal attention mask at an index level.
@@ -497,8 +496,17 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
                 Returns:
                     bool or Tensor: True if q_idx can attend to kv_idx, otherwise False.
                 """
-                return torch.tensor(True, dtype=torch.bool, device='cuda:0')
+                num_true = max_audio_length - border - len(pad_mask[b])
+                true_values = torch.ones(num_true, dtype=torch.bool,device=pad_mask.device)
 
+                # Concatenate the True values with the original tensor
+               
+                pad_cur = pad_mask[b]
+                new_tensor = torch.cat([true_values, pad_cur])
+                
+                return  pad_cur[q_idx] & new_tensor[kv_idx]
+            
+          
             if cache_last_channel is not None:
                 block_mask =  create_block_mask(chunked_causal_mask_inference, B=x.shape[0], H=8, Q_LEN=max_audio_length-cache_len, KV_LEN=max_audio_length-border)
             else:
@@ -506,11 +514,8 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
         
         if cache_last_channel is not None:
             cache_last_channel_next = []
-        
-
         x = self.ngpt(x, block_mask, cache_last_channel=cache_last_channel, offset=border)
         
-        #x = x.transpose(1, 2)
 
         if cache_last_channel is not None:
         
@@ -533,41 +538,31 @@ class NGPTEncoder(NeuralModule,StreamingEncoder, Exportable, AccessMixin):
         self.ngpt.normalize_matrices()
 
 
-def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
-    # Ensure q and k have correct positional embeddings
-    sin_q, cos_q = sinusoidal_pos[-q.shape[2]:].chunk(2, dim=-1)  # Select for q length
-    sin_k, cos_k = sinusoidal_pos[-k.shape[2]:].chunk(2, dim=-1)  # Select for k length
+# def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
+#     # Ensure q and k have correct positional embeddings
+#     sin_q, cos_q = sinusoidal_pos[-q.shape[2]:].chunk(2, dim=-1)  # Select for q length
+#     sin_k, cos_k = sinusoidal_pos[-k.shape[2]:].chunk(2, dim=-1)  # Select for k length
 
-    # Apply rotary embeddings
-    def apply_rotary(q, sin, cos):
-        q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
-        q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-        return torch.reshape(q_rot, q.shape)
+#     # Apply rotary embeddings
+#     def apply_rotary(q, sin, cos):
+#         q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
+#         q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
+#         return torch.reshape(q_rot, q.shape)
 
-    q_rot = apply_rotary(q, sin_q, cos_q)
-    k_rot = apply_rotary(k, sin_k, cos_k)
+#     q_rot = apply_rotary(q, sin_q, cos_q)
+#     k_rot = apply_rotary(k, sin_k, cos_k)
 
-    return q_rot.to(q.dtype), k_rot.to(k.dtype)
-
-
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
+#     return q_rot.to(q.dtype), k_rot.to(k.dtype)
 
 
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
+# def get_sinusoidal_embeddings(n_positions, dim, device):
+#     """Generate sinusoidal positional embeddings."""
+#     position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
+#     div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
+#     sinusoidal_emb = torch.empty((n_positions, dim), device=device)
+#     sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
+#     sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
+#     return sinusoidal_emb
 
 
 def justnorm(x, fp32: bool = False, idim: int = -1,eps: float = 1e-10):
@@ -596,11 +591,11 @@ class Block(nn.Module):
         self.query = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.value = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.att_c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
-
+        self.rotary_emb = RotaryEmbedding(dim =config.n_embd // config.n_head)
         self.c_fc = nn.Linear(config.n_embd, 2 * 4 * config.n_embd, bias=config.bias)
         self.silu = nn.SiLU()
         self.mlp_c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
-
+        self.offset = 0
         if config.use_nGPT == 0:
             self.rmsnorm_att = RMSNorm(config.n_embd)
             self.rmsnorm_mlp = RMSNorm(config.n_embd)
@@ -628,30 +623,40 @@ class Block(nn.Module):
                 self.suv_init_scaling * torch.ones(2 * 4 * config.n_embd, dtype=torch.float32)
             )
 
-    def forward(self, h, block_mask=None,cache_last_channel=None, pad_mask=None, offset=None):
+
+    def forward(self, h, block_mask=None,cache_last_channel=None, offset=None):
         B, T, C = h.size()
         key, value, query, cache = self.update_cache(key=h,value=h,query=h,cache=cache_last_channel)
 
        # hin = h
        # if self.config.use_nGPT == 0:
        #     q = k = v = self.rmsnorm_att(h)
-
+        
         q = self.query(query)
         k = self.key(key)
         v = self.value(value)
-        #using to ignor part of the cache that is all zeros 
+        #using to ignore part of the cache that is all zeros 
         if offset:
             k  = k[:, offset:, :]
             v = v[:, offset:, :]
+        if offset == 0:
+            self.offset += 14
 
         q = q.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        k = k.view(B, k.shape[1], self.config.n_head, self.config.n_embd // self.config.n_head)
-        
+        k = k.view(B, k.shape[1], self.config.n_head, self.config.n_embd // self.config.n_head)   
         v = v.view(B, k.shape[1], self.config.n_head, self.config.n_embd // self.config.n_head)
-        sinusoidal_pos = get_sinusoidal_embeddings(k.shape[1], self.config.n_embd // self.config.n_head, device=q.device)
-        q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
+
+        
+        q = q.transpose(2, 1)
+        k = k.transpose(2, 1)
 
 
+        if offset is None:
+            q = self.rotary_emb.rotate_queries_or_keys(q)
+            k = self.rotary_emb.rotate_queries_or_keys(k)
+        else:
+            q = self.rotary_emb.rotate_queries_or_keys(q, offset=k.shape[2] - q.shape[2] + self.offset)
+            k = self.rotary_emb.rotate_queries_or_keys(k, offset=self.offset)
         q = q.transpose(2, 1)
         k = k.transpose(2, 1)
 
@@ -661,7 +666,6 @@ class Block(nn.Module):
             )
             q = sqk * justnorm(q)
             k = sqk * justnorm(k)
-
         sqrt_head_dim = (self.config.n_embd / self.config.n_head) ** 0.5
         if self.config.use_nGPT == 0:
             softmax_scale = 1.0 / sqrt_head_dim
@@ -690,9 +694,9 @@ class Block(nn.Module):
                 block_mask=block_mask,
                 scale=softmax_scale,
             )
-
         y = y.to(dtype=q.dtype)
-        y = y.contiguous().view(B, T, self.config.n_embd)
+        
+        y = y.transpose(1, 2).contiguous().view(B, T, self.config.n_embd)
 
         h_att = self.att_c_proj(y)
 
@@ -829,7 +833,6 @@ class GPT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.config.base_scale)
 
     def forward(self, x, block_mask=None, pad_mask=None, cache_last_channel=None, offset=None):
-
             
         cache_last_channel_next = []
         audio_signal = x
@@ -839,7 +842,6 @@ class GPT(nn.Module):
                 cache_last_channel_cur = cache_last_channel[idx]
             else:
                 cache_last_channel_cur = None
-
             x = block(
                 audio_signal, 
                 block_mask=block_mask,
@@ -847,13 +849,11 @@ class GPT(nn.Module):
                 cache_last_channel=cache_last_channel_cur,
                 offset=offset
                 )
-            
             if cache_last_channel_cur is not None:
                 (audio_signal, cache_last_channel_cur, _) = x
                 cache_last_channel_next.append(cache_last_channel_cur)
             else:
                 audio_signal = x
-
         # if self.config.use_nGPT == 0:
         #     x = self.rmsnorm_f(x)
         if cache_last_channel is not None:
@@ -989,9 +989,13 @@ class NGPTStackingSubsampling(torch.nn.Module):
 
     def forward(self, x, lengths):
         b, t, h = x.size()
-        pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
-        lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
+        # To consider correct pad_size in a batch for lengths
+        sample_pad_sizes = []
+        remainder = lengths % self.subsampling_factor
+        sample_pad_sizes = (self.subsampling_factor - remainder) % self.subsampling_factor
 
+        pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
+        lengths = torch.div(lengths + sample_pad_sizes, self.subsampling_factor, rounding_mode='floor')
         # Pad and fill padding frames (all-zero) with a learnable padding 'embedding'
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
         x[(x == 0).all(dim=-1)] = self.pad_frame
@@ -1001,5 +1005,4 @@ class NGPTStackingSubsampling(torch.nn.Module):
         x = justnorm(x)
         x = self.proj_out(x)
         x = justnorm(x)
-
         return x, lengths
