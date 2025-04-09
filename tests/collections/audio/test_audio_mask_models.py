@@ -109,7 +109,7 @@ def mask_model_flexarray():
         'num_subbands': encoder['fft_length'] // 2 + 1,
         'num_blocks': 3,
         'channel_reduction_position': 3,
-        'channel_reduction_type': 'average', 
+        'channel_reduction_type': 'average',
         'channel_block_type': 'transform_average_concatenate',
         'temporal_block_type': 'conformer_encoder',
         'temporal_block_num_layers': 5,
@@ -170,7 +170,7 @@ def bf_model_flexarray(mask_model_flexarray):
     }
 
     model = EncMaskDecAudioToAudioModel(cfg=model_config)
- 
+
     return model
 
 
@@ -289,7 +289,6 @@ class TestMaskModelFlexArray:
         assert diff <= abs_tol
 
 
-
 class TestBFModelFlexArray:
     """Test beamforming model with channel-flexible mask estimator."""
 
@@ -349,4 +348,3 @@ class TestBFModelFlexArray:
 
         diff = torch.max(torch.abs(output_instance - output_batch))
         assert diff <= abs_tol
-
