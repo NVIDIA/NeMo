@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import TYPE_CHECKING, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import torch
 from einops import rearrange
@@ -32,9 +32,6 @@ try:
     )
 except ImportError:
     flash_decode_and_prefill_kernel = None
-
-if TYPE_CHECKING:
-    from nemo.collections.llm.gpt.model.llama import Llama4Config
 
 
 def chunkify_cu_seqlens(cu_seqlens, cu_seqlens_padded, attention_chunk_size):
@@ -121,7 +118,7 @@ def chunkify(x, attention_chunk_size):
     return x
 
 
-def get_llama4_layer_spec(config: "Llama4Config") -> ModuleSpec:
+def get_llama4_layer_spec(config) -> ModuleSpec:
     """Get llama4 layer spec"""
 
     from megatron.core.transformer.enums import AttnMaskType
@@ -267,6 +264,8 @@ class Llama4SelfAttention(MCoreSelfAttention):
             sequence_len_offset,
         )
 
+        original_shape = None
+        original_packed_seq_params = None
         if packed_seq_params is not None:
             query = query.squeeze(1)
             key = key.squeeze(1)
