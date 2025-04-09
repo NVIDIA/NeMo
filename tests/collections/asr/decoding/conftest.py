@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from pathlib import Path
+
 import pytest
+
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+
 
 @pytest.fixture(scope="session")
 def an4_val_manifest_corrected(tmp_path_factory, test_data_dir):
