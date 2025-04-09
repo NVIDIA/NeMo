@@ -287,10 +287,8 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                 output_infer = {"sentences": cast_output(output["sentences"], np.bytes_)}
 
                 if "scores" in output.keys():
-                    output_scores = []  ## will have 2 np arrays if 2 prompts are sent
+                    output_scores = []
                     for r in output["scores"]:
-                        # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
-                        # to cpu otherwise
                         lp = torch.tensor(r).cpu().detach().numpy()
                         if len(lp) == 0:
                             output_scores.append([0])
@@ -299,10 +297,8 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                     output_infer["scores"] = np.array(output_scores)
 
                 if "logits" in output.keys():
-                    output_logits = []  ## will have 2 np arrays if 2 prompts are sent
+                    output_logits = []
                     for r in output["logits"]:
-                        # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
-                        # to cpu otherwise
                         lp = torch.tensor(r).cpu().detach().numpy()
                         if len(lp) == 0:
                             output_logits.append([0])
