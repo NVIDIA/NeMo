@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Tuple, Union, Optional
+from typing import Optional, Tuple, Union
 
 import torch
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.inference.contexts import BaseInferenceContext
-from megatron.core.models.common.embeddings.rope_utils import (
-    apply_rotary_pos_emb,
-)
+from megatron.core.models.common.embeddings.rope_utils import apply_rotary_pos_emb
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention as MCoreSelfAttention
@@ -70,8 +68,7 @@ def chunkify(x, attention_chunk_size):
     # If padding is needed, create a pad tensor with the same type and device as x.
     if pad_seq_len != seq_length:
         pad_size = pad_seq_len - seq_length
-        pad_tensor = torch.zeros(pad_size, *x.shape[1:],
-                                 device=x.device, dtype=x.dtype)
+        pad_tensor = torch.zeros(pad_size, *x.shape[1:], device=x.device, dtype=x.dtype)
         x = torch.cat([x, pad_tensor], dim=0)
 
     # Compute the number of chunks (each of length attention_chunk_size)
@@ -114,7 +111,7 @@ def get_llama4_layer_spec(config: "Llama4Config") -> ModuleSpec:
         updated_layer_spec.submodules.self_attention.params = {
             'is_nope_layer': is_nope_layer,
             'attention_chunk_size': config.attention_chunk_size,
-            "attn_mask_type": AttnMaskType.causal
+            "attn_mask_type": AttnMaskType.causal,
         }
         if config.qk_l2_norm and not is_nope_layer:
             # Use QK Norm
@@ -138,19 +135,19 @@ class Llama4SelfAttention(MCoreSelfAttention):
         super(Llama4SelfAttention, self).__init__(*args, **kwargs)
 
     def forward(
-            self,
-            hidden_states: Tensor,
-            attention_mask: Tensor,
-            key_value_states: Optional[Tensor] = None,
-            inference_context: Optional[BaseInferenceContext] = None,
-            rotary_pos_emb: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
-            rotary_pos_cos: Optional[Tensor] = None,
-            rotary_pos_sin: Optional[Tensor] = None,
-            attention_bias: Optional[Tensor] = None,
-            packed_seq_params: Optional[PackedSeqParams] = None,
-            sequence_len_offset: Optional[int] = None,
-            *,
-            inference_params: Optional[BaseInferenceContext] = None,
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        key_value_states: Optional[Tensor] = None,
+        inference_context: Optional[BaseInferenceContext] = None,
+        rotary_pos_emb: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
+        rotary_pos_cos: Optional[Tensor] = None,
+        rotary_pos_sin: Optional[Tensor] = None,
+        attention_bias: Optional[Tensor] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
+        sequence_len_offset: Optional[int] = None,
+        *,
+        inference_params: Optional[BaseInferenceContext] = None,
     ) -> Tuple[Tensor, Tensor]:
         """
         Perform a forward pass through the attention module.
@@ -179,7 +176,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
 
         if inference_context and inference_context.is_dynamic_batching():
             assert (
-                    flash_decode_and_prefill_kernel is not None
+                flash_decode_and_prefill_kernel is not None
             ), "Internal use only: install package `nvidia_chunked_flash_attn`."
 
         # hidden_states: [sq, b, h]
@@ -206,16 +203,14 @@ class Llama4SelfAttention(MCoreSelfAttention):
         # This branch only runs in the decode phase of flash decoding and returns after the linear
         # projection. This conditional is not used in the prefill phase or non-flash-decoding cases.
         if (
-                self.config.flash_decode
-                and inference_context is not None
-                and inference_context.decode_mode
-                and not self.training
+            self.config.flash_decode
+            and inference_context is not None
+            and inference_context.decode_mode
+            and not self.training
         ):
             assert self.layer_number in inference_context.key_value_memory_dict
             assert inference_context.sequence_len_offset is not None
-            inference_key_memory, inference_value_memory = inference_context.key_value_memory_dict[
-                self.layer_number
-            ]
+            inference_key_memory, inference_value_memory = inference_context.key_value_memory_dict[self.layer_number]
             output = self.flash_decode(
                 sequence_len_offset=sequence_len_offset,
                 query_layer=query,
@@ -270,11 +265,10 @@ class Llama4SelfAttention(MCoreSelfAttention):
                 query = chunkify(query, self.attention_chunk_size)
                 key = chunkify(key, self.attention_chunk_size)
                 value = chunkify(value, self.attention_chunk_size)
-                rotary_pos_emb = rotary_pos_emb[:self.attention_chunk_size] if rotary_pos_emb is not None else None
+                rotary_pos_emb = rotary_pos_emb[: self.attention_chunk_size] if rotary_pos_emb is not None else None
 
         if parallel_state.get_context_parallel_world_size() > 1:
-            assert original_seq_len % (
-                    parallel_state.get_context_parallel_world_size() * 2) == 0
+            assert original_seq_len % (parallel_state.get_context_parallel_world_size() * 2) == 0
             cp_chunk_len = original_seq_len // (parallel_state.get_context_parallel_world_size() * 2)
             assert cp_chunk_len % self.attention_chunk_size == 0 or self.attention_chunk_size % cp_chunk_len == 0
 
@@ -299,17 +293,11 @@ class Llama4SelfAttention(MCoreSelfAttention):
             if q_pos_emb is not None:
                 # TODO VIJAY: simplify
                 if inference_context is None or inference_context.is_static_batching():
-                    query = apply_rotary_pos_emb(
-                        query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q
-                    )
+                    query = apply_rotary_pos_emb(query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q)
                 else:
-                    query = inference_context.apply_rotary_emb_query(
-                        query, q_pos_emb, self.config, cu_seqlens_q
-                    )
+                    query = inference_context.apply_rotary_emb_query(query, q_pos_emb, self.config, cu_seqlens_q)
             if k_pos_emb is not None:
-                key = apply_rotary_pos_emb(
-                    key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv
-                )
+                key = apply_rotary_pos_emb(key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv)
 
             # TODO, can apply positional embedding to value_layer so it has
             # absolute positional embedding.
