@@ -25,7 +25,6 @@ from nemo.utils import flops_formulas, logging
 from nemo.utils.hyena_flops_formulas import hyena
 
 
-
 __all__ = ["FLOPsMeasurementCallback", "MM_FLOPsMeasurementCallback"]
 
 _model_flops_map = {
@@ -96,6 +95,7 @@ class FLOPsMeasurementCallback(Callback):
         }
 
         from megatron.core.transformer.transformer_config import MLATransformerConfig
+
         if isinstance(self.model_cfg, MLATransformerConfig):
             config_kwargs["qk_head_dim"] = self.model_cfg.qk_head_dim
             config_kwargs["qk_pos_emb_head_dim"] = self.model_cfg.qk_pos_emb_head_dim
