@@ -15,8 +15,9 @@
 import pytest
 import torch
 
+from nemo.collections.llm.perceiver.model.perceiver_layer import PerceiverConfig, PerceiverLayer, perceiver_layer_spec
 from tests.collections.llm.perceiver.megatron_parallel_state_utils import distributed_model_parallel_state
-from nemo.collections.llm.perceiver.model.perceiver_layer import PerceiverLayer, PerceiverConfig, perceiver_layer_spec
+
 
 @pytest.fixture
 def perceiver_config():

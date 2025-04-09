@@ -33,25 +33,16 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.utils import make_viewless_tensor
-from megatron.core.transformer.attention import SelfAttention, CrossAttention
-from megatron.core.transformer.attention import SelfAttentionSubmodules, CrossAttentionSubmodules
-from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.extensions.transformer_engine import (
-    TENorm,
-    TERowParallelLinear,
-    TEDotProductAttention,
-    TEColumnParallelLinear,
-)
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.utils import make_viewless_tensor
+
 
 @dataclass
 class PerceiverConfig(TransformerConfig):
     """Configuration class for Perceiver architecture.
 
     Extends TransformerConfig with Perceiver-specific parameters.
-    
+
     Attributes:
         num_latents (int): Number of latent vectors in the latent array.
         num_self_attention_per_cross_attention (int): Number of self-attention heads per cross-attention head.
@@ -59,6 +50,7 @@ class PerceiverConfig(TransformerConfig):
 
     num_latents: int = 1
     num_self_attention_per_cross_attention: int = 1
+
 
 @dataclass
 class PerceiverLayerSubmodules:
@@ -73,19 +65,21 @@ class PerceiverLayerSubmodules:
         self_attn_bda (Union[ModuleSpec, type]): Bias-dropout-add fusion for self-attention outputs.
         final_layernorm (Union[ModuleSpec, type]): Layer normalization applied to final latent states.
     """
+
     cross_attention: Union[ModuleSpec, type] = IdentityOp
     cross_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
-    
+
     self_attention: Union[ModuleSpec, type] = IdentityOp
     self_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
 
     final_layernorm: Union[ModuleSpec, type] = IdentityOp
 
+
 class PerceiverLayer(MegatronModule):
     """A single layer in the Perceiver architecture.
 
     The Perceiver layer processes input sequences through cross-attention followed by
-    multiple self-attention layers on a latent array. This allows the model to handle 
+    multiple self-attention layers on a latent array. This allows the model to handle
     arbitrary input sequences by projecting them into a fixed-size latent space.
 
     Args:
@@ -112,20 +106,19 @@ class PerceiverLayer(MegatronModule):
 
         self.submodules_config = submodules
         self.layer_number = layer_number
-        
+
         self.input_cross_attention = build_module(
             submodules.cross_attention, config=self.config, layer_number=layer_number
         )
 
         self.input_cross_attn_bda = build_module(submodules.cross_attn_bda)
 
-        self.self_attention_layers = torch.nn.ModuleList([
-            build_module(
-                submodules.self_attention,
-                config=self.config,
-                layer_number=layer_number
-            ) for _ in range(self.config.num_self_attention_per_cross_attention)
-        ])
+        self.self_attention_layers = torch.nn.ModuleList(
+            [
+                build_module(submodules.self_attention, config=self.config, layer_number=layer_number)
+                for _ in range(self.config.num_self_attention_per_cross_attention)
+            ]
+        )
 
         # Final LayerNorm on the latent array
         self.final_layernorm = build_module(
@@ -141,7 +134,7 @@ class PerceiverLayer(MegatronModule):
         input_sequence: torch.Tensor,
         cross_attention_masks: torch.Tensor = None,
         self_attention_mask: torch.Tensor = None,
-        inference_params = None,
+        inference_params=None,
     ):
         """Forward pass through a Perceiver layer.
 
@@ -180,11 +173,7 @@ class PerceiverLayer(MegatronModule):
 
         latent_states = self.final_layernorm(latent_states[0])
 
-        output = make_viewless_tensor(
-            inp=latent_states,
-            requires_grad=latent_states.requires_grad,
-            keep_graph=True
-        )
+        output = make_viewless_tensor(inp=latent_states, requires_grad=latent_states.requires_grad, keep_graph=True)
 
         return output
 
@@ -214,8 +203,6 @@ perceiver_layer_spec = ModuleSpec(
             ),
         ),
         self_attn_bda=get_bias_dropout_add,
-        final_layernorm=ModuleSpec(
-            module=TENorm
-        ),
-    )
+        final_layernorm=ModuleSpec(module=TENorm),
+    ),
 )
