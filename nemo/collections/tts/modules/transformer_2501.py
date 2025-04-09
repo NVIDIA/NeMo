@@ -227,11 +227,16 @@ class Attention(torch.nn.Module):
 
         # attn_prior or square mask or vanilla attention
         if attn_prior is not None:
-            eps = self.prior_eps
+            eps = 1e-8
             attn_prior = attn_prior[:, :T]  # trim for inference
-            attn_prior = torch.log(attn_prior + eps)
-            attn_prior = attn_prior[:, None].repeat(1, self.n_heads, 1, 1)
-            attn_score_log = F.log_softmax(attn_score, dim=-1) + attn_prior
+            attn_prior = attn_prior[:, None]
+            attn_prior_log = torch.log(attn_prior + eps)
+            attn_score_log = F.log_softmax(attn_score, dim=-1) + attn_prior_log
+            if self.make_prior_window_strict:
+                # Make sure attention scores are lowest (eps) where prior is zero.
+                min_score = torch.log(torch.tensor(eps)).to(attn_score_log.device)
+                attn_score_log = attn_score_log.masked_fill(attn_prior == 0, min_score) # Wherever prior is zero, set scores to eps.
+                attn_score_log = torch.clamp(attn_score_log, min=min_score) # Make sure scores are not less than eps.
             attn_prob = F.softmax(attn_score_log, dim=-1)
         else:
             attn_prob = F.softmax(attn_score, dim=-1)
@@ -344,7 +349,7 @@ class CrossAttention(Attention):
         d_model: int,
         d_memory: int,
         p_dropout: float,
-        prior_eps: float = 1e-8,
+        make_prior_window_strict: bool = False,
     ):
         """
         Implements CrossAttention. See parent class for forward implementation. Must be non-causal.
@@ -354,6 +359,7 @@ class CrossAttention(Attention):
             d_model (int): Dimension of the model.
             d_memory (int): Dimension of the conditioning / cross-attention input.
             p_dropout (float): Dropout probability.
+            make_prior_window_strict (bool): Make attention scores lowest where prior is zero.
         """
         super().__init__(
             n_heads=n_heads,
@@ -365,7 +371,7 @@ class CrossAttention(Attention):
             raise ValueError("d_memory must be provided for cross-attention")
         self.q_net = torch.nn.Linear(d_model, n_heads * self.d_head, bias=False)
         self.kv_net = torch.nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
-        self.prior_eps = prior_eps
+        self.make_prior_window_strict = make_prior_window_strict
 
     def compute_qkv_and_mask(
         self,
@@ -412,7 +418,7 @@ class TransformerLayer(torch.nn.Module):
         apply_norm_to_cond: bool = True,
         max_length_causal_mask: int = 4096,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
-        prior_eps: float = 1e-8,
+        make_prior_window_strict: bool = False,
     ):
         """
         One layer of the Transformer.
@@ -429,6 +435,7 @@ class TransformerLayer(torch.nn.Module):
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <Callable>: Convolution non-linearity
+            make_prior_window_strict <bool>: Make attention scores lowest where prior is zero.
         """
         super().__init__()
         self.has_xattn = has_xattn
@@ -450,7 +457,7 @@ class TransformerLayer(torch.nn.Module):
                 d_model=d_model,
                 d_memory=xa_d_memory,
                 p_dropout=p_dropout,
-                prior_eps=prior_eps,
+                make_prior_window_strict=make_prior_window_strict,
             )
 
             if self.apply_norm_to_cond:
@@ -556,7 +563,7 @@ class Transformer(torch.nn.Module):
         max_length_causal_mask: int = 4096,
         use_learnable_pos_emb: bool = False,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
-        prior_eps: float = 1e-8,
+        make_prior_window_strict: bool = False,
     ):
         """
         Initializes a stack of transformer layers. Can be used for both encoder and decoder.
@@ -579,6 +586,7 @@ class Transformer(torch.nn.Module):
             max_length_causal_mask <int>: Maximum length of causal mask
             use_learnable_pos_emb <bool>: Whether to add a learnable positionable embedding inside the class
             conv_non_linearity <Callable>: Convolution non-linearity
+            make_prior_window_strict <bool>: Make attention scores lowest where prior is zero
         """
         if has_xattn and (xa_d_memory is None or xa_n_heads is None):
             raise ValueError("It requires that `xa_d_memory` and `xa_n_heads` are specified when `has_xattn` is True!")
@@ -614,7 +622,7 @@ class Transformer(torch.nn.Module):
                     apply_norm_to_cond=apply_norm_to_cond,
                     max_length_causal_mask=max_length_causal_mask,
                     conv_non_linearity=conv_non_linearity,
-                    prior_eps=prior_eps,
+                    make_prior_window_strict=make_prior_window_strict,
                 )
             )
 

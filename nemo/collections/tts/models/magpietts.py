@@ -284,37 +284,39 @@ class MagpieTTSModel(ModelPT):
             raise ValueError(f"Received audio_type of {audio_type}. Must be `target` or `context`")
 
         self._codec_model.eval()
-        with torch.no_grad():
-            codes, codes_len = self._codec_model.encode(audio=audio, audio_len=audio_len)
-            # Add a timestep to beginning and end of codes tensor
-            bos_tensor = torch.full(
-                (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
-            )
-            pad_tensor = torch.full(
-                (codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device
-            )  # 0 is the padding token in the audio codebook
-            codes = torch.cat([bos_tensor, codes, pad_tensor], dim=-1)
-            # codes: (B, C, T')
-            # codes_len: (B,)
-            for idx in range(codes.size(0)):
-                codes[idx, :, codes_len[idx] + 1] = audio_eos_id
-            codes_len = codes_len + 2
+        with torch.cuda.amp.autocast(enabled=False):
+            with torch.no_grad():
+                codes, codes_len = self._codec_model.encode(audio=audio, audio_len=audio_len)
+                # Add a timestep to begining and end of codes tensor
+                bos_tensor = torch.full(
+                    (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
+                )
+                pad_tensor = torch.full(
+                    (codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device
+                )  # 0 is the padding token in the audio codebook
+                codes = torch.cat([bos_tensor, codes, pad_tensor], dim=-1)
+                # codes: (B, C, T')
+                # codes_len: (B,)
+                for idx in range(codes.size(0)):
+                    codes[idx, :, codes_len[idx] + 1] = audio_eos_id
+                codes_len = codes_len + 2
 
-            return codes.long(), codes_len.long()
+                return codes.long(), codes_len.long()
 
     def codes_to_audio(self, codes, codes_len):
         # codes: (B, C, T')
         # codes_len: (B,)
         self._codec_model.eval()
-        with torch.no_grad():
-            # Replace eos and bos tokens with padding in codes tensor
-            codes[codes == self.audio_bos_id] = 0  # zero is the padding token in the audio codebook
-            codes[codes == self.audio_eos_id] = 0
-            # self.additional_models['codec'] = self.additional_models['codec'].to(codes.device)
-            audio, audio_len = self._codec_model.decode(tokens=codes, tokens_len=codes_len)
-            # audio: (B, T)
-            # audio_len: (B,)
-            return audio, audio_len
+        with torch.cuda.amp.autocast(enabled=False):
+            with torch.no_grad():
+                # Replace eos and bos tokens with padding in codes tensor
+                codes[codes == self.audio_bos_id] = 0  # zero is the padding token in the audio codebook
+                codes[codes == self.audio_eos_id] = 0
+                # self.additional_models['codec'] = self.additional_models['codec'].to(codes.device)
+                audio, audio_len = self._codec_model.decode(tokens=codes, tokens_len=codes_len)
+                # audio: (B, T)
+                # audio_len: (B,)
+                return audio, audio_len
 
     def embed_audio_tokens(self, audio_tokens):
         # audio_tokens: (B, C, T')

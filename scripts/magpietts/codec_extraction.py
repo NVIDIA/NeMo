@@ -86,8 +86,9 @@ class CodecExtractor(pl.LightningModule):
         self.codec_model.eval()
 
     def forward(self, batch):
-        with torch.no_grad():
-            codes, codes_lengths = self.codec_model.encode(audio=batch["audios"], audio_len=batch["audio_lengths"])
+        with torch.cuda.amp.autocast(enabled=False):
+            with torch.no_grad():
+                codes, codes_lengths = self.codec_model.encode(audio=batch["audios"], audio_len=batch["audio_lengths"])
         return codes, codes_lengths
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
