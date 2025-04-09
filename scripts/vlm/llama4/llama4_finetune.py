@@ -34,6 +34,8 @@ from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommO
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoder as Llama4TaskEncoder, TaskEncoderConfig as Llama4TaskEncoderConfig
+from nemo.collections.vlm.data.data_module import EnergonDataModule
 
 
 def main(args):
@@ -68,7 +70,22 @@ def main(args):
     if args.data_type == "llava":
         raise NotImplementedError
     elif args.data_type == "energon":
-        raise NotImplementedError("Energon data not yet implemented.")
+        
+        model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+        
+        task_encoder = Llama4TaskEncoder(
+            config=Llama4TaskEncoderConfig(
+               hf_path=model_id,
+            )
+        )
+        data = EnergonDataModule(
+            path=args.data_path,
+            train_encoder=task_encoder,
+            seq_length=decoder_seq_length,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            num_workers=23,
+        )
     elif args.data_type == "mock":
         llama_tokenizer = AutoTokenizer("/path/to/llama4_hf_checkpoint")
 

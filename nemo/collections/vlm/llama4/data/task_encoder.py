@@ -12,97 +12,204 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
-from typing import Dict, List
-
+from dataclasses import dataclass
+from typing import Optional
 import torch
 import torch.nn.functional as F
-from megatron.energon import VQASample, batch_list, batch_pad_stack
-from torch.nn.utils.rnn import pad_sequence
-
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.collections.vlm.mllama.data.sample_encoder import Llama3SampleEncoder, LlamaImageTextSample
-
-
-def pad_or_truncate(sequence_batch, seq_length: int, padding_value: int):
-    # Pad the sequence if it's shorter than seq_length
-    if sequence_batch.size(1) < seq_length:
-        pad_size = seq_length - sequence_batch.size(1)
-        sequence_batch = F.pad(sequence_batch, (0, pad_size), value=padding_value)
-    else:
-        # Truncate the sequence if it's longer than seq_length
-        sequence_batch = sequence_batch[:, :seq_length]
-
-    return sequence_batch
-
+from megatron.energon import (VQASample)
+from nemo.collections.vlm.data.task_encoder import DataBatch, TaskEncoder as BaseTaskEncoder
+from nemo.collections.vlm.data.task_encoder import DataSample
+from nemo.collections.vlm.data.task_encoder import TaskEncoderConfig as BaseTaskEncoderConfig
 
 @dataclass
-class LlamaImageTextRawBatch:
-    __keys__: List[str] = field(default_factory=list)
+class TaskEncoderConfig(BaseTaskEncoderConfig):
+    """Configuration for llama4 processing.
+    
+    This class consolidates all configuration needed for llama4 processing,
+    including model paths, tokenization, image processing, and sequence packing parameters.
 
-    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-
-    batch_images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    batch_masks: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-
-    aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    num_chunks: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    """
+    stop_string: Optional[str] = ""
+    system_prompt: Optional[str] = None
 
 
-class LlamaTaskEncoder(MultiModalTaskEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config, seq_length=None):
-        super().__init__(tokenizer, image_processor, multimodal_sample_config)
-        self.encoders: Dict[str, SampleEncoder] = {
-            VQASample.__name__: Llama3SampleEncoder(tokenizer, image_processor, multimodal_sample_config)
+    
+class TaskEncoder(BaseTaskEncoder):
+    """TaskEncoder for llama4 data processing.
+    
+    This class handles the processing of different types of llama4 samples,
+    including Visual Question Answering (VQA), Captioning, and Interleaved samples.
+    It provides functionality for encoding individual samples, batching them together,
+    and handling packed sequences for efficient processing.
+    
+    The encoder supports:
+    - VQA samples: Processing image-question pairs with corresponding answers
+    - [In progress] Interleaved samples: Processing alternating image and text content
+    - [In progress] Similarity interleaved samples: Processing image-text pairs for similarity tasks
+    - [In progress] Packed sequences: Efficient processing of multiple samples in a single sequence
+    
+    Args:
+        config (TaskEncoderConfig): Configuration object containing processing parameters
+        
+    Note:
+        When using packed sequences, the micro batch size must be 1, and the global batch
+        size and sequence length must be adjusted accordingly.
+    """
+
+    def __init__(self, config: TaskEncoderConfig):
+        """Initialize the llama4 processor.
+
+        Args:
+            config (TaskEncoderConfig): Configuration for processing
+        """
+        self.config = config
+        self.hf_processor = self.config.hf_processor
+        self.tokenizer = self.config.tokenizer
+        
+        # Initialize encoders with the config
+        self.encoders = {
+            "VQASample": self.encode_vqa_sample,
+            # "InterleavedSample": self.encode_interleaved_sample,
+            # "SimilarityInterleavedSample": self.encode_similarity_interleaved_sample,
         }
-        self.seq_length = seq_length
-        self.ignore_index = multimodal_sample_config.ignore_place_holder
+    def encode_batch(self, batch_data: DataBatch) -> dict:
+        """Encode a batched set of samples for model input.
 
-    def batch(self, samples: List[LlamaImageTextSample]) -> LlamaImageTextRawBatch:
+        This method transforms the raw batched data into a format ready for model input, including
+        generating position IDs and other necessary fields.
 
-        keys, images, tokens, labels, loss_mask, vision_mask = [], [], [], [], [], []
-        aspect_ratio_ids, aspect_ratio_mask, num_tiles = [], [], []
-        for sample in samples:
-            keys.append(sample.__key__)
-            images.append(sample.images)
-            tokens.append(sample.tokens)
-            labels.append(sample.labels)
-            loss_mask.append(sample.loss_mask)
-            vision_mask.append(sample.vision_mask)
-            aspect_ratio_ids.append(sample.aspect_ratio_ids)
-            aspect_ratio_mask.append(sample.aspect_ratio_mask)
-            num_tiles.append(sample.num_tiles)
+        Parameters:
+            batch_data (DataBatch): The raw batch of data to be encoded.
 
-        batch_keys = batch_list(keys)
-        batch_images = batch_pad_stack(images)
+        Returns:
+            dict: A dictionary containing the encoded batch data, ready for model input.
+        """
+        batch_data = super().encode_batch(batch_data)
+        batch_data["media"] = batch_data["media"].reshape(-1, *batch_data["media"].shape[2:])
+        return batch_data
 
-        batch_tokens = pad_sequence(tokens, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        batch_labels = pad_sequence(labels, batch_first=True, padding_value=self.ignore_index)
-        batch_loss_mask = batch_pad_stack(loss_mask)
-        if self.seq_length is not None:
-            seq_length = self.seq_length
+
+    def encode_vqa_sample(self, input_sample: VQASample) -> DataSample:
+        """Encode a VQA sample into a DataSample format.
+        
+        Args:
+            input_sample (VQASample): Input VQA sample containing image, context and answers
+            
+        Returns:
+            DataSample: Encoded sample with processed image, tokens, labels and loss mask
+        """
+        input_sample.context = input_sample.context.replace("<image>", self.config.image_token)
+        messages = []
+        if self.config.system_prompt:
+            messages.append({'role': 'system', 'content': self.config.system_prompt})
+
+        if isinstance(input_sample.context, list) and isinstance(input_sample.answers, list):
+            min_length = min(len(input_sample.context), len(input_sample.answers))
+            for i in range(min_length):
+                messages.append({'role': self.config.roles[0], 'content': input_sample.context[i]})
+                messages.append({'role': self.config.roles[1], 'content': input_sample.answers[i]})
         else:
-            seq_length = (batch_tokens.size(1) - 1) // 64 * 64 + 64
-        batch_tokens = pad_or_truncate(batch_tokens, seq_length, self.tokenizer.pad_token_id)
-        batch_labels = pad_or_truncate(batch_labels, seq_length, self.ignore_index)
-        batch_loss_mask = pad_or_truncate(batch_loss_mask, seq_length, 0)
-        assert batch_loss_mask.sum() > 0, "This batch has nothing to predict! Will trigger a nan loss."
-        batch_vision_mask = batch_pad_stack(vision_mask)
-        batch_aspect_ratio_ids = batch_pad_stack(aspect_ratio_ids)
-        batch_aspect_ratio_mask = batch_pad_stack(aspect_ratio_mask)
-        batch_num_tiles = torch.tensor(num_tiles)
-        return LlamaImageTextRawBatch(
-            __keys__=batch_keys,
-            batch_images=batch_images,
-            batch_masks=batch_vision_mask,
-            tokens=batch_tokens,
-            labels=batch_labels,
-            loss_mask=batch_loss_mask,
-            aspect_ratio_ids=batch_aspect_ratio_ids,
-            aspect_ratio_mask=batch_aspect_ratio_mask,
-            num_chunks=batch_num_tiles,
+            messages.append({'role': self.config.roles[0], 'content': input_sample.context})
+            messages.append({'role': self.config.roles[1], 'content': input_sample.answers})
+
+        
+        converted_messages = self.hf_processor.apply_chat_template(messages)
+        outputs = self.hf_processor(images=input_sample.image, text=converted_messages, return_tensors="pt")
+        answers = input_sample.answers if isinstance(input_sample.answers, list) else [input_sample.answers]
+        
+        # Get tokens and images from formatter output
+        tokens = outputs["input_ids"][0]
+        images = outputs["pixel_values"]
+        
+        # Compute labels
+        labels = torch.ones_like(tokens) * self.config.ignore_place_holder
+
+        search_start = 0
+        for answer in answers:
+            answer_tokens = self.tokenizer.tokenizer(answer + self.config.stop_string, add_special_tokens=False)
+            answer_tokens = answer_tokens["input_ids"]
+            # Find answer pattern in tokens
+            for i in range(search_start, len(tokens) - len(answer_tokens) + 1):
+                if torch.all(tokens[i:i + len(answer_tokens)] == torch.tensor(answer_tokens)):
+                    labels[i:i + len(answer_tokens)] = tokens[i:i + len(answer_tokens)]
+                    search_start = i + len(answer_tokens)
+                    break
+
+        # Prepare final tensors
+        tokens = tokens[:-1].contiguous()
+        labels = labels[1:].contiguous()
+
+        seq_len = len(tokens)
+        
+        # Pad tokens
+        if self.config.pad_to_multiple_of:
+            seqlen_padded = (seq_len + self.config.pad_to_multiple_of - 1) // self.config.pad_to_multiple_of * self.config.pad_to_multiple_of
+            pad_len = seqlen_padded - seq_len
+
+            if pad_len > 0:
+                tokens = F.pad(tokens, (0, pad_len), 'constant', 0)
+                labels = F.pad(labels, (0, pad_len), 'constant', self.config.ignore_place_holder)
+        
+        # Compute loss mask
+        loss_mask = torch.ones_like(labels, dtype=torch.float)
+        loss_mask[labels == self.config.ignore_place_holder] = 0.0
+
+        # Process images to match mock data format
+        if images is not None:
+            processed_images = []
+            for img in images:
+                processed_img = img.bfloat16()  # Convert to bfloat16 like in mock data
+                processed_images.append(processed_img)
+            processed_image = torch.stack(processed_images)
+        else:
+            processed_image = torch.empty(0)
+
+        return DataSample(
+            __key__=input_sample.__key__,
+            __restore_key__=input_sample.__restore_key__,
+            __subflavor__=input_sample.__subflavor__,
+            __subflavors__=input_sample.__subflavors__,
+            images=processed_image,
+            tokens=tokens,
+            labels=labels,
+            loss_mask=loss_mask,
+            seqlen=seq_len
         )
+
+if __name__ == '__main__':
+    import argparse
+    from megatron.energon import WorkerConfig, get_loader, get_train_dataset
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path', type=str, required=True, help='path to the dataset directory')
+    args = parser.parse_args()
+
+    model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+    
+    task_encoder = TaskEncoder(
+        config=TaskEncoderConfig(
+            hf_path=model_id,
+        )
+    )
+
+    # Create worker config
+    worker_config = WorkerConfig.default_worker_config(0)
+
+    # Create data loader
+    train_loader = get_loader(
+        get_train_dataset(
+            args.data_path,
+            batch_size=4,
+            shuffle_buffer_size=100,
+            max_samples_per_sequence=100,
+            task_encoder=task_encoder,
+            worker_config=worker_config,
+        ),
+        worker_config=worker_config,
+    )
+
+    print(f"data loader length {len(train_loader)}")
+    for index, each_batch in enumerate(train_loader):
+        print(f"batch index {index} tokens shape {each_batch['tokens'].shape}")
+        if index >= 2:  # Print first 3 batches
+            break 
