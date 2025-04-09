@@ -832,7 +832,7 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self.config.base_scale)
 
-    def forward(self, x, block_mask=None, pad_mask=None, cache_last_channel=None, offset=None):
+    def forward(self, x, block_mask=None, cache_last_channel=None, offset=None):
             
         cache_last_channel_next = []
         audio_signal = x
@@ -845,7 +845,6 @@ class GPT(nn.Module):
             x = block(
                 audio_signal, 
                 block_mask=block_mask,
-                pad_mask=pad_mask,
                 cache_last_channel=cache_last_channel_cur,
                 offset=offset
                 )
