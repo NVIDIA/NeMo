@@ -24,6 +24,7 @@ import torch.nn as nn
 from einops import rearrange
 from megatron.core.parallel_state import (
     get_context_parallel_group,
+    get_context_parallel_rank,
     get_context_parallel_world_size,
     get_tensor_model_parallel_world_size,
 )
@@ -34,10 +35,12 @@ from megatron.core.transformer.utils import sharded_state_dict_default
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
+    ExchangeOverlappingRegionsCausal,
     ParallelCausalDepthwiseConv1d,
     ParallelHyenaOperator,
     ParallelShortHyenaOperator,
     divide,
+    zigzag_get_overlapping_patches,
 )
 
 
@@ -193,8 +196,9 @@ class HyenaMixer(MegatronModule):
                         # Store references to the modules, not their weights
                         self._proj_conv_module = proj_conv_module
                         self._short_conv_module = short_conv_module
+                        self.pad_size = max(self._short_conv_module.kernel_size, self._proj_conv_module.kernel_size) - 1
 
-                    def forward(self, x):
+                    def forward(self, x, _use_cp=True):
                         # Extract weights at runtime to avoid parameter registration
                         # and reshape them to the expected dimensions
                         proj_weight = self._proj_conv_module.short_conv_weight
@@ -217,7 +221,36 @@ class HyenaMixer(MegatronModule):
                         proj_weight = proj_weight.repeat_interleave(self._proj_conv_module.group_dim, dim=0)
                         short_weight = short_weight.repeat_interleave(self._short_conv_module.group_dim, dim=0)
 
-                        return self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+                        # Support context parallelism similar to how it's done in ParallelCausalDepthwiseConv1d
+                        if _use_cp and get_context_parallel_world_size() > 1:
+
+                            cp_group = get_context_parallel_group()
+                            cp_rank = get_context_parallel_rank()
+
+                            # Transfer patches across ranks
+                            seq_dim = 2  # Last dimension (L)
+
+                            # Get overlapping patches
+                            chunk_a, chunk_b = zigzag_get_overlapping_patches(x, seq_dim=seq_dim, overlap_size=self.pad_size)
+
+                            # Exchange regions
+                            received_a, received_b = ExchangeOverlappingRegionsCausal.apply(chunk_a, chunk_b, cp_group, cp_rank)
+
+                            # Pad and rearrange
+                            x = rearrange(x, "b h (nc s) -> (nc b) h s", nc=2)
+                            padding = torch.concat([received_a, received_b], dim=0)
+
+                            x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
+                            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+                            result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
+                        else:
+                            # Add proper causal padding for the non-CP case
+                            x = torch.nn.functional.pad(x, (self.pad_size, 0))
+
+                            # Call the CUDA kernel and remove the padding from result
+                            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+                            result = result[..., self.pad_size:]  # Remove padding from output
+                        return result
 
                 # Use the existing weights from the original model
                 self.b2b_kernel = B2BCausalConv1dModule(self.hyena_proj_conv, self.mixer.short_conv)
@@ -305,7 +338,7 @@ class HyenaMixer(MegatronModule):
 
         if self.use_b2b_causal_conv1d and self.operator_type == "hyena_short_conv":
             # Use the B2B mixer with the original weights
-            z = self.b2b_kernel(features)
+            z = self.b2b_kernel(features, _use_cp=_proj_use_cp)
         else:
             features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
             x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
