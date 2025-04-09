@@ -180,18 +180,20 @@ def test_loop_labels_cuda_graph_rnnt_ddp_mixed_precision(
 ):
     """Problems observed with CUDA graphs, DDP and mixed precision"""
     batch_size = 16
-    model_name = "nvidia/stt_en_fastconformer_transducer_large"
 
     # instantiate trainer with bf16 mixed precision
     trainer_cfg = TrainerConfig(devices=[0], accelerator="cuda", strategy="ddp", max_epochs=1, precision="bf16-mixed")
     trainer = ptl.Trainer(**DictConfig(trainer_cfg))
 
     model = stt_en_fastconformer_transducer_large
-    val_ds_cfg = model.cfg.validation_ds
 
+    # setup validation data
+    val_ds_cfg = model.cfg.validation_ds
     val_ds_cfg.manifest_filepath = str(an4_train_manifest_corrected)
     val_ds_cfg.batch_size = batch_size
     model.setup_multiple_validation_data(val_ds_cfg)
+
+    # validate using trainer
     val_results = trainer.validate(model)
     wer = val_results[0]["val_wer"]
     assert wer <= 0.1, f"WER is too high: {wer}"
