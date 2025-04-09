@@ -93,7 +93,7 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "neva_llama3", "8b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs, _, _, _ = kwargs
 
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
@@ -117,7 +117,13 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None)]
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
