@@ -15,6 +15,7 @@
 # WAR for trtllm and lightning conflict
 try:
     from nemo.lightning import io
+
     __all__ = ["io"]
     HAVE_NEMO2 = True
 except (ImportError, ModuleNotFoundError):
