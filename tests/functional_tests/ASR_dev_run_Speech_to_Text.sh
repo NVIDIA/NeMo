@@ -13,7 +13,7 @@
 # limitations under the License.
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=0
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/asr/asr_ctc/speech_to_text_ctc.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=1 --use-env examples/asr/asr_ctc/speech_to_text_ctc.py \
     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
     trainer.devices=1 \

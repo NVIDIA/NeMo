@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 export CUDA_VISIBLE_DEVICES=0
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=1 --use-env examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
     trainer.devices="[0]" \
     batch_size=3 \
     model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/eesd_train_tiny.json \

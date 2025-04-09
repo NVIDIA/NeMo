@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 export CUDA_VISIBLE_DEVICES=0
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/nlp/machine_translation/enc_dec_nmt.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=1 --use-env examples/nlp/machine_translation/enc_dec_nmt.py \
     --config-path=conf \
     --config-name=aayn_base \
     do_training=false \

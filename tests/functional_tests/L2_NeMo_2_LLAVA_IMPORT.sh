@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 export CUDA_VISIBLE_DEVICES=0
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=1 --use-env \
   scripts/vlm/import_hf.py --input_name_or_path="llava-hf/llava-1.5-7b-hf"

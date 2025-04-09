@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 export CUDA_VISIBLE_DEVICES=0
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/asr/speech_multitask/speech_to_text_aed.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=1 --use-env examples/asr/speech_multitask/speech_to_text_aed.py \
     model.prompt_format=canary \
     model.model_defaults.asr_enc_hidden=256 \
     model.model_defaults.lm_dec_hidden=256 \
