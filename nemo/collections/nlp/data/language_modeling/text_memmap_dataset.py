@@ -19,7 +19,7 @@ import os
 import pickle
 import time
 from functools import lru_cache, partial
-from typing import Callable, List, Optional, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List, Optional, Type
 
 import numpy as np
 import torch
@@ -36,7 +36,7 @@ except (ImportError, ModuleNotFoundError):
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-    
+
 __all__ = ["TextMemMapDataset", "CSVMemMapDataset", "build_index_files"]
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
@@ -236,7 +236,7 @@ class TextMemMapDataset(Dataset):
         return data
 
     def _fetch_sample_from_memmap(self, mdata, i, j):
-        """Fetchs the text sample. Can be overriden by child-classes to support loading of partial samples 
+        """Fetchs the text sample. Can be overriden by child-classes to support loading of partial samples
         and alternative decode methods"""
         # load text sample by slicing memmap data[i:j]
         text = mdata[i:j].tobytes().decode("utf-8")
@@ -645,7 +645,7 @@ class OnlineSampleMapping:
             cache_maxsize (int): Maximum size of the blocks cache for the get_sample_block function.
             seed (int): Seed for the random number generator used for shuffling.
             shuffle (bool): Whether to shuffle the samples.
-            truncate_to_block_boundary (bool): Whether to truncate the last block to the block boundary 
+            truncate_to_block_boundary (bool): Whether to truncate the last block to the block boundary
                                                (could drop samples).
         """
         self.dataset_size = dataset_size
@@ -700,10 +700,12 @@ class OnlineSampleMapping:
         self.get_sample_block = lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
 
     def __str__(self):
-        return (f"OnlineSampleMapping(dataset_size={self.dataset_size}, num_samples={self.num_samples}, "
-                f"block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, "
-                f"shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})")
-        
+        return (
+            f"OnlineSampleMapping(dataset_size={self.dataset_size}, num_samples={self.num_samples}, "
+            f"block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, "
+            f"shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})"
+        )
+
     def __getitem__(self, idx: int) -> int:
         # handle slices
         if isinstance(idx, slice):
