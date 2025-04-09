@@ -33,10 +33,8 @@ try:
 except ImportError:
     flash_decode_and_prefill_kernel = None
 
-from nemo.collections.llm import Llama4Config
-
 if TYPE_CHECKING:
-    from nemo.collections.llm import Llama4Config
+    from nemo.collections.llm.gpt.model.llama import Llama4Config
 
 def chunkify_cu_seqlens(cu_seqlens, cu_seqlens_padded, attention_chunk_size):
     """
