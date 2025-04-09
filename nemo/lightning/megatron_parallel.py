@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+
 import abc
 import collections.abc
 import functools
@@ -43,6 +46,7 @@ from typing import (
 
 import torch
 import torch.distributed
+from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
@@ -150,6 +154,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         vp_size (Optional[int]): Virtual pipeline parallel size.
         ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
             DistributedDataParallelConfig which controls the Megatron DDP configuration.
+        fsdp (Optional[str]): Whether model should run Torch FSDP2 instead of DDP, select from
+            ["megatron", "torch"]. Defaults to None.
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
@@ -184,11 +190,11 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
+        fsdp: Optional[str] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from megatron.core import parallel_state
-
         from nemo.utils.model_utils import unwrap_model
 
         _pipeline: List[nn.Module]
@@ -219,6 +225,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.forward_step = forward_step or default_forward_step
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
+        self.fsdp = fsdp
         self.convert_module_fn = convert_module_fn
 
         # [ModelOpt]: Detect Pipeline-parallel Distillation mode.
@@ -584,8 +591,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         for model_module in self:
-            if not self._cpu and (not HAVE_CUSTOM_FSDP or not self.ddp_config.use_custom_fsdp):
-                # If Megatron FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
+            if not self._cpu and (not HAVE_CUSTOM_FSDP or self.fsdp != "megatron"):
+                # If Megatron custom FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
                 model_module.cuda(torch.cuda.current_device())
 
             for param in model_module.parameters():
@@ -608,20 +615,28 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
                 msg = (
                     f" > number of parameters on (tensor, pipeline) model parallel rank "
-                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "  # pylint: disable=line-too-long
+                    f"({parallel_state.get_tensor_model_parallel_rank()} ,"
+                    f"{parallel_state.get_pipeline_model_parallel_rank()}): "
                     f"{num_params}"
                 )
                 logging.info(msg)
 
                 if num_params != num_trainable_params:
                     logging.info(
-                        " > number of trainable parameters: "
-                        f"{num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
+                        f" > number of trainable parameters: {num_trainable_params} "
+                        f"({num_trainable_params / num_params:.2%} of total)"
                     )
         if self.convert_module_fn:
             self.apply_convert_module_fn()
 
-        self.init_ddp()
+        # Skip init_ddp for inference i.e testing as it can lead to OOM.
+        try:
+            if not self.trainer.state.fn == TrainerFn.TESTING:
+                self.init_ddp()
+        except RuntimeError as e:
+            # Don't fail if trainer is not attached, re-raise any other RuntimeError
+            if not "is not attached to a `Trainer`" in str(e):
+                raise e
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
@@ -632,6 +647,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return
 
         from megatron.core import parallel_state
+        from megatron.core.transformer.module import Float16Module
+
+        from nemo.utils.model_utils import unwrap_model
 
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
@@ -649,15 +667,29 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
-                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp:
-                    FSDP = FullyShardedDataParallel
-                    dist_module = FSDP(
+                # Avoid rewrapping the module if it's already wrapped with FSDP
+                unwrapped_module = unwrap_model(module, Float16Module)
+                if (
+                    HAVE_CUSTOM_FSDP
+                    and self.fsdp == "megatron"
+                    and not isinstance(unwrapped_module, FullyShardedDataParallel)
+                ):
+                    if not module.config.use_custom_fsdp:
+                        from nemo.utils import logging
+
+                        module.config.use_custom_fsdp = True
+                        logging.warning("Setting module.config.use_custom_fsdp to True for MCore FSDP.")
+
+                    assert module.config.use_custom_fsdp, "Custom FSDP is not enabled in module.config."
+                    assert self.ddp_config.use_custom_fsdp, "Custom FSDP is not enabled in ddp_config."
+
+                    dist_module = FullyShardedDataParallel(
                         module.config,
                         self.ddp_config,
                         module,
                         disable_bucketing=disable_bucketing,
                     )
-                else:
+                elif not isinstance(unwrapped_module, DDP):
                     dist_module = DDP(
                         module.config,
                         self.ddp_config,
@@ -666,6 +698,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                         disable_bucketing=disable_bucketing,
                     )
+                else:
+                    dist_module = unwrapped_module
             model_chunk.module = dist_module
             model_chunk.buffers = (
                 dist_module.buffers
@@ -1721,7 +1755,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
 
     def forward(
         self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
-    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 ."""  # pylint: disable=line-too-long
         from megatron.core import parallel_state
 
@@ -1731,33 +1765,30 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         if isinstance(forward_out, tuple):
             forward_out, loss_mask = forward_out
             batch["loss_mask"] = loss_mask
+
         cp_size = parallel_state.get_context_parallel_world_size()
-        if cp_size == 1:
-            loss_for_ub = masked_token_loss(forward_out, batch["loss_mask"])
+        loss_sum_for_ub = masked_token_loss(forward_out, batch["loss_mask"], cp_size)
+        if cp_size == 1 or batch['num_valid_tokens_in_ub'] is None:
+            num_valid_tokens_in_ub = batch["loss_mask"].sum()
         else:
-            loss_for_ub = masked_token_loss_context_parallel(
-                forward_out, batch["loss_mask"], batch['num_valid_tokens_in_ub']
-            )
+            num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
+        if num_valid_tokens_in_ub < 0.5:  # no valid tokens
+            num_valid_tokens_in_ub += 1.0
+        num_valid_tokens_in_ub = num_valid_tokens_in_ub.clone().detach().to(torch.int)
 
         if self.validation_step and not self.val_drop_last:
-            num_valid_tokens_in_ub = batch["loss_mask"].sum()
-            if loss_for_ub.isnan():
-                assert batch["loss_mask"].count_nonzero() == 0, "Got NaN loss with non-empty input"
+            if loss_sum_for_ub.isnan():
+                assert num_valid_tokens_in_ub == 0, "Got NaN loss with non-empty input"
                 loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
-            else:
-                loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
 
             loss_sum_and_ub_size_all_gpu = torch.cat(
-                [
-                    loss_sum_for_ub.clone().detach().view(1),
-                    torch.tensor([num_valid_tokens_in_ub], device=torch.cuda.current_device()).clone().detach(),
-                ]
+                [loss_sum_for_ub.clone().detach().view(1), num_valid_tokens_in_ub]
             )
             torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group())
-            return loss_for_ub * cp_size, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
+            return loss_sum_for_ub, num_valid_tokens_in_ub, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
 
-        reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-        return loss_for_ub * cp_size, {"avg": reduced_loss}
+        reduced_loss = average_losses_across_data_parallel_group([loss_sum_for_ub / num_valid_tokens_in_ub])
+        return loss_sum_for_ub, num_valid_tokens_in_ub, {"avg": reduced_loss}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
@@ -1797,34 +1828,17 @@ class MaskedTokenLossReductionWithLossMask(MaskedTokenLossReduction):
         return super().forward(batch, forward_out)
 
 
-def masked_token_loss(tensor: Tensor, mask: Tensor):
+def masked_token_loss(tensor: Tensor, mask: Tensor, cp_size: int = 1):
     """
     The function takes as input per-token loss and masks non-required values.
     """
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
-    num_valid_tokens = loss_mask.sum()
-    if num_valid_tokens < 0.5:  # no valid tokens
-        num_valid_tokens += 1.0
-    loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens  # sequence level nll
+    loss = torch.sum(losses.view(-1) * loss_mask)  # sequence level nll
+    if cp_size > 1:
+        from megatron.core import parallel_state
 
-    return loss
-
-
-def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_tokens_in_ub: int):
-    """
-    masked token loss for CP > 1 as a separate function for readability.
-    """
-    from megatron.core import parallel_state
-
-    losses = tensor.float()
-    loss_mask = mask.view(-1).float()
-    if num_valid_tokens_in_ub is None:
-        num_valid_tokens_in_ub = loss_mask.sum()
-    if num_valid_tokens_in_ub < 0.5:  # no valid tokens
-        num_valid_tokens_in_ub += 1.0
-    loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
-    torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+        torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
 
     return loss
 

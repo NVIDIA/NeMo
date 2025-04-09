@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import _io
 import lightning.pytorch as pl
 import torch
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
 
 from nemo.collections.llm import fn
@@ -37,6 +37,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
+        **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -49,7 +50,9 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.is_hf_model = True
         self.model_transform = model_transform
         self.trust_remote_code = trust_remote_code
+        self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
+        self.kwargs = kwargs
 
     @property
     def processor(self):
@@ -80,6 +83,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 torch_dtype='auto',
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
+                **self.kwargs,
             )
         else:
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
@@ -133,10 +137,47 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
-    def save_pretrained(self, path):
-        """Saves checkpoint using HF"""
+    def save_pretrained(self, path, state_dict):
+        """
+        Save the pretrained model and tokenizer to a specified path.
+
+        This method ensures that the model state is gathered (especially in distributed settings)
+        and then saves the state dict and tokenizer. Only rank 0 or the appropriate FSDP module saves
+        the files to avoid race conditions.
+
+        Args:
+            path (str): The directory path where the model and tokenizer should be saved.
+
+        Raises:
+            AssertionError: If the model has not been created prior to saving.
+        """
         assert self.model is not None, "Model has to be created first."
-        self.model.save_pretrained(path)
+
+        def pop_fqn_prefix(fqn, expected_prefix='model'):
+            """pops prefix from FQN"""
+            parts = fqn.split('.')
+            assert parts[0] == expected_prefix
+            return '.'.join(parts[1:])
+
+        # Remove the "model." prefix from FQNs.
+        # Context: calling state_dict on an HFAutoModelForCausalLM, will prepend "model." in the
+        # state-dict keys. One solution would be to override HFAutoModelForCausalLM's state_dict
+        # and `return self.model.state_dict()`, however FSDP2 uses FQNs to acecss modules, therefore
+        # removing "model." at the state_dict function level will cause issues with FSDP2.
+        keys = list(state_dict.keys())
+        io_bytes_state = {}
+        for key, new_key in map(lambda x: (x, pop_fqn_prefix(x)), keys):
+            val = state_dict.pop(key)
+            if isinstance(val, _io.BytesIO):
+                io_bytes_state[new_key] = val
+            else:
+                state_dict[new_key] = val
+
+        if len(io_bytes_state) > 0:
+            logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
+            torch.save(io_bytes_state, path / 'io_bytes.pt')
+
+        self.model.save_pretrained(path, state_dict=state_dict)
         if self._processor is not None:
             self._processor.save_pretrained(path)
         else:
@@ -179,7 +220,10 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             '<|python_tag|>',
             '<|image|>',
         ]
-        PAD_TOKENS = set(QWEN_TOKENS + LLAVA_TOKENS + LLAMA_TOKENS)
+        GEMMA_TOKENS = [
+            '<image_soft_token>',
+        ]
+        PAD_TOKENS = set(QWEN_TOKENS + LLAVA_TOKENS + LLAMA_TOKENS + GEMMA_TOKENS)
         tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
         skipped_token_ids = []
         for key, val in tokenizer.added_tokens_decoder.items():
@@ -190,3 +234,14 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def _has_lora_adapter(self):
         return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
+
+    def make_checkpoint_io(self, adapter_only=False):
+        """
+        Creates a checkpoint_io object for this model;
+        the main issue is passing self to the HFCheckpointIO, because it needs
+        to call save_pretrained within.
+        TODO(@akoumparouli): refactor ^
+        """
+        from nemo.lightning.io.hf import HFCheckpointIO
+
+        return HFCheckpointIO(model=self, adapter_only=adapter_only)

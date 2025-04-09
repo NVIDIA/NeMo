@@ -118,8 +118,10 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
-            average_in_collective=True,
+            average_in_collective=True,  # Not supported for custom FSDP for now, need to be set to False if using FSDP
+            data_parallel_sharding_strategy="optim_grads_params",  # For custom FSDP only
         ),
+        fsdp=None,  # Set to 'megatron' to use Megatron FSDP, 'pytorch' to use PyTorch FSDP 2 (WIP)
     )
 
     trainer = run.Config(
@@ -357,7 +359,6 @@ def finetune_performance_optimizations(
         recipe.trainer.callbacks = []
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
@@ -368,6 +369,8 @@ def finetune_performance_optimizations(
         )
     else:
         recipe.peft.target_modules = ['linear_qkv']
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     recipe.trainer.callbacks.append(
         run.Config(
