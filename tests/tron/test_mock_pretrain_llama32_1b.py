@@ -146,7 +146,6 @@ class TestMockTrain:
             # For distributed checkpoints, check for the metadata file
             metadata_file = os.path.join(final_iter_dir, ".metadata")
             assert os.path.exists(metadata_file), "Checkpoint metadata file not found"
-            assert 0
 
         finally:
             # pytest's tmp_path fixture is only removed after some amount of test runs.
