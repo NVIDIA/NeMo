@@ -14,8 +14,8 @@
 
 """
 Mock Data Example:
-  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_finetune.py \
-  --devices=8 --tp=8 --data_type=mock --mbs=1 --gbs=8
+  torchrun --nproc_per_node=2 scripts/vlm/llama4/llama4_finetune.py \
+  --devices=2 --tp=2 --data_type=mock --mbs=1 --gbs=4 --use_toy_model
 """
 
 import argparse
@@ -67,6 +67,10 @@ def main(args):
         vision_transformer_config=vision_config,
         vision_projection_config=vision_projection_config,
     )
+    if args.use_toy_model:
+        decoder_seq_length = 4096
+        llama4_config.vision_transformer_config.num_layers = 2
+        llama4_config.language_transformer_config.num_layers = 2
 
     if args.data_type == "llava":
         raise NotImplementedError
@@ -246,6 +250,10 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument(
         "--use_packed_sequence",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--use_toy_model",
         action="store_true",
     )
     args = parser.parse_args()
