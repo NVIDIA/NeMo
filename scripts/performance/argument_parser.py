@@ -14,7 +14,7 @@
 
 import argparse
 
-from nemo_run.config import NEMORUN_HOME
+from nemo_run.config import get_nemorun_home
 
 from .utils import DEFAULT_NEMO_HOME
 
@@ -44,9 +44,9 @@ def parse_cli_args():
         "-l",
         "--log_dir",
         type=str,
-        help=f"Directory for logging experiment results. Defaults to {NEMORUN_HOME}",
+        help=f"Directory for logging experiment results. Defaults to {get_nemorun_home()}",
         required=False,
-        default=NEMORUN_HOME,
+        default=get_nemorun_home(),
     )
     parser.add_argument(
         "-t",
@@ -256,6 +256,31 @@ def parse_cli_args():
         action="store_true",
         required=False,
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
+    )
+    parser.add_argument(
+        "-fsdp",
+        "--use_mcore_fsdp",
+        help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
+        action="store_true",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-rl",
+        "--recompute_layers",
+        type=int,
+        help="Number of Transformer layers to recompute, where all the intermediate "
+        "activations of a Transformer layer are computed. Defaults to 0",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-ol",
+        "--activation_offload_layers",
+        type=int,
+        help="Number of Transformer layers to offload to the CPU memory. Defaults to 0",
+        required=False,
+        default=None,
     )
 
     def list_of_strings(arg):

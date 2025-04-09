@@ -34,6 +34,7 @@ from ..utils import (
     get_comm_overlap_callback_idx,
     get_user_configs,
     hf_tokenizer,
+    set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
 )
@@ -50,6 +51,9 @@ def override_recipe_configs(
     vp_size: int,
     ep_size: int,
     enable_cuda_graphs: bool,
+    use_mcore_fsdp: bool,
+    recompute_layers: int,
+    activation_offload_layers: int,
 ):
     """
     gpt3 175b pre-train recipe aimed at achieving best possible performance.
@@ -59,10 +63,7 @@ def override_recipe_configs(
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
-        args.tensorboard,
-        args.wandb,
-        args.wandb_prj_name,
-        args.wandb_job_name,
+        "pre_train",
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -73,11 +74,17 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        enable_cuda_graphs=enable_cuda_graphs,
+        use_mcore_fsdp=use_mcore_fsdp,
+        recompute_layers=recompute_layers,
+        activation_offload_layers=activation_offload_layers,
     )
-    gpu_type = args.gpu.lower()
+    recipe = set_exp_logging_configs(
+        recipe, "pre_train", "llm", "gpt3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+    )
 
+    gpu_type = args.gpu.lower()
     # data module configs
-    recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("nvidia/megatron-gpt2-345m")
 
     # compute dtype configs
@@ -94,6 +101,10 @@ def override_recipe_configs(
             "bf16": userbuffers_bf16_b200_h12288_tp4_mbs1_seqlen2048,
             "fp8": userbuffers_fp8_b200_h12288_tp4_mbs1_seqlen2048,
         },
+        "gb200": {
+            "bf16": userbuffers_bf16_b200_h12288_tp4_mbs1_seqlen2048,
+            "fp8": userbuffers_fp8_b200_h12288_tp4_mbs1_seqlen2048,
+        },
     }
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
@@ -106,9 +117,6 @@ def override_recipe_configs(
 
     recipe.model.config.tp_only_amax_red = True
 
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-
     return recipe
 
 
@@ -117,10 +125,36 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "gpt3", "175b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        _,
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+    ) = kwargs
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
@@ -141,7 +175,13 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None)]
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 

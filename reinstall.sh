@@ -4,7 +4,7 @@ set -ex
 # List of all supported libraries (update this list when adding new libraries)
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
-  # "te"
+  "trtllm"
   "mcore"
   "nemo"
   "vllm"
@@ -15,9 +15,73 @@ export HEAVY_DEPS=${HEAVY_DEPS:-false}
 export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
+export PIP=pip
+export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
+export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
+export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 
-PIP=pip
-${PIP} install --no-cache-dir -U ${PIP} setuptools
+trt() {
+  local mode="$1"
+
+  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
+    apt-get install git-lfs &&
+    git lfs install &&
+    apt-get clean
+
+  if [ ! -d "$TRTLLM_DIR/.git" ]; then
+    rm -rf "$TRTLLM_DIR" &&
+      cd $(dirname "$TRTLLM_DIR") &&
+      git clone ${TRTLLM_REPO}
+  fi &&
+    pushd $TRTLLM_DIR &&
+    git checkout -f $TRTLLM_TAG &&
+    git lfs pull &&
+    popd
+
+  if [[ "$mode" == "install" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TRTLLM_DIR &&
+        . docker/common/install_tensorrt.sh \
+          --TRT_VER="10.8.0.43" \
+          --CUDA_VER="12.8" \
+          --CUDNN_VER="9.7.0.66-1" \
+          --NCCL_VER="2.25.1-1+cuda12.8" \
+          --CUBLAS_VER="12.8.3.14-1"
+    fi
+  fi
+}
+
+trtllm() {
+  local mode="$1"
+
+  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
+    apt-get install git-lfs &&
+    git lfs install &&
+    apt-get clean
+
+  if [ ! -d "$TRTLLM_DIR/.git" ]; then
+    rm -rf "$TRTLLM_DIR" &&
+      cd $(dirname "$TRTLLM_DIR") &&
+      git clone ${TRTLLM_REPO}
+  fi &&
+    pushd $TRTLLM_DIR &&
+    git checkout -f $TRTLLM_TAG &&
+    git lfs pull &&
+    popd
+
+  if [[ "$mode" == "build" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TRTLLM_DIR &&
+        python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
+    fi
+  else
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/trtllm/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com || true
+  fi
+}
 
 te() {
   local mode="$1"
@@ -176,21 +240,24 @@ nemo() {
   fi
 
   DEPS=(
-    "sox"                                                                                      # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
+    "sox<=1.5.0"                                                                               # v1.5.0 throws "Can not execute `setup.py` since setuptools is not available in the build environment."; requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
+    "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
     "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
+    "nemo_run"                                                                                 # Not compatible in Python 3.12
   )
 
   if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
     DEPS+=(
-      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" # Compiling NvRX requires CUDA
+      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@e7e7a05a404451ab3bc9ee156b939d1a777dca48 ; platform_machine == 'x86_64'" # Compiling NvRX requires CUDA
     )
   fi
 
   echo 'Installing dependencies of nemo'
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
-
+  # needs no-deps to avoid installing triton on top of pytorch-triton.
+  pip install --no-deps --no-cache-dir "liger-kernel==0.5.4; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
+  pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86aba72cfd2f0d8abecaf81c13c4528ea07d8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
@@ -199,20 +266,19 @@ echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
 
-${PIP} install setuptools pybind11 wheel
+echo 'Upgrading tools'
+${PIP} install -U --no-cache-dir "setuptools==76.0.0" pybind11 wheel ${PIP}
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-
   echo "Will not install numba"
 
 else
   if [ -n "${CONDA_PREFIX}" ]; then
-    NUMBA_VERSION=0.57.1
-    echo 'Installing numba=='${NUMBA_VERSION}
-    conda install -y -c conda-forge numba==${NUMBA_VERSION}
+    echo 'Installing numba'
+    conda install -y -c conda-forge numba
   else
-    pip install --no-cache-dir --no-deps torch
+    pip install --no-cache-dir --no-deps torch cython
   fi
 fi
 
@@ -285,6 +351,12 @@ else
 
   # Validate each library is supported
   for lib in "${LIBRARIES[@]}"; do
+    # "trt" is a valid option but not in ALL_LIBRARIES
+    # It does not get installed at the same time as the rest
+    if [[ "$lib" == "trt" ]]; then
+        continue
+    fi
+
     if [[ ! " ${ALL_LIBRARIES[@]} " =~ " ${lib} " ]]; then
       echo "Error: Unsupported library '$lib'"
       exit 1
