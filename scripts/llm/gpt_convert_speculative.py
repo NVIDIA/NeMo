@@ -55,12 +55,10 @@ if __name__ == "__main__":
         inference_only=True,
         strategy_kwargs={"sequence_parallel": False, "replace_progress_bar": False},
         trainer_kwargs={},
-        model_config_overrides={"sequence_parallel": False, "make_vocab_size_divisible_by": 1},
+        model_config_overrides={"sequence_parallel": False, "moe_grouped_gemm": False, "gradient_accumulation_fusion": False, "make_vocab_size_divisible_by": 1},
         # WAR: We force vocab size to be divisible by 1 as it performs inconsistent padding upon restore
     )
 
-    # Currently this does not work when passed in as `model_transform` argument to model
-    # as the TransformerEngine `main_grad` attribute does not initialize on the new params.
     model_transform = SpeculativeTransform(
         num_eagle_layers=args.num_eagle_layers, num_medusa_heads=args.num_medusa_heads
     )
