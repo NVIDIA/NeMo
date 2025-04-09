@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, TYPE_CHECKING
 
 import torch
+from torch import Tensor
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.inference.contexts import BaseInferenceContext
@@ -24,7 +25,6 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention as MCoreSelfAttention
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.utils import deprecate_inference_params
-from torch import Tensor
 
 try:
     from nvidia_chunked_flash_attn.flash_attn_interface import (
@@ -33,8 +33,24 @@ try:
 except ImportError:
     flash_decode_and_prefill_kernel = None
 
+from nemo.collections.llm import Llama4Config
+
+if TYPE_CHECKING:
+    from nemo.collections.llm import Llama4Config
 
 def chunkify_cu_seqlens(cu_seqlens, cu_seqlens_padded, attention_chunk_size):
+    """
+    Splits cumulative sequence lengths into chunks based on attention_chunk_size.
+
+    Args:
+        cu_seqlens (list[int]): List of cumulative sequence lengths.
+        cu_seqlens_padded (list[int]): List of padded cumulative sequence lengths.
+        attention_chunk_size (int): The maximum size of each chunk.
+
+    Returns:
+        Tuple[list[int], list[int]]: A tuple containing the new chunked cumulative
+        sequence lengths and the new chunked padded cumulative sequence lengths.
+    """
     new_cu_seqlens = [cu_seqlens[0]]
     new_cu_seqlens_padded = [cu_seqlens_padded[0]]
     for i in range(1, len(cu_seqlens)):
@@ -60,6 +76,22 @@ def chunkify_cu_seqlens(cu_seqlens, cu_seqlens_padded, attention_chunk_size):
 
 
 def chunkify(x, attention_chunk_size):
+    """
+    Pads and reshapes a tensor for chunked processing.
+
+    This function takes an input tensor `x` (typically representing query, key, or value
+    in attention mechanisms) and pads its sequence dimension (dim 0) to be a multiple
+    of `attention_chunk_size`. It then reshapes the tensor so that the sequence dimension
+    is split into chunks, and the chunk dimension is combined with the batch dimension.
+
+    Args:
+        x (torch.Tensor): Input tensor, expected shape [seq_length, batch_size, ...].
+        attention_chunk_size (int): The desired size of chunks along the sequence dimension.
+
+    Returns:
+        torch.Tensor: The reshaped tensor with shape
+                      [attention_chunk_size, num_chunks * batch_size, ...].
+    """
     # Determine original sequence length.
     seq_length = x.shape[0]
     # Compute new sequence length (pad_seq_len) as the smallest multiple of attention_chunk_size
@@ -105,7 +137,6 @@ def get_llama4_layer_spec(config: "Llama4Config") -> ModuleSpec:
         layer_no = idx + offset
         updated_layer_spec = deepcopy(layer_spec)
 
-        # updated_layer_spec.module = Llama4TransformerLayer
         is_nope_layer = config.nope_layer_interval is not None and (layer_no + 1) % config.nope_layer_interval == 0
         updated_layer_spec.submodules.self_attention.module = Llama4SelfAttention
         updated_layer_spec.submodules.self_attention.params = {

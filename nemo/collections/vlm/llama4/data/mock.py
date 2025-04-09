@@ -26,6 +26,27 @@ from nemo.utils import logging
 
 
 class MockDataModule(pl.LightningDataModule):
+    """A mock LightningDataModule for generating synthetic data for Llama4 models.
+
+    This module creates dummy datasets (train, validation, test) using `MockLlama4Dataset`
+    for testing or development purposes without requiring actual data.
+
+    Args:
+        seq_length (int): The sequence length for text tokens. Defaults to 2048.
+        decoder_seq_length (Optional[int]): The sequence length for the decoder (if applicable). Defaults to None.
+        tokenizer (Optional): Tokenizer object.
+        image_processor (Optional): Image processor object.
+        micro_batch_size (int): Micro batch size per GPU. Defaults to 4.
+        global_batch_size (int): Global batch size across all GPUs. Defaults to 8.
+        rampup_batch_size (Optional[List[int]]): Ramp-up schedule for batch size. Defaults to None.
+        num_train_samples (int): Number of synthetic samples for the training set. Defaults to 10,000,000.
+        num_val_samples (int): Number of synthetic samples for the validation set. Defaults to 10,000,000.
+        num_test_samples (int): Number of synthetic samples for the test set. Defaults to 10,000,000.
+        num_workers (int): Number of worker processes for data loading. Defaults to 8.
+        pin_memory (bool): Whether to pin memory for faster data transfer to GPU. Defaults to True.
+        persistent_workers (bool): Whether to keep worker processes alive between epochs. Defaults to False.
+        packed_sequence (bool): Whether to use packed sequences for efficiency. Defaults to False.
+    """
     def __init__(
         self,
         seq_length: int = 2048,
@@ -78,12 +99,14 @@ class MockDataModule(pl.LightningDataModule):
         self.packed_sequence = packed_sequence
 
         if tokenizer is None or image_processor is None:
-            logging.warning(f"Processor or tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
+            logging.warning(
+                "Processor or tokenizer are not provided! Fall back to `'meta-llama/Llama-4-Scout-17B-16E-Instruct'`."
+            )
             from transformers import AutoProcessor
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-            processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
+            processor = AutoProcessor.from_pretrained("'meta-llama/Llama-4-Scout-17B-16E-Instruct'")
+            self.tokenizer = tokenizer or AutoTokenizer("'meta-llama/Llama-4-Scout-17B-16E-Instruct'")
             self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
@@ -174,6 +197,27 @@ class MockDataModule(pl.LightningDataModule):
 
 
 class MockLlama4Dataset(Dataset):
+    """A mock Dataset implementation for generating synthetic Llama4 data.
+
+    Produces batches containing dummy image tensors and random token sequences,
+    mimicking the structure expected by Llama4 models.
+
+    Args:
+        tokenizer: Tokenizer object to determine vocabulary size.
+        image_processor: Image processor object to determine image dimensions.
+        name (str): Name of the dataset split (e.g., "train", "valid", "test").
+        num_samples (int): Total number of synthetic samples in this dataset.
+        seq_length (int): Sequence length for the generated token sequences.
+        seed (int): Random seed for data generation reproducibility. Defaults to 42.
+        packed_sequence (bool): Whether the data should be formatted for packed sequences.
+                                Defaults to False.
+        pixel_shuffle_ratio (float): Ratio used for calculating the image sequence length
+                                     after potential pixel shuffling. Defaults to 0.5.
+        num_image_embeddings_per_tile (int): Number of embeddings produced per image tile
+                                             by the vision encoder (before pixel shuffle).
+                                             Defaults to 576.
+        num_tiles_per_image (int): Number of tiles the image is split into. Defaults to 1.
+    """
     def __init__(
         self,
         tokenizer,

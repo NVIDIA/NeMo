@@ -105,6 +105,7 @@ class Llama4VisionConfig(CLIPViTConfig):
 
 
 class PackingIndex:
+    """Defines constant indices for accessing packed token metadata."""
     Z = 0  # Z (time) coordinate of the token in the original sample
     Y = 1  # Y (height) coordinate of the token in the original sample
     X = 2  # X (width) coordinate of the token in the original sample
@@ -125,10 +126,6 @@ class PackingIndex:
 
 
 class PixelShuffle(nn.Module):
-    def __init__(self, ps_ratio):
-        super().__init__()
-        self.ps_ratio = ps_ratio
-
     """Performs pixel shuffle operation on encoded patches.
 
     Rearranges elements in a tensor of shape [B, N, C] representing encoded image patches
