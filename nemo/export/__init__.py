@@ -17,6 +17,5 @@ try:
     from nemo.lightning import io
 
     __all__ = ["io"]
-    HAVE_NEMO2 = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_NEMO2 = False
+    pass
