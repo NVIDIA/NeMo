@@ -396,9 +396,9 @@ class Llama4Config(Llama3Config):
     moe_router_topk: int = 1
     moe_router_pre_softmax: bool = (True,)
     moe_router_score_function: str = 'sigmoid'
-    moe_token_dispatcher_type: str = "allgather"
+    moe_token_dispatcher_type: str = "alltoall"
     # Configs that are overwritten in subclass models
-    qk_l2_norm: bool = False
+    qk_l2_norm: bool = True
     rope_scaling: bool = True
     rope_scaling_factor: float = 8.0
     attention_chunk_size: int = 8192
