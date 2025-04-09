@@ -15,7 +15,6 @@
 
 import nemo_run as run
 import torch
-from megatron.core.enums import Fp8Recipe
 
 from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
 
@@ -64,7 +63,7 @@ def bf16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
     """
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.delayed
+    cfg.fp8_recipe = "delayed"
     cfg.fp8_margin = 0
     cfg.fp8_amax_history_len = 1024
     cfg.fp8_amax_compute_algo = "max"
@@ -93,7 +92,7 @@ def fp16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
     """
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.delayed
+    cfg.fp8_recipe = "delayed"
     cfg.fp8_margin = 0
     cfg.fp8_amax_history_len = 1024
     cfg.fp8_amax_compute_algo = "max"
@@ -109,7 +108,7 @@ def bf16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     """
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.mxfp8
+    cfg.fp8_recipe = "mxfp8"
     cfg.fp8_param_gather = False
     return cfg
 
@@ -122,7 +121,7 @@ def fp16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     """
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.mxfp8
+    cfg.fp8_recipe = "mxfp8"
     cfg.fp8_param_gather = False
     return cfg
 
@@ -140,7 +139,7 @@ def bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.tensorwise
+    cfg.fp8_recipe = "tensorwise"
     cfg.first_last_layers_bf16 = True
     cfg.num_layers_at_start_in_bf16 = 1
     cfg.num_layers_at_end_in_bf16 = 1
@@ -161,7 +160,7 @@ def fp16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.tensorwise
+    cfg.fp8_recipe = "tensorwise"
     cfg.first_last_layers_bf16 = True
     cfg.num_layers_at_start_in_bf16 = 1
     cfg.num_layers_at_end_in_bf16 = 1
