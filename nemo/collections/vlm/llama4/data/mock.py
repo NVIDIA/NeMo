@@ -105,8 +105,8 @@ class MockDataModule(pl.LightningDataModule):
             from transformers import AutoProcessor
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-            processor = AutoProcessor.from_pretrained("'meta-llama/Llama-4-Scout-17B-16E-Instruct'")
-            self.tokenizer = tokenizer or AutoTokenizer("'meta-llama/Llama-4-Scout-17B-16E-Instruct'")
+            processor = AutoProcessor.from_pretrained("meta-llama/Llama-4-Scout-17B-16E-Instruct")
+            self.tokenizer = tokenizer or AutoTokenizer("meta-llama/Llama-4-Scout-17B-16E-Instruct")
             self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
@@ -256,10 +256,11 @@ class MockLlama4Dataset(Dataset):
         self.name = name
         self.seq_length = seq_length
 
-        self.vocab_size = 200000
+        self.tokenizer = tokenizer
+        self.image_processor = image_processor
 
-        crop_size = image_processor.crop_size
-        self.image_height, self.image_width = crop_size["height"], crop_size["width"]
+        self.vocab_size = 200000
+        self.image_height, self.image_width = 336, 336
 
         self.length = num_samples
         self.seed = seed
