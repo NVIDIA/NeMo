@@ -14,12 +14,15 @@
 import copy
 import glob
 
+
 import jiwer
+import lightning.pytorch as ptl
 import pytest
 import torch
-from omegaconf import open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel
+from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 
 
@@ -165,6 +168,33 @@ def test_loop_labels_cuda_graph_rnnt_greedy_decoder_forced_mode(
             print("erroneous samples:")
             print("Original transcript:", actual)
             print("New transcript:", fast)
+
+
+@pytest.mark.with_downloads
+@pytest.mark.skipif(
+    not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
+    reason="Test requires CUDA device with bf16 support",
+)
+def test_loop_labels_cuda_graph_rnnt_ddp_mixed_precision(
+    tmp_path_factory, an4_train_manifest_corrected, stt_en_fastconformer_transducer_large
+):
+    """Problems observed with CUDA graphs, DDP and mixed precision"""
+    batch_size = 16
+    model_name = "nvidia/stt_en_fastconformer_transducer_large"
+
+    # instantiate trainer with bf16 mixed precision
+    trainer_cfg = TrainerConfig(devices=[0], accelerator="cuda", strategy="ddp", max_epochs=1, precision="bf16-mixed")
+    trainer = ptl.Trainer(**DictConfig(trainer_cfg))
+
+    model = stt_en_fastconformer_transducer_large
+    val_ds_cfg = model.cfg.validation_ds
+
+    val_ds_cfg.manifest_filepath = str(an4_train_manifest_corrected)
+    val_ds_cfg.batch_size = batch_size
+    model.setup_multiple_validation_data(val_ds_cfg)
+    val_results = trainer.validate(model)
+    wer = val_results[0]["val_wer"]
+    assert wer <= 0.1, f"WER is too high: {wer}"
 
 
 @pytest.mark.with_downloads
