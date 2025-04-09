@@ -168,6 +168,7 @@ async def completions_v1(request: CompletionRequest):
 
     output = await query_llm_async(
         url=url,
+        model=request.model,
         prompts=prompts,
         temperature=request.temperature,
         top_k=request.top_k,
@@ -213,6 +214,7 @@ async def chat_completions_v1(request: CompletionRequest):
     json_prompts = [dict_to_str(prompts)]
     output = await query_llm_async(
         url=url,
+        model=request.model,
         prompts=json_prompts,
         temperature=request.temperature,
         top_k=request.top_k,
