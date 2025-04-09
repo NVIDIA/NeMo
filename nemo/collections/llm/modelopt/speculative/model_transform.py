@@ -30,8 +30,8 @@ class SpeculativeTransform:
     when called. It can be used directly as a model_transform parameter in NeMo models.
 
     Args:
-        medusa_heads: Number of Medusa heads to use for speculative decoding.
-        eagle_layers: Number of Eagle layers to use for speculative decoding.
+        num_medusa_heads: Number of Medusa heads to use for speculative decoding.
+        num_eagle_layers: Number of Eagle layers to use for speculative decoding.
 
     Example:
         >>> from nemo.collections.llm.modelopt.speculative.model_transform import SpeculativeTransform
@@ -68,13 +68,14 @@ class SpeculativeTransform:
             logging.info("Model has already been transformed with speculative decoding. Skipping transformation.")
             return model
 
-        # Check for incompatible model configurations
+        # Verify model is compatible with speculative decoding
         if hasattr(unwrapped_model, "config"):
             if unwrapped_model.config.virtual_pipeline_model_parallel_size is not None:
                 raise ValueError("SpeculativeTransform is incompatible with virtual pipeline parallelism.")
             if unwrapped_model.config.moe_grouped_gemm is True:
-                logging.warning("Disabling MOE grouped GEMM for SpeculativeTransform.")
-                unwrapped_model.config.moe_grouped_gemm = False
+                raise ValueError("SpeculativeTransform is incompatible with MOE grouped GEMM.")
+            if unwrapped_model.config.gradient_accumulation_fusion is True:
+                raise ValueError("SpeculativeTransform is incompatible with gradient accumulation fusion.")
 
         if self.num_medusa_heads > 0:
             logging.info(f"Converting to Speculative Decoding model with num_medusa_heads={self.num_medusa_heads}")
