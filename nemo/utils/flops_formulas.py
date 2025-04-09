@@ -236,15 +236,16 @@ def deepseekv3(config: FLOPSConfig):
     # self-attention flops
     bmm1_flops = (config.qk_head_dim + config.qk_pos_emb_head_dim) * (config.enc_seq_len**2)
     bmm2_flops = config.v_head_dim * (config.enc_seq_len**2)
-    per_input_attention_flops = 6 * (bmm1_flops + bmm2_flops) * config.num_layers
+    per_input_attention_flops = 6 * (bmm1_flops + bmm2_flops) * config.layers
 
     # linear layer flops
-    mla_params = config.hs * config.q_lora_rank + config.q_lora_rank * (config.qk_head_dim + config.qk_pos_emb_head_dim) * config.attention_heads # Q
-    mla_params += config.hs * config.kv_lora_rank + config.kv_lora_rank * (config.qk_head_dim + config.qk_pos_emb_head_dim) * config.attention_heads # K
-    mla_params += config.hs * config.kv_lora_rank + config.kv_lora_rank * config.v_head_dim * config.attention_heads # V
-    mla_params += config.v_head_dim * config.attention_heads * config.hs # Proj
+    per_layer_mla_params = config.hs * config.q_lora_rank + config.q_lora_rank * (config.qk_head_dim + config.qk_pos_emb_head_dim) * config.attention_heads # Q
+    per_layer_mla_params += config.hs * config.kv_lora_rank + config.kv_lora_rank * (config.qk_head_dim + config.qk_pos_emb_head_dim) * config.attention_heads # K
+    per_layer_mla_params += config.hs * config.kv_lora_rank + config.kv_lora_rank * config.v_head_dim * config.attention_heads # V
+    per_layer_mla_params += config.v_head_dim * config.attention_heads * config.hs # Proj
+    mla_params = per_layer_mla_params * config.layers
 
-    dense_layer_ffn_params = config.hs * config.ffn_hidden_size * 3 # gated linear unit
+    dense_layer_ffn_params = config.hs * config.ffn_hs * 3 # gated linear unit
     per_shared_expert_params = config.hs * config.moe_shared_expert_intermediate_size * 3
     per_selected_expert_params = config.hs * config.moe_ffn_hidden_size * 3
     ffn_params = 0
@@ -266,6 +267,9 @@ def deepseekv3(config: FLOPSConfig):
             )
     per_input_params = mla_params + ffn_params
     per_input_linear_flops = 6 * per_input_params * config.enc_seq_len
+
+    # vocab flops
+    per_input_vocab_flops = 6 * config.vocab_size * config.hs * config.enc_seq_len
     
-    return per_input_attention_flops + per_input_linear_flops
+    return (per_input_attention_flops + per_input_linear_flops + per_input_vocab_flops) * config.gbs
     return 1.206e15
