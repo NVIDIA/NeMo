@@ -15,6 +15,7 @@
 import os
 import pytest
 import torch
+import shutil
 
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
@@ -38,8 +39,8 @@ class TestMockTrain:
     @pytest.mark.run_only_on('GPU')  # Standard pattern in NeMo tests for GPU-only tests
     def test_mock_training_checkpoint(self, tmp_path):
         # Use tmp_path fixture from pytest for temporary directory
-        checkpoint_dir = str(tmp_path / "checkpoints")
-        tensorboard_dir = str(tmp_path / "tensorboard")
+        checkpoint_dir = str("./checkpoints")
+        tensorboard_dir = str("./tensorboard")
 
         try:
             # Training parameters
@@ -145,7 +146,12 @@ class TestMockTrain:
             # For distributed checkpoints, check for the metadata file
             metadata_file = os.path.join(final_iter_dir, ".metadata")
             assert os.path.exists(metadata_file), "Checkpoint metadata file not found"
+            assert 0
 
         finally:
-            # Clean up is handled automatically by pytest's tmp_path fixture
-            pass
+            # pytest's tmp_path fixture is only removed after some amount of test runs.
+            # Manually remove the directories here.
+            if os.path.exists(checkpoint_dir):
+                shutil.rmtree(checkpoint_dir)
+            if os.path.exists(tensorboard_dir):
+                shutil.rmtree(tensorboard_dir)
