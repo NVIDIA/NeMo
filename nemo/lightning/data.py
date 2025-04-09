@@ -118,9 +118,7 @@ def setup_microbatch_calculator(
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
                 assert get_current_global_batch_size() == global_batch_size
                 assert get_micro_batch_size() == micro_batch_size
-                assert get_num_microbatches() == global_batch_size_split // (
-                    micro_batch_size * data_parallel_size
-                )
+                assert get_num_microbatches() == global_batch_size_split // (micro_batch_size * data_parallel_size)
             else:
                 raise Exception("Microbatch calculator already initialized.")
     else:
