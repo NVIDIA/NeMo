@@ -389,7 +389,8 @@ class Llama4SelfAttention(MCoreSelfAttention):
                 packed_seq_params.cu_seqlens_kv_padded = original_packed_seq_params.cu_seqlens_kv_padded
         else:
             if original_seq_len > self.attention_chunk_size:
-                # Reshape from [attention_chunk_size, num_chunks * batch_size, hidden_size] back to [seq_len, batch_size, hidden_size]
+                # Reshape from [attention_chunk_size, num_chunks * batch_size, hidden_size]
+                # back to [seq_len, batch_size, hidden_size]
                 batch_size = original_shape[1]
                 num_chunks = core_attn_out.shape[1] // batch_size
                 core_attn_out = core_attn_out.reshape(self.attention_chunk_size, num_chunks, batch_size, -1)

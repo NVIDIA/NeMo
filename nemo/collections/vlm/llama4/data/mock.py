@@ -73,8 +73,8 @@ class MockDataModule(pl.LightningDataModule):
         Args:
             seq_length (int): The sequence length for text tokens. Defaults to 2048.
             decoder_seq_length (Optional[int]): The sequence length for the decoder (if applicable). Defaults to None.
-            tokenizer (Optional): Tokenizer object. If None, defaults to "llava-hf/llava-1.5-7b-hf".
-            image_processor (Optional): Image processor object. If None, defaults to the processor from "llava-hf/llava-1.5-7b-hf".
+            tokenizer (Optional): Tokenizer object.
+            image_processor (Optional): Image processor object.
             micro_batch_size (int): Micro batch size per GPU. Defaults to 4.
             global_batch_size (int): Global batch size across all GPUs. Defaults to 8.
             rampup_batch_size (Optional[List[int]]): Ramp-up schedule for batch size. Defaults to None.
