@@ -15,8 +15,8 @@
 import pytest
 import torch
 
-from bionemo.testing import megatron_parallel_state_utils
-from perceiver import PerceiverLayer, PerceiverConfig, perceiver_layer_spec
+from tests.collections.llm.perceiver.megatron_parallel_state_utils import distributed_model_parallel_state
+from nemo.collections.llm.perceiver.model.perceiver_layer import PerceiverLayer, PerceiverConfig, perceiver_layer_spec
 
 @pytest.fixture
 def perceiver_config():
@@ -36,7 +36,7 @@ def perceiver_config():
 @pytest.fixture
 def perceiver_layer(perceiver_config):
     """Initialize perceiver layer using the spec from perceiver.py"""
-    with megatron_parallel_state_utils.distributed_model_parallel_state():
+    with distributed_model_parallel_state():
         perceiver = PerceiverLayer(
             config=perceiver_config,
             submodules=perceiver_layer_spec.submodules,
@@ -49,7 +49,7 @@ class TestPerceiverLayer:
     
     def test_initialization(self, perceiver_layer, perceiver_config):
         """Test that the layer initializes correctly"""
-        with megatron_parallel_state_utils.distributed_model_parallel_state():
+        with distributed_model_parallel_state():
             assert hasattr(perceiver_layer, 'input_cross_attention')
             assert hasattr(perceiver_layer, 'self_attention_layers')
             assert hasattr(perceiver_layer, 'final_layernorm')
@@ -57,7 +57,7 @@ class TestPerceiverLayer:
 
     def test_forward_shape(self, perceiver_layer, perceiver_config):
         """Test that the forward pass maintains correct shapes"""
-        with megatron_parallel_state_utils.distributed_model_parallel_state():
+        with distributed_model_parallel_state():
             batch_size = 4
             seq_length = 128
             latent_dim = perceiver_config.num_latents
@@ -89,7 +89,7 @@ class TestPerceiverLayer:
 
     def test_attention_mask(self, perceiver_layer, perceiver_config):
         """Test that the layer handles attention masks correctly"""
-        with megatron_parallel_state_utils.distributed_model_parallel_state():
+        with distributed_model_parallel_state():
             batch_size = 4
             seq_length = 128
             latent_dim = perceiver_config.num_latents
@@ -125,7 +125,7 @@ class TestPerceiverLayer:
         self, perceiver_layer, batch_size, seq_length
     ):
         """Test that the layer handles different batch and sequence sizes"""
-        with megatron_parallel_state_utils.distributed_model_parallel_state():
+        with distributed_model_parallel_state():
             latent_dim = 2
             hidden_size = 512
 
@@ -152,7 +152,7 @@ class TestPerceiverLayer:
 
     def test_gradient_flow(self, perceiver_layer):
         """Test that gradients flow through the layer properly"""
-        with megatron_parallel_state_utils.distributed_model_parallel_state():
+        with distributed_model_parallel_state():
             batch_size = 4
             seq_length = 128
             latent_dim = 2
@@ -205,7 +205,7 @@ class TestPerceiverLayer:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_device_placement(self, perceiver_layer):
         """Test that the layer can be moved to GPU"""
-        with megatron_parallel_state_utils.distributed_model_parallel_state():
+        with distributed_model_parallel_state():
             batch_size = 4
             seq_length = 128
             latent_dim = 2
