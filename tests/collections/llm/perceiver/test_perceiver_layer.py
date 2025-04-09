@@ -14,7 +14,6 @@
 
 import pytest
 import torch
-from typing import Optional
 
 from bionemo.testing import megatron_parallel_state_utils
 from perceiver import PerceiverLayer, PerceiverConfig, perceiver_layer_spec
