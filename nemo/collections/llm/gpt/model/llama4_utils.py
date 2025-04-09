@@ -15,6 +15,8 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Optional
 
 import torch
+from torch import Tensor
+
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.packed_seq_params import PackedSeqParams
