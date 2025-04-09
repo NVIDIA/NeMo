@@ -126,6 +126,22 @@ The evaluation process employs a server-client approach, comprising two main pha
 checkpoint is deployed on a PyTriton server by exporting it to TRT-LLM. Phase 2 involves running the evaluation
 on the model using the deployed URL and port.
 
+
+In order to deploy a model, use the following command. Make sure to pass ``backend="trtllm"``:
+
+.. code-block:: python
+
+    from nemo.collections.llm import deploy
+
+    if __name__ == "__main__":
+        deploy(
+            nemo_checkpoint='/workspace/hf_llama3_8b_nemo2.nemo',
+            max_input_len=4096,
+            max_batch_size=4,
+            backend="trtllm",
+            num_gpus=1,)
+
+
 The ``evaluate`` method defined in ``nemo/collections/llm/api.py`` supports the legacy way of evaluating the models.
 To run evaluations on the deployed model, use the following command. Make sure to pass `nemo_checkpoint_path` and
 `url` parameters as they are needed to use the legacy evaluation code. Make sure to open a new terminal within the
