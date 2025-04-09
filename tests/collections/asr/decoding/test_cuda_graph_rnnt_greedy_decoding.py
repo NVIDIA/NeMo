@@ -19,7 +19,7 @@ import jiwer
 import lightning.pytorch as ptl
 import pytest
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config.pytorch_lightning import TrainerConfig
