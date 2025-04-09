@@ -34,7 +34,7 @@ class EnergonDataModule(pl.LightningDataModule, IOMixin):
     A PyTorch Lightning DataModule for handling Energon datasets.
 
     It provides a seamless interface to load training and validation data, saving, and sampling strategies.
-    The module integrates with the Megatron-Energon framework for efficient data handling 
+    The module integrates with the Megatron-Energon framework for efficient data handling
     in large-scale distributed training.
     """
 
