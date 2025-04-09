@@ -160,10 +160,6 @@ class PerceiverLayer(MegatronModule):
             torch.Tensor: Updated latent states after processing through the layer,
                 with shape [latent_len, batch_size, hidden_size].
         """
-        print("\nShape tracking through forward pass:")
-        print(f"Initial latent_states: {latent_states.shape}")  # [latent_len, batch_size, hidden_size]
-        print(f"Input sequence: {input_sequence.shape}")  # [seq_len, batch_size, hidden_size]
-
         # Cross attention from latents to input sequence
         cross_attn_output = self.input_cross_attention(
             latent_states,
@@ -171,7 +167,6 @@ class PerceiverLayer(MegatronModule):
             attention_mask=cross_attention_masks,
             inference_params=inference_params,
         )
-        print(f"After cross attention - output: {cross_attn_output[0].shape}, bias: {cross_attn_output[1].shape}")
         latent_states = cross_attn_output
 
         # Multiple self-attention layers
@@ -181,18 +176,15 @@ class PerceiverLayer(MegatronModule):
                 attention_mask=self_attention_mask,
                 inference_params=inference_params,
             )
-            print(f"After self attention layer {i} - output: {self_attn_output[0].shape}, bias: {self_attn_output[1].shape}")
             latent_states = self_attn_output
 
         latent_states = self.final_layernorm(latent_states[0])
-        print(f"After final layernorm: {latent_states.shape}")
 
         output = make_viewless_tensor(
             inp=latent_states,
             requires_grad=latent_states.requires_grad,
             keep_graph=True
         )
-        print(f"Final output: {output.shape}")
 
         return output
 
