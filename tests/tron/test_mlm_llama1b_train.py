@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import os
-import pytest
-import torch
 import shutil
 
+import pytest
+import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 
