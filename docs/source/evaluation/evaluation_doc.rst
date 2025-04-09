@@ -1,7 +1,7 @@
 Evaluate NeMo 2.0 Checkpoints
 ==============================
 
-This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the integrated `nvidia-lm-eval
+This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the `NVIDIA Evals Factory
 <https://pypi.org/project/nvidia-lm-eval/>`__ within the NeMo Framework. Supported benchmarks include:
     * GPQA,
     * GSM8K,
@@ -16,11 +16,32 @@ This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints usi
 Introduction
 --------------
 
+The evaluation process employs a server-client approach, comprising two main phases.
+In Phase 1, the NeMo 2.0 checkpoint is deployed in-framework on a PyTriton server by exposing
+OpenAI API (OAI) compatible endppoints. Both completions (`v1/completions`) and chat-completions
+(`v1/chat/completions`) endpoints are exposed enabling to evaluate on both completion and chat benchmarks.
+Phase 2 involves running the evaluation on the model using the OAI endpoint and port.
 
 Some of the benchmarks (e.g. GPQA) use a gated dataset. In order to use them, you must authenticate to 
 `HuggingFace Hub <https://huggingface.co/docs/huggingface_hub/quick-start#authentication>`__
 before launching the evaluation.
 
+NVIDIA Evals Factory provides following predefined configurations for evaluating completions endpoint:
+    * `gsm8k`,
+    * `mgsm`,
+    * `mmlu`,
+    * `mmlu_pro`, and
+    * `mmlu_redux`
+
+...and the following configurations for evaluating the chat endpoint:
+    * `gpqa_diamond_cot`,
+    * `gsm8k_cot_instruct`,
+    * `ifeval`,
+    * `mgsm_cot`,
+    * `mmlu_instruct`,
+    * `mmlu_pro_instruct`,
+    * `mmlu_redux_instruct`, and
+    * `wikilingua`.
 
 Run Evaluations without NeMo-Run
 ---------------------------------
