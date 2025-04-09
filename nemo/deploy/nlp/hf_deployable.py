@@ -232,7 +232,11 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
 
     @property
     def get_triton_output(self):
-        return (Tensor(name="sentences", shape=(-1,), dtype=bytes),)
+        return (
+            Tensor(name="sentences", shape=(-1,), dtype=bytes),
+            Tensor(name="logits", shape=(-1,), dtype=np.single),
+            Tensor(name="scores", shape=(-1,), dtype=np.single), 
+        )
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
@@ -281,6 +285,30 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
 
             if isinstance(output, dict):
                 output_infer = {"sentences": cast_output(output["sentences"], np.bytes_)}
+                
+                if "scores" in output.keys():
+                    output_scores = []  ## will have 2 np arrays if 2 prompts are sent
+                    for r in output["scores"]:
+                        # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
+                        # to cpu otherwise
+                        lp = torch.tensor(r).cpu().detach().numpy()
+                        if len(lp) == 0:
+                            output_scores.append([0])
+                        else:
+                            output_scores.append(lp)
+                    output_infer["scores"] = np.array(output_scores)
+
+                if "logits" in output.keys():
+                    output_logits = []  ## will have 2 np arrays if 2 prompts are sent
+                    for r in output["logits"]:
+                        # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
+                        # to cpu otherwise
+                        lp = torch.tensor(r).cpu().detach().numpy()
+                        if len(lp) == 0:
+                            output_logits.append([0])
+                        else:
+                            output_logits.append(lp)
+                    output_infer["logits"] = np.array(output_logits)
             else:
                 output_infer = {"sentences": cast_output(output, np.bytes_)}
 
