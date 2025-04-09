@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import deepcopy
-from typing import Optional, Tuple, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import torch
-from torch import Tensor
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.inference.contexts import BaseInferenceContext
@@ -25,6 +24,7 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention as MCoreSelfAttention
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.utils import deprecate_inference_params
+from torch import Tensor
 
 try:
     from nvidia_chunked_flash_attn.flash_attn_interface import (
@@ -35,6 +35,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from nemo.collections.llm.gpt.model.llama import Llama4Config
+
 
 def chunkify_cu_seqlens(cu_seqlens, cu_seqlens_padded, attention_chunk_size):
     """

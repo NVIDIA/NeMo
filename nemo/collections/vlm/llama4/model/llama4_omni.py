@@ -142,12 +142,8 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             "vision_model.layernorm_pre.bias": "vision_model.ln_pre.bias",
             "vision_model.layernorm_post.weight": "vision_model.ln_post.weight",
             "vision_model.layernorm_post.bias": "vision_model.ln_post.bias",
-            "vision_model.vision_adapter.mlp.fc1.weight": (
-                "vision_model.adapter.mlp.encoder.linear_fc1.weight"
-            ),
-            'vision_model.vision_adapter.mlp.fc2.weight': (
-                "vision_model.adapter.mlp.encoder.linear_fc2.weight"
-            ),
+            "vision_model.vision_adapter.mlp.fc1.weight": ("vision_model.adapter.mlp.encoder.linear_fc1.weight"),
+            'vision_model.vision_adapter.mlp.fc2.weight': ("vision_model.adapter.mlp.encoder.linear_fc2.weight"),
             "vision_model.model.layers.*.self_attn.o_proj.weight": (
                 "vision_model.decoder.layers.*.self_attention.linear_proj.weight"
             ),
