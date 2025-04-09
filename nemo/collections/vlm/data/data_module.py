@@ -21,7 +21,6 @@ import torch.distributed
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from megatron.core import parallel_state
 from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
-from torch.utils.data import DataLoader
 from typing_extensions import Self
 
 from nemo.collections.vlm.data.task_encoder import TaskEncoder
@@ -35,7 +34,8 @@ class EnergonDataModule(pl.LightningDataModule, IOMixin):
     A PyTorch Lightning DataModule for handling Energon datasets.
 
     It provides a seamless interface to load training and validation data, saving, and sampling strategies.
-    The module integrates with the Megatron-Energon framework for efficient data handling in large-scale distributed training.
+    The module integrates with the Megatron-Energon framework for efficient data handling 
+    in large-scale distributed training.
     """
 
     def __init__(
@@ -70,7 +70,7 @@ class EnergonDataModule(pl.LightningDataModule, IOMixin):
             shuffle_buffer_size (int, optional): Size of the shuffle buffer. Defaults to 100.
             max_samples_per_sequence (int, optional): Maximum number of samples per sequence to load from memory.
                 Defaults to None (loads the whole tar file at once).
-            decoder_seq_length (int, optional): The max sequence length for the decoder. Used in encoder-decoder models.
+            decoder_seq_length (int, optional): The max seq length for the decoder. Used in encoder-decoder models.
             packing_buffer_size (int, optional): Size of the packing buffer for batched samples. Defaults to None.
             validation_encoder (TaskEncoder, optional): Encoder for validation data.
                 Defaults to None and will be the same as train_encoder.

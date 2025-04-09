@@ -16,7 +16,6 @@ import bisect
 from typing import List
 
 import torch
-import torch.nn.functional as F
 from megatron.core.packed_seq_params import PackedSeqParams
 
 
