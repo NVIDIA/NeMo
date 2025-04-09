@@ -2161,7 +2161,7 @@ jobs:
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
-      - L2_NeMo_2_EVAL
+      - Optional_L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_Export_HF_TRT_LLM
 
