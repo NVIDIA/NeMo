@@ -17,6 +17,7 @@ import logging
 from typing import List, Literal, Optional, Union
 
 import lightning.pytorch as pl
+import torch
 from torch.utils.data import DataLoader
 
 from nemo.lightning.megatron_parallel import MegatronStep
@@ -86,28 +87,28 @@ class MegatronDataSampler(DataSampler):
         ), f"micro_batch_size: {self.micro_batch_size} can be a list only when cu_global_batch_splits is provided!"
 
         if self.cu_global_batch_splits is not None:
-            # calculate DP info and global batch split range for the split range where the current GPU belongs to,
-            # GPU world size consists of len(cu_global_batch_splits) split ranges, assuming all ranges have same
-            # number of GPUs and same parallelism config.
-            num_world_size_split_ranges = len(self.cu_global_batch_splits) - 1
-            self.data_parallel_size = self.data_parallel_size // num_world_size_split_ranges
-            world_size_split_range_id = self.data_parallel_rank // self.data_parallel_size
+            # calculate DP info and global batch split range for the rank range where the current GPU belongs to
+            # GPU world size consists of (len(cu_global_batch_splits) - 1) rank ranges, assuming all ranges have
+            # same number of GPUs and same parallelism config.
+            num_rank_ranges = len(self.cu_global_batch_splits) - 1
+            self.data_parallel_size = self.data_parallel_size // num_rank_ranges
+            rank_range_id = self.data_parallel_rank // self.data_parallel_size
             self.data_parallel_rank = self.data_parallel_rank % self.data_parallel_size
 
             if isinstance(self.micro_batch_size, list):
                 assert (
-                    len(self.micro_batch_size) == num_world_size_split_ranges
+                    len(self.micro_batch_size) == num_rank_ranges
                 ), f"The length of micro_batch_size: {self.micro_batch_size} should be same as the number of \
-                    world size split ranges: {num_world_size_split_ranges}!"
-                self.micro_batch_size = self.micro_batch_size[world_size_split_range_id]
+                    world size split ranges: {num_rank_ranges}!"
+                self.micro_batch_size = self.micro_batch_size[rank_range_id]
 
             assert (
                 self.cu_global_batch_splits[0] == 0 and self.cu_global_batch_splits[-1] == self.global_batch_size
             ), f"cu_global_batch_splits: {self.cu_global_batch_splits} should start with 0 and end with \
                 {self.global_batch_size}!"
             self.global_batch_split_range = (
-                self.cu_global_batch_splits[world_size_split_range_id],
-                self.cu_global_batch_splits[world_size_split_range_id + 1],
+                self.cu_global_batch_splits[rank_range_id],
+                self.cu_global_batch_splits[rank_range_id + 1],
             )
 
         setup_microbatch_calculator(

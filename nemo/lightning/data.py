@@ -99,16 +99,16 @@ def setup_microbatch_calculator(
         from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if global_batch_split_range is not None:
-            global_batch_size_for_local_world_split = global_batch_split_range[1] - global_batch_split_range[0]
+            global_batch_size_split = global_batch_split_range[1] - global_batch_split_range[0]
         else:
             data_parallel_size = app_state.data_parallel_size
-            global_batch_size_for_local_world_split = global_batch_size
+            global_batch_size_split = global_batch_size
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             init_num_microbatches_calculator(
                 rank=init_global_rank,
                 global_batch_size=global_batch_size,
-                global_batch_size_for_local_world_split=global_batch_size_for_local_world_split,
+                global_batch_size_split=global_batch_size_split,
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=data_parallel_size,
                 rampup_batch_size=rampup_batch_size,
@@ -118,7 +118,7 @@ def setup_microbatch_calculator(
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
                 assert get_current_global_batch_size() == global_batch_size
                 assert get_micro_batch_size() == micro_batch_size
-                assert get_num_microbatches() == global_batch_size_for_local_world_split // (
+                assert get_num_microbatches() == global_batch_size_split // (
                     micro_batch_size * data_parallel_size
                 )
             else:
@@ -288,14 +288,14 @@ class BaseMegatronSampler:
             )
 
         if global_batch_split_range is not None:
-            global_batch_size_for_local_world_split = global_batch_split_range[1] - global_batch_split_range[0]
+            global_batch_size_split = global_batch_split_range[1] - global_batch_split_range[0]
         else:
-            global_batch_size_for_local_world_split = global_batch_size
+            global_batch_size_split = global_batch_size
 
-        if global_batch_size_for_local_world_split is not None and rampup_batch_size is None:
-            if global_batch_size_for_local_world_split % (micro_batch_size * data_parallel_size) != 0:
+        if global_batch_size_split is not None and rampup_batch_size is None:
+            if global_batch_size_split % (micro_batch_size * data_parallel_size) != 0:
                 raise RuntimeError(
-                    f"`global_batch_size_for_local_world_split` ({global_batch_size_for_local_world_split}) "
+                    f"`global_batch_size_split` ({global_batch_size_split}) "
                     f"is not divisible by `micro_batch_size ({micro_batch_size}) x data_parallel_size "
                     f"({data_parallel_size})`"
                 )
