@@ -28,14 +28,15 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.model.llama import Llama4Experts16Config as Llama4TextConfig
+from nemo.collections.vlm.data.data_module import EnergonDataModule
+from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoder as Llama4TaskEncoder
+from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoderConfig as Llama4TaskEncoderConfig
 from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoder as Llama4TaskEncoder, TaskEncoderConfig as Llama4TaskEncoderConfig
-from nemo.collections.vlm.data.data_module import EnergonDataModule
 
 
 def main(args):
@@ -70,12 +71,12 @@ def main(args):
     if args.data_type == "llava":
         raise NotImplementedError
     elif args.data_type == "energon":
-        
+
         model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
-        
+
         task_encoder = Llama4TaskEncoder(
             config=Llama4TaskEncoderConfig(
-               hf_path=model_id,
+                hf_path=model_id,
             )
         )
         data = EnergonDataModule(

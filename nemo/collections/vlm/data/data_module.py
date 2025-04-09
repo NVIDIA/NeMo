@@ -35,7 +35,7 @@ class EnergonDataModule(pl.LightningDataModule, IOMixin):
     A PyTorch Lightning DataModule for handling Energon datasets.
 
     It provides a seamless interface to load training and validation data, saving, and sampling strategies.
-    The module integrates with the Megatron-Energon framework for efficient data handling in large-scale distributed training. 
+    The module integrates with the Megatron-Energon framework for efficient data handling in large-scale distributed training.
     """
 
     def __init__(
@@ -112,11 +112,7 @@ class EnergonDataModule(pl.LightningDataModule, IOMixin):
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
 
-        cfg_kwargs = {
-            k: deepcopy(v)
-            for k, v in kwargs.items()
-            if k not in ['validation_encoder', 'train_encoder']
-        }
+        cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['validation_encoder', 'train_encoder']}
 
         for val in cfg_kwargs.values():
             if not serialization.find_node_traverser(type(val)):
@@ -141,7 +137,6 @@ class EnergonDataModule(pl.LightningDataModule, IOMixin):
 
         if split not in {'train', 'val'}:
             raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
-
 
         task_encoder = self.validation_encoder if split == "val" else self.train_encoder
 

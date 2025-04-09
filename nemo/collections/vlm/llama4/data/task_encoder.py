@@ -14,43 +14,46 @@
 
 from dataclasses import dataclass
 from typing import Optional
+
 import torch
 import torch.nn.functional as F
-from megatron.energon import (VQASample)
-from nemo.collections.vlm.data.task_encoder import DataBatch, TaskEncoder as BaseTaskEncoder
-from nemo.collections.vlm.data.task_encoder import DataSample
+from megatron.energon import VQASample
+
+from nemo.collections.vlm.data.task_encoder import DataBatch, DataSample
+from nemo.collections.vlm.data.task_encoder import TaskEncoder as BaseTaskEncoder
 from nemo.collections.vlm.data.task_encoder import TaskEncoderConfig as BaseTaskEncoderConfig
+
 
 @dataclass
 class TaskEncoderConfig(BaseTaskEncoderConfig):
     """Configuration for llama4 processing.
-    
+
     This class consolidates all configuration needed for llama4 processing,
     including model paths, tokenization, image processing, and sequence packing parameters.
 
     """
+
     stop_string: Optional[str] = ""
     system_prompt: Optional[str] = None
 
 
-    
 class TaskEncoder(BaseTaskEncoder):
     """TaskEncoder for llama4 data processing.
-    
+
     This class handles the processing of different types of llama4 samples,
     including Visual Question Answering (VQA), Captioning, and Interleaved samples.
     It provides functionality for encoding individual samples, batching them together,
     and handling packed sequences for efficient processing.
-    
+
     The encoder supports:
     - VQA samples: Processing image-question pairs with corresponding answers
     - [In progress] Interleaved samples: Processing alternating image and text content
     - [In progress] Similarity interleaved samples: Processing image-text pairs for similarity tasks
     - [In progress] Packed sequences: Efficient processing of multiple samples in a single sequence
-    
+
     Args:
         config (TaskEncoderConfig): Configuration object containing processing parameters
-        
+
     Note:
         When using packed sequences, the micro batch size must be 1, and the global batch
         size and sequence length must be adjusted accordingly.
@@ -65,13 +68,14 @@ class TaskEncoder(BaseTaskEncoder):
         self.config = config
         self.hf_processor = self.config.hf_processor
         self.tokenizer = self.config.tokenizer
-        
+
         # Initialize encoders with the config
         self.encoders = {
             "VQASample": self.encode_vqa_sample,
             # "InterleavedSample": self.encode_interleaved_sample,
             # "SimilarityInterleavedSample": self.encode_similarity_interleaved_sample,
         }
+
     def encode_batch(self, batch_data: DataBatch) -> dict:
         """Encode a batched set of samples for model input.
 
@@ -88,13 +92,12 @@ class TaskEncoder(BaseTaskEncoder):
         batch_data["media"] = batch_data["media"].reshape(-1, *batch_data["media"].shape[2:])
         return batch_data
 
-
     def encode_vqa_sample(self, input_sample: VQASample) -> DataSample:
         """Encode a VQA sample into a DataSample format.
-        
+
         Args:
             input_sample (VQASample): Input VQA sample containing image, context and answers
-            
+
         Returns:
             DataSample: Encoded sample with processed image, tokens, labels and loss mask
         """
@@ -112,15 +115,14 @@ class TaskEncoder(BaseTaskEncoder):
             messages.append({'role': self.config.roles[0], 'content': input_sample.context})
             messages.append({'role': self.config.roles[1], 'content': input_sample.answers})
 
-        
         converted_messages = self.hf_processor.apply_chat_template(messages)
         outputs = self.hf_processor(images=input_sample.image, text=converted_messages, return_tensors="pt")
         answers = input_sample.answers if isinstance(input_sample.answers, list) else [input_sample.answers]
-        
+
         # Get tokens and images from formatter output
         tokens = outputs["input_ids"][0]
         images = outputs["pixel_values"]
-        
+
         # Compute labels
         labels = torch.ones_like(tokens) * self.config.ignore_place_holder
 
@@ -130,8 +132,8 @@ class TaskEncoder(BaseTaskEncoder):
             answer_tokens = answer_tokens["input_ids"]
             # Find answer pattern in tokens
             for i in range(search_start, len(tokens) - len(answer_tokens) + 1):
-                if torch.all(tokens[i:i + len(answer_tokens)] == torch.tensor(answer_tokens)):
-                    labels[i:i + len(answer_tokens)] = tokens[i:i + len(answer_tokens)]
+                if torch.all(tokens[i : i + len(answer_tokens)] == torch.tensor(answer_tokens)):
+                    labels[i : i + len(answer_tokens)] = tokens[i : i + len(answer_tokens)]
                     search_start = i + len(answer_tokens)
                     break
 
@@ -140,16 +142,20 @@ class TaskEncoder(BaseTaskEncoder):
         labels = labels[1:].contiguous()
 
         seq_len = len(tokens)
-        
+
         # Pad tokens
         if self.config.pad_to_multiple_of:
-            seqlen_padded = (seq_len + self.config.pad_to_multiple_of - 1) // self.config.pad_to_multiple_of * self.config.pad_to_multiple_of
+            seqlen_padded = (
+                (seq_len + self.config.pad_to_multiple_of - 1)
+                // self.config.pad_to_multiple_of
+                * self.config.pad_to_multiple_of
+            )
             pad_len = seqlen_padded - seq_len
 
             if pad_len > 0:
                 tokens = F.pad(tokens, (0, pad_len), 'constant', 0)
                 labels = F.pad(labels, (0, pad_len), 'constant', self.config.ignore_place_holder)
-        
+
         # Compute loss mask
         loss_mask = torch.ones_like(labels, dtype=torch.float)
         loss_mask[labels == self.config.ignore_place_holder] = 0.0
@@ -173,11 +179,13 @@ class TaskEncoder(BaseTaskEncoder):
             tokens=tokens,
             labels=labels,
             loss_mask=loss_mask,
-            seqlen=seq_len
+            seqlen=seq_len,
         )
+
 
 if __name__ == '__main__':
     import argparse
+
     from megatron.energon import WorkerConfig, get_loader, get_train_dataset
 
     parser = argparse.ArgumentParser()
@@ -185,7 +193,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
-    
+
     task_encoder = TaskEncoder(
         config=TaskEncoderConfig(
             hf_path=model_id,
@@ -212,4 +220,4 @@ if __name__ == '__main__':
     for index, each_batch in enumerate(train_loader):
         print(f"batch index {index} tokens shape {each_batch['tokens'].shape}")
         if index >= 2:  # Print first 3 batches
-            break 
+            break
