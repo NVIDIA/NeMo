@@ -27,12 +27,10 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.llm.gpt.model.llama import Llama4Experts16Config as Llama4TextConfig
 from nemo.collections.vlm.data.data_module import EnergonDataModule
 from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoder as Llama4TaskEncoder
 from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoderConfig as Llama4TaskEncoderConfig
-from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
-from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
+from nemo.collections.vlm.llama4.model.base import Llama4OmniModel
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -46,10 +44,9 @@ def main(args):
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
+    num_workers = args.num_workers
 
-    decoder_seq_length = 8192
-    if args.use_packed_sequence:
-        decoder_seq_length = 16384
+    decoder_seq_length = args.decoder_seq_length
 
     # Submodules configurations
     # switch to 128E with  vlm.Llama4MaverickExperts128Config()
@@ -58,16 +55,15 @@ def main(args):
         decoder_seq_length = 4096
         llama4_config.vision_transformer_config.num_layers = 2
         llama4_config.language_transformer_config.num_layers = 2
+        num_workers = 0
 
     if args.data_type == "llava":
         raise NotImplementedError
     elif args.data_type == "energon":
 
-        model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
-
         task_encoder = Llama4TaskEncoder(
             config=Llama4TaskEncoderConfig(
-                hf_path=model_id,
+                hf_path='meta-llama/Llama-4-Scout-17B-16E-Instruct',
             )
         )
         data = EnergonDataModule(
@@ -76,7 +72,7 @@ def main(args):
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
-            num_workers=4,
+            num_workers=num_workers,
         )
     elif args.data_type == "mock":
         llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
@@ -87,7 +83,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=llama_tokenizer,
             image_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
             packed_sequence=args.use_packed_sequence,
         )
     else:
@@ -208,9 +204,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Llama4 Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | energon")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
-    parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
     parser.add_argument(
         "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
     )
@@ -221,6 +216,7 @@ if __name__ == "__main__":
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--num_workers", type=int, required=False, default=4)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
@@ -235,6 +231,7 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=128, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
+    parser.add_argument("--decoder_seq_length", type=int, required=False, default=8192, help="decoder sequence length")
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",
@@ -242,6 +239,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_toy_model",
         action="store_true",
+        help="Toy size model used for testing",
     )
     args = parser.parse_args()
     main(args)

@@ -192,7 +192,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, required=True, help='path to the dataset directory')
     args = parser.parse_args()
 
-    model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+    model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
 
     task_encoder = TaskEncoder(
         config=TaskEncoderConfig(
@@ -216,8 +216,11 @@ if __name__ == '__main__':
         worker_config=worker_config,
     )
 
-    print(f"data loader length {len(train_loader)}")
+    print(f"Data loader length: {len(train_loader)}")
     for index, each_batch in enumerate(train_loader):
-        print(f"batch index {index} tokens shape {each_batch['tokens'].shape}")
-        if index >= 2:  # Print first 3 batches
+        print("=" * 50)
+        for key in each_batch:
+            print(f"batch index {index} '{key}' shape "
+                  f"{each_batch[key].shape if isinstance(each_batch[key], torch.Tensor) else each_batch[key]}")
+        if index >= 2:
             break
