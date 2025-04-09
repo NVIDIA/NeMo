@@ -28,6 +28,9 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.model.llama import Llama4Experts16Config as Llama4TextConfig
+from nemo.collections.vlm.data.data_module import EnergonDataModule
+from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoder as Llama4TaskEncoder
+from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoderConfig as Llama4TaskEncoderConfig
 from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
@@ -68,7 +71,22 @@ def main(args):
     if args.data_type == "llava":
         raise NotImplementedError
     elif args.data_type == "energon":
-        raise NotImplementedError("Energon data not yet implemented.")
+
+        model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+
+        task_encoder = Llama4TaskEncoder(
+            config=Llama4TaskEncoderConfig(
+                hf_path=model_id,
+            )
+        )
+        data = EnergonDataModule(
+            path=args.data_path,
+            train_encoder=task_encoder,
+            seq_length=decoder_seq_length,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            num_workers=23,
+        )
     elif args.data_type == "mock":
         llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
 
