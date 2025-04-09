@@ -674,7 +674,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     and self.fsdp == "megatron"
                     and not isinstance(unwrapped_module, FullyShardedDataParallel)
                 ):
-                    if not module.config.use_custom_fsdp:
+                    if not setattr(module.config, "use_custom_fsdp", False):
                         from nemo.utils import logging
 
                         module.config.use_custom_fsdp = True
