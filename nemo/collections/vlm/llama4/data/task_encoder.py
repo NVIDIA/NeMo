@@ -220,7 +220,9 @@ if __name__ == '__main__':
     for index, each_batch in enumerate(train_loader):
         print("=" * 50)
         for key in each_batch:
-            print(f"batch index {index} '{key}' shape "
-                  f"{each_batch[key].shape if isinstance(each_batch[key], torch.Tensor) else each_batch[key]}")
+            print(
+                f"batch index {index} '{key}' shape "
+                f"{each_batch[key].shape if isinstance(each_batch[key], torch.Tensor) else each_batch[key]}"
+            )
         if index >= 2:
             break
