@@ -580,7 +580,7 @@ def build_index_files(
 
     logging.info(
         f"Time building {sum(build_status)} / {len(build_status)} mem-mapped files: "
-        "{datetime.timedelta(seconds=time.time() - start_time)}"
+        f"{datetime.timedelta(seconds=time.time() - start_time)}"
     )
 
 
