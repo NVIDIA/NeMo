@@ -263,7 +263,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
                     packed_seq_params.cu_seqlens_kv, packed_seq_params.cu_seqlens_kv_padded, self.attention_chunk_size
                 )
         else:
-            original_seq_len = hidden_states.shape[0]
+            original_seq_len = query.shape[0]
             if original_seq_len > self.attention_chunk_size:
                 # [seq_len, batch_size, hidden_size]
                 original_shape = hidden_states.shape
@@ -373,12 +373,11 @@ class Llama4SelfAttention(MCoreSelfAttention):
             if original_seq_len > self.attention_chunk_size:
                 # Reshape from [attention_chunk_size, num_chunks * batch_size, hidden_size] back to [seq_len, batch_size, hidden_size]
                 batch_size = original_shape[1]
-                hidden_size = original_shape[2]
-                num_chunks = hidden_states.shape[1] // batch_size
-                core_attn_out = core_attn_out.reshape(self.attention_chunk_size, num_chunks, batch_size, hidden_size)
-                core_attn_out = core_attn_out.transpose(0,
-                                                        1)  # [num_chunks, attention_chunk_size, batch_size, hidden_size]
-                core_attn_out = core_attn_out.reshape(num_chunks * self.attention_chunk_size, batch_size, hidden_size)
+                num_chunks = core_attn_out.shape[1] // batch_size
+                core_attn_out = core_attn_out.reshape(self.attention_chunk_size, num_chunks, batch_size, -1)
+                # [num_chunks, attention_chunk_size, batch_size, hidden_size]
+                core_attn_out = core_attn_out.transpose(0, 1)
+                core_attn_out = core_attn_out.reshape(num_chunks * self.attention_chunk_size, batch_size, -1)
                 core_attn_out = core_attn_out[:original_seq_len]
 
         # =================

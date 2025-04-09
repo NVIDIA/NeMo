@@ -212,7 +212,7 @@ class MockLlama4Dataset(Dataset):
         self.name = name
         self.seq_length = seq_length
 
-        self.vocab_size = tokenizer.vocab_size
+        self.vocab_size = 200000
 
         crop_size = image_processor.crop_size
         self.image_height, self.image_width = crop_size["height"], crop_size["width"]
@@ -270,7 +270,7 @@ class MockLlama4Dataset(Dataset):
         tokens = torch.from_numpy(
             np_gen.integers(
                 # Using a large upper bound for random token IDs
-                high=self.vocab_size,
+                self.vocab_size,
                 size=[self.seq_length + 1],
                 dtype=np.int64,
             )
