@@ -235,7 +235,7 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
         return (
             Tensor(name="sentences", shape=(-1,), dtype=bytes),
             Tensor(name="logits", shape=(-1,), dtype=np.single),
-            Tensor(name="scores", shape=(-1,), dtype=np.single), 
+            Tensor(name="scores", shape=(-1,), dtype=np.single),
         )
 
     @batch
@@ -285,7 +285,7 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
 
             if isinstance(output, dict):
                 output_infer = {"sentences": cast_output(output["sentences"], np.bytes_)}
-                
+
                 if "scores" in output.keys():
                     output_scores = []  ## will have 2 np arrays if 2 prompts are sent
                     for r in output["scores"]:
