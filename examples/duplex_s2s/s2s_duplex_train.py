@@ -25,6 +25,7 @@ from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
 
 torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+torch.set_float32_matmul_precision("high")
 
 # During the training, the checkpoint format is standard PTL ckpt
 # After the training -> convert to HF instead of .nemo ?

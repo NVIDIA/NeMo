@@ -68,9 +68,9 @@ model:
     foreach: true # set to false if having issues with tensor-parallelism
 
   lr_scheduler:
-    _target_: nemo.core.optim.lr_scheduler.InverseSquareRootAnnealing
-    # _target_: nemo.core.optim.lr_scheduler.CosineAnnealing
-    warmup_steps: 2500
+#    _target_: nemo.core.optim.lr_scheduler.InverseSquareRootAnnealing
+    _target_: nemo.core.optim.lr_scheduler.CosineAnnealing
+    warmup_steps: 0  #2500
     min_lr: 1e-6
     max_steps: ${trainer.max_steps}
 
@@ -83,10 +83,10 @@ trainer:
   enable_checkpointing: False
   use_distributed_sampler: False
   max_steps: 1000000
-  limit_train_batches: 1000000
+  limit_train_batches: 100  # "epoch" size
+  val_check_interval: ${trainer.limit_train_batches}
   limit_val_batches: 10
   log_every_n_steps: 10
-  val_check_interval: 100
   num_sanity_val_steps: 2
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
@@ -163,8 +163,10 @@ exp_manager:
      resume: true
 
    checkpoint_callback_params:
-     filename: "{val_loss:.3f}_{step}"
-     every_n_train_steps: ${trainer.val_check_interval}
-     every_n_epochs: null
+     filename: "{step}"
+     monitor: val_asr_bleu
+     mode: max
+     every_n_train_steps: null
+     every_n_epochs: 1
      save_top_k: 1
      always_save_nemo: false

@@ -13,12 +13,14 @@
 # limitations under the License.
 import builtins
 import warnings
+from collections import defaultdict
 from contextlib import contextmanager
 from itertools import chain
 from pathlib import Path
 from typing import Any
 
 import hydra
+import sacrebleu
 import torch
 from lightning import LightningModule
 from omegaconf import open_dict
@@ -35,8 +37,8 @@ from torch.distributed.tensor.parallel import (
     loss_parallel,
     parallelize_module,
 )
-from torchmetrics.text import SacreBLEUScore
 from transformers import AutoModel, AutoModelForCausalLM, DynamicCache
+from whisper_normalizer.english import EnglishTextNormalizer
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -53,12 +55,10 @@ class DuplexS2SModel(LightningModule):
         super().__init__()
         self.cfg = cfg
 
-        self._audio_codec = (
-            _load_pretrained(AudioCodecModel, self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
-        )
-        del self._audio_codec.discriminator  # free up some memory
-        self._codebook_size = self._audio_codec.vector_quantizer.codebook_size_per_group
-        self._num_codebooks = self._audio_codec.vector_quantizer.num_groups
+        self.audio_codec = _load_pretrained(AudioCodecModel, self.cfg.pretrained_audio_codec).to(torch.float32).eval()
+        del self.audio_codec.discriminator  # free up some memory
+        self._codebook_size = self.audio_codec.vector_quantizer.codebook_size_per_group
+        self._num_codebooks = self.audio_codec.vector_quantizer.num_groups
 
         # We load the pretrained HF LLM using "ForCausalLM" variant so that we can obtain the
         # pretrained LM head weights.
@@ -89,6 +89,13 @@ class DuplexS2SModel(LightningModule):
             ]
         )
         self.audio_head = torch.nn.Linear(self.llm.config.hidden_size, self.speech_vocab_size * self._num_codebooks)
+
+        # cached for quicker audio decoding
+        self.register_buffer(
+            "_control_codes",
+            torch.tensor([self.speech_bos_id, self.speech_eos_id, self.speech_delay_id], device=self.device),
+        )
+        self.normalizer = EnglishTextNormalizer()
 
     @property
     def speech_vocab_size(self):
@@ -224,8 +231,9 @@ class DuplexS2SModel(LightningModule):
         # Input target audio: (B, T_samples')
         # Output target codes: (B, K, T)
         with torch.no_grad(), _safe_audio_codec_inference():
-            target_codes, target_codes_lens = self._audio_codec.encode(
-                audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
+            self.audio_codec.to(torch.float32).eval()
+            target_codes, target_codes_lens = self.audio_codec.encode(
+                audio=batch["target_audio"].to(torch.float32), audio_len=batch["target_audio_lens"]
             )
             target_codes = target_codes.transpose(1, 2)  # (B, K, T) -> (B, T, K)
 
@@ -323,8 +331,6 @@ class DuplexS2SModel(LightningModule):
         loss = text_loss + audio_loss
 
         B, T = inputs["input_embeds"].shape[:2]
-        print(f"{loss=} {B=} {T=}")
-
         ans = {
             "loss": loss,
             "learning_rate": (
@@ -350,19 +356,33 @@ class DuplexS2SModel(LightningModule):
         # Setup a separate BLEU metric for each validation dataloader through CombinedLoader.
         # See: https://lightning.ai/docs/pytorch/LTS/guides/data.html#accessing-dataloaders-within-lightningmodule
         self._partial_val_losses = []
-        self.asr_bleu = {}
-        self.text_bleu = {}
-        for name in self.trainer.val_dataloaders.keys():
-            self.asr_bleu[name] = SacreBLEUScore().to(self.device)
-            self.text_bleu[name] = SacreBLEUScore().to(self.device)
+        self._refs = defaultdict(list)
+        self._asr_preds = defaultdict(list)
+        self._txt_preds = defaultdict(list)
 
     def on_validation_epoch_end(self) -> None:
-        for name, bleu in self.asr_bleu.items():
-            self.log(f"val_asr_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
-            bleu.reset()
-        for name, bleu in self.text_bleu.items():
-            self.log(f"val_text_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
-            bleu.reset()
+        corpus_bleus = []
+        for name in self._refs.keys():
+            val_asr_bleu = torch.tensor(
+                sacrebleu.corpus_bleu(self._asr_preds[name], self._refs[name]).score, device=self.device
+            )
+            self.log(f"val_asr_bleu_{name}", val_asr_bleu, on_epoch=True, sync_dist=True)
+            corpus_bleus.append(val_asr_bleu)
+        self.log("val_asr_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
+
+        corpus_bleus = []
+        for name in self._refs.keys():
+            val_txt_bleu = torch.tensor(
+                sacrebleu.corpus_bleu(self._txt_preds[name], self._refs[name]).score, device=self.device
+            )
+            self.log(f"val_txt_bleu_{name}", val_txt_bleu, on_epoch=True, sync_dist=True)
+            corpus_bleus.append(val_txt_bleu)
+        self.log("val_txt_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
+
+        self._refs.clear()
+        self._asr_preds.clear()
+        self._txt_preds.clear()
+
         self.asr = None  # free up GPU memory
         val_loss = torch.mean(torch.stack(self._partial_val_losses))
         self._partial_val_losses = None
@@ -373,6 +393,8 @@ class DuplexS2SModel(LightningModule):
         for name, dataset_batch in batch.items():
             if dataset_batch is None:
                 continue  # some dataset is exhausted
+
+            # TEACHER FORCING FOR VALIDATION LOSS
             inputs = self.prepare_inputs(dataset_batch)
             forward_outputs = self(inputs["input_embeds"])
             num_frames = inputs["input_lens"].sum()
@@ -399,34 +421,44 @@ class DuplexS2SModel(LightningModule):
             self.log(f"val_text_loss_{name}", text_loss, on_epoch=True, sync_dist=True, batch_size=B)
             self.log(f"val_audio_loss_{name}", audio_loss, on_epoch=True, sync_dist=True, batch_size=B)
 
+            # AUTOREGRESSIVE INFERENCE FOR OTHER METRICS
+            gen_text, gen_audio_codes, lengths = self.offline_inference(
+                dataset_batch["source_audio"],
+                dataset_batch["source_audio_lens"],
+            )
+
             # ASR BLEU
             import torchaudio
 
             with torch.inference_mode():
-                predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=-1).transpose(1, 2)
                 with _safe_audio_codec_inference():
-                    predicted_audio, predicted_audio_lens = self._audio_codec.decode(
-                        tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
+                    gen_audio_codes = self.replace_control_speech_codes(gen_audio_codes)
+                    predicted_audio, predicted_audio_lens = self.audio_codec.decode(
+                        tokens=gen_audio_codes.transpose(1, 2), tokens_len=lengths
                     )
-                ans = self.asr.transcribe(
-                    list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
+                asr_hyps = self.asr.transcribe(
+                    [
+                        audio[:alen]
+                        for audio, alen in zip(
+                            torchaudio.functional.resample(predicted_audio, 22050, 16000),
+                            predicted_audio_lens,
+                        )
+                    ],
                     batch_size=predicted_audio.shape[0],
                     verbose=False,
                 )
-            hyp = [hyp.text for hyp in ans]
-            ref = [[tt] for tt in dataset_batch["target_texts"]]
-            for h, (r,) in zip(hyp, ref):
-                print(f"[AUDIO] Ref: {r}\n[AUDIO] Hyp: {h}")
-            self.asr_bleu[name].update(hyp, ref)
 
-            hyp = [
-                self.tokenizer.ids_to_text(hyp_ids) for hyp_ids in forward_outputs["text_logits"].argmax(dim=-1).cpu()
+            txt_hyps = [
+                self.tokenizer.ids_to_text(hyp_ids[:hyp_len]) for hyp_ids, hyp_len in zip(gen_text.cpu(), lengths)
             ]
-            ref = [[tt] for tt in dataset_batch["target_texts"]]
-            for h, (r,) in zip(hyp, ref):
-                print(f"[TEXT] Ref: {r}\n[TEXT] Hyp: {h}")
-            # Text BLEU
-            self.text_bleu[name].update(hyp, ref)
+            for ref, txt_hyp, asr_hyp in zip(dataset_batch["target_texts"], txt_hyps, asr_hyps):
+                asr_hyp = asr_hyp.text
+                self._refs[name].append([self.normalizer(ref)])
+                self._txt_preds[name].append(self.normalizer(txt_hyp))
+                self._asr_preds[name].append(self.normalizer(asr_hyp))
+                txtb = sacrebleu.sentence_bleu(txt_hyp, [ref]).score
+                asrb = sacrebleu.sentence_bleu(asr_hyp, [ref]).score
+                logging.info(f"[REF]\t{ref}\n[HYP]\t{txt_hyp} [{txtb:.2f}]\n[ASR]\t{asr_hyp} [{asrb:.2f}]")
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()
@@ -436,6 +468,13 @@ class DuplexS2SModel(LightningModule):
 
     def test_step(self, *args: Any, **kwargs: Any):
         return self.validation_step(*args, **kwargs)
+
+    def replace_control_speech_codes(self, speech_codes: torch.Tensor):
+        """
+        Replaces control codes (speech BOS, EOS, etc) in `speech_codes` with the first frame which is
+        assumed to consist of 'valid' codes representing silence.
+        """
+        return torch.where(torch.isin(speech_codes, self._control_codes), speech_codes[:, :1], speech_codes)
 
     def _get_bos_embedding(self) -> torch.Tensor:
         """
@@ -452,10 +491,25 @@ class DuplexS2SModel(LightningModule):
         return input_embeds
 
     @torch.inference_mode
-    def offline_inference(self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor):
+    def offline_inference(
+        self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Autoregressive prediction.
+
+        Args:
+            input_signal: a batch of waveforms with shape (B, T) with source sampling rate.
+            input_signal_lens: example lengths as number of samples of shape (B,).
+
+        Returns:
+            A tuple of:
+                * generated text tokens of shape (B, T2).
+                * generated audio codes of shape (B, T2, K) where `K=num_codebooks`.
+                * output lengths as number of tokens of shape (B,).
+        """
         # Run through ASR simulating streaming, and pre-multiply by input channel weight
         # input_embeds: (B, T, H)
-        input_embeds, input_embed_lens = self.perception(
+        input_embeds, lengths = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_lens,
         )
@@ -482,7 +536,7 @@ class DuplexS2SModel(LightningModule):
             gen_text[:, t] = ans["text_logits"].argmax(dim=-1)[:, -1]
             gen_audio[:, t] = ans["audio_logits"].argmax(dim=-1)[:, -1]
 
-        return gen_text, gen_audio
+        return gen_text, gen_audio, lengths
 
     def backward(self, *args, **kwargs):
         with loss_parallel():
@@ -651,8 +705,8 @@ def _safe_audio_codec_inference():
     """
     default_dtype = torch.get_default_dtype()
     torch.set_default_dtype(torch.float32)
-    with torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.bfloat16):
-        try:
-            yield
-        finally:
-            torch.set_default_dtype(default_dtype)
+    # with torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.bfloat16):
+    try:
+        yield
+    finally:
+        torch.set_default_dtype(default_dtype)
