@@ -107,7 +107,7 @@ def main(args) -> None:
 
     from transformers import AutoProcessor
 
-    model_id = "/path/to/llama4_hf_checkpoint"
+    model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
     processor = AutoProcessor.from_pretrained(model_id)
     llama_tokenizer = AutoTokenizer(model_id)
     hf_tokenizer = llama_tokenizer.tokenizer
