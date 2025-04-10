@@ -13,11 +13,17 @@
 # limitations under the License.
 
 from types import MethodType
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
+from megatron.core.pipeline_parallel.schedules import get_tensor_shapes
+from megatron.core.utils import (
+    get_model_config,
+    get_model_type,
+    get_model_xattn,
+)
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -33,7 +39,7 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-mto, _ = safe_import("modelopt.torch.opt")
+mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationModel", alt=object)
 DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 
@@ -151,3 +157,66 @@ def adjust_distillation_model_for_mcore(
             return student_output
 
     model.forward = MethodType(_forward, model)
+
+
+def get_tensor_shapes_adjust_fn_for_distillation(
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    seq_length: int,
+    micro_batch_size: int,
+    decoder_seq_length: Optional[int] = None,
+    forward_only: bool = False,
+) -> Union[Callable, None]:
+    if not HAVE_MODELOPT:
+        return None
+    if (
+        forward_only
+        or parallel_state.get_pipeline_model_parallel_world_size() == 1
+        or parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
+    ):
+        return None
+    # Unwrap
+    if isinstance(model, list):
+        model = model[0]
+    while hasattr(model, "module"):
+        model = model.module
+    if not isinstance(model, DistillationModel):
+        return None
+
+    def adjust_tensor_shapes(recv_tensor_shapes: List[Tuple[int, ...]], send_tensor_shapes: List[Tuple[int, ...]]):
+        rank = parallel_state.get_pipeline_model_parallel_rank()
+        teacher_config = get_model_config(model.teacher_model)
+        teacher_model_type = get_model_type(model.teacher_model)
+        teacher_encoder_decoder_xattn = get_model_xattn(model.teacher_model)
+
+        teacher_recv_tensor_shapes = get_tensor_shapes(
+            rank=rank - 1,
+            model_type=teacher_model_type,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            decoder_seq_length=decoder_seq_length,
+            config=teacher_config,
+            encoder_decoder_xattn=teacher_encoder_decoder_xattn,
+        )
+        teacher_send_tensor_shapes = get_tensor_shapes(
+            rank=rank,
+            model_type=teacher_model_type,
+            seq_length=seq_length,
+            micro_batch_size=micro_batch_size,
+            decoder_seq_length=decoder_seq_length,
+            config=teacher_config,
+            encoder_decoder_xattn=teacher_encoder_decoder_xattn,
+        )
+        model.set_student_input_tensor_shape(recv_tensor_shapes)
+
+        for i, shape in enumerate(recv_tensor_shapes):
+            shape = list(shape)
+            shape[-1] += teacher_recv_tensor_shapes[0][-1]
+            recv_tensor_shapes[i] = tuple(shape)
+        for i, shape in enumerate(send_tensor_shapes):
+            shape = list(shape)
+            shape[-1] += teacher_send_tensor_shapes[0][-1]
+            send_tensor_shapes[i] = tuple(shape)
+
+        return recv_tensor_shapes, send_tensor_shapes
+
+    return adjust_tensor_shapes

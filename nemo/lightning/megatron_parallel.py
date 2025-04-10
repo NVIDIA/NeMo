@@ -1236,6 +1236,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             micro_batch_size=self.micro_batch_size,
             forward_only=self.forward_only,
             decoder_seq_length=self.decoder_seq_length,
+            adjust_tensor_shapes_fn=self.adjust_tensor_shapes_fn,
         )
 
     def to_data_iterator_list(
@@ -1378,6 +1379,21 @@ class MegatronStep(Generic[ModelT, DataT]):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
+
+    @functools.cached_property
+    def adjust_tensor_shapes_fn(self) -> Union[Callable, None]:
+        """
+        ...
+        """
+        from nemo.collections.llm.modelopt.distill.utils import get_tensor_shapes_adjust_fn_for_distillation
+
+        return get_tensor_shapes_adjust_fn_for_distillation(
+            self.model,
+            self.seq_length,
+            self.micro_batch_size,
+            self.decoder_seq_length,
+            self.forward_only,
+        )
 
     def get_data_iterator_and_seq_length(self) -> Tuple[List[Iterator[DataT]], Optional[int]]:
         """
