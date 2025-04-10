@@ -1990,14 +1990,7 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_T5') || needs.pre-flight.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
-      SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_NeMo_2_Conversion_Test.sh \
-          HF_ORI_PATH=/home/TestData/llm/models/t5_toy \
-          NEMO_MODEL_TYPE=T5Model \
-          NEMO_MODEL_CONFIG=T5Config220M \
-          NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt \
-          HF_OUTPUT_PATH=/tmp/output_hf_ckpt \
-          HF_TARGET_CLASS=AutoModelForSeq2SeqLM
+      SCRIPT: L2_NeMo_2_Conversion_Test_T5
 
   L2_NeMo_2_Export_HF_TRT_LLM:
     needs: [pre-flight, cicd-test-container-build]
