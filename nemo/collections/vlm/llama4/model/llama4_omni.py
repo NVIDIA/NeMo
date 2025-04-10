@@ -308,6 +308,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             return base
 
         src_text_config = source.text_config
+        src_vision_config = source.vision_config
         args = {
             'moe_router_topk': src_text_config.num_experts_per_tok,
             'num_moe_experts': src_text_config.num_local_experts,
@@ -352,7 +353,9 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         )
 
         # vision config doesn't change
-        vision_transformer_config = Llama4VisionConfig()
+        vision_transformer_config = Llama4VisionConfig(
+            num_layers=src_vision_config.num_hidden_layers
+        )
 
         vision_projection_config = MultimodalProjectorConfig(
             projector_type="mcore_affine",
