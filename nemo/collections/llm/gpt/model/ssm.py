@@ -685,7 +685,7 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         hf_config.num_hidden_layers = source.num_layers
         hf_config.mamba_head_dim = source.mamba_head_dim
         hf_config.mamba_num_heads = source.hidden_size * 2 // source.mamba_head_dim
-        hf_config.mamba_state_size = source.mamba_state_dim
+        hf_config.ssm_state_size = source.mamba_state_dim
         hf_config.hidden_size = source.hidden_size
         hf_config.intermediate_size = source.ffn_hidden_size
         hf_config.num_attention_heads = source.num_attention_heads
@@ -695,7 +695,6 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         hf_config.vocab_size = source.vocab_size
         hf_config.mlp_hidden_act = 'relu2'
         hf_config.mamba_hidden_act = "silu"
-
         return hf_config
 
 

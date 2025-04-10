@@ -18,6 +18,7 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
+import torch._dynamo
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
@@ -29,8 +30,11 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed_current_scaling
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
+
+torch._dynamo.config.suppress_errors = True
 
 NAME = "nemotron5_hybrid_47b"
 
@@ -71,19 +75,21 @@ def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
 
 @run.cli.factory(target=finetune, name=NAME)
 def trainer(
+    dir: str = None,
     tensor_parallelism: int = 8,
     pipeline_parallelism: int = 1,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    pipeline_parallelism_type: torch.dtype = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = True,
     num_nodes: int = 32,
     num_gpus_per_node: int = 8,
-    max_steps: int = 100,
-    val_check_interval: int = 100,
+    max_steps: int = 10,
+    val_check_interval: int = 10,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
-    log_every_n_steps: int = 10,
+    log_every_n_steps: int = 1,
+    save_top_k: int = 5,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
@@ -106,7 +112,7 @@ def trainer(
         CLI usage:
             $ nemo llm pretrain trainer=nemotron5_hybrid_47b ...
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=32, num_gpus_per_node=1)
+            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
             >>> print(trainer_config)
     Note:
         For more information on distributed training strategies, refer to the
@@ -116,39 +122,56 @@ def trainer(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
         pipeline_model_parallel_size=pipeline_parallelism,
-        pipeline_dtype=pipeline_parallelism_type,
-        virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
+        pipeline_dtype=pipeline_parallelism_type,
         sequence_parallel=sequence_parallelism,
-        gradient_as_bucket_view=True,
+        ckpt_load_optimizer=True,
+        ckpt_save_optimizer=True,
         ckpt_async_save=False,
-        ckpt_parallel_load=True,
+        save_ckpt_format="torch_dist",
+        ckpt_load_strictness="log_all",  # or rebasing to https://github.com/NVIDIA/NeMo/pull/11988/files#diff-7667eae242a8ef776bff78cd08e79bc81df4896a450f0a781f6ed317a3dfb7ffR139
         ddp=run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
-            grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
-            overlap_param_gather=True,
+            overlap_param_gather=False,  # Verify that this works
+            grad_reduce_in_fp32=True,
         ),
     )
 
+    callbacks = [
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_bootstrap_backend="nccl",
+            tp_comm_overlap=True,
+        ),
+        run.Config(
+            ModelCheckpoint,
+            every_n_train_steps=val_check_interval,
+            dirpath=dir,
+            save_top_k=save_top_k,
+            always_save_context=True,
+            save_optim_on_train_end=True,
+            save_context_on_train_end=True,
+        ),
+    ]
     trainer = run.Config(
         nl.Trainer,
-        accelerator="gpu",
-        accumulate_grad_batches=1,
-        callbacks=callbacks,
         devices=num_gpus_per_node,
-        max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_with_fp8_mixed_current_scaling(),
+        max_steps=max_steps,
+        accelerator="gpu",
         strategy=strategy,
-        use_distributed_sampler=False,
-        val_check_interval=val_check_interval,
-        limit_test_batches=limit_test_batches,
-        limit_val_batches=limit_val_batches,
+        logger=[],
+        callbacks=callbacks,
         log_every_n_steps=log_every_n_steps,
+        limit_val_batches=limit_val_batches,
+        num_sanity_val_steps=0,
+        use_distributed_sampler=False,
+        plugins=[bf16_with_fp8_mixed_current_scaling()],
+        val_check_interval=val_check_interval,
+        enable_checkpointing=True,
     )
-
     return trainer
 
 
@@ -157,18 +180,19 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     vocab_file: str = None,
-    num_nodes: int = 32,
+    num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     tensor_parallelism: int = 8,
     sequence_parallelism: bool = True,
     pipeline_parallelism: int = 1,
-    max_steps: int = 100,
-    val_check_interval: int = 100,
+    max_steps: int = 10,
+    val_check_interval: int = 10,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
-    log_every_n_steps: int = 10,
+    log_every_n_steps: int = 1,
+    save_top_k: int = 5,
     seq_length: int = 8192,
-    gbs: int = 32,
+    gbs: int = 768,
     mbs: int = 1,
     performance_mode: bool = False,
     fn=pretrain,
@@ -201,6 +225,7 @@ def pretrain_recipe(
         fn,
         model=model(vocab_file=vocab_file),
         trainer=trainer(
+            dir=dir,
             max_steps=max_steps,
             num_nodes=num_nodes,
             tensor_parallelism=tensor_parallelism,
@@ -211,6 +236,7 @@ def pretrain_recipe(
             limit_test_batches=limit_test_batches,
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
+            save_top_k=save_top_k,
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(
@@ -241,12 +267,13 @@ def finetune_recipe(
     sequence_parallelism: bool = True,
     pipeline_parallelism: int = 1,
     seq_length: int = 8192,
-    max_steps: int = 100,
-    val_check_interval: int = 100,
+    max_steps: int = 10,
+    val_check_interval: int = 10,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
-    log_every_n_steps: int = 10,
-    gbs: int = 32,
+    log_every_n_steps: int = 1,
+    save_top_k: int = 5,
+    gbs: int = 768,
     mbs: int = 1,
     performance_mode: bool = False,
     peft_scheme: Optional[str] = 'none',
@@ -300,6 +327,7 @@ def finetune_recipe(
             limit_test_batches=limit_test_batches,
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
+            save_top_k=save_top_k,
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(

@@ -68,6 +68,7 @@ def bf16_with_fp8_mixed_current_scaling() -> run.Config[MegatronMixedPrecision]:
     cfg.fp8_amax_history_len = 1
     cfg.fp8_amax_compute_algo = "max"
     cfg.fp8_params = False
+    cfg.fp8_wgrad = False
     return cfg
 
 
