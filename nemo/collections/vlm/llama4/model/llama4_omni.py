@@ -353,9 +353,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         )
 
         # vision config doesn't change
-        vision_transformer_config = Llama4VisionConfig(
-            num_layers=src_vision_config.num_hidden_layers
-        )
+        vision_transformer_config = Llama4VisionConfig(num_layers=src_vision_config.num_hidden_layers)
 
         vision_projection_config = MultimodalProjectorConfig(
             projector_type="mcore_affine",
