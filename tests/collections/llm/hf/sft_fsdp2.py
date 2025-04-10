@@ -62,7 +62,7 @@ if __name__ == '__main__':
         parser.add_argument('--dp-size', default=2, type=int)
         parser.add_argument('--tp-size', default=1, type=int)
         parser.add_argument('--cp-size', default=1, type=int)
-        parser.add_argument('--seque-parallel', default=False, action='store_true')
+        parser.add_argument('--sequence-parallel', default=False, action='store_true')
         parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
         parser.add_argument('--model-accelerator', default=None, choices=['te'])
         parser.add_argument('--max-steps', type=int, default=5)
@@ -107,7 +107,7 @@ if __name__ == '__main__':
                     data_parallel_size=args.dp_size,
                     tensor_parallel_size=args.tp_size,
                     context_parallel_size=args.cp_size,
-                    sequence_parallel=args.seque_parallel,
+                    sequence_parallel=args.sequence_parallel,
                 ),
                 log_every_n_steps=1,
                 limit_val_batches=0.0,
