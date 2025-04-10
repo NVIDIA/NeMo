@@ -47,13 +47,13 @@ def test_hf_generate():
     assert len(output[0]) > 0, "First list in the output should have more than 0 elements."
     assert len(output[1]) > 0, "Second list in the output should have more than 0 elements."
 
-    #Test output_logits and output_scores
+    # Test output_logits and output_scores
     output = hf_deployable.generate(
         text_inputs=["What is the color of a banana? ", "Tell me a joke."],
         max_length=32,
         do_sample=True,
         output_logits=True,
-        output_scores=True
+        output_scores=True,
     )
     assert "logits" in output, "Output should have logits."
     assert "scores" in output, "Output should have scores."
