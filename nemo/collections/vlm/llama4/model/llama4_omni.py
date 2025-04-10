@@ -22,7 +22,10 @@ from torch import nn
 
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
 from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
-from nemo.collections.vlm import Llama4OmniConfig, Llama4OmniModel, Llama4VisionConfig, MultimodalProjectorConfig
+from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
+from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
+from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
+
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
