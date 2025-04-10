@@ -336,7 +336,7 @@ def main():
             tokenizer=model.tokenizer,
             micro_batch_size=args.micro_batch_size,
             seq_length=args.seq_length,
-            packed_sequence_size=args.packed_sequence_size
+            packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
         )
