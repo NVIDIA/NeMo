@@ -36,7 +36,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
 def make_squad_hf_dataset(
-    tokenizer, micro_batch_size, seq_length, limit_dataset_samples=None, fp8=False, num_replicas=1, rank=0, packed_sequence_size
+    tokenizer, micro_batch_size, seq_length, packed_sequence_size, limit_dataset_samples=None, fp8=False, num_replicas=1, rank=0
 ):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -336,9 +336,9 @@ def main():
             tokenizer=model.tokenizer,
             micro_batch_size=args.micro_batch_size,
             seq_length=args.seq_length,
+            packed_sequence_size=args.packed_sequence_size
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
-            args.packed_sequence_size
         )
 
     llm.api.finetune(
