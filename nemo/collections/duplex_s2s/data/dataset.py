@@ -50,6 +50,7 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
         assert tokenizer.eos is not None, "EOS support in the tokenizer is required for S2S models."
 
     def __getitem__(self, cuts: CutSet) -> dict:
+        cuts = cuts.transform_text(_strip_timestamps)
         source_audio, source_audio_lens = collate_audio(cuts.resample(self.source_sample_rate))
         target_audio, target_audio_lens = collate_audio(
             cuts.resample(self.target_sample_rate), recording_field="target_audio"
@@ -60,7 +61,6 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
         source_tokens, source_token_lens = collate_token_channel(
             cuts, self.tokenizer, self.frame_length, roles=self.input_roles
         )
-
         return {
             "source_audio": source_audio,
             "source_audio_lens": source_audio_lens,
@@ -114,8 +114,7 @@ def build_token_channel(
     tokens = torch.ones(total, dtype=torch.long) * pad_id
     for supervision in cut.supervisions:
         if supervision.speaker in roles:
-            text = _strip_timestamps(supervision.text)
-            text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(text))
+            text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(supervision.text))
 
             # Determine the frame offset for the start of the supervision to insert the text tokens.
             pos = compute_num_frames(supervision.start, frame_length, cut.sampling_rate)

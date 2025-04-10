@@ -11,6 +11,9 @@ model:
   pretrained_asr: stt_en_fastconformer_hybrid_large_streaming_80ms
   scoring_asr: stt_en_fastconformer_transducer_large  # used only in validation/evaluation
 
+  audio_loss_weight: 1
+  text_loss_weight: 3
+
   perception:
      target: nemo.collections.multimodal.speech_llm.modules.perception_modules.AudioPerceptionModule
 
@@ -87,7 +90,7 @@ trainer:
   val_check_interval: ${trainer.limit_train_batches}
   limit_val_batches: 10
   log_every_n_steps: 10
-  num_sanity_val_steps: 2
+  num_sanity_val_steps: 1
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
