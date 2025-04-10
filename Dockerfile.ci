@@ -86,8 +86,8 @@ EOF
 
 WORKDIR /workspace
 RUN \
-  --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
-  --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te \
+  --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm/tensorrt_llm*.whl \
+  --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te/te*.whl \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/requirements,target=/tmp/NeMo/requirements \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/tools/ctc_segmentation/requirements.txt,target=/tmp/NeMo/tools/ctc_segmentation/requirements.txt \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/NeMo/reinstall.sh \
