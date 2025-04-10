@@ -101,17 +101,21 @@ class TaskEncoder(BaseTaskEncoder):
         Returns:
             DataSample: Encoded sample with processed image, tokens, labels and loss mask
         """
-        input_sample.context = input_sample.context.replace("<image>", self.config.image_token)
         messages = []
         if self.config.system_prompt:
             messages.append({'role': 'system', 'content': self.config.system_prompt})
 
         if isinstance(input_sample.context, list) and isinstance(input_sample.answers, list):
+            input_sample.context = [
+                context.replace("<image>", self.config.image_token) for context in input_sample.context
+            ]
             min_length = min(len(input_sample.context), len(input_sample.answers))
             for i in range(min_length):
                 messages.append({'role': self.config.roles[0], 'content': input_sample.context[i]})
                 messages.append({'role': self.config.roles[1], 'content': input_sample.answers[i]})
         else:
+            assert isinstance(input_sample.context, str) and isinstance(input_sample.answers, str)
+            input_sample.context.replace("<image>", self.config.image_token)
             messages.append({'role': self.config.roles[0], 'content': input_sample.context})
             messages.append({'role': self.config.roles[1], 'content': input_sample.answers})
 
