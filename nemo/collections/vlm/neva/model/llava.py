@@ -265,6 +265,7 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
 
     return qkv_weights
 
+
 def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
     qkv_total_dim = head_num + 2 * num_query_groups
 
@@ -284,6 +285,7 @@ def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_s
     v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
 
     return q_proj, k_proj, v_proj
+
 
 def export_qkv_bias(qkv_bias: torch.Tensor, head_num, num_query_groups, heads_per_group, head_size):
     """
@@ -308,6 +310,7 @@ def export_qkv_bias(qkv_bias: torch.Tensor, head_num, num_query_groups, heads_pe
     v_bias = qkv_bias[v_slice].reshape(-1).cpu()
 
     return q_bias, k_bias, v_bias
+
 
 @io.state_transform(
     source_key=(

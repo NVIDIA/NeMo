@@ -14,19 +14,21 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Tuple, Dict
+from typing import TYPE_CHECKING, Dict, Tuple
 
 import torch
+import yaml
 from torch import nn
-from nemo.utils import logging
+
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
 from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
 from nemo.collections.vlm import Llama4OmniConfig, Llama4OmniModel, Llama4VisionConfig, MultimodalProjectorConfig
-from nemo.collections.vlm.neva.model.llava import import_qkv, export_qkv, export_qkv_bias
+from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
-import yaml
+from nemo.utils import logging
+
 try:
     from megatron.core.transformer.transformer_config import TransformerConfig
 
@@ -35,9 +37,10 @@ except ImportError:
     HAVE_TE = False
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from transformers import Llama4Config as HFLlama4Config
     from transformers import Llama4ForConditionalGeneration
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 @dataclass
@@ -366,6 +369,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             params_dtype=torch.bfloat16,
         )
 
+
 @io.model_exporter(Llama4OmniModel, "hf")
 class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditionalGeneration"]):
     """Exporter for converting NeMo Llama4 Omni models to Hugging Face format.
@@ -373,6 +377,7 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
     This class handles the conversion of NeMo's Llama4OmniModel to Hugging Face's
     Llama4ForConditionalGeneration format, including weight mapping and configuration translation.
     """
+
     def init(self, dtype=torch.bfloat16) -> "Llama4ForConditionalGeneration":
         """Initialize a HF Llama4ForConditionalGeneration instance.
 
@@ -406,13 +411,17 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
         source_language = source.language_transformer_config
         source_vision = source.vision_transformer_config
         # Text config
-        rope_scaling = {
-            'factor': source_language.rope_scaling_factor,
-            'low_freq_factor': 1.0,
-            'high_freq_factor': 4.0,
-            'original_max_position_embeddings': 8192,
-            'rope_type': 'llama3'
-        } if source_language.rope_scaling else None
+        rope_scaling = (
+            {
+                'factor': source_language.rope_scaling_factor,
+                'low_freq_factor': 1.0,
+                'high_freq_factor': 4.0,
+                'original_max_position_embeddings': 8192,
+                'rope_type': 'llama3',
+            }
+            if source_language.rope_scaling
+            else None
+        )
         if getattr(source_language, 'moe_layer_freq') is not None:
             moe_layer_freq = source_language.moe_layer_freq
             if isinstance(moe_layer_freq, int):
@@ -630,16 +639,27 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
         for layer_i in range(source_config['language_transformer_config']['num_layers']):
             is_moe_layer = True
             if isinstance(source_config['language_transformer_config']['moe_layer_freq'], list):
-                assert len(source_config['language_transformer_config']['moe_layer_freq']) == source_config['language_transformer_config']['num_layers']
+                assert (
+                    len(source_config['language_transformer_config']['moe_layer_freq'])
+                    == source_config['language_transformer_config']['num_layers']
+                )
                 is_moe_layer = source_config['language_transformer_config']['moe_layer_freq'][layer_i]
             if is_moe_layer:
                 # gate_up_proj
-                weight = state_dict.pop(f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight")
-                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(0, 2, 1).contiguous()
+                weight = state_dict.pop(
+                    f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight"
+                )
+                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
+                    0, 2, 1
+                ).contiguous()
 
                 # down_proj
-                weight = state_dict.pop(f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight")
-                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(0, 2, 1).contiguous()
+                weight = state_dict.pop(
+                    f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight"
+                )
+                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(
+                    0, 2, 1
+                ).contiguous()
 
             else:
                 assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source
@@ -657,6 +677,7 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
 def _import_cls_token(ctx: io.TransformCTX, cls_token):
     # pylint: disable=C0115,C0116
     return cls_token.reshape(1, 1, -1)
+
 
 @io.state_transform(
     source_key="vision_model.class_token",
@@ -689,12 +710,13 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         head_size=megatron_config.kv_channels,
     )
 
+
 @io.state_transform(
     source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_language_qkv(ctx: io.TransformCTX, qkv):
@@ -732,6 +754,7 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
         head_size=megatron_config.kv_channels,
     )
 
+
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
@@ -751,6 +774,7 @@ def _export_vision_qkv(ctx: io.TransformCTX, qkv):
         hidden_size=hf_config.hidden_size,
         head_size=hf_config.hidden_size // hf_config.num_attention_heads,
     )
+
 
 @io.state_transform(
     source_key=(
@@ -774,12 +798,13 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
 
+
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
     target_key=(
-            "vision_model.model.layers.*.self_attn.q_proj.bias",
-            "vision_model.model.layers.*.self_attn.k_proj.bias",
-            "vision_model.model.layers.*.self_attn.v_proj.bias",
+        "vision_model.model.layers.*.self_attn.q_proj.bias",
+        "vision_model.model.layers.*.self_attn.k_proj.bias",
+        "vision_model.model.layers.*.self_attn.v_proj.bias",
     ),
 )
 def _export_vision_qkv_bias(ctx: io.TransformCTX, qkv_bias):
