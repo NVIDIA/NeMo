@@ -92,6 +92,7 @@ model:
       batch_size: ${batch_size}
       num_workers: 4
       drop_last: true
+      pin_memory: true
 
   validation_ds:
     dataset:
@@ -105,6 +106,7 @@ model:
     dataloader_params:
       batch_size: ${batch_size}
       num_workers: 0
+      pin_memory: true
 
   encoder:
     n_layers: 6
@@ -150,7 +152,6 @@ model:
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
-    prior_eps: 1e-8
 
   optim:
     _target_: torch.optim.Adam
@@ -184,6 +185,7 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
+    resume: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: val_loss

@@ -190,7 +190,6 @@ model:
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
-    prior_eps: 1e-8
 
   optim:
     _target_: torch.optim.Adam
