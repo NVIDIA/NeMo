@@ -128,6 +128,7 @@ def pretrain_recipe(
     fn=pretrain,
     model_name: str = '',
     max_steps: int = 100,
+    trust_remote_code: bool = False,
 ) -> run.Partial:
     """
     Create a pre-training recipe for a HFAutoModelForCausalLM model.
@@ -155,7 +156,7 @@ def pretrain_recipe(
     """
     return run.Partial(
         fn,
-        model=model(model_name, load_pretrained_weights=False),
+        model=model(model_name, load_pretrained_weights=False, trust_remote_code=trust_remote_code),
         trainer=trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,

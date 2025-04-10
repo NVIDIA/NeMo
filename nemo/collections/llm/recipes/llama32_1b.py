@@ -146,6 +146,7 @@ def pretrain_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     fn: Callable = pretrain,
+    logger: Optional[run.Config[nl.NeMoLogger]] = None,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3.2 1B model.
@@ -182,9 +183,10 @@ def pretrain_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
+            logger=logger,
         ),
         data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)) if logger is None else logger,
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
