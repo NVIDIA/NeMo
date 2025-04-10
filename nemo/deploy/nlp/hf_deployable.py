@@ -170,12 +170,11 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
 
         with torch.no_grad():
             generated_ids = self.model.generate(**kwargs)
-
         return_dict_in_generate = kwargs.get("return_dict_in_generate", False)
         if return_dict_in_generate:
             output = {"sentences": self.tokenizer.batch_decode(generated_ids["sequences"], skip_special_tokens=True)}
-            if kwargs.get("output_logit", False):
-                output["logit"] = generated_ids["sequences"]
+            if kwargs.get("output_logits", False):
+                output["logits"] = generated_ids["logits"]
             if kwargs.get("output_scores", False):
                 output["scores"] = generated_ids["scores"]
         else:
@@ -250,7 +249,6 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
             output_logits = inputs.pop("output_logits")[0][0] if "output_logits" in inputs else False
             output_scores = inputs.pop("output_scores")[0][0] if "output_scores" in inputs else False
-
             return_dict_in_generate = False
             if output_logits or output_scores:
                 return_dict_in_generate = True
