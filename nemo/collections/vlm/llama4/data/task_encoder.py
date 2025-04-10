@@ -20,10 +20,10 @@ import torch
 import torch.nn.functional as F
 from megatron.energon import VQASample
 
-from nemo.collections.vlm.data.utils import _find_pattern_indices
 from nemo.collections.vlm.data.task_encoder import DataBatch, DataSample
 from nemo.collections.vlm.data.task_encoder import TaskEncoder as BaseTaskEncoder
 from nemo.collections.vlm.data.task_encoder import TaskEncoderConfig as BaseTaskEncoderConfig
+from nemo.collections.vlm.data.utils import _find_pattern_indices
 
 
 @dataclass
