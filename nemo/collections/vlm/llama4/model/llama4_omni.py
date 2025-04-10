@@ -530,34 +530,64 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
             "vision_model.ln_post.bias": "vision_model.layernorm_post.bias",
             "vision_model.adapter.mlp.encoder.linear_fc1.weight": "vision_model.vision_adapter.mlp.fc1.weight",
             "vision_model.adapter.mlp.encoder.linear_fc2.weight": 'vision_model.vision_adapter.mlp.fc2.weight',
-            "vision_model.decoder.layers.*.self_attention.linear_proj.weight": "vision_model.model.layers.*.self_attn.o_proj.weight",
-            "vision_model.decoder.layers.*.self_attention.linear_proj.bias": "vision_model.model.layers.*.self_attn.o_proj.bias",
-            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "vision_model.model.layers.*.input_layernorm.weight",
-            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "vision_model.model.layers.*.input_layernorm.bias",
+            "vision_model.decoder.layers.*.self_attention.linear_proj.weight": (
+                "vision_model.model.layers.*.self_attn.o_proj.weight"
+            ),
+            "vision_model.decoder.layers.*.self_attention.linear_proj.bias": (
+                "vision_model.model.layers.*.self_attn.o_proj.bias"
+            ),
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": (
+                "vision_model.model.layers.*.input_layernorm.weight"
+            ),
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": (
+                "vision_model.model.layers.*.input_layernorm.bias"
+            ),
             "vision_model.decoder.layers.*.mlp.linear_fc1.weight": "vision_model.model.layers.*.mlp.fc1.weight",
             "vision_model.decoder.layers.*.mlp.linear_fc1.bias": "vision_model.model.layers.*.mlp.fc1.bias",
             "vision_model.decoder.layers.*.mlp.linear_fc2.weight": "vision_model.model.layers.*.mlp.fc2.weight",
             "vision_model.decoder.layers.*.mlp.linear_fc2.bias": "vision_model.model.layers.*.mlp.fc2.bias",
-            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "vision_model.model.layers.*.post_attention_layernorm.weight",
-            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "vision_model.model.layers.*.post_attention_layernorm.bias",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": (
+                "vision_model.model.layers.*.post_attention_layernorm.weight"
+            ),
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": (
+                "vision_model.model.layers.*.post_attention_layernorm.bias"
+            ),
             "vision_projection.encoder.weight": "multi_modal_projector.linear_1.weight",
             "language_model.embedding.word_embeddings.weight": "language_model.model.embed_tokens.weight",
-            "language_model.decoder.layers.*.self_attention.linear_proj.weight": "language_model.model.layers.*.self_attn.o_proj.weight",
-            "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "language_model.model.layers.*.input_layernorm.weight",
+            "language_model.decoder.layers.*.self_attention.linear_proj.weight": (
+                "language_model.model.layers.*.self_attn.o_proj.weight"
+            ),
+            "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": (
+                "language_model.model.layers.*.input_layernorm.weight"
+            ),
             "language_model.decoder.final_layernorm.weight": "language_model.model.norm.weight",
             "language_model.output_layer.weight": "language_model.lm_head.weight",
             # Post Attention LayerNorm
-            "language_model.decoder.layers.*.pre_mlp_layernorm.weight": "language_model.model.layers.*.post_attention_layernorm.weight",
-            "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "language_model.model.layers.*.dense-post_attention_layernorm.weight",
+            "language_model.decoder.layers.*.pre_mlp_layernorm.weight": (
+                "language_model.model.layers.*.post_attention_layernorm.weight"
+            ),
+            "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": (
+                "language_model.model.layers.*.dense-post_attention_layernorm.weight"
+            ),
             # MoE Router
-            "language_model.decoder.layers.*.mlp.router.weight": "language_model.model.layers.*.feed_forward.router.weight",
+            "language_model.decoder.layers.*.mlp.router.weight": (
+                "language_model.model.layers.*.feed_forward.router.weight"
+            ),
             # MoE Shared Experts
-            "language_model.decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "language_model.model.layers.*.feed_forward.shared_expert.down_proj.weight",
+            "language_model.decoder.layers.*.mlp.shared_experts.linear_fc2.weight": (
+                "language_model.model.layers.*.feed_forward.shared_expert.down_proj.weight"
+            ),
             # MoE Experts
-            "language_model.decoder.layers.*.mlp.experts.linear_fc2.weight": "language_model.model.layers.*.feed_forward.experts.down_proj",
-            "language_model.decoder.layers.*.mlp.experts.linear_fc1.weight": "language_model.model.layers.*.feed_forward.experts.gate_up_proj",
+            "language_model.decoder.layers.*.mlp.experts.linear_fc2.weight": (
+                "language_model.model.layers.*.feed_forward.experts.down_proj"
+            ),
+            "language_model.decoder.layers.*.mlp.experts.linear_fc1.weight": (
+                "language_model.model.layers.*.feed_forward.experts.gate_up_proj"
+            ),
             # Dense MLP (for moe_layer_freq != 1)
-            "language_model.decoder.layers.*.mlp.linear_fc2.weight": "language_model.model.layers.*.feed_forward.down_proj.weight",
+            "language_model.decoder.layers.*.mlp.linear_fc2.weight": (
+                "language_model.model.layers.*.feed_forward.down_proj.weight"
+            ),
         }
 
         transforms = [

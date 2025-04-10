@@ -266,7 +266,9 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
     return qkv_weights
 
 
-def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+def export_qkv(
+        linear_qkv, head_num, num_query_groups, heads_per_group, hidden_size, head_size
+):
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, -1])
