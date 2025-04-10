@@ -14,19 +14,20 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Tuple
 
 import torch
+import yaml
 from torch import nn
 
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
 from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
-from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
-from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
-from nemo.collections.vlm.neva.model.llava import import_qkv
-from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
+from nemo.collections.vlm import Llama4OmniConfig, Llama4OmniModel, Llama4VisionConfig, MultimodalProjectorConfig
+from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
+from nemo.utils import logging
 
 try:
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -36,6 +37,9 @@ except ImportError:
     HAVE_TE = False
 
 if TYPE_CHECKING:
+    from transformers import Llama4Config as HFLlama4Config
+    from transformers import Llama4ForConditionalGeneration
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
@@ -366,6 +370,306 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         )
 
 
+@io.model_exporter(Llama4OmniModel, "hf")
+class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditionalGeneration"]):
+    """Exporter for converting NeMo Llama4 Omni models to Hugging Face format.
+
+    This class handles the conversion of NeMo's Llama4OmniModel to Hugging Face's
+    Llama4ForConditionalGeneration format, including weight mapping and configuration translation.
+    """
+
+    def init(self, dtype=torch.bfloat16) -> "Llama4ForConditionalGeneration":
+        """Initialize a HF Llama4ForConditionalGeneration instance.
+
+        Args:
+            dtype: Data type for model parameters
+
+        Returns:
+            Llama4ForConditionalGeneration: Initialized HF Llama4 Omni model
+        """
+        from transformers import Llama4ForConditionalGeneration
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights():
+            return Llama4ForConditionalGeneration._from_config(self.config, torch_dtype=dtype)
+
+    @property
+    def config(self) -> "HFLlama4Config":
+        """Create a HF LlamaOmniConfig from the NeMo model config.
+
+        Translates the NeMo configuration parameters to the equivalent HF
+        configuration.
+
+        Returns:
+            HFLlamaConfig: HF configuration for Llama4 Omni models
+        """
+        source: Llama4OmniConfig = io.load_context(str(self), subpath="model.config")
+        from transformers import Llama4Config as HFLlama4Config
+        from transformers import Llama4TextConfig as HFLlama4TextConfig
+        from transformers import Llama4VisionConfig as HFLlama4VisionConfig
+
+        source_language = source.language_transformer_config
+        source_vision = source.vision_transformer_config
+        # Text config
+        rope_scaling = (
+            {
+                'factor': source_language.rope_scaling_factor,
+                'low_freq_factor': 1.0,
+                'high_freq_factor': 4.0,
+                'original_max_position_embeddings': 8192,
+                'rope_type': 'llama3',
+            }
+            if source_language.rope_scaling
+            else None
+        )
+        if getattr(source_language, 'moe_layer_freq') is not None:
+            moe_layer_freq = source_language.moe_layer_freq
+            if isinstance(moe_layer_freq, int):
+                interleave_moe_layer_step = moe_layer_freq
+            elif isinstance(moe_layer_freq, list):
+                interleave_moe_layer_step = source_language.num_layers // sum(moe_layer_freq)
+            else:
+                raise ValueError(f'Unexpected moe_layer_freq {moe_layer_freq}')
+        else:
+            interleave_moe_layer_step = None
+
+        target_language = HFLlama4TextConfig(
+            head_dim=source_language.kv_channels,
+            num_hidden_layers=source_language.num_layers,
+            hidden_size=source_language.hidden_size,
+            intermediate_size=source_language.moe_ffn_hidden_size,
+            intermediate_size_mlp=source_language.ffn_hidden_size,
+            num_attention_heads=source_language.num_attention_heads,
+            num_experts_per_tok=source_language.moe_router_topk,
+            num_local_experts=source_language.num_moe_experts,
+            max_position_embeddings=source_language.seq_length,
+            initializer_range=source_language.init_method_std,
+            rms_norm_eps=source_language.layernorm_epsilon,
+            num_key_value_heads=source_language.num_query_groups,
+            use_qk_norm=source_language.qk_l2_norm,
+            rope_theta=source_language.rotary_base,
+            vocab_size=source_language.vocab_size,
+            rope_scaling=rope_scaling,
+            interleave_moe_layer_step=interleave_moe_layer_step,
+            pad_token_id=self.tokenizer.tokens_to_ids(['<|finetune_right_pad|>'])[0],
+            # no rope
+        )
+        # Vision config
+        target_vision = HFLlama4VisionConfig(
+            hidden_size=source_vision.hidden_size,
+            image_size=source_vision.img_h,
+            intermediate_size=source_vision.ffn_hidden_size,
+            norm_eps=source_vision.layernorm_epsilon,
+            num_attention_heads=source_vision.num_attention_heads,
+            num_channels=3,
+            num_hidden_layers=source_vision.num_layers,
+            patch_size=source_vision.patch_dim,
+            pixel_shuffle_ratio=source_vision.pixel_shuffle_ratio,
+            projector_input_dim=source_vision.output_dim,
+            projector_output_dim=source_vision.output_dim,
+            vision_output_dim=source_vision.output_dim,
+        )
+        config = HFLlama4Config(
+            text_config=target_language,
+            vision_config=target_vision,
+            bos_token_id=self.tokenizer.bos_id,
+            eos_token_id=self.tokenizer.eos_id,
+        )
+        return config
+
+    def apply(self, output_path: Path) -> Path:
+        """Apply the conversion from NeMo to HF format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved HF model
+        """
+        logging.info("Loading Llama4Omni NeMo checkpoint. This may take a while...")
+        source, source_config = self.ckpt_load(self)
+        logging.info("Llama4Omni NeMo checkpoint loaded.")
+        logging.info('Initializing the HF model..')
+        target = self.init(torch.bfloat16)
+        logging.info('Start Converting the model..')
+        target = self.convert_state(source, target, source_config)
+        target = target.cpu()
+        target.save_pretrained(output_path)
+
+        try:
+            self.tokenizer.tokenizer.save_pretrained(output_path)
+        except Exception:
+            logging.warning("Failed to save tokenizer")
+
+        return output_path
+
+    def convert_state(self, source, target, source_config):
+        """Convert state dict from NeMo format to HF format.
+
+        Maps the weights from the NeMo model to the HF model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source NeMo model
+            target: Target HF model
+            source_config: Source NeMo Config
+
+        Returns:
+            The target model with weights transferred from source
+        """
+        source = self._modify_llama4_source_state(source, source_config)
+        mapping = {
+            "vision_model.position_embeddings.weight": "vision_model.positional_embedding_vlm",
+            "vision_model.conv1._linear.weight": "vision_model.patch_embedding.linear.weight",
+            "vision_model.ln_pre.weight": "vision_model.layernorm_pre.weight",
+            "vision_model.ln_pre.bias": "vision_model.layernorm_pre.bias",
+            "vision_model.ln_post.weight": "vision_model.layernorm_post.weight",
+            "vision_model.ln_post.bias": "vision_model.layernorm_post.bias",
+            "vision_model.adapter.mlp.encoder.linear_fc1.weight": "vision_model.vision_adapter.mlp.fc1.weight",
+            "vision_model.adapter.mlp.encoder.linear_fc2.weight": 'vision_model.vision_adapter.mlp.fc2.weight',
+            "vision_model.decoder.layers.*.self_attention.linear_proj.weight": "vision_model.model.layers.*.self_attn.o_proj.weight",
+            "vision_model.decoder.layers.*.self_attention.linear_proj.bias": "vision_model.model.layers.*.self_attn.o_proj.bias",
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "vision_model.model.layers.*.input_layernorm.weight",
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "vision_model.model.layers.*.input_layernorm.bias",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.weight": "vision_model.model.layers.*.mlp.fc1.weight",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.bias": "vision_model.model.layers.*.mlp.fc1.bias",
+            "vision_model.decoder.layers.*.mlp.linear_fc2.weight": "vision_model.model.layers.*.mlp.fc2.weight",
+            "vision_model.decoder.layers.*.mlp.linear_fc2.bias": "vision_model.model.layers.*.mlp.fc2.bias",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "vision_model.model.layers.*.post_attention_layernorm.weight",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "vision_model.model.layers.*.post_attention_layernorm.bias",
+            "vision_projection.encoder.weight": "multi_modal_projector.linear_1.weight",
+            "language_model.embedding.word_embeddings.weight": "language_model.model.embed_tokens.weight",
+            "language_model.decoder.layers.*.self_attention.linear_proj.weight": "language_model.model.layers.*.self_attn.o_proj.weight",
+            "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "language_model.model.layers.*.input_layernorm.weight",
+            "language_model.decoder.final_layernorm.weight": "language_model.model.norm.weight",
+            "language_model.output_layer.weight": "language_model.lm_head.weight",
+            # Post Attention LayerNorm
+            "language_model.decoder.layers.*.pre_mlp_layernorm.weight": "language_model.model.layers.*.post_attention_layernorm.weight",
+            "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "language_model.model.layers.*.dense-post_attention_layernorm.weight",
+            # MoE Router
+            "language_model.decoder.layers.*.mlp.router.weight": "language_model.model.layers.*.feed_forward.router.weight",
+            # MoE Shared Experts
+            "language_model.decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "language_model.model.layers.*.feed_forward.shared_expert.down_proj.weight",
+            # MoE Experts
+            "language_model.decoder.layers.*.mlp.experts.linear_fc2.weight": "language_model.model.layers.*.feed_forward.experts.down_proj",
+            "language_model.decoder.layers.*.mlp.experts.linear_fc1.weight": "language_model.model.layers.*.feed_forward.experts.gate_up_proj",
+            # Dense MLP (for moe_layer_freq != 1)
+            "language_model.decoder.layers.*.mlp.linear_fc2.weight": "language_model.model.layers.*.feed_forward.down_proj.weight",
+        }
+
+        transforms = [
+            _export_cls_token,
+            _export_language_qkv,
+            _export_vision_qkv,
+            _export_vision_qkv_bias,
+            io.state_transform(
+                source_key="language_model.decoder.layers.*.mlp.shared_experts.linear_fc1.weight",
+                target_key=(
+                    "language_model.model.layers.*.feed_forward.shared_expert.gate_proj.weight",
+                    "language_model.model.layers.*.feed_forward.shared_expert.up_proj.weight",
+                ),
+                fn=TransformFns.split_fc1,
+            ),
+            io.state_transform(
+                source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=(
+                    "language_model.model.layers.*.feed_forward.gate_proj.weight",
+                    "language_model.model.layers.*.feed_forward.up_proj.weight",
+                ),
+                fn=TransformFns.split_fc1,
+            ),
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+
+    @property
+    def tokenizer(self) -> "TokenizerSpec":
+        """Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
+        return io.load_context(str(self), subpath="model").tokenizer
+
+    def ckpt_load(self, path: Path) -> Tuple[Dict, Dict]:
+        """
+        This function loads the state dict directly from a distributed checkpoint, and modify the state dict
+        so that it is consistent with the key names you would get from loading the checkpoint into a model.
+        This is a more memory-efficient method to obtain a state dict without initializing the nemo model.
+
+        Args:
+            path (Path): The path from which the model will be loaded.
+
+        Returns
+        -------
+            Tuple[Dict, Dict]: The loaded state dict and the yaml config dict.
+        """
+        model_yaml = path / "context" / "model.yaml"
+        if not model_yaml.exists():
+            raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
+        with open(model_yaml, 'r') as stream:
+            config = yaml.safe_load(stream)
+
+        dist_ckpt_folder = path / "weights"
+        state_dict = {}
+
+        langauge_layers = config['config']['language_transformer_config']['num_layers']
+        vision_layers = config['config']['vision_transformer_config']['num_layers']
+        distributed_model_weights = load_distributed_model_weights(dist_ckpt_folder, True).items()
+        for k, v in distributed_model_weights:
+            if '_extra_state' in k:
+                continue
+            new_k = k.replace("module.", "")
+            if 'layers' in new_k and (v.size(0) == langauge_layers or v.size(0) == vision_layers):
+                # Only split layers
+                for i in range(v.size(0)):
+                    state_dict[new_k.replace('layers', f'layers.{str(i)}')] = v[i]
+            state_dict[new_k] = v
+        return state_dict, config['config']
+
+    def _modify_llama4_source_state(self, source, source_config):
+        """
+        For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
+        For dense layer, we change the name for the post attention layer norm to
+        avoid the many-to-one mapping in the conversion.
+        """
+        state_dict = source
+        for key in source.keys():
+            print(f'{key}: {source[key].shape}')
+
+        for layer_i in range(source_config['language_transformer_config']['num_layers']):
+            is_moe_layer = True
+            if isinstance(source_config['language_transformer_config']['moe_layer_freq'], list):
+                assert (
+                    len(source_config['language_transformer_config']['moe_layer_freq'])
+                    == source_config['language_transformer_config']['num_layers']
+                )
+                is_moe_layer = source_config['language_transformer_config']['moe_layer_freq'][layer_i]
+            if is_moe_layer:
+                # gate_up_proj
+                weight = state_dict.pop(
+                    f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight"
+                )
+                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
+                    0, 2, 1
+                ).contiguous()
+
+                # down_proj
+                weight = state_dict.pop(
+                    f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight"
+                )
+                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(
+                    0, 2, 1
+                ).contiguous()
+
+            else:
+                assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source
+                weight = source.pop(f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+                source[f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
+
+        source = _ModelState(state_dict)
+        return source
+
+
 @io.state_transform(
     source_key=("vision_model.class_embedding",),
     target_key="vision_model.class_token",
@@ -373,6 +677,15 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
 def _import_cls_token(ctx: io.TransformCTX, cls_token):
     # pylint: disable=C0115,C0116
     return cls_token.reshape(1, 1, -1)
+
+
+@io.state_transform(
+    source_key="vision_model.class_token",
+    target_key="vision_model.class_embedding",
+)
+def _export_cls_token(ctx: io.TransformCTX, cls_token):
+    # pylint: disable=C0115,C0116
+    return cls_token.squeeze()
 
 
 @io.state_transform(
@@ -395,6 +708,27 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
+    )
+
+
+@io.state_transform(
+    source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
+    ),
+)
+def _export_language_qkv(ctx: io.TransformCTX, qkv):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.text_config
+    return export_qkv(
+        qkv,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_key_value_heads,
+        heads_per_group=hf_config.num_attention_heads // hf_config.num_key_value_heads,
+        hidden_size=hf_config.hidden_size,
+        head_size=hf_config.head_dim,
     )
 
 
@@ -422,6 +756,27 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
 
 
 @io.state_transform(
+    source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "vision_model.model.layers.*.self_attn.q_proj.weight",
+        "vision_model.model.layers.*.self_attn.k_proj.weight",
+        "vision_model.model.layers.*.self_attn.v_proj.weight",
+    ),
+)
+def _export_vision_qkv(ctx: io.TransformCTX, qkv):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.vision_config
+    return export_qkv(
+        qkv,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_attention_heads,
+        heads_per_group=1,
+        hidden_size=hf_config.hidden_size,
+        head_size=hf_config.hidden_size // hf_config.num_attention_heads,
+    )
+
+
+@io.state_transform(
     source_key=(
         "vision_model.model.layers.*.self_attn.q_proj.bias",
         "vision_model.model.layers.*.self_attn.k_proj.bias",
@@ -442,3 +797,23 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
+
+
+@io.state_transform(
+    source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
+    target_key=(
+        "vision_model.model.layers.*.self_attn.q_proj.bias",
+        "vision_model.model.layers.*.self_attn.k_proj.bias",
+        "vision_model.model.layers.*.self_attn.v_proj.bias",
+    ),
+)
+def _export_vision_qkv_bias(ctx: io.TransformCTX, qkv_bias):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.vision_config
+    return export_qkv_bias(
+        qkv_bias,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_attention_heads,
+        heads_per_group=1,
+        head_size=hf_config.hidden_size // hf_config.num_attention_heads,
+    )
