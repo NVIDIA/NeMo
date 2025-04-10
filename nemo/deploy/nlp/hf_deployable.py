@@ -147,7 +147,13 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                 - return_full_text: Whether to return full text or only generated part
 
         Returns:
+            If output logits and output scores are False:
             List[str]: A list of generated texts, one for each input prompt.
+            If output logits and output scores are True:
+            Dict: A dictionary containing:
+                - sentences: List of generated texts
+                - logits: List of logits
+                - scores: List of scores
 
         Raises:
             RuntimeError: If the pipeline is not initialized.
