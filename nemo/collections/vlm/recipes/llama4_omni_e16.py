@@ -39,7 +39,7 @@ def model() -> run.Config[pl.LightningModule]:
     Factory function to create a Llama4 16-Experts (Scout) VLM model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama4 16-Experts 
+        run.Config[pl.LightningModule]: Configuration for the Llama4 16-Experts
         (Scout) VLM model model.
 
     Examples:
