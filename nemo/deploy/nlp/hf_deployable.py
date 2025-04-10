@@ -294,7 +294,7 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                             output_scores.append([0])
                         else:
                             output_scores.append(lp)
-                    output_infer["scores"] = np.array(output_scores).transpose(1,0,2)
+                    output_infer["scores"] = np.array(output_scores).transpose(1, 0, 2)
 
                 if "logits" in output.keys():
                     output_logits = []
@@ -304,7 +304,7 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
                             output_logits.append([0])
                         else:
                             output_logits.append(lp)
-                    output_infer["logits"] = np.array(output_logits).transpose(1,0,2)
+                    output_infer["logits"] = np.array(output_logits).transpose(1, 0, 2)
             else:
                 output_infer = {"sentences": cast_output(output, np.bytes_)}
 
