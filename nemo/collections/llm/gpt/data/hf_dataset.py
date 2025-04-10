@@ -599,15 +599,22 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         return False
 
     def pack(self, packed_sequence_size, split_across_pack=False, max_packs=None):
-        """Iterate through the dataset. Use a buffer to hold samples until max_seq_len,
+        """Iterate through the dataset. Use a buffer to hold samples until packed_sequence_size,
         then append the buffer to self.packs as a single "packed" sample. Continue
         until max_packs or end of dataset.
 
         Args:
+        packed_sequence_size (int): Max number of tokens to pack in a single packed sequence.
+        split_across_pack (Optional[bool]): if the last sample in a pack does not fit in ``packed_sequence_size``,
+        split the sample into the next pack, or move it entirely to the beginning of the next pack.
+        For pre-training, typically this is set to True for general text completion. For
+        fine-tuning, typically this is set to False to avoid truncating sentences in instruct
+        tuning. Default is False.
+        max_packs (Optional[int]): Maximum number of packs. Default is None, which will create as many
+            packs as possible.
 
         Returns:
-
-
+        Just assigns the packed dataset to self.dataset_splits[split]
         """
         self.packed_sequence_size = packed_sequence_size
         self.split_across_pack = split_across_pack
