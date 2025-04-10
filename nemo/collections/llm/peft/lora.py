@@ -17,6 +17,15 @@ from dataclasses import dataclass, field
 from typing import List, Literal
 
 import torch
+
+from nemo.utils.import_utils import safe_import
+
+if torch.cuda.is_available():
+    bitsandbytes, HAVE_BNB = safe_import("bitsandbytes")
+else:
+    bitsandbytes = None
+    HAVE_BNB = False
+
 import torch.nn.functional as F
 from torch import nn
 
@@ -271,6 +280,7 @@ class LinearAdapter(nn.Linear):
             res = fwd(x)
         else:
             res = F.linear(x, self.weight, self.bias)
+
         if self.dropout_position == 'pre':
             x = self.dropout(x)
         lora_res = self.lora_b(self.lora_a(x))
@@ -329,7 +339,10 @@ def patch_linear_module(
         cls = orig_linear.__class__
         new_cls = type('PatchedTELinearAdapter', (TELinearAdapter, cls), {})
     # If the model uses quantized weights, we want to use orig_linear's forward
-    if orig_linear.weight.dtype == torch.uint8:
+    if (
+        getattr(orig_linear, 'quant_state', None) is not None
+        and orig_linear.quant_state.__class__ == bitsandbytes.functional.QuantState
+    ):
         orig_linear.super_fwd = orig_linear.forward
 
     orig_linear.__class__ = new_cls
@@ -415,8 +428,15 @@ class LoRA(PEFT, ModuleMatcher):
                 # Will use the `patch_linear_module` function if:
                 # - is FSDP v1
                 # - is DTensor (has _local_tensor attribute)
-                # - is quantized weights.
-                if self._is_fsdp_v1 or hasattr(m.weight.data, '_local_tensor') or m.weight.data.dtype == torch.uint8:
+                # - has quant_state attribute
+                if (
+                    self._is_fsdp_v1
+                    or hasattr(m.weight.data, '_local_tensor')
+                    or (
+                        getattr(m, 'quant_state', None) is not None
+                        and m.quant_state.__class__ == bitsandbytes.functional.QuantState
+                    )
+                ):
                     lora_cls = patch_linear_module
                 elif HAVE_TE and m.__class__ == te.Linear:
                     lora_cls = TELinearAdapter
