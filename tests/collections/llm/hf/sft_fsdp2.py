@@ -103,7 +103,12 @@ if __name__ == '__main__':
                 devices=args.devices,
                 max_steps=args.max_steps,
                 accelerator=args.accelerator,
-                strategy=nl.FSDP2Strategy(data_parallel_size=args.dp_size, tensor_parallel_size=args.tp_size, context_parallel_size=args.cp_size, sequence_parallel=args.seque_parallel),
+                strategy=nl.FSDP2Strategy(
+                    data_parallel_size=args.dp_size,
+                    tensor_parallel_size=args.tp_size,
+                    context_parallel_size=args.cp_size,
+                    sequence_parallel=args.seque_parallel,
+                ),
                 log_every_n_steps=1,
                 limit_val_batches=0.0,
                 num_sanity_val_steps=0,
