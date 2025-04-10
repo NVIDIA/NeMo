@@ -98,6 +98,15 @@ class ConfigParams(BaseModel):
         deprecated="This parameter is deprecated and not used for evaluations with NVIDIA Evals Factory.",
     )
 
+    def __init__(self, **data):
+        """
+        WAR for default tokenizer coming from a gated repo in nvidia-lm-eval==25.03.
+        The tokenizer is not used for generation tasks so should be set to None
+        """
+        super().__init__(**data)
+        if "tokenizer" not in self.extra:
+            self.extra["tokenizer"] = None
+
 
 class EvaluationConfig(BaseModel):
     """
