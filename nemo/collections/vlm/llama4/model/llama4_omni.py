@@ -24,9 +24,8 @@ from nemo.collections.llm import Llama4Config as Llama4TextConfig
 from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
 from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
-from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
-
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
+from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
@@ -309,6 +308,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             return base
 
         src_text_config = source.text_config
+        src_vision_config = source.vision_config
         args = {
             'moe_router_topk': src_text_config.num_experts_per_tok,
             'num_moe_experts': src_text_config.num_local_experts,
@@ -353,7 +353,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         )
 
         # vision config doesn't change
-        vision_transformer_config = Llama4VisionConfig()
+        vision_transformer_config = Llama4VisionConfig(num_layers=src_vision_config.num_hidden_layers)
 
         vision_projection_config = MultimodalProjectorConfig(
             projector_type="mcore_affine",
