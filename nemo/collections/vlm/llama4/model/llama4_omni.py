@@ -20,13 +20,13 @@ import torch
 import yaml
 from torch import nn
 
+from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
 from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
 from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
 from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
