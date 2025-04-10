@@ -20,7 +20,7 @@ import torch
 import torch.nn.functional as F
 from megatron.energon import VQASample
 
-from nemo.collections.multimodal.data.energon.sample_encoder import _find_pattern_indices
+from nemo.collections.vlm.data.utils import _find_pattern_indices
 from nemo.collections.vlm.data.task_encoder import DataBatch, DataSample
 from nemo.collections.vlm.data.task_encoder import TaskEncoder as BaseTaskEncoder
 from nemo.collections.vlm.data.task_encoder import TaskEncoderConfig as BaseTaskEncoderConfig
@@ -162,16 +162,16 @@ class TaskEncoder(BaseTaskEncoder):
         # Prepare final tensors
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        seq_len = len(tokens)  # Original sequence length before padding
+        seqlen = len(tokens)  # Original sequence length before padding
 
         # Pad tokens and labels to a multiple of `pad_to_multiple_of` if specified
         if self.config.pad_to_multiple_of:
             seqlen_padded = (
-                (seq_len + self.config.pad_to_multiple_of - 1)
+                (seqlen + self.config.pad_to_multiple_of - 1)
                 // self.config.pad_to_multiple_of
                 * self.config.pad_to_multiple_of
             )
-            pad_len = seqlen_padded - seq_len
+            pad_len = seqlen_padded - seqlen
 
             if pad_len > 0:
                 tokens = F.pad(tokens, (0, pad_len), 'constant', 0)
@@ -199,7 +199,7 @@ class TaskEncoder(BaseTaskEncoder):
             tokens=tokens,
             labels=labels,
             loss_mask=loss_mask,
-            seqlen=seq_len,
+            seqlen=seqlen,
         )
 
 
