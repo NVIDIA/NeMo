@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
 from megatron.energon import VQASample
-import logging
 
 from nemo.collections.multimodal.data.energon.sample_encoder import _find_pattern_indices
 from nemo.collections.vlm.data.task_encoder import DataBatch, DataSample
@@ -125,7 +125,7 @@ class TaskEncoder(BaseTaskEncoder):
         # Get tokens and images from processor output
         # Squeeze the batch dimension as we process one sample at a time
         tokens = outputs["input_ids"].squeeze(0)
-        images = outputs.get("pixel_values") # Use .get() for optional images
+        images = outputs.get("pixel_values")  # Use .get() for optional images
 
         # --- Label Generation ---
         # Initialize labels with ignore placeholder
@@ -136,12 +136,10 @@ class TaskEncoder(BaseTaskEncoder):
             # Tokenize the answer, including the stop string if provided
             answer_with_stop = answer + (self.config.stop_string or "")
             answer_tokens = self.tokenizer.tokenizer(answer_with_stop, add_special_tokens=False)["input_ids"]
-            answer_tokens_tensor = torch.tensor(answer_tokens, device=tokens.device) # Ensure same device
+            answer_tokens_tensor = torch.tensor(answer_tokens, device=tokens.device)  # Ensure same device
 
             # Find answer pattern in tokens
-            answer_start, answer_end = _find_pattern_indices(
-                tokens, answer_tokens_tensor, search_start_index
-            )
+            answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens_tensor, search_start_index)
 
             if answer_start >= 0:
                 labels[answer_start:answer_end] = tokens[answer_start:answer_end]
@@ -164,7 +162,7 @@ class TaskEncoder(BaseTaskEncoder):
         # Prepare final tensors
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        seq_len = len(tokens) # Original sequence length before padding
+        seq_len = len(tokens)  # Original sequence length before padding
 
         # Pad tokens and labels to a multiple of `pad_to_multiple_of` if specified
         if self.config.pad_to_multiple_of:
@@ -187,11 +185,10 @@ class TaskEncoder(BaseTaskEncoder):
         if images is not None and images.numel() > 0:
             # Ensure images tensor is on the same device as tokens/labels if needed
             images = images.to(device=tokens.device, dtype=torch.bfloat16)
-            processed_image = images # Already stacked by HF processor if multiple images/frames
+            processed_image = images  # Already stacked by HF processor if multiple images/frames
         else:
             # Create an empty tensor with appropriate dimensions and dtype if no images
             processed_image = torch.empty((0, 3, 336, 336), dtype=torch.bfloat16, device=tokens.device)
-
 
         return DataSample(
             __key__=input_sample.__key__,
