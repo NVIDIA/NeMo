@@ -672,23 +672,14 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
         # TODO @ataghibakhsh: Change AutoConfig to NemotronHConfig once merged to HF
-
-        hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
-        hf_config.hybrid_override_pattern = source.hybrid_override_pattern
-        hf_config.n_groups = source.mamba_num_groups
-        hf_config.num_hidden_layers = source.num_layers
-        hf_config.mamba_head_dim = source.mamba_head_dim
-        hf_config.mamba_num_heads = source.hidden_size * 2 // source.mamba_head_dim
-        hf_config.ssm_state_size = source.mamba_state_dim
-        hf_config.hidden_size = source.hidden_size
-        hf_config.intermediate_size = source.ffn_hidden_size
-        hf_config.num_attention_heads = source.num_attention_heads
-        hf_config.max_position_embeddings = source.seq_length
-        hf_config.rms_norm_eps = source.layernorm_epsilon
-        hf_config.num_key_value_heads = source.num_query_groups
-        hf_config.vocab_size = source.vocab_size
-        hf_config.mlp_hidden_act = 'relu2'
-        hf_config.mamba_hidden_act = "silu"
+        if type(source) == NemotronHConfig8B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
+        elif type(source) == NemotronHConfig47B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-47B-Base-8K", trust_remote_code=True)
+        elif type(source) == NemotronHConfig56B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-56B-Base-8K", trust_remote_code=True)
+        else:
+            raise ValueError(f"Unsupported model size: {source}")
 
         return hf_config
 

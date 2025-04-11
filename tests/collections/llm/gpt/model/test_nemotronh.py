@@ -156,7 +156,14 @@ def parse_args():
     parser.add_argument(
         "--vocab-file",
         type=str,
-        required=True,
+        required=False,
+        help="Path to tokenizer vocab file.",
+    )
+    parser.add_argument(
+        "--hf-tokenizer-name",
+        type=str,
+        default="nvidia/Nemotron-H-8B-Base-8K",
+        required=False,
         help="Path to tokenizer vocab file.",
     )
     parser.add_argument(
@@ -320,12 +327,19 @@ def main():
     args = parse_args()
 
     # Instantiate tokenizer.
-    tokenizer = get_nmt_tokenizer(
-        library='tiktoken',
-        model_name="TiktokenTokenizer",
-        vocab_file=args.vocab_file,
-        use_fast=True,
-    )
+    if args.vocab_file:
+        tokenizer = get_nmt_tokenizer(
+            library='tiktoken',
+            model_name="TiktokenTokenizer",
+            vocab_file=args.vocab_file,
+            use_fast=True,
+        )
+    else:
+        tokenizer = get_nmt_tokenizer(
+            library='huggingface',
+            model_name=args.hf_tokenizer_name,
+            use_fast=True,
+        )
 
     # Infer global batch size.
     global_batch_size = args.global_batch_size
