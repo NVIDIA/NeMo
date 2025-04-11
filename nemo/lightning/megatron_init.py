@@ -417,11 +417,22 @@ def fake_initialize_model_parallel(
             return
         e_ranks = encoder_rank_generator.get_ranks(group_type, **kwargs)
         if group_type == 'pp':
-            # Map 1 encoder tp rank to several decoder tp ranks, because
-            # these won't be the same size.
-            rep = (len(d_ranks) - 1) // len(e_ranks) + 1
+
+            # Map one encoder tp rank to several decoder tp ranks, because
+            # encoder tp and decoder tp won't be the same size.
+            # Assign this way to avoid getting the DP ranks mixed up with the PP ranks.
+            # For example, if e_ranks = [0,1,2] and d_ranks = [3,4,5,6]
+            # Should yield [0,3], [0,4], [1,5], [2,6]
+            rep = len(d_ranks) // len(e_ranks)
+            remain = len(d_ranks) % len(e_ranks)
+            e_ind = 0
+            e_rep = rep + int(e_ind < remain)
             for i, y in enumerate(d_ranks):
-                x = e_ranks[i // rep]
+                x = e_ranks[e_ind]
+                e_rep -= 1
+                if e_rep == 0:
+                    e_ind += 1
+                    e_rep = rep + int(e_ind < remain)
                 yield x + y
         elif group_type == 'tp-pp':
             # For this group, we can just return the concatenated
