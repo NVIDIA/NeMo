@@ -27,8 +27,7 @@ from nemo.collections.asr.data.audio_to_text import (
     _speech_collate_fn,
     cache_datastore_manifests,
     expand_sharded_filepaths,
-    shard_manifests_if_needed,
-    sharded_filepaths_to_webdataset_urls,
+    shard_manifests_if_needed
 )
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import T5Sentinel
@@ -40,6 +39,9 @@ from nemo.core.classes import IterableDataset
 from nemo.utils import logging
 
 __all__ = ['T5SpeechLMTarredDataset']
+
+from nemo.utils.data_utils import wds_lhotse_url_opener
+wd.tariterators.url_opener = wds_lhotse_url_opener
 
 
 @dataclass
@@ -172,14 +174,12 @@ class _TarredInstructionTuningDataset(IterableDataset):
         self.len = self._compute_len()
         self.return_sample_id = return_sample_id
 
-        audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
-            expand_sharded_filepaths(
+        audio_tar_filepaths = expand_sharded_filepaths(
                 sharded_filepaths=audio_tar_filepaths,
                 shard_strategy=shard_strategy,
                 world_size=world_size,
                 global_rank=global_rank,
             )
-        )
 
         if shuffle_n > 0:
             # Only shuffle training data tar files

@@ -24,8 +24,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text import (
     ASRManifestProcessor,
-    expand_sharded_filepaths,
-    sharded_filepaths_to_webdataset_urls,
+    expand_sharded_filepaths
 )
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.utils import logging, model_utils
@@ -347,21 +346,18 @@ class _AudioTextDALIDataset(Iterator):
                 self.is_tarred_dataset = False
 
             elif audio_tar_filepaths is not None and audio_tar_index_filepaths is not None:
-                audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
-                    expand_sharded_filepaths(
-                        audio_tar_filepaths,
-                        shard_strategy=shard_strategy,
-                        world_size=world_size,
-                        global_rank=global_rank,
+                audio_tar_filepaths = expand_sharded_filepaths(
+                                audio_tar_filepaths,
+                                shard_strategy=shard_strategy,
+                                world_size=world_size,
+                                global_rank=global_rank,
                     )
-                )
-                audio_tar_index_filepaths = sharded_filepaths_to_webdataset_urls(
-                    expand_sharded_filepaths(
+
+                audio_tar_index_filepaths = expand_sharded_filepaths(
                         audio_tar_index_filepaths,
                         shard_strategy=shard_strategy,
                         world_size=world_size,
                         global_rank=global_rank,
-                    )
                 )
 
                 if len(audio_tar_filepaths) != len(audio_tar_index_filepaths) and len(audio_tar_index_filepaths) != 0:

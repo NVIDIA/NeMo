@@ -16,7 +16,7 @@ import os
 import pathlib
 import shutil
 import subprocess
-from typing import Tuple
+from typing import Tuple, Any, Iterable, Callable, Dict
 from urllib.parse import urlparse
 
 try:
@@ -25,6 +25,8 @@ except ImportError:
     NEMO_VERSION = 'git'
 from nemo import constants
 from nemo.utils import logging
+from lhotse.serialization import open_best
+
 
 
 def resolve_cache_dir() -> pathlib.Path:
@@ -318,3 +320,37 @@ def datastore_object_get(store_object: DataStoreObject) -> bool:
         True if get() returned a path.
     """
     return store_object.get() is not None
+
+
+def wds_lhotse_url_opener(
+    data: Iterable[Dict[str, Any]],
+    handler: Callable[[Exception], bool],
+    **kw: Dict[str, Any],
+):
+    """
+    Open URLs and yield a stream of url+stream pairs.
+    This is a workaround to use lhotse's open_best instead of webdataset's default url_opener.
+    webdataset's default url_opener uses gopen, which does not support opening datastore paths.
+
+    Args:
+        data: Iterator over dict(url=...).
+        handler: Exception handler.
+        **kw: Keyword arguments for gopen.gopen.
+
+    Yields:
+        A stream of url+stream pairs.
+    """
+    for sample in data:
+        assert isinstance(sample, dict), sample
+        assert "url" in sample
+        url = sample["url"]
+        try:
+            stream = open_best(url)
+            sample.update(stream=stream)
+            yield sample
+        except Exception as exn:
+            exn.args = exn.args + (url,)
+            if handler(exn):
+                continue
+            else:
+                break

@@ -51,11 +51,14 @@ from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import IterableDataset
 from nemo.utils import logging
 
+
 # TODO @blisc: Perhaps refactor instead of import guarding
 HAVE_OMEGACONG_WEBDATASET = True
 try:
     import webdataset as wds
     from omegaconf import DictConfig, OmegaConf
+    from nemo.utils.data_utils import wds_lhotse_url_opener
+    wds.tariterators.url_opener = wds_lhotse_url_opener
 except ModuleNotFoundError:
     from nemo.utils.exceptions import LightningNotInstalledException
 
@@ -1327,16 +1330,13 @@ class AugmentationDataset(IterableDataset):
         # import here to avoid circular import error
         from nemo.collections.asr.data.audio_to_text import (
             expand_sharded_filepaths,
-            sharded_filepaths_to_webdataset_urls,
         )
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
 
-        tar_filepaths = sharded_filepaths_to_webdataset_urls(
-            expand_sharded_filepaths(
+        tar_filepaths = expand_sharded_filepaths(
                 tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
             )
-        )
 
         if not HAVE_OMEGACONG_WEBDATASET:
             raise LightningNotInstalledException(self)

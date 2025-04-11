@@ -21,7 +21,6 @@ import webdataset as wds
 from nemo.collections.asr.data.audio_to_text import (
     cache_datastore_manifests,
     expand_sharded_filepaths,
-    sharded_filepaths_to_webdataset_urls,
 )
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.common import tokenizers
@@ -29,8 +28,10 @@ from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.collections.multimodal.speech_cv.parts.preprocessing.features import VideoFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
-from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
+
+from nemo.utils.data_utils import wds_lhotse_url_opener
+wds.tariterators.url_opener = wds_lhotse_url_opener
 
 
 def _video_speech_collate_fn(batch, pad_id):
@@ -591,14 +592,12 @@ class _TarredVideoToTextDataset(IterableDataset):
         self.pad_id = pad_id
         self.return_sample_id = return_sample_id
 
-        audio_tar_filepaths = sharded_filepaths_to_webdataset_urls(
-            expand_sharded_filepaths(
+        audio_tar_filepaths = expand_sharded_filepaths(
                 audio_tar_filepaths=audio_tar_filepaths,
                 shard_strategy=shard_strategy,
                 world_size=world_size,
                 global_rank=global_rank,
             )
-        )
 
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
