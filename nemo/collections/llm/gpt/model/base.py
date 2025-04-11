@@ -14,8 +14,8 @@
 
 import contextlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 from functools import partial
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 import lightning.pytorch as L
 import torch
