@@ -38,4 +38,5 @@ except ModuleNotFoundError:
 
 import webdataset
 from nemo.utils.data_utils import wds_lhotse_url_opener
+
 webdataset.tariterators.url_opener = wds_lhotse_url_opener

@@ -22,8 +22,6 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import braceexpand
 import numpy as np
 import torch
-from nemo.utils import webdataset as wds
-
 from torch.utils.data import ChainDataset
 from tqdm import tqdm
 
@@ -35,12 +33,8 @@ from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.data_utils import (
-    DataStoreObject,
-    datastore_object_get,
-    is_datastore_cache_shared,
-    is_datastore_path,
-)
+from nemo.utils import webdataset as wds
+from nemo.utils.data_utils import DataStoreObject, datastore_object_get, is_datastore_cache_shared, is_datastore_path
 from nemo.utils.decorators import deprecated
 from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.get_rank import is_global_rank_zero
