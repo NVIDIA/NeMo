@@ -15,6 +15,15 @@
 """
 Example usage:
 
+0. Prepare dataset based on  <NeMo Root>/nemo/collections/asr/data/audio_to_eou_label_lhotse.py
+
+1. Add special tokens <EOU> and <EOB> to the tokenizer of pretrained model, by refering to the script
+    <NeMo Root>/scripts/asr_end_of_utterance/tokenizers/add_special_tokens_to_sentencepiece.py
+
+2. If pretrained model is HybridRNNTCTCBPEModel, convert it to RNNT using the script
+   <NeMo Root>/examples/asr/asr_hybrid_transducer_ctc/helpers/convert_nemo_asr_hybrid_to_ctc.py
+
+3. Run the following command to train the ASR-EOU model:
 ```bash
 #!/bin/bash
 
