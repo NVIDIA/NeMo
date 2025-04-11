@@ -45,7 +45,6 @@ except ImportError:
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from peft import AutoPeftModelForCausalLM, PeftConfig
-    from transformers import Llama4TextConfig as HFLlama4TextConfig
     from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
 
@@ -827,6 +826,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target, source_config=None):
+        # pylint: disable=C0301
         """Convert state dict from NeMo format to HF format.
 
         Maps the weights from the NeMo model to the HF model according to
@@ -835,6 +835,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         Args:
             source: Source NeMo model
             target: Target HF model
+            source_config: Source NeMo config (optional, used for Llama4)
 
         Returns:
             The target model with weights transferred from source
@@ -978,10 +979,12 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         )
 
     def is_llama4(self):
+        """Check if the model config is for Llama4."""
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
         return isinstance(source, Llama4Config)
 
     def create_llama4_config(self, source):
+        """Create a HF Llama4TextConfig from the NeMo Llama4Config."""
         from transformers import Llama4TextConfig as HFLlama4TextConfig
 
         assert isinstance(source, Llama4Config)
