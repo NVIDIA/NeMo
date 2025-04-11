@@ -772,15 +772,18 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             encoder_hidden_states = self.encoder_decoder_proj(enc_states)
             if not torch.is_tensor(canary_data.encoded_speech) or cfg.model_type == "offline":
                 canary_data.encoded_speech = encoder_hidden_states
-                encoder_input_mask = lens_to_mask(encoded_len, enc_states.shape[1]).to(enc_states.dtype)
+                canary_data.encoded_len = encoded_len
             else:
                 canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
-                # TODO implement encoder_input_mask for the concatenated tensor
-                raise NotImplementedError("encoder_input_mask for concatenated tensor is not implemented yet")
+                canary_data.encoded_len += encoded_len
+
+            encoder_input_mask = lens_to_mask(canary_data.encoded_len, canary_data.encoded_speech.shape[1]).to(canary_data.encoded_speech.dtype)
+
             
             # wait-k decoding policy
             if cfg.decoding_policy == "waitk":
-                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < cfg.waitk_lagging and ~canary_data.is_last_speech_chunk.any():
+                if canary_data.encoded_speech.size(-2) // canary_data.frame_chunk_size < cfg.waitk_lagging and \
+                    torch.any(torch.logical_not(canary_data.is_last_speech_chunk)):
                     # need to wait for more speech
                     if cfg.debug_mode:
                         logging.warning(f"!!! need more initial speech according to the waitk policy !!!")
@@ -823,13 +826,23 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         )
                         next_tokens = torch.argmax(logits[:, -1], dim=-1)
                         text_tokens = self.tokenizer.ids_to_tokens(next_tokens.tolist())
-                        
+
+                        # compute eos tokens mask
+                        is_eos_tokens = next_tokens == self.tokenizer.eos
+
+                        # rearange active samples (inner loop) depends on eos prediction
+                        torch.logical_and(canary_data.active_samples_inner_loop, torch.logical_not(is_eos_tokens), out=canary_data.active_samples_inner_loop)
+
+                        # disable samples (upper loop) with eos and end of speech
+                        eos_and_end_speech_mask = torch.logical_and(is_eos_tokens, canary_data.is_last_speech_chunk)
+                        torch.logical_and(canary_data.active_samples, torch.logical_not(eos_and_end_speech_mask), out=canary_data.active_samples)
+
                         if cfg.debug_mode:
                             logging.warning(f"-------------"*5)
                             logging.warning(f"decoding step (i)        : {i}")
                             logging.warning(f"start_from               : {start_from}")
                             logging.warning(f"max_generation_length    : {max_generation_length}")
-                            logging.warning(f"[encoded_with_rc.shape]  : {encoded_with_rc.shape}")
+                            # logging.warning(f"[encoded_with_rc.shape]  : {encoded_with_rc.shape}")
                             logging.warning(f"[encoded_speech.shape]   : {canary_data.encoded_speech.shape}")
                             logging.warning(f"[is_last_speech_chunk]   : {canary_data.is_last_speech_chunk}")
                             logging.warning(f"[active_samples]         : {canary_data.active_samples}")
@@ -837,37 +850,46 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             logging.warning(f"[predicted token]        : {text_tokens}")
                             logging.warning(f"[predicted token id]     : {next_tokens}")
 
-                        # import pdb; pdb.set_trace()
 
-                        is_eos_tokens = next_tokens == self.tokenizer.eos
-
-                        # # disable samples (upper loop) with eos and end of speech
-                        # eos_and_end_speech_mask = torch.logical_and(is_eos_tokens, canary_data.is_last_speech_chunk)
-                        # torch.logical_and(canary_data.active_samples, torch.logical_not(eos_and_end_speech_mask), out=canary_data.active_samples)
-
-                        if not torch.any(torch.logical_not(is_eos_tokens[canary_data.active_samples])):
+                        if not torch.any(canary_data.active_samples_inner_loop):
                             if cfg.debug_mode:
-                                logging.warning(f"!#! EOS predicted during last speech chunk, end of decoding !#!")
+                                logging.warning(f"!#! no active samples in inner loop, do next upper step !#!")
+                            canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
+                            # torch.logical_and(canary_data.active_samples, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
                             break
-                        
-                        # rearange active samples depends on eos prediction
-                        torch.logical_and(canary_data.active_samples, torch.logical_not(is_eos_tokens), out=canary_data.active_samples)
 
                         # write predicted tokens to the tgt tensor
-                        next_tokens[torch.logical_not(canary_data.active_samples)] = self.tokenizer.eos
+                        next_tokens[torch.logical_not(canary_data.active_samples_inner_loop)] = self.tokenizer.eos
                         canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] = next_tokens
 
                         canary_data.decoder_mems_list = decoder_mems_list
                         canary_data.decoding_step = i
                         input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
-                        canary_data.current_context_lengths += canary_data.active_samples
-                        
-                        # take into account early EOS prediction
-                        reactivation_mask = torch.where((is_eos_tokens) & (torch.logical_not(canary_data.is_last_speech_chunk)), True, False)
-                        if torch.any(reactivation_mask):
-                            if cfg.debug_mode:
-                                logging.warning(f"***** !!! EOS predicted before last speech chunk, reactivating samples !!! *****")
-                            canary_data.active_samples[reactivation_mask] = True
+
+                        # check for hallucinations
+                        # TODO add more consequtive tokens? Now we are checking only 3 same tokens 
+                        hallucination_mask = torch.logical_and(
+                            canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] == canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1],
+                            canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1] == canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-2]
+                        )
+                        if torch.any(hallucination_mask):
+                            logging.warning(f"!!! hallucination detected !!!")
+                            canary_data.active_samples *= torch.logical_not(hallucination_mask)
+                            canary_data.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
+
+                        canary_data.current_context_lengths += canary_data.active_samples_inner_loop
+
+                        # disable samples with maximum context length
+                        samples_with_max_context_length = canary_data.current_context_lengths == canary_data.max_generation_length-1
+                        if torch.any(samples_with_max_context_length * canary_data.active_samples):
+                            logging.warning(f"!!! maximum context length reached !!!")
+                            canary_data.active_samples *= torch.logical_not(samples_with_max_context_length)
+                            canary_data.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
+
+                        # zero out decoder_mems_list for non active samples
+                        if torch.any(torch.logical_not(canary_data.active_samples_inner_loop)):
+                            for j in range(len(decoder_mems_list)):
+                                decoder_mems_list[j][:, -1] *= canary_data.active_samples_inner_loop.unsqueeze(-1)
 
                         if cfg.debug_mode:
                             pass
@@ -1014,11 +1036,12 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         canary_data.active_samples *= torch.logical_not(hallucination_mask)
                         canary_data.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
 
-                    canary_data.current_context_lengths += canary_data.active_samples_inner_loop
-
+                    # logging.warning(f"[canary_data.current_context_lengths]       : {canary_data.current_context_lengths}")
+                    # logging.warning(f"[canary_data.max_generation_length]       : {canary_data.max_generation_length}")
+                    
                     # disable samples with maximum context length
-                    samples_with_max_context_length = canary_data.current_context_lengths == canary_data.max_generation_length
-                    if torch.any(samples_with_max_context_length):
+                    samples_with_max_context_length = canary_data.current_context_lengths == canary_data.max_generation_length -1
+                    if torch.any(samples_with_max_context_length * canary_data.active_samples):
                         logging.warning(f"!!! maximum context length reached !!!")
                         canary_data.active_samples *= torch.logical_not(samples_with_max_context_length)
                         canary_data.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
@@ -1029,6 +1052,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             decoder_mems_list[j][:, -1] *= canary_data.active_samples_inner_loop.unsqueeze(-1)
 
                     canary_data.decoder_mems_list = decoder_mems_list
+                    canary_data.current_context_lengths += canary_data.active_samples_inner_loop
                 
                     if cfg.debug_mode:
                         pass

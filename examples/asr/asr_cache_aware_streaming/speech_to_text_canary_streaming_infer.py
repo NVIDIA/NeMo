@@ -124,7 +124,7 @@ class CanaryData():
     decoding_step: int = -1
     decoder_mems_list: list = None
     is_last_speech_chunk: torch.Tensor = False
-    max_generation_length: int = 1024
+    max_generation_length: int = 360
 
 
 @dataclass
@@ -149,7 +149,7 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     # params for offline models streaming
     window_size: int = 14 # The size of encoder embeddings to be used for offline streaming (ms = window_size * subsampling * 10)
-    right_context: int = 10 # The right context of encoder embeddings to be used for offline streaming
+    right_context: int = 14 # The right context of encoder embeddings to be used for offline streaming
 
 
     online_normalization: bool = False # Perform normalization on the run per chunk
@@ -181,7 +181,7 @@ def compute_laal(delays, source_length, target_length):
     return LAAL
 
 
-def compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
+def compute_alignatt_lagging(cfg, batch_samples, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581"):
     # try:
     #     assert len(predicted_token_ids[0]) == len(canary_data.pred_tokens_alignment) # sanity check for alignment length
     # except:
@@ -191,6 +191,10 @@ def compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, as
     tokens_idx_shift = canary_data.decoder_input_ids.size(-1)
     target_length_word = [len(a['text'].split()) for a in batch_samples]
     laal_list = []
+    if cfg.model_type == "offline":
+        right_context = cfg.right_context
+    else:
+        right_context = 0
     for i, tokens in enumerate(predicted_token_ids):
         if len(tokens) == 0:
             laal_list.append(5000)
@@ -201,7 +205,7 @@ def compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, as
         lagging = []
         for j, cur_t in enumerate(tokens):
             # import pdb; pdb.set_trace()
-            pred_idx = canary_data.tokens_frame_alignment[i, tokens_idx_shift+j]
+            pred_idx = canary_data.tokens_frame_alignment[i, tokens_idx_shift+j] + right_context
             cur_t = asr_model.tokenizer.vocab[cur_t]
             eos_token = asr_model.tokenizer.vocab[asr_model.tokenizer.eos_id]
             if (cur_t.startswith(BOW_PREFIX) and cur_t != BOW_PREFIX) or cur_t == eos_token:  # word boundary
@@ -528,7 +532,7 @@ def main(cfg: StreamingEvaluationConfig):
                 if cfg.decoding_policy == "waitk":
                     laal_list = compute_waitk_lagging(batch_samples, predicted_token_ids, cfg, canary_data, asr_model, BOW_PREFIX = "\u2581")
                 elif cfg.decoding_policy == "alignatt":
-                    laal_list = compute_alignatt_lagging(batch_samples, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581")
+                    laal_list = compute_alignatt_lagging(cfg, batch_samples, predicted_token_ids, canary_data, asr_model, BOW_PREFIX = "\u2581")
                 else:
                     raise ValueError(f"Unknown decoding policy: {cfg.decoding_policy}")
                 all_laal.extend(laal_list)
