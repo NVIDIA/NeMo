@@ -74,7 +74,7 @@ class DuplexS2SModel(LightningModule):
         del self.llm.embed_tokens
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        asr = _load_pretrained(ASRModel, self.cfg.pretrained_asr).to(torch.bfloat16).eval()
+        asr = _load_pretrained(ASRModel, self.cfg.pretrained_asr).eval()
         with open_dict(self.cfg):
             self.cfg.perception.preprocessor = asr.cfg.preprocessor
             self.cfg.perception.encoder = asr.cfg.encoder
@@ -349,7 +349,7 @@ class DuplexS2SModel(LightningModule):
         # be quite fragmented and close to the limit after observing many
         # dynamic shapes during the training epoch.
         torch.cuda.memory.empty_cache()
-        self.asr = ASRModel.from_pretrained(self.cfg.scoring_asr).to(torch.bfloat16).eval()
+        self.asr = ASRModel.from_pretrained(self.cfg.scoring_asr).eval()
         WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
         # Setup a separate BLEU metric for each validation dataloader through CombinedLoader.
         # See: https://lightning.ai/docs/pytorch/LTS/guides/data.html#accessing-dataloaders-within-lightningmodule
