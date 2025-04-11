@@ -554,22 +554,16 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
                 base //= 2
             return base
 
-        output = NemotronHConfig8B(
-            num_layers=source.num_hidden_layers,
-            hybrid_override_pattern=source.hybrid_override_pattern,
-            hidden_size=source.hidden_size,
-            ffn_hidden_size=source.intermediate_size,
-            num_attention_heads=source.num_attention_heads,
-            layernorm_epsilon=source.layer_norm_epsilon,
-            num_query_groups=source.num_key_value_heads,
-            mamba_num_groups=source.n_groups,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            fp16=(dtype_from_hf(source) == torch.float16),
-            bf16=(dtype_from_hf(source) == torch.bfloat16),
-            params_dtype=dtype_from_hf(source),
-        )
+        if "8B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig8B()
+        elif "47B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig47B()
+        elif "56B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig56B()
+        else:
+            raise ValueError(f"Unsupported model size: {source._name_or_path}")
 
-        return output
+        return nemotron_h_config
 
 
 @io.model_exporter(MambaModel, "hf")
@@ -953,19 +947,12 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
 
 
 @dataclass
-class NemotronHConfig8B(SSMConfig):
-    """NemotronHConfig8B"""
-
-    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
-    num_layers: int = 52
+class NemotronHConfigBase(SSMConfig):
+    """Base configuration class for NemotronH models"""
+    
     seq_length: int = 8192
-    hidden_size: int = 4096
     mamba_num_groups: int = 8
-    mamba_state_dim: int = 128
     mamba_head_dim: int = 64
-    mamba_nheads: int = 256
-    ffn_hidden_size: int = 21504
-    num_attention_heads: int = 32
     num_query_groups: int = 8
     make_vocab_size_divisible_by: int = 128
     activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
@@ -982,38 +969,35 @@ class NemotronHConfig8B(SSMConfig):
 
 
 @dataclass
-class NemotronHConfig47B(SSMConfig):
+class NemotronHConfig8B(NemotronHConfigBase):
+    """NemotronHConfig8B"""
+
+    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    num_layers: int = 52
+    hidden_size: int = 4096
+    mamba_state_dim: int = 128
+    mamba_nheads: int = 128
+    ffn_hidden_size: int = 21504
+    num_attention_heads: int = 32
+
+
+@dataclass
+class NemotronHConfig47B(NemotronHConfigBase):
     """NemotronHConfig47B"""
 
     hybrid_override_pattern: str = (
         "M-M-M-M-M-M-M-M-M*-M-M-M-M-M-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-M-M---MM---M-M*-M-M-M-M-M-"
     )
     num_layers: int = 98
-    seq_length: int = 8192
     hidden_size: int = 8192
-    mamba_num_groups: int = 8
     mamba_state_dim: int = 256
-    mamba_head_dim: int = 64
     mamba_nheads: int = 256
     ffn_hidden_size: int = 30720
     num_attention_heads: int = 64
-    num_query_groups: int = 8
-    make_vocab_size_divisible_by: int = 128
-    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
-    tokenizer_library: str = 'tiktoken'
-    tokenizer_name: str = "TiktokenTokenizer"
-    mapping_type: str = "nvidia-hybrid-nemotronh"
-    masked_softmax_fusion: bool = True
-    apply_query_key_layer_scaling: bool = False
-    persist_layer_norm: bool = True
-    attention_softmax_in_fp32: bool = False
-    vocab_size: int = 131072
-    first_last_layers_bf16: bool = True
-    is_hybrid_model: bool = True
 
 
 @dataclass
-class NemotronHConfig56B(SSMConfig):
+class NemotronHConfig56B(NemotronHConfigBase):
     """NemotronHConfig56B"""
 
     hybrid_override_pattern: str = (
@@ -1021,27 +1005,11 @@ class NemotronHConfig56B(SSMConfig):
         "M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
     )
     num_layers: int = 118
-    seq_length: int = 8192
     hidden_size: int = 8192
-    mamba_num_groups: int = 8
     mamba_state_dim: int = 256
-    mamba_head_dim: int = 64
     mamba_nheads: int = 256
     ffn_hidden_size: int = 32768
     num_attention_heads: int = 64
-    num_query_groups: int = 8
-    make_vocab_size_divisible_by: int = 128
-    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
-    tokenizer_library: str = 'tiktoken'
-    tokenizer_name: str = "TiktokenTokenizer"
-    mapping_type: str = "nvidia-hybrid-nemotronh"
-    masked_softmax_fusion: bool = True
-    apply_query_key_layer_scaling: bool = False
-    persist_layer_norm: bool = True
-    attention_softmax_in_fp32: bool = False
-    vocab_size: int = 131072
-    first_last_layers_bf16: bool = True
-    is_hybrid_model: bool = True
 
 
 __all__ = [
@@ -1053,6 +1021,7 @@ __all__ = [
     "BaseMambaConfig2_7B",
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
+    "NemotronHConfigBase",
     "NemotronHConfig8B",
     "NemotronHConfig47B",
     "NemotronHConfig56B",
