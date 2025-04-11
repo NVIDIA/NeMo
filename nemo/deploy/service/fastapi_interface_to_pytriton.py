@@ -128,7 +128,11 @@ def convert_numpy(obj):
     else:
         return obj
 
+
 def _helper_fun(url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template):
+    """
+    run_in_executor doesn't allow to pass kwargs, so we have this helper function to pass args as a list
+    """
     nq = NemoQueryLLMPyTorch(url=url, model_name=model)
     output = nq.query_llm(
         prompts=prompts,
@@ -143,17 +147,33 @@ def _helper_fun(url, model, prompts, temperature, top_k, top_p, compute_logprob,
     return output
 
 
-async def query_llm_async(*, url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template):
+async def query_llm_async(
+    *, url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template
+):
+    """
+    Sends requests to `NemoQueryLLMPyTorch.query_llm` in a non-blocking way, allowing the server to process
+    concurrent requests. This way enables batching of requests in the underlying Triton server.
+    """
     import asyncio
     import concurrent
 
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as pool:
         result = await loop.run_in_executor(
-        pool, _helper_fun,
-        url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template
+            pool,
+            _helper_fun,
+            url,
+            model,
+            prompts,
+            temperature,
+            top_k,
+            top_p,
+            compute_logprob,
+            max_length,
+            apply_chat_template,
         )
     return result
+
 
 @app.post("/v1/completions/")
 async def completions_v1(request: CompletionRequest):
