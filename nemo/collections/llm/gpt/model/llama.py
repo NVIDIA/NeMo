@@ -397,7 +397,7 @@ class Llama4Config(Llama3Config):
     moe_shared_expert_intermediate_size: int = 8192
     moe_ffn_hidden_size: int = 8192
     moe_router_topk: int = 1
-    moe_router_pre_softmax: bool = (True,)
+    moe_router_pre_softmax: bool = False
     moe_router_score_function: str = 'sigmoid'
     moe_token_dispatcher_type: str = "alltoall"
     # Configs that are overwritten in subclass models
@@ -999,16 +999,15 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         )
 
         # MoE config
-        if getattr(source, 'moe_layer_freq') is not None:
-            moe_layer_freq = source.moe_layer_freq
+        moe_layer_freq = getattr(source, 'moe_layer_freq', None)
+        interleave_moe_layer_step = None
+        if moe_layer_freq is not None:
             if isinstance(moe_layer_freq, int):
                 interleave_moe_layer_step = moe_layer_freq
             elif isinstance(moe_layer_freq, list):
                 interleave_moe_layer_step = source.num_layers // sum(moe_layer_freq)
             else:
                 raise ValueError(f'Unexpected moe_layer_freq {moe_layer_freq}')
-        else:
-            interleave_moe_layer_step = None
 
         config = HFLlama4TextConfig(
             head_dim=source.kv_channels,
@@ -1100,7 +1099,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
                 ).contiguous()
 
             else:
-                assert f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source
+                assert f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
                 weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
                 state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
 
@@ -1351,9 +1350,14 @@ def apply_rope_scaling(
 @staticmethod
 def split_moe(ctx: TransformCTX, tensor: torch.Tensor):
     """
-    Split interleave-concatenated qkv to q, k, v
+    Split interleave-concatenated MoE expert weights.
 
-    Example: export layer linear_qkv to HF {q|k|v}_proj
+    Args:
+        ctx: Transformation context containing model configuration.
+        tensor: The tensor containing concatenated expert weights.
+
+    Returns:
+        A list of tensors, each corresponding to an expert's weights.
     """
     megatron_config = ctx.source.config
 

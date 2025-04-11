@@ -692,7 +692,7 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
                 ).contiguous()
 
             else:
-                assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source
+                assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
                 weight = state_dict.pop(f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
                 state_dict[f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
 
