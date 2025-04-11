@@ -15,7 +15,6 @@
 
 import nemo_run as run
 import torch
-from megatron.core.enums import Fp8Recipe
 
 from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
 
@@ -178,7 +177,7 @@ def bf16_with_fp8_subchannel_scaling_mixed() -> run.Config[MegatronMixedPrecisio
     """
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.blockwise
+    cfg.fp8_recipe = "blockwise"
     cfg.fp8_param_gather = False
     return cfg
 
@@ -192,6 +191,6 @@ def fp16_with_fp8_subchannel_scaling_mixed() -> run.Config[MegatronMixedPrecisio
     """
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
-    cfg.fp8_recipe = Fp8Recipe.blockwise
+    cfg.fp8_recipe = "blockwise"
     cfg.fp8_param_gather = False
     return cfg
