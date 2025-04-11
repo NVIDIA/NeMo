@@ -17,7 +17,7 @@ import math
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, List, Optional, Union, Tuple, Dict, Any
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
@@ -45,8 +45,8 @@ except ImportError:
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from peft import AutoPeftModelForCausalLM, PeftConfig
-    from transformers import LlamaConfig as HFLlamaConfig
     from transformers import Llama4TextConfig as HFLlama4TextConfig
+    from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -430,6 +430,7 @@ class Llama4Experts128Config(Llama4Config):
     moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0, 1] * 24)
     qk_l2_norm: bool = False
 
+
 class LlamaModel(GPTModel):
     """Llama model implementation based on the GPT model architecture.
 
@@ -508,7 +509,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         Returns:
             Path: Path to the saved NeMo model
         """
-        from transformers import AutoModelForCausalLM, AutoConfig
+        from transformers import AutoConfig, AutoModelForCausalLM
 
         hf_config = AutoConfig.from_pretrained(str(self))
         if getattr(hf_config, 'model_type') == 'llama4':
@@ -885,31 +886,35 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             # Llama4's Pre MLP LayerNorm is at decoder.layers.*.pre_mlp_layernorm.weight
             # instead of mlp.linear_fc1.layer_norm_weight
             mapping.pop("decoder.layers.*.mlp.linear_fc1.layer_norm_weight")
-            mapping.update({
-                "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
-                "decoder.layers.*.mlp.router.weight": "model.layers.*.feed_forward.router.weight",
-                "decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "model.layers.*.feed_forward.shared_expert.down_proj.weight",
-                "decoder.layers.*.mlp.experts.linear_fc2.weight": "model.layers.*.feed_forward.experts.down_proj",
-                "decoder.layers.*.mlp.experts.linear_fc1.weight": "model.layers.*.feed_forward.experts.gate_up_proj",
-            })
-            transforms.extend([
-                io.state_transform(
-                    source_key="decoder.layers.*.mlp.shared_experts.linear_fc1.weight",
-                    target_key=(
-                        "model.layers.*.feed_forward.shared_expert.gate_proj.weight",
-                        "model.layers.*.feed_forward.shared_expert.up_proj.weight",
+            mapping.update(
+                {
+                    "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
+                    "decoder.layers.*.mlp.router.weight": "model.layers.*.feed_forward.router.weight",
+                    "decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "model.layers.*.feed_forward.shared_expert.down_proj.weight",
+                    "decoder.layers.*.mlp.experts.linear_fc2.weight": "model.layers.*.feed_forward.experts.down_proj",
+                    "decoder.layers.*.mlp.experts.linear_fc1.weight": "model.layers.*.feed_forward.experts.gate_up_proj",
+                }
+            )
+            transforms.extend(
+                [
+                    io.state_transform(
+                        source_key="decoder.layers.*.mlp.shared_experts.linear_fc1.weight",
+                        target_key=(
+                            "model.layers.*.feed_forward.shared_expert.gate_proj.weight",
+                            "model.layers.*.feed_forward.shared_expert.up_proj.weight",
+                        ),
+                        fn=TransformFns.split_fc1,
                     ),
-                    fn=TransformFns.split_fc1,
-                ),
-                io.state_transform(
-                    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                    target_key=(
-                        "model.layers.*.feed_forward.gate_proj.weight",
-                        "model.layers.*.feed_forward.up_proj.weight",
+                    io.state_transform(
+                        source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                        target_key=(
+                            "model.layers.*.feed_forward.gate_proj.weight",
+                            "model.layers.*.feed_forward.up_proj.weight",
+                        ),
+                        fn=TransformFns.split_fc1,
                     ),
-                    fn=TransformFns.split_fc1,
-                ),
-            ])
+                ]
+            )
 
         return io.apply_transforms(
             source,
@@ -978,6 +983,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
     def create_llama4_config(self, source):
         from transformers import Llama4TextConfig as HFLlama4TextConfig
+
         assert isinstance(source, Llama4Config)
 
         rope_scaling = (
@@ -1051,7 +1057,9 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         dist_ckpt_folder = path / "weights"
         state_dict = {}
 
-        dict_to_obj = lambda d: type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
+        dict_to_obj = lambda d: (
+            type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
+        )
         config_obj = dict_to_obj(config['config'])
         langauge_layers = config_obj.num_layers
         distributed_model_weights = load_distributed_model_weights(dist_ckpt_folder, True).items()
@@ -1080,9 +1088,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
                 is_moe_layer = source_config.moe_layer_freq[layer_i]
             if is_moe_layer:
                 # gate_up_proj
-                weight = state_dict.pop(
-                    f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight"
-                )
+                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight")
                 state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
                     0, 2, 1
                 ).contiguous()
@@ -1100,6 +1106,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
         source = _ModelState(state_dict, source_config)
         return source
+
 
 @io.model_exporter(LlamaModel, "hf-peft")
 class HFLlamaPEFTExporter(HFLlamaExporter):
