@@ -299,7 +299,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
         if parallel_state.get_context_parallel_world_size() > 1:
             assert original_seq_len % (parallel_state.get_context_parallel_world_size() * 2) == 0
             cp_chunk_len = original_seq_len // (parallel_state.get_context_parallel_world_size() * 2)
-            assert cp_chunk_len % self.attention_chunk_size == 0 or self.attention_chunk_size % cp_chunk_len == 0
+            assert cp_chunk_len % self.attention_chunk_size == 0
 
         # ================================================
         # relative positional embedding (rotary embedding)
