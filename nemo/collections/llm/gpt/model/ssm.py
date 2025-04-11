@@ -949,7 +949,7 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
 @dataclass
 class NemotronHConfigBase(SSMConfig):
     """Base configuration class for NemotronH models"""
-    
+
     seq_length: int = 8192
     mamba_num_groups: int = 8
     mamba_head_dim: int = 64
