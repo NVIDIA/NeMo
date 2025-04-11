@@ -154,7 +154,7 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     online_normalization: bool = False # Perform normalization on the run per chunk
     pad_and_drop_preencoded: bool = False # Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.
-    recompute_decoder_mems: bool = False # Whether to recompute the decoder mems for each step. It may be useful for debugging or for models which do not support caching.
+    # recompute_decoder_mems: bool = False # Whether to recompute the decoder mems for each step. It may be useful for debugging or for models which do not support caching.
 
     use_amp: bool = False # Whether to use AMP
     device: str = "cuda" # The device to load the model onto and perform the streaming
