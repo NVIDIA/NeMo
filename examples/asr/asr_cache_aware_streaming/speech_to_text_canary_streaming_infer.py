@@ -139,7 +139,7 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     batch_size: int = 1 # The batch size to be used to perform streaming in batch mode with multiple streams
     att_context_size: Optional[list] = None # Sets the att_context_size for the models which support multiple lookaheads
-    sort_input_manifest: bool = False # Whether to sort the input manifest by duration to reduce batched decoding time
+    sort_input_manifest: bool = True # Whether to sort the input manifest by duration to reduce batched decoding time
 
     decoding_policy: str = "alignatt" # streaming decoding policy ["alignatt" or "waitk"]
     waitk_lagging: int = 3 # The frame lagging to be used for waitk decoding policy
@@ -149,11 +149,12 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     # params for offline models streaming
     window_size: int = 14 # The size of encoder embeddings to be used for offline streaming (ms = window_size * subsampling * 10)
-    right_context: int = 14 # The right context of encoder embeddings to be used for offline streaming
+    right_context: int = 10 # The right context of encoder embeddings to be used for offline streaming
 
 
     online_normalization: bool = False # Perform normalization on the run per chunk
     pad_and_drop_preencoded: bool = False # Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.
+    recompute_decoder_mems: bool = False # Whether to recompute the decoder mems for each step. It may be useful for debugging or for models which do not support caching.
 
     use_amp: bool = False # Whether to use AMP
     device: str = "cuda" # The device to load the model onto and perform the streaming
@@ -226,7 +227,10 @@ def compute_waitk_lagging(batch_samples, predicted_token_ids, cfg, canary_data, 
     waitk_lagging = cfg.waitk_lagging
     pre_decision_ratio = canary_data.frame_chunk_size
     target_length_word = [len(a['text'].split()) for a in batch_samples]
-    right_context = 0
+    if cfg.model_type == "offline":
+        right_context = cfg.right_context
+    else:
+        right_context = 0
     laal_list = []
     # import pdb; pdb.set_trace()
     for i, tokens in enumerate(predicted_token_ids):

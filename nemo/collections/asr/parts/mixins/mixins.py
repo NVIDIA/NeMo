@@ -696,89 +696,90 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             encoded_with_rc, encoded_len_with_rc = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
             cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len = None, None, None   
 
-        if isinstance(self, asr_models.EncDecCTCModel) or (
-            isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"
-        ):
-            if hasattr(self, "ctc_decoder"):
-                decoding = self.ctc_decoding
-                decoder = self.ctc_decoder
-            else:
-                decoding = self.decoding
-                decoder = self.decoder
+        # if isinstance(self, asr_models.EncDecCTCModel) or (
+        #     isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"
+        # ):
+        #     if hasattr(self, "ctc_decoder"):
+        #         decoding = self.ctc_decoding
+        #         decoder = self.ctc_decoder
+        #     else:
+        #         decoding = self.decoding
+        #         decoder = self.decoder
 
-            log_probs = decoder(encoder_output=encoded)
-            predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
+        #     log_probs = decoder(encoder_output=encoded)
+        #     predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
 
-            # Concatenate the previous predictions with the current one to have the full predictions.
-            # We drop the extra predictions for each sample by using the lengths returned by the encoder (encoded_len)
-            # Then create a list of the predictions for the batch. The predictions can have different lengths because of the paddings.
-            greedy_predictions = []
-            if return_transcription:
-                all_hyp_or_transcribed_texts = []
-            else:
-                all_hyp_or_transcribed_texts = None
-            for preds_idx, preds in enumerate(predictions_tensor):
-                if encoded_len is None:
-                    preds_cur = predictions_tensor[preds_idx]
-                else:
-                    preds_cur = predictions_tensor[preds_idx, : encoded_len[preds_idx]]
-                if previous_pred_out is not None:
-                    greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
-                    encoded_len[preds_idx] += len(previous_pred_out[preds_idx])
-                else:
-                    greedy_predictions_concat = preds_cur
-                greedy_predictions.append(greedy_predictions_concat)
+        #     # Concatenate the previous predictions with the current one to have the full predictions.
+        #     # We drop the extra predictions for each sample by using the lengths returned by the encoder (encoded_len)
+        #     # Then create a list of the predictions for the batch. The predictions can have different lengths because of the paddings.
+        #     greedy_predictions = []
+        #     if return_transcription:
+        #         all_hyp_or_transcribed_texts = []
+        #     else:
+        #         all_hyp_or_transcribed_texts = None
+        #     for preds_idx, preds in enumerate(predictions_tensor):
+        #         if encoded_len is None:
+        #             preds_cur = predictions_tensor[preds_idx]
+        #         else:
+        #             preds_cur = predictions_tensor[preds_idx, : encoded_len[preds_idx]]
+        #         if previous_pred_out is not None:
+        #             greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
+        #             encoded_len[preds_idx] += len(previous_pred_out[preds_idx])
+        #         else:
+        #             greedy_predictions_concat = preds_cur
+        #         greedy_predictions.append(greedy_predictions_concat)
 
-                # TODO: make decoding more efficient by avoiding the decoding process from the beginning
-                if return_transcription:
-                    decoded_out = decoding.ctc_decoder_predictions_tensor(
-                        decoder_outputs=greedy_predictions_concat.unsqueeze(0),
-                        decoder_lengths=encoded_len[preds_idx : preds_idx + 1],
-                        return_hypotheses=False,
-                    )
-                    all_hyp_or_transcribed_texts.append(decoded_out[0])
-            best_hyp = None
-        elif isinstance(self, asr_models.EncDecRNNTModel) or (
-            isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "rnnt"
-        ):
-            best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-                encoder_output=encoded,
-                encoded_lengths=encoded_len,
-                return_hypotheses=True,
-                partial_hypotheses=previous_hypotheses,
-            )
-            greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
+        #         # TODO: make decoding more efficient by avoiding the decoding process from the beginning
+        #         if return_transcription:
+        #             decoded_out = decoding.ctc_decoder_predictions_tensor(
+        #                 decoder_outputs=greedy_predictions_concat.unsqueeze(0),
+        #                 decoder_lengths=encoded_len[preds_idx : preds_idx + 1],
+        #                 return_hypotheses=False,
+        #             )
+        #             all_hyp_or_transcribed_texts.append(decoded_out[0])
+        #     best_hyp = None
+        # elif isinstance(self, asr_models.EncDecRNNTModel) or (
+        #     isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "rnnt"
+        # ):
+        #     best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+        #         encoder_output=encoded,
+        #         encoded_lengths=encoded_len,
+        #         return_hypotheses=True,
+        #         partial_hypotheses=previous_hypotheses,
+        #     )
+        #     greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
 
-            all_hyp_or_transcribed_texts = best_hyp
+        #     all_hyp_or_transcribed_texts = best_hyp
         
         # canary decoding
-        elif isinstance(self, asr_models.EncDecMultiTaskModel):
+        if isinstance(self, asr_models.EncDecMultiTaskModel):
             
             # remove rigth context
             if cfg.model_type == "offline":
                 # TODO that to do for the last chunk?
                 current_chunk_len = cfg.window_size * (canary_data.step_num+1)
                 encoded = encoded_with_rc[:, :, :current_chunk_len]
-                # encoded = encoded_with_rc[:, :, (cfg.window_size*canary_data.step_num):current_chunk_len]
-                # TODO correct the length of the encoded tensor
-                encoded_len = encoded_len_with_rc - current_chunk_len
-
-            # import pdb; pdb.set_trace() 
+                encoded_len = torch.clamp(encoded_len_with_rc, max=current_chunk_len)
             
             batch_size = encoded.size(0)
             all_hyp_or_transcribed_texts = []
             greedy_predictions = []
             best_hyp = None
-            # TODO add encoder mask based on the length of the input
-            encoder_input_mask = None
+            # encoder_input_mask = None
 
             # prepare encoder embeddings for the decoding
             enc_states = encoded.permute(0, 2, 1)
             encoder_hidden_states = self.encoder_decoder_proj(enc_states)
             if not torch.is_tensor(canary_data.encoded_speech) or cfg.model_type == "offline":
                 canary_data.encoded_speech = encoder_hidden_states
+                encoder_input_mask = lens_to_mask(encoded_len, enc_states.shape[1]).to(enc_states.dtype)
             else:
                 canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
+                # TODO implement encoder_input_mask for the concatenated tensor
+                raise NotImplementedError("encoder_input_mask for concatenated tensor is not implemented yet")
+
+            # import pdb; pdb.set_trace()
+            
             # if not torch.is_tensor(canary_data.encoded_speech):
             #     canary_data.encoded_speech = encoder_hidden_states
             # else:
@@ -800,13 +801,20 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         )
                         input_ids = tgt
                     else:
-                        input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1].unsqueeze(-1)
+                        if not cfg.recompute_decoder_mems:
+                            input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1].unsqueeze(-1)
+                        else:
+                            input_ids = canary_data.tgt[canary_data.batch_idxs, :canary_data.current_context_lengths]
                     
                     # shift steps up to len of decoder_input_ids for correct position encoding
                     if canary_data.decoding_step == 0:
                         canary_data.decoding_step += canary_data.decoder_input_ids.size(-1)-1
                     
-                    decoder_mems_list = canary_data.decoder_mems_list
+                    if not cfg.recompute_decoder_mems:
+                        decoder_mems_list = canary_data.decoder_mems_list
+                    else:
+                        decoder_mems_list = None
+
                     start_from = canary_data.decoding_step+1
 
                     # if not canary_data.is_last_speech_chunk:
@@ -816,16 +824,18 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         max_generation_length = canary_data.max_generation_length
                     
                     for i in range(start_from, max_generation_length):
-                        # if i != 0 and start_from == 0:
-                        # # need to shift steps up to len of decoder_input_ids for correct position encoding
-                        #     i += canary_data.decoder_input_ids.size(-1)-1
-                        # predict only one token per speech chunk                     
+                        # predict only one token per speech chunk if not the last one                     
+                        if not cfg.recompute_decoder_mems:
+                            positional_idx = i
+                        else:
+                            positional_idx = 0
+                        
                         logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
                             input_ids,
                             canary_data.encoded_speech,
                             encoder_input_mask,
                             decoder_mems_list,
-                            i,
+                            positional_idx,
                             return_scores=False,
                             return_xatt_scores=True,
                         )
@@ -845,6 +855,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             logging.warning(f"[predicted token]        : {text_tokens}")
                             logging.warning(f"[predicted token id]     : {next_tokens}")
 
+                        # import pdb; pdb.set_trace()
+                        
                         # TODO take into account token with id 16
                         is_eos_tokens = next_tokens == self.tokenizer.eos
                         if not torch.any(torch.logical_not(is_eos_tokens[canary_data.active_samples])):
@@ -861,7 +873,11 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                         canary_data.decoder_mems_list = decoder_mems_list
                         canary_data.decoding_step = i
-                        input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                        if not cfg.recompute_decoder_mems:
+                            input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                        else:
+                             input_ids = canary_data.tgt[canary_data.batch_idxs, :canary_data.current_context_lengths+1]
+                             decoder_mems_list = None
                         # canary_data.current_context_lengths[canary_data.active_samples] += 1
                         canary_data.current_context_lengths += canary_data.active_samples
                         # canary_data.tgt[:, :13]
@@ -874,6 +890,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                             canary_data.active_samples[reactivation_mask] = True
 
                         if cfg.debug_mode:
+                            pass
                             import pdb; pdb.set_trace()
 
                     for i in range(batch_size):
@@ -998,7 +1015,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] = next_tokens
 
                     # TODO fix tokens alignment for laal computation
-                    encoded_speech = torch.zeros_like(next_tokens) + canary_data.encoded_speech.size(-2)
+                    encoded_speech = torch.zeros_like(next_tokens) + canary_data.encoded_speech.size(-2) + cfg.right_context
                     # encoded_speech[canary_data.active_samples_inner_loop] = canary_data.encoded_speech.size(-2)
                     canary_data.tokens_frame_alignment[canary_data.batch_idxs, canary_data.current_context_lengths] = encoded_speech
 
