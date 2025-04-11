@@ -14,11 +14,12 @@
 
 from os.path import basename, splitext
 
-import fiddle as fdl
-import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
 from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
@@ -30,6 +31,12 @@ from ..utils import (
     set_primary_perf_configs,
     slurm_executor,
 )
+
+HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
+
+
+# Use token drop callback
+USE_TOKEN_DROP = True
 
 
 def override_recipe_configs(
@@ -51,6 +58,22 @@ def override_recipe_configs(
     DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
     """
     recipe = pretrain_recipe()
+
+    callbacks = []
+    if USE_TOKEN_DROP:
+        callbacks.append(run.Config(MegatronTokenDropCallback))
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=60,
+        gc_interval_val=60,
+    )
+    comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+    callbacks.extend([garbage_collection_callback, comm_overlap_callback])
+    recipe.trainer.callbacks.extend(callbacks)
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -88,12 +111,13 @@ def override_recipe_configs(
         recipe.model.config.num_moe_experts = args.proxy_num_experts
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer("deepseek-ai/DeepSeek-V3")
+    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     recipe.model.tokenizer = recipe.data.tokenizer
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
+    recipe.model.config.moe_permute_fusion = True
 
     return recipe
 
