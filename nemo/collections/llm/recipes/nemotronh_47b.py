@@ -42,23 +42,30 @@ NAME = "nemotronh_47b"
 @run.cli.factory(name=NAME)
 def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a tokenizer configuration for Nemotron5 Hybrid model.
+    Factory function to create a tokenizer configuration for NemotronH Hybrid model.
     """
-    return run.Config(
-        get_nmt_tokenizer,
-        library='tiktoken',
-        model_name="TiktokenTokenizer",
-        vocab_file=vocab_file,
-        use_fast=True,
-    )
-
+    if vocab_file:
+        return run.Config(
+            get_nmt_tokenizer,
+            library='tiktoken',
+                model_name="TiktokenTokenizer",
+                vocab_file=vocab_file,
+                use_fast=True,
+            )
+    else:
+        return run.Config(
+            get_nmt_tokenizer,
+            library='huggingface',
+            model_name="nvidia/Nemotron-H-47B-Base-8K",
+            use_fast=True,
+        )
 
 @run.cli.factory(name=NAME)
 def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Nemotron5 Hybrid 47B model configuration.
+    Factory function to create a NemotronH Hybrid 47B model configuration.
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Nemotron5 Hybrid 47B model.
+        run.Config[pl.LightningModule]: Configuration for the NemotronH Hybrid 47B model.
     Examples:
         CLI usage:
             $ nemo llm pretrain model=nemotronh_47b ...
@@ -93,7 +100,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Nemotron5 Hybrid 47B model.
+    Configure the NeMo Lightning Trainer for NemotronH Hybrid 47B model.
     This function sets up the distributed training strategy and other training parameters.
     Args:
         tensor_parallelism (int): Degree of tensor model parallelism.
@@ -198,7 +205,7 @@ def pretrain_recipe(
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Nemotron5 Hybrid 47B model.
+    Create a pre-training recipe for NemotronH Hybrid 47B model.
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
     Args:
@@ -258,7 +265,7 @@ def pretrain_recipe(
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     resume_path,
-    vocab_file,
+    vocab_file: str = None,
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 32,
@@ -279,7 +286,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Nemotron5 Hybrid 47B model.
+    Create a fine-tuning recipe for NemotronH Hybrid 47B model.
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
     Args:
@@ -353,7 +360,7 @@ def finetune_recipe(
 
 def performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Nemotron5 Hybrid 47B model.
+    Create a performance-optimized pre-training recipe for NemotronH Hybrid 47B model.
     This method enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
     Args:
