@@ -17,7 +17,6 @@ import logging
 from typing import List, Literal, Optional, Union
 
 import lightning.pytorch as pl
-import torch
 from torch.utils.data import DataLoader
 
 from nemo.lightning.megatron_parallel import MegatronStep
