@@ -22,7 +22,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import braceexpand
 import numpy as np
 import torch
-import webdataset as wds
+from nemo.utils import webdataset as wds
 
 from torch.utils.data import ChainDataset
 from tqdm import tqdm
@@ -40,7 +40,6 @@ from nemo.utils.data_utils import (
     datastore_object_get,
     is_datastore_cache_shared,
     is_datastore_path,
-    wds_lhotse_url_opener,
 )
 from nemo.utils.decorators import deprecated
 from nemo.utils.distributed import webdataset_split_by_workers
@@ -54,8 +53,6 @@ __all__ = [
 ]
 
 VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
-
-wds.tariterators.url_opener = wds_lhotse_url_opener
 
 
 def _speech_collate_fn(batch, pad_id):

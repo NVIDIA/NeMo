@@ -54,12 +54,9 @@ from nemo.utils import logging
 # TODO @blisc: Perhaps refactor instead of import guarding
 HAVE_OMEGACONG_WEBDATASET = True
 try:
-    import webdataset as wds
+    from nemo.utils import webdataset as wds
     from omegaconf import DictConfig, OmegaConf
 
-    from nemo.utils.data_utils import wds_lhotse_url_opener
-
-    wds.tariterators.url_opener = wds_lhotse_url_opener
 except ModuleNotFoundError:
     from nemo.utils.exceptions import LightningNotInstalledException
 

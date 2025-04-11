@@ -20,7 +20,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import torch
-import webdataset as wd
+import nemo.utils.webdataset as wd
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text import (
@@ -39,10 +39,6 @@ from nemo.core.classes import IterableDataset
 from nemo.utils import logging
 
 __all__ = ['T5SpeechLMTarredDataset']
-
-from nemo.utils.data_utils import wds_lhotse_url_opener
-
-wd.tariterators.url_opener = wds_lhotse_url_opener
 
 
 @dataclass
