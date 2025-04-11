@@ -147,11 +147,6 @@ def ais_binary() -> str:
         raise RuntimeError('AIS binary not found.')
 
 
-def check_ais_binary_installed() -> bool:
-    """Check if ais binary is installed."""
-    return ais_binary() is not None
-
-
 def datastore_path_to_local_path(store_path: str) -> str:
     """Convert a data store path to a path in a local cache.
 
@@ -202,27 +197,8 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
             if not os.path.isdir(local_dir):
                 os.makedirs(local_dir, exist_ok=True)
 
-            cmd = [ais_binary(), 'get', path, local_path]
-
-            # for now info, later debug
-            logging.debug('Downloading from AIS')
-            logging.debug('\tendpoint    %s', endpoint)
-            logging.debug('\tpath:       %s', path)
-            logging.debug('\tlocal path: %s', local_path)
-            logging.debug('\tcmd:        %s', subprocess.list2cmdline(cmd))
-
-            done = False
-            for n in range(num_retries):
-                if not done:
-                    try:
-                        # Use stdout=subprocess.DEVNULL to prevent showing AIS command on each line
-                        subprocess.check_call(cmd, stdout=subprocess.DEVNULL)
-                        done = True
-                    except subprocess.CalledProcessError as err:
-                        logging.warning('Attempt %d of %d failed with: %s', n + 1, num_retries, str(err))
-
-            if not done:
-                raise RuntimeError('Download failed: %s', subprocess.list2cmdline(cmd))
+            with open(local_path, 'wb') as f:
+                f.write(open_best(path, mode='rb').read())
 
         return local_path
 
@@ -290,24 +266,6 @@ class DataStoreObject:
         """Return a human-readable description of the object."""
         description = f'{type(self)}: store_path={self.store_path}, local_path={self.local_path}'
         return description
-
-
-def datastore_path_to_webdataset_url(store_path: str):
-    """Convert store_path to a WebDataset URL.
-
-    Args:
-        store_path: path to buckets on store
-
-    Returns:
-        URL which can be directly used with WebDataset.
-    """
-    if is_datastore_path(store_path):
-        check_ais_binary_installed()
-        url = f'pipe:ais get {store_path} - || true'
-    else:
-        raise ValueError(f'Unknown store path format: {store_path}')
-
-    return url
 
 
 def datastore_object_get(store_object: DataStoreObject) -> bool:
