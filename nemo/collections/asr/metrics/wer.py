@@ -296,6 +296,7 @@ class WER(Metric):
         targets_lengths: torch.Tensor,
         predictions_mask: Optional[torch.Tensor] = None,
         input_ids: Optional[torch.Tensor] = None,
+        return_hypotheses: Optional[bool] = False,
     ):
         """
         Updates metric state.
@@ -345,6 +346,9 @@ class WER(Metric):
 
         self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
         self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
+        if return_hypotheses:
+            return hypotheses
+        return None
 
     def compute(self):
         scores = self.scores.detach().float()

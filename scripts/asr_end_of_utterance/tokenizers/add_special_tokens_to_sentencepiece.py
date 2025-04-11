@@ -44,22 +44,24 @@ Refer: https://github.com/google/sentencepiece/issues/121
 Usage:
 python add_special_tokens_to_sentencepiece.py \
     --input_file your_model.nemo \
-    --output_file /path/to/new/tokenizer.model
+    --output_dir /path/to/new/tokenizer_dir/
 """
 
 
 parser = ArgumentParser(description="Add special tokens to sentencepiece model")
 parser.add_argument(
+    "-i",
     "--input_file",
     type=str,
     required=True,
     help="Path to sentencepiece model file",
 )
 parser.add_argument(
-    "--output_file",
+    "-o",
+    "--output_dir",
     type=str,
     required=True,
-    help="Path to sentencepiece model file",
+    help="Path to output directory for new tokenizer",
 )
 parser.add_argument(
     "--tokens",
@@ -87,7 +89,15 @@ def extract_nemo_tokenizer(nemo_filepath, output_dir):
     return str(tokenizer.absolute())
 
 
-def edit_spt_model(input_file, output_file, tokens, is_userdefined):
+def edit_spt_model(input_file, output_dir, tokens, is_userdefined):
+    output_dir = Path(output_dir)
+
+    if output_dir.exists():
+        logging.warning(f"Output directory {output_dir} already exists. Overwriting it.")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_file = str(output_dir / "tokenizer.model")
 
     token_type = 3
     if is_userdefined:
@@ -104,8 +114,8 @@ def edit_spt_model(input_file, output_file, tokens, is_userdefined):
         model.pieces.append(piece)
 
     sp = spm.SentencePieceProcessor()
+    sp.LoadFromSerializedProto(model.SerializeToString())
     try:
-        sp.LoadFromSerializedProto(model.SerializeToString())
         for token in tokens:
             id = sp.piece_to_id(token)
             logging.info(f"Created token '{token}' at ID {id}")
@@ -116,11 +126,34 @@ def edit_spt_model(input_file, output_file, tokens, is_userdefined):
 
     with open(output_file, 'wb') as outf:
         outf.write(model.SerializeToString())
-
     logging.info(f"Created new tokenizer at: {output_file}")
 
+    # Write the vocab to file
+    vocab_file = str(output_dir / "tokenizer.vocab")
+    with open(vocab_file, "w", encoding="utf-8") as f:
+        for i in range(sp.get_piece_size()):
+            piece = sp.id_to_piece(i)
+            score = sp.get_score(i)  # Optional: only available if using newer SentencePiece versions
+            f.write(f"{piece}\t{score}\n")  # Format follows the original vocab format
+    logging.info(f"Created new tokenizer vocab at: {vocab_file}")
 
-def inject_special_tokens(input_file, output_file, tokens, is_userdefined):
+    special_tokens = ["<s>", "</s>", "<pad>", "<unk>"]
+    special_tokens.extend(tokens)
+    vocab_txt_file = str(output_dir / "vocab.txt")
+    with open(vocab_txt_file, "w", encoding="utf-8") as f:
+        for i in range(sp.get_piece_size()):
+            piece = sp.id_to_piece(i)
+            if piece in special_tokens:
+                # skip special tokens
+                continue
+            token = piece[1:] if piece.startswith("▁") else f"##{piece}"
+            if len(token) == 0:
+                tokens = piece[0]
+            f.write(f"{token}\n")  # Format follows the original vocab format
+    logging.info(f"Created new tokenizer vocab at: {vocab_txt_file}")
+
+
+def inject_special_tokens(input_file, output_dir, tokens, is_userdefined):
     if not os.path.exists(input_file):
         raise ValueError(f"Input file {input_file} does not exist")
 
@@ -133,13 +166,10 @@ def inject_special_tokens(input_file, output_file, tokens, is_userdefined):
             input_file = os.path.abspath(input_file)
             logging.info(f"Using input file: {input_file}")
 
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-        if os.path.exists(output_file):
-            logging.info(f"Output file {output_file} already exists. Overwriting.")
-        edit_spt_model(input_file, output_file, tokens, is_userdefined)
+        edit_spt_model(input_file, output_dir, tokens, is_userdefined)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = parser.parse_args()
-    inject_special_tokens(args.input_file, args.output_file, args.tokens, args.is_userdefined)
+    inject_special_tokens(args.input_file, args.output_dir, args.tokens, args.is_userdefined)
