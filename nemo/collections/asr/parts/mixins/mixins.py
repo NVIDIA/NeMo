@@ -662,8 +662,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         if not isinstance(self, asr_models.EncDecRNNTModel) and not isinstance(self, asr_models.EncDecCTCModel) and not isinstance(self, asr_models.EncDecMultiTaskModel):
             raise NotImplementedError(f"stream_step does not support {type(self)}!")
 
-        if not isinstance(self.encoder, StreamingEncoder):
-            raise NotImplementedError("Encoder of this model does not support streaming!")
+        # if not isinstance(self.encoder, StreamingEncoder):
+        #     raise NotImplementedError("Encoder of this model does not support streaming!")
 
         if isinstance(self, asr_models.EncDecRNNTModel) and return_transcription is False:
             logging.info(
@@ -673,21 +673,28 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         if not isinstance(self, asr_models.EncDecCTCModel) and return_log_probs is True:
             logging.info("return_log_probs can only be True for CTC models.")
 
-        (
-            encoded,
-            encoded_len,
-            cache_last_channel_next,
-            cache_last_time_next,
-            cache_last_channel_next_len,
-        ) = self.encoder.cache_aware_stream_step(
-            processed_signal=processed_signal,
-            processed_signal_length=processed_signal_length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            cache_last_channel_len=cache_last_channel_len,
-            keep_all_outputs=keep_all_outputs,
-            drop_extra_pre_encoded=drop_extra_pre_encoded,
-        )
+        
+        # import pdb; pdb.set_trace()
+
+        if cfg.model_type == 'streaming':
+            (
+                encoded,
+                encoded_len,
+                cache_last_channel_next,
+                cache_last_time_next,
+                cache_last_channel_next_len,
+            ) = self.encoder.cache_aware_stream_step(
+                processed_signal=processed_signal,
+                processed_signal_length=processed_signal_length,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_len=cache_last_channel_len,
+                keep_all_outputs=keep_all_outputs,
+                drop_extra_pre_encoded=drop_extra_pre_encoded,
+            )
+        elif cfg.model_type == 'offline':
+            encoded_with_rc, encoded_len_with_rc = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+            cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len = None, None, None   
 
         if isinstance(self, asr_models.EncDecCTCModel) or (
             isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"
@@ -747,19 +754,35 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         # canary decoding
         elif isinstance(self, asr_models.EncDecMultiTaskModel):
             
+            # remove rigth context
+            if cfg.model_type == "offline":
+                # TODO that to do for the last chunk?
+                current_chunk_len = cfg.window_size * (canary_data.step_num+1)
+                encoded = encoded_with_rc[:, :, :current_chunk_len]
+                # encoded = encoded_with_rc[:, :, (cfg.window_size*canary_data.step_num):current_chunk_len]
+                # TODO correct the length of the encoded tensor
+                encoded_len = encoded_len_with_rc - current_chunk_len
+
+            # import pdb; pdb.set_trace() 
+            
             batch_size = encoded.size(0)
             all_hyp_or_transcribed_texts = []
             greedy_predictions = []
             best_hyp = None
+            # TODO add encoder mask based on the length of the input
             encoder_input_mask = None
 
             # prepare encoder embeddings for the decoding
             enc_states = encoded.permute(0, 2, 1)
             encoder_hidden_states = self.encoder_decoder_proj(enc_states)
-            if not torch.is_tensor(canary_data.encoded_speech):
+            if not torch.is_tensor(canary_data.encoded_speech) or cfg.model_type == "offline":
                 canary_data.encoded_speech = encoder_hidden_states
             else:
                 canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
+            # if not torch.is_tensor(canary_data.encoded_speech):
+            #     canary_data.encoded_speech = encoder_hidden_states
+            # else:
+            #     canary_data.encoded_speech = torch.cat((canary_data.encoded_speech, encoder_hidden_states), dim=-2)
             
             # wait-k decoding policy
             if cfg.decoding_policy == "waitk":
@@ -781,7 +804,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     
                     # shift steps up to len of decoder_input_ids for correct position encoding
                     if canary_data.decoding_step == 0:
-                        canary_data.decoding_step += canary_data.decoder_input_ids.size(-1)
+                        canary_data.decoding_step += canary_data.decoder_input_ids.size(-1)-1
                     
                     decoder_mems_list = canary_data.decoder_mems_list
                     start_from = canary_data.decoding_step+1
@@ -793,9 +816,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         max_generation_length = canary_data.max_generation_length
                     
                     for i in range(start_from, max_generation_length):
-                        if i != 0 and start_from == 0:
-                        # need to shift steps up to len of decoder_input_ids for correct position encoding
-                            i += canary_data.decoder_input_ids.size(-1)
+                        # if i != 0 and start_from == 0:
+                        # # need to shift steps up to len of decoder_input_ids for correct position encoding
+                        #     i += canary_data.decoder_input_ids.size(-1)-1
                         # predict only one token per speech chunk                     
                         logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
                             input_ids,
@@ -811,12 +834,16 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         
                         if cfg.debug_mode:
                             logging.warning(f"-------------"*5)
-                            logging.warning(f"decoding step: {i}")
-                            logging.warning(f"start_from: {start_from}")
-                            logging.warning(f"max_generation_length: {max_generation_length}")
-                            logging.warning(f"[canary_data.encoded_speech.shape]: {canary_data.encoded_speech.shape}")
-                            logging.warning(f"[predicted token]: {text_tokens}")
-                            logging.warning(f"[predicted token id]: {next_tokens}")
+                            logging.warning(f"decoding step (i)        : {i}")
+                            logging.warning(f"start_from               : {start_from}")
+                            logging.warning(f"max_generation_length    : {max_generation_length}")
+                            logging.warning(f"[encoded_with_rc.shape]  : {encoded_with_rc.shape}")
+                            logging.warning(f"[encoded_speech.shape]   : {canary_data.encoded_speech.shape}")
+                            logging.warning(f"[is_last_speech_chunk]   : {canary_data.is_last_speech_chunk}")
+                            logging.warning(f"[active_samples]         : {canary_data.active_samples}")
+                            logging.warning(f"[current_context_lengths]: {canary_data.current_context_lengths}")
+                            logging.warning(f"[predicted token]        : {text_tokens}")
+                            logging.warning(f"[predicted token id]     : {next_tokens}")
 
                         # TODO take into account token with id 16
                         is_eos_tokens = next_tokens == self.tokenizer.eos
@@ -835,7 +862,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         canary_data.decoder_mems_list = decoder_mems_list
                         canary_data.decoding_step = i
                         input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
-                        canary_data.current_context_lengths[canary_data.active_samples] += 1
+                        # canary_data.current_context_lengths[canary_data.active_samples] += 1
+                        canary_data.current_context_lengths += canary_data.active_samples
                         # canary_data.tgt[:, :13]
                         
                         # take into account early EOS prediction

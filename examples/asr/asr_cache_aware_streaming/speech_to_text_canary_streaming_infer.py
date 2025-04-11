@@ -100,7 +100,7 @@ import numpy as np
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
+from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer, ChunkedStreamingAudioBuffer
 from nemo.utils import logging
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from examples.asr.transcribe_speech import TranscriptionConfig
@@ -131,6 +131,7 @@ class CanaryData():
 class StreamingEvaluationConfig(TranscriptionConfig):
 
     model_path: Optional[str] = None  # Path to a .nemo file
+    model_type: str = "streaming" # The type of the model to be used for streaming. Could be "streaming" or "offline". The default is "streaming".
 
     dataset_manifest : Optional[str] = None # Path to a manifest file containing audio files to perform streaming
     audio_file: Optional[str] = None # Path to an audio file to perform streaming
@@ -138,13 +139,17 @@ class StreamingEvaluationConfig(TranscriptionConfig):
 
     batch_size: int = 1 # The batch size to be used to perform streaming in batch mode with multiple streams
     att_context_size: Optional[list] = None # Sets the att_context_size for the models which support multiple lookaheads
-    sort_input_manifest: bool = True # Whether to sort the input manifest by duration to reduce batched decoding time
+    sort_input_manifest: bool = False # Whether to sort the input manifest by duration to reduce batched decoding time
 
     decoding_policy: str = "alignatt" # streaming decoding policy ["alignatt" or "waitk"]
     waitk_lagging: int = 3 # The frame lagging to be used for waitk decoding policy
     alignatt_thr: int = 4 # The frame threshold to be used for alignatt decoding policy
     xatt_scores_layer: int = -2 # The decoder layer to be used for alignatt decoding policy
     exclude_sink_frames: int = 8 # The number of sink frames to be excluded from the xattention scores for alignatt decoding policy
+
+    # params for offline models streaming
+    window_size: int = 14 # The size of encoder embeddings to be used for offline streaming (ms = window_size * subsampling * 10)
+    right_context: int = 14 # The right context of encoder embeddings to be used for offline streaming
 
 
     online_normalization: bool = False # Perform normalization on the run per chunk
@@ -258,18 +263,23 @@ def perform_streaming(
 ):
     batch_size = len(streaming_buffer.streams_length)
 
-    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size
-    )
+    if cfg.model_type == "streaming":
+        cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
+            batch_size=batch_size
+        )
+    else:
+        cache_last_channel, cache_last_time, cache_last_channel_len = None, None, None
 
     previous_hypotheses = None
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        # if streaming_buffer.buffer_idx >= streaming_buffer.buffer.size(-1) - streaming_buffer.sampling_frames[1]:
-        #     canary_data.is_last_speech_chunk = True
-        canary_data.is_last_speech_chunk = streaming_buffer.streams_length - streaming_buffer.sampling_frames[1] <= streaming_buffer.buffer_idx
+        
         # import pdb; pdb.set_trace()
+        
+        canary_data.step_num = step_num
+        canary_data.is_last_speech_chunk = streaming_buffer.streams_length - streaming_buffer.sampling_frames[1] <= streaming_buffer.buffer_idx
+        
         with torch.inference_mode():
             with autocast:
                 # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
@@ -410,11 +420,20 @@ def main(cfg: StreamingEvaluationConfig):
 
     online_normalization = False
 
-    streaming_buffer = CacheAwareStreamingAudioBuffer(
-        model=asr_model,
-        online_normalization=online_normalization,
-        pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
-    )
+    if cfg.model_type == "streaming":
+        streaming_buffer = CacheAwareStreamingAudioBuffer(
+            model=asr_model,
+            online_normalization=online_normalization,
+            pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
+        )
+    elif cfg.model_type == "offline":
+        streaming_buffer = ChunkedStreamingAudioBuffer(
+            model=asr_model,
+            window_size=cfg.window_size,
+            rigtht_context=cfg.right_context,
+            pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
+        )
+
     if cfg.audio_file is not None:
         # stream a single audio file
         raise NotImplementedError("Single audio file streaming is not implemented yet.")
@@ -459,7 +478,10 @@ def main(cfg: StreamingEvaluationConfig):
 
             # import pdb; pdb.set_trace()
             canary_data = CanaryData(decoder_input_ids=decoder_input_ids)
-            canary_data.frame_chunk_size = asr_model.encoder.att_context_size[-1] + 1
+            if cfg.model_type == "streaming":
+                canary_data.frame_chunk_size = asr_model.encoder.att_context_size[-1] + 1
+            else:
+                canary_data.frame_chunk_size = cfg.window_size
             canary_data.pred_tokens_alignment = []
             
             if (sample_idx + 1) % cfg.batch_size == 0 or sample_idx == len(samples) - 1:

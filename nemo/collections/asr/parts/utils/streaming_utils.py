@@ -1403,6 +1403,8 @@ class CacheAwareStreamingAudioBuffer:
         else:
             self.sampling_frames = None
 
+        # import pdb; pdb.set_trace() 
+
     def __iter__(self):
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
@@ -1603,6 +1605,153 @@ class CacheAwareStreamingAudioBuffer:
                 normalize_type=self.model_normalize_type,
             )
         return processed_signal, self.streams_length
+
+
+
+
+class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
+    """
+    A buffer to be used for standard offline models in chunked streaming mode. It can load a single or multiple audio
+    files/processed signals, split them in chunks and return one on one. It can be used to
+    simulate streaming audio or audios.
+    """
+
+    def __init__(self, model, window_size=0, rigtht_context=0, pad_and_drop_preencoded=False):
+        '''
+        Args:
+            model: An ASR model.
+            online_normalization (bool): whether to perform online normalization per chunk or
+            normalize the whole audio before chunking
+            pad_and_drop_preencoded (bool): if true pad first audio chunk and always drop preencoded
+        '''
+        self.model = model
+        self.buffer = None
+        self.buffer_idx = 0
+        self.streams_length = None
+        self.step = 0
+        self.pad_and_drop_preencoded = pad_and_drop_preencoded
+        self.window_size = window_size
+        self.right_context = rigtht_context
+        self.online_normalization = False
+
+
+        self.input_features = model.encoder._feat_in
+
+        self.preprocessor = self.extract_preprocessor()
+
+        if hasattr(model.encoder, "pre_encode") and hasattr(model.encoder.pre_encode, "get_sampling_frames"):
+            self.sampling_frames = model.encoder.pre_encode.get_sampling_frames()
+        else:
+            self.sampling_frames = None
+
+
+    def __iter__(self):
+        while True:
+            if self.buffer_idx >= self.buffer.size(-1):
+                return
+
+            # if self.buffer_idx == 0 and isinstance(self.streaming_cfg.chunk_size, list):
+            #     if self.pad_and_drop_preencoded:
+            #         chunk_size = self.streaming_cfg.chunk_size[1]
+            #     else:
+            #         chunk_size = self.streaming_cfg.chunk_size[0]
+            # else:
+            #     chunk_size = (
+            #         self.streaming_cfg.chunk_size[1]
+            #         if isinstance(self.streaming_cfg.chunk_size, list)
+            #         else self.streaming_cfg.chunk_size
+            #     )
+
+            # if self.buffer_idx == 0 and isinstance(self.streaming_cfg.shift_size, list):
+            #     if self.pad_and_drop_preencoded:
+            #         shift_size = self.streaming_cfg.shift_size[1]
+            #     else:
+            #         shift_size = self.streaming_cfg.shift_size[0]
+            # else:
+            #     shift_size = (
+            #         self.streaming_cfg.shift_size[1]
+            #         if isinstance(self.streaming_cfg.shift_size, list)
+            #         else self.streaming_cfg.shift_size
+            #     )
+
+            chunk_size = (self.window_size + self.right_context) * self.sampling_frames[-1]
+
+            shift_size = self.window_size * self.sampling_frames[-1]
+
+            # import pdb; pdb.set_trace()
+
+            audio_chunk = self.buffer[:, :, : self.buffer_idx + chunk_size]
+
+            if self.sampling_frames is not None:
+                # checking to make sure the audio chunk has enough frames to produce at least one output after
+                # downsampling
+                if self.buffer_idx == 0 and isinstance(self.sampling_frames, list):
+                    cur_sampling_frames = self.sampling_frames[0]
+                else:
+                    cur_sampling_frames = (
+                        self.sampling_frames[1] if isinstance(self.sampling_frames, list) else self.sampling_frames
+                    )
+                if audio_chunk.size(-1) < cur_sampling_frames:
+                    return
+
+            # Adding the cache needed for the pre-encoder part of the model to the chunk
+            # if there is not enough frames to be used as the pre-encoding cache, zeros would be added
+            # zeros_pads = None
+            # if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
+            #     if self.pad_and_drop_preencoded:
+            #         cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[1]
+            #     else:
+            #         cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[0]
+            #     cache_pre_encode = torch.zeros(
+            #         (audio_chunk.size(0), self.input_features, cache_pre_encode_num_frames),
+            #         device=audio_chunk.device,
+            #         dtype=audio_chunk.dtype,
+            #     )
+            # else:
+            #     if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
+            #         pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
+            #     else:
+            #         pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
+
+            #     start_pre_encode_cache = self.buffer_idx - pre_encode_cache_size
+            #     if start_pre_encode_cache < 0:
+            #         start_pre_encode_cache = 0
+            #     cache_pre_encode = self.buffer[:, :, start_pre_encode_cache : self.buffer_idx]
+            #     if cache_pre_encode.size(-1) < pre_encode_cache_size:
+            #         zeros_pads = torch.zeros(
+            #             (
+            #                 audio_chunk.size(0),
+            #                 audio_chunk.size(-2),
+            #                 pre_encode_cache_size - cache_pre_encode.size(-1),
+            #             ),
+            #             device=audio_chunk.device,
+            #             dtype=audio_chunk.dtype,
+            #         )
+
+            # added_len = cache_pre_encode.size(-1)
+            # audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
+
+            # if self.online_normalization:
+            #     audio_chunk, x_mean, x_std = normalize_batch(
+            #         x=audio_chunk,
+            #         seq_len=torch.tensor([audio_chunk.size(-1)] * audio_chunk.size(0)),
+            #         normalize_type=self.model_normalize_type,
+            #     )
+
+            # if zeros_pads is not None:
+            #     # TODO: check here when zero_pads is not None and added_len is already non-zero
+            #     audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
+            #     added_len += zeros_pads.size(-1)
+
+            max_chunk_lengths = self.streams_length - self.buffer_idx
+            # max_chunk_lengths = max_chunk_lengths + added_len
+            chunk_lengths = torch.clamp(max_chunk_lengths, min=0, max=audio_chunk.size(-1))
+
+            self.buffer_idx += shift_size
+            self.step += 1
+            yield audio_chunk, chunk_lengths
+
+
 
 
 class FrameBatchMultiTaskAED(FrameBatchASR):
