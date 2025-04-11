@@ -53,7 +53,7 @@ jobs:
       - name: Linkcheck docs build
         run: make -C docs linkcheck || true
       - name: Eliminate false positives
-        run: ./docs/check_for_broken_links.sh || true
+        run: ./docs/check_for_broken_links.sh
       - name: Upload linkcheck output
         uses: actions/upload-artifact@v4
         with:
