@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-TRANSFORMERS_OFFLINE=1 \
-  coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/vlm/mllama_generate.py \
+export TRANSFORMERS_OFFLINE=1
+export CUDA_VISIBLE_DEVICES=0,1
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/vlm/mllama_generate.py \
   --local_model_path /home/TestData/nemo2_ckpt/Llama-3.2-11B-Vision-Instruct \
   --processor_name /home/TestData/HF_HOME/hub/models--meta-llama--Llama-3.2-11B-Vision-Instruct/snapshots/9eb2daaa8597bf192a8b0e73f848f3a102794df5 \
   --num_tokens_to_generate 3

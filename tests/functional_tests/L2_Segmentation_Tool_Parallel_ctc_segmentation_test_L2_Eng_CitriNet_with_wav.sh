@@ -19,7 +19,9 @@ bash tools/ctc_segmentation/run_segmentation.sh \
     --DATA_DIR=/home/TestData/ctc_segmentation/eng \
     --OUTPUT_DIR=/tmp/ctc_seg_en/output${TIME} \
     --LANGUAGE=en \
-    --USE_NEMO_NORMALIZATION="TRUE" &&
-    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env /home/TestData/ctc_segmentation/verify_alignment.py \
-        -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
-        -g /tmp/ctc_seg_en/output${TIME}/verified_segments/nv_test_segments.txt
+    --USE_NEMO_NORMALIZATION="TRUE"
+
+export CUDA_VISIBLE_DEVICES=0,1
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env /home/TestData/ctc_segmentation/verify_alignment.py \
+    -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
+    -g /tmp/ctc_seg_en/output${TIME}/verified_segments/nv_test_segments.txt

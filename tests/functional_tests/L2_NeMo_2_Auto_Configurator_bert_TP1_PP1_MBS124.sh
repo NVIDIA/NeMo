@@ -11,24 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-export CUDA_VISIBLE_DEVICES=0
 mkdir examples/llm/auto_configurator/auto_conf_logs_bert
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/llm/auto_configurator/auto_config.py \
     --model_type=bert \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_bert \
     --run_number=1
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/llm/auto_configurator/auto_config.py \
     --model_type=bert \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_bert \
     --run_number=2
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/llm/auto_configurator/auto_config.py \
     --model_type=bert \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_bert \
     --run_number=3
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/llm/auto_configurator/auto_config.py \
     --model_type=bert \
     --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_bert \

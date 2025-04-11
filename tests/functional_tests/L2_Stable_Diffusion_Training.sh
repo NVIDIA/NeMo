@@ -14,6 +14,7 @@
 export CUDA_VISIBLE_DEVICES=0
 rm -rf examples/multimodal/text_to_image/sd_train_results
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
     trainer.devices=1 \
     trainer.max_steps=3 \

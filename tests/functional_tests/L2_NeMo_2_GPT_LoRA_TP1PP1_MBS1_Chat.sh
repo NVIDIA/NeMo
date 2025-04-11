@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/gpt_finetuning.py \
     --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
     --devices 2 \
@@ -22,6 +23,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
     --mbs 1 \
     --dataset chat
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/gpt_finetuning.py \
     --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
     --devices 2 \

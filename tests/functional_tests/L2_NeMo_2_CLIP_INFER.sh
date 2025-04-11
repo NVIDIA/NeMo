@@ -12,4 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/clip_ci/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/vlm/clip_infer.py --image_url /home/TestData/vlm/clip_ci/1665_Girl_with_a_Pearl_Earring.jpg
+export TRANSFORMERS_OFFLINE=1
+export HF_HOME=/home/TestData/vlm/clip_ci/hf/
+export CUDA_VISIBLE_DEVICES=0,1
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/vlm/clip_infer.py --image_url /home/TestData/vlm/clip_ci/1665_Girl_with_a_Pearl_Earring.jpg

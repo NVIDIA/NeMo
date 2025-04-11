@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # 1D bucketing
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/speech_recognition/oomptimizer.py \
   -c /home/TestData/oomptimizer/fast-conformer_ctc_bpe.yaml \
   -m nemo.collections.asr.models.EncDecCTCModelBPE \
   -b "[5.0,10.0]"
 # 2D bucketing
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/speech_recognition/oomptimizer.py \
   -c /home/TestData/oomptimizer/fast-conformer_ctc_bpe.yaml \
   -m nemo.collections.asr.models.EncDecCTCModelBPE \

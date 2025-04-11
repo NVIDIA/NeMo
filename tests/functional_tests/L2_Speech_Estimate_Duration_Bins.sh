@@ -13,10 +13,12 @@
 # limitations under the License.
 set -x
 # 1D buckets [SSL, CTC]
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/speech_recognition/estimate_duration_bins.py \
   /home/TestData/an4_dataset/an4_train.json \
   --buckets 5
 # 2D buckets [CTC, RNNT, TDT] / with tokenizer
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env scripts/speech_recognition/estimate_duration_bins_2d.py \
   /home/TestData/an4_dataset/an4_train_lang.json \
   --tokenizer /home/TestData/asr_tokenizers/canary/en/tokenizer_spe_bpe_v1024_max_4/tokenizer.model \

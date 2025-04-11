@@ -40,6 +40,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
   +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
   +exp_manager.create_checkpoint_callback=true
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/nlp/machine_translation/enc_dec_nmt.py \
   --config-path=conf \
   --config-name=aayn_base \

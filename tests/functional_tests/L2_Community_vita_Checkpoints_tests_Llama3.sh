@@ -13,10 +13,10 @@
 # limitations under the License.
 #!/bin/bash
 UUID=$(cat /proc/sys/kernel/random/uuid)
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1
 mkdir /tmp/${UUID}
 export PYTHONPATH=/home/TestData/multimodal/video_neva/LLaVA:$PYTHONPATH
-CUDA_VISIBLE_DEVICES=0 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/multimodal/multimodal_llm/neva/convert_llava_to_neva.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/multimodal/multimodal_llm/neva/convert_llava_to_neva.py \
     --in-file /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/llm \
     --mm-projector-ckpt-dir /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/mm_projector \
     --mm-vision-tower /home/TestData/multimodal/video_neva/Llama-3-VILA1.5-8B/vision_tower \

@@ -12,19 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/vision/hf/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
+export TRANSFORMERS_OFFLINE=1
+export HF_HOME=/home/TestData/vlm/vision/hf/
+export CUDA_VISIBLE_DEVICES=0,1
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
   tests/collections/vlm/vision/test_llava_next_InternVIT.py \
   --devices=1 \
   --max-steps=5
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/vision/hf/ coverage run \
+export TRANSFORMERS_OFFLINE=1
+export HF_HOME=/home/TestData/vlm/vision/hf/
+coverage run \
   -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   scripts/vlm/import_hf.py --input_name_or_path="OpenGVLab/InternViT-300M-448px-V2_5"
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/vision/hf/ coverage run \
+export TRANSFORMERS_OFFLINE=1
+export HF_HOME=/home/TestData/vlm/vision/hf/
+coverage run \
   -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   scripts/vlm/import_hf.py --input_name_or_path="openai/clip-vit-large-patch14"
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/vlm/vision/hf/ coverage run \
+export TRANSFORMERS_OFFLINE=1
+export HF_HOME=/home/TestData/vlm/vision/hf/
+coverage run \
   -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   scripts/vlm/import_hf.py --input_name_or_path="google/siglip-base-patch16-224"

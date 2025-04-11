@@ -18,7 +18,10 @@ mkdir -p /tmp/nemo2_llava_next_energon_packed_results/$RUN_ID
 # --use-packed-sequence \
 # --context-parallel-size=2 \
 # Download necessary models - needs to be offline
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/ykarnati/hf_data coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
+export TRANSFORMERS_OFFLINE=1
+export HF_HOME=/home/TestData/ykarnati/hf_data
+export CUDA_VISIBLE_DEVICES=0,1
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env \
     tests/collections/vlm/llava_next/test_llava_next_train.py \
     --devices=2 \
     --max-steps=5 \

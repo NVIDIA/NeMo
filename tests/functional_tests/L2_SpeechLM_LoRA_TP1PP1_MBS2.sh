@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/speechlm/speech_to_text_llm_train.py \
   --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
   --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
@@ -23,6 +24,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
   --pp_size 1 \
   --mbs 2
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/speechlm/speech_to_text_llm_train.py \
   --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
   --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/llama3_pretraining.py \
     --seq-length 1024 \
     --devices=2 \
@@ -21,6 +22,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
     --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
     --index-mapping-dir=/tmp/llm_tests/llama_index_mappings
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/llama3_pretraining.py \
     --seq-length 1024 \
     --devices=2 \

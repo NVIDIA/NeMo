@@ -17,5 +17,7 @@ NEMO_MODEL_CONFIG=NemotronConfig
 NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt
 HF_OUTPUT_PATH=/tmp/output_hf_ckpt
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/conversion/test_import_from_hf.py --hf-path=${HF_ORI_PATH} --model-type=${NEMO_MODEL_TYPE} --model-config=${NEMO_MODEL_CONFIG} --output-path=${NEMO_OUTPUT_PATH}
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/conversion/test_export_to_hf.py --nemo-path=${NEMO_OUTPUT_PATH} --original-hf-path=${HF_ORI_PATH} --output-path=${HF_OUTPUT_PATH}

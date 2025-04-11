@@ -14,6 +14,7 @@
 TIME=$(date +"%Y-%m-%d-%T")
 OUTPUT_DIR=output_${TIME}
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/tts/g2p/g2p_heteronym_classification_train_and_evaluate.py \
     train_manifest=/home/TestData/g2p/manifest.json \
     validation_manifest=/home/TestData/g2p/manifest.json \
@@ -26,6 +27,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
     exp_manager.exp_dir=${OUTPUT_DIR} \
     +exp_manager.use_datetime_version=False +exp_manager.version=test
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env examples/tts/g2p/g2p_heteronym_classification_inference.py \
     manifest=/home/TestData/g2p/manifest.json \
     pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \

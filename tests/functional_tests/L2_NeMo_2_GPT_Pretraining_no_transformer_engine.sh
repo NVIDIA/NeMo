@@ -14,6 +14,7 @@
 pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
 pip uninstall -y transformer_engine
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/megatron_gpt_pretraining.py \
     --devices=2 \
     --max-steps=3 \
@@ -24,6 +25,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m tor
     --index-mapping-dir=tests/collections/llm/gpt_index_mappings \
     --no-masked-softmax-fusion
 
+export CUDA_VISIBLE_DEVICES=0,1
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/megatron_gpt_pretraining.py \
     --devices=2 \
     --max-steps=6 \

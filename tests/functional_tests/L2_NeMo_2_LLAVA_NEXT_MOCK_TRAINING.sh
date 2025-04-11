@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-HF_HOME=/home/TestData/ykarnati/hf_data coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/vlm/llava_next/test_llava_next_train.py \
+export HF_HOME=/home/TestData/ykarnati/hf_data
+export CUDA_VISIBLE_DEVICES=0,1
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/vlm/llava_next/test_llava_next_train.py \
     --devices=2 \
     --max-steps=5 \
     --tensor-model-parallel-size=2 \
