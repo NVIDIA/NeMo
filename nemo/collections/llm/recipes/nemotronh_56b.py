@@ -48,10 +48,10 @@ def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
         return run.Config(
             get_nmt_tokenizer,
             library='tiktoken',
-                model_name="TiktokenTokenizer",
-                vocab_file=vocab_file,
-                use_fast=True,
-            )
+            model_name="TiktokenTokenizer",
+            vocab_file=vocab_file,
+            use_fast=True,
+        )
     else:
         return run.Config(
             get_nmt_tokenizer,
