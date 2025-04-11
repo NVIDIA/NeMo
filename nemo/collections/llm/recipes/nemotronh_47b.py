@@ -97,6 +97,7 @@ def trainer(
     limit_val_batches: int = 32,
     log_every_n_steps: int = 1,
     save_top_k: int = 5,
+    ckpt_async_save: bool = False,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
@@ -134,7 +135,7 @@ def trainer(
         sequence_parallel=sequence_parallelism,
         ckpt_load_optimizer=True,
         ckpt_save_optimizer=True,
-        ckpt_async_save=False,
+        ckpt_async_save=ckpt_async_save,
         save_ckpt_format="torch_dist",
         ckpt_load_strictness="log_all",  # or rebasing to https://github.com/NVIDIA/NeMo/pull/11988/files#diff-7667eae242a8ef776bff78cd08e79bc81df4896a450f0a781f6ed317a3dfb7ffR139
         ddp=run.Config(
@@ -198,6 +199,7 @@ def pretrain_recipe(
     limit_val_batches: int = 32,
     log_every_n_steps: int = 1,
     save_top_k: int = 5,
+    ckpt_async_save: bool = False,
     seq_length: int = 8192,
     gbs: int = 768,
     mbs: int = 1,
@@ -244,6 +246,7 @@ def pretrain_recipe(
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
             save_top_k=save_top_k,
+            ckpt_async_save=ckpt_async_save,
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(
@@ -280,6 +283,7 @@ def finetune_recipe(
     limit_val_batches: int = 32,
     log_every_n_steps: int = 1,
     save_top_k: int = 5,
+    ckpt_async_save: bool = False,
     gbs: int = 768,
     mbs: int = 1,
     performance_mode: bool = False,
@@ -335,6 +339,7 @@ def finetune_recipe(
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
             save_top_k=save_top_k,
+            ckpt_async_save=ckpt_async_save,
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(
