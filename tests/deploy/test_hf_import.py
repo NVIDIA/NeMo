@@ -54,7 +54,7 @@ def test_hf_generate():
         do_sample=True,
         output_logits=True,
         output_scores=True,
-        return_dict_in_generate=True
+        return_dict_in_generate=True,
     )
     assert "logits" in output, "Output should have logits."
     assert "scores" in output, "Output should have scores."
