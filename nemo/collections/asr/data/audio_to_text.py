@@ -40,7 +40,7 @@ from nemo.utils.data_utils import (
     datastore_object_get,
     is_datastore_cache_shared,
     is_datastore_path,
-    wds_lhotse_url_opener
+    wds_lhotse_url_opener,
 )
 from nemo.utils.decorators import deprecated
 from nemo.utils.distributed import webdataset_split_by_workers
@@ -887,7 +887,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             world_size=world_size,
             global_rank=global_rank,
         )
-        
+
         # Put together WebDataset pipeline
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),

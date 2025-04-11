@@ -36,9 +36,9 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 )
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
+from nemo.utils.data_utils import wds_lhotse_url_opener
 from nemo.utils.decorators import experimental
 from nemo.utils.distributed import webdataset_split_by_workers
-from nemo.utils.data_utils import wds_lhotse_url_opener
 
 wds.tariterators.url_opener = wds_lhotse_url_opener
 
@@ -350,11 +350,11 @@ class TarredVocoderDataset(IterableDataset):
 
         logging.info(f"world size: {world_size}")
         audio_tar_filepaths = expand_sharded_filepaths(
-                sharded_filepaths=audio_tar_filepaths,
-                global_rank=global_rank,
-                world_size=world_size,
-                shard_strategy=shard_strategy,
-            )
+            sharded_filepaths=audio_tar_filepaths,
+            global_rank=global_rank,
+            world_size=world_size,
+            shard_strategy=shard_strategy,
+        )
 
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),

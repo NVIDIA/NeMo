@@ -16,17 +16,17 @@ import os
 import pathlib
 import shutil
 import subprocess
-from typing import Tuple, Any, Iterable, Callable, Dict
+from typing import Any, Callable, Dict, Iterable, Tuple
 from urllib.parse import urlparse
 
 try:
     from nemo import __version__ as NEMO_VERSION
 except ImportError:
     NEMO_VERSION = 'git'
-from nemo import constants
-from nemo.utils import logging
 from lhotse.serialization import open_best
 
+from nemo import constants
+from nemo.utils import logging
 
 
 def resolve_cache_dir() -> pathlib.Path:

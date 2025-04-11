@@ -25,7 +25,7 @@ from nemo.collections.asr.data.audio_to_text import (
     VALID_FILE_FORMATS,
     cache_datastore_manifests,
     expand_sharded_filepaths,
-    shard_manifests_if_needed
+    shard_manifests_if_needed,
 )
 from nemo.collections.asr.data.audio_to_text_dataset import ConcatDataset, convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -44,8 +44,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
-from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.data_utils import wds_lhotse_url_opener
+from nemo.utils.distributed import webdataset_split_by_workers
 
 wds.tariterators.url_opener = wds_lhotse_url_opener
 
@@ -746,11 +746,11 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         self.trim = trim
 
         audio_tar_filepaths = expand_sharded_filepaths(
-                sharded_filepaths=audio_tar_filepaths,
-                shard_strategy=shard_strategy,
-                world_size=world_size,
-                global_rank=global_rank,
-            )
+            sharded_filepaths=audio_tar_filepaths,
+            shard_strategy=shard_strategy,
+            world_size=world_size,
+            global_rank=global_rank,
+        )
 
         # Put together WebDataset
         self._dataset = wds.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
