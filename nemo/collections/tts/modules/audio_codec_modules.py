@@ -54,6 +54,16 @@ except ModuleNotFoundError:
     HAVE_FSSPEC = False
 
 
+from contextlib import contextmanager
+@contextmanager
+def default_precision(dtype=torch.float32):
+    default_dtype = torch.get_default_dtype()
+    torch.set_default_dtype(dtype)
+    try:
+        yield
+    finally:
+        torch.set_default_dtype(default_dtype)
+
 def get_padding(kernel_size: int, dilation: int = 1) -> int:
     return (kernel_size * dilation - dilation) // 2
 
@@ -407,40 +417,41 @@ class ResNetSpeakerEncoder(NeuralModule):
         Shapes:
             - x: :math:`(N, 1, T_{in})` or :math:`(N, D_{spec}, T_{in})`
         """
-        x.squeeze_(1)
-        # if you torch spec compute it otherwise use the mel spec computed by the AP
-        if self.use_torch_spec:
-            x = self.torch_spec(x)
+        with default_precision(torch.float32):
+            x.squeeze_(1)
+            # if you torch spec compute it otherwise use the mel spec computed by the AP
+            if self.use_torch_spec:
+                x = self.torch_spec(x)
 
-        if self.log_input:
-            x = (x + 1e-6).log()
-        x = self.instancenorm(x).unsqueeze(1)
+            if self.log_input:
+                x = (x + 1e-6).log()
+            x = self.instancenorm(x).unsqueeze(1)
 
-        x = self.conv1(x)
-        x = self.relu(x)
-        x = self.bn1(x)
+            x = self.conv1(x)
+            x = self.relu(x)
+            x = self.bn1(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+            x = self.layer1(x)
+            x = self.layer2(x)
+            x = self.layer3(x)
+            x = self.layer4(x)
 
-        x = x.reshape(x.size()[0], -1, x.size()[-1])
+            x = x.reshape(x.size()[0], -1, x.size()[-1])
 
-        w = self.attention(x)
+            w = self.attention(x)
 
-        if self.encoder_type == "SAP":
-            x = torch.sum(x * w, dim=2)
-        elif self.encoder_type == "ASP":
-            mu = torch.sum(x * w, dim=2)
-            sg = torch.sqrt((torch.sum((x**2) * w, dim=2) - mu**2).clamp(min=1e-5))
-            x = torch.cat((mu, sg), 1)
+            if self.encoder_type == "SAP":
+                x = torch.sum(x * w, dim=2)
+            elif self.encoder_type == "ASP":
+                mu = torch.sum(x * w, dim=2)
+                sg = torch.sqrt((torch.sum((x**2) * w, dim=2) - mu**2).clamp(min=1e-5))
+                x = torch.cat((mu, sg), 1)
 
-        x = x.view(x.size()[0], -1)
-        x = self.fc(x)
+            x = x.view(x.size()[0], -1)
+            x = self.fc(x)
 
-        if l2_norm:
-            x = torch.nn.functional.normalize(x, p=2, dim=1)
+            if l2_norm:
+                x = torch.nn.functional.normalize(x, p=2, dim=1)
         return x
 
     def get_torch_mel_spectrogram_class(self, audio_config):
@@ -602,12 +613,12 @@ class CausalConv1dNorm(NeuralModule):
         hidden_states: torch.Tensor,
     ) -> torch.Tensor:
         """See `pad_for_conv1d`."""
-        length = hidden_states.shape[-1]
-        n_frames = (length - self.kernel_size + self.padding_total) / self.stride + 1
-        n_frames = torch.ceil(n_frames).to(torch.int64) - 1
-        ideal_length = n_frames * self.stride + self.kernel_size - self.padding_total
-
-        return ideal_length - length
+        with default_precision(torch.float32):
+            length = hidden_states.shape[-1]
+            n_frames = (length - self.kernel_size + self.padding_total) / self.stride + 1
+            n_frames = torch.ceil(n_frames).to(torch.int64) - 1
+            ideal_length = (n_frames * self.stride).long() + self.kernel_size - self.padding_total
+        return (ideal_length - length).long()
 
     @staticmethod
     # Copied from transformers.models.encodec.modeling_encodec.EncodecConv1d._pad1d
@@ -999,7 +1010,8 @@ class MultiBandDiscriminatorSTFT(NeuralModule):
     def forward(self, audio):
         scores_list = []
         fmap_list = []
-        spec = self.compute_stft(audio)
+        # run spec compute on fp32 and convert out to the model training type
+        spec = self.compute_stft(audio.float()).to(audio.dtype)
         for band, disc in zip(self.stft_bands, self.discriminators):
             spec_band = spec[:, :, :, band[0] : band[1]]
             score, fmap = disc(spec=spec_band)
@@ -1765,7 +1777,8 @@ class CausalHiFiGANEncoder(NeuralModule):
             out = res_layer(inputs=out, input_len=encoded_len)
             out = act(out)
 
-            encoded_len = encoded_len // down_sample_rate
+            with default_precision(torch.float32):
+                encoded_len = (encoded_len // down_sample_rate).long()
             # [B, 2 * C, T / down_sample_rate]
             out = down_sample_conv(inputs=out, input_len=encoded_len)
 
@@ -1886,7 +1899,8 @@ class HiFiGANEncoder(NeuralModule):
             out = res_layer(inputs=out, input_len=encoded_len)
             out = act(out)
 
-            encoded_len = encoded_len // down_sample_rate
+            with default_precision(torch.float32):
+                encoded_len = (encoded_len // down_sample_rate).long()
             # [B, 2 * C, T / down_sample_rate]
             out = down_sample_conv(inputs=out, input_len=encoded_len)
 
@@ -2012,7 +2026,8 @@ class CausalHiFiGANDecoder(NeuralModule):
         for act, res_layer, up_sample_conv, up_sample_rate in zip(
             self.activations, self.res_layers, self.up_sample_conv_layers, self.up_sample_rates
         ):
-            audio_len = audio_len * up_sample_rate
+            with default_precision(torch.float32):
+                audio_len = (audio_len * up_sample_rate).long()
             out = act(out)
             # [B, C / 2, T * up_sample_rate]
             out = up_sample_conv(inputs=out, input_len=audio_len)
