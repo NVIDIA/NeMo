@@ -45,7 +45,9 @@ class HyenaModel(GPTModel):
       slightly differently.
     """
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=None) -> torch.Tensor:
+    def get_inference_wrapper(
+        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=None
+    ) -> torch.Tensor:
         """
         Gets the inference wrapper for the Hyena model.
 
