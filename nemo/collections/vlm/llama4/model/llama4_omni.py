@@ -660,16 +660,12 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
             state_dict[new_k] = v
         return state_dict, config['config']
 
-    def _modify_llama4_source_state(self, source, source_config):
+    def _modify_llama4_source_state(self, state_dict, source_config):
         """
         For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
         For dense layer, we change the name for the post attention layer norm to
         avoid the many-to-one mapping in the conversion.
         """
-        state_dict = source
-        for key in source.keys():
-            print(f'{key}: {source[key].shape}')
-
         for layer_i in range(source_config['language_transformer_config']['num_layers']):
             is_moe_layer = True
             if isinstance(source_config['language_transformer_config']['moe_layer_freq'], list):
@@ -697,8 +693,8 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
 
             else:
                 assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source
-                weight = source.pop(f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
-                source[f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
+                weight = state_dict.pop(f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+                state_dict[f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
 
         source = _ModelState(state_dict)
         return source

@@ -1930,6 +1930,14 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Conversion_Test_Llama4
 
+  L2_NeMo_2_Conversion_Test_Llama4_Text:
+    needs: [ pre-flight, cicd-test-container-build ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Llama4_Text') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_Conversion_Test_Llama4_Text
+
   L2_NeMo_2_Conversion_Test_Llama_Embedding:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2029,6 +2037,8 @@ jobs:
       - L2_NeMo_2_Conversion_Test_Gemma
       - L2_NeMo_2_Conversion_Test_Gemma2
       - L2_NeMo_2_Conversion_Test_Llama
+      - L2_NeMo_2_Conversion_Test_Llama4
+      - L2_NeMo_2_Conversion_Test_Llama4_Text
       - L2_NeMo_2_Conversion_Test_Llama_Embedding
       - L2_NeMo_2_Conversion_Test_Mistral
       - L2_NeMo_2_Conversion_Test_Nemotron
