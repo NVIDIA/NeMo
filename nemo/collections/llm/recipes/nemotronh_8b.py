@@ -138,7 +138,7 @@ def trainer(
         ckpt_save_optimizer=True,
         ckpt_async_save=ckpt_async_save,
         save_ckpt_format="torch_dist",
-        ckpt_load_strictness="log_all",  # or rebasing to https://github.com/NVIDIA/NeMo/pull/11988/files#diff-7667eae242a8ef776bff78cd08e79bc81df4896a450f0a781f6ed317a3dfb7ffR139
+        ckpt_load_strictness="log_all",
         ddp=run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,

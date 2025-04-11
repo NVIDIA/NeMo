@@ -27,7 +27,6 @@ from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_d
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, get_vocab_size, io, teardown
 from nemo.lightning.io.state import _ModelState
-from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 try:

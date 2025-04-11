@@ -424,7 +424,7 @@ class TritonCacheSetup(run.Plugin):
     if triton_version <= "3.1.0":
 
         def setup(self, task: run.Partial | run.Script, executor: run.Executor):
-
+            """Set up the Triton cache environment variables."""
             executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir + "triton_cahce"
             executor.env_vars["TRITON_CACHE_MANAGER"] = (
                 "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
