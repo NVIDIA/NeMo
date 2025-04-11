@@ -1086,6 +1086,8 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
         return [self._token2id[p] for p in ps]
 
 
+# TODO @xueyang: subclassing from `nemo/collections/common/tokenizers/tokenizer_spec.py::TokenizerSpec`, and/or
+#  adjust to reuse `nemo/collections/common/tokenizers/aggregate_tokenizer.py::AggregateTokenizer`
 class AggregatedTTSTokenizer:
     def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str]):
         """A simple aggregated tokenizer. Aggregates multiple tokenizers into one by combining (simply concatenating)
@@ -1126,3 +1128,4 @@ class AggregatedTTSTokenizer:
     def decode(self, tokens: List[int], tokenizer_name: str) -> str:
         tokenizer = self.tokenizers[tokenizer_name]
         return tokenizer.decode([token - self.toknizer_offsets[tokenizer_name] for token in tokens])
+

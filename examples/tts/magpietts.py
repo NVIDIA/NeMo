@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import lightning.pytorch as pl
+import torch.multiprocessing as mp
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.tts.models import (
@@ -20,7 +21,6 @@ from nemo.collections.tts.models import (
     MagpieTTSModelInference,
     MagpieTTSModelOfflinePO,
     MagpieTTSModelOnlinePO,
-    MagpieTTSModelPrefDataGen,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -30,12 +30,21 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf/magpietts", config_name="magpietts_en")
 def main(cfg):
     logging.info('\nConfig Params:\n%s', OmegaConf.to_yaml(cfg, resolve=True))
-    if not cfg.model.get('use_lthose', False):
-        import torch.multiprocessing as mp
 
-        mp.set_start_method("spawn", force=True)
+    # forcing "spawn" method for multiprocessing over "fork" when choosing multiple
+    # worker processes for dataloaders. By default, multiprocessing uses "fork" to create
+    # worker processes, which inherit the memory state of the main process, including its
+    # already initialized CUDA state. When the worker processes trieds to use
+    # CUDA, it runs into conflicts with the inherited, now potentially invalid,
+    # CUDA context, resuling in the CUDA initialization error. When
+    # num_workers=0, all dataloading happens in the main process, so there is no
+    # process forking and no CUDA context conflict. When num_workers>0, the standard way
+    # to fix this is to use "spawn" to create a completely new and clean python process for
+    # each worker, avoding the problematic CUDA state inheritance.
+    mp.set_start_method("spawn", force=True)
 
     trainer = pl.Trainer(**cfg.trainer)
+    trainer.callbacks.append(pl.callbacks.LearningRateMonitor(logging_interval='step', log_weight_decay=True))
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if cfg.get('mode', 'train') == 'train':
