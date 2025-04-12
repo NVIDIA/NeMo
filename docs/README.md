@@ -49,3 +49,15 @@ that the link is broken.
 If the link is OK, and this is the case with many URLs that reference GitHub repository file headings,
 then cut and paste the JSON output and add it to `docs/false_positives.json`.
 Run the script again to confirm that the URL is no longer reported as a broken link.
+
+There may be false positives due to Sphinx not being able to detect links from built html files.
+Instead of adding those to the `docs/false_positives.json` file, it would be best to rewrite the
+reference using a [:ref:](https://www.sphinx-doc.org/en/master/usage/referencing.html#role-ref).
+
+For example, instead of writing `Modules <../api.html#modules>` to link to the modules section of
+a `api.rst` file, write it as ``:ref:`Modules <asr-api-modules>` ``. And in the `api.rst` file,
+add this label before the section being linked to:
+
+```
+.. _asr-api-modules:
+```
