@@ -25,7 +25,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
-#   examples/llm/peft/automodel.py \
+#   examples/llm/peft/automodel_for_causal_lm.py \
 #   --strategy fsdp2 \
 #   --devices 8 \
 #   --model meta-llama/Llama-3.2-1B \

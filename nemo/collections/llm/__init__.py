@@ -32,6 +32,7 @@ from nemo.collections.llm.bert.model import (
     MegatronBertBaseConfig,
     MegatronBertConfig,
     MegatronBertLargeConfig,
+    HFAutoModelForMaskedLM,
 )
 from nemo.collections.llm.gpt.data import (  # noqa: F401
     AlpacaDataModule,
@@ -326,6 +327,7 @@ __all__ = [
     "peft",
     "hf_dataset",
     "HFAutoModelForCausalLM",
+    "HFAutoModelForMaskedLM",
     "HFMockDataModule",
 ]
 

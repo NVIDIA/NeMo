@@ -13,6 +13,7 @@ from nemo.collections.llm.bert.model.embedding import (
     BertEmbeddingMiniConfig,
     BertEmbeddingModel,
 )
+from nemo.collections.llm.bert.model.hf_auto_model_for_masked_lm import HFAutoModelForMaskedLM
 
 __all__ = [
     "BertConfig",
@@ -27,4 +28,5 @@ __all__ = [
     "MegatronBertConfig",
     "MegatronBertBaseConfig",
     "MegatronBertLargeConfig",
+    "HFAutoModelForMaskedLM",
 ]
