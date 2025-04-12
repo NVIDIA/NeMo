@@ -29,7 +29,6 @@ from torch.nn import functional as F
 
 from nemo.utils import logging
 
-# TODO Move it to utils or somethings for sake of clean code
 CROSS_ENTROPY_IGNORE_IDX = -100
 PACK_TYPE = Dict[str, Union[torch.Tensor, List[int]]]
 
@@ -566,8 +565,6 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         )
 
         # Pad loss_mask
-        #TODO loss_mask is very specific to Squad. For ex: Dolly does not have loss_mask.
-        # Can it be gneralized ?
         if self.contains_loss_mask:
             padded_loss_mask = F.pad(
                 pack["loss_mask"],
