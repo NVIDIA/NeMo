@@ -216,6 +216,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
         test_aliases (list, optional): Alternative names for the test split. Defaults to ["test", "testing"].
         val_aliases (list, optional): Alternative names for the validation split.
             Defaults to ["val", "validation", "valid", "eval"].
+        packed_sequence_size (int): If a positive integer, this arg enables training with sequence packing and
+        specifies the pack size. If less than or equal to 0, sequence packing is disabled. Deafult: -1.
         **kwargs: Additional arguments passed to `datasets.load_dataset`.
 
     Raises:
@@ -292,7 +294,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+            self._collate_fn = lambda x: self.collate_fn(
                 x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=pad_seq_len_divisible
             )
         else:
@@ -307,6 +309,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.pad_token_id = pad_token_id
         self.use_dist_sampler = use_dist_sampler
         self.pad_seq_len_divisible = pad_seq_len_divisible
+        self.packed_sequence_size = packed_sequence_size
 
         # TODO: refractor this
         self.num_replicas = num_replicas
@@ -318,13 +321,72 @@ class HFDatasetDataModule(pl.LightningDataModule):
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
-    @staticmethod
-    def collate_fn(batch, pad_token_id=0, pad_seq_len_divisible=None):
+    def create_block_causal_mask(self, seq_lens: List[torch.Tensor]) -> torch.Tensor:
+        """
+        Given a batch tensor of seq lens defining the lengths of samples in each pack,
+        Construct a 2D block causal mask for each pack in the batch. For example, if
+        a single sample's seq_lens is [3, 2, 1], the mask would be::
+
+            mask = [
+                [1, 0, 0, 0, 0, 0],
+                [1, 1, 0, 0, 0, 0],
+                [1, 1, 1, 0, 0, 0],
+                [0, 0, 0, 1, 0, 0],
+                [0, 0, 0, 1, 1, 0],
+                [0, 0, 0, 0, 0, 1],
+            ]
+
+        Args:
+            seq_lens (List[torch.Tensor]): Sequence lengths of samples in each pack in the batch,
+                shape (batch_size, n), where n is the max number of sequences in a pack and can vary
+                across packs.
+
+
+        Returns:
+            Tensor: Block causal mask of shape (batch_size, packed_sequence_size, packed_sequence_size).
+        """
+        batch_block_attn_masks = []
+        batch_size = len(seq_lens)
+        for sample_idx in range(batch_size):
+            block_attn_masks = [
+                torch.tril(
+                    torch.ones(seq_len, seq_len, dtype=torch.bool,) # device=seq_len.device)
+                )
+                for i, seq_len in enumerate(seq_lens[sample_idx])
+            ]
+
+            batch_block_attn_masks.append(torch.block_diag(*block_attn_masks))
+        return torch.stack(batch_block_attn_masks)
+
+    def packed_block_causal_mask(
+        self, seq_lens: List[torch.Tensor],
+    ): # -> _MaskType:
+        """
+        Create a block causal document mask for a batch of packed sequences. A standard 2D block causal mask is created
+        and returned.
+
+        Args:
+            seq_lens (List[torch.Tensor]): Sequence lengths of samples in each pack in the batch,
+                shape (batch_size, n), where n is the max number of sequences in a pack and can vary
+                across packs.
+
+        Returns:
+            _MaskType: BlockMask or Tensor if torch version < 2.5.0.
+        """
+        return self.create_block_causal_mask(seq_lens=seq_lens)
+
+    def collate_fn(self, batch, pad_token_id=0, pad_seq_len_divisible=None):
         """Default batch collator"""
-        # print("--len(batch)---", len(batch))
-        # print("---batch[0].items()----", batch[0].items())
-        # print("---len(batch[0]['input_ids'])----", len(batch[0]['input_ids']))
-        # print("---len(batch[0]['loss_mask'])----", len(batch[0]['loss_mask']))
+        if self.packed_sequence_size > 0:
+            seq_lens = [x["seq_lens"] for x in batch]
+            block_mask = self.packed_block_causal_mask(
+                        seq_lens=seq_lens,
+                    )
+
+            ## add block_mask to the batch
+            for i, item in enumerate(batch):
+                item['mask'] = block_mask[i].tolist()  # Convert tensor to list for compatibility
+
         return {
             key: batchify(
                 torch.LongTensor(
@@ -357,7 +419,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+            collate_fn = lambda x: self.collate_fn(
                 x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible
             )
 
@@ -513,7 +575,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
                     value=0,
             )
 
-        # Add padding tokens as a last seq len to ensure sum is max_seq_len
+        # Add padding tokens as a last seq len to ensure sum is packed_sequence_size
         padded_seq_lens = (
             torch.cat([pack["seq_lens"], torch.tensor([num_padding_tokens])])
             if num_padding_tokens > 0
@@ -527,7 +589,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             pack["input_pos"][-1] + 1,
             pack["input_pos"][-1] + self.packed_sequence_size - len(pack["input_pos"]) + 1,
         )
-        # Clamp to max_seq_len - 1 to avoid out of bounds error
+        # Clamp to packed_sequence_size - 1 to avoid out of bounds error
         clamped_num_range = torch.clamp(num_range, 0, self.packed_sequence_size - 1)
         padded_input_pos = torch.cat([pack["input_pos"], clamped_num_range])
 
@@ -552,7 +614,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
 
         if self.split_across_pack:
             boundary = self.packed_sequence_size
-            # The last elem in ``seq_lens`` ensures that ``sum(seq_lens) == self.max_seq_len``
+            # The last elem in ``seq_lens`` ensures that ``sum(seq_lens) == self.packed_sequence_size``
             leftover_seq_len = self.packed_sequence_size - sum(current_pack["seq_lens"][:-1])
             seq_len_padding = [leftover_seq_len] if leftover_seq_len > 0 else []
         else:
@@ -598,13 +660,12 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             return True
         return False
 
-    def pack(self, packed_sequence_size, split_across_pack=False, max_packs=None):
+    def pack(self, split_across_pack=False, max_packs=None):
         """Iterate through the dataset. Use a buffer to hold samples until packed_sequence_size,
         then append the buffer to self.packs as a single "packed" sample. Continue
         until max_packs or end of dataset.
 
         Args:
-        packed_sequence_size (int): Max number of tokens to pack in a single packed sequence.
         split_across_pack (Optional[bool]): if the last sample in a pack does not fit in ``packed_sequence_size``,
         split the sample into the next pack, or move it entirely to the beginning of the next pack.
         For pre-training, typically this is set to True for general text completion. For
@@ -616,7 +677,6 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         Returns:
         Just assigns the packed dataset to self.dataset_splits[split]
         """
-        self.packed_sequence_size = packed_sequence_size
         self.split_across_pack = split_across_pack
         self.max_packs = max_packs
         ## 'TODO' check if nemo's impl also does this padding
@@ -657,16 +717,16 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
                 # packed_sequence_size and we're unable to split it, user needs to modify
                 # one of the two parameters
                 seq_len = len(tokens)
-                if seq_len > packed_sequence_size and not split_across_pack:
+                if seq_len > self.packed_sequence_size and not split_across_pack:
                     raise ValueError(
-                        f"Dataset sample is too long ({seq_len} > {self.max_seq_len}). "
-                        "Please set `split_across_pack=True` or increase `max_seq_len`."
+                        f"Dataset sample is too long ({seq_len} > {self.packed_sequence_size}). "
+                        "Please set `split_across_pack=True` or increase `packed_sequence_size`."
                     )
                 # Update the current pack
                 # "input_pos" is the pos ids, "seq_lens" is the len of each seq within the pack
                 current_pack["tokens"] += tokens
                 current_pack["labels"] += labels
-                current_pack["input_pos"] += [x % packed_sequence_size for x in range(seq_len)]
+                current_pack["input_pos"] += [x % self.packed_sequence_size for x in range(seq_len)]
                 current_pack["seq_lens"] += [seq_len]
                 if self.contains_loss_mask:
                     current_pack["loss_mask"] += loss_mask
@@ -674,7 +734,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
                 # If the current pack is over the packed_sequence_size, add it to self.packs and
                 # retain any truncated or bumped samples for next pack
                 while (
-                    len(current_pack["tokens"]) > packed_sequence_size
+                    len(current_pack["tokens"]) > self.packed_sequence_size
                     and not self._should_stop_packing()
                 ):
                     current_pack = self._split_and_add_pack(current_pack)
@@ -877,7 +937,7 @@ class HFMockDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.create_attention_mask = create_attention_mask
-        self.collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=0)
+        self.collate_fn = lambda x: HFMockDataModule.collate_fn(x, pad_token_id=0)
         self.vocab_size = vocab_size
         if pad_seq_len_divisible is not None:
             self.seq_length = (seq_length + pad_seq_len_divisible - 1) // pad_seq_len_divisible * pad_seq_len_divisible
@@ -928,6 +988,22 @@ class HFMockDataModule(pl.LightningDataModule):
             persistent_workers=self.persistent_workers,
             collate_fn=self.collate_fn,
         )
+
+    @staticmethod
+    def collate_fn(batch, pad_token_id=0, pad_seq_len_divisible=None):
+        """Default batch collator"""
+        return {
+            key: batchify(
+                torch.LongTensor(
+                    pad_within_micro(
+                        extract_key_from_dicts(batch, key),
+                        pad_token_id if key != 'loss_mask' else 0,
+                        pad_seq_len_divisible,
+                    )
+                )
+            )
+            for key in batch[0].keys()
+        }
 
 
 class _MockGPTDataset(torch.utils.data.Dataset):

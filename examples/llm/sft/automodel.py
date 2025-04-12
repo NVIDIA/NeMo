@@ -80,7 +80,7 @@ def make_squad_hf_dataset(
     )
     # Pack the sequences in the dataset if packed_sequence_size > 0
     if packed_sequence_size > 0:
-        datamodule.pack(packed_sequence_size)
+        datamodule.pack()
     return datamodule
 
 
