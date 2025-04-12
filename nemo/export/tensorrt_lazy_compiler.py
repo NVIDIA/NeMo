@@ -52,7 +52,7 @@ def trt_to_torch_dtype_dict():
         trt.int32: torch.int32,
         trt.float32: torch.float32,
         trt.float16: torch.float16,
-        trt.bfloat16: torch.float16,
+        trt.bfloat16: torch.bfloat16,
         trt.int64: torch.int64,
         trt.int8: torch.int8,
         trt.bool: torch.bool,
@@ -154,7 +154,8 @@ class TRTEngine:
                 self.input_names.append(binding)
             elif self.engine.get_tensor_mode(binding) == trt.TensorIOMode.OUTPUT:
                 self.output_names.append(binding)
-                dtype = dtype_dict[self.engine.get_tensor_dtype(binding)]
+                o_dtype = self.engine.get_tensor_dtype(binding)
+                dtype = dtype_dict[o_dtype]
                 self.dtypes.append(dtype)
         self.logger.info(
             f"Loaded TensorRT engine: {self.plan_path}.\nInputs: {self.input_names}\nOutputs: {self.output_names}"
@@ -175,17 +176,26 @@ class TRTEngine:
                 self.tensors[binding] = t
                 ctx.set_tensor_address(binding, t.data_ptr())
 
+    def _check_shape_in_range(self, dims: list[trt.Dims], shape: torch.Size) -> bool:
+        """
+        Checks if shape is within the range of the optimization profile.
+        """
+        min_opt = dims[0]
+        max_opt = dims[-1]
+        in_range = True
+
+        in_range = in_range and all(shape[i] >= d for i, d in enumerate(min_opt))
+        in_range = in_range and all(shape[i] <= d for i, d in enumerate(max_opt))
+        return in_range
+
     def set_inputs(self, feed_dict, stream):
         """
         Sets input bindings for TRT engine according to feed_dict
+
         Args:
            feed_dict: a dictionary [str->Tensor]
            stream: CUDA stream to use
         """
-        e = self.engine
-        ctx = self.context
-
-        last_profile = self.cur_profile
 
         def try_set_inputs():
             for binding in self.input_names:
@@ -196,18 +206,34 @@ class TRTEngine:
                     ctx.set_input_shape(binding, shape)
                     ctx.set_tensor_address(binding, t.data_ptr())
 
-        while True:
-            try:
-                try_set_inputs()
+        e = self.engine
+        ctx = self.context
+
+        next_profile = self.cur_profile
+        found = False
+        for _ in range(e.num_optimization_profiles):
+            tmp_profile = next_profile
+            for binding in self.input_names:
+                dims = e.get_tensor_profile_shape(binding, next_profile)
+                t = feed_dict.get(self.input_table[binding], None)
+                if t is None:
+                    raise ValueError(f"Not found tensor {binding} in feed_dict")
+                in_range = self._check_shape_in_range(dims, t.shape)
+                if not in_range:
+                    next_profile = (next_profile + 1) % e.num_optimization_profiles
+                    break
+            if tmp_profile == next_profile:
+                found = True
                 break
-            except ShapeError:
-                next_profile = (self.cur_profile + 1) % e.num_optimization_profiles
-                if next_profile == last_profile:
-                    raise
+        if found:
+            self.logger.info(f"Using optimization profile {next_profile}")
+            if next_profile != self.cur_profile:
+                ctx.set_optimization_profile_async(next_profile, stream)
                 self.cur_profile = next_profile
-                ctx.set_optimization_profile_async(self.cur_profile, stream)
-            except Exception:
-                raise
+            try_set_inputs()
+        else:
+            raise ShapeError("Shape out of range")
+
         left = ctx.infer_shapes()
         assert len(left) == 0
 
@@ -257,15 +283,29 @@ def unroll_input(input_names, input_example):
     """
     Simulates list/tuple unrolling during ONNX export
     """
+
+    def unroll_one(name, val):
+        res = {}
+        try:
+            if val is not None:
+                if isinstance(val, dict):
+                    for key, data in val.items():
+                        subname = f"{name}_{key}"
+                        vals = unroll_one(subname, data)
+                        res.update(vals)
+                elif isinstance(val, list) or isinstance(val, tuple):
+                    for i in range(len(val)):
+                        res.update(unroll_one(f"{name}_{i}", val[i]))
+                else:
+                    res[name] = make_tensor(val)
+        except Exception as e:
+            pass
+        return res
+
     unrolled_input = {}
     for name in input_names:
-        val = input_example[name]
-        if val is not None:
-            if isinstance(val, list) or isinstance(val, tuple):
-                for i in range(len(val)):
-                    unrolled_input[f"{name}_{i}"] = make_tensor(val[i])
-            else:
-                unrolled_input[name] = make_tensor(val)
+        val = input_example.get(name, None)
+        unrolled_input.update(unroll_one(name, val))
     return unrolled_input
 
 
@@ -343,7 +383,8 @@ class TrtCompiler:
         use_cuda_graph=False,
         timestamp=None,
         fallback=False,
-        forward_override=None,
+        function="forward",
+        skip_once_registry=None,
         logger=None,
     ):
         """
@@ -380,6 +421,11 @@ class TrtCompiler:
         if precision not in precision_vals:
             raise ValueError(f"trt_compile(): 'precision' should be one of {precision_vals}, got: {precision}.")
 
+        if skip_once_registry:
+            if not fallback:
+                raise ValueError(f"trt_compile(): skip_once functionality requires fallback")
+            skip_once_registry.register_skip_once(self)
+
         self.plan_path = plan_path
         self.precision = precision
         self.method = method
@@ -393,6 +439,7 @@ class TrtCompiler:
         self.engine: TRTEngine | None = None
         self.use_cuda_graph = use_cuda_graph
         self.fallback = fallback
+        self.skip_once = False
         self.disabled = False
 
         self.logger = logger or getLogger("trt_compile")
@@ -409,7 +456,8 @@ class TrtCompiler:
                     self.defaults[self.argspec.args[-i - 1]] = d
 
         self.input_names = input_names
-        self.old_forward = model.forward
+        self.orig_function = getattr(model, function)
+        setattr(model, function, MethodType(trt_forward, model))
 
         # Force engine rebuild if older than the timestamp
         if timestamp is not None and os.path.exists(self.plan_path) and os.path.getmtime(self.plan_path) < timestamp:
@@ -437,7 +485,6 @@ class TrtCompiler:
                     orig_name = name
                 input_table[name] = orig_name
             self.engine.input_table = input_table
-            self.logger.info(f"Engine loaded, inputs:{self.engine.input_table}")
         except Exception as e:
             self.logger.info(f"Exception while loading the engine:\n{e}")
 
@@ -452,6 +499,13 @@ class TrtCompiler:
         Returns: Passing through wrapped module's forward() return value(s)
 
         """
+
+        # Let the caches be filled
+        if self.skip_once:
+            self.skip_once = False
+            self.logger.info("Skipping once...")
+            return self.orig_function(*argv, **kwargs)
+
         args = self.defaults
         args.update(kwargs)
         if len(argv) > 0:
@@ -460,7 +514,7 @@ class TrtCompiler:
         if self.engine is None and not self.disabled:
             # Restore original forward for export
             new_forward = model.forward
-            model.forward = self.old_forward
+            model.forward = self.orig_function
             try:
                 self._load_engine()
                 if self.engine is None:
@@ -506,16 +560,16 @@ class TrtCompiler:
                     return ret
         except Exception as e:
             if self.fallback:
-                self.logger.info(f"Exception: {e}\nFalling back to Pytorch ...")
+                self.logger.debug(f"Exception: {e}\nFalling back to Pytorch ...")
             else:
                 raise e
-        return self.old_forward(*argv, **kwargs)
+        return self.orig_function(*argv, **kwargs)
 
     def _onnx_to_trt(self, onnx_path):
         """
         Builds TRT engine from ONNX file at onnx_path and saves to self.plan_path
         """
-
+        torch.cuda.empty_cache()
         profiles = []
         for profile in self.profiles:
             p = Profile()
@@ -548,10 +602,11 @@ class TrtCompiler:
         export_args = self.export_args
         engine_bytes = None
 
-        add_casts_around_norms(model)
-        replace_for_export(model)
+        torch.cuda.empty_cache()
 
         if self.method == "torch_trt":
+            import torch_tensorrt
+
             enabled_precisions = [torch.float32]
             if self.precision == "fp16":
                 enabled_precisions.append(torch.float16)
@@ -603,6 +658,7 @@ class TrtCompiler:
 
             # Use temporary directory for easy cleanup in case of external weights
             with tempfile.TemporaryDirectory() as tmpdir:
+                post_proc = export_args.pop("postprocess", None)
                 if export_args.get("dynamo", False):
                     input_names = None
                 else:
@@ -623,10 +679,12 @@ class TrtCompiler:
                 if polygraphy_imported:
                     from polygraphy.backend.onnx.loader import fold_constants, onnx_from_path, save_onnx
 
-                    onnx_model = fold_constants(onnx_from_path(onnx_path), size_threshold=16 * 1000 * 1000)
+                    onnx_model = fold_constants(onnx_from_path(onnx_path), size_threshold=64 * 1000 * 1000)
+                    if post_proc:
+                        onnx_model = post_proc(onnx_model)
                     save_onnx(onnx_model, onnx_path)
-                self.logger.info("Export to ONNX successful.")
-                engine_bytes = self._onnx_to_trt(onnx_path)
+                    self.logger.info("Export to ONNX successful.")
+                    engine_bytes = self._onnx_to_trt(onnx_path)
         if engine_bytes:
             open(self.plan_path, "wb").write(engine_bytes)
 
@@ -637,6 +695,14 @@ def trt_forward(self, *argv, **kwargs):
     Redirects to TrtCompiler.forward()
     """
     return self._trt_compiler.forward(self, argv, kwargs)
+
+
+def trt_registry_forward(self, *argv, **kwargs):
+    """
+    Patch function to replace original model's forward() with.
+    Redirects to TrtCompilerRegistry.forward()
+    """
+    return self._trt_compiler_registry.forward(self, argv, kwargs)
 
 
 def trt_compile(
@@ -667,7 +733,7 @@ def trt_compile(
     default_args: Dict[str, Any] = {
         "method": "onnx",
         "precision": "fp16",
-        "build_args": {"builder_optimization_level": 5, "precision_constraints": "obey"},
+        "build_args": {"builder_optimization_level": 5, "precision_constraints": "prefer"},
     }
 
     default_args.update(args or {})
@@ -712,3 +778,39 @@ def trt_compile(
         logger.warning("TensorRT and/or polygraphy packages are not available! trt_compile() has no effect.")
 
     return model
+
+
+class TrtCompilerRegistry:
+    """
+    Add-on class to be applied to higher-level module in caching situations
+    Supports skip_once functionality by resetting registered sub-modules skip flags
+    so they can skip the first forward() call and let the caches be filled
+    """
+
+    def __init__(self, model, function="forward", logger=None):
+        self.logger = logger or getLogger("trt_compile")
+        self.orig_function = getattr(model, function)
+        setattr(model, function, MethodType(trt_registry_forward, model))
+        self.registry = []
+
+    def register_skip_once(self, c):
+        self.registry.append(c)
+
+    def reset_skip_once(self):
+        for c in self.registry:
+            c.skip_once = True
+
+    def forward(self, model, argv, kwargs):
+        self.reset_skip_once()
+        return self.orig_function(*argv, **kwargs)
+
+
+def trt_compile_make_registry(model, function="forward"):
+    """
+    Instruments model or submodule(s) with TrtCompilerRegistry and replaces its forward() with TRT registry hook.
+    """
+    if not hasattr(model, "_trt_compiler_registry"):
+        wrapper = TrtCompilerRegistry(model, function)
+        model._trt_compiler_registry = wrapper
+
+    return wrapper
