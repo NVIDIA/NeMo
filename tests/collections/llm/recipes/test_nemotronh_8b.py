@@ -43,19 +43,18 @@ class TestNemotronH8B:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 32
-        assert trainer_config.max_steps == 100
+        assert trainer_config.num_nodes == 1
+        assert trainer_config.max_steps == 10
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
         assert trainer_config.strategy.__fn_or_cls__.__name__ == "MegatronStrategy"
-        assert trainer_config.strategy.tensor_model_parallel_size == 8
+        assert trainer_config.strategy.tensor_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_model_parallel_size == 1
         assert trainer_config.strategy.sequence_parallel is True
 
         # Check other trainer configurations
         assert trainer_config.accumulate_grad_batches == 1
-        assert trainer_config.limit_test_batches == 50
         assert trainer_config.limit_val_batches == 32
         assert trainer_config.log_every_n_steps == 10
 

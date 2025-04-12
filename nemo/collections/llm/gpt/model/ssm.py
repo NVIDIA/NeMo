@@ -966,7 +966,6 @@ class NemotronHConfig8B(NemotronHConfigBase):
     num_layers: int = 52
     hidden_size: int = 4096
     mamba_state_dim: int = 128
-    mamba_nheads: int = 128
     ffn_hidden_size: int = 21504
     num_attention_heads: int = 32
 
@@ -981,7 +980,6 @@ class NemotronHConfig47B(NemotronHConfigBase):
     num_layers: int = 98
     hidden_size: int = 8192
     mamba_state_dim: int = 256
-    mamba_nheads: int = 256
     ffn_hidden_size: int = 30720
     num_attention_heads: int = 64
 
@@ -997,7 +995,6 @@ class NemotronHConfig56B(NemotronHConfigBase):
     num_layers: int = 118
     hidden_size: int = 8192
     mamba_state_dim: int = 256
-    mamba_nheads: int = 256
     ffn_hidden_size: int = 32768
     num_attention_heads: int = 64
 

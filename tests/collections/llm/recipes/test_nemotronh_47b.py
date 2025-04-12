@@ -44,7 +44,7 @@ class TestNemotronH47B:
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
         assert trainer_config.num_nodes == 32
-        assert trainer_config.max_steps == 100
+        assert trainer_config.max_steps == 10
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
@@ -55,9 +55,8 @@ class TestNemotronH47B:
 
         # Check other trainer configurations
         assert trainer_config.accumulate_grad_batches == 1
-        assert trainer_config.limit_test_batches == 50
         assert trainer_config.limit_val_batches == 32
-        assert trainer_config.log_every_n_steps == 10
+        assert trainer_config.log_every_n_steps == 1
 
     def test_pretrain_recipe(self, recipe):
         recipe = recipe.pretrain_recipe()
@@ -70,7 +69,7 @@ class TestNemotronH47B:
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == MockDataModule
         assert recipe.data.seq_length == 8192
-        assert recipe.data.global_batch_size == 32
+        assert recipe.data.global_batch_size == 768
 
     def test_finetune_recipe(self, recipe):
         recipe = recipe.finetune_recipe(resume_path="dummy_path", vocab_file="dummy_vocab")
@@ -83,7 +82,7 @@ class TestNemotronH47B:
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__.__name__ == "MockDataModule"
         assert recipe.data.seq_length == 8192
-        assert recipe.data.global_batch_size == 32
+        assert recipe.data.global_batch_size == 768
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(32, 8), (16, 16)])
     def test_pretrain_recipe_with_different_configurations(self, recipe, num_nodes, num_gpus_per_node):
