@@ -317,8 +317,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
-
-
     def collate_fn(self, batch, pad_token_id=0, pad_seq_len_divisible=None):
         """Default batch collator"""
         # If packing create the attn_mask and append it to the batch
