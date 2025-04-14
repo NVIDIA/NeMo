@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn import functional as F
 
-from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import packed_block_causal_mask, HFDatasetPackedSequence
+from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import packed_block_causal_mask, HFDatasetPackedSequenceHelper
 from nemo.utils import logging
 
 def clean_split(name):
@@ -306,6 +306,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.use_dist_sampler = use_dist_sampler
         self.pad_seq_len_divisible = pad_seq_len_divisible
         self.packed_sequence_size = packed_sequence_size
+        self.split_across_pack = split_across_pack
+        self.max_packs = max_packs
 
         # TODO: refractor this
         self.num_replicas = num_replicas
@@ -357,10 +359,13 @@ class HFDatasetDataModule(pl.LightningDataModule):
         else:
             return None
 
-    def _make_dataloader(self, dataset, collate_fn=None):
+    def _make_dataloader(self, dataset, split, collate_fn=None):
         """Dataloader creator"""
         assert dataset is not None
-
+        # Pack the sequences in the dataset if packed_sequence_size > 0
+        if self.packed_sequence_size > 0:
+            packed_seq_class = HFDatasetPackedSequenceHelper(dataset, split)
+            dataset = packed_seq_class.pack(self.packed_sequence_size, self.split_across_pack, self.max_packs)
         if collate_fn is None:
             collate_fn = lambda x: self.collate_fn(
                 x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible
@@ -393,15 +398,15 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         """Returns the train dataloader"""
-        return self._make_dataloader(self.train, self._collate_fn)
+        return self._make_dataloader(self.train, "train", self._collate_fn)
 
     def val_dataloader(self):
         """Returns the validation dataloader"""
-        return self._make_dataloader(self.val, self._collate_fn)
+        return self._make_dataloader(self.val, "val", self._collate_fn)
 
     def test_dataloader(self):
         """Returns the test dataloader"""
-        return self._make_dataloader(self.test, self._collate_fn)
+        return self._make_dataloader(self.test, "test", self._collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
         """Maps a function to all/selected splits
@@ -418,7 +423,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         for split_name in split_names:
             if not self.dataset_splits[split_name] is None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
-
 
 class HellaSwagHFDataModule(HFDatasetDataModule):
     """A data module for handling the HellaSwag dataset using HFDatasetDataModule."""
