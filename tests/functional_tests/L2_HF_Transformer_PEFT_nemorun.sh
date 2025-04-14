@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 export TRANSFORMERS_OFFLINE=1
-export CUDA_VISIBLE_DEVICES=0,1
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=2 --use-env tests/collections/llm/hf/peft_nemorun.py \
+export CUDA_VISIBLE_DEVICES=0
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m torch.distributed.launch --nproc_per_node=1 --use-env tests/collections/llm/hf/peft_nemorun.py \
     --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3

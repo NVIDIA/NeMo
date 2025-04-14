@@ -671,7 +671,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
 
     # TODO: pleasefixme @redoctopus
@@ -705,7 +705,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
 
   # TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
