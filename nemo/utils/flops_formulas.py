@@ -240,13 +240,11 @@ def deepseekv3(config: FLOPSConfig):
     per_input_attention_flops = 6 * (bmm1_flops + bmm2_flops) * config.layers
 
     # linear layer flops
-    per_layer_mla_params = (
-        config.hs * config.q_lora_rank
-        + config.q_lora_rank * (config.qk_head_dim * config.attention_heads + config.qk_pos_emb_head_dim)
+    per_layer_mla_params = config.hs * config.q_lora_rank + config.q_lora_rank * (
+        config.qk_head_dim * config.attention_heads + config.qk_pos_emb_head_dim
     )  # Q
-    per_layer_mla_params += (
-        config.hs * config.kv_lora_rank
-        + config.kv_lora_rank * (config.qk_head_dim * config.attention_heads + config.qk_pos_emb_head_dim)
+    per_layer_mla_params += config.hs * config.kv_lora_rank + config.kv_lora_rank * (
+        config.qk_head_dim * config.attention_heads + config.qk_pos_emb_head_dim
     )  # K
     per_layer_mla_params += (
         config.hs * config.kv_lora_rank + config.kv_lora_rank * config.v_head_dim * config.attention_heads
