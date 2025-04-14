@@ -348,7 +348,7 @@ else
     # "trt" is a valid option but not in ALL_LIBRARIES
     # It does not get installed at the same time as the rest
     if [[ "$lib" == "trt" ]]; then
-        continue
+      continue
     fi
 
     if [[ ! " ${ALL_LIBRARIES[@]} " =~ " ${lib} " ]]; then
