@@ -63,15 +63,29 @@ def make_squad_hf_dataset(
     if limit_dataset_samples is not None:
         assert isinstance(limit_dataset_samples, int), "Expected limit_dataset_samples to be an int"
         splits = list(map(lambda x: f'{x}[:{limit_dataset_samples}]', splits))
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad",
-        split=splits,
-        micro_batch_size=micro_batch_size,
-        pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
-        pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-        num_replicas=num_replicas,
-        rank=rank,
-    )
+
+    if packed_sequence_size > 0:
+        # If packed_sequence_size > 0 instantiate HFDatasetDataModulePacked class
+        datamodule = llm.HFDatasetDataModulePacked(
+            "rajpurkar/squad",
+            packed_sequence_size=packed_sequence_size,
+            split=splits,
+            micro_batch_size=micro_batch_size,
+            pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
+            pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+            num_replicas=num_replicas,
+            rank=rank,            
+        )
+    else:
+        datamodule = llm.HFDatasetDataModule(
+            "rajpurkar/squad",
+            split=splits,
+            micro_batch_size=micro_batch_size,
+            pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
+            pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+            num_replicas=num_replicas,
+            rank=rank,
+        )
     ## tokenization is happening here
     datamodule.map(
         formatting_prompts_func,
@@ -240,8 +254,8 @@ def main():
         help='If set will limit num of dataset samples. Default None (disabled)',
     )
     parser.add_argument('--packed-sequence-size', type=int, default=-1, help='If a positive integer, this arg'
-    'enables training with sequence packing and specifies the pack size. If less than or equal to 0, sequence '
-    'packing is disabled.')
+    'enables training with sequence packing in case of HFDatasetDataModule class and specifies the pack size.'
+    'If less than or equal to 0, sequence packing is disabled.')
 
     args = parser.parse_args()
 
