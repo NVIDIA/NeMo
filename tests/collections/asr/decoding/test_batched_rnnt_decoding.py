@@ -708,7 +708,7 @@ def test_loop_labels_cuda_graph_rnnt_ddp_mixed_precision(an4_train_manifest_corr
     model.change_decoding_strategy(decoding_config)
 
     # instantiate trainer with bf16 mixed precision
-    trainer_cfg = TrainerConfig(devices=[0], accelerator="cuda", strategy="ddp", max_epochs=1, precision="32-true")
+    trainer_cfg = TrainerConfig(devices=[0], accelerator="cuda", strategy="ddp", max_epochs=1, precision="bf16-mixed")
     trainer = ptl.Trainer(**DictConfig(trainer_cfg))
 
     
