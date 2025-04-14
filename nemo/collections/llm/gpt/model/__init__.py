@@ -92,7 +92,7 @@ from nemo.collections.llm.gpt.model.llama_nemotron import (
     Llama31NemotronNano8BConfig,
     LlamaNemotronModel,
 )
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
+from nemo.collections.llm.gpt.model.mistral import CodestralConfig22B, MistralConfig7B, MistralModel, MistralNeMoConfig12B, MinistralConfig8B
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig,
     MixtralConfig8x3B,
@@ -156,6 +156,8 @@ __all__ = [
     "GPTConfig126M",
     "GPTConfig175B",
     "GPTModel",
+    "MinistralConfig8B",
+    "CodestralConfig22B",
     "MistralConfig7B",
     "MistralModel",
     "MistralNeMoConfig12B",

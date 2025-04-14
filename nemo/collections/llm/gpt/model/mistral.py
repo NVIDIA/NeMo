@@ -101,6 +101,36 @@ class MistralNeMoConfig123B(MistralConfig7B):
     rotary_base: float = 1000000.0
     params_dtype: torch.dtype = torch.bfloat16
 
+@dataclass
+class CodestralConfig22B(MistralConfig7B):
+    num_layers: int = 56
+    hidden_size: int = 6144
+    ffn_hidden_size: int = 16384
+    num_attention_heads: int = 48
+    kv_channels: int = 128
+    seq_length: int = 4096  # but   "max_position_embeddings": 32768,
+
+    window_size: List[int] = None
+    cp_comm_type: str = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
+    params_dtype: torch.dtype = torch.bfloat16
+
+@dataclass
+class MinistralConfig8B(MistralConfig7B):
+    num_layers: int = 36
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 12288
+    num_attention_heads: int = 32
+    kv_channels: int = 128
+    seq_length: int = 4096 # but   "max_position_embeddings": 32768,
+
+    window_size: List[int] = None
+    cp_comm_type: str = None
+    rotary_percent: float = 1.0
+    rotary_base: float = 1000000.0
+    params_dtype: torch.dtype = torch.bfloat16
+    vocab_size: int = 131072
 
 class MistralModel(GPTModel):
     """ """
@@ -212,6 +242,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             window_size=window_size,
             cp_comm_type=cp_comm_type,
             share_embeddings_and_output_weights=False,
+            vocab_size=source.vocab_size,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -320,5 +351,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
 
 __all__ = [
     "MistralConfig7B",
+    "CodestralConfig22B",
+    "MinistralConfig8B",
     "MistralModel",
 ]
