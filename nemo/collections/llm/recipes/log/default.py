@@ -89,18 +89,27 @@ def get_global_step_from_global_checkpoint_path(path: Union[str, Path]) -> int:
 
     # Get directory name from path
     if isinstance(path, Path):
-        dir_name = path.name
+        # Get parent directory if the path ends with "weights"
+        if path.name == "weights":
+            dir_name = path.parent.name
+        else:
+            dir_name = path.name
     else:
-        dir_name = os.path.basename(os.path.normpath(path))
+        norm_path = os.path.normpath(path)
+        # Get parent directory if the path ends with "weights"
+        if os.path.basename(norm_path) == "weights":
+            dir_name = os.path.basename(os.path.dirname(norm_path))
+        else:
+            dir_name = os.path.basename(norm_path)
 
     # Format from above is {model_name}--{val_loss:.2f}-{step}-{consumed_samples}
-    assert "--" in dir_name, "Unexpected path format found for {path}"
+    assert "--" in dir_name, f"Unexpected path format found for {path}"
 
     # Find the parts after '--'
     double_dash_index = dir_name.index('--')
     remaining = dir_name[double_dash_index + 2 :]  # Skip the '--' itself
     parts = remaining.split('-')
-    assert len(parts) == 3, "Unexpected path format found for {path}"
+    assert len(parts) > 1, f"Unexpected path format found for {path}"
     # Global step should be at index 1
     step = int(parts[1])
 
