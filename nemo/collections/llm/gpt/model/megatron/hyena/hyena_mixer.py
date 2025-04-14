@@ -242,6 +242,7 @@ class HyenaMixer(MegatronModule):
 
                             x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
                             result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+                            result = result[..., self.pad_size:]  # Remove padding from output
                             result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
                         else:
                             # Add proper causal padding for the non-CP case
