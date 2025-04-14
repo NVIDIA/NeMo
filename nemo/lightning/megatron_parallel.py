@@ -1798,9 +1798,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             assert num_valid_tokens_in_ub == 0, "Got NaN loss with non-empty input"
             loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
 
-        loss_sum_and_ub_size = torch.cat(
-            [loss_sum_for_ub.clone().detach().view(1), num_valid_tokens_in_ub]
-        )
+        loss_sum_and_ub_size = torch.cat([loss_sum_for_ub.clone().detach().view(1), num_valid_tokens_in_ub])
         return loss_sum_for_ub, num_valid_tokens_in_ub, {"loss_sum_and_ub_size": loss_sum_and_ub_size}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
