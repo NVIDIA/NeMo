@@ -222,7 +222,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         ):
             # Automodel adapter restoration is handled in restore_automodel.
             return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
-        elif getattr(self, 'transform_already_applied', False) == True: #
+        elif getattr(self, 'transform_already_applied', False) == True or self.automodel_setup_optimizers is not None:
             if self.automodel_setup_optimizers is not None:
                 logging.info("Setting up optimizers")
                 self.automodel_setup_optimizers(trainer)
