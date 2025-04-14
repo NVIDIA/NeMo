@@ -1774,34 +1774,18 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             num_valid_tokens_in_ub += 1.0
         num_valid_tokens_in_ub = num_valid_tokens_in_ub.clone().detach().to(torch.int)
 
-        if self.validation_step and not self.val_drop_last:
-            if loss_sum_for_ub.isnan():
-                assert num_valid_tokens_in_ub == 0, "Got NaN loss with non-empty input"
-                loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
+        if self.validation_step and not self.val_drop_last and loss_sum_for_ub.isnan():
+            assert num_valid_tokens_in_ub == 0, "Got NaN loss with non-empty input"
+            loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
 
-            loss_sum_and_ub_size_all_gpu = torch.cat(
-                [loss_sum_for_ub.clone().detach().view(1), num_valid_tokens_in_ub]
-            )
-            return loss_sum_for_ub, num_valid_tokens_in_ub, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
-
-        loss_for_ub = (loss_sum_for_ub.clone().detach().view(1)) / num_valid_tokens_in_ub
-        return loss_sum_for_ub, num_valid_tokens_in_ub, {"avg": loss_for_ub}
+        loss_sum_and_ub_size = torch.cat(
+            [loss_sum_for_ub.clone().detach().view(1), num_valid_tokens_in_ub]
+        )
+        return loss_sum_for_ub, num_valid_tokens_in_ub, {"loss_sum_and_ub_size": loss_sum_and_ub_size}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
         if losses_reduced_per_micro_batch:
-            if "avg" in losses_reduced_per_micro_batch[0]:
-                from nemo.collections.nlp.modules.common.megatron.utils import (
-                    average_losses_across_data_parallel_group,
-                )
-
-                loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.concat(loss_tensors_list).mean()
-                reduced_loss = average_losses_across_data_parallel_group([loss_tensor])
-
-                return reduced_loss
-
-            # Get the total loss since micro batches sizes are not uniform
             loss_sum_tensors_list: List[torch.Tensor] = [
                 loss_sum["loss_sum_and_ub_size"]
                 for loss_sum in losses_reduced_per_micro_batch
@@ -1813,7 +1797,10 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                 else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
             )
             torch.distributed.all_reduce(loss_sum, group=parallel_state.get_data_parallel_group())
-            return loss_sum
+            if self.validation_step and not self.val_drop_last:
+                return loss_sum
+            else:
+                return loss_sum[0] / loss_sum[1]
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
 
