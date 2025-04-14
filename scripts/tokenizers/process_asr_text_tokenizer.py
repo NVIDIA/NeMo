@@ -144,6 +144,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--spe_normalization_rule_name",
+    default=None,
+    type=str,
+    help="Normalization rule name for SentencePiece. If not provided, will use the default normalization rule.",
+)
+
+parser.add_argument(
     '--spe_sample_size',
     type=int,
     default=-1,
@@ -221,6 +228,7 @@ def __process_data(
     spe_type: str,
     spe_character_coverage: float,
     spe_train_extremely_large_corpus: bool,
+    spe_normalization_rule_name: str,
     spe_sample_size: int,
     spe_max_sentencepiece_length: int,
     spe_split_by_unicode_script: bool,
@@ -296,6 +304,7 @@ def __process_data(
             vocab_size=vocab_size,
             sample_size=spe_sample_size,
             do_lower_case=lower_case,
+            normalization_rule_name=spe_normalization_rule_name,
             output_dir=tokenizer_dir,
             tokenizer_type=spe_type,
             character_coverage=spe_character_coverage,
@@ -335,6 +344,7 @@ def main():
     spe_type = args.spe_type
     spe_character_coverage = args.spe_character_coverage
     spe_sample_size = args.spe_sample_size
+    spe_normalization_rule_name= args.spe_normalization_rule_name
     spe_train_extremely_large_corpus = args.spe_train_extremely_large_corpus
     spe_max_sentencepiece_length = args.spe_max_sentencepiece_length
     spe_split_by_unicode_script = args.spe_split_by_unicode_script
@@ -365,6 +375,7 @@ def main():
         lower_case=lower_case,
         spe_character_coverage=spe_character_coverage,
         spe_sample_size=spe_sample_size,
+        spe_normalization_rule_name=spe_normalization_rule_name,
         spe_train_extremely_large_corpus=spe_train_extremely_large_corpus,
         spe_max_sentencepiece_length=spe_max_sentencepiece_length,
         spe_split_by_unicode_script=spe_split_by_unicode_script,
