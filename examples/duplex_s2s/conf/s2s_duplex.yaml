@@ -119,6 +119,7 @@ data:
 #        shar_path: /home/pzelasko/exp/duplex_s2s/timestamp_train
     seed: 42
     shard_seed: "randomized"
+    shuffle: true
     num_workers: 2
 
     batch_size: 16

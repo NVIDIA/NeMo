@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import re
 import warnings
+from collections import Counter
 
 import torch
 import torch.utils.data
@@ -22,6 +24,7 @@ from lhotse.dataset.collation import collate_audio, collate_vectors
 from lhotse.utils import ifnone
 
 from nemo.collections.common.tokenizers import TokenizerSpec
+from nemo.collections.duplex_s2s.data.dataloader_debug_client import get_dataloader_debug_client
 from nemo.utils import logging
 
 
@@ -49,6 +52,8 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
         assert tokenizer.bos is not None, "BOS support in the tokenizer is required for S2S models."
         assert tokenizer.eos is not None, "EOS support in the tokenizer is required for S2S models."
 
+        self._step = 0
+
     def __getitem__(self, cuts: CutSet) -> dict:
         cuts = cuts.transform_text(_strip_timestamps)
         source_audio, source_audio_lens = collate_audio(cuts.resample(self.source_sample_rate))
@@ -61,6 +66,19 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
         source_tokens, source_token_lens = collate_token_channel(
             cuts, self.tokenizer, self.frame_length, roles=self.input_roles
         )
+
+        if os.environ.get("NEMO_ENABLE_DEBUG_DATASET", False):
+            get_dataloader_debug_client().send_metrics(
+                {
+                    "step": self._step,
+                    "batch_size": source_audio.shape[0],
+                    "sequence_length": target_tokens.shape[1],
+                    "cut_ids": [c.id for c in cuts],
+                    **Counter([str(c.shard_origin) for c in cuts]),
+                }
+            )
+        self._step += 1
+
         return {
             "source_audio": source_audio,
             "source_audio_lens": source_audio_lens,
