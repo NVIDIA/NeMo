@@ -262,7 +262,8 @@ class MockLlama4Dataset(Dataset):
         self.image_processor = image_processor
 
         self.vocab_size = 200000
-        self.image_height, self.image_width = 336, 336
+        size = image_processor.size
+        self.image_height, self.image_width = size["height"], size["width"]
 
         self.length = num_samples
         self.seed = seed

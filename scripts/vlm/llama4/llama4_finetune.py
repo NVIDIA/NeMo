@@ -55,6 +55,7 @@ def main(args):
         decoder_seq_length = 4096
         llama4_config.vision_transformer_config.num_layers = 2
         llama4_config.language_transformer_config.num_layers = 2
+        llama4_config.language_transformer_config.num_moe_experts = 2
         num_workers = 0
 
     if args.data_type == "llava":
@@ -94,7 +95,7 @@ def main(args):
     # Training strategy setup
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
-        expert_tensor_parallel_size=args.tp_size,
+        expert_tensor_parallel_size=1,
         expert_model_parallel_size=args.ep_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,

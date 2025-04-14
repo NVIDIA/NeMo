@@ -267,6 +267,7 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
 
 
 def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+    # pylint: disable=C0115,C0116
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, -1])
