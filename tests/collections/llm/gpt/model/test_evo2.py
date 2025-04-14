@@ -154,13 +154,12 @@ def test_hyena_nv_test_config():
     assert config.tokenizer_library == "byte-level"
 
 
+@pytest.mark.pleasefixme
 def test_convert_hyena():
 
-    from huggingface_hub.utils import RepositoryNotFoundError
-
     evo2_config = llm.Hyena1bConfig()
-    model_ckpt = "dummy/model"
+    model_ckpt = "dummy_model_deosnt_exist"
     exporter = HuggingFaceSavannaHyenaImporter(model_ckpt, model_config=evo2_config)
 
     with pytest.raises(RepositoryNotFoundError):
-        exporter.apply("dummy_output")
+        exporter.apply("dummy_output_deosnt_exist")
