@@ -19,8 +19,8 @@ from megatron.core import parallel_state
 from megatron.core.models.gpt import GPTModel
 from megatron.core.utils import get_batch_on_this_cp_rank
 
-from nemo.tron.config import ConfigContainer
-from nemo.tron.llm.utils import get_batch_on_this_tp_rank
+from nemo.tron.config import ConfigContainer, FinetuningDatasetConfig
+from nemo.tron.llm.utils import get_batch_from_iterator, get_batch_on_this_tp_rank
 from nemo.tron.losses import masked_next_token_loss
 from nemo.tron.state import GlobalState
 
@@ -31,8 +31,11 @@ def get_batch(data_iterator, cfg: ConfigContainer):
     if (not parallel_state.is_pipeline_first_stage()) and (not parallel_state.is_pipeline_last_stage()):
         return None, None, None, None, None
 
-    # get batches based on the TP rank you are on
-    batch = get_batch_on_this_tp_rank(data_iterator, cfg)
+    if isinstance(cfg.dataset_config, FinetuningDatasetConfig):
+        batch = get_batch_from_iterator(data_iterator)
+    else:
+        # get batches based on the TP rank you are on
+        batch = get_batch_on_this_tp_rank(data_iterator, cfg)
 
     # slice batch along sequence dimension for context parallelism
     batch = get_batch_on_this_cp_rank(batch)
