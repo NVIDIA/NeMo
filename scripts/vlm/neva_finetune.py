@@ -185,7 +185,7 @@ def main(args):
         encoder_tensor_model_parallel_size=args.encoder_tp_size,
         context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=True,
+        sequence_parallel=True if args.encoder_pp_size > 0 else False,
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
