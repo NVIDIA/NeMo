@@ -97,6 +97,13 @@ def worker_init_fn(worker_id):
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
 
 
+def cosine_schedule(x: torch.Tensor):
+    """
+    Maps input values from [0, 1] to [1, 0] using the first quadrant of the cosine function (resulting in a concave shape)
+    Used for MaskGit mask scheduling.
+    """
+    return torch.cos(x * (torch.pi / 2))
+
 class MagpieTTSModel(ModelPT):
     """
     Magpie-TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context
@@ -155,7 +162,7 @@ class MagpieTTSModel(ModelPT):
                 cfg.num_audio_tokens_per_codebook - 4
             )  # Changing these to make them different from target audio bos and eos
             self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 3
-
+        self.mask_token_id = cfg.num_audio_tokens_per_codebook - 5
         self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
 
@@ -354,7 +361,7 @@ class MagpieTTSModel(ModelPT):
             )
             return speaker_embeddings
 
-    def compute_local_transformer_logits(self, dec_out, audio_codes_target):
+    def compute_local_transformer_logits(self, dec_out, audio_codes_target, targets_offset_by_one=False):
         """
         Loss from the autoregressive codebook predictor (used per frame)
         """
@@ -372,7 +379,12 @@ class MagpieTTSModel(ModelPT):
         local_transformer_input = self.local_transformer_in_projection(local_transformer_input) # (B*T', C+1, 128)
         _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
         local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B*T', C+1, E)
-        local_transformer_output = local_transformer_output[:, :-1, :] # (B*T', C, E)
+        if not targets_offset_by_one:
+            # for autoregressive local transformer the target for index 0 is codebook 0, for index 1 is codebook 1, etc.
+            local_transformer_output = local_transformer_output[:, :-1, :] # (B*T', C, E)
+        else:
+            # for MaskGit the target for index **1** is codebook 0, for index **2** is codebook 1, etc.
+            local_transformer_output = local_transformer_output[:, 1:, :] # (B*T', C, E)
         all_code_logits = []
         for codebook_num in range(audio_codes_target.size(1)):
             # Using a separate projection layer for each codebook (to distinguish between them)
@@ -385,13 +397,68 @@ class MagpieTTSModel(ModelPT):
             audio_codes_target.size(0), audio_codes_target.size(2), -1
         ) # (B, T', C * num_audio_tokens_per_codebook)
 
-        return all_code_logits
+        return all_code_logits    
 
-    def compute_loss(self, logits, audio_codes, audio_codes_lens):
+    def maskgit_create_mask(self, codes):
+        """
+        Creates a mask where True indicates the positions that should be replaced with a MASK token.
+        """
+        # Codes: (B, C, T)
+        B,C,T = codes.shape
+
+        # get a uniform random vector uniformly sampled from [0,1) ## Todo does it need to be inclusive on the right?
+        rand_values = torch.rand(B,T, device=codes.device)
+        # apply the cosine schedule 
+        frac_masked = cosine_schedule(rand_values)
+        # how many positions to mask
+        n_masked = torch.ceil(frac_masked * C).long() # B,T
+        # start from all unmasked
+        mask = torch.zeros_like(codes, dtype=torch.bool)
+
+        # # Further below is a vectorized version of this:
+        #  for b in range(B):
+        #      for t in range(T):
+        #          if n_masked[b,t] > 0:
+        #              # get a random permutation of the codebook indices
+        #              perm = torch.randperm(C)
+        #              # mask the top n_masked positions
+        #              mask[b, perm[:n_masked[b,t]], t] = True
+        #
+    
+        # Create random permutations 
+        random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)
+        
+        # Create a mask tensor where each position indicates if it should be masked        
+        mask_indices = torch.arange(C, device=codes.device).view(1, C, 1)
+        mask = mask_indices < n_masked.view(B, 1, T) # (B, C, T)
+
+        # Apply the random permutations to the mask
+        mask = torch.gather(mask, 1, random_permutations)
+    
+        return mask
+    
+    def maskgit_apply_random_mask(self, codes):
+        # Codes: (B, C, T)
+        # create random mask (with proportions determined by the cosine schedule)
+        mask = self.maskgit_create_mask(codes)
+        ## replace some tokens with MASK token
+        codes_with_mask = torch.where(mask, self.mask_token_id, codes)
+        return codes_with_mask, mask    
+
+    def compute_loss(self, logits, audio_codes, audio_codes_lens, mask_tokens_mask=None):
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # audio_codes: (B, C, T')
         # audio_codes_lens: (B,)
         loss_mask = get_mask_from_lengths(audio_codes_lens)
+        if mask_tokens_mask is not None:
+            # For MaskGit we only compute loss for the masked tokens.
+            # *Both* conditions must be true:
+            # 1. the token is masked
+            # 2. the token is not padding
+            loss_mask = loss_mask.unsqueeze(1) * mask_tokens_mask
+        else:            
+            # repeat loss mask for each codebook to simplify code below
+            loss_mask = loss_mask.unsqueeze(1).repeat(1, audio_codes.size(1), 1)
         total_codebook_loss = None
         for codebook in range(audio_codes.size(1)):
             si = codebook * self.cfg.num_audio_tokens_per_codebook
@@ -401,8 +468,8 @@ class MagpieTTSModel(ModelPT):
             codebook_loss = self.cross_entropy_loss(
                 codebook_logits.permute(0, 2, 1), codebook_targets  # (B, num_tokens_per_codebook, T')
             )  # (B, T')
-            codebook_loss = codebook_loss * loss_mask
-            codebook_loss = codebook_loss.sum() / loss_mask.sum()
+            codebook_loss = codebook_loss * loss_mask[:, codebook, :]
+            codebook_loss = codebook_loss.sum() / loss_mask[:, codebook, :].sum()
             if total_codebook_loss is None:
                 total_codebook_loss = codebook_loss
             else:
@@ -1008,8 +1075,15 @@ class MagpieTTSModel(ModelPT):
         local_transformer_loss = None
         local_transformer_logits = None
         if self.cfg.get('use_local_transformer', False):
-            local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target)
-            local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target)
+            if self.cfg.get('use_local_maskgit', False):
+                # randomly replace some positions with MASK token
+                audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
+                #audio_codes_masked = audio_codes_masked[:, 1:, :]
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
+            else:            
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target)
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
             local_transformer_loss_scale = self.cfg.get('local_transformer_loss_scale', 1.0)
             loss = loss + local_transformer_loss_scale * local_transformer_loss
 
