@@ -25,10 +25,10 @@ from tqdm import tqdm
 import lightning.pytorch as ptl
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedRNNTInfer
 from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.core.utils import numba_utils
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
@@ -587,6 +587,7 @@ class TestTransducerCudaGraphBeamDecoding:
     """
     Tests CudaGraphs implementations from Transducer models (RNN-T and TDT)
     """
+
     @pytest.mark.with_downloads
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
     @pytest.mark.parametrize("force_mode", ["no_graphs", "no_while_loops", "full_graph"])
@@ -648,7 +649,9 @@ class TestTransducerCudaGraphBeamDecoding:
                     print("New transcript:", fast)
 
     @pytest.mark.with_downloads
-    @pytest.mark.skipif(not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()), reason="CUDA decoder can run only on CUDA")
+    @pytest.mark.skipif(
+        not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()), reason="CUDA decoder can run only on CUDA"
+    )
     @pytest.mark.parametrize("model_type", ["rnnt", "tdt"])
     def test_stated_stateless_bf16(self, test_audio_filenames, rnnt_model, tdt_model, model_type):
         """
