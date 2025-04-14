@@ -103,13 +103,6 @@ def override_recipe_configs(
         args.wandb_job_name,
     )
 
-    # modify model to proxy
-    if args.proxy_num_layers is not None:
-        recipe.model.config.num_layers = args.proxy_num_layers
-        recipe.model.config.moe_layer_freq = [0] * 3 + [1] * (args.proxy_num_layers - 3)
-    if args.proxy_num_experts is not None:
-        recipe.model.config.num_moe_experts = args.proxy_num_experts
-
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     recipe.model.tokenizer = recipe.data.tokenizer
