@@ -77,6 +77,19 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
+    # a few test configs to be deleted later
+    recipe.model.config.num_layers = 2
+
+    # a few other optimization args
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_loss_fusion = True
+    recipe.model.config.moe_permute_fusion = True
+    recipe.model.config.moe_shared_expert_overlap = True
+    # all the fusions
+    recipe.model.config.apply_rope_fusion = True
+    recipe.model.config.bias_activation_fusion = True
+    recipe.model.config.bias_dropout_fusion = True
+
     return recipe
 
 
@@ -84,7 +97,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "8b", args)
+    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e16", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs, _, _, _ = kwargs
 
     recipe = override_recipe_configs(
@@ -108,7 +121,7 @@ if __name__ == "__main__":
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
-
+    
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -118,6 +131,7 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+
 
     with run.Experiment(exp_name) as exp:
         exp.add(

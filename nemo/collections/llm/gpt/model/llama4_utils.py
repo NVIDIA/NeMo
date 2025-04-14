@@ -425,6 +425,7 @@ class L2Norm(torch.nn.Module):
         self.hidden_size = hidden_size
         self.eps = eps
 
+    @torch.compile
     def _norm(self, x):
         """
         Performs the actual L2 normalization.
@@ -435,7 +436,8 @@ class L2Norm(torch.nn.Module):
         Returns:
             torch.Tensor: The L2-normalized tensor.
         """
-        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        x_float = x.float()
+        return (x_float * torch.rsqrt(x_float.pow(2).mean(-1, keepdim=True) + self.eps)).type_as(x)
 
     def forward(self, x):
         """
@@ -447,4 +449,4 @@ class L2Norm(torch.nn.Module):
         Returns:
             torch.Tensor: L2-normalized tensor with the same dtype as input.
         """
-        return self._norm(x.float()).type_as(x)
+        return self._norm(x)
