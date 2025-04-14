@@ -24,7 +24,6 @@ import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torch.nn import functional as F
 
 from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import packed_block_causal_mask, HFDatasetPackedSequenceHelper
 from nemo.utils import logging
