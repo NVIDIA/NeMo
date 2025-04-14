@@ -273,7 +273,7 @@ class BatchedBeamHyps:
             )
             torch.where(is_extended, timesteps + next_label_durations, timesteps, out=self.next_timestamp)
             torch.where(
-                is_extended & next_label_durations > 0,
+                is_extended & (next_label_durations > 0),
                 self.ZERO_TENSOR,
                 torch.gather(self.last_timestamp_lasts, dim=-1, index=next_indices) + extended_with_label,
                 out=self.last_timestamp_lasts,
@@ -283,17 +283,14 @@ class BatchedBeamHyps:
             torch.gather(self.current_lengths_nb, dim=-1, index=next_indices) + extended_with_label
         )
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
-        torch.where(is_extended, 
-            next_hyps_prob, torch.gather(self.scores, dim=-1, index=next_indices), out=self.scores
-        )
-
+        self.scores.copy_(next_hyps_prob)
+        
         prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=next_indices)
-        last_labels = torch.gather(self.last_label, dim=-1, index=next_indices)
         # track last label
         torch.where(
             extended_with_label,
             next_labels,
-            last_labels,
+            torch.gather(self.last_label, dim=-1, index=next_indices),
             out=self.last_label,
         )
 

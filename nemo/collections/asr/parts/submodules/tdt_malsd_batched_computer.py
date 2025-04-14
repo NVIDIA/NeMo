@@ -288,7 +288,6 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         if ngram_lm_model is not None:
             expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
@@ -503,7 +502,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 hyps_scores,
             )
             # mark the labels corresponding to final hypotheses with negative label (e.g., -1)
-            labels_top_k = torch.where(active_mask.unsqueeze(-1), labels_top_k, -1)
+            labels_top_k = torch.where(active_mask.unsqueeze(-1), labels_top_k, NON_EXISTENT_LABEL_VALUE)
 
             # step 2.3: force blank extension with respect to self.max_symbols
             if self.max_symbols is not None:
@@ -1246,3 +1245,4 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             return self.modified_alsd_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
         return self.modified_alsd_torch(encoder_output=x, encoder_output_length=out_len)
+        # return self.modified_alsd_beam_torch_old(encoder_output=x, encoder_output_length=out_len)
