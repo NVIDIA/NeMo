@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# WAR for trtllm and lightning conflict
-try:
-    from nemo.lightning import io
+mkdir tests/collections/llm/squad_download
 
-    __all__ = ["io"]
-except (ImportError, ModuleNotFoundError):
-    pass
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/megatron_t5_finetuning.py \
+    --devices=2 \
+    --max-steps=250 \
+    --data-dir=tests/collections/llm/squad_download \
+    --experiment-dir=tests/collections/llm/t5_finetune_squad_redownload_results/$RUN_ID \
+    --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_padding_attnmasktype_150steps
