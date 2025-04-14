@@ -102,9 +102,9 @@ class FLOPsMeasurementCallback(Callback):
             config_kwargs["v_head_dim"] = self.model_cfg.v_head_dim
             config_kwargs["q_lora_rank"] = self.model_cfg.q_lora_rank
             config_kwargs["kv_lora_rank"] = self.model_cfg.kv_lora_rank
-            config_kwargs["moe_layer_freq"] = self.model_cfg.moe_layer_freq
-            config_kwargs["moe_shared_expert_intermediate_size"] = self.model_cfg.moe_shared_expert_intermediate_size
-            config_kwargs["moe_ffn_hidden_size"] = self.model_cfg.moe_ffn_hidden_size
+        config_kwargs["moe_layer_freq"] = self.model_cfg.moe_layer_freq
+        config_kwargs["moe_shared_expert_intermediate_size"] = self.model_cfg.moe_shared_expert_intermediate_size
+        config_kwargs["moe_ffn_hidden_size"] = self.model_cfg.moe_ffn_hidden_size
 
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
