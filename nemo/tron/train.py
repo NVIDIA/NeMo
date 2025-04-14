@@ -134,7 +134,7 @@ def train(
                 repeat=1,
             ),
             on_trace_ready=torch.profiler.tensorboard_trace_handler(config.logger_config.tensorboard_dir),
-            record_shapes=True,
+            record_shapes=prof_config.record_shapes,
             with_stack=True,
         )
         prof.start()
@@ -168,8 +168,8 @@ def train(
                 if prof_config.use_pytorch_profiler:
                     prof.step()
                 elif global_state.train_state.step == prof_config.profile_step_start:
-                    torch.cuda.cudart().cudaProfilerStart()
-                    torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+                    torch.cuda.check_error(torch.cuda.cudart().cudaProfilerStart())
+                    torch.autograd.profiler.emit_nvtx(record_shapes=prof_config.record_shapes).__enter__()
 
         fault_tolerance.on_checkpointing_start(global_state)
         maybe_finalize_async_save(ckpt_cfg=config.checkpoint_config, blocking=False)
@@ -529,7 +529,7 @@ def post_training_step_callbacks(
             assert prof is not None
             prof.stop()
         else:
-            torch.cuda.cudart().cudaProfilerStop()
+            torch.cuda.check_error(torch.cuda.cudart().cudaProfilerStop())
 
     # Manual garbage collection.
     if train_config.manual_gc:

@@ -241,6 +241,9 @@ class ProfilingConfig:
     memory_snapshot_path: str = "snapshot.pickle"
     """Specifies where to dump the memory history pickle."""
 
+    record_shapes: bool = False
+    """Record shapes of tensors."""
+
 
 @dataclass(kw_only=True)
 class LoggerConfig:
