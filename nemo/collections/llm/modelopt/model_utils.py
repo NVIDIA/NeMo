@@ -77,7 +77,7 @@ def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> 
     if not modelopt_state_path.exists() or hasattr(model, "module"):
         return
 
-    if isinstance(model, (llm.GPTModel, "llm.MambaModel")):
+    if isinstance(model, (llm.GPTModel, llm.MambaModel)):
         _set_gpt_mamba_modelopt_spec(model.config)
 
         # Disable gradient accumulation fusion for QAT
@@ -100,7 +100,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     strategy_kwargs: dict | None = None,
     trainer_kwargs: dict | None = None,
     model_config_overrides: dict | None = None,
-) -> tuple[Union[llm.GPTModel, "llm.MambaModel"], nl.Trainer]:
+) -> tuple[Union[llm.GPTModel, llm.MambaModel], nl.Trainer]:
     """Loads a GPT model from a NeMo 2.0 checkpoint using modelopt layer spec.
 
     Args:
@@ -119,7 +119,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
         model_config_overrides (Optional[dict]): keyword arguments to override model config.
 
     Returns:
-        Union[llm.GPTModel, "llm.MambaModel"]: The loaded model with the specified configuration.
+        Union[llm.GPTModel, llm.MambaModel]: The loaded model with the specified configuration.
     """
     if strategy_kwargs is None:
         strategy_kwargs = {}
