@@ -397,8 +397,9 @@ class Llama4Config(Llama3Config):
     moe_ffn_hidden_size: int = 8192
     moe_router_topk: int = 1
     moe_router_pre_softmax: bool = False
-    moe_router_score_function: str = 'sigmoid'
+    moe_router_score_function: str = "sigmoid"
     moe_token_dispatcher_type: str = "alltoall"
+    moe_router_dtype: str = "fp32"
     # Configs that are overwritten in subclass models
     qk_l2_norm: bool = True
     rope_scaling: bool = True
