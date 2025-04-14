@@ -214,9 +214,6 @@ class PEFT(IOMixin, ABC, ModelTransform):
         if not getattr(self, 'transform_already_applied', False):
             super().apply_transform(trainer)
         self.set_params_to_save(trainer)
-        # @akoumparouli: only used with automodel + FSDP2Strategy.
-        if callable(getattr(trainer.strategy, 'parallelize', None)):
-            trainer.strategy.parallelize()
 
         # Handle automodel and return early.
         if (
@@ -225,9 +222,11 @@ class PEFT(IOMixin, ABC, ModelTransform):
         ):
             # Automodel adapter restoration is handled in restore_automodel.
             return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
-        elif getattr(self, 'automodel_setup_optimizers', None) is not None:
-            logging.info("Setting up optimizers")
-            self.automodel_setup_optimizers(trainer)
+        elif getattr(self, 'transform_already_applied', False) == True: #
+            if self.automodel_setup_optimizers is not None:
+                logging.info("Setting up optimizers")
+                self.automodel_setup_optimizers(trainer)
+                self.automodel_setup_optimizers = None
             return
 
         adapter_sharded_state_dict = {}
