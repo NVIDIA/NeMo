@@ -329,7 +329,7 @@ class WER(Metric):
         if self.log_prediction:
             logging.info("\n")
             logging.info(f"reference:{references[0]}")
-            if type(hypotheses)==list:
+            if type(hypotheses) == list:
                 if type(hypotheses[0]) == Hypothesis:
                     logging.info(f"predicted:{hypotheses[0].text}")
                 elif type(hypotheses[0]) == list and type(hypotheses[0][0]) == Hypothesis:
