@@ -212,8 +212,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         test_aliases (list, optional): Alternative names for the test split. Defaults to ["test", "testing"].
         val_aliases (list, optional): Alternative names for the validation split.
             Defaults to ["val", "validation", "valid", "eval"].
-        packed_sequence_size (int): If a positive integer, this arg enables training with sequence packing and
-        specifies the pack size. If less than or equal to 0, sequence packing is disabled. Deafult: -1.
         **kwargs: Additional arguments passed to `datasets.load_dataset`.
 
     Raises:
@@ -305,9 +303,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.pad_token_id = pad_token_id
         self.use_dist_sampler = use_dist_sampler
         self.pad_seq_len_divisible = pad_seq_len_divisible
-        self.packed_sequence_size = packed_sequence_size
-        self.split_across_pack = split_across_pack
-        self.max_packs = max_packs
 
         # TODO: refractor this
         self.num_replicas = num_replicas
@@ -321,17 +316,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     def collate_fn(self, batch, pad_token_id=0, pad_seq_len_divisible=None):
         """Default batch collator"""
-        # If packing create the attn_mask and append it to the batch
-        if self.packed_sequence_size > 0:
-            seq_lens = [x["seq_lens"] for x in batch]
-            block_mask = packed_block_causal_mask(
-                        seq_lens=seq_lens,
-                    )
-
-            ## add block_mask to the batch
-            for i, item in enumerate(batch):
-                item['mask'] = block_mask[i].tolist()  # Convert tensor to list for compatibility
-
         return {
             key: batchify(
                 torch.LongTensor(
@@ -359,13 +343,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         else:
             return None
 
-    def _make_dataloader(self, dataset, split, collate_fn=None):
+    def _make_dataloader(self, dataset, collate_fn=None):
         """Dataloader creator"""
         assert dataset is not None
-        # Pack the sequences in the dataset if packed_sequence_size > 0
-        if self.packed_sequence_size > 0:
-            packed_seq_class = HFDatasetPackedSequenceHelper(dataset, split)
-            dataset = packed_seq_class.pack(self.packed_sequence_size, self.split_across_pack, self.max_packs)
         if collate_fn is None:
             collate_fn = lambda x: self.collate_fn(
                 x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible
@@ -398,15 +378,15 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         """Returns the train dataloader"""
-        return self._make_dataloader(self.train, "train", self._collate_fn)
+        return self._make_dataloader(self.train, self._collate_fn)
 
     def val_dataloader(self):
         """Returns the validation dataloader"""
-        return self._make_dataloader(self.val, "val", self._collate_fn)
+        return self._make_dataloader(self.val, self._collate_fn)
 
     def test_dataloader(self):
         """Returns the test dataloader"""
-        return self._make_dataloader(self.test, "test", self._collate_fn)
+        return self._make_dataloader(self.test, self._collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
         """Maps a function to all/selected splits
@@ -423,6 +403,68 @@ class HFDatasetDataModule(pl.LightningDataModule):
         for split_name in split_names:
             if not self.dataset_splits[split_name] is None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
+
+class HFDatasetDataModulePacked(HFDatasetDataModule):
+    """
+    Inherits HFDatasetDataModule class and overrides methods for adding packing functionality.
+    Args:
+        path_or_dataset (str | Dataset | DatasetDict): The dataset name from HF or a preloaded dataset.
+        packed_sequence_size (int): Specifies the number of tokens to pack.
+        split_across_pack [Optional(bool)]: If the last sample in a pack does not fit in ``packed_sequence_size``,
+        split the sample into the next pack, or move it entirely to the beginning of the next pack.
+        For pre-training, typically this is set to True for general text completion. For fine-tuning, typically this
+        is set to False to avoid truncating sentences in instruct tuning. Default is False.
+        max_packs (int): Maximum number of packs.
+    """
+    def __init__(
+            self,
+            path_or_dataset,
+            packed_sequence_size,
+            split_across_pack: bool = False,
+            max_packs: int =None,
+            **kwargs
+        ):
+        super().__init__(path_or_dataset, **kwargs)
+        self.packed_sequence_size = packed_sequence_size
+        self.split_across_pack = split_across_pack
+        self.max_packs = max_packs
+
+    def collate_fn(self, batch, pad_token_id=0, pad_seq_len_divisible=None):
+        """
+        Creates the attn_mask and append it to the batch as its required in case of packed sequences. Then calls
+        HFDatasetDataModule's collate_fn.
+        """
+        seq_lens = [x["seq_lens"] for x in batch]
+        block_mask = packed_block_causal_mask(
+                    seq_lens=seq_lens,
+                )
+
+        ## add block_mask to the batch
+        for i, item in enumerate(batch):
+            item['mask'] = block_mask[i].tolist()  # Convert tensor to list for compatibility
+        return super().collate_fn(batch, pad_token_id, pad_seq_len_divisible)
+
+    def _make_dataloader(self, dataset, split, collate_fn=None):
+        """
+        Pack the sequences in the dataset and then call HFDatasetDataModule's _make_dataloader()
+        """
+        assert dataset is not None
+        packed_seq_helper_class = HFDatasetPackedSequenceHelper(dataset, split)
+        dataset = packed_seq_helper_class.pack(self.packed_sequence_size, self.split_across_pack, self.max_packs)
+        return super()._make_dataloader(dataset, collate_fn)
+
+    def train_dataloader(self):
+        """Returns the train dataloader"""
+        return self._make_dataloader(self.train, "train", self._collate_fn)
+
+    def val_dataloader(self):
+        """Returns the validation dataloader"""
+        return self._make_dataloader(self.val, "val", self._collate_fn)
+
+    def test_dataloader(self):
+        """Returns the test dataloader"""
+        return self._make_dataloader(self.test, "test", self._collate_fn)
+
 
 class HellaSwagHFDataModule(HFDatasetDataModule):
     """A data module for handling the HellaSwag dataset using HFDatasetDataModule."""
