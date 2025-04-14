@@ -17,9 +17,6 @@ from typing import Optional
 
 import torch
 from megatron.core import mpu
-from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
-from megatron.core.datasets.gpt_dataset import GPTDataset, MockGPTDataset
 from megatron.core.datasets.utils import get_blend_from_list
 from megatron.core.rerun_state_machine import RerunDataIterator
 
@@ -82,37 +79,6 @@ def get_blend_and_blend_per_split(
     return blend, blend_per_split
 
 
-def is_dataset_built_on_rank():
-    return (
-        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
-    ) and mpu.get_tensor_model_parallel_rank() == 0
-
-
-def train_valid_test_datasets_provider(
-    train_val_test_num_samples: list[int], dataset_config: BlendedMegatronDatasetConfig
-):
-    """Build the train test and validation datasets.
-
-    Args:
-        train_val_test_num_samples : A list containing the number of samples in train test and validation.
-    """
-
-    if dataset_config.mock:
-        dataset_type = MockGPTDataset
-    else:
-        dataset_type = GPTDataset
-
-    print_rank_0("> building train, validation, and test datasets for GPT ...")
-
-    train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
-        dataset_type, train_val_test_num_samples, is_dataset_built_on_rank, dataset_config
-    ).build()
-
-    print_rank_0("> finished creating GPT datasets ...")
-
-    return train_ds, valid_ds, test_ds
-
-
 def cyclic_iter(iter):
     while True:
         for x in iter:
@@ -172,6 +138,9 @@ def build_train_valid_test_data_loaders(
         cfg.dataset_config.num_workers,
         cfg.dataset_config.data_sharding,
         worker_init_fn=maybe_worker_init_fn,
+        collate_fn=train_ds.collate_fn if hasattr(train_ds, "collate_fn") else None,
+        pin_memory=cfg.dataset_config.pin_memory,
+        persistent_workers=cfg.dataset_config.persistent_workers,
     )
     if cfg.train_config.skip_train:
         valid_dataloader = build_pretraining_data_loader(
@@ -182,6 +151,9 @@ def build_train_valid_test_data_loaders(
             cfg.dataset_config.num_workers,
             cfg.dataset_config.data_sharding,
             worker_init_fn=maybe_worker_init_fn,
+            collate_fn=valid_ds.collate_fn if hasattr(valid_ds, "collate_fn") else None,
+            pin_memory=cfg.dataset_config.pin_memory,
+            persistent_workers=cfg.dataset_config.persistent_workers,
         )
     else:
         valid_dataloader = build_pretraining_data_loader(
@@ -192,6 +164,9 @@ def build_train_valid_test_data_loaders(
             cfg.dataset_config.num_workers,
             cfg.dataset_config.data_sharding,
             worker_init_fn=maybe_worker_init_fn,
+            collate_fn=valid_ds.collate_fn if hasattr(valid_ds, "collate_fn") else None,
+            pin_memory=cfg.dataset_config.pin_memory,
+            persistent_workers=cfg.dataset_config.persistent_workers,
         )
     test_dataloader = build_pretraining_data_loader(
         test_ds,
@@ -200,6 +175,10 @@ def build_train_valid_test_data_loaders(
         cfg.train_config.micro_batch_size,
         cfg.dataset_config.num_workers,
         cfg.dataset_config.data_sharding,
+        worker_init_fn=maybe_worker_init_fn,
+        collate_fn=test_ds.collate_fn if hasattr(test_ds, "collate_fn") else None,
+        pin_memory=cfg.dataset_config.pin_memory,
+        persistent_workers=cfg.dataset_config.persistent_workers,
     )
 
     # Flags to know if we need to do training/validation/testing.
@@ -267,7 +246,7 @@ def build_train_valid_test_data_iterators(
 
 
 def setup_data_iterators(
-    cfg: ConfigContainer, train_state: TrainState, model_length: int, train_valid_test_dataset_provider
+    cfg: ConfigContainer, train_state: TrainState, model_length: int, train_valid_test_datasets_provider
 ):
     """Setup data iterators."""
     if cfg.model_config.virtual_pipeline_model_parallel_size is not None:
@@ -279,7 +258,7 @@ def setup_data_iterators(
             iterators = build_train_valid_test_data_iterators(
                 cfg=cfg,
                 train_state=train_state,
-                build_train_valid_test_datasets_provider=train_valid_test_dataset_provider,
+                build_train_valid_test_datasets_provider=train_valid_test_datasets_provider,
             )
             train_data_iterator.append(iterators[0])
             valid_data_iterator.append(iterators[1])
@@ -288,7 +267,7 @@ def setup_data_iterators(
         train_data_iterator, valid_data_iterator, test_data_iterator = build_train_valid_test_data_iterators(
             cfg=cfg,
             train_state=train_state,
-            build_train_valid_test_datasets_provider=train_valid_test_dataset_provider,
+            build_train_valid_test_datasets_provider=train_valid_test_datasets_provider,
         )
 
     return train_data_iterator, valid_data_iterator, test_data_iterator

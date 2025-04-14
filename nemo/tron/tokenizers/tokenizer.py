@@ -8,13 +8,37 @@ import math
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
-from megatron.training.tokenizer.multimodal_tokenizer import MultimodalTokenizer
+from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer as MegatronTokenizerCore
 
 from nemo.tron.config import TokenizerConfig
 from nemo.tron.tokenizers.bert_tokenization import FullTokenizer as FullBertTokenizer
 from nemo.tron.tokenizers.gpt2_tokenization import GPT2Tokenizer
+from nemo.tron.tokenizers.multimodal_tokenizer import MultimodalTokenizer
 from nemo.tron.utils.common_utils import get_rank_safe, print_rank_0
+
+
+class MegatronTokenizer(MegatronTokenizerCore):
+    def __call__(self, *args, **kwargs):
+        return self.tokenize(*args, **kwargs)
+
+    def text_to_ids(self, text: str) -> list[int]:
+        return self.tokenize(text)
+
+    @property
+    def eod_id(self):
+        return self.eod
+
+    @property
+    def bos_id(self):
+        return self.bos
+
+    @property
+    def eos_id(self):
+        return self.eos
+
+    @property
+    def mask_id(self):
+        return self.mask
 
 
 def build_tokenizer(
@@ -172,6 +196,18 @@ class _HuggingFaceTokenizer(MegatronTokenizer):
     @property
     def eod(self):
         return self._tokenizer.eos_token_id
+
+    @property
+    def bos(self):
+        return self._tokenizer.bos_token_id
+
+    @property
+    def eos(self):
+        return self._tokenizer.eos_token_id
+
+    @property
+    def mask(self):
+        return self._tokenizer.mask_token_id
 
 
 class _BertWordPieceTokenizer(MegatronTokenizer):

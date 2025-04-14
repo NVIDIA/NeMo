@@ -31,7 +31,7 @@ from nemo.tron.config import (
     TokenizerConfig,
     TrainingConfig,
 )
-from nemo.tron.data.dataset import get_blend_and_blend_per_split
+from nemo.tron.data.loaders import get_blend_and_blend_per_split
 from nemo.tron.llm.gpt import forward_step
 
 if __name__ == "__main__":
