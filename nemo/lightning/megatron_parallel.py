@@ -52,8 +52,8 @@ from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.tensor_parallel.random import get_all_rng_states
+from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -196,6 +196,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from megatron.core import parallel_state
+
         from nemo.utils.model_utils import unwrap_model
 
         _pipeline: List[nn.Module]
@@ -1214,7 +1215,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         seq_length: Optional[int] = None,
         num_microbatches: Optional[int] = None,
         step_i: Optional[int] = None,
-        data_step = None,
+        data_step=None,
         capture_cuda_graph: bool = False,
     ) -> "MegatronStep[ModelT, DataT]":
         """
@@ -1256,7 +1257,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         if not isinstance(self.model, list):
             data_list = []
             for _ in range(self.num_microbatches):
-                 data_list.append(data_iterator)
+                data_list.append(data_iterator)
             data_list = [data_list]
         else:
             data_list = []
@@ -1322,22 +1323,22 @@ class MegatronStep(Generic[ModelT, DataT]):
                 for _, state in get_all_rng_states().items():
                     MegatronStep.train_graph.register_generator_state(state)
                 torch.cuda.synchronize()
-                #torch.distributed.barrier()
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size()-1):
-                    print ('    MegatronStep: Capturing CUDA graph')
+                # torch.distributed.barrier()
+                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
+                    print('    MegatronStep: Capturing CUDA graph')
                 with torch.cuda.graph(MegatronStep.train_graph, stream=capture_stream, capture_error_mode="global"):
                     MegatronStep.train_result = self.run_step(iter_data_list, seq_length)
                 torch.cuda.synchronize()
-                #torch.distributed.barrier()
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size()-1):
-                    print ('    MegatronStep: CUDA graph capture done')
+                # torch.distributed.barrier()
+                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
+                    print('    MegatronStep: CUDA graph capture done')
             if MegatronStep.train_graph is None:
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size()-1):
-                    print ('    MegatronStep: run_step')
+                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
+                    print('    MegatronStep: run_step')
                 MegatronStep.train_result = self.run_step(iter_data_list, seq_length)
             else:
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size()-1):
-                    print ('    MegatronStep: CUDA graph replay')
+                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
+                    print('    MegatronStep: CUDA graph replay')
                 MegatronStep.train_graph.replay()
             return MegatronStep.train_result
         else:
