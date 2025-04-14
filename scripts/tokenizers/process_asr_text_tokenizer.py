@@ -344,7 +344,7 @@ def main():
     spe_type = args.spe_type
     spe_character_coverage = args.spe_character_coverage
     spe_sample_size = args.spe_sample_size
-    spe_normalization_rule_name= args.spe_normalization_rule_name
+    spe_normalization_rule_name = args.spe_normalization_rule_name
     spe_train_extremely_large_corpus = args.spe_train_extremely_large_corpus
     spe_max_sentencepiece_length = args.spe_max_sentencepiece_length
     spe_split_by_unicode_script = args.spe_split_by_unicode_script
