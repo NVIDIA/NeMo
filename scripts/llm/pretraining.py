@@ -142,6 +142,11 @@ def main():
     pretrain_recipe = getattr(llm, args.recipe).pretrain_recipe
     pretrain = partial(pretrain_recipe)(name=exp_name, dir="/nemo_run/checkpoints")
 
+    pretrain.model.config.gradient_accumulation_fusion = False
+    pretrain.trainer.strategy.fsdp = 'megatron'
+    pretrain.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+    pretrain.trainer.strategy.ddp.average_in_collective = False
+
     # Overwrite the dataloader in the recipe to use your custom dataloader.
     # dataloader = set_your_custom_dataloader
     # pretrain.data = dataloader
