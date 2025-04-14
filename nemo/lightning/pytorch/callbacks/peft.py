@@ -186,6 +186,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
             else trainer.strategy._checkpoint_io
         )
         trainer.strategy._init_model_parallel = False
+        # it will enter the following if statement if the model is on the automodel workflow
+        # where the PEFT is applied in the configure_model
+        if self.transform_already_applied:
+            trainer.strategy._init_model_parallel = True
         trainer.strategy._setup_optimizers = False
 
     def set_params_to_save(self, trainer: pl.Trainer) -> None:
