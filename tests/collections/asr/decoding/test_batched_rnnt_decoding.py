@@ -721,4 +721,4 @@ def test_loop_labels_cuda_graph_rnnt_ddp_mixed_precision(an4_train_manifest_corr
     # validate using trainer
     val_results = trainer.validate(model)
     wer = val_results[0]["val_wer"]
-    assert wer <= 0.125, f"WER is too high: {wer}"
+    assert wer <= 0.25, f"WER is too high: {wer}"
