@@ -168,7 +168,6 @@ def get_mlp_module_spec(use_te: bool = True) -> ModuleSpec:
     )
 
 
-# Handle InternViT's layer scaling.
 def _bias_dropout_add_func_internvit(ls, x_with_bias, residual, prob, training):
     """Handle InternViT's layer scaling."""
     x, bias = x_with_bias  # unpack
@@ -200,7 +199,6 @@ def get_bias_dropout_add_internvit(ls, training, fused):
     return bias_dropout_add_unfused_internvit(ls, training)
 
 
-# Add InternViT specialties to our default TransformerLayer.
 class InternViTTransformerLayer(TransformerLayer):
     """Add InternViT specialties to our default TransformerLayer."""
 
@@ -214,7 +212,6 @@ class InternViTTransformerLayer(TransformerLayer):
         self.mlp_bda = partial(self.mlp_bda, self.ls2)
 
 
-# Override a few things that are special in InternViT and not supported by the SelfAttention class.
 class InternViTSelfAttention(SelfAttention):
     """Override a few things that are special in InternViT and not supported by the SelfAttention class."""
 
