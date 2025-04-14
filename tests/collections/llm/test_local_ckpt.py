@@ -18,7 +18,6 @@ Test NemMo 2.0 with local checkpointing from NVRx.
 """
 
 import argparse
-import logging
 import socket
 from dataclasses import dataclass
 from pathlib import Path
