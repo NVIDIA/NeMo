@@ -22,9 +22,7 @@ import logging
 import socket
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
 
-import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
@@ -34,7 +32,7 @@ from nemo.collections.llm.gpt.model.llama import Llama3Config, LlamaModel
 from nemo.collections.llm.recipes.log.default import get_global_step_from_global_checkpoint_path
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.lightning.pytorch.local_ckpt import MCoreHierarchicalCheckpointIO, update_trainer_local_checkpoint_io
+from nemo.lightning.pytorch.local_ckpt import update_trainer_local_checkpoint_io
 from nemo.utils.import_utils import safe_import
 
 res_module, HAVE_RES = safe_import("nvidia_resiliency_ext.ptl_resiliency")
@@ -50,7 +48,7 @@ class Llama3Config145M(Llama3Config):
     num_attention_heads: int = 16
 
 
-def get_trainer(args, callbacks, async_save=True):
+def get_trainer(args, callbacks, async_save: bool = True) -> nl.Trainer:
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
@@ -77,7 +75,7 @@ def get_trainer(args, callbacks, async_save=True):
     return trainer
 
 
-def get_parser():
+def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Llama3 Pretraining on a local node")
     parser.add_argument(
         "--num-nodes",
@@ -136,7 +134,7 @@ def get_parser():
     return parser
 
 
-def main():
+def main() -> None:
     args = get_parser().parse_args()
 
     assert HAVE_RES, "nvidia_resiliency_ext is required for local checkpointing"
