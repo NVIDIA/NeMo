@@ -78,9 +78,6 @@ def make_squad_hf_dataset(
         batched=False,
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
-    # Pack the sequences in the dataset if packed_sequence_size > 0
-    if packed_sequence_size > 0:
-        datamodule.pack()
     return datamodule
 
 

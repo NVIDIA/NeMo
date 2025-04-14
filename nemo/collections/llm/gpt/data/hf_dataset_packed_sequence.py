@@ -22,15 +22,18 @@ from torch.nn import functional as F
 CROSS_ENTROPY_IGNORE_IDX = -100
 PACK_TYPE = Dict[str, Union[torch.Tensor, List[int]]]
 
-class HFDatasetPackedSequence():
+class HFDatasetPackedSequenceHelper():
     """
     Args:
-    dataset_splits: Actual dataset for each split ['train', 'val', 'test']
+    dataset: Actual dataset (can be 'train', 'val' or 'test')
+    split (str): Whether the dataset is 'train', 'val' or 'test'
     """
-    def __init__(self, dataset_splits):
-        self.dataset_splits = dataset_splits
+    def __init__(self, dataset, split):
+        self.dataset = dataset
+        self.split = split
         self.padding_idx = 0 # Padding value to pack a sequence to self.packed_sequence_size
         self.contains_loss_mask = False
+
     def pack(self, packed_sequence_size, split_across_pack, max_packs):
         """Iterate through the dataset. Use a buffer to hold samples until packed_sequence_size,
         then append the buffer to self.packs as a single "packed" sample. Continue
@@ -41,6 +44,9 @@ class HFDatasetPackedSequence():
         split_across_pack (bool): If the last sample in a pack does not fit in ``packed_sequence_size``,
         split the sample into the next pack, or move it entirely to the beginning of the next pack.
         max_packs (int): Maximum number of packs.
+
+        Returns the Packed dataset which is an object of Dataset class.
+
         """
         self.packed_sequence_size = packed_sequence_size
         self.split_across_pack = split_across_pack
@@ -52,77 +58,73 @@ class HFDatasetPackedSequence():
             else 0
         )
 
-        # Pack dataset in each split of self.dataset_splits (i.e 'train', 'val', 'test')
-        for split, ds in self.dataset_splits.items():
-            if ds is None:
-                continue
-            self.packs: List[PACK_TYPE] = []
-            if "loss_mask" in ds[0]:
-                self.contains_loss_mask = True
-            # Buffer to hold samples until they are long enough to be added to self.packs
-            current_pack = {
-                "tokens": [],
-                "labels": [],
-                "input_pos": [],
-                "seq_lens": [],
-            }
-            if self.contains_loss_mask: current_pack["loss_mask"] = []
-            self.previous_sample_boundary: int = 0
-            if rank == 0:
-                pbar = tqdm(total=len(ds), desc=f"Packing {split} dataset", dynamic_ncols=True)
-            for sample in ds:
-                tokens, labels = sample["input_ids"], sample["labels"]
-                if self.contains_loss_mask:
-                    loss_mask = sample["loss_mask"]
-                # If the dataset outputs samples that are larger than the specified
-                # packed_sequence_size and we're unable to split it, user needs to modify
-                # one of the two parameters
-                seq_len = len(tokens)
-                if seq_len > self.packed_sequence_size and not split_across_pack:
-                    raise ValueError(
-                        f"Dataset sample is too long ({seq_len} > {self.packed_sequence_size}). "
-                        "Please set `split_across_pack=True` or increase `packed_sequence_size`."
-                    )
-                # Update the current pack
-                # "input_pos" is the pos ids, "seq_lens" is the len of each seq within the pack
-                current_pack["tokens"] += tokens
-                current_pack["labels"] += labels
-                current_pack["input_pos"] += [x % self.packed_sequence_size for x in range(seq_len)]
-                current_pack["seq_lens"] += [seq_len]
-                if self.contains_loss_mask:
-                    current_pack["loss_mask"] += loss_mask
+        # Pack dataset
+        self.packs: List[PACK_TYPE] = []
+        if "loss_mask" in self.dataset[0]:
+            self.contains_loss_mask = True
+        # Buffer to hold samples until they are long enough to be added to self.packs
+        current_pack = {
+            "tokens": [],
+            "labels": [],
+            "input_pos": [],
+            "seq_lens": [],
+        }
+        if self.contains_loss_mask: current_pack["loss_mask"] = []
+        self.previous_sample_boundary: int = 0
+        if rank == 0:
+            pbar = tqdm(total=len(self.dataset), desc=f"Packing {self.split} dataset", dynamic_ncols=True)
+        for sample in self.dataset:
+            tokens, labels = sample["input_ids"], sample["labels"]
+            if self.contains_loss_mask:
+                loss_mask = sample["loss_mask"]
+            # If the dataset outputs samples that are larger than the specified
+            # packed_sequence_size and we're unable to split it, user needs to modify
+            # one of the two parameters
+            seq_len = len(tokens)
+            if seq_len > self.packed_sequence_size and not split_across_pack:
+                raise ValueError(
+                    f"Dataset sample is too long ({seq_len} > {self.packed_sequence_size}). "
+                    "Please set `split_across_pack=True` or increase `packed_sequence_size`."
+                )
+            # Update the current pack
+            # "input_pos" is the pos ids, "seq_lens" is the len of each seq within the pack
+            current_pack["tokens"] += tokens
+            current_pack["labels"] += labels
+            current_pack["input_pos"] += [x % self.packed_sequence_size for x in range(seq_len)]
+            current_pack["seq_lens"] += [seq_len]
+            if self.contains_loss_mask:
+                current_pack["loss_mask"] += loss_mask
 
-                # If the current pack is over the packed_sequence_size, add it to self.packs and
-                # retain any truncated or bumped samples for next pack
-                while (
-                    len(current_pack["tokens"]) > self.packed_sequence_size
-                    and not self._should_stop_packing()
-                ):
-                    current_pack = self._split_and_add_pack(current_pack)
-
-                if rank == 0:
-                    pbar.update()
-
-                # Keep track of previous sample boundary
-                self.previous_sample_boundary = len(current_pack["tokens"])
-
-                if self._should_stop_packing():
-                    break
-
-            # Handle the last pack if there's leftover and we haven't filled up the max packs
-            if len(current_pack["tokens"]) > 0 and (
-                self.max_packs is None or len(self.packs) < self.max_packs
+            # If the current pack is over the packed_sequence_size, add it to self.packs and
+            # retain any truncated or bumped samples for next pack
+            while (
+                len(current_pack["tokens"]) > self.packed_sequence_size
+                and not self._should_stop_packing()
             ):
-                # No need to handle splitting at this point so we can just add the current pack
-                self._add_pack(current_pack)
+                current_pack = self._split_and_add_pack(current_pack)
 
-            # After packing all samples, convert self.packs to a Dataset object
-            packed_dataset = Dataset.from_dict({
-                key: [pack[key] for pack in self.packs] for key in self.packs[0].keys()
-            })
+            if rank == 0:
+                pbar.update()
 
-            # Assign the packed dataset to self.dataset_splits[split]
-            self.dataset_splits[split] = packed_dataset
+            # Keep track of previous sample boundary
+            self.previous_sample_boundary = len(current_pack["tokens"])
+
+            if self._should_stop_packing():
+                break
+
+        # Handle the last pack if there's leftover and we haven't filled up the max packs
+        if len(current_pack["tokens"]) > 0 and (
+            self.max_packs is None or len(self.packs) < self.max_packs
+        ):
+            # No need to handle splitting at this point so we can just add the current pack
+            self._add_pack(current_pack)
+
+        # After packing all samples, convert self.packs to a Dataset object
+        packed_dataset = Dataset.from_dict({
+            key: [pack[key] for pack in self.packs] for key in self.packs[0].keys()
+        })
+
+        return packed_dataset
 
     def _should_stop_packing(self) -> bool:
         """If max packs is set, stop packing when we reach that number."""
@@ -243,6 +245,7 @@ class HFDatasetPackedSequence():
         }
         if self.contains_loss_mask: padded_pack["loss_mask"] = padded_loss_mask
         return padded_pack
+
 
 def create_block_causal_mask(seq_lens: List[torch.Tensor]) -> torch.Tensor:
     """
