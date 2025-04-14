@@ -284,7 +284,7 @@ class BatchedBeamHyps:
         )
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         self.scores.copy_(next_hyps_prob)
-        
+
         prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=next_indices)
         # track last label
         torch.where(
