@@ -367,6 +367,7 @@ def create_spt_model(
     vocab_size: int,
     sample_size: int,
     do_lower_case: bool,
+    normalization_rule_name: Optional[str] = None,
     tokenizer_type: str = 'unigram',
     output_dir: Optional[str] = None,
     character_coverage: float = 1.0,
@@ -457,6 +458,9 @@ def create_spt_model(
 
     if do_lower_case:
         cmd += " --normalization_rule_name=nmt_nfkc_cf"
+
+    if normalization_rule_name:
+        cmd += f" --normalization_rule_name={normalization_rule_name}"
 
     if sample_size > 0:
         cmd += f" --input_sentence_size={sample_size}"
