@@ -209,7 +209,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     deallocate_pipeline_outputs: bool = True
     bias_dropout_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
-    mamba_stack_spec: Union[ModuleSpec, Callable[[], ModuleSpec]] = field(default_factory=lambda: default_mamba_stack_spec)
+    mamba_stack_spec: Union[ModuleSpec, Callable[[], ModuleSpec]] = field(
+        default_factory=lambda: default_mamba_stack_spec
+    )
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
         """
