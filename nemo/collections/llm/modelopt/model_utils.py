@@ -19,6 +19,8 @@ from typing import Union
 import lightning.pytorch as L
 import torch
 from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -44,26 +46,8 @@ def _set_gpt_mamba_modelopt_spec(model_cfg: Union[llm.GPTConfig, llm.SSMConfig])
     logging.info("Setting model layer specification to the modelopt layer spec")
 
     if isinstance(model_cfg, llm.GPTConfig):
-        try:
-            from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
-
-            modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
-        except ImportError:
-            # Older spec: Will be deprecated, doesnt support DeepSeek
-            from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
-
-            modelopt_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True)
-
-        model_cfg.transformer_layer_spec = modelopt_spec
+        model_cfg.transformer_layer_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
     elif isinstance(model_cfg, llm.SSMConfig):
-        try:
-
-            from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
-
-        except ImportError:
-            # Older spec: Will be deprecated
-            from megatron.core.inference.modelopt_support.mamba.model_specs import get_mamba_stack_modelopt_spec
-
         model_cfg.mamba_stack_spec = partial(get_mamba_stack_modelopt_spec, remap_te_layernorm=True)
     else:
         raise ValueError(f"No modelopt layer spec supported for config type {type(model_cfg)}")
