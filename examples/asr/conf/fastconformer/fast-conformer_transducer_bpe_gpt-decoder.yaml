@@ -165,7 +165,7 @@ model:
     stochastic_depth_start_layer: 1
 
   decoder:
-    _target_: nemo.collections.asr.modules.rnnt_transformer.RNNTTransformerDecoder
+    _target_: nemo.collections.asr.modules.rnnt_gpt.GPTTransducerDecoder
     blank_as_pad: true  # only true supported
     vocab_size: -1
 
@@ -182,7 +182,7 @@ model:
       freq_width: 128
       time_width: 0.05
 
-    predictor:  # prediction network params
+    predictor_transformer:  # prediction network params
       mask_future: true  # GPT-like transformer
       num_layers: 6
       hidden_size: 512
