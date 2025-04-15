@@ -44,6 +44,7 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
+from nemo.collections.duplex_s2s.modules import SpeechDecoder
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -298,7 +299,7 @@ class DuplexS2SModel(LightningModule):
         input_embeds = self.embed_tokens(text_inputs)
         for cbidx in range(self._num_codebooks):
             input_embeds.add_(self.embed_audio_tokens[cbidx](audio_inputs[..., cbidx]))
-        input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3))
+        input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 1.0))
 
         return {
             "input_embeds": input_embeds,
@@ -479,7 +480,7 @@ class DuplexS2SModel(LightningModule):
             input_signal=input_signal,
             input_signal_length=input_signal_lens,
         )
-        input_embeds *= self.cfg.get("duplex_user_channel_weight", 0.3)
+        input_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
 
         # Pre-allocate the memory for outputs.
         cache = DynamicCache()
@@ -653,6 +654,399 @@ class DuplexS2SModel(LightningModule):
             # self.perception = checkpoint_wrapper(self.perception)
             self.perception = fully_shard(self.perception, **fsdp_config)
 
+
+class DuplexS2SModelSpeechDecoder(DuplexS2SModel):
+    def __init__(self, cfg) -> None:
+        super().__init__(cfg)
+        self.speech_decoder = SpeechDecoder(
+            speech_decoder_parms=dict(self.cfg.speech_decoder_parms),
+            lantent_dim=self.llm.config.hidden_size,
+            num_audio_codebooks=self._num_codebooks,
+            num_audio_tokens_per_codebook=self.speech_vocab_size
+        )
+
+    def forward(
+        self,
+        input_embeds: Tensor,
+        cache = None,
+        input_audio_tokens = None,
+        loss_mask = None
+    ) -> dict[str, Tensor]:
+        """
+        Implements a fully offline forward pass through the entire model.
+        The flow is the following:
+
+                                                     |-> |audio_head| -> |audio codes|
+        |source speech + prev target text| -> |llm| -|
+                                                     |-> |lm_head|    -> |token ids  |
+        """
+        # input_embeds and out: (B, T, H)
+        out = self.llm(
+            inputs_embeds=input_embeds, past_key_values=cache, use_cache=cache is not None, return_dict=True
+        )
+        B, T = input_embeds.shape[:2]
+
+        text_logits = self.lm_head(out['last_hidden_state'])  # (B, T, text_vocab_size)
+
+        if loss_mask is not None:
+            loss_mask = loss_mask[:, :, -1].reshape(loss_mask.size(0), loss_mask.size(1))
+            self.speech_decoder.reset_input_and_kv_cache(use_cache=False)
+
+        _, audio_logits = self.speech_decoder(out['last_hidden_state'].transpose(0,1), loss_mask, input_audio_tokens=input_audio_tokens)
+
+
+        audio_logits = audio_logits.view(B, T,  self._num_codebooks, self.speech_vocab_size)
+
+        ans = {
+            "text_logits": text_logits,
+            "audio_logits": audio_logits,
+        }
+        if cache is not None:
+            ans["cache"] = out["past_key_values"]
+        return ans
+
+    def _get_bos_embedding(self) -> torch.Tensor:
+        """
+        Return the partial embedding corresponding to the start frame of the model.
+        It consists of the sum of text embedding of pad ID
+        corresponding to an all-zero frame. This is consistent with how the model is trained.
+        The returned shape is (1, embedding_dim).
+        """
+        text_bos = torch.full((1,), fill_value=self.text_pad_id, device=self.device)
+        input_embeds = self.embed_tokens(text_bos)
+        return input_embeds
+
+
+    def prepare_inputs(self, batch: dict):
+        """
+        Performs additional processing on the mini-batch collected from dataloader.
+        Notably:
+        * Convert source audio to speech representations.
+        * Convert target audio to target audio tokens.
+        * Convert target text to embeddings.
+        * Combine the input audio and target text embeddings.
+        * Take care of any necessary slicing to align the shapes of source audio,
+            target audio, and target token ids.
+        """
+
+        # Input audio: (B, T_samples)
+        # Encoded: (B, T, H)
+        source_encoded, source_encoded_lens = self.perception(
+            input_signal=batch["source_audio"], input_signal_length=batch["source_audio_lens"]
+        )
+
+        # Target text preparation. Match the sequence lengths with input audio stream.
+        # Target tokens: (B, T)
+        target_tokens = batch["target_tokens"]
+        if (diff := target_tokens.shape[1] - source_encoded.shape[1]) < 0:
+            target_tokens = torch.cat(
+                [
+                    target_tokens,
+                    (
+                        torch.ones(source_encoded.shape[0], abs(diff), device=source_encoded.device) * self.text_pad_id
+                    ).to(torch.long),
+                ],
+                dim=-1,
+            )
+        elif diff > 0:
+            target_tokens = target_tokens[:, : source_encoded.shape[1]]
+
+        # Target audio encoding.
+        # Input target audio: (B, T_samples')
+        # Output target codes: (B, K, T)
+        with _safe_audio_codec_inference():
+            target_codes, target_codes_lens = self.audio_codec.encode(
+                audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
+            )
+            target_codes = target_codes.transpose(1, 2)  # (B, K, T) -> (B, T, K)
+
+        # Note: Because we are using separate models for source and target representations,
+        #       despite best-effort attempt to align their frame rates, they may be off by a few frames.
+        #       We'll fix it by truncating to shortest sequence, and emit a warning if the discrepancy is too high.
+        if (tl := target_codes.shape[1]) != (sl := source_encoded.shape[1]):
+            if tl < sl:
+                diff = sl - tl
+                source_encoded = source_encoded[:, :tl]
+                target_tokens = target_tokens[:, :tl]
+                torch.clamp_(source_encoded_lens, max=tl)
+            else:
+                diff = tl - sl
+                target_codes = target_codes[:, :sl]
+                torch.clamp_(target_codes_lens, max=sl)
+            if diff > 2:
+                logging.warning(
+                    f"A mismatch between source ({sl}) and target ({tl}) sequence length greater than 2 detected. "
+                    f"This may indicate significant desynchronization in longer sessions."
+                )
+
+        # Insert speech BOS and speech EOS after we know input/output text/audio shapes are matching.
+        # Then, insert speech delay ID at the first position to indicate start of session.
+        btt = target_tokens[..., None]  # broadcast target tokens to num_codebooks dim
+        target_codes = torch.where(btt == self.text_bos_id, self.speech_bos_id, target_codes)
+        target_codes = torch.where(btt == self.text_eos_id, self.speech_eos_id, target_codes)
+        target_codes = torch.cat(
+            [
+                torch.full(
+                    [target_codes.shape[0], 1, target_codes.shape[-1]],
+                    fill_value=self.speech_delay_id,
+                    device=self.device,
+                    dtype=torch.long,
+                ),
+                target_codes[:, :-1],
+            ],
+            dim=1,
+        )
+
+        input_ids = torch.cat([target_codes, target_tokens[..., None]], dim=-1)
+        if self._use_tp:
+            tp_world_size = self.device_mesh["tensor_parallel"].size()
+            if (remainder := (input_ids.shape[1] - 1) % tp_world_size) != 0:
+                input_ids = input_ids[:, :-remainder]
+                source_encoded = source_encoded[:, :-remainder]
+
+        text_inputs = input_ids[:, :-1, -1]  # (B, T-1)
+        text_labels = input_ids[:, 1:, -1]  # (B, T-1)
+        audio_inputs = input_ids[:, :-1, :-1]  # (B, T-1, K)
+        audio_labels = input_ids[:, 1:, :-1]  # (B, T-1, K)
+
+        # Input embeds: (B, T-1, H)
+        # Note: the order of addition should be consistent with inference code due to
+        #       a low numerical precision, i.e.: Input speech + (Output text + Output speech)
+        #       Remember that addition is not associative in low precision floating point!
+        input_embeds = self.embed_tokens(text_inputs)
+
+        input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 1.0))
+
+        # Note sure about this mask
+        loss_mask = torch.ones_like(torch.cat([text_labels.unsqueeze(-1), audio_labels], dim=-1))
+
+        return {
+            "input_embeds": input_embeds,
+            "input_lens": source_encoded_lens - 1,
+            "output_lens": target_codes_lens - 1,
+            "text_labels": text_labels,
+            "input_audio_tokens": audio_inputs,
+            "audio_labels": audio_labels,
+            "loss_mask": loss_mask,
+        }
+
+    def training_step(self, batch: dict, batch_idx: int):
+        inputs = self.prepare_inputs(batch)
+
+        forward_outputs = self(inputs["input_embeds"], cache=None,
+                               input_audio_tokens=inputs["input_audio_tokens"],
+                               loss_mask=inputs["loss_mask"] )
+        num_frames = inputs["input_lens"].sum()
+
+
+        with loss_parallel():
+            text_loss = (
+                torch.nn.functional.cross_entropy(
+                    forward_outputs["text_logits"].flatten(0, 1),  # (B, T, Vt) -> (*, Vt)
+                    inputs["text_labels"].flatten(0, 1),
+                    reduction="sum",
+                )
+                / num_frames
+            )
+            audio_loss = torch.nn.functional.cross_entropy(
+                forward_outputs["audio_logits"].flatten(0, 2),  # (B, T, K, Vs) -> (*, Vs)
+                inputs["audio_labels"].flatten(0, 2),
+                reduction="sum",
+            ) / (num_frames * self._num_codebooks)
+
+
+        loss = self.cfg.text_loss_weight * text_loss + self.cfg.audio_loss_weight * audio_loss
+
+        B, T = inputs["input_embeds"].shape[:2]
+        ans = {
+            "loss": loss,
+            "learning_rate": (
+                torch.as_tensor(self.trainer.optimizers[0].param_groups[0]['lr'] if self._trainer is not None else 0)
+            ),
+            "text_loss": text_loss,
+            "audio_loss": audio_loss,
+            "batch_size": B,
+            "sequence_length": T,
+            "num_frames": num_frames.to(torch.float32),  # avoid warning
+            "padding_ratio": num_frames / (B * T),
+        }
+        self.log_dict(ans, on_step=True)
+        return ans
+
+    def validation_step(self, batch: dict, batch_idx: int):
+        for name, dataset_batch in batch.items():
+            if dataset_batch is None:
+                continue  # some dataset is exhausted
+            # AUTOREGRESSIVE INFERENCE
+            gen_text, gen_audio_codes, lengths = self.offline_inference(
+                dataset_batch["source_audio"],
+                dataset_batch["source_audio_lens"],
+            )
+
+            # ASR BLEU
+            import torchaudio
+
+            with _safe_audio_codec_inference():
+                gen_audio_codes = self.replace_control_speech_codes(gen_audio_codes)
+                predicted_audio, predicted_audio_lens = self.audio_codec.decode(
+                    tokens=gen_audio_codes.transpose(1, 2), tokens_len=lengths
+                )
+
+
+            asr_hyps = self.asr.transcribe(
+                [
+                    audio[:alen]
+                    for audio, alen in zip(
+                        torchaudio.functional.resample(predicted_audio, 22050, 16000),
+                        predicted_audio_lens,
+                    )
+                ],
+                batch_size=predicted_audio.shape[0],
+                verbose=False,
+            )
+
+            txt_hyps = [
+                self.tokenizer.ids_to_text(hyp_ids[:hyp_len]) for hyp_ids, hyp_len in zip(gen_text.cpu(), lengths)
+            ]
+
+
+            for ref, txt_hyp, asr_hyp in zip(dataset_batch["target_texts"], txt_hyps, asr_hyps):
+                asr_hyp = asr_hyp.text
+                self._refs[name].append([self.normalizer(ref)])
+                self._txt_preds[name].append(self.normalizer(txt_hyp))
+                self._asr_preds[name].append(self.normalizer(asr_hyp))
+                txtb = sacrebleu.sentence_bleu(txt_hyp, [ref]).score
+                asrb = sacrebleu.sentence_bleu(asr_hyp, [ref]).score
+                logging.info(f"[REF]\t{ref}\n[HYP]\t{txt_hyp} [{txtb:.2f}]\n[ASR]\t{asr_hyp} [{asrb:.2f}]")
+
+    # previous version of offline_inference, just consider text AR.
+    # @torch.no_grad()
+    # def offline_inference(
+    #     self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor
+    # ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    #     """
+    #     Autoregressive prediction.
+    #
+    #     Args:
+    #         input_signal: a batch of waveforms with shape (B, T) with source sampling rate.
+    #         input_signal_lens: example lengths as number of samples of shape (B,).
+    #
+    #     Returns:
+    #         A tuple of:
+    #             * generated text tokens of shape (B, T2).
+    #             * generated audio codes of shape (B, T2, K) where `K=num_codebooks`.
+    #             * output lengths as number of tokens of shape (B,).
+    #     """
+    #     # Run through ASR simulating streaming, and pre-multiply by input channel weight
+    #     # input_embeds: (B, T, H)
+    #     input_embeds, lengths = self.perception(
+    #         input_signal=input_signal,
+    #         input_signal_length=input_signal_lens,
+    #     )
+    #     input_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
+    #
+    #     # Pre-allocate the memory for outputs.
+    #     cache = DynamicCache()
+    #     B, T = input_embeds.shape[:2]
+    #     gen_audio = torch.empty(B, T, self._num_codebooks, device=self.device, dtype=torch.long)
+    #     gen_text = torch.empty(B, T, device=self.device, dtype=torch.long)
+    #
+    #     # Construct initial input frame using BOS token and BOS output audio frame
+    #     # and run the first prediction step
+    #     input_embeds[:, 0] += self._get_bos_embedding()
+    #
+    #     audio_placeholder = torch.zeros([B, 1, 4], device=self.device, dtype=torch.long)
+    #     mask_placeholder = torch.ones([B, 1, 4], device=self.device, dtype=torch.long)
+    #     ans = self(input_embeds[:, :1], cache=cache, input_audio_tokens=audio_placeholder, loss_mask=mask_placeholder)
+    #     gen_text[:, 0] = ans["text_logits"].argmax(dim=-1)[:, -1]
+    #     # gen_audio[:, 0] = ans["audio_logits"].argmax(dim=-1)[:, -1]
+    #
+    #     for t in range(1, input_embeds.shape[1]):
+    #         input_embeds[:, t] += self.embed_tokens(gen_text[:, t - 1])
+    #         # for cbidx in range(self._num_codebooks):
+    #         #     input_embeds[:, t] += self.embed_audio_tokens[cbidx](gen_audio[:, t - 1, cbidx])
+    #         ans = self(input_embeds[:, t : t + 1], cache=ans["cache"], input_audio_tokens=audio_placeholder, loss_mask=mask_placeholder)
+    #         gen_text[:, t] = ans["text_logits"].argmax(dim=-1)[:, -1]
+    #         # gen_audio[:, t] = ans["audio_logits"].argmax(dim=-1)[:, -1]
+    #
+    #     return gen_text, gen_audio, lengths
+
+    @torch.no_grad()
+    def offline_inference(
+            self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Autoregressive prediction, using both:
+          - LLM cache (DynamicCache)
+          - Speech Decoder cache (self.speech_decoder.cache)
+        """
+
+
+        input_embeds, lengths = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_lens,
+        )
+        input_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
+
+        B, T = input_embeds.shape[:2]
+
+        # -- LLM cache
+        cache = DynamicCache()
+        # import pdb; pdb.set_trace()
+        # -- Speech Decoder cache
+
+        self.speech_decoder.reset_input_and_kv_cache(use_cache=True)
+
+
+        gen_text = torch.empty(B, T, device=self.device, dtype=torch.long)  # (B, T)
+        gen_audio = torch.empty(B, T, self._num_codebooks, device=self.device, dtype=torch.long)  # (B, T, K)
+
+
+        input_embeds[:, 0] += self._get_bos_embedding()
+
+
+        first_audio_token = torch.full(
+            [B, 1, self._num_codebooks],
+            fill_value=self.speech_delay_id,
+            device=self.device,
+            dtype=torch.long,
+        )
+
+        #   speech_mask_step = torch.ones((B,1), device=self.device, dtype=torch.bool)
+
+
+        ans = self(
+            input_embeds[:, :1],  # => shape (B, 1, H)
+            cache=cache,  # LLM cache
+            input_audio_tokens=first_audio_token,
+            loss_mask=None,  # or speech_mask_step
+        )
+        #   ans["text_logits"]:  (B, 1, text_vocab_size)
+        #   ans["audio_logits"]: (B, 1, ..., num_codebooks)
+
+        #   argmax
+        gen_text[:, 0] = ans["text_logits"][:, -1].argmax(dim=-1)
+        gen_audio[:, 0] = ans["audio_logits"][:, -1].argmax(dim=-1)
+
+        for t in range(1, T):
+
+            last_text_token_emb = self.embed_tokens(gen_text[:, t - 1])  # (B,H)
+            input_embeds[:, t] += last_text_token_emb
+
+            current_audio_token = gen_audio[:, t - 1: t, :]
+
+            ans = self(
+                input_embeds[:, t : t+1], # => shape (B, t+1, H)
+                cache=ans["cache"],  # LLM cache
+                input_audio_tokens=current_audio_token,  # latest frame only
+                loss_mask=None,  # or speech_mask_step
+            )
+
+
+            gen_text[:, t] = ans["text_logits"][:, -1].argmax(dim=-1)
+            gen_audio[:, t] = ans["audio_logits"][:, -1].argmax(dim=-1)
+
+        return gen_text, gen_audio, lengths
 
 def _load_pretrained(cls, model_path_or_name: str):
     if Path(model_path_or_name).exists() and model_path_or_name.endswith(".nemo"):
