@@ -170,7 +170,8 @@ def fp16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
 
 def bf16_with_fp8_subchannel_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """Create a MegatronMixedPrecision plugin configuration for mixed precision training using BF16 with FP8
-    blockwise subchannel scaling.
+    NV Subchannel scaling. This recipe uses 128x128 blockwise quantization for weight and 1x128 blockwise
+    quantization for activation.
 
     Returns:
         run.Config[MegatronMixedPrecision]: Configuration for BF16 with FP8 subchannel scaling mixed precision training
@@ -184,7 +185,8 @@ def bf16_with_fp8_subchannel_scaling_mixed() -> run.Config[MegatronMixedPrecisio
 
 def fp16_with_fp8_subchannel_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """Create a MegatronMixedPrecision plugin configuration for mixed precision training using FP16 with FP8
-    blockwise subchannel scaling.
+    NV Subchannel scaling. This recipe uses 128x128 blockwise quantization for weight and 1x128 blockwise
+    quantization for activation.
 
     Returns:
         run.Config[MegatronMixedPrecision]: Configuration for FP16 with FP8 subchannel scaling mixed precision training
