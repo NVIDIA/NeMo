@@ -31,6 +31,11 @@ from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.utils import logging
+from nemo.collections.llm.recipes.precision.mixed_precision import (
+    bf16_with_fp8_mixed,
+    bf16_with_fp8_current_scaling_mixed,
+    bf16_with_mxfp8_mixed,
+)
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
@@ -235,6 +240,8 @@ def set_primary_perf_configs(
     use_mcore_fsdp: bool = False,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
+    compute_dtype: str = None,
+    fp8_recipe: str = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -318,6 +325,18 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading = True
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+    
+    # low precision training configs
+    if compute_dtype is not None and compute_dtype.lower() == "fp8":
+        if fp8_recipe is None:
+            fp8_recipe = "ds"
+        if fp8_recipe.lower() == "ds":
+            recipe.trainer.plugins = bf16_with_fp8_mixed()
+        elif fp8_recipe.lower() == "cs":
+            recipe.trainer.plugins = bf16_with_fp8_current_scaling_mixed()
+        elif fp8_recipe.lower() == "mxfp8":
+            recipe.trainer.plugins = bf16_with_mxfp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
