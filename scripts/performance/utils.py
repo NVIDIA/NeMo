@@ -334,6 +334,8 @@ def set_primary_perf_configs(
             recipe.trainer.plugins = bf16_with_fp8_mixed()
         elif fp8_recipe.lower() == "cs":
             recipe.trainer.plugins = bf16_with_fp8_current_scaling_mixed()
+            # disable first/last layer bf16 for benchmarking
+            recipe.trainer.plugins.first_last_layers_bf16 = False
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
