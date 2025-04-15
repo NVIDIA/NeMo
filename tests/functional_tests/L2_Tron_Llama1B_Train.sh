@@ -12,4 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-torchrun --nproc_per_node=1 -m coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo -m pytest tests/tron/test_mlm_llama1b_train.py
+torchrun --nproc_per_node=1 -m \
+  coverage run \
+    --branch \
+    -a \
+    --data-file=/workspace/.coverage \
+    --source=/workspace/nemo \
+    -m \
+  pytest tests/tron/test_tron_llama1b_train.py
