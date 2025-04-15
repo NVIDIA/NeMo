@@ -242,6 +242,9 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         return torch.IntTensor(list(set(skipped_token_ids)))
 
     def freeze_model(self) -> None:
+        '''
+        Freezes the language and vision models
+        '''
         modules = []
 
         # Search for language model, atmost one is allowed
