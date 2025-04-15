@@ -272,6 +272,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
+        self.decoder_state_size_is_fixed = self.decoder.state_size_is_fixed()
 
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
@@ -556,11 +557,12 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             # select states for hyps that became inactive (is it necessary?)
             # this seems to be redundant, but used in the `loop_frames` output
             torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
-            self.decoder.batch_replace_states_mask(
-                src_states=state,
-                dst_states=last_decoder_state,
-                mask=became_inactive_mask,
-            )
+            if self.decoder_state_size_is_fixed:
+                self.decoder.batch_replace_states_mask(
+                    src_states=state,
+                    dst_states=last_decoder_state,
+                    mask=became_inactive_mask,
+                )
 
             # store hypotheses
             if self.max_symbols is not None:
@@ -1134,7 +1136,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
         is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
-        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
+        # TODO: cuda graphs for not fixed decoder state size
+        if self.cuda_graphs_mode is not None and x.device.type == "cuda" and self.decoder_state_size_is_fixed:
             if not is_ddp:
                 return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
             else:
