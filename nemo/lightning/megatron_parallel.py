@@ -1323,22 +1323,12 @@ class MegatronStep(Generic[ModelT, DataT]):
                 for _, state in get_all_rng_states().items():
                     MegatronStep.train_graph.register_generator_state(state)
                 torch.cuda.synchronize()
-                # torch.distributed.barrier()
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
-                    print('    MegatronStep: Capturing CUDA graph')
                 with torch.cuda.graph(MegatronStep.train_graph, stream=capture_stream, capture_error_mode="global"):
                     MegatronStep.train_result = self.run_step(iter_data_list, seq_length)
                 torch.cuda.synchronize()
-                # torch.distributed.barrier()
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
-                    print('    MegatronStep: CUDA graph capture done')
             if MegatronStep.train_graph is None:
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
-                    print('    MegatronStep: run_step')
                 MegatronStep.train_result = self.run_step(iter_data_list, seq_length)
             else:
-                if torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1):
-                    print('    MegatronStep: CUDA graph replay')
                 MegatronStep.train_graph.replay()
             return MegatronStep.train_result
         else:
