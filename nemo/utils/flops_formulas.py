@@ -344,6 +344,8 @@ def deepseekv3(config: FLOPSConfig):
     )
     bmm2_flops = 0.5 * config.v_head_dim * config.attention_heads * (config.enc_seq_len**2)
     per_input_attention_flops = 6 * (bmm1_flops + bmm2_flops) * config.layers
+    if config.mtp_num_layers is not None:
+        per_input_attention_flops += 6 * (bmm1_flops + bmm2_flops) * config.mtp_num_layers
 
     # linear layer flops
     per_layer_mla_params = config.hs * config.q_lora_rank + config.q_lora_rank * (
@@ -383,5 +385,6 @@ def deepseekv3(config: FLOPSConfig):
     if config.mtp_num_layers is not None:
         for i in range(config.mtp_num_layers):
             per_input_vocab_flops += 6 * config.vocab_size * config.hs * config.enc_seq_len
+            per_input_vocab_flops += 6 * config.hs * 2 * config.hs * config.enc_seq_len
 
     return (per_input_attention_flops + per_input_linear_flops + per_input_vocab_flops) * config.gbs
