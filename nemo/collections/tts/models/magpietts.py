@@ -186,13 +186,17 @@ class MagpieTTSModel(ModelPT):
                 self.local_transformer_in_projection = nn.Linear(cfg.decoder.d_model, local_transformer_hidden_dim)
             else:
                 self.local_transformer_in_projection = nn.Identity()
+            if cfg.get('use_local_transformer_maskgit', False):
+                causal_lt = False
+            else:
+                causal_lt = True
             self.local_transformer = transformer_2501.Transformer(
                 n_layers=self.cfg.get('local_transformer_n_layers', 2),
                 d_model=local_transformer_hidden_dim,
                 d_ffn=local_transformer_hidden_dim*4,
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
-                is_causal=True,
+                is_causal=causal_lt,
                 max_length_causal_mask=cfg.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
@@ -509,6 +513,49 @@ class MagpieTTSModel(ModelPT):
         all_preds = all_preds * audio_mask.unsqueeze(1)
 
         return all_preds
+
+    # def sample_codes_from_local_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
+    #     # dec_output: (B, E)
+    #     # import ipdb; ipdb.set_trace()
+    #     self.local_transformer.reset_cache(use_cache=True)
+    #     dec_output = dec_output.unsqueeze(1) # (B, 1, E)
+    #     local_transformer_input = self.local_transformer_in_projection(dec_output) # (B, 1, 128)
+    #     all_preds = []
+    #     for codebook_num in range(self.cfg.num_audio_codebooks):
+    #         _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
+    #         local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, T, 128)
+    #         codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, -1, :]) # (B, num_audio_tokens_per_codebook)
+    #         if use_cfg:
+    #             actual_batch_size = codebook_logits.size(0) // 2
+    #             conditional_logits = codebook_logits[:actual_batch_size]
+    #             unconditional_logits = codebook_logits[actual_batch_size:]
+    #             cfg_logits = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
+    #             codebook_logits[:actual_batch_size] = cfg_logits
+
+    #         for item_idx in unfinished_items:
+    #             codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
+    #         for item_idx in finished_items:
+    #             codebook_logits[item_idx, :] = float('-inf')
+    #             codebook_logits[item_idx, self.audio_eos_id] = 0.0
+
+    #         codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0] # (B, topk)
+    #         indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(-1) # (B, num_tokens_per_codebook)
+    #         codebook_logits_rescored = codebook_logits.clone()
+    #         codebook_logits_rescored[indices_to_remove] = float('-inf')
+    #         codebook_probs = torch.softmax(codebook_logits / temperature, dim=-1) # (B, num_tokens_per_codebook)
+    #         codebook_preds = torch.multinomial(codebook_probs, 1) # (B, 1)
+    #         if use_cfg:
+    #             codebook_preds[actual_batch_size:] = codebook_preds[:actual_batch_size]
+    #         all_preds.append(codebook_preds)
+    #         next_local_transformer_input = self.audio_embeddings[codebook_num](codebook_preds.squeeze(-1)).unsqueeze(1) # (B, 1, 128)
+    #         next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, 128)
+    #         local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, T+1, 128)
+
+    #     all_preds = torch.cat(all_preds, dim=1).long() # (B, num_codebooks)
+    #     if use_cfg:
+    #         all_preds = all_preds[:actual_batch_size]
+
+    #     return all_preds
 
     def sample_codes_from_local_transformer(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
         # dec_output: (B, E)
