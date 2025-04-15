@@ -2269,7 +2269,7 @@ jobs:
       - L2_NeMo_2_VLLM_EXPORT
       - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
-      - L2_MLM_Llama1B_Train
+      - L2_Tron_Llama1B_Train
 
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
