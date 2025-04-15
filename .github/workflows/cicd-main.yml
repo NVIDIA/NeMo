@@ -53,7 +53,7 @@ jobs:
       - name: Select tests to run
         id: test_to_run
         run: |
-          # For manual dispatch, we replace `all` with the actual job names          
+          # For manual dispatch, we replace `all` with the actual job names
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" == "all" ]]; then
             TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
@@ -61,14 +61,14 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" != "all" ]]; then
             TESTS_TO_RUN=$TESTS_TO_RUN
 
-          # For correctly labeled PR, we replace `all` with the actual job names          
+          # For correctly labeled PR, we replace `all` with the actual job names
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" == "true" ]]; then
             TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
           # For incorrectly labeled PR, run no tests
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" != "true" ]]; then
             TESTS_TO_RUN=""
-            
+
           # For push events, run all tests. This is so that we can generate coverage
           # on branch `main`.
           elif [[ "$EVENT_NAME" == "push" ]]; then
@@ -630,8 +630,8 @@ jobs:
       SCRIPT: L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir
 
   # L2: Longform with TimeStamps from Audio Dir
-  L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir:
-    needs: [pre-flight, cicd-test-container-build]
+  ? L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir
+  : needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir')
     with:
@@ -639,8 +639,8 @@ jobs:
       SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir
 
   # L2: Longform with TimeStamps from manifest
-  L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest:
-    needs: [pre-flight, cicd-test-container-build]
+  ? L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest
+  : needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest')
     with:
@@ -1974,6 +1974,16 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Export_HF_TRT_LLM
 
+  # L2: Tron
+  L2_Tron_Llama1B_Train:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Tron_Llama1B_Train') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Tron_Llama1B_Train.sh
+
   Nemo_CICD_Test:
     needs:
       - pre-flight
@@ -2180,6 +2190,7 @@ jobs:
       - Optional_L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_Export_HF_TRT_LLM
+      - L2_MLM_Llama1B_Train
 
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
@@ -2275,7 +2286,7 @@ jobs:
           JOBS='[]'
           PAGE=1
           while : ; do
-            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
+            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"
             RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
             JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
             if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
@@ -2297,7 +2308,7 @@ jobs:
             LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
             LOGS=$([[ $(echo $LOGS | wc -c) -gt 0 ]] && echo -E "\`\`\`\n$LOGS\n\`\`\`" || echo "")
             LOGS=$([[ $(echo $JOB | yq '.value.outputs.potential_infra_failure') == "true" ]] && echo -E "$LOGS\n\ncc: $SLACK_WEBHOOK_ADMIN" || echo -E "$LOGS")
-            
+
             SUMMARY=$(echo "$SUMMARY" | jq \
               --arg pr "<$PR_URL|$PR_TITLE>" \
               --arg job "<$JOB_URL|$JOB_NAME>" \
