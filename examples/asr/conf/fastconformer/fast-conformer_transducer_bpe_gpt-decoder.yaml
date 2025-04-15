@@ -176,6 +176,8 @@ model:
       embedding_dropout: 0.0  # 0 with specaug
       learn_positional_encodings: false
 
+    # optional spec augment (after embeddings) to prevent overfitting
+    # useful for small datasets
     spec_augment:
       freq_masks: 2 # set to zero to disable it
       time_masks: 10 # set to zero to disable it
@@ -214,7 +216,7 @@ model:
     # However, to preserve memory, this ratio can be 1:8 or even 1:16.
     # Extreme case of 1:B (i.e. fused_batch_size=1) should be avoided as training speed would be very slow.
     fuse_loss_wer: true
-    fused_batch_size: 4
+    fused_batch_size: 128
 
     jointnet:
       joint_hidden: ${model.model_defaults.joint_hidden}
