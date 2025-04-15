@@ -26,6 +26,48 @@ class ChatDataModule(FineTuningDataModule):
     See base class `FineTuningDataModule` for more details.
     """
 
+    def __init__(
+        self,
+        dataset_root,
+        seq_length: int = 2048,
+        tokenizer=None,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        rampup_batch_size=None,
+        seed: int = 1234,
+        memmap_workers: int = 1,
+        num_workers: int = 8,
+        pin_memory: bool = True,
+        persistent_workers: bool = False,
+        packed_sequence_specs=None,
+        dataset_kwargs=None,
+        use_hf_tokenizer_chat_template: bool = False,
+    ):
+        """Data module for finetuning on chat datasets.
+        See base class `FineTuningDataModule` for more details of the arguments.
+
+        Args:
+            use_hf_tokenizer_chat_template: Whether to use the chat template from the HuggingFace tokenizer. If True, uses the tokenizer's
+                built-in chat template. If False, uses default chat template from GPTSFTChatDataset. Defaults to False.
+        """
+
+        super().__init__(
+            dataset_root=dataset_root,
+            seq_length=seq_length,
+            tokenizer=tokenizer,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
+            rampup_batch_size=rampup_batch_size,
+            seed=seed,
+            memmap_workers=memmap_workers,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
+            packed_sequence_specs=packed_sequence_specs,
+            dataset_kwargs=dataset_kwargs,
+        )
+        self.use_hf_tokenizer_chat_template = use_hf_tokenizer_chat_template
+
     @lru_cache
     def _create_dataset(self, path, pack_metadata_path=None, is_test=False, **kwargs):
         # pylint: disable=C0115,C0116

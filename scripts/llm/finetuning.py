@@ -1,0 +1,254 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# NOTE: This script is only an example of using NeMo with NeMo-Run's APIs and is subject to change without notice.
+# This script is used for pretraining on local and slurm executors.
+# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and
+# NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
+
+import argparse
+from functools import partial
+from typing import Any, Optional
+
+import nemo_run as run
+
+from nemo.collections import llm
+
+# from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from nemo.collections.llm.gpt.data.chat import ChatDataModule
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
+
+def get_parser():
+    parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
+    parser.add_argument(
+        "--recipe",
+        type=str,
+        default="llama3_8b",
+        help="Choose NeMo 2.0 recipe. Recipes are named in the format of <model_name>_<model_size>(_<long_sequenth_length> or other special settings)",
+    )
+    parser.add_argument(
+        "--hf_model",
+        type=str,
+        help="Path to HuggingFace model to load for tokenizer",
+        required=True,
+    )
+    parser.add_argument(
+        "--data-path",
+        type=str,
+        help="Path to the finetuning dataset. must be OAI compatible",
+        required=True,
+    )
+    parser.add_argument(
+        "--chat-template",
+        type=str,
+        help="Path to the custom chat template to replace the HF tokenizer default chat template.",
+        required=False,
+    )
+    parser.add_argument(
+        "--global-batch-size",
+        type=int,
+        help="Global batch size.",
+        required=False,
+        default=2048,
+    )
+    parser.add_argument(
+        "--micro-batch-size",
+        type=int,
+        help="Micro batch size.",
+        required=False,
+        default=8,
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        help="Max steps.",
+        required=False,
+        default=1000,
+    )
+    parser.add_argument(
+        "--val-check-interval",
+        type=int,
+        help="Validation check interval.",
+        required=False,
+        default=100,
+    )
+    parser.add_argument(
+        "--save-top-k",
+        type=int,
+        help="Save top k.",
+        required=False,
+        default=1,
+    )
+    parser.add_argument(
+        "--tag",
+        type=str,
+        help="Optional tag for your experiment title which will be appended after the model/exp name.",
+        required=False,
+        default="",
+    )
+    parser.add_argument(
+        "--dryrun",
+        action="store_true",
+        help="Do a dryrun and exit",
+        default=False,
+    )
+    parser.add_argument(
+        "--slurm",
+        action="store_true",
+        help="Run on slurm using run.SlurmExecutor",
+        default=False,
+    )
+    return parser
+
+
+def slurm_executor(
+    user: str,
+    host: str,
+    remote_job_dir: str,
+    account: str,
+    partition: str,
+    nodes: int,
+    devices: int,
+    time: str = "04:00:00",
+    custom_mounts: Optional[list[str]] = None,
+    custom_env_vars: Optional[dict[str, str]] = None,
+    container_image: str = "nvcr.io/nvidia/nemo:dev",
+    retries: int = 0,
+) -> run.SlurmExecutor:
+    if not (user and host and remote_job_dir and account and partition and nodes and devices):
+        raise RuntimeError(
+            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
+            "function.",
+        )
+
+    mounts = []
+    if custom_mounts:
+        mounts.extend(custom_mounts)
+
+    env_vars = {
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+    }
+    if custom_env_vars:
+        env_vars |= custom_env_vars
+
+    executor = run.SlurmExecutor(
+        account=account,
+        partition=partition,
+        tunnel=run.SSHTunnel(
+            user=user,
+            host=host,
+            job_dir=remote_job_dir,
+        ),
+        nodes=nodes,
+        ntasks_per_node=devices,
+        gpus_per_node=devices,
+        mem="0",
+        exclusive=True,
+        gres="gpu:8",
+        packager=run.GitArchivePackager(),
+    )
+
+    executor.container_image = container_image
+    executor.container_mounts = mounts
+    executor.env_vars = env_vars
+    executor.retries = retries
+    executor.time = time
+
+    return executor
+
+
+def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
+    env_vars = {
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FUSED_ATTN": "1",  # Disable cuDNN fused attention
+    }
+
+    executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
+
+    return executor
+
+
+def main():
+    args = get_parser().parse_args()
+    if args.tag and not args.tag.startswith("-"):
+        args.tag = "-" + args.tag
+
+    exp_name = args.recipe
+
+    # Uses configs from NeMo directly
+    assert hasattr(
+        llm, args.recipe
+    ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequenth_length> or other special settings)"
+    finetune_recipe = getattr(llm, args.recipe).finetune_recipe
+    finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints")
+
+    # Overwrite the dataloader in the recipe to use your custom dataloader.
+    # TODO:OVERWRITE THE DATA IN THE RECIPE TO CHAT DATASET, SFT blend (might be shareGPT format)
+    tokenizer = get_nmt_tokenizer(library='huggingface', model_name=args.hf_model)
+    if args.chat_template:
+        tokenizer.tokenizer.chat_template = args.chat_template
+
+    finetune.trainer.val_check_interval = args.val_check_interval
+    finetune.log.ckpt.save_top_k = args.save_top_k
+    finetune.trainer.max_steps = args.max_steps
+
+    # Change here and add your files to custom_mounts
+    finetune.data = run.Config(
+        ChatDataModule,
+        dataset_root=args.data_path,
+        seq_length=finetune.data.seq_length,
+        tokenizer=tokenizer,
+        global_batch_size=args.global_batch_size,
+        micro_batch_size=args.micro_batch_size,
+    )
+
+    executor: run.Executor
+
+    if args.slurm:
+        # TODO: Set your custom parameters for the Slurm Executor.
+        executor = slurm_executor(
+            user="jennifchen",
+            host="cw-dfw-cs-001-login-01",
+            remote_job_dir="/lustre/fsw/portfolios/coreai/users/jennifchen",
+            account="coreai_dlalgo_modelopt",
+            partition="batch",
+            nodes=finetune.trainer.num_nodes,
+            devices=finetune.trainer.devices,
+            custom_mounts=[],
+        )
+    else:
+        executor = local_executor_torchrun(nodes=finetune.trainer.num_nodes, devices=finetune.trainer.devices)
+
+    with run.Experiment(f"{exp_name}{args.tag}") as exp:
+        for i in range(1):
+            exp.add(
+                finetune,
+                executor=executor,
+                name=exp_name,
+                tail_logs=True if isinstance(executor, run.LocalExecutor) else False,
+            )
+
+        if args.dryrun:
+            exp.dryrun()
+        else:
+            exp.run(sequential=True, detach=True)
+
+
+if __name__ == "__main__":
+    main()
