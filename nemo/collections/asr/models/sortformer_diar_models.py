@@ -745,7 +745,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         mem_fifo_chunk_preds = torch.where(preds_mask, mem_fifo_chunk_preds, torch.tensor(0.1))
 
         if self.async_streaming:
-            mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_FIFO_async(
+            mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_fifo_async(
                 mem=mem_last_time,
                 mem_lengths=mem_lengths,
                 mem_preds=mem_preds_last_time,
@@ -754,20 +754,20 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 chunk=chunk_pre_encode_embs,
                 chunk_lengths=chunk_pre_encode_lengths,
                 preds=mem_fifo_chunk_preds,
-                spk_perm=previous_spk_perm,
-                chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
-                chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
+                lc=round(left_offset / self.encoder.subsampling_factor),
+                rc=math.ceil(right_offset / self.encoder.subsampling_factor),
             )
+            spk_perm = None
         else:
-            mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_FIFO(
+            mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_fifo(
                 mem=mem_last_time,
                 mem_preds=mem_preds_last_time,
                 fifo=fifo_last_time,
                 chunk=chunk_pre_encode_embs,
                 preds=mem_fifo_chunk_preds,
                 spk_perm=previous_spk_perm,
-                chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
-                chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
+                lc=round(left_offset / self.encoder.subsampling_factor),
+                rc=math.ceil(right_offset / self.encoder.subsampling_factor),
             )
 
         total_step_preds = torch.cat([previous_pred_out, chunk_preds], dim=1)
