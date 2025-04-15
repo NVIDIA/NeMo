@@ -355,12 +355,14 @@ class SelfAttentionNoBias(SelfAttention):
         submodules: SelfAttentionSubmodules,
         layer_number: int,
         attn_mask_type=AttnMaskType.padding,
+        **kwargs,
     ):
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             attn_mask_type=attn_mask_type,
+            **kwargs,
         )
 
         # Override to remove bias since we don't have a good config for this.
