@@ -25,7 +25,7 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.model.llama import Llama4Experts16Config, LlamaModel
+from nemo.collections.llm.gpt.model.llama import Llama4Experts128Config, LlamaModel
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
@@ -35,26 +35,26 @@ from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectio
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama4_e16"
+NAME = "llama4_e128"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama4 16-Experts (Scout) model configuration.
+    Factory function to create a Llama4 128-Experts (Scout) model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama4 16-Experts (Scout) model.
+        run.Config[pl.LightningModule]: Configuration for the Llama4 128-Experts (Scout) model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama4_e16 ...
+            $ nemo llm pretrain model=llama4_e128 ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(LlamaModel, config=run.Config(Llama4Experts16Config))
+    return run.Config(LlamaModel, config=run.Config(Llama4Experts128Config))
 
 
 def trainer(
@@ -70,7 +70,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama4 16-Experts (Scout) model.
+    Configure the NeMo Lightning Trainer for Llama4 128-Experts (Scout) model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -91,7 +91,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=llama4_e16 ...
+            $ nemo llm pretrain trainer=llama4_e128 ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
@@ -154,7 +154,7 @@ def pretrain_recipe(
     fn: Callable = pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Llama4 16-Experts (Scout) model.
+    Create a pre-training recipe for Llama4 128-Experts (Scout) model.
 
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -172,11 +172,11 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama4_e16 ...
-            $ nemo llm pretrain --factory "llama4_e16(num_nodes=2, name='my_pretrain')"
+            $ nemo llm pretrain --factory llama4_e128 ...
+            $ nemo llm pretrain --factory "llama4_e128(num_nodes=2, name='my_pretrain')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama4_e16_pretrain", num_nodes=2)
+            >>> recipe = pretrain_recipe(name="llama4_e128_pretrain", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -205,7 +205,7 @@ def pretrain_recipe(
 
 def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
-    Create a performance-optimized pre-training recipe for Llama4 16-Experts (Scout) model.
+    Create a performance-optimized pre-training recipe for Llama4 128-Experts (Scout) model.
 
     This method enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
@@ -231,8 +231,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     mcomm_overlap_callback = run.Config(
         MegatronCommOverlapCallback,
         tp_comm_overlap=False,
-        # defer_embedding_wgrad_compute=True,
-        # wgrad_deferral_limit=10,
     )
     recipe.trainer.callbacks.extend(
         [
@@ -258,7 +256,7 @@ def finetune_recipe(
     performance_mode: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama4 16-Experts (Scout) model.
+    Create a fine-tuning recipe for Llama4 128-Experts (Scout) model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -281,10 +279,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama4_e16
+            $ nemo llm finetune --factory llama4_e128
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama4_e16_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="llama4_e128_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
