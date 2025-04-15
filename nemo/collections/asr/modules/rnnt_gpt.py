@@ -5,7 +5,7 @@ import torch
 
 from nemo.collections.asr.modules import SpectrogramAugmentation
 from nemo.collections.asr.modules.transformer import TransformerEmbedding, TransformerEncoder
-from nemo.core import NeuralModule
+from nemo.collections.asr.parts.utils import Hypothesis
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, NeuralType
 from omegaconf import open_dict
@@ -181,3 +181,10 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
         )
         next_state = GPTDecoderState(transformer_state=transformer_state, prev_state=state)
         return decoder_output[:, -1].unsqueeze(-1).transpose(1, 2), next_state
+
+    def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
+        return None
+
+    def score_hypothesis(self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]) -> Tuple[
+        torch.Tensor, List[torch.Tensor], torch.Tensor]:
+        raise NotImplementedError
