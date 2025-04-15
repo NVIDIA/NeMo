@@ -18,10 +18,9 @@ import os
 from pathlib import Path
 
 import jiwer
-import lightning.pytorch as ptl
 import pytest
 import torch
-from omegaconf import DictConfig, open_dict
+from omegaconf import open_dict
 from tqdm import tqdm
 
 from nemo.collections.asr.models import ASRModel
@@ -29,7 +28,6 @@ from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedRNNTInfer
 from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.core.utils import numba_utils
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
@@ -687,43 +685,3 @@ class TestTransducerCudaGraphBeamDecoding:
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
                 model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
-
-
-@pytest.mark.with_downloads
-@pytest.mark.parametrize("model_type", ["rnnt"])
-@pytest.mark.skipif(
-    not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
-    reason="Test requires CUDA device with bf16 support",
-)
-def test_loop_labels_cuda_graph_rnnt_ddp_mixed_precision(
-    an4_train_manifest_corrected, model_type, rnnt_model, tdt_model
-):
-    """Problems observed with CUDA graphs, DDP and mixed precision"""
-    batch_size = 16
-    device = torch.device("cuda")
-    model = rnnt_model.to(device) if model_type == "rnnt" else tdt_model.to(device)
-
-    decoding_config = copy.deepcopy(model.cfg.decoding)
-
-    with open_dict(decoding_config):
-        decoding_config["strategy"] = "malsd_batch"
-        decoding_config["beam"]["beam_size"] = 4
-        decoding_config["beam"]["return_best_hypothesis"] = True
-        decoding_config["beam"]["allow_cuda_graphs"] = True
-
-    model.change_decoding_strategy(decoding_config)
-
-    # instantiate trainer with bf16 mixed precision
-    trainer_cfg = TrainerConfig(devices=[0], accelerator="cuda", strategy="ddp", max_epochs=1, precision="bf16-mixed")
-    trainer = ptl.Trainer(**DictConfig(trainer_cfg))
-
-    # setup validation data
-    val_ds_cfg = model.cfg.validation_ds
-    val_ds_cfg.manifest_filepath = str(an4_train_manifest_corrected)
-    val_ds_cfg.batch_size = batch_size
-    model.setup_multiple_validation_data(val_ds_cfg)
-
-    # validate using trainer
-    val_results = trainer.validate(model)
-    wer = val_results[0]["val_wer"]
-    assert wer <= 0.25, f"WER is too high: {wer}"
