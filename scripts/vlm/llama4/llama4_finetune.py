@@ -55,6 +55,7 @@ def main(args):
         decoder_seq_length = 4096
         llama4_config.vision_transformer_config.num_layers = 2
         llama4_config.language_transformer_config.num_layers = 2
+        llama4_config.language_transformer_config.num_moe_experts = 2
         num_workers = 0
 
     if args.data_type == "llava":

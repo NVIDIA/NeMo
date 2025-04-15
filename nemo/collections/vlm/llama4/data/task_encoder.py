@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -22,6 +23,7 @@ from megatron.energon import VQASample
 from nemo.collections.vlm.data.task_encoder import DataBatch, DataSample
 from nemo.collections.vlm.data.task_encoder import TaskEncoder as BaseTaskEncoder
 from nemo.collections.vlm.data.task_encoder import TaskEncoderConfig as BaseTaskEncoderConfig
+from nemo.collections.vlm.data.utils import _find_pattern_indices
 
 
 @dataclass
@@ -101,56 +103,75 @@ class TaskEncoder(BaseTaskEncoder):
         Returns:
             DataSample: Encoded sample with processed image, tokens, labels and loss mask
         """
-        input_sample.context = input_sample.context.replace("<image>", self.config.image_token)
         messages = []
         if self.config.system_prompt:
             messages.append({'role': 'system', 'content': self.config.system_prompt})
 
-        if isinstance(input_sample.context, list) and isinstance(input_sample.answers, list):
-            min_length = min(len(input_sample.context), len(input_sample.answers))
-            for i in range(min_length):
-                messages.append({'role': self.config.roles[0], 'content': input_sample.context[i]})
-                messages.append({'role': self.config.roles[1], 'content': input_sample.answers[i]})
-        else:
-            messages.append({'role': self.config.roles[0], 'content': input_sample.context})
-            messages.append({'role': self.config.roles[1], 'content': input_sample.answers})
-
-        converted_messages = self.hf_processor.apply_chat_template(messages)
-        outputs = self.hf_processor(images=input_sample.image, text=converted_messages, return_tensors="pt")
+        # Ensure context and answers are lists for consistent processing
+        contexts = input_sample.context if isinstance(input_sample.context, list) else [input_sample.context]
         answers = input_sample.answers if isinstance(input_sample.answers, list) else [input_sample.answers]
 
-        # Get tokens and images from formatter output
-        tokens = outputs["input_ids"][0]
-        images = outputs["pixel_values"]
+        # Build the conversation messages, replacing image placeholder
+        min_length = min(len(contexts), len(answers))
+        for i in range(min_length):
+            context_with_placeholder = contexts[i].replace("<image>", self.config.image_token)
+            messages.append({'role': self.config.roles[0], 'content': context_with_placeholder})
+            messages.append({'role': self.config.roles[1], 'content': answers[i]})
 
-        # Compute labels
-        labels = torch.ones_like(tokens) * self.config.ignore_place_holder
+        # Apply chat template and process with HF processor
+        converted_messages = self.hf_processor.apply_chat_template(messages, tokenize=False)
+        outputs = self.hf_processor(images=input_sample.image, text=converted_messages, return_tensors="pt")
 
-        search_start = 0
+        # Get tokens and images from processor output
+        # Squeeze the batch dimension as we process one sample at a time
+        tokens = outputs["input_ids"].squeeze(0)
+        images = outputs.get("pixel_values")  # Use .get() for optional images
+
+        # --- Label Generation ---
+        # Initialize labels with ignore placeholder
+        labels = torch.full_like(tokens, self.config.ignore_place_holder)
+
+        search_start_index = 0
         for answer in answers:
-            answer_tokens = self.tokenizer.tokenizer(answer + self.config.stop_string, add_special_tokens=False)
-            answer_tokens = answer_tokens["input_ids"]
+            # Tokenize the answer, including the stop string if provided
+            answer_with_stop = answer + (self.config.stop_string or "")
+            answer_tokens = self.tokenizer.tokenizer(answer_with_stop, add_special_tokens=False)["input_ids"]
+            answer_tokens_tensor = torch.tensor(answer_tokens, device=tokens.device)  # Ensure same device
+
             # Find answer pattern in tokens
-            for i in range(search_start, len(tokens) - len(answer_tokens) + 1):
-                if torch.all(tokens[i : i + len(answer_tokens)] == torch.tensor(answer_tokens)):
-                    labels[i : i + len(answer_tokens)] = tokens[i : i + len(answer_tokens)]
-                    search_start = i + len(answer_tokens)
-                    break
+            answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens_tensor, search_start_index)
+
+            if answer_start >= 0:
+                labels[answer_start:answer_end] = tokens[answer_start:answer_end]
+                search_start_index = answer_end
+            else:
+                logging.warning(
+                    "Unable to find answer segment in the tokenized conversation. "
+                    "Skipping labeling for this and subsequent answers. Details: "
+                    "\n- Processed Text: %s"
+                    "\n- Tokens: %s"
+                    "\n- Target Answer Tokens: %s"
+                    "\n- Search Start Index: %d",
+                    converted_messages,
+                    tokens,
+                    answer_tokens,
+                    search_start_index,
+                )
+                break
 
         # Prepare final tensors
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
+        seqlen = len(tokens)  # Original sequence length before padding
 
-        seq_len = len(tokens)
-
-        # Pad tokens
+        # Pad tokens and labels to a multiple of `pad_to_multiple_of` if specified
         if self.config.pad_to_multiple_of:
             seqlen_padded = (
-                (seq_len + self.config.pad_to_multiple_of - 1)
+                (seqlen + self.config.pad_to_multiple_of - 1)
                 // self.config.pad_to_multiple_of
                 * self.config.pad_to_multiple_of
             )
-            pad_len = seqlen_padded - seq_len
+            pad_len = seqlen_padded - seqlen
 
             if pad_len > 0:
                 tokens = F.pad(tokens, (0, pad_len), 'constant', 0)
@@ -160,15 +181,14 @@ class TaskEncoder(BaseTaskEncoder):
         loss_mask = torch.ones_like(labels, dtype=torch.float)
         loss_mask[labels == self.config.ignore_place_holder] = 0.0
 
-        # Process images to match mock data format
-        if images is not None:
-            processed_images = []
-            for img in images:
-                processed_img = img.bfloat16()  # Convert to bfloat16 like in mock data
-                processed_images.append(processed_img)
-            processed_image = torch.stack(processed_images)
+        # Convert images to bfloat16 and stack, or create an empty tensor if no images
+        if images is not None and images.numel() > 0:
+            # Ensure images tensor is on the same device as tokens/labels if needed
+            images = images.to(device=tokens.device, dtype=torch.bfloat16)
+            processed_image = images  # Already stacked by HF processor if multiple images/frames
         else:
-            processed_image = torch.empty(0)
+            # Create an empty tensor with appropriate dimensions and dtype if no images
+            processed_image = torch.empty((0, 3, 336, 336), dtype=torch.bfloat16, device=tokens.device)
 
         return DataSample(
             __key__=input_sample.__key__,
@@ -179,7 +199,7 @@ class TaskEncoder(BaseTaskEncoder):
             tokens=tokens,
             labels=labels,
             loss_mask=loss_mask,
-            seqlen=seq_len,
+            seqlen=seqlen,
         )
 
 

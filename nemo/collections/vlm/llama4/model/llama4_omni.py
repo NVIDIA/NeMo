@@ -20,13 +20,13 @@ import torch
 import yaml
 from torch import nn
 
+from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
 from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
 from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
-from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
-
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
+from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
@@ -309,6 +309,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             return base
 
         src_text_config = source.text_config
+        src_vision_config = source.vision_config
         args = {
             'moe_router_topk': src_text_config.num_experts_per_tok,
             'num_moe_experts': src_text_config.num_local_experts,
@@ -353,7 +354,7 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         )
 
         # vision config doesn't change
-        vision_transformer_config = Llama4VisionConfig()
+        vision_transformer_config = Llama4VisionConfig(num_layers=src_vision_config.num_hidden_layers)
 
         vision_projection_config = MultimodalProjectorConfig(
             projector_type="mcore_affine",
@@ -530,34 +531,64 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
             "vision_model.ln_post.bias": "vision_model.layernorm_post.bias",
             "vision_model.adapter.mlp.encoder.linear_fc1.weight": "vision_model.vision_adapter.mlp.fc1.weight",
             "vision_model.adapter.mlp.encoder.linear_fc2.weight": 'vision_model.vision_adapter.mlp.fc2.weight',
-            "vision_model.decoder.layers.*.self_attention.linear_proj.weight": "vision_model.model.layers.*.self_attn.o_proj.weight",
-            "vision_model.decoder.layers.*.self_attention.linear_proj.bias": "vision_model.model.layers.*.self_attn.o_proj.bias",
-            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "vision_model.model.layers.*.input_layernorm.weight",
-            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "vision_model.model.layers.*.input_layernorm.bias",
+            "vision_model.decoder.layers.*.self_attention.linear_proj.weight": (
+                "vision_model.model.layers.*.self_attn.o_proj.weight"
+            ),
+            "vision_model.decoder.layers.*.self_attention.linear_proj.bias": (
+                "vision_model.model.layers.*.self_attn.o_proj.bias"
+            ),
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": (
+                "vision_model.model.layers.*.input_layernorm.weight"
+            ),
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": (
+                "vision_model.model.layers.*.input_layernorm.bias"
+            ),
             "vision_model.decoder.layers.*.mlp.linear_fc1.weight": "vision_model.model.layers.*.mlp.fc1.weight",
             "vision_model.decoder.layers.*.mlp.linear_fc1.bias": "vision_model.model.layers.*.mlp.fc1.bias",
             "vision_model.decoder.layers.*.mlp.linear_fc2.weight": "vision_model.model.layers.*.mlp.fc2.weight",
             "vision_model.decoder.layers.*.mlp.linear_fc2.bias": "vision_model.model.layers.*.mlp.fc2.bias",
-            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "vision_model.model.layers.*.post_attention_layernorm.weight",
-            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "vision_model.model.layers.*.post_attention_layernorm.bias",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": (
+                "vision_model.model.layers.*.post_attention_layernorm.weight"
+            ),
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": (
+                "vision_model.model.layers.*.post_attention_layernorm.bias"
+            ),
             "vision_projection.encoder.weight": "multi_modal_projector.linear_1.weight",
             "language_model.embedding.word_embeddings.weight": "language_model.model.embed_tokens.weight",
-            "language_model.decoder.layers.*.self_attention.linear_proj.weight": "language_model.model.layers.*.self_attn.o_proj.weight",
-            "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "language_model.model.layers.*.input_layernorm.weight",
+            "language_model.decoder.layers.*.self_attention.linear_proj.weight": (
+                "language_model.model.layers.*.self_attn.o_proj.weight"
+            ),
+            "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": (
+                "language_model.model.layers.*.input_layernorm.weight"
+            ),
             "language_model.decoder.final_layernorm.weight": "language_model.model.norm.weight",
             "language_model.output_layer.weight": "language_model.lm_head.weight",
             # Post Attention LayerNorm
-            "language_model.decoder.layers.*.pre_mlp_layernorm.weight": "language_model.model.layers.*.post_attention_layernorm.weight",
-            "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "language_model.model.layers.*.dense-post_attention_layernorm.weight",
+            "language_model.decoder.layers.*.pre_mlp_layernorm.weight": (
+                "language_model.model.layers.*.post_attention_layernorm.weight"
+            ),
+            "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": (
+                "language_model.model.layers.*.dense-post_attention_layernorm.weight"
+            ),
             # MoE Router
-            "language_model.decoder.layers.*.mlp.router.weight": "language_model.model.layers.*.feed_forward.router.weight",
+            "language_model.decoder.layers.*.mlp.router.weight": (
+                "language_model.model.layers.*.feed_forward.router.weight"
+            ),
             # MoE Shared Experts
-            "language_model.decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "language_model.model.layers.*.feed_forward.shared_expert.down_proj.weight",
+            "language_model.decoder.layers.*.mlp.shared_experts.linear_fc2.weight": (
+                "language_model.model.layers.*.feed_forward.shared_expert.down_proj.weight"
+            ),
             # MoE Experts
-            "language_model.decoder.layers.*.mlp.experts.linear_fc2.weight": "language_model.model.layers.*.feed_forward.experts.down_proj",
-            "language_model.decoder.layers.*.mlp.experts.linear_fc1.weight": "language_model.model.layers.*.feed_forward.experts.gate_up_proj",
+            "language_model.decoder.layers.*.mlp.experts.linear_fc2.weight": (
+                "language_model.model.layers.*.feed_forward.experts.down_proj"
+            ),
+            "language_model.decoder.layers.*.mlp.experts.linear_fc1.weight": (
+                "language_model.model.layers.*.feed_forward.experts.gate_up_proj"
+            ),
             # Dense MLP (for moe_layer_freq != 1)
-            "language_model.decoder.layers.*.mlp.linear_fc2.weight": "language_model.model.layers.*.feed_forward.down_proj.weight",
+            "language_model.decoder.layers.*.mlp.linear_fc2.weight": (
+                "language_model.model.layers.*.feed_forward.down_proj.weight"
+            ),
         }
 
         transforms = [
@@ -629,16 +660,12 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
             state_dict[new_k] = v
         return state_dict, config['config']
 
-    def _modify_llama4_source_state(self, source, source_config):
+    def _modify_llama4_source_state(self, state_dict, source_config):
         """
         For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
         For dense layer, we change the name for the post attention layer norm to
         avoid the many-to-one mapping in the conversion.
         """
-        state_dict = source
-        for key in source.keys():
-            print(f'{key}: {source[key].shape}')
-
         for layer_i in range(source_config['language_transformer_config']['num_layers']):
             is_moe_layer = True
             if isinstance(source_config['language_transformer_config']['moe_layer_freq'], list):
@@ -665,9 +692,9 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
                 ).contiguous()
 
             else:
-                assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source
-                weight = source.pop(f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
-                source[f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
+                assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
+                weight = state_dict.pop(f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+                state_dict[f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
 
         source = _ModelState(state_dict)
         return source
