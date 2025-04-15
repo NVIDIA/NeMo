@@ -1079,6 +1079,9 @@ def generate(
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
 
+    max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)
+    inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max(4096, max_seq_length)
+
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
     dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
     chunk_size = (len(inputs) + dp_size - 1) // dp_size

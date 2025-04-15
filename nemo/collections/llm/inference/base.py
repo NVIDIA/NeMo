@@ -14,17 +14,14 @@
 import inspect
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 import lightning.pytorch as pl
-import torch
 import torch.distributed
 from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
-from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
-    AbstractModelInferenceWrapper,
-)
+
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.core.transformer.module import MegatronModule
 
@@ -37,6 +34,12 @@ from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
 
+if TYPE_CHECKING:
+    from nemo.collections.llm.gpt.model.base import GPTModel
+    from nemo.collections.llm.t5.model.t5 import T5Model
+    from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
+        AbstractModelInferenceWrapper,
+    )
 
 class MCoreTokenizerWrappper:
     """
@@ -190,7 +193,7 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 4096,
-) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
+) -> tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
 
@@ -208,10 +211,10 @@ def setup_model_and_tokenizer(
         Necessary for CUDA graphs. Defaults to 4096.
 
     Returns:
-        tuple[MegatronModule, MCoreTokenizerWrappper]:
+        tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
             A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
     """
-    model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+    model: GPTModel | T5Model = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(
