@@ -23,7 +23,6 @@ import torch.distributed
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-from megatron.core.models.mamba.mamba_model import MambaModel as MCoreMambaModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -678,14 +677,12 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         """
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
-        mcore_model_found = False
         while mcore_model:
-            if type(mcore_model) is MCoreGPTModel or type(mcore_model) is MCoreMambaModel:
-                mcore_model_found = True
+            if type(mcore_model) is MCoreGPTModel:
                 break
             mcore_model = getattr(mcore_model, "module", None)
-        if not mcore_model_found:
-            raise ValueError("Neither McoreGPTModel nor MCoreMambaModel exact instance found in the model structure.")
+        if mcore_model is None or type(mcore_model) is not MCoreGPTModel:
+            raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
         vocab_size = None
         if self.tokenizer is not None:
