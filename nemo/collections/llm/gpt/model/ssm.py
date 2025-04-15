@@ -671,7 +671,9 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
         # TODO @ataghibakhsh: Change AutoConfig to NemotronHConfig once merged to HF
-        if type(source) == NemotronHConfig8B:
+        if type(source) == NemotronHConfig4B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-4B-Base", trust_remote_code=True)
+        elif type(source) == NemotronHConfig8B:
             hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
         elif type(source) == NemotronHConfig47B:
             hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-47B-Base-8K", trust_remote_code=True)
@@ -957,6 +959,19 @@ class NemotronHConfigBase(SSMConfig):
     first_last_layers_bf16: bool = True
     is_hybrid_model: bool = True
 
+@dataclass
+class NemotronHConfig4B(NemotronHConfigBase):
+    """NemotronHConfig4B"""
+
+    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    num_layers: int = 52
+    hidden_size: int = 3072
+    mamba_num_heads: int = 112
+    mamba_state_dim: int = 128
+    ffn_hidden_size: int = 12288
+    num_attention_heads: int = 32
+    kv_channels: int = 128
+    use_mamba_mem_eff_path: bool = False
 
 @dataclass
 class NemotronHConfig8B(NemotronHConfigBase):
