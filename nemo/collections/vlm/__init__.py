@@ -56,6 +56,7 @@ from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config
 from nemo.collections.vlm.neva.model.cosmos_nemotron import (
     CosmosNemotronConfig,
     CosmosNemotronRadioLlama8BConfig,
+    CosmosNemotronRadioLlama2BConfig,
     CosmosNemotronModel,
 )
 
@@ -151,5 +152,6 @@ __all__ = [
     "RADIOViTModel",
     "CosmosNemotronConfig",
     "CosmosNemotronRadioLlama8BConfig",
+    "CosmosNemotronRadioLlama2BConfig",
     "CosmosNemotronModel",
 ]

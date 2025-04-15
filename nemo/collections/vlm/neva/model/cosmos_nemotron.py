@@ -15,29 +15,28 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-from transformers.modeling_utils import PreTrainedModel
-from transformers.configuration_utils import PretrainedConfig
 from transformers import AutoModel, AutoConfig
+from transformers.configuration_utils import PretrainedConfig
+from transformers.modeling_utils import PreTrainedModel
 
-from nemo.collections.audio.parts.utils.audio import toeplitz
-from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig, Llama31Config8B
+from nemo.collections.llm import Llama31Config8B, Llama32Config3B
 from nemo.collections.llm.utils import Config
+from nemo.collections.vlm.neva.model.base import NevaModel
 from nemo.collections.vlm.neva.model.llava import LlavaConfig
-from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProjectorConfig
+from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
 from nemo.collections.vlm.vision.radio import RADIO_25_h_Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.utils import logging
 
 if TYPE_CHECKING:
-
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
 
 @dataclass
 class CosmosNemotronConfig(LlavaConfig):
@@ -61,24 +60,51 @@ class CosmosNemotronConfig(LlavaConfig):
     )
 
 
-
 @dataclass
 class CosmosNemotronRadioLlama8BConfig(CosmosNemotronConfig):
     """Cosmos Nemotron 8B Config"""
     pass
 
 
+@dataclass
+class CosmosNemotronRadioLlama2BConfig(CosmosNemotronConfig):
+    """Cosmos Nemotron 2B Config"""
+    language_transformer_config: TransformerConfig = field(
+        # PRUNED VERSION OF LLAMA32_3B
+        default_factory=lambda: Llama32Config3B(
+            make_vocab_size_divisible_by=512,
+            ffn_hidden_size=4992,
+            hidden_size=2304,
+            num_layers=22,
+            kv_channels=128,
+            share_embeddings_and_output_weights=False,
+        )
+    )
+    vision_transformer_config: TransformerConfig = field(
+        default_factory=lambda: RADIO_25_h_Config(
+            img_w=512, img_h=512, patch_dim=16,
+        )
+    )
+    vision_projection_config: TransformerConfig = field(
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=5120, hidden_size=2304, ffn_hidden_size=3072,
+            normalization='LayerNorm', projector_type="mcore_mlp",
+        )
+    )
+
+
 class CosmosNemotronModel(NevaModel):
     """Cosmos Nemotron Model NeMo Wrapper"""
 
     def __init__(
-        self,
-        config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+            self,
+            config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
+            optim: Optional[OptimizerModule] = None,
+            tokenizer: Optional["TokenizerSpec"] = None,
+            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or CosmosNemotronConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(config or CosmosNemotronConfig(), optim=optim, tokenizer=tokenizer,
+                         model_transform=model_transform)
 
 
 class StateDictWrapper:
@@ -128,13 +154,15 @@ class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemo
 
         return output_path
 
-    def convert_state(self, source, target,):
+    def convert_state(self, source, target, ):
         # pylint: disable=C0115,C0116
         mapping = {
             k: k
             for k in source.state_dict().keys()
             if "_extra_state" not in k
         }
+        # ss = source
+        # breakpoint()
         return io.apply_transforms(
             source,
             target,
@@ -160,8 +188,12 @@ class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemo
     @property
     def config(self) -> CosmosNemotronConfig:
         # pylint: disable=C0115,C0116
-        output = CosmosNemotronRadioLlama8BConfig()
-
+        if "llama_3p1_8b" in str(self):
+            output = CosmosNemotronRadioLlama8BConfig()
+        elif "llama_3p2_3b" in str(self):
+            output = CosmosNemotronRadioLlama2BConfig()
+        else:
+            raise ValueError(f"Cannot determine Cosmos Nemotron config based on '{str(self)}'.")
         return output
 
 
@@ -325,13 +357,14 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
         config.llm_config.update(text_config_dict)
         return config
 
+
 # Define transformation functions needed for the exporter
 @io.state_transform(
     source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-        "language_model.model.layers.*.self_attn.q_proj.weight",
-        "language_model.model.layers.*.self_attn.k_proj.weight",
-        "language_model.model.layers.*.self_attn.v_proj.weight",
+            "language_model.model.layers.*.self_attn.q_proj.weight",
+            "language_model.model.layers.*.self_attn.k_proj.weight",
+            "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_language_qkv(ctx: io.TransformCTX, linear_qkv):
@@ -365,8 +398,8 @@ def _export_language_qkv(ctx: io.TransformCTX, linear_qkv):
 @io.state_transform(
     source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
     target_key=(
-        "language_model.model.layers.*.mlp.gate_proj.weight",
-        "language_model.model.layers.*.mlp.up_proj.weight",
+            "language_model.model.layers.*.mlp.gate_proj.weight",
+            "language_model.model.layers.*.mlp.up_proj.weight",
     ),
 )
 def _export_language_linear_fc1(ctx: io.TransformCTX, linear_fc1):
@@ -391,9 +424,9 @@ def _export_vision_qkv(ctx: io.TransformCTX, linear_qkv):
     order = torch.ones(3 * hidden_size).long()
     for j in range(num_query_groups):
         for i in range(head_size):
-            order[j*head_size+i] = i + head_size*3*j
-            order[j*head_size+i+num_query_groups*head_size] = head_size + i + head_size*3*j
-            order[j*head_size+i+num_query_groups*head_size*2] = head_size*2 + i + head_size*3*j
+            order[j * head_size + i] = i + head_size * 3 * j
+            order[j * head_size + i + num_query_groups * head_size] = head_size + i + head_size * 3 * j
+            order[j * head_size + i + num_query_groups * head_size * 2] = head_size * 2 + i + head_size * 3 * j
 
     return linear_qkv[order]
 
@@ -414,9 +447,9 @@ def _export_vision_qkv_bias(ctx: io.TransformCTX, linear_qkv):
     order = torch.ones(3 * hidden_size).long()
     for j in range(num_query_groups):
         for i in range(head_size):
-            order[j*head_size+i] = i + head_size*3*j
-            order[j*head_size+i+num_query_groups*head_size] = head_size + i + head_size*3*j
-            order[j*head_size+i+num_query_groups*head_size*2] = head_size*2 + i + head_size*3*j
+            order[j * head_size + i] = i + head_size * 3 * j
+            order[j * head_size + i + num_query_groups * head_size] = head_size + i + head_size * 3 * j
+            order[j * head_size + i + num_query_groups * head_size * 2] = head_size * 2 + i + head_size * 3 * j
 
     return linear_qkv[order]
 
@@ -424,10 +457,10 @@ def _export_vision_qkv_bias(ctx: io.TransformCTX, linear_qkv):
 @io.state_transform(
     source_key="vision_model.class_token",
     target_key=(
-        "vision_model.radio_model.model.patch_generator.cls_token.token",
-        "radio_model.input_conditioner.norm_mean",
-        "radio_model.input_conditioner.norm_std",
-        "radio_model.summary_idxs",
+            "vision_model.radio_model.model.patch_generator.cls_token.token",
+            "radio_model.input_conditioner.norm_mean",
+            "radio_model.input_conditioner.norm_std",
+            "radio_model.summary_idxs",
     ),
 )
 def _export_class_token(ctx: io.TransformCTX, class_token):
