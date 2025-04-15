@@ -22,7 +22,7 @@ from omegaconf import DictConfig
 from nemo.collections.asr.modules.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.common.parts import form_attention_mask, NEG_INF
+from nemo.collections.common.parts import NEG_INF, form_attention_mask
 from nemo.core.classes.mixins import adapter_mixins
 
 __all__ = ["TransformerEncoder"]
@@ -206,8 +206,14 @@ class TransformerEncoder(nn.Module):
             memory_states = encoder_states
         return memory_states
 
-    def forward(self, encoder_states, encoder_mask, encoder_mems_list=None, return_mems=False,
-        memory_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        encoder_states,
+        encoder_mask,
+        encoder_mems_list=None,
+        return_mems=False,
+        memory_mask: Optional[torch.Tensor] = None,
+    ):
         """
         Args:
             encoder_states: output of the embedding_layer (B x L_enc x H)

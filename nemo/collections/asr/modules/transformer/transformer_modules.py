@@ -101,7 +101,7 @@ class TransformerEmbedding(nn.Module):
         self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
         self.dropout = nn.Dropout(embedding_dropout)
 
-    def forward(self, input_ids, token_type_ids=None, start_pos: int | torch.Tensor=0):
+    def forward(self, input_ids, token_type_ids=None, start_pos: int | torch.Tensor = 0):
         seq_length = input_ids.size(1)
         # we fail here only with parametric positional embedding. FixedPositionalEncoding automatically extends.
         if self.learn_positional_encodings and (seq_length > self.max_sequence_length):

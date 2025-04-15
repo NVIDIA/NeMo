@@ -2,17 +2,17 @@ import copy
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
+from omegaconf import open_dict
 
-from nemo.collections.asr.modules import SpectrogramAugmentation
+from nemo.collections.asr.modules import SpectrogramAugmentation, rnnt_abstract
 from nemo.collections.asr.modules.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.collections.asr.parts.utils import Hypothesis
 from nemo.core.classes import typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, NeuralType
-from omegaconf import open_dict
-from nemo.utils import logging
-from nemo.core.classes.mixins import AdapterModuleMixin
-from nemo.collections.asr.modules import rnnt_abstract
 from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.mixins import AdapterModuleMixin
+from nemo.core.neural_types import LabelsType, LengthsType, NeuralType
+from nemo.utils import logging
+
 
 class GPTDecoderState:
     transformer_state: torch.Tensor  # List[torch.Tensor]
@@ -139,20 +139,22 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
             raise NotImplementedError
         return self.predict_step(input_ids=y, state=state)
 
-
     def predict_stateless(
         self, labels: torch.Tensor, labels_lengths: torch.Tensor
     ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         if labels.dtype != torch.long:
             labels = labels.long()
         output, *additional_outputs = self.forward(
-            targets=torch.narrow(labels, 1, 0, labels_lengths.max()), target_lengths=labels_lengths,
+            targets=torch.narrow(labels, 1, 0, labels_lengths.max()),
+            target_lengths=labels_lengths,
         )
         # take last elements for batch
         last_labels = output.transpose(1, 2)[torch.arange(output.shape[0]), labels_lengths].unsqueeze(1)
         return (last_labels, *additional_outputs)
 
-    def predict_step(self, input_ids: torch.Tensor, state: Optional[GPTDecoderState] = None) -> Tuple[torch.Tensor, GPTDecoderState]:
+    def predict_step(
+        self, input_ids: torch.Tensor, state: Optional[GPTDecoderState] = None
+    ) -> Tuple[torch.Tensor, GPTDecoderState]:
         batch_size = input_ids.shape[0]
         if input_ids.dim() == 2:
             assert input_ids.shape[1] == 1
@@ -188,8 +190,9 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
     def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
         return None
 
-    def score_hypothesis(self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]) -> Tuple[
-        torch.Tensor, List[torch.Tensor], torch.Tensor]:
+    def score_hypothesis(
+        self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]
+    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         raise NotImplementedError
 
     def state_size_is_fixed(self) -> bool:
