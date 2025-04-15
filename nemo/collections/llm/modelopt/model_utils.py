@@ -36,19 +36,21 @@ def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
 
         from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
 
-        modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
+        modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm)
     except ImportError:
         # Older spec: Will be deprecated, doesnt support DeepSeek
         from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
-        modelopt_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True)
+        modelopt_spec = get_gpt_layer_modelopt_spec(
+            num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm
+        )
     model_cfg.transformer_layer_spec = modelopt_spec
     return model_cfg
 
 
 def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> None:
     """Set model.config.transformer_layer_spec to modelopt spec if modelopt_state exists in the checkpoint."""
-    path = str(path).lstrip("nemo://")  # Remove nemo:// prefix added by finetune_recipe
+    path = str(path).removeprefix("nemo://")  # Remove nemo:// prefix added by finetune_recipe
     modelopt_state_path = ckpt_to_weights_subdir(path, is_saving=False) / "modelopt_state"
     if not modelopt_state_path.exists() or hasattr(model, "module"):
         return

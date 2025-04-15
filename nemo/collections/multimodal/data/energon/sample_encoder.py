@@ -19,6 +19,7 @@ from einops import rearrange
 from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
 
 from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
+from nemo.collections.vlm.data.utils import _find_pattern_indices
 from nemo.utils import logging
 
 
@@ -552,13 +553,3 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
         )
         image_tensor = torch.concatenate(sorted_images, dim=1)  # T F(no of images) c h w
         return tokens, image_tensor
-
-
-def _find_pattern_indices(template, pattern, search_start_index=0, allow_first_token_mismatch=False):
-    template_len = len(template)
-    pattern_len = len(pattern)
-    for i in range(search_start_index, template_len - pattern_len + 1):
-        match = template[i : i + pattern_len] == pattern
-        if torch.all(match) or (allow_first_token_mismatch and torch.all(match[1:])):
-            return i, i + pattern_len
-    return -1, -1
