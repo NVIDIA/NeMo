@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import contextlib
-from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
@@ -35,7 +34,6 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.utils.te_utils import te_version
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -190,7 +188,10 @@ def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     from megatron.core.models.gpt import gpt_layer_specs
 
     return gpt_layer_specs.get_gpt_layer_local_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts,
+        moe_grouped_gemm=config.moe_grouped_gemm,
+        qk_layernorm=config.qk_layernorm,
+        normalization=config.normalization,
     )
 
 
@@ -349,27 +350,18 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
-        # Set FP8 recipe to DelayedScaling to initialize model with float8 precision.
-        build_model_context = nullcontext
-        if self.fp8 is not None:
-            assert HAVE_TE, "Transformer Engine is required for FP8 training."
-            te_pytorch, _ = safe_import("transformer_engine.pytorch")
-            fp8_model_init = te_pytorch.fp8_model_init
-            if te_version() >= (2, 0):
-                # In TE 2.0, the default recipe is MXFP8BlockScaling, need to change it to DelayedScaling
-                te_recipe, _ = safe_import("transformer_engine.common.recipe")
-                recipe = te_recipe.DelayedScaling()
-                build_model_context = partial(fp8_model_init, recipe=recipe)
-            else:
-                build_model_context = fp8_model_init
+        # Initialize model as meta data instead of allocating data on a device
+        model_init_device_context = contextlib.nullcontext
+        if self.init_model_with_meta_device:
+            model_init_device_context = partial(torch.device, device='meta')
 
-        with build_model_context():
-            import inspect
+        import inspect
 
-            if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
-                kwargs = {"mtp_block_spec": mtp_block_spec(self)}
-            else:
-                kwargs = {}
+        if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
+            kwargs = {"mtp_block_spec": mtp_block_spec(self)}
+        else:
+            kwargs = {}
+        with model_init_device_context():
             model = MCoreGPTModel(
                 self,
                 transformer_layer_spec=transformer_layer_spec,
@@ -666,7 +658,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def get_inference_wrapper(
-        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
+        self,
+        params_dtype: torch.dtype,
+        inference_batch_times_seqlen_threshold: int,
+        inference_max_seq_length: int = 2560,
     ) -> torch.Tensor:
         """Get an inference wrapper for the model.
 
@@ -675,6 +670,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         Args:
             params_dtype: Data type for parameters
             inference_batch_times_seqlen_threshold: Threshold for optimizing inference
+            inference_max_seq_length: Maximum sequence length for inference (prefill and decode)
 
         Returns:
             torch.Tensor: Wrapped model for inference
