@@ -22,6 +22,9 @@ from nemo.collections.llm.gpt.data.hf_dataset import has_dist_env_init_or_rank_e
 
 
 def mk_hf_vlm_dataset_fineweb_edu(data_path, processor, mbs, gbs):
+    '''
+    FineWeb-Edu dataset
+    '''
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
 
     def collate_fn(examples, processor):
@@ -56,6 +59,9 @@ def mk_hf_vlm_dataset_fineweb_edu(data_path, processor, mbs, gbs):
 
 
 def mk_hf_vlm_dataset_rdr(data_path, processor, mbs, gbs):
+    '''
+    RDR dataset
+    '''
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
 
     def collate_fn(examples, processor):
@@ -134,6 +140,9 @@ def json2token(obj, sort_json_key: bool = True):
 
 
 def mk_hf_vlm_dataset_cord_v2(data_path, processor, mbs, gbs):
+    '''
+    CORD-V2 dataset
+    '''
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
 
     def train_collate_fn(examples, processor):
