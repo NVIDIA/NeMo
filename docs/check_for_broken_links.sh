@@ -2,6 +2,7 @@
 
 DOCS_DIR=$(dirname "${BASH_SOURCE[0]}")
 FALSE_POSITIVES_JSON="${DOCS_DIR}/false_positives.json"
+NEEDS_REVIEW_JSON="${DOCS_DIR}/links_needing_review.json"
 LINKCHECK_JSON="${DOCS_DIR}/build/linkcheck/output.json"
 
 function check_environment {
@@ -36,9 +37,10 @@ function check_links {
     [ -n "${DEBUG}" ] && {
      echo >&2 "Checking for false positive: ${link}"
     }
-    local resp; resp=$(jq --arg check "${link}" -s 'any(.uri == $check)' < "${FALSE_POSITIVES_JSON}")
+    local false_positive_resp; false_positive_resp=$(jq --arg check "${link}" -s 'any(.uri == $check)' < "${FALSE_POSITIVES_JSON}")
+    local needs_review_resp; needs_review_resp=$(jq --arg check "${link}" -s 'any(.uri == $check)' < "${NEEDS_REVIEW_JSON}")
     # "false" indicates that the URL did not match any of the URIs in the false positive file.
-    if [ "false" = "${resp}" ]; then
+    if [[ "false" = "${false_positive_resp}" && "false" = "${needs_review_resp}" ]]; then
       ((err++))
       echo "${entry}"
     fi
