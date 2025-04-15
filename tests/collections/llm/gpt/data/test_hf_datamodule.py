@@ -303,8 +303,13 @@ def test_make_dataset_splits_with_list():
 
 
 def test_collate_fn():
+    # Create a minimal HFDatasetDataModule instance with required parameters
+    dm = llm.HFDatasetDataModule(
+        path_or_dataset=Dataset.from_dict({"dummy": [0]}),  # Minimal dummy dataset
+        split="train",
+    )
     batch = [{"id": [1], "token_ids": [1, 2, 3]}, {"id": [2], "token_ids": [123]}]
-    result = llm.HFDatasetDataModule.collate_fn(batch)
+    result = dm.collate_fn(batch)
     assert isinstance(result, dict)
     assert "id" in result
     assert "token_ids" in result
