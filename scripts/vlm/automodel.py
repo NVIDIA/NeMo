@@ -24,7 +24,7 @@ import fiddle as fdl
 import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from scripts.vlm.automodel_datasets import (
+from nemo.collections.vlm.hf.data.automodel_datasets import (
     mk_hf_vlm_dataset_cord_v2,
     mk_hf_vlm_dataset_fineweb_edu,
     mk_hf_vlm_dataset_rdr,
@@ -80,6 +80,8 @@ if __name__ == '__main__':
         help="Path to the dataset. Can be a local path or a HF dataset name",
     )
     parser.add_argument("--peft", type=str, default="none", choices=["lora", "none"], help="Which peft to use")
+    parser.add_argument("--freeze-vision-model", action="store_true", help="Freeze the vision model parameters")
+    parser.add_argument("--freeze-language-model", action="store_true", help="Freeze the language model parameters")
     args = parser.parse_args()
 
     dataset_fn = None
@@ -96,7 +98,17 @@ if __name__ == '__main__':
 
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
 
-    model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor)
+    model_kwargs = {}
+
+    # Gemma-3 recommends eager attention implementation
+    if "google/gemma-3" in args.model:
+        model_kwargs["attn_implementation"] = "eager"
+
+    model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor,
+                                              freeze_language_model=args.freeze_language_model,
+                                              freeze_vision_model=args.freeze_vision_model,
+                                              **model_kwargs)
+    
     peft = None
     if args.peft == 'lora':
         peft = llm.peft.LoRA(

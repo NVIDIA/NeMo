@@ -37,6 +37,8 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
+        freeze_language_model=False,
+        freeze_vision_model=False,
         **kwargs,
     ):
         super().__init__()
@@ -52,6 +54,8 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.trust_remote_code = trust_remote_code
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
+        self.freeze_language_model = freeze_language_model
+        self.freeze_vision_model = freeze_vision_model
         self.kwargs = kwargs
 
     @property
@@ -93,6 +97,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
 
         self.model.train()
+        self.freeze_model()
 
         # Ugly hack for PEFT: adapters are added here so that can be wrapped correctly with DDP.
         if getattr(self, 'model_transform', None) is not None:
@@ -236,6 +241,34 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 skipped_token_ids.append(key)
         return torch.IntTensor(list(set(skipped_token_ids)))
 
+    def freeze_model(self) -> None:
+        modules = []
+        
+        # Search for language model, atmost one is allowed
+        language_model = None
+        for attr in dir(self.model):
+            if attr.startswith('language') and isinstance(getattr(self.model, attr), torch.nn.Module):
+                if language_model is not None:
+                    raise ValueError(f"Found multiple language models: {language_model} and {attr}")
+                language_model = getattr(self.model, attr)
+        
+        # Search for vision model, atmost one is allowed
+        vision_model = None
+        for attr in dir(self.model):
+            if attr.startswith('vision') and isinstance(getattr(self.model, attr), torch.nn.Module):
+                if vision_model is not None:
+                    raise ValueError(f"Found multiple vision models: {vision_model} and {attr}")
+                vision_model = getattr(self.model, attr)
+
+        if self.freeze_language_model and language_model is not None:
+            modules.append(language_model)
+        if self.freeze_vision_model and vision_model is not None:
+            modules.append(vision_model)
+
+        for module in modules:
+            for param in module.parameters():
+                param.requires_grad = False
+            
     @property
     def _has_lora_adapter(self):
         return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
