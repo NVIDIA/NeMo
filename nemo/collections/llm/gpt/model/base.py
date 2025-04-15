@@ -745,9 +745,9 @@ def get_batch_on_this_context_parallel_rank(batch) -> dict[str, torch.Tensor]:
                     val.shape[seq_dim] // (2 * cp_size),
                     *val.shape[(seq_dim + 1) :],
                 )
-                index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).to(
-                    _val.device, non_blocking=True
-                )
+                index = torch.zeros(2, dtype=torch.int64, device=_val.device)
+                index[0].fill_(cp_rank)
+                index[1].fill_(2 * cp_size - cp_rank - 1)
                 _val = _val.index_select(seq_dim, index)
                 _val = _val.view(*val.shape[0:seq_dim], -1, *_val.shape[(seq_dim + 2) :])
                 batch[key] = _val
