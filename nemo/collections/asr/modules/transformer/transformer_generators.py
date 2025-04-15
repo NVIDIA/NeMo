@@ -431,6 +431,10 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         # logging.warning(f"decoder_input_ids:   {decoder_input_ids}")
         # logging.warning(f"tgt:   {tgt}")
         # logging.warning(f"prefixes[:, -1:]: {prefixes[:, -1:]}")
+        # logging.warning("**********"*100)
+        # logging.warning(f"encoder_hidden_states.shape {encoder_hidden_states.shape}")
+        # logging.warning(f"encoder_hidden_states[0,35] {encoder_hidden_states[0,:20]    }")
+        # raise ValueError("Stop here")
 
         # repeat init target prefixes and cached memory states beam_size times
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)

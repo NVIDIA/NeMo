@@ -124,7 +124,8 @@ class CanaryData():
     decoding_step: int = -1
     decoder_mems_list: list = None
     is_last_speech_chunk: torch.Tensor = False
-    max_generation_length: int = 360
+    max_generation_length: int = 512
+    max_tokens_per_alignatt_step: int = 10
 
 
 @dataclass
@@ -146,6 +147,7 @@ class StreamingEvaluationConfig(TranscriptionConfig):
     alignatt_thr: int = 4 # The frame threshold to be used for alignatt decoding policy
     xatt_scores_layer: int = -2 # The decoder layer to be used for alignatt decoding policy
     exclude_sink_frames: int = 8 # The number of sink frames to be excluded from the xattention scores for alignatt decoding policy
+    use_avgpool_for_alignatt: bool = False # Whether to use avgpool for alignatt decoding policy during most attended frames calculation
 
     # params for offline models streaming
     window_size: int = 14 # The size of encoder embeddings to be used for offline streaming (ms = window_size * subsampling * 10)
@@ -191,10 +193,6 @@ def compute_alignatt_lagging(cfg, batch_samples, predicted_token_ids, canary_dat
     tokens_idx_shift = canary_data.decoder_input_ids.size(-1)
     target_length_word = [len(a['text'].split()) for a in batch_samples]
     laal_list = []
-    if cfg.model_type == "offline":
-        right_context = cfg.right_context
-    else:
-        right_context = 0
     for i, tokens in enumerate(predicted_token_ids):
         if len(tokens) == 0:
             laal_list.append(5000)
@@ -205,7 +203,7 @@ def compute_alignatt_lagging(cfg, batch_samples, predicted_token_ids, canary_dat
         lagging = []
         for j, cur_t in enumerate(tokens):
             # import pdb; pdb.set_trace()
-            pred_idx = canary_data.tokens_frame_alignment[i, tokens_idx_shift+j] + right_context
+            pred_idx = canary_data.tokens_frame_alignment[i, tokens_idx_shift+j] + canary_data.rigtht_context
             cur_t = asr_model.tokenizer.vocab[cur_t]
             eos_token = asr_model.tokenizer.vocab[asr_model.tokenizer.eos_id]
             if (cur_t.startswith(BOW_PREFIX) and cur_t != BOW_PREFIX) or cur_t == eos_token:  # word boundary
@@ -231,10 +229,6 @@ def compute_waitk_lagging(batch_samples, predicted_token_ids, cfg, canary_data, 
     waitk_lagging = cfg.waitk_lagging
     pre_decision_ratio = canary_data.frame_chunk_size
     target_length_word = [len(a['text'].split()) for a in batch_samples]
-    if cfg.model_type == "offline":
-        right_context = cfg.right_context
-    else:
-        right_context = 0
     laal_list = []
     # import pdb; pdb.set_trace()
     for i, tokens in enumerate(predicted_token_ids):
@@ -242,7 +236,7 @@ def compute_waitk_lagging(batch_samples, predicted_token_ids, cfg, canary_data, 
         audio_encoder_fs = 80
         audio_signal_length = batch_samples[i]["audio_length_ms"]
         for j, cur_t in enumerate(tokens):
-            cur_src_len = (j + waitk_lagging) * pre_decision_ratio + right_context
+            cur_src_len = (j + waitk_lagging) * pre_decision_ratio + canary_data.rigtht_context
             cur_src_len*=audio_encoder_fs # to ms
             cur_src_len = min(audio_signal_length, cur_src_len)
             spm = asr_model.tokenizer.vocab[cur_t]
@@ -508,6 +502,8 @@ def main(cfg: StreamingEvaluationConfig):
                 canary_data.tokens_frame_alignment = torch.zeros_like(canary_data.tgt)
                 canary_data.active_samples = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
                 canary_data.active_samples_inner_loop = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
+                canary_data.rigtht_context = cfg.right_context * (1 if cfg.model_type == "offline" else 0)
+                canary_data.avgpool2d = torch.nn.AvgPool2d(5, stride=1, padding=2, count_include_pad=False)
                 
                 # import pdb; pdb.set_trace()
                 

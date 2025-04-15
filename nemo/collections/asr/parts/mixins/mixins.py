@@ -799,12 +799,11 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     else:
                         input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1].unsqueeze(-1)
                     
-                    # shift steps up to len of decoder_input_ids for correct position encoding
-                    if canary_data.decoding_step == 0:
-                        canary_data.decoding_step += canary_data.decoder_input_ids.size(-1)-1
+                    # shift steps up to len of decoder_input_ids (initial prompt) for correct position encoding
+                    # if canary_data.decoding_step == 0:
+                    #     canary_data.decoding_step += canary_data.decoder_input_ids.size(-1)-1
                     
                     decoder_mems_list = canary_data.decoder_mems_list
-
                     start_from = canary_data.decoding_step+1
 
                     # if not canary_data.is_last_speech_chunk:
@@ -812,15 +811,21 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         max_generation_length = start_from + 1
                     else:
                         max_generation_length = canary_data.max_generation_length
+
+                    canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
                     
                     for i in range(start_from, max_generation_length):
+                        if not decoder_mems_list:
+                                positional_indexes = torch.zeros_like(canary_data.current_context_lengths)
+                        else:
+                            positional_indexes = canary_data.current_context_lengths - 1
                         # predict only one token per speech chunk if not the last one                     
                         logits, decoder_mems_list, xatt_scores_list = self.decoding.decoding.greedy_search._one_step_forward(
                             input_ids,
                             canary_data.encoded_speech,
                             encoder_input_mask,
                             decoder_mems_list,
-                            i,
+                            positional_indexes,
                             return_scores=False,
                             return_xatt_scores=True,
                         )
@@ -829,10 +834,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                         # compute eos tokens mask
                         is_eos_tokens = next_tokens == self.tokenizer.eos
-
                         # rearange active samples (inner loop) depends on eos prediction
                         torch.logical_and(canary_data.active_samples_inner_loop, torch.logical_not(is_eos_tokens), out=canary_data.active_samples_inner_loop)
-
                         # disable samples (upper loop) with eos and end of speech
                         eos_and_end_speech_mask = torch.logical_and(is_eos_tokens, canary_data.is_last_speech_chunk)
                         torch.logical_and(canary_data.active_samples, torch.logical_not(eos_and_end_speech_mask), out=canary_data.active_samples)
@@ -854,7 +857,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         if not torch.any(canary_data.active_samples_inner_loop):
                             if cfg.debug_mode:
                                 logging.warning(f"!#! no active samples in inner loop, do next upper step !#!")
-                            canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
+                            # canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
                             # torch.logical_and(canary_data.active_samples, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
                             break
 
@@ -862,9 +865,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         next_tokens[torch.logical_not(canary_data.active_samples_inner_loop)] = self.tokenizer.eos
                         canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] = next_tokens
 
-                        canary_data.decoder_mems_list = decoder_mems_list
-                        canary_data.decoding_step = i
-                        input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                        # canary_data.decoding_step = i
+                        # input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
+                        canary_data.decoding_step += input_ids.size(-1)
+                        input_ids = next_tokens.unsqueeze(-1)
 
                         # check for hallucinations
                         # TODO add more consequtive tokens? Now we are checking only 3 same tokens 
@@ -890,6 +894,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         if torch.any(torch.logical_not(canary_data.active_samples_inner_loop)):
                             for j in range(len(decoder_mems_list)):
                                 decoder_mems_list[j][:, -1] *= canary_data.active_samples_inner_loop.unsqueeze(-1)
+                        canary_data.decoder_mems_list = decoder_mems_list
 
                         if cfg.debug_mode:
                             pass
@@ -909,12 +914,14 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 else:
                     input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths-1].unsqueeze(-1)
                     # import pdb; pdb.set_trace()
-                    # TODO leads to big slowdown for AST
+                    # TODO leads to big slowdown for AST in the case of offline model (because of hallucinations)
                     start_from = torch.min(canary_data.current_context_lengths).item() - 1
 
                 decoder_mems_list = canary_data.decoder_mems_list 
-                
+                canary_data.steps_per_inner_loop = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+                # finish_where = min(start_from + canary_data.max_tokens_per_alignatt_step, canary_data.max_generation_length)
                 for i in range(start_from, canary_data.max_generation_length):
+                # for i in range(start_from, finish_where):
                     # prepare positional indexes offset for attention decoder
                     if not decoder_mems_list:
                         positional_indexes = torch.zeros_like(canary_data.current_context_lengths)
@@ -938,10 +945,18 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         exclude_sink_frames = xatt_scores.shape[-1] - 2
                     else:
                         exclude_sink_frames = cfg.exclude_sink_frames
-                    most_attended_idxs = torch.argmax(xatt_scores[:,:,exclude_sink_frames:], dim=-1) + cfg.exclude_sink_frames
+                    most_attended_idxs = torch.argmax(xatt_scores[:,:,exclude_sink_frames:], dim=-1) + exclude_sink_frames
+
+                    average_pooling_xatt_scores = canary_data.avgpool2d(xatt_scores[:,:,exclude_sink_frames:]) 
+                    most_attended_idxs_avgpool = torch.argmax(average_pooling_xatt_scores, dim=-1) + exclude_sink_frames
                     
-                    # 0 step hase prompt tokens, we need to exclude them from the most attended idxs
-                    if i == 0:
+                    # import pdb; pdb.set_trace()
+                    
+                    if cfg.use_avgpool_for_alignatt:
+                        most_attended_idxs = most_attended_idxs_avgpool
+                    
+                    # select the last attended token for each sample
+                    if most_attended_idxs.size(-1) > 1:
                         most_attended_idxs = most_attended_idxs[:, -1]
                     else:
                         most_attended_idxs = most_attended_idxs.squeeze(-1)
@@ -956,36 +971,14 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     alignatt_condition += canary_data.is_last_speech_chunk
 
                     # applay alignatt condition for inner loop
-                    # torch.logical_and(alignatt_condition, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
                     canary_data.active_samples_inner_loop = canary_data.active_samples_inner_loop * alignatt_condition
-
-                    # # # increase speech chunk if no active samples in inner loop
-                    # # if not torch.any(canary_data.active_samples_inner_loop) and torch.any(torch.logical_not(canary_data.is_last_speech_chunk)):
-                    # if not torch.any(canary_data.active_samples_inner_loop):
-                    #     if cfg.debug_mode:
-                    #         logging.warning(f"!!! need more speech according to the alignatt policy !!!")
-                    #     canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
-                    #     # torch.logical_and(canary_data.active_samples, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
-                    #     break
-
-
-                    # TODO take into account token with id 16
-                    is_eos_tokens = next_tokens == self.tokenizer.eos
-                    # import pdb; pdb.set_trace()
-
-                    # rearange active samples (inner loop) depends on eos prediction
-                    torch.logical_and(canary_data.active_samples_inner_loop, torch.logical_not(is_eos_tokens), out=canary_data.active_samples_inner_loop)
-
-                    # disable samples (upper loop) with eos and end of speech
-                    eos_and_end_speech_mask = torch.logical_and(is_eos_tokens, canary_data.is_last_speech_chunk)
-                    torch.logical_and(canary_data.active_samples, torch.logical_not(eos_and_end_speech_mask), out=canary_data.active_samples)
-
 
                     if cfg.debug_mode:
                         logging.warning(f"-------------"*5)
                         logging.warning(f"canary_data.decoding_step  : {canary_data.decoding_step}")
                         logging.warning(f"decoding step i: {i}")
                         logging.warning(f"[encoded_speech.shape]     : {canary_data.encoded_speech.shape}")
+                        logging.warning(f"[positional_indexes]     : {positional_indexes}")
                         logging.warning(f"[most_attended_idxs]       : {most_attended_idxs}")
                         logging.warning(f"[is_last_speech_chunk]     : {canary_data.is_last_speech_chunk}")
                         logging.warning(f"[active_samples]           : {canary_data.active_samples}")
@@ -994,30 +987,54 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         logging.warning(f"[predicted tokens]         : {text_token}")
                         logging.warning(f"[predicted tokens id]: {next_tokens}")
 
+                    # import pdb; pdb.set_trace()
+
+                    # increase speech chunk if no active samples in the inner loop
+                    if not torch.any(canary_data.active_samples_inner_loop):
+                        if cfg.debug_mode:
+                            logging.warning(f"!#! no active samples in inner loop, do next upper step !#!")
+                        canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
+                        break
+
+                    # compute eos tokens mask
+                    is_eos_tokens = next_tokens == self.tokenizer.eos
+                    # rearange active samples (inner loop) depends on eos prediction
+                    torch.logical_and(canary_data.active_samples_inner_loop, torch.logical_not(is_eos_tokens), out=canary_data.active_samples_inner_loop)
+                    # disable samples (upper loop) with eos and end of speech
+                    eos_and_end_speech_mask = torch.logical_and(is_eos_tokens, canary_data.is_last_speech_chunk)
+                    torch.logical_and(canary_data.active_samples, torch.logical_not(eos_and_end_speech_mask), out=canary_data.active_samples)
+
+
+                    # if cfg.debug_mode:
+                    #     logging.warning(f"-------------"*5)
+                    #     logging.warning(f"canary_data.decoding_step  : {canary_data.decoding_step}")
+                    #     logging.warning(f"decoding step i: {i}")
+                    #     logging.warning(f"[encoded_speech.shape]     : {canary_data.encoded_speech.shape}")
+                    #     logging.warning(f"[positional_indexes]     : {positional_indexes}")
+                    #     logging.warning(f"[most_attended_idxs]       : {most_attended_idxs}")
+                    #     logging.warning(f"[is_last_speech_chunk]     : {canary_data.is_last_speech_chunk}")
+                    #     logging.warning(f"[active_samples]           : {canary_data.active_samples}")
+                    #     logging.warning(f"[active_samples_inner_loop]: {canary_data.active_samples_inner_loop}")
+                    #     logging.warning(f"[current_context_lengths]  : {canary_data.current_context_lengths}")
+                    #     logging.warning(f"[predicted tokens]         : {text_token}")
+                    #     logging.warning(f"[predicted tokens id]: {next_tokens}")
+
 
                     if cfg.debug_mode:                       
-                        import pdb; pdb.set_trace()
+                        # import pdb; pdb.set_trace()
                         pass
 
                     if not torch.any(canary_data.active_samples_inner_loop):
                         if cfg.debug_mode:
                             logging.warning(f"!#! no active samples in inner loop, do next upper step !#!")
                         canary_data.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=self.device) * canary_data.active_samples
-                        # torch.logical_and(canary_data.active_samples, canary_data.active_samples_inner_loop, out=canary_data.active_samples_inner_loop)
                         break
 
                     # write predicted tokens to the tgt tensor
-                    # TODO looks a bit strange, need to check
-                    # import pdb; pdb.set_trace()
                     next_tokens[torch.logical_not(canary_data.active_samples_inner_loop)] = self.tokenizer.eos
-                    # TODO need to create a tensor with eos indeces
-                    # torch.where(canary_data.active_samples_inner_loop, next_tokens, self.tokenizer.eos, out=next_tokens)
                     canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths] = next_tokens
 
-                    # TODO fix tokens alignment for laal computation
-                    encoded_speech = torch.zeros_like(next_tokens) + canary_data.encoded_speech.size(-2) + cfg.right_context
-                    # encoded_speech[canary_data.active_samples_inner_loop] = canary_data.encoded_speech.size(-2)
-                    canary_data.tokens_frame_alignment[canary_data.batch_idxs, canary_data.current_context_lengths] = encoded_speech
+                    canary_data.tokens_frame_alignment[canary_data.batch_idxs, canary_data.current_context_lengths] = canary_data.encoded_speech.size(-2)
 
                     # import pdb; pdb.set_trace()
                     canary_data.decoding_step += input_ids.size(-1)
@@ -1053,10 +1070,16 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                     canary_data.decoder_mems_list = decoder_mems_list
                     canary_data.current_context_lengths += canary_data.active_samples_inner_loop
+
+                    # limit number of steps per inner loop if not end of speech
+                    canary_data.steps_per_inner_loop += canary_data.active_samples_inner_loop
+                    disable_samples = canary_data.steps_per_inner_loop == canary_data.max_tokens_per_alignatt_step
+                    disable_samples *= torch.logical_not(canary_data.is_last_speech_chunk)
+                    canary_data.active_samples_inner_loop *= torch.logical_not(disable_samples)
                 
                     if cfg.debug_mode:
                         pass
-                        # import pdb; pdb.set_trace()
+                        import pdb; pdb.set_trace()
 
                 # for i in range(batch_size):
                 #     greedy_predictions.append(canary_data.tgt[i, canary_data.decoder_input_ids.size(-1):canary_data.current_context_lengths[i]])
