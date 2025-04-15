@@ -205,6 +205,7 @@ class GlobalState:
         sig = cfg.train_config.exit_signal
         self._signal_handler = DistributedSignalHandler(sig).__enter__()
 
+
 def _timers_write_to_wandb(
     self,
     names: list[str],
