@@ -22,7 +22,6 @@ from torchmetrics import Metric
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
 from nemo.collections.asr.parts.submodules.multitask_decoding import AbstractMultiTaskDecoding
 from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'word_error_rate_detail', 'WER']
@@ -329,12 +328,7 @@ class WER(Metric):
         if self.log_prediction:
             logging.info("\n")
             logging.info(f"reference:{references[0]}")
-            if type(hypotheses) == list:
-                if type(hypotheses[0]) == Hypothesis:
-                    logging.info(f"predicted:{hypotheses[0].text}")
-                elif type(hypotheses[0]) == list and type(hypotheses[0][0]) == Hypothesis:
-                    for h in hypotheses[0]:
-                        logging.info(f"predicted:{h.text}")
+            logging.info(f"predicted:{hypotheses[0].text}")
 
         for h, r in zip(hypotheses, references):
             if isinstance(h, list):
