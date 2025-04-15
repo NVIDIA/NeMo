@@ -408,12 +408,14 @@ class ImageTransformerLayer(TransformerLayer):
         submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
         hidden_dropout: float = None,
+        **kwargs,
     ):
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             hidden_dropout=hidden_dropout,
+            **kwargs,
         )
         self.gated = self.config.gated
         if self.gated:
