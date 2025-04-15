@@ -2080,6 +2080,16 @@ jobs:
         rm -rf /tmp/output_nemo2_ckpt
         rm -rf /tmp/output_hf_ckpt
 
+  # L2: Tron
+  L2_Tron_Llama1B_Train:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Tron_Llama1B_Train') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_Tron_Llama1B_Train.sh
+
   Nemo_CICD_Test:
     needs:
       - pre-flight
@@ -2259,6 +2269,7 @@ jobs:
       - L2_NeMo_2_VLLM_EXPORT
       - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
+      - L2_MLM_Llama1B_Train
 
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
