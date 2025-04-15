@@ -1245,4 +1245,3 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             return self.modified_alsd_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
         return self.modified_alsd_torch(encoder_output=x, encoder_output_length=out_len)
-        # return self.modified_alsd_beam_torch_old(encoder_output=x, encoder_output_length=out_len)
