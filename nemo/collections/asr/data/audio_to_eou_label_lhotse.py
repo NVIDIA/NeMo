@@ -17,19 +17,26 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch.utils.data
-from lhotse.cut import Cut, CutSet, MonoCut
+from lhotse.cut import Cut, CutSet, MixedCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.utils import logging
 
 EOU_LABEL = 2
 EOB_LABEL = 3
 EOU_STRING = '<eou>'
 EOB_STRING = '<eob>'
+
+
+EOU_LENGTH_PERTURBATION = ['speed', 'time_stretch']
+EOU_PROHIBITED_AUGMENTATIONS = ['random_segment']
 
 
 class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
@@ -43,6 +50,23 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
     while if it's a backchannel utterance it'll be marked asd "end of backchannel" (labeled as `3`).
     The rest of the speech frames will be marked as "speech" (labeled as `1`).
     The padded non-speech signals will be marked as "non-speech" (labeled as 0).
+
+    Args:
+        cfg: DictConfig object container following keys, usually taken from your `model.train_ds`
+            or `model.validation_ds` config:
+        ```
+            sample_rate: # int, Sample rate of the audio signal
+            window_stride: # float, Window stride for audio encoder
+            subsampling_factor: # Subsampling factor for audio encoder
+            random_padding:  # Random padding configuration
+                prob: 0.9  # probability of applying padding
+                min_pad_duration: 0.5  # minimum duration of pre/post padding in seconds
+                max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
+                pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
+                normal_mean: 0.5  # mean of normal distribution for padding duration
+                normal_std: 2.0  # standard deviation of normal distribution for padding duration
+        ```
+
 
     Returns:
         audio: torch.Tensor of audio signal
@@ -77,17 +101,6 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         5) concatenate the pre-padding, audio, and post-padding to get the padded audio signal
         6) update the EOU labels accordingly
 
-    Random padding yaml config:
-    ```
-    random_padding:
-        padding_prob: 0.99  # probability of applying padding
-        min_pad_duration: 0.5  # minimum duration of pre/post padding in seconds
-        max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
-        pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
-        pad_normal_mean: 0.5  # mean of normal distribution for padding duration
-        pad_normal_std: 2.0  # standard deviation of normal distribution for padding duration
-    ```
-
     """
 
     @property
@@ -108,27 +121,66 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         self.return_eou_labels = return_eou_labels
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
+        self.sample_rate = self.cfg.get('sample_rate', 16000)
         self.num_sample_per_mel_frame = int(
-            self.cfg.get('window_stride', 0.01) * self.cfg.get('sample_rate', 16000)
+            self.cfg.get('window_stride', 0.01) * self.sample_rate
         )  # 160 samples for every 1ms by default
         self.num_mel_frame_per_target_frame = int(self.cfg.get('subsampling_factor', 8))
         self.eou_string = self.cfg.get('eou_string', EOU_STRING)
         self.eob_string = self.cfg.get('eob_string', EOB_STRING)
         self.add_sep_before_eou = self.cfg.get('add_sep_before_eou', False)
         self.padding_cfg = self.cfg.get('random_padding', None)
-        self.drop_pnc = self.cfg.get('drop_pnc', False)
-        self.pc_strip = self.cfg.get('pc_strip', False)
+        self.augmentor = None
+        self.len_augmentor = None
+        if self.cfg.get('augmentor', None) is not None:
+            augmentor = {}
+            len_augmentor = {}
+            aug_cfg = OmegaConf.to_container(self.cfg.augmentor, resolve=True)
+            for k, v in aug_cfg.items():
+                if k in EOU_PROHIBITED_AUGMENTATIONS:
+                    logging.warning(f"EOU dataset does not support {k} augmentation, skipping.")
+                    continue
+                if k in EOU_LENGTH_PERTURBATION:
+                    len_augmentor[k] = v
+                else:
+                    augmentor[k] = v
+
+            if len(augmentor) > 0:
+                logging.info(f"EOU dataset will apply augmentations: {augmentor}")
+                self.augmentor = process_augmentations(augmentor)
+            if len(len_augmentor) > 0:
+                logging.info(f"EOU dataset will apply length augmentations: {len_augmentor}")
+                self.len_augmentor = process_augmentations(len_augmentor)
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
-        audio, audio_lens, _ = self.load_audio(cuts)
+        audio, audio_lens, cuts = self.load_audio(cuts)
         audio_signals = []
         audio_lengths = []
         eou_targets = []
         text_tokens = []
+
         for i in range(len(cuts)):
-            eou_targets_i = self.get_frame_labels(cuts[i], audio_lens[i])
-            text_tokens_i = self.get_text_tokens(cuts[i])
-            audio_i, audio_len_i, eou_targets_i = self.random_pad_audio(audio[i], audio_lens[i], eou_targets_i)
+            c = cuts[i]
+            if isinstance(c, MixedCut):
+                c = c.first_non_padding_cut
+
+            audio_i = audio[i]
+            audio_len_i = audio_lens[i]
+
+            # Maybe apply speed perturbation, this has to be done before getting the EOU labels
+            audio_i, audio_len_i = self._maybe_augment_length(audio_i, audio_len_i)
+
+            # Get EOU labels and text tokens
+            eou_targets_i = self._get_frame_labels(c, audio_len_i)
+            text_tokens_i = self._get_text_tokens(c)
+
+            # Maybe apply random padding to both sides of the audio
+            audio_i, audio_len_i, eou_targets_i = self._random_pad_audio(audio_i, audio_len_i, eou_targets_i)
+
+            # Maybe apply augmentations to the audio signal after padding
+            audio_i, audio_len_i = self._maybe_augment_audio(audio_i, audio_len_i)
+
+            # Append the processed audio, EOU labels, and text tokens to the lists
             audio_signals.append(audio_i)
             audio_lengths.append(audio_len_i)
             eou_targets.append(eou_targets_i)
@@ -158,7 +210,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         hidden_length = math.ceil(mel_frame_count / self.num_mel_frame_per_target_frame)
         return hidden_length
 
-    def get_frame_labels(self, cut: Cut, num_samples: int):
+    def _get_frame_labels(self, cut: Cut, num_samples: int):
         hidden_length = self._audio_len_to_frame_len(num_samples)
         if not "sou_time" in cut.custom or not "eou_time" in cut.custom:
             # assume only single speech segment
@@ -198,9 +250,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             if sou_time[i] is None or eou_time[i] is None or sou_time[i] < 0 or eou_time[i] < 0:
                 # skip empty utterances
                 continue
-            sou_idx = self._audio_len_to_frame_len(int((sou_time[i] - cut.start) * self.cfg.sample_rate))
+            sou_idx = self._audio_len_to_frame_len(int((sou_time[i] - cut.start) * self.sample_rate))
             seg_len_in_secs = eou_time[i] - sou_time[i]
-            seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.cfg.sample_rate))
+            seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.sample_rate))
             eou_targets[sou_idx : sou_idx + seg_len] = 1
             if is_backchannel[i]:
                 eou_targets[sou_idx + seg_len - 1] = EOB_LABEL  # end of backchannel
@@ -209,7 +261,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         return eou_targets
 
-    def get_text_tokens(self, cut: Cut):
+    def _get_text_tokens(self, cut: Cut):
         if not cut.has_custom("sou_time") or not cut.has_custom("eou_time") or not cut.has_custom("utterances"):
             # assume only single speech segment
             utterances = [cut.supervisions[0].text]
@@ -241,7 +293,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         total_text = total_text.strip()
         return torch.as_tensor(self.tokenizer(total_text))
 
-    def random_pad_audio(self, audio: torch.Tensor, audio_len: torch.Tensor, eou_targets: torch.Tensor):
+    def _random_pad_audio(self, audio: torch.Tensor, audio_len: torch.Tensor, eou_targets: torch.Tensor):
         """
         Randomly pad the audio signal with non-speech signal before and after the audio signal.
         Args:
@@ -255,7 +307,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             padded_eou_targets_len: torch.Tensor of padded EOU label length, shape [1]
         """
         p = np.random.rand()
-        if self.padding_cfg is None or p > self.padding_cfg.padding_prob:
+        if self.padding_cfg is None or p > self.padding_cfg.prob:
             return audio, audio_len, eou_targets
 
         duration = audio_len.item() / self.cfg.sample_rate
@@ -274,9 +326,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         if self.padding_cfg.pad_distribution == 'uniform':
             total_padding_duration = np.random.uniform(min_padding_duration, max_padding_duration)
         elif self.padding_cfg.pad_distribution == 'normal':
-            total_padding_duration = np.random.normal(
-                self.padding_cfg.pad_normal_mean, self.padding_cfg.pad_normal_std
-            )
+            total_padding_duration = np.random.normal(self.padding_cfg.normal_mean, self.padding_cfg.normal_std)
             total_padding_duration = max(min_padding_duration, min(max_padding_duration, total_padding_duration))
         else:
             raise ValueError(f"Unknown padding distribution: {self.padding_cfg.pad_distribution}")
@@ -301,3 +351,57 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         padded_eou_targets = torch.cat((pre_padding_eou, eou_targets, post_padding_eou), dim=0)
 
         return padded_audio, padded_audio_len, padded_eou_targets
+
+    def _maybe_augment_audio(self, audio: torch.Tensor, audio_len: torch.Tensor):
+        """
+        Apply augmentation to the audio signal if augmentor is provided.
+        Args:
+            audio: torch.Tensor of a single audio signal, shape [T]
+            audio_len: torch.Tensor of audio signal length, shape [1]
+        Returns:
+            augmented_audio: torch.Tensor of augmented audio signal, shape [T]
+            augmented_audio_len: torch.Tensor of augmented audio signal length, shape [1]
+        """
+        if self.augmentor is None:
+            return audio, audio_len
+
+        # Cast to AudioSegment
+        audio_segment = AudioSegment(
+            samples=audio[:audio_len].numpy(),
+            sample_rate=self.sample_rate,
+            offset=0,
+            duration=audio_len.item() / self.sample_rate,
+        )
+        # Apply augmentation
+        self.augmentor.perturb(audio_segment)
+        audio = torch.from_numpy(audio_segment.samples).float()
+        audio_len = audio.size(0)
+
+        return audio, audio_len
+
+    def _maybe_augment_length(self, audio: torch.Tensor, audio_len: torch.Tensor):
+        """
+        Apply length augmentation (e.g., speed perturb) to the audio signal if augmentor is provided.
+        Args:
+            audio: torch.Tensor of a single audio signal, shape [T]
+            audio_len: torch.Tensor of audio signal length, shape [1]
+        Returns:
+            augmented_audio: torch.Tensor of augmented audio signal, shape [T]
+            augmented_audio_len: torch.Tensor of augmented audio signal length, shape [1]
+        """
+        if self.len_augmentor is None:
+            return audio, audio_len
+
+        # Cast to AudioSegment
+        audio_segment = AudioSegment(
+            samples=audio[:audio_len].numpy(),
+            sample_rate=self.sample_rate,
+            offset=0,
+            duration=audio_len.item() / self.sample_rate,
+        )
+        # Apply augmentation
+        self.len_augmentor.perturb(audio_segment)
+        audio = torch.from_numpy(audio_segment.samples).float()
+        audio_len = audio.size(0)
+
+        return audio, audio_len

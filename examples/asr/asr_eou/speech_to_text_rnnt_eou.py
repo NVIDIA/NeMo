@@ -32,6 +32,7 @@ export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 
 TRAIN_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/turnGPT_TTS_data/daily_dialogue_test_tts.json
 VAL_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/turnGPT_TTS_data/daily_dialogue_test_tts.json
+NOISE_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/noise_manifest.json
 
 PRETRAINED_NEMO=/media/data3/pretrained_models/nemo_asr/stt_en_fastconformer_hybrid_large_streaming_80ms_rnnt.nemo
 TOKENIZER_DIR=/media/data3/pretrained_models/nemo_asr/tokenizers/stt_en_fastconformer_hybrid_large_streaming_80ms-eou/
@@ -55,33 +56,16 @@ CUDA_VISIBLE_DEVICES=0 python $SCRIPT \
     model.encoder.att_context_size="[70,1]" \
     model.tokenizer.dir=$TOKENIZER_DIR \
     model.train_ds.manifest_filepath=$TRAIN_MANIFEST \
+    model.train_ds.augmentor.noise.manifest_path=$NOISE_MANIFEST \
     model.validation_ds.manifest_filepath=$VAL_MANIFEST \
-    model.train_ds.batch_size=null \
-    model.validation_ds.batch_size=null \
-    ++model.train_ds.defer_setup=true \
-    ++model.train_ds.batch_duration=$BATCH_DURATION \
-    ++model.train_ds.num_workers=$NUM_WORKERS \
-    ++model.train_ds.quadratic_duration=30 \
-    ++model.train_ds.num_buckets=30 \
-    ++model.train_ds.num_cuts_for_bins_estimate=10000 \
-    ++model.train_ds.bucket_buffer_size=10000 \
-    ++model.train_ds.shuffle_buffer_size=10000 \
-    ++model.train_ds.shuffle=true \
-    ++model.validation_ds.defer_setup=true \
-    ++model.validation_ds.batch_duration=$BATCH_DURATION \
-    ++model.validation_ds.num_workers=$NUM_WORKERS \
-    ++model.validation_ds.quadratic_duration=30 \
-    ++model.validation_ds.num_buckets=30 \
-    ++model.validation_ds.num_cuts_for_bins_estimate=10000 \
-    ++model.validation_ds.bucket_buffer_size=10000 \
-    ++model.validation_ds.shuffle_buffer_size=10000 \
-    ++model.validation_ds.shuffle=false \
+    model.train_ds.batch_duration=$BATCH_DURATION \
+    model.train_ds.num_workers=$NUM_WORKERS \
+    model.validation_ds.batch_duration=$BATCH_DURATION \
+    model.validation_ds.num_workers=$NUM_WORKERS \
     ~model.test_ds \
-    ++trainer.use_distributed_sampler=false \
-    ++trainer.limit_train_batches=$LIMIT_TRAIN_BATCHES \
+    trainer.limit_train_batches=$LIMIT_TRAIN_BATCHES \
     trainer.val_check_interval=$VAL_CHECK_INTERVAL \
     trainer.max_steps=$MAX_STEPS \
-    trainer.max_epochs=-1 \
     exp_manager.name=$EXP_NAME
 ```
 
@@ -198,9 +182,7 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     logging.info(f"Joint network weights loaded from {pretrained_model_path}.")
 
 
-@hydra_runner(
-    config_path="../conf/fastconformer/cache_aware_streaming", config_name="fastconformer_transducer_bpe_streaming"
-)
+@hydra_runner(config_path="../conf/asr_eou", config_name="fastconformer_transducer_bpe_streaming")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
