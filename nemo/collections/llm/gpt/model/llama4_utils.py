@@ -23,6 +23,7 @@ from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention as MCoreSelfAttention
 from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.torch_norm import L2Norm
 from megatron.core.utils import deprecate_inference_params
 from torch import Tensor
 
@@ -405,46 +406,3 @@ class Llama4SelfAttention(MCoreSelfAttention):
         output, bias = self.linear_proj(core_attn_out)
 
         return output, bias
-
-
-class L2Norm(torch.nn.Module):
-    """
-    Applies L2 normalization to the input tensor along the last dimension.
-
-    This module normalizes the input tensor such that the mean of the squared values
-    along the last dimension is 1 (within a small epsilon for numerical stability).
-
-    Args:
-        hidden_size (int): Expected input shape for normalization (not used internally).
-        eps (float, optional): A small value added to the denominator for numerical stability.
-            Default: 1e-6.
-    """
-
-    def __init__(self, hidden_size: int, eps: float = 1e-6, **kwargs):
-        super().__init__()
-        self.hidden_size = hidden_size
-        self.eps = eps
-
-    def _norm(self, x):
-        """
-        Performs the actual L2 normalization.
-
-        Args:
-            x (torch.Tensor): The input tensor to normalize.
-
-        Returns:
-            torch.Tensor: The L2-normalized tensor.
-        """
-        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
-
-    def forward(self, x):
-        """
-        Forward pass of the L2Norm module.
-
-        Args:
-            x (torch.Tensor): Input tensor.
-
-        Returns:
-            torch.Tensor: L2-normalized tensor with the same dtype as input.
-        """
-        return self._norm(x.float()).type_as(x)
