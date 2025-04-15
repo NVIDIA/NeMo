@@ -57,17 +57,20 @@ class MCoreArtifact(Artifact):
         value = pathize(path)
         if instance.library == 'huggingface':
             if value.exists():
+                # if HF tokenizer is stored locally
                 relative_dir = pathize(relative_dir) / pathize(value.name)
                 os.makedirs(str(absolute_dir / relative_dir), exist_ok=True)
                 for file in value.iterdir():
                     copy_file(file, absolute_dir, relative_dir)
                 return str(relative_dir)
             else:
+                # if HF tokenizer is loaded from HF cloud
                 path_to_save = pathize(absolute_dir) / pathize(value.name)
                 instance.save_pretrained(path_to_save)
-                copy_file(instance.metadata_path, absolute_dir, relative_dir)
-                return str(relative_dir)
+                copy_file(instance.metadata_path, path_to_save, relative_dir)
+                return str(path_to_save.name)
         else:
+            # save tokenizer and it's metadata for SentencePiece and TikToken
             copy_file(instance.metadata_path, absolute_dir, relative_dir)
             new_value = copy_file(value, absolute_dir, relative_dir)
             return str(new_value)
