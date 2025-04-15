@@ -517,7 +517,7 @@ class AlpamayoV2(BaseDataset):
                         timestamps.append(t0_stamp)
                 if len(timestamps) == 0:
                     raise ValueError(
-                        f"view_idxs do not contain the base camera for trajectory computation."
+                        "view_idxs do not contain the base camera for trajectory computation."
                     )
 
                 # compute trajectory for the target base camera

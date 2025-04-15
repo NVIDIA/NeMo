@@ -142,7 +142,6 @@ class _MockGPTDataset(Dataset):
 
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
-        self.data_batches = data_batches
 
     def __len__(self) -> int:
         return self.length

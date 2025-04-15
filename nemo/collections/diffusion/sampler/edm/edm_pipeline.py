@@ -17,7 +17,6 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import numpy as np
 import torch
 import torch.distributed
-from einops import rearrange
 from megatron.core import parallel_state
 from torch import Tensor
 

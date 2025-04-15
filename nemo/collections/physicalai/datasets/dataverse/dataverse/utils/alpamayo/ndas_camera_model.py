@@ -13,12 +13,9 @@
 # limitations under the License.
 
 import json
-from collections.abc import Iterable, Mapping
 from typing import Any
 
 import numpy as np
-import torch
-import torch.nn.functional as F
 from numpy.polynomial.polynomial import Polynomial
 from scipy.optimize import curve_fit
 

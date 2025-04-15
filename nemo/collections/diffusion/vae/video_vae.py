@@ -15,6 +15,7 @@
 import os
 from abc import ABC, abstractmethod
 
+from huggingface_hub import snapshot_download
 import torch
 from einops import rearrange
 from torch.nn.modules import Module
@@ -393,11 +394,11 @@ def video_vae3_512(
 ):
     name = 'cosmos_tokenizer'
     if enc_fp is None:
-        enc_fp = os.path.join(vae_path, f'encoder.jit')
+        enc_fp = os.path.join(vae_path, 'encoder.jit')
     if dec_fp is None:
-        dec_fp = os.path.join(vae_path, f'decoder.jit')
+        dec_fp = os.path.join(vae_path, 'decoder.jit')
     if video_mean_std_fp is None:
-        video_mean_std_fp = os.path.join(vae_path, f'mean_std.pt')
+        video_mean_std_fp = os.path.join(vae_path, 'mean_std.pt')
 
     video_vae = VideoJITTokenizer(
         vae_path,

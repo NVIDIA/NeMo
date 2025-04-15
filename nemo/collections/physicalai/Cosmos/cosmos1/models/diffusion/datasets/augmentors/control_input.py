@@ -460,7 +460,6 @@ class AddControlInputBlurDownUp(Augmentor):
         return frames, is_image
 
     def __call__(self, data_dict: dict) -> dict:
-        key_img = self.input_keys[1]
         key_out = self.output_keys[0]
         frames, is_image = self._load_frame(data_dict)
         # H, W = frames.shape[2], frames.shape[3]

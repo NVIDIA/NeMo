@@ -312,8 +312,6 @@ class VideoFolderCameraCtrlDataset(Dataset):
         padding_mask = torch.load(padding_mask_path, map_location='cpu')
 
         t = info['num_frames']
-        h = info['height']
-        w = info['width']
 
         seq_len = video_latent.shape[-1] * video_latent.shape[-2] * video_latent.shape[-3]
         loss_mask = torch.ones(seq_len, dtype=torch.bfloat16)

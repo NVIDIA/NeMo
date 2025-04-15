@@ -52,7 +52,6 @@ def get_text_prompt_embeddings(args):
     text_encoder = CosmosT5TextEncoder()
     prompt_embedding, prompt_mask = text_encoder.encode_prompts([args.prompt])
     del text_encoder
-    text_encoder = None
     gc.collect()
     torch.cuda.empty_cache()
     return prompt_embedding

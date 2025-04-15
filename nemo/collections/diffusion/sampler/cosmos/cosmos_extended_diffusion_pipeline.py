@@ -13,9 +13,8 @@
 # limitations under the License.
 
 
-import os
 import warnings
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Tuple, Union
 
 import numpy as np
 import torch
@@ -24,13 +23,11 @@ from megatron.core import parallel_state
 from einops import rearrange
 from statistics import NormalDist
 from torch import Tensor
-from torch.distributed import broadcast_object_list, get_process_group_ranks
 
 from nemo.collections.diffusion.sampler.batch_ops import *
 from nemo.collections.diffusion.sampler.conditioner import BaseVideoCondition, VideoExtendCondition, DataType, Edify4Condition
 from nemo.collections.diffusion.sampler.context_parallel import split_inputs_cp, cat_outputs_cp
 from nemo.collections.diffusion.sampler.res.res_sampler import COMMON_SOLVER_OPTIONS, RESSampler
-from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
 from nemo.collections.diffusion.sampler.edm.edm import EDMSDE, EDMSampler, EDMScaling
 
 # key to check if the video data is normalized or image data is converted to video data
@@ -200,7 +197,6 @@ class ExtendedDiffusionPipeline:
         # Use xt and condition to get new_noise_xt
         condition_video_indicator = condition.condition_video_indicator  # [B, 1, T, 1, 1]
         if parallel_state.get_context_parallel_world_size() > 1:
-            cp_size = parallel_state.get_context_parallel_world_size()
             cp_group = parallel_state.get_context_parallel_group()
             condition_video_indicator = split_inputs_cp(condition_video_indicator, seq_dim=2, cp_group=cp_group)
             augment_latent = split_inputs_cp(augment_latent, seq_dim=2, cp_group=cp_group)

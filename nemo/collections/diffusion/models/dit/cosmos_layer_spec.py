@@ -14,10 +14,8 @@
 
 import copy
 from typing import Literal, Union
-from einops import rearrange
 from dataclasses import dataclass
 
-import torch
 import torch.nn as nn
 
 from megatron.core.transformer.identity_op import IdentityOp
@@ -41,7 +39,6 @@ from megatron.core.transformer.attention import (
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.utils import make_viewless_tensor
-from megatron.core.jit import jit_fuser
 
 
 @dataclass

@@ -22,7 +22,7 @@ import json
 import random
 import time
 from contextlib import ContextDecorator
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, List, Tuple
 
 import numpy as np
 import termcolor

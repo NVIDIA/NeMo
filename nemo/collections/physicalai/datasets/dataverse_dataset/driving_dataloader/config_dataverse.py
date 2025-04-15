@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
-
 from omegaconf import DictConfig
 from platformdirs import user_cache_path
 

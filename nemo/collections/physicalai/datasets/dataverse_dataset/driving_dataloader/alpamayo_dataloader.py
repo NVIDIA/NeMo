@@ -14,8 +14,6 @@
 
 import gc
 import os
-import pickle
-import random
 
 import numpy as np
 import torch
@@ -41,7 +39,6 @@ try:
 except ImportError:
     USE_MEGATRON = False
 
-import omegaconf
 import torch.profiler
 
 
@@ -203,7 +200,7 @@ class InfiniteDataVerse:
         view_indices = [i for i in range(len(self.dataset.camkeys))]
         try:
             t5_and_meta_data = self.dataset._read_t5_and_meta(video_idx=data_idx, view_idxs=view_indices)
-        except Exception as e:
+        except Exception:
             print(
                 f"RANK {rank}: T5 Meta Data Loading ERROR for video_idx {data_idx}. Skip and continue load the next Video."
             )
@@ -238,7 +235,7 @@ class InfiniteDataVerse:
                     frame_idxs=read_data_frame_indices,
                     view_idxs=read_data_view_indices,
                 )
-            except Exception as e:
+            except Exception:
                 print(
                     f"RANK {rank}: Data reading ERROR for video_idx {data_idx}. Skip and continue load the next Video."
                 )
@@ -303,7 +300,7 @@ class InfiniteDataVerse:
             sample["t5_raw_text_embeddings"] = raw_embeddings
             sample["raw_caption"] = raw_caption
 
-        except Exception as e:
+        except Exception:
             print(
                 f"RANK {rank}: Dataloading ERROR for video_idx {data_idx} on T5 loading. Skip and continue load the next Video."
             )
@@ -320,7 +317,7 @@ class InfiniteDataVerse:
             sample['frame_repeat'] = data['num_repeated_frames']
 
         if self.load_trajectory:
-            ## with lvg, use rig coordinate
+            # with lvg, use rig coordinate
             trajectory = rearrange(data[DataField.TRAJECTORY], '(t c) -> t c', c=3)
             trajectory = trajectory / torch.FloatTensor([[10.0, 4.0, 1.0]])
             sample["trajectory"] = rearrange(trajectory, 't c -> (t c)')

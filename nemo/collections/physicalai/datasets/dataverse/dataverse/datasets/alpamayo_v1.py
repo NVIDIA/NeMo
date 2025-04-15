@@ -40,6 +40,7 @@ from dataverse.utils.ndas.av_metadata import (
     key2id,
 )
 from dataverse.utils.ndas.camera_model import FThetaCamera, IdealPinholeCamera
+from dataverse.utils.ndas.av_metadata import pose_to_corn
 
 from .base import BaseDataset
 

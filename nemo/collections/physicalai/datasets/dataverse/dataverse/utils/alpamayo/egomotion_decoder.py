@@ -18,6 +18,7 @@ import random
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+import pandas as pd
 from typing import Any, TypedDict
 
 import numpy as np

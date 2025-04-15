@@ -288,10 +288,8 @@ class Transformer(nn.Module):
         ), "Either tokens or token_embeddings should be provided, not both."
 
         if token_embeddings is None:
-            seq_len = tokens.shape[1]
             h = self.tok_embeddings(tokens)
         else:
-            seq_len = token_embeddings.shape[1]
             h = token_embeddings
 
         # Create attention mask

@@ -18,7 +18,6 @@ from typing import Dict, Literal, Optional
 import torch
 import torch.distributed
 import torch.nn as nn
-import torch.nn.functional as F
 from diffusers.models.embeddings import Timesteps
 from einops import rearrange, repeat
 from megatron.core import parallel_state, tensor_parallel
@@ -36,7 +35,6 @@ from nemo.collections.diffusion.models.dit.dit_embeddings import ParallelTimeste
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     get_dit_adaln_block_with_transformer_engine_spec as DiTLayerWithAdaLNspec,
 )
-from megatron.core.transformer.custom_layers.transformer_engine import TENorm
 
 
 def modulate(x, shift, scale):
@@ -262,8 +260,8 @@ class DiTCrossAttentionModel(VisionModule):
                isinstance(self.pos_embedder, dit_embeddings.SinCosPosEmb3D):
                 pos_emb = None
             else:
-                ## if transformer blocks need pos_emb, then pos_embedder should
-                ## be replicated across pp ranks.
+                # if transformer blocks need pos_emb, then pos_embedder should
+                # be replicated across pp ranks.
                 pos_emb = rearrange(self.pos_embedder(pos_ids), "B S D -> S B D")
 
 

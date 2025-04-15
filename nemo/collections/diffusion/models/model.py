@@ -14,7 +14,7 @@
 import os
 import importlib
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
@@ -29,7 +29,7 @@ from torch import nn
 from typing_extensions import override
 
 from nemo.collections.diffusion.models.dit_llama.dit_llama_model import DiTLlamaModel
-from nemo.collections.diffusion.sampler.conditioner import VideoConditioner, VideoExtendConditioner, VideoExtendConditionControl, VideoExtendConditionerControl
+from nemo.collections.diffusion.sampler.conditioner import VideoConditioner, VideoExtendConditioner, VideoExtendConditionerControl
 from nemo.collections.diffusion.sampler.conditioner_configs import (
     FPSConfig,
     ImageSizeConfig,

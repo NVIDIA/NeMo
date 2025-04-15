@@ -42,7 +42,8 @@ from torch.distributed import ProcessGroup, get_process_group_ranks
 import math
 
 from torch import Tensor
-from torch.distributed import ProcessGroup, all_gather, get_process_group_ranks, get_world_size
+from torch.distributed import ProcessGroup, get_process_group_ranks
+import warnings
 
 def gather_along_first_dim(tensor, process_group):
     return AllGather.apply(tensor, process_group)
@@ -836,7 +837,6 @@ class DiTCrossAttentionModel14B(VisionModule):
 
         if "rope" in self.pos_emb_cls.lower():
             if extra_pos_emb is not None:
-                extra_pos_emb_p = rearrange(extra_pos_emb, "B T H W D -> T H W B D")
                 extra_pos_emb = rearrange(extra_pos_emb, 'B T H W D -> (T H W) B D')
                 return x_B_T_H_W_D, [self.pos_embedder(x_B_T_H_W_D, fps=fps), extra_pos_emb.detach()]
             else:
@@ -901,7 +901,7 @@ class DiTCrossAttentionModel14B(VisionModule):
         Returns:
             Tensor: loss tensor
         """
-        ## Decoder forward
+        # Decoder forward
         # Decoder embedding.
         # print(f'x={x}')
         # x = x.squeeze(0)
@@ -917,7 +917,6 @@ class DiTCrossAttentionModel14B(VisionModule):
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
-            x_T_H_W_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> T H W B D")
             # print(f'x_T_H_W_B_D.shape={x_T_H_W_B_D.shape}')
             x_S_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> (T H W) B D")
             # print(f'x_S_B_D.shape={x_S_B_D.shape}')
@@ -1275,7 +1274,6 @@ class DiTCrossAttentionExtendModel14B(VisionModule):
 
         if "rope" in self.pos_emb_cls.lower():
             if extra_pos_emb is not None:
-                extra_pos_emb_p = rearrange(extra_pos_emb, "B T H W D -> T H W B D")
                 extra_pos_emb = rearrange(extra_pos_emb, 'B T H W D -> (T H W) B D')
                 return x_B_T_H_W_D, [self.pos_embedder(x_B_T_H_W_D, fps=fps), extra_pos_emb]
             else:
@@ -1341,7 +1339,7 @@ class DiTCrossAttentionExtendModel14B(VisionModule):
         Returns:
             Tensor: loss tensor
         """
-        ## Decoder forward
+        # Decoder forward
         # Decoder embedding.
         # print(f'x={x}')
         # x = x.squeeze(0)
@@ -1363,7 +1361,6 @@ class DiTCrossAttentionExtendModel14B(VisionModule):
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
-            x_T_H_W_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> T H W B D")
             # print(f'x_T_H_W_B_D.shape={x_T_H_W_B_D.shape}')
             x_S_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> (T H W) B D")
             # print(f'x_S_B_D.shape={x_S_B_D.shape}')
@@ -1593,7 +1590,6 @@ class DiTCrossAttentionActionExtendModel14B(DiTCrossAttentionExtendModel14B):
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
-            x_T_H_W_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> T H W B D")
             x_S_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> (T H W) B D")
         else:
             # intermediate stage of pipeline

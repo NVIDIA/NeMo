@@ -169,7 +169,7 @@ class CosmosAV(AlpamayoV2):
         else:
             t5_index = dict()
             for chunk_id in tqdm.tqdm(os.listdir(self.t5_dirs)):
-                cache_file_path = os.path.join(self.t5_dirs, chunk_id, f"mapping.json")
+                cache_file_path = os.path.join(self.t5_dirs, chunk_id, "mapping.json")
                 if os.path.exists(cache_file_path):
                     with open(cache_file_path, "r") as f:
                         curr_t5_index = json.load(f)
@@ -400,7 +400,7 @@ class CosmosAV(AlpamayoV2):
         tar_path = self.tar_index[clip_name]
 
         ed_config = egomotion_decoder.EgoMotionDecoderConfig(
-            decode_strategy=f"at_0_frame",
+            decode_strategy="at_0_frame",
             prediction_start_offset_range=[0.0, 0.0]
         )
         with tarfile.open(tar_path, "r") as f:
@@ -476,7 +476,7 @@ class CosmosAV(AlpamayoV2):
                         timestamps.append(t0_stamp)
                 if len(timestamps) == 0:
                     raise ValueError(
-                        f"view_idxs do not contain the base camera for trajectory computation."
+                        "view_idxs do not contain the base camera for trajectory computation."
                     )
 
                 # compute trajectory for the target base camera

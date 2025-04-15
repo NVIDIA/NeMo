@@ -57,7 +57,6 @@ class DiffusionDecoderGeneralDIT(GeneralDIT):
             patch_temporal,
             model_channels,
             is_diffusion_decoder,
-            diffusion_decoder_token_condition_dim,
             diffusion_decoder_condition_on_sigma,
         ) = (
             self.concat_padding_mask,
@@ -66,7 +65,6 @@ class DiffusionDecoderGeneralDIT(GeneralDIT):
             self.patch_temporal,
             self.model_channels,
             self.is_diffusion_decoder,
-            self.diffusion_decoder_token_condition_dim,
             self.diffusion_decoder_condition_on_sigma,
         )
         in_channels = (

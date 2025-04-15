@@ -162,7 +162,7 @@ def test_impossible_cropping():
     tensor = np.zeros((C, T, H, W))
     try:
         minimal_crop(tensor, target_divisor)
-    except ValueError as e:
+    except ValueError:
         pass
 
 def test_invalid_target_divisor():
@@ -171,7 +171,7 @@ def test_invalid_target_divisor():
     tensor = np.zeros((C, T, H, W))
     try:
         minimal_crop(tensor, -1)
-    except ValueError as e:
+    except ValueError:
         pass
 
 def test_minimal_elements_removed():

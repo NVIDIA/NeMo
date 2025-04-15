@@ -22,35 +22,26 @@ from nemo.collections.diffusion.sampler.cosmos.cosmos_diffusion_pipeline import 
 from nemo.collections.diffusion.sampler.res.res_sampler import COMMON_SOLVER_OPTIONS
 from torch import Tensor
 
-import os
 import torch
 import einops
 from dataclasses import dataclass
 from einops import rearrange, repeat
-from huggingface_hub import snapshot_download
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core import InferenceParams, tensor_parallel
 from megatron.core.packed_seq_params import PackedSeqParams
-from nemo.collections import llm
-from nemo.collections.diffusion.datamodule import DiTDataModule
 from nemo.collections.diffusion.models.dit.dit_model_7b import (
     DiTCrossAttentionModel7B,
     PatchEmbed,
-    SDXLTimestepEmbedding,
-    SDXLTimesteps,
     get_1d_sincos_pos_embed_from_grid,
     split_inputs_cp,
     cat_outputs_cp
 )
 from nemo.collections.diffusion.models.model import DiT7BConfig, DiTModel, dynamic_import
-from nemo.collections.diffusion.train import pretrain
-from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from torch import nn
 from torch.distributed import ProcessGroup, get_process_group_ranks
 from torchvision import transforms
 from typing_extensions import override
-import nemo_run as run
 import numpy as np
 import wandb
 
@@ -479,7 +470,6 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
 
         if "rope" in self.pos_emb_cls.lower():
             if extra_pos_emb is not None:
-                extra_pos_emb_p = rearrange(extra_pos_emb, "B T H W D -> T H W B D")
                 extra_pos_emb = rearrange(extra_pos_emb, "B T H W D -> (T H W) B D")
                 return x_B_T_H_W_D, [self.pos_embedder(x_B_T_H_W_D, fps=fps), extra_pos_emb]
             else:
@@ -529,13 +519,12 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask, trajectory=trajectory, frame_repeat=frame_repeat)
             B, T, H, W, D = x_B_T_H_W_D.shape
-            x_T_H_W_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> T H W B D")
             # print(f'x_T_H_W_B_D.shape={x_T_H_W_B_D.shape}')
             x_S_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> (T H W) B D")
             # print(f'x_S_B_D.shape={x_S_B_D.shape}')
         else:
             # intermediate stage of pipeline
-            x_S_B_D = None  ### should it take encoder_hidden_states
+            x_S_B_D = None  # should it take encoder_hidden_states
 
         _, _, D = x_S_B_D.shape
 
@@ -772,7 +761,7 @@ class FrameRepeatAttr(TrainingOnlyEmbModel):
         }
 
     def details(self) -> str:
-        return f"Frame repeat, Output key: [frame_repeat]"
+        return "Frame repeat, Output key: [frame_repeat]"
     
 @attrs.define(slots=False)
 class FrameRepeatConfig:

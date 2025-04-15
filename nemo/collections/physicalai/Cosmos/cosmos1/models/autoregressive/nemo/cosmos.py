@@ -24,6 +24,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.transformer.enums import AttnBackend
+from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from nemo.collections.llm.gpt.model.llama import Llama3Config, LlamaModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io

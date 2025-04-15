@@ -36,6 +36,7 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TERowParallelLinear,
 )
 from megatron.core.transformer.enums import AttnBackend, AttnMaskType
+from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -571,7 +572,6 @@ def _import_qkv_cosmos_self_attention(ctx: io.TransformCTX, q, k, v):
 def _import_kv_cosmos_cross_attention(ctx: io.TransformCTX, k, v):
     megatron_config = ctx.target.config
 
-    head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     hidden_size = megatron_config.crossattn_emb_size
     head_size = megatron_config.kv_channels

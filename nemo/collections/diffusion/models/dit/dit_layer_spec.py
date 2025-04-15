@@ -18,7 +18,6 @@ from typing import Literal, Union
 
 import torch
 import torch.nn as nn
-from einops import rearrange
 from megatron.core.jit import jit_fuser
 from megatron.core.transformer.attention import (
     CrossAttention,
@@ -41,6 +40,11 @@ from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
+from nemo.collections.diffusion.models.dit.dit_attention import {
+    JointSelfAttention,
+    JointSelfAttentionSubmodules,
+    FluxSingleAttention,
+}
 
 
 # pylint: disable=C0116

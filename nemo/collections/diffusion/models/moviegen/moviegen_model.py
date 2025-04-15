@@ -13,24 +13,18 @@
 # limitations under the License.
 
 
-from typing import Literal, Optional, Tuple
+from typing import Literal
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from diffusers.models.embeddings import Timesteps
 from einops import rearrange
-from megatron.core import InferenceParams, tensor_parallel
-from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core import tensor_parallel
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.transformer.custom_layers.transformer_engine import TENorm
-from megatron.core.transformer.enums import ModelType
-from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor
 
-from nemo.collections.diffusion.models.dit import dit_embeddings
-from nemo.collections.diffusion.models.dit.dit_model import DiTCrossAttentionModel, FinalLayer
+from nemo.collections.diffusion.models.dit.dit_model import DiTCrossAttentionModel
 from nemo.collections.diffusion.models.dit_llama.dit_llama_layer_spec import get_dit_llama_spec
 
 

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from typing import Any, Dict, List, Optional, Union
+import PIL
 
 import numpy as np
 import torch

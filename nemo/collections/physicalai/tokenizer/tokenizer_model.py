@@ -15,23 +15,21 @@
 """Implements the forward op for training, validation, and inference."""
 
 import os
-from typing import Any, Optional
+from typing import Optional
 
 import lightning.pytorch as L
 import torch
-import torch.nn as nn
 import wandb
 from cosmos1.models.tokenizer.networks.configs import continuous_video, discrete_video
 from cosmos1.models.tokenizer.networks.continuous_video import CausalContinuousVideoTokenizer
 from cosmos1.models.tokenizer.networks.discrete_video import CausalDiscreteVideoTokenizer
 from einops import rearrange
-from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections.llm import fn
 from nemo.collections.physicalai.tokenizer.losses.config import VideoLoss
 from nemo.collections.physicalai.tokenizer.losses.loss import TokenizerLoss
-from nemo.lightning import get_vocab_size, io
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning import io
+from nemo.lightning.pytorch.optim import OptimizerModule
 
 IMAGE_KEY = "images"
 INPUT_KEY = "INPUT"
@@ -146,8 +144,6 @@ class TokenizerModel(L.LightningModule, io.IOMixin, fn.FNMixin):
 
         loss_dict, loss_value = self.loss(inputs, output_dict, iteration)
 
-        prediction_key = EMA_PREDICTION if ema_model else PREDICTION
-
         if wandb.run is not None:
 
             visualization = torch.cat(
@@ -171,6 +167,5 @@ class TokenizerModel(L.LightningModule, io.IOMixin, fn.FNMixin):
 
     @torch.inference_mode()
     def forward(self, data_batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        _input_key = self.get_input_key(data_batch)
         output_dict = self._network_forward(data_batch)
         return dict({PREDICTION: output_dict[RECON_KEY]})

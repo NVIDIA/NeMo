@@ -127,8 +127,8 @@ class LPIPS(nn.Module):
 
         res = [diffs[kk].mean([1, 2, 3], keepdim=True) for kk in range(len(self.chns))]
         val = res[0]
-        for l in range(1, len(self.chns)):
-            val += res[l]
+        for i in range(1, len(self.chns)):
+            val += res[i]
         return val
 
 

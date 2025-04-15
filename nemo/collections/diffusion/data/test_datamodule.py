@@ -14,18 +14,14 @@
 
 import os
 import time
-import nemo_run as run
 from nemo.collections.diffusion.data.diffusion_taskencoder import BasicDiffusionTaskEncoder
 from nemo.collections.diffusion.train import multimodal_datamodule
 import fiddle as fdl
 import pytest
 import torch
 from megatron.core import parallel_state
-import torch.autograd.profiler as profiler
 from tqdm import tqdm
 import numpy as np
-
-from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
 
 # Fixture to initialize distributed training only once
 @pytest.fixture(scope="session", autouse=True)

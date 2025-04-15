@@ -16,7 +16,7 @@
 """Additional augmentors for image and video training loops."""
 
 import random
-from typing import Any, Optional
+from typing import Optional
 
 import torch
 

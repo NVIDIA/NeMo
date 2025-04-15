@@ -88,7 +88,7 @@ class RandomCrop(Augmentor):
         try:
             crop_x0 = int(torch.randint(0, orig_w - width + 1, size=(1,)).item())
             crop_y0 = int(torch.randint(0, orig_h - height + 1, size=(1,)).item())
-        except Exception as e:
+        except Exception:
             logging.warning(
                 f"Random crop failed. Performing center crop, original_size(wxh): {orig_w}x{orig_h}, random_size(wxh): {width}x{height}"
             )

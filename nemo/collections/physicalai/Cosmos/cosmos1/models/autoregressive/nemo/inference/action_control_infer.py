@@ -87,7 +87,6 @@ def main(
     """
 
     num_tokens_to_generate = math.prod(LATENT_SHAPE)
-    model_config = CosmosConfigActionControl5B()
 
     # Create the mcore inference engine from the restored checkpoint to handle efficient caching of
     # repeated auto-regressive token generation.

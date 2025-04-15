@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-from enum import Enum
-
 from models import (
     ContinuousFormulation,
     DiscreteQuantizer,

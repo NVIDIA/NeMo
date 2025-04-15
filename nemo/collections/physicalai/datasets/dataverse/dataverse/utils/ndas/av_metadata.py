@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import io
 import json
 import os
 import tarfile
-from pathlib import Path
 
 import numpy as np
 import yaml
-from platformdirs import user_cache_path
 from pyquaternion import Quaternion
 from scipy.interpolate import interp1d
 

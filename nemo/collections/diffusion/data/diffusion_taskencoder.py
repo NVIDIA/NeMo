@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
 import torch
 import torch.nn.functional as F
 from einops import rearrange
-from megatron.core import parallel_state
 from megatron.energon import DefaultTaskEncoder, SkipSample
 from megatron.energon.task_encoder.cooking import Cooker, basic_sample_keys
 

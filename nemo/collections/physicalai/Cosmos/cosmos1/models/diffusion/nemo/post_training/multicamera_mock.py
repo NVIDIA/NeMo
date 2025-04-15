@@ -36,7 +36,6 @@ class MultiCameraDiTVideoLatentMockDataset(torch.utils.data.Dataset):
         t = 16
         h = 34
         w = 40
-        p = 1
         seq_len = t * h * w
         video_latent = torch.randn(16, t, h, w).to(dtype=torch.uint8)
         loss_mask = torch.ones(seq_len, dtype=torch.bfloat16)

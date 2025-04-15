@@ -127,7 +127,6 @@ def run_diffusion_decoder_model(indices_tensor_cur_batch: List[torch.Tensor], ou
     )
 
     del diffusion_decoder_model
-    diffusion_decoder_model = None
     gc.collect()
     torch.cuda.empty_cache()
 
