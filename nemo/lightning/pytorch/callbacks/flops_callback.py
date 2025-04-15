@@ -106,6 +106,7 @@ class FLOPsMeasurementCallback(Callback):
         config_kwargs["moe_layer_freq"] = self.model_cfg.moe_layer_freq
         config_kwargs["moe_shared_expert_intermediate_size"] = self.model_cfg.moe_shared_expert_intermediate_size
         config_kwargs["moe_ffn_hidden_size"] = self.model_cfg.moe_ffn_hidden_size
+        config_kwargs["mtp_num_layers"] = self.model_cfg.mtp_num_layers
 
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
