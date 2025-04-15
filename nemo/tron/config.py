@@ -272,10 +272,8 @@ class DistributedInitConfig:
     local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
 
-    lazy_mpu_init: bool = False
-    """If set to True, initialize_megatron() skips DDP initialization and returns function to
-    complete it instead. Also turns on --use-cpu-initialization flag. This is for external DDP
-    manager."""
+    lazy_init: bool = False
+    """If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on --use-cpu-initialization flag. This is for external DDP manager."""
 
     use_torch_fsdp2: bool = False
     """Use the torch FSDP2 implementation. FSDP2 is not currently working with Pipeline Parallel.
@@ -688,15 +686,13 @@ class ConfigContainer(Container):
             * self.model_config.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
-        assert (
-            world_size % total_model_size == 0
-        ), f"""
+        assert world_size % total_model_size == 0, f"""
         world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})
         """
         self.data_parallel_size = world_size // total_model_size
 
         self.model_config.use_cpu_initialization = (
-            self.model_config.use_cpu_initialization or self.dist_config.lazy_mpu_init
+            self.model_config.use_cpu_initialization or self.dist_config.lazy_init
         )
 
         # Make sure all functionality that requires Gloo process groups is disabled.

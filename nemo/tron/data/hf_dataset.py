@@ -101,6 +101,8 @@ def preprocess_and_split_data(
     delete_raw: bool = False,
     seed: int = 1234,
     rewrite: bool = False,
+    do_test: bool = True,
+    do_validation: bool = True,
 ):
     """Download, preprocess, split, and save a Hugging Face dataset to JSONL files.
 
@@ -135,15 +137,17 @@ def preprocess_and_split_data(
         if train_set is not None:
             break
 
-    for alias in val_aliases:
-        val_set = dset.get(alias)
-        if val_set is not None:
-            break
+    if do_validation:
+        for alias in val_aliases:
+            val_set = dset.get(alias)
+            if val_set is not None:
+                break
 
-    for alias in test_aliases:
-        test_set = dset.get(alias)
-        if test_set is not None:
-            break
+    if do_test:
+        for alias in test_aliases:
+            test_set = dset.get(alias)
+            if test_set is not None:
+                break
 
     assert train_set, f"Train set with aliases: {train_aliases} not found in dataset"
     train_set = cast(Dataset, train_set)
@@ -219,7 +223,6 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         self,
         dataset_name: str,
         tokenizer,
-        is_built_on_rank: Callable,
         process_example_fn: ProcessExampleFn,
         dataset_dict: Optional[DatasetDict] = None,
         dataset_subset: Optional[str] = None,
@@ -277,7 +280,6 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
             seq_length=seq_length,
             seed=seed,
             memmap_workers=memmap_workers,
-            is_built_on_rank=is_built_on_rank,
             dataset_kwargs=dataset_kwargs,
             max_train_samples=max_train_samples,
             packed_sequence_specs=packed_sequence_specs,
@@ -329,6 +331,8 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
             delete_raw=self.delete_raw,
             seed=self.seed,
             rewrite=True,
+            do_test=self.do_test,
+            do_validation=self.do_validation,
         )
         super().prepare_data()
 
