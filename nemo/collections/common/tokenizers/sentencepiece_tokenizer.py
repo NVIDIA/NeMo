@@ -372,6 +372,7 @@ def create_spt_model(
     character_coverage: float = 1.0,
     train_extremely_large_corpus: bool = False,
     max_sentencepiece_length: int = -1,
+    max_sentence_length: int = None,
     bos: bool = False,
     eos: bool = False,
     pad: bool = False,
@@ -398,6 +399,7 @@ def create_spt_model(
             to build the tokenizer.
         max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
             By default, no limit is placed.
+        max_sentence_length: Maximum number of bytes allowed in the input sentences.
         bos: when True, bos token "<s>" is added to the vocabulary.
         eos: when True, eos token "</s>" is added to the vocabulary.
         pad: when True, pad token "<pad>" is added to the vocabulary.
@@ -466,6 +468,9 @@ def create_spt_model(
 
     if max_sentencepiece_length >= 0:
         cmd += f" --max_sentencepiece_length={max_sentencepiece_length}"
+
+    if max_sentence_length:
+        cmd += f" --max_sentence_length={max_sentence_length}"
 
     if byte_fallback:
         cmd += " --byte_fallback=true"

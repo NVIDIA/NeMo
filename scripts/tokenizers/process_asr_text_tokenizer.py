@@ -86,6 +86,9 @@
 #   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiece subword can be.
 #       Using this will change the subword tokens generated.
 #
+#   --spe_max_sentence_length: Maximum number of bytes allowed in the input sentences.  
+#       This limits the size of sentences that can be processed during training.
+#
 #   --spe_pad: Adds <pad> as special token.
 #
 #   --spe_bos: Adds <s> as Begining-of-Sentence special token.
@@ -158,6 +161,12 @@ parser.add_argument(
     'Must be a positive integer > 0. By default places no limit on subword length.',
 )
 parser.add_argument(
+    '--spe_max_sentence_length', 
+    type=int,
+    default=None,
+    help="Maximum number of bytes allowed in the input sentences."
+    )
+parser.add_argument(
     '--spe_no_split_by_unicode_script',
     dest='spe_split_by_unicode_script',
     action='store_false',
@@ -223,6 +232,7 @@ def __process_data(
     spe_train_extremely_large_corpus: bool,
     spe_sample_size: int,
     spe_max_sentencepiece_length: int,
+    spe_max_sentence_length: int,
     spe_split_by_unicode_script: bool,
     spe_bos: bool,
     spe_eos: bool,
@@ -250,6 +260,8 @@ def __process_data(
             this flag can be set to try to trained the tokenizer. Will silently fail if it runs out of RAM.
         spe_max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
             By default, no limit is placed.
+        spe_max_sentence_length: Maximum number of bytes allowed in the input sentences.
+            This limits the size of sentences that can be processed during training.
         spe_bos: Bool flag, whether to add <s> to SentencePiece tokenizer vocabulary.
         spe_eos: Bool flag, whether to add </s> to SentencePiece tokenizer vocabulary.
         spe_pad: Bool flag, whether to add <pad> to SentencePiece tokenizer vocabulary.
@@ -301,6 +313,7 @@ def __process_data(
             character_coverage=spe_character_coverage,
             train_extremely_large_corpus=spe_train_extremely_large_corpus,
             max_sentencepiece_length=spe_max_sentencepiece_length,
+            max_sentence_length=spe_max_sentence_length,
             split_by_unicode_script=spe_split_by_unicode_script,
             bos=spe_bos,
             eos=spe_eos,
@@ -337,6 +350,7 @@ def main():
     spe_sample_size = args.spe_sample_size
     spe_train_extremely_large_corpus = args.spe_train_extremely_large_corpus
     spe_max_sentencepiece_length = args.spe_max_sentencepiece_length
+    spe_max_sentence_length = args.spe_max_sentence_length
     spe_split_by_unicode_script = args.spe_split_by_unicode_script
     spe_bos, spe_eos, spe_pad = args.spe_bos, args.spe_eos, args.spe_pad
     spe_control_symbols = args.spe_control_symbols
@@ -367,6 +381,7 @@ def main():
         spe_sample_size=spe_sample_size,
         spe_train_extremely_large_corpus=spe_train_extremely_large_corpus,
         spe_max_sentencepiece_length=spe_max_sentencepiece_length,
+        spe_max_sentence_length=spe_max_sentence_length,
         spe_split_by_unicode_script=spe_split_by_unicode_script,
         spe_bos=spe_bos,
         spe_eos=spe_eos,
