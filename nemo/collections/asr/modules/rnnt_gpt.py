@@ -170,7 +170,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
                 memory_mask=None,
             )
             new_state = GPTDecoderState(transformer_state=transformer_state, prev_state=None)
-            return decoder_output[:, -1], new_state
+            return decoder_output[:, -1].unsqueeze(1), new_state
 
         # not first step, state is not None
         input_embed = self.embedding(input_ids.unsqueeze(1), start_pos=state.lengths)
@@ -183,7 +183,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
         )
         next_state = GPTDecoderState(transformer_state=transformer_state, prev_state=state)
         # .unsqueeze(-1).transpose(1, 2)
-        return decoder_output[:, -1], next_state
+        return decoder_output[:, -1].unsqueeze(1), next_state
 
     def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
         return None
