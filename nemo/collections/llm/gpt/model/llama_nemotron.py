@@ -14,18 +14,25 @@
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional
+from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
+from nemo.utils.import_utils import safe_import
 import torch
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTModel, torch_dtype_from_mcore_config
-from nemo.collections.llm.gpt.model.llama import Llama31Config, Llama31Config8B, Llama31Config70B, LlamaConfig
+from nemo.collections.llm.gpt.model.llama import Llama31Config, Llama31Config8B, Llama31Config70B, Llama31Config405B, LlamaConfig
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
+_, HAVE_TE = safe_import("transformer_engine")
+
+if HAVE_TE:
+    from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.heterogeneous.heterogeneous_config import HeterogeneousTransformerConfig
+    from megatron.core.models.gpt.heterogeneous.heterogeneous_layer_specs import get_gpt_heterogeneous_layer_spec
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
@@ -46,6 +53,44 @@ class Llama31Nemotron70BConfig(Llama31Config70B):
     """Configuration for an Llama31-Nemotron-70B model."""
 
     kv_channels: int = 128
+
+# Llama-Nemotron Super/Ultra uses heterogeneous architecture
+def heterogeneous_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    """Determine the most appropriate layer specification based on availability.
+
+    Uses Transformer Engine specs if available, otherwise falls back to local implementation.
+
+    Args:
+        config: GPT configuration object
+
+    Returns:
+        ModuleSpec: The selected module specification
+    """
+    return get_gpt_heterogeneous_layer_spec(config, use_te=HAVE_TE)
+
+
+@dataclass
+class Llama33NemotronSuper49BConfig(Llama31Config70B, HeterogeneousTransformerConfig):
+    """Configuration for an Llama31-Nemotron-Nano model."""
+
+    hidden_size: int = 8192
+    num_attention_heads: int = 64
+    num_layers: int = 80
+    heterogeneous_layers_config_path: str = None
+    heterogeneous_layers_config_encoded_json: str = '{\n  "_name_or_path": "nvidia/Llama-3_3-Nemotron-Super-49B-v1",\n  "architectures": [\n    "DeciLMForCausalLM"\n  ],\n  "attention_bias": false,\n  "attention_dropout": 0.0,\n  "auto_map": {\n    "AutoConfig": "nvidia/Llama-3_3-Nemotron-Super-49B-v1--configuration_decilm.DeciLMConfig",\n    "AutoModelForCausalLM": "nvidia/Llama-3_3-Nemotron-Super-49B-v1--modeling_decilm.DeciLMForCausalLM"\n  },\n  "block_configs": [\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 2.625,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 2.625,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 2.625,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 3.28125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 2.625,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 2.625,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 2.625,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.3125,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 0.5,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 0.5,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 0.5,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 0.5,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 1.0,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 0.5,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": null,\n        "no_op": true,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 0.5,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    },\n    {\n      "attention": {\n        "n_heads_in_group": 8,\n        "no_op": false,\n        "num_sink_tokens": null,\n        "replace_with_linear": false,\n        "sparsify": null,\n        "unshifted_sink": false,\n        "use_prefill_window_in_sink_attention": false,\n        "window_length": null\n      },\n      "ffn": {\n        "ffn_mult": 5.25,\n        "no_op": false,\n        "replace_with_linear": false,\n        "sparsify": null\n      }\n    }\n  ],\n  "bos_token_id": 128000,\n  "eos_token_id": [\n    128001,\n    128008,\n    128009\n  ],\n  "hidden_act": "silu",\n  "hidden_size": 8192,\n  "initializer_range": 0.02,\n  "intermediate_size": null,\n  "max_position_embeddings": 131072,\n  "mlp_bias": false,\n  "model_type": "nemotron-nas",\n  "num_attention_heads": 64,\n  "num_hidden_layers": 80,\n  "num_key_value_heads": null,\n  "pretraining_tp": 1,\n  "rms_norm_eps": 1e-05,\n  "rope_scaling": {\n    "factor": 8.0,\n    "high_freq_factor": 4.0,\n    "low_freq_factor": 1.0,\n    "original_max_position_embeddings": 8192,\n    "rope_type": "llama3"\n  },\n  "rope_theta": 500000.0,\n  "tie_word_embeddings": false,\n  "torch_dtype": "bfloat16",\n  "transformers_version": "4.48.3",\n  "use_cache": true,\n  "vocab_size": 128256\n}\n' # fmt: off
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = heterogeneous_layer_spec
+
+@dataclass
+class Llama33NemotronUltra253BConfig(Llama31Config405B, HeterogeneousTransformerConfig):
+    """Configuration for an Llama31-Nemotron-Nano model."""
+
+    hidden_size: int = 8192
+    num_attention_heads: int = 64
+    num_layers: int = 126
+    heterogeneous_layers_config_path: str = '/opt/NeMo/nemo/collections/llm/gpt/model/llama_nemotron_super_block_config.json'
+    heterogeneous_layers_config_encoded_json: str = ''
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = heterogeneous_layer_spec
+
 
 
 class LlamaNemotronModel(GPTModel):
@@ -93,9 +138,14 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
         Returns:
             Path: Path to the saved NeMo model
         """
-        from transformers import LlamaForCausalLM
+        from transformers import LlamaForCausalLM, AutoModelForCausalLM
 
-        source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        logging.info(f'Load HF model {str(self)}')
+        if 'Nano' in str(self):
+            source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        else:
+            source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
+        logging.info('Initialize NeMo Nemotron-Llama model')
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -160,7 +210,7 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
         """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
 
     @property
     def config(self) -> LlamaConfig:
@@ -173,11 +223,10 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
             LlamaConfig: NeMo configuration for Llama models
         """
         from transformers import GenerationConfig
-        from transformers import LlamaConfig as HFLlamaConfig
+        from transformers import AutoConfig
 
-        source = HFLlamaConfig.from_pretrained(str(self))
+        source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
         generation_config = GenerationConfig.from_pretrained(str(self))
-        print(generation_config)
 
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
@@ -187,7 +236,23 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
 
         assert getattr(source, 'rope_scaling', None), 'Llama-Nemotron model should have rope scaling'
         # Apply Llama3.1 customize rope scaling
-        cls = partial(Llama31Config, scale_factor=source.rope_scaling.get("factor", 8.0))
+        if getattr(source, 'block_configs') is not None:
+            cls = partial(
+                Llama33NemotronSuper49BConfig,
+                heterogeneous_layers_config_encoded_json=source.to_json_string(),
+                heterogeneous_layers_config_path=None, # We directly load the block config as json
+                scale_factor=source.rope_scaling.get("factor", 8.0),
+                # For heterogeneous model, GQA is defined in each block config.
+                # Llama-Nemotron has the same GQA across all non no-op attention layers.
+                # We expose it to config.num_query_groups to make the merge_qkv work.
+                # Here we assume block 0 is non no-ops for the attention
+                num_query_groups=source.block_configs[0].attention.n_heads_in_group,
+            )
+        else:
+            cls = partial(
+                Llama31Config,
+                num_query_groups=source.num_key_value_heads
+            )
 
         output = cls(
             num_layers=source.num_hidden_layers,
@@ -195,9 +260,9 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
             kv_channels=getattr(source, "head_dim", None),
+            scale_factor=source.rope_scaling.get('factor', 8.0),
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
-            num_query_groups=source.num_key_value_heads,
             seq_length=source.max_position_embeddings,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
@@ -220,7 +285,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
     LlamaForCausalLM format, including weight mapping and configuration translation.
     """
 
-    def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
+    def init(self, dtype=torch.bfloat16, model_name=None) -> "LlamaForCausalLM":
         """Initialize a HF LlamaForCausalLM instance.
 
         Args:
@@ -233,9 +298,20 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
+            if model_name is None:
+                # Llama-Nemotron Nano / Llama31Nemotron70BConfig
+                return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
+            # Llama-Nemotron Super/Ultra
+            hf_model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                torch_dtype=dtype,
+            )
+            # Register the AutoModel Hook so that the custom modeling files are saved during save_pretrained()
+            type(hf_model).register_for_auto_class("AutoModelForCausalLM")
+            return hf_model
 
-    def apply(self, output_path: Path) -> Path:
+    def apply(self, output_path: Path, target_model_name=None) -> Path:
         """Apply the conversion from NeMo to HF format.
 
         Args:
@@ -244,22 +320,26 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         Returns:
             Path: Path to the saved HF model
         """
+        logging.info("Loading Llama-Nemotron NeMo checkpoint..")
         source, _ = self.nemo_load(str(self))
-        target = self.init(torch_dtype_from_mcore_config(source.config))
+        if target_model_name is None:
+            # Llama-Nemotron Super/Ultra uses customize modeling class
+            is_heterogeneous = isinstance(source.config, HeterogeneousTransformerConfig)
+            if is_heterogeneous:
+                num_layers = source.config.num_layers
+                if num_layers == 80:
+                    target_model_name = 'nvidia/Llama-3_3-Nemotron-Super-49B-v1'
+                elif num_layers == 162:
+                    target_model_name = 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1'
+                else:
+                    raise ValueError('Unknown target model. Currently only support exporting Llama-Nemotron Nano/Super/Ultra models.')
+
+        target = self.init(torch.bfloat16, target_model_name)
         target = self.convert_state(source, target)
 
         target = target.cpu()
-        if self.config.tie_word_embeddings:
-            state_dict = target.state_dict()
-            state_dict.pop("lm_head.weight")
-            target.save_pretrained(output_path, state_dict=state_dict)
-        else:
-            target.save_pretrained(output_path)
-
-        try:
-            self.tokenizer.tokenizer.save_pretrained(output_path)
-        except Exception:
-            logging.warning("Failed to save tokenizer")
+        target.save_pretrained(output_path)
+        self.tokenizer.tokenizer.save_pretrained(output_path)
 
         return output_path
 
@@ -304,15 +384,12 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
                 target_key="model.embed_tokens.weight",
                 fn=TransformFns.prune_padding,
             ),
-        ]
-        if not self.config.tie_word_embeddings:
-            transforms.append(
-                io.state_transform(
-                    source_key="output_layer.weight",
-                    target_key="lm_head.weight",
-                    fn=TransformFns.prune_padding,
-                )
+            io.state_transform(
+                source_key="output_layer.weight",
+                target_key="lm_head.weight",
+                fn=TransformFns.prune_padding,
             )
+        ]
 
         return io.apply_transforms(
             source,
@@ -333,6 +410,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
     @property
     def config(self) -> "HFLlamaConfig":
         """Create a HF LlamaConfig from the NeMo model config.
+        This function should only be invoked for Non-heterogeneous transformers (i.e. Nano).
 
         Translates the NeMo configuration parameters to the equivalent HF
         configuration.
@@ -340,7 +418,9 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         Returns:
             HFLlamaConfig: HF configuration for Llama models
         """
+
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
+        assert not isinstance(source, HeterogeneousTransformerConfig)
 
         from transformers import LlamaConfig as HFLlamaConfig
 
