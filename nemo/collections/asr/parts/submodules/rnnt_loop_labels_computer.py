@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Tuple, Union
@@ -1023,8 +1024,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            with torch.amp.autocast(device_type="cuda", enabled=False):
-                # TODO(dgalvez): fix issue with DDP+mixed precision, remove this restriction
+            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
+            # disable CUDA graphs if DDP and Mixed Precision are used
+            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
+            with ctx:
+                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
                 return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
         return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
