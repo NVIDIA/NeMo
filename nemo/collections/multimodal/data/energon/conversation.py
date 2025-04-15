@@ -57,3 +57,12 @@ class MLlamaTemplateConfig(BaseConversationTemplateConfig):
     system: str = field(default=None)
     roles: List[str] = field(default_factory=lambda: ['user', 'assistant'])
     stop_string: str = field(default="<|eot_id|>")
+
+
+class LLama3TemplateConfig(BaseConversationTemplateConfig):
+    """LLama3 specific template configuration which extends the base config"""
+
+    system: str = field(default=None)
+    roles: List[str] = field(default_factory=lambda: ['user', 'assistant'])
+    stop_string: str = field(default="<|eot_id|>")
+    chat_template: str = field(default=None)

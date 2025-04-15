@@ -14,11 +14,11 @@
 
 """
 Mock Data Example:
-  torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron_finetune.py \
+  torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py \
   --devices=8 --tp=4 --data_type=mock
 
 Llava Data Example:
-   torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/cosmos_nemotron_finetune.py  \
+   torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py  \
      --data_path "/path/to/dataset/llava_v1_5_mix665k.json" \
      --image_folder "/path/to/dataset/images" \
      --data_type llava \
