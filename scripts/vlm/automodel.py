@@ -104,6 +104,11 @@ if __name__ == '__main__':
     if "google/gemma-3" in args.model:
         model_kwargs["attn_implementation"] = "eager"
 
+    # Currently freezing language model is not supported as it gives error related to no grad
+    # TODO: Fix this
+    if args.freeze_language_model:
+        raise ValueError("Freezing language model is not supported for current version of VLM automodel")
+
     model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor,
                                               freeze_language_model=args.freeze_language_model,
                                               freeze_vision_model=args.freeze_vision_model,
