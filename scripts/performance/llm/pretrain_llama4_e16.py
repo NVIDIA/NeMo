@@ -41,6 +41,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    etp_size: int,
     enable_cuda_graphs: bool,
 ):
     """
@@ -63,6 +64,7 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
     )
     recipe = set_exp_logging_configs(
@@ -77,15 +79,10 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    # a few test configs to be deleted later
-    recipe.model.config.num_layers = 2
-
-    # a few other optimization args
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_loss_fusion = True
     recipe.model.config.moe_permute_fusion = True
     recipe.model.config.moe_shared_expert_overlap = True
-    # all the fusions
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.bias_activation_fusion = True
     recipe.model.config.bias_dropout_fusion = True
@@ -98,13 +95,13 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e16", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs, _, _, _ = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
@@ -116,7 +113,9 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars={
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"
+        },
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
@@ -130,7 +129,7 @@ if __name__ == "__main__":
         ),
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
+        plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
 
 
     with run.Experiment(exp_name) as exp:
