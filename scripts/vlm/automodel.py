@@ -24,14 +24,14 @@ import fiddle as fdl
 import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
+
+from nemo import lightning as nl
+from nemo.collections import llm, vlm
 from nemo.collections.vlm.hf.data.automodel_datasets import (
     mk_hf_vlm_dataset_cord_v2,
     mk_hf_vlm_dataset_fineweb_edu,
     mk_hf_vlm_dataset_rdr,
 )
-
-from nemo import lightning as nl
-from nemo.collections import llm, vlm
 
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
@@ -109,11 +109,15 @@ if __name__ == '__main__':
     if args.freeze_language_model:
         raise ValueError("Freezing language model is not supported for current version of VLM automodel")
 
-    model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor,
-                                              freeze_language_model=args.freeze_language_model,
-                                              freeze_vision_model=args.freeze_vision_model,
-                                              **model_kwargs)
-    
+    model = vlm.HFAutoModelForImageTextToText(
+        args.model,
+        load_in_4bit=args.use_4bit,
+        processor=processor,
+        freeze_language_model=args.freeze_language_model,
+        freeze_vision_model=args.freeze_vision_model,
+        **model_kwargs,
+    )
+
     peft = None
     if args.peft == 'lora':
         peft = llm.peft.LoRA(

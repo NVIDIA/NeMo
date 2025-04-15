@@ -243,7 +243,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def freeze_model(self) -> None:
         modules = []
-        
+
         # Search for language model, atmost one is allowed
         language_model = None
         for attr in dir(self.model):
@@ -251,7 +251,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 if language_model is not None:
                     raise ValueError(f"Found multiple language models: {language_model} and {attr}")
                 language_model = getattr(self.model, attr)
-        
+
         # Search for vision model, atmost one is allowed
         vision_model = None
         for attr in dir(self.model):
@@ -268,7 +268,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         for module in modules:
             for param in module.parameters():
                 param.requires_grad = False
-            
+
     @property
     def _has_lora_adapter(self):
         return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
