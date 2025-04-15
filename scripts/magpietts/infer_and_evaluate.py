@@ -82,7 +82,7 @@ def run_inference(
         with open_dict(model_cfg):
             model_cfg = update_config(model_cfg, codecmodel_path)
 
-        model = MagpieTTS_Model(cfg=model_cfg)
+        model = MagpieTTSModel(cfg=model_cfg)
         model.use_kv_cache_for_inference = True
 
         # Load weights from checkpoint file
@@ -91,10 +91,10 @@ def run_inference(
         model.load_state_dict(ckpt['state_dict'])
         checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     elif nemo_file is not None:
-        model_cfg = MagpieTTS_Model.restore_from(nemo_file, return_config=True)
+        model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
         with open_dict(model_cfg):
             model_cfg = update_config(model_cfg, codecmodel_path)
-        model = MagpieTTS_Model.restore_from(nemo_file, override_config_path=model_cfg)
+        model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
     else:
@@ -164,7 +164,9 @@ def run_inference(
                 context_duration_max=context_durration_max,
             )
             assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
-            test_dataset.text_tokenizer, test_dataset.text_conditioning_tokenizer = model._setup_tokenizers(model.cfg, mode='test')
+            
+            test_dataset.text_tokenizer = model.tokenizer
+            test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
 
             test_data_loader = torch.utils.data.DataLoader(
                 test_dataset,

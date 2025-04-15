@@ -124,9 +124,6 @@ class MagpieTTSModel(ModelPT):
         self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 2  # For backward compatibility
         self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 1  # For backward compatibility
 
-        if self.use_text_conditioning_encoder:
-            self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
-
         self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
 
         if self.model_type == 'decoder_context_tts':
@@ -139,6 +136,9 @@ class MagpieTTSModel(ModelPT):
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
 
         super().__init__(cfg=cfg, trainer=trainer)
+
+        if self.use_text_conditioning_encoder:
+            self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
 
         audio_embeddings = []
         for _ in range(cfg.num_audio_codebooks):
