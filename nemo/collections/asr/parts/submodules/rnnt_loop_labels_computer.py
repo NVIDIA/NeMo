@@ -359,6 +359,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # last found labels - initially <SOS> (<blank>) symbol
         labels = torch.full_like(batch_indices, fill_value=self._SOS)
 
+        state_size_is_constant = self.decoder.state_size_is_fixed()
         # time indices
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
@@ -480,11 +481,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             # select states for hyps that became inactive (is it necessary?)
             # this seems to be redundant, but used in the `loop_frames` output
             torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
-            self.decoder.batch_replace_states_mask(
-                src_states=state,
-                dst_states=last_decoder_state,
-                mask=became_inactive_mask,
-            )
+            if state_size_is_constant:
+                self.decoder.batch_replace_states_mask(
+                    src_states=state,
+                    dst_states=last_decoder_state,
+                    mask=became_inactive_mask,
+                )
 
             # store hypotheses
             if self.max_symbols is not None:

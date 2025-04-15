@@ -72,12 +72,11 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
         self,
         vocab_size: int,
         embedding_layer: Dict[str, Any],
-        prediction_network: Dict[str, Any],
+        predictor_transformer: Dict[str, Any],
         spec_augment: Optional[Dict[str, Any]] = None,
         blank_as_pad=True,
     ):
-        super().__init__()
-        self.blank_as_pad = blank_as_pad
+        super().__init__(vocab_size=vocab_size, blank_idx=vocab_size, blank_as_pad=blank_as_pad)
         if not self.blank_as_pad:
             raise NotImplementedError("blank_as_pad=False not implemented")
         embedding_layer = copy.deepcopy(embedding_layer)  # make local copy
@@ -85,7 +84,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
             embedding_layer["vocab_size"] = vocab_size + 1
         self.embedding = TransformerEmbedding(**embedding_layer)
         self.spec_augment = SpectrogramAugmentation(**spec_augment) if spec_augment is not None else None
-        self.prediction_network = TransformerEncoder(**prediction_network)
+        self.prediction_network = TransformerEncoder(**predictor_transformer)
         self.blank_idx = vocab_size  # last symbol - as in other RNN-T models
 
     @property
@@ -107,7 +106,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
         input_mask = torch.arange(input_lengths.max() + 1, device=input_ids.device)[None, :] <= input_lengths[:, None]
         input_embed = self.embedding(input_ids)
         if self.spec_augment is not None and self.training:
-            with typecheck.disable_checks():
+            with typecheck.disable_semantic_checks():
                 input_embed_spaug = self.spec_augment(
                     input_spec=input_embed.transpose(1, 2).detach(), length=input_lengths
                 ).transpose(1, 2)
@@ -133,7 +132,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
         state: Optional[torch.Tensor] = None,
         add_sos: bool = False,
         batch_size: Optional[int] = None,
-    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, GPTDecoderState]:
         if y is None:
             raise NotImplementedError
         if add_sos:
@@ -153,8 +152,11 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
         last_labels = output.transpose(1, 2)[torch.arange(output.shape[0]), labels_lengths].unsqueeze(1)
         return (last_labels, *additional_outputs)
 
-    def predict_step(self, input_ids: torch.Tensor, state: Optional[GPTDecoderState] = None):
+    def predict_step(self, input_ids: torch.Tensor, state: Optional[GPTDecoderState] = None) -> Tuple[torch.Tensor, GPTDecoderState]:
         batch_size = input_ids.shape[0]
+        if input_ids.dim() == 2:
+            assert input_ids.shape[1] == 1
+            input_ids = input_ids.squeeze(1)
         device = input_ids.device
         input_mask = torch.full((batch_size, 1), fill_value=True, device=device, dtype=torch.bool)
         # input_mask = torch.arange(1, device=device)[None, :] <= input_lengths[:, None]
@@ -168,7 +170,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
                 memory_mask=None,
             )
             new_state = GPTDecoderState(transformer_state=transformer_state, prev_state=None)
-            return decoder_output.transpose(1, 2), new_state
+            return decoder_output[:, -1], new_state
 
         # not first step, state is not None
         input_embed = self.embedding(input_ids.unsqueeze(1), start_pos=state.lengths)
@@ -180,7 +182,8 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
             memory_mask=state.get_mask(),
         )
         next_state = GPTDecoderState(transformer_state=transformer_state, prev_state=state)
-        return decoder_output[:, -1].unsqueeze(-1).transpose(1, 2), next_state
+        # .unsqueeze(-1).transpose(1, 2)
+        return decoder_output[:, -1], next_state
 
     def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
         return None
@@ -188,3 +191,6 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
     def score_hypothesis(self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]) -> Tuple[
         torch.Tensor, List[torch.Tensor], torch.Tensor]:
         raise NotImplementedError
+
+    def state_size_is_fixed(self) -> bool:
+        return False

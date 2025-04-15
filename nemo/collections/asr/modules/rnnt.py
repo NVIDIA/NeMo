@@ -514,6 +514,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
 
+    def state_size_is_fixed(self) -> bool:
+        return True
+
 
 class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
@@ -1142,6 +1145,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.pred_hidden)
         return cfg
+
+    def state_size_is_fixed(self) -> bool:
+        return True
 
 
 class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
