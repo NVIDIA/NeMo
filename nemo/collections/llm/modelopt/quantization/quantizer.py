@@ -130,7 +130,7 @@ class Quantizer:
         model.config.vocab_size = model.tokenizer.vocab_size
         model.freeze()
 
-    def _get_decoder_type(self, model, optional: bool = True) -> Optional[str]:
+    def _get_decoder_type(self, model, optional: bool = False) -> Optional[str]:
         """
         Determines the decoder type for the given model. It is used for exporting a model to
         a TensorRT-LLM checkpoint and for configuring certain parameters in the quantization algorithm.
