@@ -92,7 +92,7 @@ class Qwen2Config1P5B(Qwen2Config):
 
 
 @dataclass
-class Qwen25Config1P5B(Qwen2Config):
+class Qwen25Config1P5B(Qwen2Config1P5B):
     """
     Config for Qwen 2.5 1.5B: https://huggingface.co/Qwen/Qwen2.5-1.5B
     """
@@ -378,6 +378,11 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
