@@ -19,6 +19,8 @@ import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.optimizer import OptimizerConfig
+from transformers import Qwen2VLImageProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
@@ -27,17 +29,16 @@ from nemo.collections.llm.recipes.finetune_default import nemo_resume
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule 
+from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.utils.exp_manager import TimingCallback
-from transformers import Qwen2VLImageProcessor
-from megatron.core.optimizer import OptimizerConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "qwen2vl_2b"
 
-HF_MODEL_NAME="Qwen/Qwen2-VL-2B"
+HF_MODEL_NAME = "Qwen/Qwen2-VL-2B"
+
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
@@ -135,22 +136,24 @@ def finetune_recipe(
 
     language_transformer_config = run.Config(llm.Qwen2Config1P5B, seq_length=max_sequence_length)
 
-    vision_transformer_config =run.Config(vlm.Qwen2VLVisionConfig)
+    vision_transformer_config = run.Config(vlm.Qwen2VLVisionConfig)
 
-    vision_projection_config = run.Config(vlm.MultimodalProjectorConfig,
+    vision_projection_config = run.Config(
+        vlm.MultimodalProjectorConfig,
         projector_type="mcore_mlp",
         input_size=vision_transformer_config.ffn_hidden_size,
         hidden_size=language_transformer_config.hidden_size,
-        ffn_hidden_size=vision_transformer_config.ffn_hidden_size
+        ffn_hidden_size=vision_transformer_config.ffn_hidden_size,
     )
 
     # Qwen2VL model configuration
-    qwen2vl_config = run.Config(vlm.Qwen2VLConfig,
+    qwen2vl_config = run.Config(
+        vlm.Qwen2VLConfig,
         language_transformer_config=language_transformer_config,
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
         freeze_language_model=False,
-        freeze_vision_model=True
+        freeze_vision_model=True,
     )
 
     model = run.Config(vlm.Qwen2VLModel, qwen2vl_config, tokenizer=tokenizer)
@@ -162,19 +165,17 @@ def finetune_recipe(
         restore_config=run.Config(nl.RestoreConfig, path=f"nemo://{HF_MODEL_NAME}"),
     )
 
-    opt_config = run.Config(OptimizerConfig,
+    opt_config = run.Config(
+        OptimizerConfig,
         optimizer='adam',
         lr=2.0e-06,
         adam_beta1=0.9,
         adam_beta2=0.95,
         use_distributed_optimizer=True,
-        bf16=True
+        bf16=True,
     )
-    sched = run.Config(CosineAnnealingScheduler,
-        max_steps=trainer.max_steps,
-        warmup_steps=0,
-        constant_steps=1000,
-        min_lr=1.0e-07
+    sched = run.Config(
+        CosineAnnealingScheduler, max_steps=trainer.max_steps, warmup_steps=0, constant_steps=1000, min_lr=1.0e-07
     )
     opt = run.Config(MegatronOptimizerModule, opt_config, sched)
 
@@ -215,7 +216,8 @@ def finetune_recipe(
 
     return recipe
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     env_vars = {
         "CUDA_VISIBLE_DEVICES": "0,1",
     }
