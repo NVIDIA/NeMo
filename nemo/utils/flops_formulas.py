@@ -339,7 +339,9 @@ def deepseekv3(config: FLOPSConfig):
     """Model FLOPs for DeepSeek V3"""
 
     # self-attention flops
-    bmm1_flops = 0.5 * (config.qk_head_dim + config.qk_pos_emb_head_dim) * config.attention_heads * (config.enc_seq_len**2)
+    bmm1_flops = (
+        0.5 * (config.qk_head_dim + config.qk_pos_emb_head_dim) * config.attention_heads * (config.enc_seq_len**2)
+    )
     bmm2_flops = 0.5 * config.v_head_dim * config.attention_heads * (config.enc_seq_len**2)
     per_input_attention_flops = 6 * (bmm1_flops + bmm2_flops) * config.layers
 
