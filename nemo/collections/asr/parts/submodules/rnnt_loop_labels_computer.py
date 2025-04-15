@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Tuple, Union
@@ -671,8 +672,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
-        # do warmup
-        # NB: looks like warmup is not necessary, at least everything works without warmup
+        # warmup before graph compilation
         self._warmup_for_cuda_graphs()
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
@@ -752,6 +752,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         """Compile full graph for decoding"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
+        stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
         self.full_graph = torch.cuda.CUDAGraph()
         with (
             torch.cuda.stream(stream_for_graph),
@@ -773,7 +774,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 [outer_loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data],
                 dtype=np.uint64,
             )
+
             # loop while there are active utterances
+            # while self.active_mask_any:
             with with_conditional_node(
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
@@ -790,6 +793,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                     ],
                     dtype=np.uint64,
                 )
+                # while self.advance_mask_any.item():
                 with with_conditional_node(
                     inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
                 ):
@@ -838,14 +842,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
         self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
-        # self.joint.project_prednet calls self.joint.pred, which is an instance of nn.Linear
-        # the following line works only when not training in DDP mode
-        # decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-        # the following line performs F.linear, which is called in nn.Linear; also does not work in validation in DDP
-        # decoder_output_projected = F.linear(decoder_output, self.joint.pred.weight, self.joint.pred.bias)
-        # this line does the same as F.linear, but works in DDP mode in validation
-        decoder_output_projected = decoder_output @ self.joint.pred.weight.transpose(0, 1) + self.joint.pred.bias
-
+        decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         self.state.decoder_output.copy_(decoder_output_projected)
 
         # get lm scores/states
@@ -1028,4 +1025,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
-        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
+        with torch.amp.autocast(device_type="cuda", enabled=False):
+            # TODO(dgalvez): fix issue with DDP+mixed precision, remove this restriction
+            return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)

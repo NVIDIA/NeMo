@@ -277,7 +277,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs if conditions met"""
         if self.cuda_graphs_mode is not None:
-            # CUDA graphs are enabled
+            # CUDA graphs are already enabled
             return
 
         if not self.allow_cuda_graphs:
@@ -746,8 +746,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
-        # do warmup
-        # NB: looks like warmup is not necessary, at least everything works without warmup
+        # warmup before graph compilation
         self._warmup_for_cuda_graphs()
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
@@ -841,6 +840,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
+            # capture: while self.active_mask_any:
             (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
             outer_loop_kernel = self._create_outer_while_loop_kernel()
             active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
@@ -856,6 +856,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             ):
                 self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
+                # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
@@ -867,7 +868,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
                     dtype=np.uint64,
                 )
                 # while self.advance_mask_any.item():
-
                 with with_conditional_node(
                     inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
                 ):
@@ -916,8 +916,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
         self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
-        # decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-        decoder_output_projected = decoder_output @ self.joint.pred.weight.transpose(0, 1) + self.joint.pred.bias
+        decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         self.state.decoder_output.copy_(decoder_output_projected)
 
         # get lm scores/states
@@ -1146,4 +1145,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
-        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
+        with torch.amp.autocast(device_type="cuda", enabled=False):
+            # TODO(dgalvez): fix issue with DDP+mixed precision, remove this restriction
+            return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
