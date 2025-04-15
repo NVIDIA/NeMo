@@ -228,7 +228,7 @@ def finetune(
         log=log,
         resume=resume,
         optim=optim,
-        tokenizer=tokenizer,  # TODO figure out what this does
+        tokenizer=tokenizer,
         model_transform=peft,
     )
 
