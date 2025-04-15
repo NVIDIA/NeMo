@@ -124,8 +124,10 @@ def build_train_valid_test_data_loaders(
         cfg=cfg, build_train_valid_test_datasets_provider=build_train_valid_test_datasets_provider
     )
 
+    exit_signal = cfg.train_config.exit_signal
+
     def worker_init_fn(_):
-        DistributedSignalHandler().__enter__()
+        DistributedSignalHandler(exit_signal).__enter__()
 
     maybe_worker_init_fn = worker_init_fn if cfg.train_config.exit_signal_handler_for_dataloader else None
 

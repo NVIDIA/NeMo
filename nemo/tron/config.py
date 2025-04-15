@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import signal
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Union
@@ -183,6 +184,9 @@ class TrainingConfig:
 
     exit_signal_handler: bool = False
     """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
+
+    exit_signal: int = signal.SIGTERM
+    """Signal for the signal handler to detect."""
 
     exit_signal_handler_for_dataloader: bool = False
     """Use signal handler for dataloader workers"""
