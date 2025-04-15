@@ -25,7 +25,7 @@ from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
 MixedPrecisionPolicy = safe_import_from(
-    "torch.distributed.fsdp", fallback_module="torch.distributed._composable.fsdp"
+    "torch.distributed.fsdp", "MixedPrecisionPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
 
 
