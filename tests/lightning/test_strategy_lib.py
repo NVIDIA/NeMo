@@ -163,8 +163,6 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
     app_state.pipeline_model_parallel_size = 1
     app_state.pipeline_model_parallel_split_rank = None
     app_state.context_parallel_size = 2
-    app_state.expert_model_parallel_size = 2
-    app_state.expert_tensor_parallel_size = 1
     app_state.expert_tensor_parallel_rank = 0
     app_state.init_mpi_proc_group = False
     app_state.tensor_model_parallel_rank = 2
@@ -185,7 +183,7 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
-        order="tp-cp-ep-pp-dp",
+        order="tp-ep-pp-cp-dp",
     )
 
 
