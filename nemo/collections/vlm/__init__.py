@@ -61,14 +61,19 @@ from nemo.collections.vlm.neva.model.cosmos_nemotron import (
 
 # PEFT
 from nemo.collections.vlm.peft import LoRA
+from nemo.collections.vlm.qwen2vl.data import Qwen2VLDataConfig, Qwen2VLMockDataModule, Qwen2VLPreloadedDataModule
+from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
+from nemo.collections.vlm.qwen2vl.model.qwen2vl import Qwen2VLConfig2B, Qwen2VLConfig7B
 
 # RECIPES
 from nemo.collections.vlm.recipes import *
 
 # VISION
 from nemo.collections.vlm.vision import (
+    BaseCLIPViTModel,
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
+    CLIPViTModel,
     HFCLIPVisionConfig,
     InternViT_6B_448px_Config,
     InternViT_300M_448px_Config,
@@ -82,12 +87,16 @@ from nemo.collections.vlm.vision import (
 )
 
 __all__ = [
+    "CLIPViTModel",
+    "BaseCLIPViTModel",
     "HFDatasetDataModule",
     "HFAutoModelForImageTextToText",
     "NevaMockDataModule",
     "NevaPreloadedDataModule",
     "MLlamaMockDataModule",
     "MLlamaPreloadedDataModule",
+    "Qwen2VLMockDataModule",
+    "Qwen2VLPreloadedDataModule",
     "DataConfig",
     "ImageDataConfig",
     "VideoDataConfig",
@@ -106,6 +115,12 @@ __all__ = [
     "Llava15Config7B",
     "Llava15Config13B",
     "LlavaModel",
+    "Qwen2VLConfig",
+    "Qwen2VLConfig2B",
+    "Qwen2VLConfig7B",
+    "Qwen2VLVisionConfig",
+    "Qwen2VLModel",
+    "Qwen2VLDataConfig",
     "LlavaNextTaskEncoder",
     "MLlamaModel",
     "MLlamaModelConfig",

@@ -10,7 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+# pylint: disable=C0115,C0116,C0301
 import re
 from abc import ABC, abstractmethod
 
@@ -75,7 +75,9 @@ class BaseSampleEncoder(SampleEncoder):
     image_token (Token): Token dataclass representing image placeholders in the tokenized sequence.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the BaseSampleEncoder.
 
@@ -162,7 +164,9 @@ class VQASampleEncoder(BaseSampleEncoder):
     conversation_template_config (ConversationTemplateConfig): Configuration for conversation templates used in VQA.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the VQASampleEncoder.
 
@@ -209,7 +213,7 @@ class VQASampleEncoder(BaseSampleEncoder):
             messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers})
         else:
             raise ValueError(
-                f"VQA Sample context/answers should either be a List[str] or str. Other types not supported"
+                "VQA Sample context/answers should either be a List[str] or str. Other types not supported"
             )
         # Set the chat template if defined
         if self.conversation_template_config.chat_template:
@@ -281,9 +285,13 @@ class VQASampleEncoder(BaseSampleEncoder):
         # Iterate through the answers and compute labels for each answer
         for answer in answers:
             # Encode the answer with the stop string
-            answer_tokens = self.tokenizer.encode(
-                answer + ("" if stop_str is None else stop_str), add_special_tokens=False, return_tensors="pt"
-            )[0]
+            answer = self.process_answer_str(answer, stop_str)
+            answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False, return_tensors="pt")[0]
+
+            # sometimes the tokenizer can add additional space. See:
+            # https://github.com/huggingface/transformers/issues/25073#issuecomment-1655271420
+            if self.tokenizer.decode(answer_tokens[0]) == "":
+                answer_tokens = answer_tokens[1:]
 
             # Find the start and end indices of the answer tokens in the prompt
             answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens, search_start_index)
@@ -344,6 +352,9 @@ class VQASampleEncoder(BaseSampleEncoder):
         output_sample.loss_mask = loss_mask
         return output_sample
 
+    def process_answer_str(self, answer, stop_str):
+        return " " + answer + ("" if stop_str is None else stop_str)
+
 
 class InterleavedSampleEncoder(BaseSampleEncoder):
     """
@@ -359,7 +370,9 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
     multimodal_sample_config (MultiModalSampleConfig): Configuration for multimodal samples, including tokens and placeholders.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the InterleavedSampleEncoder.
 
@@ -464,7 +477,9 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
     image_following_text (bool): A flag indicating whether images should follow the text they are related to.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+    ):
         """
         Initialize the SimilarityInterleavedEncoder.
 
