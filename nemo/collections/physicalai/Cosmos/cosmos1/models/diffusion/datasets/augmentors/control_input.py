@@ -1173,13 +1173,15 @@ class AddControlInputMask(Augmentor):
 
                 # Check border conditions
                 if "touch_border_thre" in self.masking_params["inpaint"]:
-                    is_foreground, _ = check_if_foreground(
+                    # pylint: disable=undefined-name
+                    is_foreground, _ = check_if_foreground( 
                         cur_obj_mask, border_threshold=self.masking_params["inpaint"]["touch_border_thre"]
                     )
                 else:
                     is_foreground = True
 
                 if "close_to_border_thre" in self.masking_params["inpaint"]:
+                    # pylint: disable=undefined-name
                     not_close_to_border = check_within_border_thres(
                         cur_obj_mask, border_threshold=self.masking_params["inpaint"]["close_to_border_thre"]
                     )
