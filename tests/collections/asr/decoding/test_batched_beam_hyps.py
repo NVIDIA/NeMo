@@ -228,7 +228,7 @@ class TestBatchedBeamHyps:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         assert hyps._max_length == 4
@@ -395,7 +395,7 @@ class TestBatchedBeamHyps:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
             next_label_durations=torch.tensor([[2, 1, 3], [2, 1, 2]], device=device),
         )
 
@@ -447,7 +447,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
         hyps.flatten_sort_(score_norm=False)
 
@@ -507,7 +507,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hyps.flatten_sort_(score_norm=True)
@@ -568,7 +568,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hypotheses = hyps.to_hyps_list(score_norm=False)
@@ -608,7 +608,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
         )
 
         hypotheses = hyps.to_nbest_hyps_list(score_norm=False)
@@ -664,7 +664,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
             next_label_durations=torch.tensor([[2, 1, 3], [2, 1, 2]], device=device),
         )
 
@@ -717,7 +717,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
             next_label_durations=torch.tensor([[2, 1, 3], [2, 1, 2]], device=device),
         )
 
@@ -770,7 +770,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
             next_label_durations=torch.tensor([[2, 1, 3], [2, 1, 2]], device=device),
         )
 
@@ -813,7 +813,7 @@ class TestConvertToHypotheses:
         hyps.add_results_(
             next_indices=torch.tensor([[1, 0, 2], [2, 0, 1]], device=device),
             next_labels=torch.tensor([[-1, 7, 8], [10, -1, 9]], device=device),
-            next_hyps_prob=torch.tensor([[0.2, 0.4, 0.1], [0.4, 0.7, 0.6]], device=device),
+            next_hyps_prob=torch.tensor([[0.3, 0.4, 0.1], [0.4, 0.5, 0.6]], device=device),
             next_label_durations=torch.tensor([[2, 1, 3], [2, 1, 2]], device=device),
         )
 
