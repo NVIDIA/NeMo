@@ -24,7 +24,11 @@ import fiddle as fdl
 import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from scripts.vlm.automodel_datasets import mk_hf_vlm_dataset_cord_v2, mk_hf_vlm_dataset_fineweb_edu, mk_hf_vlm_dataset_rdr
+from scripts.vlm.automodel_datasets import (
+    mk_hf_vlm_dataset_cord_v2,
+    mk_hf_vlm_dataset_fineweb_edu,
+    mk_hf_vlm_dataset_rdr,
+)
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
