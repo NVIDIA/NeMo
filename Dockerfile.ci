@@ -16,21 +16,6 @@
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
 
-FROM ${BASE_IMAGE} as nemo-bump
-ARG NEMO_TAG
-WORKDIR /opt
-# NeMo
-RUN <<"EOF" bash -exu
-if [[ ! -d NeMo ]]; then
-    git clone https://github.com/NVIDIA/NeMo.git
-fi
-cd NeMo/
-git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge'
-git fetch origin $NEMO_TAG
-git checkout -f $NEMO_TAG
-EOF
-
-
 FROM ${BASE_IMAGE} AS trt-base
 ARG IMAGE_LABEL
 LABEL "nemo.library"=${IMAGE_LABEL}
@@ -63,6 +48,20 @@ RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/N
   bash /tmp/NeMo/reinstall.sh --library trtllm --mode build
 EOF
 
+
+FROM ${BASE_IMAGE} as nemo-bump
+ARG NEMO_TAG
+WORKDIR /opt
+# NeMo
+RUN <<"EOF" bash -exu
+if [[ ! -d NeMo ]]; then
+    git clone https://github.com/NVIDIA/NeMo.git
+fi
+cd NeMo/
+git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge'
+git fetch origin $NEMO_TAG
+git checkout -f $NEMO_TAG
+EOF
 
 FROM trt-base AS test-image
 
