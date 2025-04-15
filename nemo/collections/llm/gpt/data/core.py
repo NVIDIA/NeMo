@@ -76,6 +76,7 @@ def create_sft_dataset(
     pack_metadata_file_path: Path = None,
     pad_cu_seqlens: bool = False,
     chat: bool = False,
+    use_hf_tokenizer_chat_template: bool = False,
     **kwargs,
 ) -> "GPTSFTDataset":
     """
@@ -105,6 +106,7 @@ def create_sft_dataset(
     if chat:
         return GPTSFTChatDataset(
             **gpt_sft_dataset_kwargs,
+            use_hf_tokenizer_chat_template=use_hf_tokenizer_chat_template,
             **kwargs,
         )
     elif path.suffix == '.npy':
@@ -886,6 +888,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
 class GPTSFTChatDataset(GPTSFTDataset):
     """ """
+
     def _maybe_validate_prompt_template(self):
         pass
 
@@ -930,23 +933,22 @@ class GPTSFTChatDataset(GPTSFTDataset):
         return result
 
     def collate_fn(self, batch):
-
         input_ids = [item['input_ids'][:-1].tolist() for item in batch]
         labels = [item['input_ids'][1:].tolist() for item in batch]
-        #contexts = [item['context_ids'].tolist() for item in batch]
-        #answers = [item['answer_ids'].tolist() for item in batch]
+        contexts = [item['context_ids'].tolist() for item in batch]
+        answers = [item['answer_ids'].tolist() for item in batch]
         loss_mask = [item['mask'][1:].tolist() for item in batch]
         metadata = [item['metadata'] for item in batch]
 
-        #max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
-        max_length = max([len(x) for x in input_ids])
+        max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
+        #  max_length = max([len(x) for x in input_ids])
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
             input_ids = [x[: self.max_seq_length] for x in input_ids]
             labels = [x[: self.max_seq_length] for x in labels]
             loss_mask = [x[: self.max_seq_length] for x in loss_mask]
-            #contexts = [x[: self.max_seq_length] for x in contexts]
-            #answers = [x[: self.max_seq_length] for x in answers]
+            contexts = [x[: self.max_seq_length] for x in contexts]
+            answers = [x[: self.max_seq_length] for x in answers]
 
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
@@ -965,23 +967,22 @@ class GPTSFTChatDataset(GPTSFTDataset):
         )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        # Assert that shape of input_ids is same as labels and loss_mask
-        assert input_ids.shape == labels.shape == loss_mask.shape
-        #context_lengths = torch.LongTensor([len(x) for x in contexts])
-        #contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
-        #answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        context_lengths = torch.LongTensor([len(x) for x in contexts])
+        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
             'tokens': input_ids,
             'labels': labels,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
-            #'contexts': contexts,
-            #'context_lengths': context_lengths,
-            #'answers': answers,
+            'contexts': contexts,
+            'context_lengths': context_lengths,
+            'answers': answers,
             'metadata': metadata,
         }
 
         if not self.get_attention_mask_from_fusion:
             processed_batch['attention_mask'] = attention_mask
-        return processed_batch 
+
+        return processed_batch
