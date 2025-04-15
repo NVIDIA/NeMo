@@ -33,7 +33,7 @@ from megatron.energon.task_encoder.base import stateless
 from transformers import AutoImageProcessor, AutoProcessor
 
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.vlm.data.utils import convert_to_packed, greedy_knapsack, predict_seq_len
+from nemo.collections.vlm.data.utils import _find_pattern_indices, convert_to_packed, greedy_knapsack, predict_seq_len
 from nemo.utils import logging
 
 
@@ -423,7 +423,7 @@ class TaskEncoder(
                     "\n- Tokens: %s"
                     "\n- Target Answer Tokens: %s"
                     "\n- Search Start Index: %d",
-                    converted_messages,
+                    conversation_prompt,
                     tokens,
                     answer_tokens,
                     search_start_index,
