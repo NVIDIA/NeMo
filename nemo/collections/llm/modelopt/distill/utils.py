@@ -92,9 +92,7 @@ def load_distillation_config(
                 student_cfg, projection_layer=projection_layer
             )
 
-    loss_balancer = LogitsAndIntermediatesLossBalancer(
-        kd_loss_scale=loss_scale, skip_original_loss=skip_lm_loss
-    )
+    loss_balancer = LogitsAndIntermediatesLossBalancer(kd_loss_scale=loss_scale, skip_original_loss=skip_lm_loss)
 
     cfg["criterion"] = criterion
     cfg["loss_balancer"] = loss_balancer
@@ -116,9 +114,7 @@ def _adjust_layer_index_for_pp(submodule_name, model_cfg):
 
     new_submodule_name = submodule_name.replace(match.group(0), str(new_layer_idx))
     if parallel_state.get_tensor_and_context_parallel_rank() == 0:
-        print(
-            f'Distillation: Renamed layer "{submodule_name}" on final PP rank to "{new_submodule_name}"'
-        )
+        print(f'Distillation: Renamed layer "{submodule_name}" on final PP rank to "{new_submodule_name}"')
     return new_submodule_name
 
 

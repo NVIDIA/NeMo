@@ -56,7 +56,7 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
             student_loss=lm_loss,
             loss_reduction_fn=lambda x: self._masked_token_loss(
                 x, batch["loss_mask"], batch.get("num_valid_tokens_in_ub")
-            )
+            ),
         )
         losses_averaged = average_losses_across_data_parallel_group(
             [losses["kd_loss"], losses["logits_loss"], losses["intermediate_loss"]]
