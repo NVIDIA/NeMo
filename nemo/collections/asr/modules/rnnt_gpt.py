@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 from omegaconf import open_dict
@@ -28,10 +28,10 @@ from nemo.core.neural_types import LabelsType, LengthsType, NeuralType
 
 
 class GPTDecoderState:
-    transformer_state: torch.Tensor  # List[torch.Tensor]
+    transformer_state: torch.Tensor  # list[torch.Tensor] -> torch.Tensor
     lengths: torch.Tensor
 
-    def __init__(self, transformer_state: List[torch.Tensor], prev_state: Optional["GPTDecoderState"] = None):
+    def __init__(self, transformer_state: list[torch.Tensor], prev_state: Optional["GPTDecoderState"] = None):
         self.transformer_state = torch.stack(transformer_state)
         batch_size = transformer_state[0].shape[0]
         device = transformer_state[0].device
@@ -43,17 +43,12 @@ class GPTDecoderState:
             self.transformer_state[:, torch.arange(batch_size, device=device), self.lengths - 1] = (
                 self.transformer_state[:, :, -1].clone()
             )
-            # for state in self.transformer_state:
-            #     #  clone is necessary here to avoid single-element tensor problems
-            #     state[torch.arange(batch_size), self.lengths - 1] = state[:, -1].clone()
 
     def filter_(self, active_mask: torch.Tensor):
         if active_mask.sum() == active_mask.shape[0]:
             return  # nothing to filter
         assert active_mask.shape[0] == self.lengths.shape[0]
         self.transformer_state = self.transformer_state[:, active_mask]
-        # for i, state in enumerate(self.transformer_state):
-        #     self.transformer_state[i] = state[active_mask]
         self.lengths = self.lengths[active_mask]
         self._fix_shape()
 
@@ -65,8 +60,6 @@ class GPTDecoderState:
         if max_length >= self.transformer_state[0].shape[1]:
             return  # nothing to fix
         self.transformer_state = torch.narrow(self.transformer_state, dim=2, start=0, length=max_length)
-        # for i, state in enumerate(self.transformer_state):
-        #     self.transformer_state[i] = torch.narrow(state, dim=1, start=0, length=max_length)
 
     def reduce_length_(self, blank_mask: torch.Tensor):
         self.lengths -= blank_mask.to(torch.long)
@@ -132,13 +125,6 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
         )
         return decoder_output.transpose(1, 2), None, input_lengths
 
-    # def predict(self, input_ids: torch.Tensor, input_lengths: torch.Tensor):
-    #     # TODO: implement memory
-    #     return self.forward(
-    #         targets=input_ids,
-    #         target_length=input_lengths,
-    #     )
-
     def predict(
         self,
         y: Optional[torch.Tensor] = None,
@@ -154,7 +140,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
 
     def predict_stateless(
         self, labels: torch.Tensor, labels_lengths: torch.Tensor
-    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[torch.Tensor, list[torch.Tensor], torch.Tensor]:
         if labels.dtype != torch.long:
             labels = labels.long()
         output, *additional_outputs = self.forward(
@@ -197,15 +183,14 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
             memory_mask=state.get_mask(),
         )
         next_state = GPTDecoderState(transformer_state=transformer_state, prev_state=state)
-        # .unsqueeze(-1).transpose(1, 2)
         return decoder_output[:, -1].unsqueeze(1), next_state
 
-    def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
+    def initialize_state(self, y: torch.Tensor) -> Optional[list[torch.Tensor]]:
         return None
 
     def score_hypothesis(
         self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]
-    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[torch.Tensor, list[torch.Tensor], torch.Tensor]:
         raise NotImplementedError
 
     def state_size_is_fixed(self) -> bool:
