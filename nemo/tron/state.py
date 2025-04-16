@@ -113,7 +113,8 @@ class GlobalState:
         # in order to read the exit signal from the config.
         # This assumes the global state is first initialized and that the
         # config is immediately set on the global state after initialization.
-        self._signal_handler = self._set_signal_handler()
+        if value is not None:
+            self._signal_handler = self._set_signal_handler()
 
     @property
     def tokenizer(self):
