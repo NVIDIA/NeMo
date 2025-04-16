@@ -97,7 +97,7 @@ def setup_logging(
     env_logging_level = os.getenv("TRON_LOGGING_LEVEL", None)
     if env_logging_level is not None:
         logging_level = int(env_logging_level)
-    
+
     logger.info(f"Setting logging level to {logging_level}")
     logging.getLogger().setLevel(logging_level)
 

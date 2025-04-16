@@ -40,12 +40,12 @@ from megatron.core.dist_checkpointing.strategies.fully_parallel import (
     FullyParallelLoadStrategyWrapper,
     FullyParallelSaveStrategyWrapper,
 )
+from megatron.core.fp8_utils import is_float8tensor
 from megatron.core.num_microbatches_calculator import update_num_microbatches
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 
 from nemo.tron import fault_tolerance
 from nemo.tron.config import ConfigContainer
-
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import wandb_utils
 from nemo.tron.utils.async_utils import is_empty_async_queue, schedule_async_save
@@ -253,7 +253,9 @@ def checkpoint_exists(checkpoints_path: str) -> bool:
     Returns:
         True if the path exists, False otherwise.
     """
-    return os.path.exists(checkpoints_path)
+    if checkpoints_path is None:
+        return False
+    return os.path.exists(os.path.join(checkpoints_path, f"{TRACKER_PREFIX}_{TRAIN_STATE_FILE}"))
 
 
 @lru_cache()
@@ -660,7 +662,6 @@ def save_checkpoint(
                         f"Saved async checkpoint\tIteration: {train_state_dict['step'].item()}",
                         barrier=False,
                     )
-
 
         if ckpt_cfg.async_save:
             assert async_save_request is not None
@@ -1215,7 +1216,21 @@ def load_checkpoint(
 
     return state.train_state.step, state.train_state.floating_point_operations_so_far
 
-# Private functions below
+
+def fix_fp8_params_lose_precision_when_loading_dist_ckpt(state_dict: Dict[str, Any]) -> None:
+    """
+    When "--fp8-param-gather" and "--use-dist-ckpt" are both enabled, the state dict read from
+    dist-checkpoint loses precision (the weights read from checkpoint go through the process of
+    bf16/fp16 -> fp8 -> bf16/fp16). This function is implemented to solve this problem.
+    When "--fp8-param-gather" is disabled, this function doesn't modify anything.
+    """
+    for key in state_dict.keys():
+        if key.startswith("model"):
+            for _, sharded_tensor in state_dict[key].items():
+                if is_float8tensor(sharded_tensor.data):
+                    sharded_tensor.data = sharded_tensor.data.from_float8().cpu()
+
+
 def _transpose_first_dim(
     t: torch.Tensor, num_splits: int, num_splits_first: bool, model: torch.nn.Module
 ) -> torch.Tensor:

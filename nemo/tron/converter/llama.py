@@ -36,7 +36,7 @@ class HFLlamaExporter(BaseExporter):
         """Generate a Hugging Face Llama configuration from the NeMo model configuration.
 
         This property maps NeMo configuration parameters to their Hugging Face equivalents.
-        
+
         Returns:
             HFLlamaConfig: A Hugging Face Llama configuration
         """

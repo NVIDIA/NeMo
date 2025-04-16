@@ -36,7 +36,7 @@ class HFQwen2Exporter(BaseExporter):
         """Generate a Hugging Face Qwen2 configuration from the NeMo model configuration.
 
         This property maps NeMo configuration parameters to their Hugging Face equivalents.
-        
+
         Returns:
             HFQwen2Config: A Hugging Face Qwen2 configuration
         """
