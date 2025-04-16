@@ -86,19 +86,11 @@ class FinetuningDatasetBuilder:
             print_rank_0(f"Using packed sequences with size {self.packed_sequence_size}")
 
     def prepare_data(self) -> None:
-        """Prepare necessary data files before building datasets.
-
-        Currently calls `prepare_packed_data`.
-        """
+        """Prepare data if needed."""
         self.prepare_packed_data()
 
     def prepare_packed_data(self) -> None:
-        """Prepare packed sequence data files if configured.
-
-        If `packed_sequence_size` is set, this method generates the packed
-        .npy files for training and validation splits if they don't already exist.
-        This is typically run only on rank 0.
-        """
+        """Prepare packed sequence data files if configured."""
         if self.packed_sequence_size > 0:
             from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
 

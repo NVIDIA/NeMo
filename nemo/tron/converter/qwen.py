@@ -33,12 +33,12 @@ class HFQwen2Exporter(BaseExporter):
 
     @property
     def hf_config(self) -> "HFQwen2Config":
-        """Generate Hugging Face Qwen2Config from the NeMo configuration.
+        """Generate a Hugging Face Qwen2 configuration from the NeMo model configuration.
 
-        Maps NeMo configuration parameters to their Hugging Face equivalents.
-
+        This property maps NeMo configuration parameters to their Hugging Face equivalents.
+        
         Returns:
-            The Hugging Face Qwen2Config instance.
+            HFQwen2Config: A Hugging Face Qwen2 configuration
         """
         if self._hf_config is not None:
             return self._hf_config
@@ -95,12 +95,13 @@ class HFQwen2Importer(BaseImporter):
 
     @property
     def tron_config(self) -> Qwen2Config:
-        """Generate NeMo Qwen2Config from the Hugging Face configuration.
+        """Create a NeMo Qwen2Config from the HF model config.
 
-        Translates the HF configuration parameters to the equivalent NeMo configuration.
+        Translates the HF configuration parameters to the equivalent NeMo
+        configuration.
 
         Returns:
-            The NeMo Qwen2Config instance.
+            Qwen2Config: NeMo configuration for Qwen2 models
         """
         if self._tron_config is not None:
             return self._tron_config
