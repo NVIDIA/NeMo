@@ -17,6 +17,7 @@ import signal
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Union
+import logging
 
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -328,7 +329,7 @@ class LoggerConfig:
     wandb_entity: Optional[str] = None
     """The wandb entity name."""
 
-    logging_level: Optional[int] = None
+    logging_level: int = logging.INFO
     """Set default logging level"""
 
     filter_warnings: bool = True

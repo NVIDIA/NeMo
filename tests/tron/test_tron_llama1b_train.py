@@ -118,7 +118,6 @@ class TestMockTrain:
                 logger_config=LoggerConfig(
                     log_interval=1,
                     tensorboard_dir=tensorboard_dir,
-                    logging_level=20,
                 ),
                 tokenizer_config=TokenizerConfig(
                     tokenizer_type="NullTokenizer",
