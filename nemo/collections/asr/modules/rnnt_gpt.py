@@ -107,9 +107,9 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
             "target_length": NeuralType(tuple('B'), LengthsType()),
         }
 
-    def forward(self, targets: torch.Tensor, target_lengths: torch.Tensor):
+    def forward(self, targets: torch.Tensor, target_length: torch.Tensor):
         input_ids = targets
-        input_lengths = target_lengths
+        input_lengths = target_length
         batch_size = input_ids.shape[0]
         blank_prefix = torch.full(
             (batch_size, 1), fill_value=self.blank_idx, device=input_ids.device, dtype=input_ids.dtype
@@ -159,7 +159,7 @@ class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, Adapte
             labels = labels.long()
         output, *additional_outputs = self.forward(
             targets=torch.narrow(labels, 1, 0, labels_lengths.max()),
-            target_lengths=labels_lengths,
+            target_length=labels_lengths,
         )
         # take last elements for batch
         last_labels = output.transpose(1, 2)[torch.arange(output.shape[0]), labels_lengths].unsqueeze(1)
