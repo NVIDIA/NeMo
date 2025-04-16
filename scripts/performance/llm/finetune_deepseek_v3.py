@@ -19,7 +19,6 @@ import nemo_run as run
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.deepseek_v3 import finetune_recipe, model
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
@@ -100,6 +99,8 @@ def override_recipe_configs(
         vp_size,
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
+        compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
     )
 
     # disable HF ckpt loading
@@ -113,9 +114,6 @@ def override_recipe_configs(
         # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True
 
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
     recipe.model.config.recompute_granularity = 'full'
     recipe.model.config.recompute_method = 'uniform'
@@ -124,8 +122,8 @@ def override_recipe_configs(
 
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = False  # embedding is not split
-    recipe.model.config.num_layers_in_first_pipeline_stage = None
-    recipe.model.config.num_layers_in_last_pipeline_stage = None
+    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = None
+    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = None
     recipe.trainer.strategy.sequence_parallel = False
 
     return recipe
