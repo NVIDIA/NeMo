@@ -77,6 +77,18 @@ def parse_cli_args():
         required=False,
         default="bf16",
     )
+    fp8_recipe_msg = (
+        "FP8 recipe. Options- ds (per-tensor delayed scaling), cs (per-tensor current scaling), mxfp8. Defaults to ds"
+    )
+    parser.add_argument(
+        "-fr",
+        "--fp8_recipe",
+        type=str,
+        choices=["ds", "cs", "mxfp8"],
+        help=fp8_recipe_msg,
+        required=False,
+        default="ds",
+    )
     parser.add_argument(
         "-en",
         "--enable_nsys",
@@ -256,6 +268,31 @@ def parse_cli_args():
         action="store_true",
         required=False,
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
+    )
+    parser.add_argument(
+        "-fsdp",
+        "--use_mcore_fsdp",
+        help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
+        action="store_true",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-rl",
+        "--recompute_layers",
+        type=int,
+        help="Number of Transformer layers to recompute, where all the intermediate "
+        "activations of a Transformer layer are computed. Defaults to 0",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-ol",
+        "--activation_offload_layers",
+        type=int,
+        help="Number of Transformer layers to offload to the CPU memory. Defaults to 0",
+        required=False,
+        default=None,
     )
 
     def list_of_strings(arg):
