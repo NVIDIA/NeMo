@@ -151,9 +151,6 @@ class TestMockTrain:
                 metadata_file = os.path.join(final_iter_dir, ".metadata")
                 assert os.path.exists(metadata_file), "Checkpoint metadata file not found"
 
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-
         finally:
             # pytest's tmp_path fixture doesn't clean up immediately.
             # Clean up manually.
