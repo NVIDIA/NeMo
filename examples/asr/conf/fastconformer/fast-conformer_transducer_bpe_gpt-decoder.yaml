@@ -50,7 +50,7 @@ model:
 
   model_defaults:
     enc_hidden: ${model.encoder.d_model}
-    pred_hidden: ${model.decoder.prediction_network.hidden_size}
+    pred_hidden: ${model.decoder.predictor_transformer.hidden_size}
     joint_hidden: 640
 
   train_ds:
