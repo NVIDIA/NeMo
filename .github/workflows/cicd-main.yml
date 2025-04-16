@@ -115,7 +115,7 @@ jobs:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
       image-label: nemo-core
-      runner: ubuntu-latest
+      runner: "ubuntu-latest"
       build-args: |
         IMAGE_LABEL=nemo-core
         NEMO_TAG=${{ github.sha }}
