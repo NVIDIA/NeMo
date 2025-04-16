@@ -1163,6 +1163,14 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_llama3_straggler_detection
 
+  L2_NeMo_2_llama3_local_ckpt:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_local_ckpt')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_llama3_local_ckpt
+
   L2_NeMo_2_GPT_DDP_Param_Parity_check:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2030,6 +2038,7 @@ jobs:
       - L2_NeMo_2_llama3_pretraining_recipe
       - L2_NeMo_2_llama3_fault_tolerance_plugin
       - L2_NeMo_2_llama3_straggler_detection
+      - L2_NeMo_2_llama3_local_ckpt
       - L2_HF_Transformer_PEFT_notebook
       - L2_HF_Transformer_PEFT
       - L2_HF_Transformer_PEFT_nemorun
