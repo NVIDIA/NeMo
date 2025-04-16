@@ -70,7 +70,7 @@ def add_filter_to_all_loggers(filter: Union[Filter, Callable[[LogRecord], bool]]
 
 
 def setup_logging(
-    logging_level: Optional[int] = None,
+    logging_level: int = logging.INFO,
     filter_warning: bool = True,
     modules_to_filter: Optional[List[str]] = None,
     set_level_for_all_loggers: bool = False,
@@ -98,8 +98,6 @@ def setup_logging(
     if env_logging_level is not None:
         logging_level = int(env_logging_level)
     
-    logging_level = logging_level or logging.INFO
-
     logger.info(f"Setting logging level to {logging_level}")
     logging.getLogger().setLevel(logging_level)
 
