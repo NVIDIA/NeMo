@@ -70,12 +70,11 @@ class SortformerModules(NeuralModule, Exportable):
         init_step_len: int = 999,
         pred_score_threshold: float = 0.25,
         max_index: int = 99999,
-        max_score: float = 10.0,
         scores_boost_latest: float = 0.05,
         sil_threshold: float = 0.2,
         strong_boost_rate: float = 0.75,
         weak_boost_rate: float = 1.5,
-        min_high_scores_rate: float = 0.5,
+        min_pos_scores_rate: float = 0.5,
     ):
         super().__init__()
         self.mem_sil_frames_per_spk = mem_sil_frames_per_spk
@@ -89,10 +88,10 @@ class SortformerModules(NeuralModule, Exportable):
         self.fc_d_model = fc_d_model
         self.tf_d_model = tf_d_model
         self.hidden_size = tf_d_model
-        self.unit_n_spks: int = num_spks
-        self.hidden_to_spks = nn.Linear(2 * self.hidden_size, self.unit_n_spks)
+        self.n_spk: int = num_spks
+        self.hidden_to_spks = nn.Linear(2 * self.hidden_size, self.n_spk)
         self.first_hidden_to_hidden = nn.Linear(self.hidden_size, self.hidden_size)
-        self.single_hidden_to_spks = nn.Linear(self.hidden_size, self.unit_n_spks)
+        self.single_hidden_to_spks = nn.Linear(self.hidden_size, self.n_spk)
         self.dropout = nn.Dropout(dropout_rate)
         self.encoder_proj = nn.Linear(self.fc_d_model, self.tf_d_model)
         self.visualization: bool = False
@@ -103,13 +102,12 @@ class SortformerModules(NeuralModule, Exportable):
         self.scores_add_rnd = scores_add_rnd
         self.init_step_len = init_step_len
         self.max_index = max_index
-        self.max_score = max_score
         self.pred_score_threshold = pred_score_threshold
         self.scores_boost_latest = scores_boost_latest
         self.sil_threshold = sil_threshold
         self.strong_boost_rate = strong_boost_rate
         self.weak_boost_rate = weak_boost_rate
-        self.min_high_scores_rate = min_high_scores_rate
+        self.min_pos_scores_rate = min_pos_scores_rate
 
     def length_to_mask(self, lengths, max_length: int):
         """
@@ -128,7 +126,12 @@ class SortformerModules(NeuralModule, Exportable):
         mask = arange.expand(batch_size, max_length) < lengths.unsqueeze(1)
         return mask
 
-    def streaming_feat_loader(self, feat_seq, feat_seq_length, feat_seq_offset) -> Tuple[int, torch.Tensor, torch.Tensor, int, int]:
+    def streaming_feat_loader(
+        self,
+        feat_seq,
+        feat_seq_length,
+        feat_seq_offset
+    ) -> Tuple[int, torch.Tensor, torch.Tensor, int, int]:
         """
         Load a chunk of feature sequence for streaming inference.
 
@@ -170,18 +173,18 @@ class SortformerModules(NeuralModule, Exportable):
                 current_step_len = self.step_len
             elif end_feat < self.step_len * self.subsampling_factor and current_step_len < self.step_len and end_feat >= 4*current_step_len*self.subsampling_factor:
                 current_step_len *= 2
-     
+
     def forward_speaker_sigmoids(self, hidden_out):
-        """ 
+        """
         The final layer that renders speaker probabilities in Sigmoid activation function.
-        
+
         Args:
             hidden_out (torch.Tensor): tensor containing hidden states from the encoder
-                Dimension: (batch_size, max_len, hidden_size)
-                
+                Dimension: (batch_size, n_frames, hidden_dim)
+
         Returns:
             preds (torch.Tensor): tensor containing speaker probabilities in Sigmoid activation function
-                Dimension: (batch_size, num_spks)
+                Dimension: (batch_size, n_frames, n_spk)
         """
         hidden_out = self.dropout(F.relu(hidden_out))
         hidden_out = self.first_hidden_to_hidden(hidden_out)
@@ -190,28 +193,34 @@ class SortformerModules(NeuralModule, Exportable):
         preds = nn.Sigmoid()(spk_preds)
         return preds
 
-    def concat_embs(self, list_of_tensors=List[torch.Tensor], return_lengths: bool=False, dim: int=1, device: torch.device=None):
+    def concat_embs(
+        self,
+        list_of_tensors=List[torch.Tensor],
+        return_lengths: bool=False,
+        dim: int=1,
+        device: torch.device=None
+    ):
         """
         Concatenate a list of tensors along the specified dimension.
 
         Args:
             list_of_tensors (List[torch.Tensor]): List of tensors to concatenate
             return_lengths (bool): Whether to return lengths of the concatenated tensors
-            dim (int): Dimension along which to concatenate
+            dim (int): Concatenation axis
             device (torch.device): device to use for tensor operations
 
         Returns:
             embs (torch.Tensor): concatenated tensor
         """
-        embs = torch.cat(list_of_tensors, dim=dim).to(device) # Shape: (batch_size, frames (max_len), total_emb_dim)
+        embs = torch.cat(list_of_tensors, dim=dim).to(device)
         lengths = torch.tensor(embs.shape[1]).repeat(embs.shape[0]).to(device)
-
         if return_lengths:
             return embs, lengths
         else:
             return embs
 
     def init_memory(self, batch_size: int, d_model: int, device: torch.device):
+        # LET'S REMOVE THIS FUNCTION?
         return torch.zeros(batch_size, 0, d_model).to(device)
 
     def update_memory_fifo_async(
@@ -228,7 +237,10 @@ class SortformerModules(NeuralModule, Exportable):
         rc: int = 0
     ):
         """
-        update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions
+        Update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions.
+        Asynchronous version, which mean memory, fifo and chunk may have different lengths within a batch.
+        Should be used for real stremaing applicaitons.
+
         Args:
             mem (torch.Tensor): memory buffer to save the embeddings from start
                 Dimension: (batch_size, mem_len, emb_dim)
@@ -347,16 +359,23 @@ class SortformerModules(NeuralModule, Exportable):
         rc: int = 0
     ):
         """
-        update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions
+        Update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions.
+        Synchronous version, which mean memory, fifo and chunk have same lengths within a batch.
+        Should be used for training and evaluation, not for real stremaing applicaitons.
+
         Args:
             mem (torch.Tensor): memory buffer to save the embeddings from start
                 Dimension: (batch_size, mem_len, emb_dim)
-            fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks 
+            mem_preds (torch.Tensor): speaker predictions for memory buffer
+                Dimension: (batch_size, mem_len, num_spk)
+            fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks.
                 Dimension: (batch_size, fifo_len, emb_dim)
             chunk (torch.Tensor): chunk of embeddings to be predicted
                 Dimension: (batch_size, lc+chunk_len+rc, emb_dim)
             preds (torch.Tensor): speaker predictions of the [mem + fifo + chunk] embeddings
                 Dimension: (batch_size, mem_len + fifo_len + lc+chunk_len+rc, num_spks)
+            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores on previous step
+                Dimension: (batch_size, n_spk)
             lc and rc (int): left & right offset of the chunk,
                 only the chunk[:, lc:chunk_len+lc] is used for FIFO queue and memory update
 
@@ -365,8 +384,14 @@ class SortformerModules(NeuralModule, Exportable):
                 Dimension: (batch_size, mem_len, emb_dim)
             fifo (torch.Tensor): updated FIFO queue
                 Dimension: (batch_size, fifo_len, emb_dim)
+            mem_preds (torch.Tensor): updated speaker predictions for memory buffer
+                Dimension: (batch_size, mem_len, num_spk)
+            fifo_preds (torch.Tensor): speaker predictions for FIFO queuer
+                Dimension: (batch_size, fifo_len, num_spk)
             chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
                 Dimension: (batch_size, chunk_len, num_spks)
+            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores on this step
+                Dimension: (batch_size, n_spk)
         """
 
         batch_size, _, emb_dim = mem.shape
@@ -388,26 +413,30 @@ class SortformerModules(NeuralModule, Exportable):
                     pop_out_preds = torch.cat([fifo_preds, chunk_preds], dim=1)
                     fifo = self.init_memory(batch_size, emb_dim, mem.device)
                 else:
-                    pop_out_embs, pop_out_preds = self.init_memory(batch_size, emb_dim, mem.device), self.init_memory(batch_size, self.unit_n_spks, mem.device)
+                    pop_out_embs = self.init_memory(batch_size, emb_dim, mem.device)
+                    pop_out_preds = self.init_memory(batch_size, self.n_spk, mem.device)
             else:
                 assert fifo_len == self.fifo_len
                 pop_out_embs, pop_out_preds = chunk, chunk_preds
         else:
             fifo = torch.cat([fifo, chunk], dim=1)
             if fifo.size(1) <= self.fifo_len:
-                pop_out_embs, pop_out_preds = self.init_memory(batch_size, emb_dim, mem.device), self.init_memory(batch_size, self.unit_n_spks, mem.device)
+                pop_out_embs = self.init_memory(batch_size, emb_dim, mem.device)
+                pop_out_preds = self.init_memory(batch_size, self.n_spk, mem.device)
             else:
-                if self.mem_refresh_rate == 0: # clear fifo queue when it reaches the max_fifo_len and update memory buffer
+                if self.mem_refresh_rate == 0:
+                    # Clear fifo queue when it reaches the max_fifo_len and update memory buffer
                     pop_out_embs  = fifo[:, :fifo_len]
                     pop_out_preds = fifo_preds
                     fifo = self.init_memory(batch_size, emb_dim, mem.device)
-                elif self.mem_refresh_rate == 1: # pop out the oldest chunk from the fifo queue and update memory buffer
+                elif self.mem_refresh_rate == 1:
+                    # Pop out the oldest chunk from the fifo queue and update memory buffer
                     pop_out_embs  = fifo[:, :-self.fifo_len]
                     pop_out_preds = fifo_preds[:, :pop_out_embs.shape[1]]
                     fifo = fifo[:, -self.fifo_len:]
                     assert pop_out_embs.shape[1] > 0
                 else:
-                    # pop out self.mem_refresh_rate oldest chunks from the fifo queue and update memory buffer
+                    # Pop out self.mem_refresh_rate oldest chunks from the fifo queue and update memory buffer
                     pop_out_embs = fifo[:, :chunk_len*self.mem_refresh_rate]
                     pop_out_preds = fifo_preds[:, :pop_out_embs.shape[1]]
                     fifo = fifo[:, pop_out_embs.shape[1]:]
@@ -419,7 +448,11 @@ class SortformerModules(NeuralModule, Exportable):
             if mem.shape[1] > self.mem_len:
                 if mem_preds is None: # if this is a first memory update
                     mem_preds = torch.cat([preds[:, :mem_len], pop_out_preds], dim=1)
-                mem, mem_preds, spk_perm = self._compress_spk_cache(emb_seq=mem, preds=mem_preds, permute_spk=self.training)
+                mem, mem_preds, spk_perm = self._compress_spk_cache(
+                    emb_seq=mem,
+                    preds=mem_preds,
+                    permute_spk=self.training
+                )
 
         if self.log:
             logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
@@ -430,27 +463,25 @@ class SortformerModules(NeuralModule, Exportable):
         self,
         scores,
         n_boost_per_spk: int,
-        batch_size: int,
-        n_spk: int,
         scale_factor: float = 1.0,
         offset: float = 0.5
     ) -> torch.Tensor:
         """
-        Increases `n_boost_per_spk` highest scores for each speaker.
+        Increase `n_boost_per_spk` highest scores for each speaker.
 
         Args:
             scores (torch.Tensor): Tensor containing scores for each frame and speaker.
                 Shape: (batch_size, n_frames, n_spk)
             n_boost_per_spk (int): Number of frames to boost per speaker.
-            batch_size (int): Number of samples in a batch.
-            n_spk (int): Number of speakers.
             scale_factor (float): Scaling factor for boosting scores. Defaults to 1.0.
             offset (float): Offset for score adjustment. Defaults to 0.5.
 
         Returns:
             scores (torch.Tensor): Tensor containing scores for each frame and speaker after boosting.
+                Shape: (batch_size, n_frames, n_spk)
         """
-        _, topk_indices = torch.topk(scores, n_boost_per_spk, dim=1, largest=True, sorted=False) # Shape: (batch_size, n_boost_per_spk, n_spk)
+        batch_size, _, n_spk = scores.shape
+        _, topk_indices = torch.topk(scores, n_boost_per_spk, dim=1, largest=True, sorted=False)
         batch_indices = torch.arange(batch_size).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1)
         speaker_indices = torch.arange(n_spk).unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, n_spk)
         # Boost scores corresponding to topk_indices; but scores for disabled frames will remain -inf
@@ -459,103 +490,219 @@ class SortformerModules(NeuralModule, Exportable):
 
     def _get_silence_profile(self, emb_seq, preds):
         """
-        Condition for frame being silence
-        Get mean silence embedding tensor
-        Get frame importance scores
+        Get mean silence embedding from emb_seq sequence.
+        Embeddings are considered as silence if sum of corresponding preds is lower than self.sil_threshold.
+
+        Args:
+            emb_seq (torch.Tensor): Tensor containing sequence of embeddings.
+                Shape: (batch_size, n_frames, emb_dim)
+            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            mean_sil_emb (torch.Tensor): Mean silence embedding tensor.
+                Shape: (batch_size, emb_dim)
         """
-        is_sil = (preds.sum(dim=2) < self.sil_threshold) * (preds.sum(dim=2) > -0.1) # Shape: (batch_size, n_frames)
-        is_sil = is_sil.unsqueeze(-1) # Shape: (batch_size, n_frames, 1)
-        emb_seq_sil = torch.where(is_sil, emb_seq, torch.tensor(0.0)) # Shape: (batch_size, n_frames, emb_dim)
-        emb_seq_sil_sum = emb_seq_sil.sum(dim=1) # Shape: (batch_size, emb_dim)
-        sil_count = is_sil.sum(dim=1).clamp(min=1) # Shape: (batch_size)
-        emb_seq_sil_mean = emb_seq_sil_sum / sil_count # Shape: (batch_size, emb_dim)
-        emb_seq_sil_mean = emb_seq_sil_mean.unsqueeze(1).expand(-1, self.mem_len, -1) # Shape: (batch_size, mem_len, emb_dim)
-        return emb_seq_sil_mean
-    
-    def _get_log_pred_scores(self, preds, n_spk):
+        is_sil = (preds.sum(dim=2) < self.sil_threshold) * (preds.sum(dim=2) > -0.1)
+        is_sil = is_sil.unsqueeze(-1)
+        emb_seq_sil = torch.where(is_sil, emb_seq, torch.tensor(0.0)) # (batch_size, n_frames, emb_dim)
+        emb_seq_sil_sum = emb_seq_sil.sum(dim=1) # (batch_size, emb_dim)
+        sil_count = is_sil.sum(dim=1).clamp(min=1) # (batch_size)
+        mean_sil_emb = emb_seq_sil_sum / sil_count # (batch_size, emb_dim)
+        return mean_sil_emb
+
+    def _get_log_pred_scores(self, preds):
+        """
+        Get per-frame scores for speakers based on their activity probabilities.
+        Scores are log-based and designed to be high for confident prediction of non-overlapped speech.
+
+        Args:
+            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            scores (torch.Tensor): Tensor containing speaker scores.
+                Shape: (batch_size, n_frames, n_spk)
+        """
         log_probs = torch.log(torch.clamp(preds, min=self.pred_score_threshold))
         log_1_probs = torch.log(torch.clamp(1.0-preds, min=self.pred_score_threshold))
-        log_1_probs_sum = log_1_probs.sum(dim=2).unsqueeze(-1).expand(-1, -1, n_spk)
+        log_1_probs_sum = log_1_probs.sum(dim=2).unsqueeze(-1).expand(-1, -1, self.n_spk)
         scores = log_probs - log_1_probs + log_1_probs_sum - math.log(0.5)
         return scores
 
-    def _topk_operations(self, scores, preds, emb_seq):
-        batch_size, n_frames, n_spk = preds.shape
-        emb_dim = emb_seq.shape[2]
+    def _get_topk_indices(self, scores):
+        """
+        Get indices corresponding to mem_len highest scores, and binary mask for disabled frames in memory.
+        Disabled frames correspond to either -inf score or mem_sil_frames_per_spk frames of extra silence 
+        Mean silence embedding will be used for these frames.
 
+        Args:
+            scores (torch.Tensor): Tensor containing speaker scores, including for extra silence frames.
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            topk_indices_sorted (torch.Tensor): Tensor containing frame indices of mem_len highest scores.
+                Shape: (batch_size, mem_len)
+            is_disabled (torch.Tensor): Tensor containing binary mask for disabled frames in memory.
+                Shape: (batch_size, mem_len)
+        """
+
+        batch_size, n_frames, n_spk = scores.shape
+        n_frames_no_sil = n_frames - self.mem_sil_frames_per_spk
         # Concatenate scores for all speakers
         # Get mem_len frames with highest scores
         # Replace topk_indices corresponding to -inf score with a placeholder index self.max_index
         # Sort topk_indices to preserve original order of frames
         # Get correct indices corresponding to original frames
         scores_flatten = scores.permute(0,2,1).reshape(batch_size, -1)
-        topk_values, topk_indices = torch.topk(scores_flatten, self.mem_len, dim=1, largest=True, sorted=False) 
+        topk_values, topk_indices = torch.topk(scores_flatten, self.mem_len, dim=1, sorted=False)
         valid_topk_mask = (topk_values != float('-inf'))
         topk_indices = torch.where(valid_topk_mask, topk_indices, torch.tensor(self.max_index))
         topk_indices_sorted, _ = torch.sort(topk_indices, dim=1) # Shape: (batch_size, mem_len)
-        is_inf = (topk_indices_sorted == self.max_index)
-        topk_indices_sorted = torch.remainder(topk_indices_sorted, n_frames + self.mem_sil_frames_per_spk)
-        is_inf += (topk_indices_sorted >= n_frames)
-        topk_indices_sorted[is_inf] = 0 # Set a placeholder index to make gather work
+        is_disabled = (topk_indices_sorted == self.max_index)
+        topk_indices_sorted = torch.remainder(topk_indices_sorted, n_frames)
+        is_disabled += (topk_indices_sorted >= n_frames_no_sil)
+        topk_indices_sorted[is_disabled] = 0 # Set a placeholder index to make gather work
+        return topk_indices_sorted, is_disabled
 
+    def _gather_spk_cache_and_preds(self, emb_seq, preds, topk_indices, is_disabled):
+        """
+        Gather embeddings from emb_seq and speaker activities from preds corresponding to topk_indices.
+        For disabled frames, use mean silence embedding and zero probability instead.
+
+        Args:
+            emb_seq (torch.Tensor): Tensor containing sequence of embeddings.
+                Shape: (batch_size, n_frames, emb_dim)
+            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+                Shape: (batch_size, n_frames, n_spk)
+            topk_indices (torch.Tensor): Tensor containing indices of frames to gather.
+                Shape: (batch_size, mem_len)
+            is_disabled (torch.Tensor): Tensor containing binary mask for disabled frames.
+                Shape: (batch_size, mem_len)
+
+        Returns:
+            emb_seq_gathered (torch.Tensor): Tensor containing gathered embeddings.
+                Shape: (batch_size, mem_len, emb_dim)
+            preds_gathered (torch.Tensor): Tensor containing gathered speaker activities.
+                Shape: (batch_size, mem_len, n_spk)
+        """
+        emb_dim, n_spk = emb_seq.shape[2], preds.shape[2]
         # Expand topk_indices_sorted to emb_dim in last dimension to use gather
         # Gather memory buffer including placeholder embeddings for silence frames
         # Get mean silence embedding
         # Replace the placeholder embeddings with actual mean silence embedding
-        topk_indices_expanded = topk_indices_sorted.unsqueeze(-1).expand(-1, -1, emb_dim) 
-        emb_seq_gathered = torch.gather(emb_seq, 1, topk_indices_expanded) # Shape: (batch_size, mem_len, emb_dim)
-        emb_seq_sil_mean = self._get_silence_profile(emb_seq, preds)
-        memory_buff = torch.where(is_inf.unsqueeze(-1), emb_seq_sil_mean, emb_seq_gathered)
+        indices_expanded_emb = topk_indices.unsqueeze(-1).expand(-1, -1, emb_dim)
+        emb_seq_gathered = torch.gather(emb_seq, 1, indices_expanded_emb) # (batch_size, mem_len, emb_dim)
+        mean_sil_emb = self._get_silence_profile(emb_seq, preds)
+        mean_sil_emb_expanded = mean_sil_emb.unsqueeze(1).expand(-1, self.mem_len, -1)
+        emb_seq_gathered = torch.where(is_disabled.unsqueeze(-1), mean_sil_emb_expanded, emb_seq_gathered)
 
         # Expand topk indices to n_spk in last dimension to use gather
         # Gather memory preds including placeholder preds for silence frames
         # Replace the placeholder preds with zeros
-        topk_indices_expanded_spk = topk_indices_sorted.unsqueeze(-1).expand(-1, -1, n_spk)
-        preds_gathered = torch.gather(preds, 1, topk_indices_expanded_spk) # Shape: (batch_size, mem_len, n_spk)
-        mem_preds = torch.where(is_inf.unsqueeze(-1), torch.tensor(0.0), preds_gathered)
-
-        return memory_buff, mem_preds
+        indices_expanded_spk = topk_indices.unsqueeze(-1).expand(-1, -1, n_spk)
+        preds_gathered = torch.gather(preds, 1, indices_expanded_spk) # (batch_size, mem_len, n_spk)
+        preds_gathered = torch.where(is_disabled.unsqueeze(-1), torch.tensor(0.0), preds_gathered)
+        return emb_seq_gathered, preds_gathered
 
     def _get_max_perm_index(self, scores):
+        """
+        Get number of first speakers having at least one positive score.
+        These speakers will be randomly permuted during _compress_spk_cache (training only).
+
+        Args:
+            scores (torch.Tensor): Tensor containing speaker scores.
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute.
+                Shape: (batch_size)
+        """
+
         batch_size, _, n_spk = scores.shape
-        is_high = scores > 0 # high score usually means that only current speaker is speaking
-        zero_indices = torch.where(is_high.sum(dim=1) == 0)
+        is_pos = scores > 0 # positive score usually means that only current speaker is speaking
+        zero_indices = torch.where(is_pos.sum(dim=1) == 0)
         max_perm_index = torch.full((batch_size,), n_spk, dtype=torch.long, device=scores.device)
         max_perm_index.scatter_reduce_(0, zero_indices[0], zero_indices[1], reduce="amin", include_self=False)
         return max_perm_index
 
-    def _disable_low_scores(self, preds, scores, min_high_scores_per_spk):
+    def _disable_low_scores(self, preds, scores, min_pos_scores_per_spk: int):
+        """
+        Sets scores for non-speech to -inf.
+        Also sets non-positive scores to -inf, if there are at least min_pos_scores_per_spk positive scores.
+
+        Args:
+            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+                Shape: (batch_size, n_frames, n_spk)
+            scores (torch.Tensor): Tensor containing speaker importance scores.
+                Shape: (batch_size, n_frames, n_spk)
+            min_pos_scores_per_spk (int): if number of positive scores for a speaker is greater than this,
+                then all non-positive scores for this speaker will be disabled, i.e. set to -inf.
+
+        Returns:
+            scores (torch.Tensor): Tensor containing speaker scores.
+                Shape: (batch_size, n_frames, n_spk)
+        """
+
         batch_size, _, n_spk = scores.shape
         is_speech = preds > 0.5
         # Replace scores for non-speech with -inf
         scores = torch.where(is_speech, scores, torch.tensor(float('-inf')))
 
-        is_high = scores > 0 # high score usually means that only current speaker is speaking
-        # Replace low scores (usually overlapped speech) with -inf
-        # This will be applied only if a speaker has at least min_high_scores_per_spk high-scored frames
-        is_low_replace = (~is_high) * is_speech * (is_high.sum(dim=1).unsqueeze(1) >= min_high_scores_per_spk)
-        scores = torch.where(is_low_replace, torch.tensor(float('-inf')), scores)
+        is_pos = scores > 0 # positive score usually means that only current speaker is speaking
+        # Replace non-positive scores (usually overlapped speech) with -inf
+        # This will be applied only if a speaker has at least min_pos_scores_per_spk positive-scored frames
+        is_nonpos_replace = (~is_pos) * is_speech * (is_pos.sum(dim=1).unsqueeze(1) >= min_pos_scores_per_spk)
+        scores = torch.where(is_nonpos_replace, torch.tensor(float('-inf')), scores)
         return scores
+
+    def _permute_speakers(self, scores, max_perm_index):
+        """
+        Create a random permutation of scores max_perm_index first speakers.
+
+        Args:
+            scores (torch.Tensor): Tensor containing speaker scores.
+                Shape: (batch_size, n_frames, n_spk)
+            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute.
+                Shape: (batch_size)
+
+        Returns:
+            scores (torch.Tensor): Tensor with permuted scores.
+                Shape: (batch_size, n_frames, n_spk)
+            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores.
+                Dimension: (batch_size, n_spk)
+        """
+        spk_perm_list, scores_list = [], []
+        batch_size, _, n_spk = scores.shape
+        for batch_index in range(batch_size):
+            rand_perm_inds = torch.randperm(max_perm_index[batch_index].item())
+            linear_inds = torch.arange(max_perm_index[batch_index].item(), n_spk)
+            permutation = torch.cat([rand_perm_inds, linear_inds])
+            spk_perm_list.append(permutation)
+            scores_list.append(scores[batch_index, :, permutation])
+        spk_perm = torch.stack(spk_perm_list).to(scores.device)
+        scores = torch.stack(scores_list).to(scores.device)
+        return scores, spk_perm
 
     def _compress_spk_cache(self, emb_seq, preds, permute_spk: bool=False):
         """
-        Compresses speaker cache for streaming inference
-        Keeps mem_len most important frames out of input n_frames, based on preds
+        Compress speaker cache for streaming inference.
+        Keep mem_len most important frames out of input n_frames, based on preds.
 
         Args:
-            emb_seq (torch.Tensor): Tensor containing n_frames > mem_len (mem+chunk) embeddings
+            emb_seq (torch.Tensor): Tensor containing n_frames > mem_len embeddings
                 Dimension: (batch_size, n_frames, emb_dim)
-            preds (torch.Tensor): Tensor containing n_frames > mem_len (mem+chunk) speaker sigmoid outputs
+            preds (torch.Tensor): Tensor containing n_frames > mem_len speaker activity probabilities
                 Dimension: (batch_size, n_frames, n_spk)
-            permute_spk (bool): if true, will generate a random permutation of existing speakers
+            permute_spk (bool): If true, will generate a random permutation of existing speakers
 
         Returns:
-            memory_buff (torch.Tensor): concatenation of num_spk subtensors of emb_seq corresponding to each speaker
-            each of subtensors contains (mem_len//num_spk) frames out of n_frames
+            memory_buff (torch.Tensor): Tensor containing mem_len most important embeddings from emb_seq.
+            Embeddings are ordered by speakers. Within each speaker, original order of frames is kept.
                 Dimension: (batch_size, mem_len, emb_dim)
-            mem_preds (torch.Tensor): predictions for memory buffer
+            mem_preds (torch.Tensor): predictions corresponding to memory buffer
                 Dimension: (batch_size, mem_len, n_spk)
-            spk_perm (torch.Tensor): random speaker permutation tensor, or None
+            spk_perm (torch.Tensor): random speaker permutation tensor if permute_spk=True, otherwise None
                 Dimension: (batch_size, n_spk)
         """
         batch_size, n_frames, n_spk = preds.shape
@@ -563,40 +710,35 @@ class SortformerModules(NeuralModule, Exportable):
         mem_len_per_spk = self.mem_len // n_spk - self.mem_sil_frames_per_spk
         strong_boost_per_spk = math.floor(mem_len_per_spk * self.strong_boost_rate)
         weak_boost_per_spk = math.floor(mem_len_per_spk  * self.weak_boost_rate)
-        min_high_scores_per_spk = math.floor(mem_len_per_spk * self.min_high_scores_rate)
+        min_pos_scores_per_spk = math.floor(mem_len_per_spk * self.min_pos_scores_rate)
 
-        scores = self._get_log_pred_scores(preds, n_spk)
-        scores = self._disable_low_scores(preds, scores, min_high_scores_per_spk)
-        max_perm_index = self._get_max_perm_index(scores)
+        scores = self._get_log_pred_scores(preds)
+        scores = self._disable_low_scores(preds, scores, min_pos_scores_per_spk)
 
-        # Boost newly added frames
-        if self.scores_boost_latest > 0:
-            scores[:,self.mem_len:,:] += self.scores_boost_latest
-
-        if self.training:
-            # Add random noise to scores
-            if self.scores_add_rnd > 0:
-                scores += torch.rand(batch_size, n_frames, n_spk, device=scores.device) * self.scores_add_rnd
-
-        if permute_spk:
-            # Generate a random permutation of speakers
-            spk_perm_list = []
-            for batch_index in range(batch_size):
-                rand_perm_inds = torch.randperm(max_perm_index[batch_index].item())
-                linear_inds = torch.arange(max_perm_index[batch_index].item(), n_spk)
-                spk_perm_list.append(torch.cat([rand_perm_inds, linear_inds]))
-            spk_perm = torch.stack(spk_perm_list).to(preds.device)
-            scores = torch.stack([scores[batch_index, :, spk_perm[batch_index]] for batch_index in range(batch_size)])
+        if permute_spk: # Generate a random permutation of speakers
+            max_perm_index = self._get_max_perm_index(scores)
+            scores, spk_perm = self._permute_speakers(scores, max_perm_index)
         else:
             spk_perm = None
 
+        if self.scores_boost_latest > 0: # Boost newly added frames
+            scores[:,self.mem_len:,:] += self.scores_boost_latest
+
+        if self.training:
+            if self.scores_add_rnd > 0: # Add random noise to scores
+                scores += torch.rand(batch_size, n_frames, n_spk, device=scores.device) * self.scores_add_rnd
+
         # Strong boosting to ensure each speaker has at least K frames in speaker cache
-        scores = self._boost_topk_scores(scores, strong_boost_per_spk, batch_size, n_spk, scale_factor=2)
+        scores = self._boost_topk_scores(scores, strong_boost_per_spk, scale_factor=2)
         # Weak boosting to prevent dominance of one speaker in speaker cache
-        scores = self._boost_topk_scores(scores, weak_boost_per_spk, batch_size, n_spk, scale_factor=1)
+        scores = self._boost_topk_scores(scores, weak_boost_per_spk, scale_factor=1)
 
         if self.mem_sil_frames_per_spk > 0: # Add number of silence frames in the end of each block
-            scores = torch.cat([scores, torch.full((batch_size, self.mem_sil_frames_per_spk, n_spk), self.max_score, device=scores.device)], dim=1) # Shape: (batch_size, n_frames + mem_sil_frames_per_spk, n_spk)
+            pad = torch.full(
+                (batch_size, self.mem_sil_frames_per_spk, n_spk), float('inf'), device=scores.device
+            )
+            scores = torch.cat([scores, pad], dim=1) # (batch_size, n_frames + mem_sil_frames_per_spk, n_spk)
 
-        memory_buff, mem_preds = self._topk_operations(scores, preds, emb_seq)
+        topk_indices, is_disabled = self._get_topk_indices(scores)
+        memory_buff, mem_preds = self._gather_spk_cache_and_preds(emb_seq, preds, topk_indices, is_disabled)
         return memory_buff, mem_preds, spk_perm

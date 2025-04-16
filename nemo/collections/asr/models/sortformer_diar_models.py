@@ -715,7 +715,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         if self.async_streaming:
             if mem_last_time is None:
                 mem_last_time = torch.zeros((B, self.sortformer_modules.mem_len, self.sortformer_modules.fc_d_model), device=self.device)
-                mem_preds_last_time = torch.full((B, self.sortformer_modules.mem_len, self.sortformer_modules.unit_n_spks), -0.1, device=self.device)
+                mem_preds_last_time = torch.full((B, self.sortformer_modules.mem_len, self.sortformer_modules.n_spk), -0.1, device=self.device)
                 mem_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
             if fifo_last_time is None:
                 fifo_last_time = torch.zeros((B, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
@@ -727,7 +727,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 fifo_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
 
         if previous_pred_out is None:
-            previous_pred_out = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.unit_n_spks, device=self.device)
+            previous_pred_out = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.n_spk, device=self.device)
 
         chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
 
