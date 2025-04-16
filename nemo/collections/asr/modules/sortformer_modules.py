@@ -35,6 +35,35 @@ from typing import Optional, Dict, List, Union, Tuple
 
 __all__ = ['SortformerModules']
 
+def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
+    """Concatenates lengths[i] first embeddings of embs[i], and pads the rest elements with zeros.
+    Args:
+        embs: List of embeddings Tensors of (B, T_i, D) shape
+        lengths: List of lengths Tensors of (B,) shape
+
+    Returns:
+        output: concatenated embeddings Tensor of (B, T, D) shape
+        total_lengths: output lengths Tensor of (B,) shape
+    """
+
+    assert len(embs) == len(lengths)
+    device = embs[0].device
+    dtype = embs[0].dtype
+    B, D = embs[0].shape[0], embs[0].shape[2]
+
+    total_lengths = torch.sum(torch.stack(lengths), dim=0)
+    max_length = total_lengths.max().item()
+
+    output = torch.zeros(B, max_length, D, device=device, dtype=dtype)
+    start_indices = torch.zeros(B, dtype=torch.int64, device=device)
+
+    for E, L in zip(embs, lengths):
+        end_indices = start_indices + L
+        for b in range(B):
+            output[b, start_indices[b]:end_indices[b]] = E[b, :L[b]]
+        start_indices = end_indices
+
+    return output, total_lengths
 
 class SortformerModules(NeuralModule, Exportable):
     """
@@ -222,6 +251,45 @@ class SortformerModules(NeuralModule, Exportable):
     def init_memory(self, batch_size: int, d_model: int, device: torch.device):
         # LET'S REMOVE THIS FUNCTION?
         return torch.zeros(batch_size, 0, d_model).to(device)
+
+    def prepare_frontend_enc_inputs(
+        self,
+        processed_signal,
+        processed_signal_length,
+        previous_pred_out: Optional[torch.Tensor]=None,
+        async_streaming: bool=False,
+        device: torch.device=None,
+    ):
+        batch_size = processed_signal.shape[0]
+        if self.async_streaming:
+            if mem_last_time is None:
+                mem_last_time = torch.zeros((batch_size, self.mem_len, self.fc_d_model), device=self.device)
+                # mem_preds_last_time = torch.full((batch_size, self.mem_len, self.n_spk), -0.1, device=self.device)
+                mem_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device) #zero offsets
+            if fifo_last_time is None:
+                fifo_last_time = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device=self.device)
+                fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device) #zero offsets
+        else:
+            if mem_last_time is None:
+                mem_last_time = self.init_memory(batch_size=batch_size, d_model=self.fc_d_model, device=self.device)# memory to save the embeddings from start
+            if fifo_last_time is None:
+                fifo_last_time = self.init_memory(batch_size=batch_size, d_model=self.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+
+        if previous_pred_out is None:
+            previous_pred_out = self.init_memory(batch_size=batch_size, d_model=self.n_spk, device=self.device)
+
+        chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
+
+        if self.async_streaming:
+            mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = concat_and_pad([mem_last_time, fifo_last_time, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
+        else:
+            mem_fifo_chunk_pre_encode_embs = self.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
+            mem_fifo_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
+
+        mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
+        mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
+        return mem_fifo_chunk_preds, mem_fifo_chunk_fc_encoder_lengths
+        
 
     def update_memory_fifo_async(
         self,

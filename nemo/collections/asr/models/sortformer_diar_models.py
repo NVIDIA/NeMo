@@ -142,7 +142,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.loss = instantiate(self._cfg.loss)
 
         self.pad_front = self._cfg.get("pad_front", False)
-        self.async_streaming = self._cfg.get("async_streaming", False)
+        self.async_streaming = self._cfg.get("async_streaming", True)
 
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
@@ -710,35 +710,43 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             
         """
 
-        B = processed_signal.shape[0]
+        # B = processed_signal.shape[0]
 
-        if self.async_streaming:
-            if mem_last_time is None:
-                mem_last_time = torch.zeros((B, self.sortformer_modules.mem_len, self.sortformer_modules.fc_d_model), device=self.device)
-                mem_preds_last_time = torch.full((B, self.sortformer_modules.mem_len, self.sortformer_modules.n_spk), -0.1, device=self.device)
-                mem_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
-            if fifo_last_time is None:
-                fifo_last_time = torch.zeros((B, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
-                fifo_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
-        else:
-            if mem_last_time is None:
-                mem_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
-            if fifo_last_time is None:
-                fifo_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+        # if self.async_streaming:
+        #     if mem_last_time is None:
+        #         mem_last_time = torch.zeros((B, self.sortformer_modules.mem_len, self.sortformer_modules.fc_d_model), device=self.device)
+        #         mem_preds_last_time = torch.full((B, self.sortformer_modules.mem_len, self.sortformer_modules.n_spk), -0.1, device=self.device)
+        #         mem_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
+        #     if fifo_last_time is None:
+        #         fifo_last_time = torch.zeros((B, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
+        #         fifo_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
+        # else:
+        #     if mem_last_time is None:
+        #         mem_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
+        #     if fifo_last_time is None:
+        #         fifo_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
 
-        if previous_pred_out is None:
-            previous_pred_out = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.n_spk, device=self.device)
+        # if previous_pred_out is None:
+        #     previous_pred_out = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.n_spk, device=self.device)
 
-        chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
+        # chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
 
-        if self.async_streaming:
-            mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = concat_and_pad([mem_last_time, fifo_last_time, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
-        else:
-            mem_fifo_chunk_pre_encode_embs = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
-            mem_fifo_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
+        # if self.async_streaming:
+        #     mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = concat_and_pad([mem_last_time, fifo_last_time, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
+        # else:
+        #     mem_fifo_chunk_pre_encode_embs = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
+        #     mem_fifo_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
 
-        mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
-        mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
+        # mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
+        # mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
+
+        mem_fifo_chunk_preds, mem_fifo_chunk_fc_encoder_lengths = self.sortformer_modules.prepare_frontend_enc_inputs(
+                                    processed_signal=processed_signal,
+                                    processed_signal_length=processed_signal_length,
+                                    previous_pred_out=previous_pred_out,
+                                    async_streaming=self.async_streaming,
+                                    device=processed_signal.device
+                                )
 
         B, T, C  = mem_fifo_chunk_preds.shape
         preds_mask = torch.arange(T, device=self.device).view(1, -1, 1).expand(B,-1,C) < mem_fifo_chunk_fc_encoder_lengths.view(-1, 1, 1).expand(-1,T,C)
