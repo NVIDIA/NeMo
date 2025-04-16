@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import signal
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import torch
 import torch.distributed
@@ -53,7 +53,7 @@ def all_gather_item(
     group: Optional[torch.distributed.ProcessGroup] = None,
     async_op: bool = False,
     local_rank: Optional[int] = None,
-) -> List[Any]:
+) -> list[Any]:
     """Perform an all_gather operation on a single Python object.
 
     Converts the item to a tensor, performs all_gather, and converts back to a list
@@ -68,7 +68,7 @@ def all_gather_item(
         local_rank (Optional[int]): The local rank to determine the device.
 
     Returns:
-        List[Any]: A list containing the gathered items (of type Any) from all ranks in the group.
+        list[Any]: A list containing the gathered items (of type Any) from all ranks in the group.
     """
     if not torch.distributed.is_available() or not torch.distributed.is_initialized():
         return [item]
@@ -106,7 +106,7 @@ class DistributedSignalHandler:
         self.released = False
         self.original_handler = None
 
-    def signals_received(self) -> List[bool]:
+    def signals_received(self) -> list[bool]:
         """Check if any rank in the default group received the signal.
 
         Uses all_gather to collect the signal status from all ranks.

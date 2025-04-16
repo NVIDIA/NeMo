@@ -25,7 +25,7 @@ from functools import lru_cache
 from logging import getLogger
 from pathlib import Path
 from time import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import torch
@@ -259,7 +259,7 @@ def checkpoint_exists(checkpoints_path: str) -> bool:
 
 
 @lru_cache()
-def read_train_state(train_state_filename: str) -> Optional[Dict[str, Any]]:
+def read_train_state(train_state_filename: str) -> Optional[dict[str, Any]]:
     """Read the train state metadata from a YAML file (rank 0 only).
 
     Reads the file on rank 0 and broadcasts the result to other ranks.
@@ -286,7 +286,7 @@ def read_train_state(train_state_filename: str) -> Optional[Dict[str, Any]]:
 
 
 @lru_cache()
-def read_run_config(run_config_filename: str) -> Dict[str, Any]:
+def read_run_config(run_config_filename: str) -> dict[str, Any]:
     """Read the run configuration from a YAML file (rank 0 only).
 
     Reads the file on rank 0 and broadcasts the result to other ranks.
@@ -324,7 +324,7 @@ def read_run_config(run_config_filename: str) -> Dict[str, Any]:
 
 def get_rng_state(
     data_parallel_random_init: bool, use_dist_ckpt: bool = False
-) -> Union[List[Dict[str, Any]], ShardedObject]:
+) -> Union[list[dict[str, Any]], ShardedObject]:
     """Get the random number generator states for all necessary libraries.
 
     Collects states from random, numpy, torch, cuda, and the Megatron RNG tracker.
@@ -380,11 +380,11 @@ class CheckpointType(Enum):
 
 def save_checkpoint(
     state: GlobalState,
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    model: Union[torch.nn.Module, list[torch.nn.Module]],
     optimizer: Optional[torch.optim.Optimizer],
     opt_param_scheduler: Optional[Any],
     num_floating_point_operations_so_far: int,
-    checkpointing_context: Optional[Dict[str, Any]] = None,
+    checkpointing_context: Optional[dict[str, Any]] = None,
     pipeline_rank: Optional[int] = None,
     expert_rank: Optional[int] = None,
     tensor_rank: Optional[int] = None,
@@ -392,7 +392,7 @@ def save_checkpoint(
     expert_parallel: Optional[bool] = None,
     non_persistent_ckpt: bool = False,
     train_data_iterator: Optional[Any] = None,
-    preprocess_common_state_dict_fn: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+    preprocess_common_state_dict_fn: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None,
 ) -> None:
     """Save a model checkpoint.
 
@@ -785,15 +785,15 @@ def maybe_save_dataloader_state(
 
 def generate_state_dict(
     cfg: ConfigContainer,
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    model: Union[torch.nn.Module, list[torch.nn.Module]],
     optimizer: Optional[torch.optim.Optimizer],
     opt_param_scheduler: Optional[Any],
-    rng_state: Union[List[Dict[str, Any]], ShardedObject],
+    rng_state: Union[list[dict[str, Any]], ShardedObject],
     use_dist_ckpt: bool = False,
     iteration: Optional[int] = None,
-    optim_sd_kwargs: Optional[Dict[str, Any]] = None,
-    rerun_state: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    optim_sd_kwargs: Optional[dict[str, Any]] = None,
+    rerun_state: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     """Generate the state dictionary to be saved in a checkpoint.
 
     Args:
@@ -801,7 +801,7 @@ def generate_state_dict(
         model: The model module(s).
         optimizer: The optimizer instance.
         opt_param_scheduler: The optimizer parameter scheduler instance.
-        rng_state: Collected RNG states (List or ShardedObject).
+        rng_state: Collected RNG states (list or ShardedObject).
         use_dist_ckpt: Whether distributed checkpointing format is used.
         iteration: The current training iteration.
         optim_sd_kwargs: Additional keyword arguments for optimizer state dict generation.
@@ -848,7 +848,7 @@ def generate_state_dict(
 
 
 def fix_query_key_value_ordering(
-    model: Union[torch.nn.Module, List[torch.nn.Module]], checkpoint_version: float
+    model: Union[torch.nn.Module, list[torch.nn.Module]], checkpoint_version: float
 ) -> None:
     """Fix the ordering of query, key, and value tensors for older checkpoints.
 
@@ -888,13 +888,13 @@ def fix_query_key_value_ordering(
 
 def load_checkpoint(
     state: GlobalState,
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    model: Union[torch.nn.Module, list[torch.nn.Module]],
     optimizer: Optional[torch.optim.Optimizer],
     opt_param_scheduler: Optional[Any],
     strict: bool = True,
-    checkpointing_context: Optional[Dict[str, Any]] = None,
+    checkpointing_context: Optional[dict[str, Any]] = None,
     skip_load_to_model_and_opt: bool = False,
-) -> Tuple[Optional[Dict[str, Any]], str, bool, Optional[CheckpointType]]:
+) -> tuple[Optional[dict[str, Any]], str, bool, Optional[CheckpointType]]:
     """Load a model checkpoint.
 
     Handles loading model state, optimizer state, scheduler state, RNG state,
@@ -1220,7 +1220,7 @@ def load_checkpoint(
     return state.train_state.step, state.train_state.floating_point_operations_so_far
 
 
-def fix_fp8_params_lose_precision_when_loading_dist_ckpt(state_dict: Dict[str, Any]) -> None:
+def fix_fp8_params_lose_precision_when_loading_dist_ckpt(state_dict: dict[str, Any]) -> None:
     """
     When fp8-param-gather and use-dist-ckpt are both enabled, the state dict read from
     dist-checkpoint loses precision (the weights read from checkpoint go through the process of
@@ -1270,7 +1270,7 @@ def _transpose_first_dim(
 def _get_non_persistent_iteration(
     non_persistent_global_dir: str,
     cfg: ConfigContainer,
-    checkpointing_context: Optional[Dict[str, Any]] = None,
+    checkpointing_context: Optional[dict[str, Any]] = None,
 ) -> int:
     """Get iteration number from non-persistent checkpoint."""
     if cfg.checkpoint_config.non_persistent_ckpt_type is None:
@@ -1297,10 +1297,10 @@ def _load_non_persistent_base_checkpoint(
     non_persistent_global_dir: str,
     cfg: ConfigContainer,
     rank0: bool,
-    sharded_state_dict: Optional[Dict[str, Any]],
+    sharded_state_dict: Optional[dict[str, Any]],
     non_persistent_iteration: int,
-    checkpointing_context: Optional[Dict[str, Any]] = None,
-) -> Tuple[Dict[str, Any], str, bool, CheckpointType]:
+    checkpointing_context: Optional[dict[str, Any]] = None,
+) -> tuple[dict[str, Any], str, bool, CheckpointType]:
     """Load the base state_dict from a non-persistent distributed checkpoint."""
     assert cfg.checkpoint_config.non_persistent_ckpt_type is not None
     if cfg.checkpoint_config.non_persistent_ckpt_type == "global":
@@ -1333,11 +1333,11 @@ def _load_global_dist_base_checkpoint(
     load_dir: str,
     cfg: ConfigContainer,
     rank0: bool,
-    sharded_state_dict: Optional[Dict[str, Any]],
+    sharded_state_dict: Optional[dict[str, Any]],
     iteration: int,
     release: bool,
-    checkpointing_context: Optional[Dict[str, Any]] = None,
-) -> Tuple[Dict[str, Any], str, bool, CheckpointType]:
+    checkpointing_context: Optional[dict[str, Any]] = None,
+) -> tuple[dict[str, Any], str, bool, CheckpointType]:
     """Load the base state_dict from the given directory containing the global distributed checkpoint."""
     if rank0:
         checkpoint_name = find_checkpoint_rank_0(load_dir, iteration, release)
@@ -1373,9 +1373,9 @@ def _load_base_checkpoint(
     load_dir: Optional[str],
     cfg: ConfigContainer,
     rank0: bool = False,
-    sharded_state_dict: Optional[Dict[str, Any]] = None,
-    checkpointing_context: Optional[Dict[str, Any]] = None,
-) -> Tuple[Optional[Dict[str, Any]], str, bool, Optional[CheckpointType]]:
+    sharded_state_dict: Optional[dict[str, Any]] = None,
+    checkpointing_context: Optional[dict[str, Any]] = None,
+) -> tuple[Optional[dict[str, Any]], str, bool, Optional[CheckpointType]]:
     """Load the base state_dict from the given directory."""
     # Try to load non-persistent checkpoint first
     non_persistent_global_dir = (

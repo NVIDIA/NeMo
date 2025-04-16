@@ -16,7 +16,7 @@ import os
 import time
 import types
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import torch
 import yaml
@@ -50,7 +50,7 @@ class TrainState(Stateful):
     do_valid: bool = False
     do_test: bool = False
 
-    def state_dict(self) -> Dict[str, torch.Tensor]:
+    def state_dict(self) -> dict[str, torch.Tensor]:
         """Serializes the training state into a dictionary of tensors.
 
         Conforms to the Stateful interface for distributed checkpointing.
@@ -73,7 +73,7 @@ class TrainState(Stateful):
             "do_test": torch.tensor(self.do_test, dtype=torch.bool),
         }
 
-    def load_state_dict(self, state_dict: Dict[str, torch.Tensor]) -> None:
+    def load_state_dict(self, state_dict: dict[str, torch.Tensor]) -> None:
         """Load the training state from a state dictionary.
 
         Args:
@@ -262,7 +262,7 @@ class GlobalState:
 
 def _timers_write_to_wandb(
     self: Timers,
-    names: List[str],
+    names: list[str],
     writer: Any,
     iteration: int,
     normalizer: float = 1.0,

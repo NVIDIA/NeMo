@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Iterable, Tuple
+from typing import Iterable
 
 import torch
 from megatron.core import parallel_state
@@ -26,7 +26,7 @@ from nemo.tron.losses import masked_next_token_loss
 from nemo.tron.state import GlobalState
 
 
-def get_batch(data_iterator: Iterable, cfg: ConfigContainer) -> Tuple[
+def get_batch(data_iterator: Iterable, cfg: ConfigContainer) -> tuple[
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
@@ -40,7 +40,7 @@ def get_batch(data_iterator: Iterable, cfg: ConfigContainer) -> Tuple[
         cfg: Configuration container
 
     Returns:
-        Tuple of tensors containing tokens, labels, loss_mask, attention_mask, and position_ids
+        tuple of tensors containing tokens, labels, loss_mask, attention_mask, and position_ids
     """
     if (not parallel_state.is_pipeline_first_stage()) and (not parallel_state.is_pipeline_last_stage()):
         return None, None, None, None, None
@@ -57,7 +57,7 @@ def get_batch(data_iterator: Iterable, cfg: ConfigContainer) -> Tuple[
     return batch.values()
 
 
-def forward_step(state: GlobalState, data_iterator: Iterable, model: GPTModel) -> Tuple[torch.Tensor, partial]:
+def forward_step(state: GlobalState, data_iterator: Iterable, model: GPTModel) -> tuple[torch.Tensor, partial]:
     """Forward training step.
 
     Args:
@@ -66,7 +66,7 @@ def forward_step(state: GlobalState, data_iterator: Iterable, model: GPTModel) -
         model: The GPT Model
 
     Returns:
-        Tuple containing the output tensor and the loss function
+        tuple containing the output tensor and the loss function
     """
     timers = state.timers
     straggler_timer = state.straggler_timer

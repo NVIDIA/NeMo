@@ -20,7 +20,7 @@ import functools
 import logging
 from enum import Enum
 from textwrap import dedent
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+from typing import Any, Callable, Sequence, Union
 
 from omegaconf import OmegaConf
 from omegaconf._utils import is_structured_config
@@ -323,8 +323,8 @@ def _is_target(x: Any) -> bool:
 def _call_target(
     _target_: Callable[..., Any],
     _partial_: bool,
-    args: Tuple[Any, ...],
-    kwargs: Dict[str, Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
     full_key: str,
 ) -> Any:
     """Call target (type) with args and kwargs."""
@@ -354,7 +354,7 @@ def _convert_target_to_string(t: Any) -> Any:
         return t
 
 
-def _prepare_input_dict_or_list(d: Union[Dict[Any, Any], List[Any]]) -> Any:
+def _prepare_input_dict_or_list(d: Union[dict[Any, Any], list[Any]]) -> Any:
     res: Any
     if isinstance(d, dict):
         res = {}
@@ -397,7 +397,7 @@ def _resolve_target(
     return target
 
 
-def _extract_pos_args(input_args: Any, kwargs: Any) -> Tuple[Any, Any]:
+def _extract_pos_args(input_args: Any, kwargs: Any) -> tuple[Any, Any]:
     config_args = kwargs.pop(_Keys.ARGS, ())
     output_args = config_args
 

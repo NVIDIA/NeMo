@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Iterable, Iterator, Optional, Union
 
 import torch
 from megatron.core import mpu
@@ -35,7 +35,7 @@ def get_blend_and_blend_per_split(
     train_data_paths: Optional[list[str]] = None,
     valid_data_paths: Optional[list[str]] = None,
     test_data_paths: Optional[list[str]] = None,
-) -> Tuple[Optional[List[str]], Optional[List[List[str]]]]:
+) -> tuple[Optional[list[str]], Optional[list[list[str]]]]:
     """Determine dataset blends from command-line arguments or config files.
 
     Parses different ways dataset paths/weights can be specified (single list,
@@ -106,7 +106,7 @@ def cyclic_iter(iter: Iterable) -> Iterator:
             yield x
 
 
-def get_train_valid_test_num_samples(cfg: ConfigContainer) -> Tuple[int, int, int]:
+def get_train_valid_test_num_samples(cfg: ConfigContainer) -> tuple[int, int, int]:
     """Calculate the number of samples for train, validation, and test sets.
 
     Determines sample counts based on training iterations, global batch size,
@@ -133,7 +133,7 @@ def get_train_valid_test_num_samples(cfg: ConfigContainer) -> Tuple[int, int, in
 
 def build_train_valid_test_datasets(
     cfg: ConfigContainer, build_train_valid_test_datasets_provider: Callable
-) -> Tuple[Any, Any, Any]:
+) -> tuple[Any, Any, Any]:
     """Build train, validation, and test datasets using a provider function.
 
     Args:
@@ -154,7 +154,7 @@ def build_train_valid_test_datasets(
 
 def build_train_valid_test_data_loaders(
     cfg: ConfigContainer, train_state: TrainState, build_train_valid_test_datasets_provider: Callable
-) -> Tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader]]:
+) -> tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader]]:
     """Build train, validation, and test data loaders.
 
     First builds the datasets using the provided provider function, then constructs
@@ -254,7 +254,7 @@ def build_train_valid_test_data_loaders(
 
 def build_train_valid_test_data_iterators(
     cfg: ConfigContainer, train_state: TrainState, build_train_valid_test_datasets_provider: Callable
-) -> Tuple[Optional[RerunDataIterator], Optional[RerunDataIterator], Optional[RerunDataIterator]]:
+) -> tuple[Optional[RerunDataIterator], Optional[RerunDataIterator], Optional[RerunDataIterator]]:
     """Build train, validation, and test data iterators.
 
     Builds the data loaders first, then wraps them in appropriate iterators
@@ -318,10 +318,10 @@ def setup_data_iterators(
     train_state: TrainState,
     model_length: int,
     train_valid_test_datasets_provider: Callable,
-) -> Tuple[
-    Union[Optional[RerunDataIterator], List[Optional[RerunDataIterator]]],
-    Union[Optional[RerunDataIterator], List[Optional[RerunDataIterator]]],
-    Union[Optional[RerunDataIterator], List[Optional[RerunDataIterator]]],
+) -> tuple[
+    Union[Optional[RerunDataIterator], list[Optional[RerunDataIterator]]],
+    Union[Optional[RerunDataIterator], list[Optional[RerunDataIterator]]],
+    Union[Optional[RerunDataIterator], list[Optional[RerunDataIterator]]],
 ]:
     """Set up data iterators, handling virtual pipeline parallelism if enabled.
 

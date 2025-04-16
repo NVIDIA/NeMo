@@ -15,7 +15,7 @@
 import inspect
 import os
 from datetime import datetime
-from typing import Any, List, Optional, Tuple, Type, Union
+from typing import Any, Optional, Type, Union
 
 import torch
 import torch.distributed
@@ -34,9 +34,9 @@ except ImportError:
 
 
 def unwrap_model(
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
-    module_instances: Tuple[Type[torch.nn.Module], ...] = ALL_MODULE_WRAPPER_CLASSNAMES,
-) -> Union[torch.nn.Module, List[torch.nn.Module]]:
+    model: Union[torch.nn.Module, list[torch.nn.Module]],
+    module_instances: tuple[Type[torch.nn.Module], ...] = ALL_MODULE_WRAPPER_CLASSNAMES,
+) -> Union[torch.nn.Module, list[torch.nn.Module]]:
     """Recursively unwraps a model or list of models from common wrapper modules.
 
     Args:

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import torch.nn as nn
 
@@ -26,12 +26,12 @@ from nemo.tron.config import SchedulerConfig
 def setup_optimizer(
     optimizer_config: OptimizerConfig,
     scheduler_config: SchedulerConfig,
-    model: Union[MegatronModule, List[MegatronModule]],
+    model: Union[MegatronModule, list[MegatronModule]],
     use_gloo_process_groups: bool = False,
     no_weight_decay_cond: Optional[Callable[[str, nn.Parameter], bool]] = None,
     scale_lr_cond: Optional[Callable[[str, nn.Parameter], bool]] = None,
     lr_mult: float = 1.0,
-) -> Tuple[MegatronOptimizer, OptimizerParamScheduler]:
+) -> tuple[MegatronOptimizer, OptimizerParamScheduler]:
     """Set up the optimizer and scheduler.
 
     Args:
@@ -44,7 +44,7 @@ def setup_optimizer(
         lr_mult: Learning rate multiplier
 
     Returns:
-        Tuple containing the optimizer and scheduler
+        tuple containing the optimizer and scheduler
     """
     optimizer = get_megatron_optimizer(
         optimizer_config,

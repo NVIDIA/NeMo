@@ -21,7 +21,7 @@ import torch.nn.functional as F
 
 from nemo.tron.config import ConfigContainer
 
-NUM_BYTES_IN_MEGABYTE = 1024 * 1024
+NUM_BYTES_IN_MEGABYTE: int = 1024 * 1024
 
 
 def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose: bool = False) -> float:

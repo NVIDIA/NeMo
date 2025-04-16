@@ -17,7 +17,7 @@ import os
 import socket
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Generator, Optional, Union
 
 import torch
 import torch.distributed as dist
@@ -96,7 +96,7 @@ def temporary_distributed_context() -> Generator[None, None, None]:
         dist.destroy_process_group()
 
 
-def get_full_mcore_state_dict(dist_ckpt_folder: Path, model_cfg: Any) -> Dict[str, torch.Tensor]:
+def get_full_mcore_state_dict(dist_ckpt_folder: Path, model_cfg: Any) -> dict[str, torch.Tensor]:
     """Load a full, unsharded state dict from a NeMo distributed checkpoint.
 
     Initializes a minimal distributed environment and a CPU model instance
@@ -195,7 +195,7 @@ def dtype_from_hf(config: Any) -> torch.dtype:
 class _ModelState:
     """Helper class for used for to modify state dict of a source model during model conversion."""
 
-    def __init__(self, state_dict: Dict[str, torch.Tensor]) -> None:
+    def __init__(self, state_dict: dict[str, torch.Tensor]) -> None:
         """Initializes the _ModelState object.
 
         Args:
@@ -203,7 +203,7 @@ class _ModelState:
         """
         self._state_dict = state_dict
 
-    def state_dict(self) -> Dict[str, torch.Tensor]:
+    def state_dict(self) -> dict[str, torch.Tensor]:
         """Returns the underlying state dictionary.
 
         Returns:
@@ -259,7 +259,7 @@ class BaseImporter(ABC):
             save_hf_tokenizer_assets(str(self.input_path), str(self.output_path / HF_ASSETS_DIR))
         )
 
-    def init_tron_model(self, cfg: Union[GPTConfig, T5Config]) -> List[MegatronModule]:
+    def init_tron_model(self, cfg: Union[GPTConfig, T5Config]) -> list[MegatronModule]:
         """Initialize the target NeMo Tron model on CPU.
 
         Args:
@@ -458,7 +458,7 @@ class BaseExporter(ABC):
         with no_init_weights(True):
             return AutoModelForCausalLM.from_config(self.hf_config, torch_dtype=dtype)
 
-    def init_tron_model(self) -> Tuple[Dict[str, torch.Tensor], Union[GPTConfig, T5Config]]:
+    def init_tron_model(self) -> tuple[dict[str, torch.Tensor], Union[GPTConfig, T5Config]]:
         """Load the NeMo Tron model state dict and config from a distributed checkpoint.
 
         Loads the full state dict directly without initializing the full NeMo model

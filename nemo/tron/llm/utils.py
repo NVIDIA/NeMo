@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Iterable
+from typing import Iterable
 
 import torch
 from megatron.core import parallel_state
@@ -20,14 +20,14 @@ from megatron.core import parallel_state
 from nemo.tron.config import ConfigContainer, FinetuningDatasetConfig
 
 
-def get_batch_from_iterator(data_iterator: Iterable) -> Dict[str, torch.Tensor]:
+def get_batch_from_iterator(data_iterator: Iterable) -> dict[str, torch.Tensor]:
     """Get a batch of data from the iterator.
 
     Args:
         data_iterator: The data iterator to get the batch from.
 
     Returns:
-        Dict[str, torch.Tensor]: A dictionary containing the batch data.
+        dict[str, torch.Tensor]: A dictionary containing the batch data.
     """
     assert data_iterator is not None, "data_iterator must not be None"
 
@@ -44,7 +44,7 @@ def get_batch_from_iterator(data_iterator: Iterable) -> Dict[str, torch.Tensor]:
     return batch
 
 
-def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> Dict[str, torch.Tensor]:
+def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> dict[str, torch.Tensor]:
     """Get a batch from the data iterator, handling TP broadcasting.
 
     On TP rank 0, it fetches the next batch from the iterator and broadcasts
