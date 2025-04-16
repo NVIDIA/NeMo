@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import signal
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Union
-import logging
 
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
