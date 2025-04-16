@@ -12,38 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""HuggingFace model serialization support for NeMo's configuration system.
+"""
+MegatronCore tokenizer serialization support for NeMo's configuration system.
 
-This module provides integration between NeMo's configuration system and HuggingFace's
-pretrained models. It enables automatic serialization and deserialization of HuggingFace
-models within NeMo's configuration framework.
-
-The integration works by:
-1. Detecting HuggingFace models through their characteristic methods (save_pretrained/from_pretrained)
-2. Converting them to Fiddle configurations that preserve the model's class and path
-3. Providing an artifact handler (HFAutoArtifact) that manages the actual model files
-
-Example:
-    ```python
-    from transformers import AutoModel
-    
-    # This model will be automatically handled by the HFAutoArtifact system
-    model = AutoModel.from_pretrained("bert-base-uncased")
-    
-    # When serialized, the model files will be saved to the artifacts directory
-    # When deserialized, the model will be loaded from the saved files
-    ```
+This module provides integration between NeMo's configuration system and MegatronCore's
+tokenizers. It enables automatic serialization and deserialization of MegatronCore tokenizers
+within NeMo's configuration framework.
 """
 
+import os
 import shutil
-
-from nemo.lightning.io.artifact import Artifact, DirOrStringArtifact, FileArtifact
-from nemo.lightning.io.mixin import track_io
 from pathlib import Path
 from typing import Union
 
-import os
-import fiddle as fdl
+from nemo.lightning.io.artifact import Artifact
 
 
 class MCoreArtifact(Artifact):
@@ -55,6 +37,8 @@ class MCoreArtifact(Artifact):
         relative_dir: Path,
         dir_name: str = "tokenizer",
     ) -> str:
+        """Saves MegatronCore tokenizer to checkpoint directory."""
+
         path = pathize(path)
         path_to_save = pathize(absolute_dir) / pathize(dir_name)
         if instance.library == 'huggingface':
@@ -63,13 +47,17 @@ class MCoreArtifact(Artifact):
                 os.makedirs(str(path_to_save), exist_ok=True)
                 for file in path.iterdir():
                     copy_file(file, path_to_save, relative_dir)
-                return dir_name
             else:
                 # if HF tokenizer is loaded from HF cloud
                 path_to_save = pathize(absolute_dir) / pathize(dir_name)
                 instance.save_pretrained(path_to_save)
                 copy_file(instance.metadata_path, path_to_save, relative_dir)
-                return dir_name
+            vocab_file, merge_file = instance.vocab_file, instance.merge_file
+            if vocab_file:
+                copy_file(pathize(vocab_file), path_to_save, relative_dir, overwrite=True)
+            if merge_file:
+                copy_file(pathize(merge_file), path_to_save, relative_dir, overwrite=True)
+            return dir_name
         else:
             # save tokenizer and it's metadata for SentencePiece and TikToken
             os.makedirs(str(path_to_save), exist_ok=True)
@@ -81,16 +69,44 @@ class MCoreArtifact(Artifact):
         return path
 
 
-def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]):
+def copy_file(
+        src: Union[Path, str],
+        path: Union[Path, str],
+        relative_dst: Union[Path, str],
+        overwrite: bool = False,
+    ) -> Path:
+    """
+    Copies files to checkpoint directory.
+
+    Args:
+        src (Union[Path, str]): path to the file to be copied.
+        path (Union[Path, str]): path where to save copied file.
+        relative_dst (Union[Path, str]): name of the copied file.
+        overwrite (bool): whether to overwrite the file if it exists.
+
+    Returns:
+        Path: Path objecy of copied file.
+    """
+
     relative_path = pathize(relative_dst) / pathize(src).name
     output = pathize(path) / relative_path
-    if output.exists():
+    if output.exists() and not overwrite:
         raise FileExistsError(f"Dst file already exists {str(output)}")
     shutil.copy2(src, output)
     return relative_path
 
 
-def pathize(s):
-    if not isinstance(s, Path):
-        return Path(s)
-    return s
+def pathize(path: Union[str, Path]) -> Path:
+    """
+    Converts str path to Path object.
+
+    Args:
+        path (str): path to the file.
+    
+    Retunrs:
+        Path: file's Path object.
+    """
+
+    if not isinstance(path, Path):
+        return Path(path)
+    return path

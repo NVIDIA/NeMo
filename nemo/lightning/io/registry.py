@@ -13,8 +13,7 @@
 # limitations under the License.
 
 
-from nemo.lightning.io.artifact import DirOrStringArtifact, FileArtifact
-from nemo.lightning.io.artifact.mcore import MCoreArtifact
+from nemo.lightning.io.artifact import DirOrStringArtifact, FileArtifact, MCoreArtifact
 from nemo.lightning.io.mixin import track_io
 
 # Registers all required classes with track_io functionality
