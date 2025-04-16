@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import signal
 from dataclasses import dataclass, field
@@ -328,7 +329,7 @@ class LoggerConfig:
     wandb_entity: Optional[str] = None
     """The wandb entity name."""
 
-    logging_level: Optional[int] = None
+    logging_level: int = logging.INFO
     """Set default logging level"""
 
     filter_warnings: bool = True
