@@ -137,6 +137,7 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
         return {'loss': loss_value}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        # TODO: add EOU metrics
         signal, signal_len, transcript, transcript_len, eou_targets, eou_len = batch
 
         # forward() only performs encoder forward
@@ -150,6 +151,7 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
         return list(best_hyp_text)
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
+        # TODO: add EOU metrics
         signal, signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward

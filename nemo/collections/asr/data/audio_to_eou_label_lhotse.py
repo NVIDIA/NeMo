@@ -67,7 +67,6 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
                 normal_std: 2.0  # standard deviation of normal distribution for padding duration
         ```
 
-
     Returns:
         audio: torch.Tensor of audio signal
         audio_lens: torch.Tensor of audio signal length
@@ -115,10 +114,14 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             'text_token_lens': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, cfg: DictConfig, tokenizer: TokenizerSpec, return_eou_labels: bool = False):
+    def __init__(
+        self, cfg: DictConfig, tokenizer: TokenizerSpec, return_eou_labels: bool = False, return_cuts: bool = False
+    ):
         super().__init__()
         self.cfg = cfg
         self.return_eou_labels = return_eou_labels
+        self.return_cuts = return_cuts
+
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.sample_rate = self.cfg.get('sample_rate', 16000)
@@ -192,6 +195,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         eou_targets = collate_vectors(eou_targets, padding_value=0)
         text_token_lens = torch.tensor([t.size(0) for t in text_tokens], dtype=torch.long)
         text_tokens = collate_vectors(text_tokens, padding_value=0)
+
+        if self.return_cuts:
+            return audio_signals, audio_lengths, cuts
 
         if not self.return_eou_labels:
             return audio_signals, audio_lengths, text_tokens, text_token_lens

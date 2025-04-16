@@ -1,0 +1,44 @@
+
+output_dir: ???
+
+data:
+  manifest_filepath: ???
+  tarred_audio_filepaths: null
+  sample_rate: 16000
+  max_duration: 30 # you may need to update it for your dataset
+  min_duration: 0.1
+  batch_duration: 300  # you may disable batch_duration by setting it to `null`
+  batch_size: null 
+  shuffle: false
+  seed: 42
+  num_workers: 8
+  pin_memory: true
+  quadratic_duration: 30
+  num_buckets: 30
+  num_cuts_for_bins_estimate: 10000
+  bucket_buffer_size: 10000
+  shuffle_buffer_size: 10000
+
+  random_padding:
+    prob: 0.5
+    min_pad_duration: 0.5  # minimum duration of pre/post padding in seconds
+    max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
+    pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
+    normal_mean: 0.5  # mean of normal distribution for padding duration
+    normal_std: 2.0  # standard deviation of normal distribution for padding duration
+
+  augmentor:
+    white_noise:
+      prob: 0.5
+      min_level: -90
+      max_level: -46
+    gain:
+      prob: 0.5
+      min_gain_dbfs: -10.0
+      max_gain_dbfs: 10.0
+    noise:
+      prob: 0.6
+      manifest_path: ???
+      min_snr_db: 0
+      max_snr_db: 20
+      max_gain_db: 300.0
