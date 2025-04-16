@@ -5,15 +5,12 @@ sample_rate: 22_050
 
 model:
   use_lhotse: true
-  model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
+  model_type: "decoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
   use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
-  transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
-  context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
   context_duration_min: 3.0
   context_duration_max: 5.0
-  speaker_emb_dim: 192 # Only used for single_encoder_sv_tts, ignored otherwise
   num_audio_codebooks: 8
-  num_audio_tokens_per_codebook: 2_048 # Keep atleast 2 extra for eos/bos ids
+  num_audio_tokens_per_codebook: 2_018 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1_024
   codec_model_name: "21fpsCausalDecoder"
   load_cached_codes_if_available: true
@@ -125,21 +122,7 @@ model:
     p_dropout: 0.1
     p_dropout_out: 0.0
     has_xattn: false
-    is_causal: false
-    apply_norm_out: true
-    max_length_causal_mask: 2_048
-    use_learnable_pos_emb: true
-
-  context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
-    n_layers: 3
-    d_model: 768
-    d_ffn: 3_072
-    sa_n_heads: 12
-    kernel_size: 3
-    p_dropout: 0.1
-    p_dropout_out: 0.0
-    has_xattn: false
-    is_causal: false
+    is_causal: true
     apply_norm_out: true
     max_length_causal_mask: 2_048
     use_learnable_pos_emb: true
@@ -149,12 +132,12 @@ model:
     d_model: 768
     d_ffn: 3_072
     sa_n_heads: 12
-    kernel_size: 3
+    kernel_size: 1
     p_dropout: 0.1
     p_dropout_out: 0.0
     has_xattn: true
     xa_d_memory: 768
-    xa_n_heads: 12
+    xa_n_heads: 1
     is_causal: true
     apply_norm_to_cond: true
     apply_norm_out: true
@@ -162,9 +145,8 @@ model:
     use_learnable_pos_emb: true
 
   optim:
-    _target_: torch.optim.Adam
-    lr: 2e-4
-    betas: [0.8, 0.99]
+    _target_: torch.optim.AdamW
+    lr: 1e-4
 
     sched:
       name: ExponentialLR

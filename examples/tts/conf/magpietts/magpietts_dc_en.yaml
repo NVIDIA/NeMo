@@ -16,10 +16,8 @@ val_ds_meta: ???
 sample_rate: 22050
 
 model:
-  model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
-  use_text_conditioning_encoder: true # If true, distilbert will be used to encode context_text if provided.
-  transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
-  context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
+  model_type: "decoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
+  use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
   context_duration_min: 3.0
   context_duration_max: 5.0
   num_audio_codebooks: 8
@@ -117,20 +115,6 @@ model:
     p_dropout_out: 0.0
     has_xattn: false
     is_causal: true
-    apply_norm_out: true
-    max_length_causal_mask: 2048
-    use_learnable_pos_emb: true
-
-  context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
-    n_layers: 3
-    d_model: 768
-    d_ffn: 3072
-    sa_n_heads: 12
-    kernel_size: 3
-    p_dropout: 0.1
-    p_dropout_out: 0.0
-    has_xattn: false
-    is_causal: false
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
