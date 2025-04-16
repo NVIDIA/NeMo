@@ -21,6 +21,9 @@ import torch.distributed
 from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
+from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
+    AbstractModelInferenceWrapper,
+)
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.core.transformer.module import MegatronModule
 
@@ -34,10 +37,6 @@ from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
 
 if TYPE_CHECKING:
-    from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
-        AbstractModelInferenceWrapper,
-    )
-
     from nemo.collections.llm.gpt.model.base import GPTModel
     from nemo.collections.llm.t5.model.t5 import T5Model
 
