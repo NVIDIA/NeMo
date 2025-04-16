@@ -54,6 +54,21 @@ except ImportError:
 
 
 class SetupOutput(NamedTuple):
+    """Represents the output of the main setup function.
+
+    Contains all the initialized components necessary for training or evaluation.
+
+    Attributes:
+        state: The global state object holding configuration and runtime information.
+        model: The initialized Megatron model.
+        optimizer: The initialized optimizer.
+        scheduler: The initialized learning rate scheduler.
+        train_data_iterator: The data iterator for the training dataset, if applicable.
+        valid_data_iterator: The data iterator for the validation dataset, if applicable.
+        test_data_iterator: The data iterator for the testing dataset, if applicable.
+        checkpointing_context: A dictionary holding context for checkpointing operations,
+                               especially for non-persistent local checkpointing.
+    """
     state: GlobalState
     model: MegatronModule
     optimizer: MegatronOptimizer
@@ -70,6 +85,28 @@ def setup(
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
 ) -> SetupOutput:
+    """Initializes the training/evaluation environment.
+
+    Sets up logging, initializes Megatron core components (distributed,
+    timers), builds the tokenizer, creates the model, optimizer, and scheduler,
+    loads checkpoints if specified, and prepares data iterators.
+
+    Args:
+        cfg: The main configuration container holding all sub-configurations
+             (model, training, optimizer, etc.).
+        train_valid_test_datasets_provider: A callable function that takes
+            configuration and potentially a tokenizer, and returns tuples
+            representing the training, validation, and test datasets.
+        get_embedding_ranks: Optional callable to determine ranks for embedding layers,
+                             used during Megatron initialization.
+        get_position_embedding_ranks: Optional callable to determine ranks for
+                                      position embedding layers, used during Megatron
+                                      initialization.
+
+    Returns:
+        A SetupOutput named tuple containing the initialized state, model,
+        optimizer, scheduler, data iterators, and checkpointing context.
+    """
     state = GlobalState()
     state.cfg = cfg
     # TODO: Freeze state.cfg

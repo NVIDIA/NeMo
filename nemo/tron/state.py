@@ -51,6 +51,14 @@ class TrainState(Stateful):
     do_test: bool = False
 
     def state_dict(self) -> Dict[str, torch.Tensor]:
+        """Serializes the training state into a dictionary of tensors.
+
+        Conforms to the Stateful interface for distributed checkpointing.
+
+        Returns:
+            A dictionary where keys are state variable names and values are
+            their corresponding tensor representations.
+        """
         return {
             "step": torch.tensor(self.step, dtype=torch.int32),
             "consumed_train_samples": torch.tensor(self.consumed_train_samples, dtype=torch.int32),
@@ -131,6 +139,11 @@ class GlobalState:
 
     @cfg.setter
     def cfg(self, value: Optional[ConfigContainer]) -> None:
+        """Sets the configuration container and initializes the signal handler.
+
+        Args:
+            value: The ConfigContainer instance to set.
+        """
         self._cfg = value
 
         # This lazily initializes the signal handler when the config is set
@@ -205,6 +218,11 @@ class GlobalState:
 
     @train_state.setter
     def train_state(self, value: TrainState) -> None:
+        """Sets the training state object.
+
+        Args:
+            value: The TrainState instance to set.
+        """
         self._train_state = value
 
     @property
@@ -216,6 +234,11 @@ class GlobalState:
 
     @fault_tolerance_state.setter
     def fault_tolerance_state(self, value: FaultToleranceState) -> None:
+        """Sets the fault tolerance state object.
+
+        Args:
+            value: The FaultToleranceState instance to set.
+        """
         self._ft_state = value
 
     @property
@@ -233,6 +256,7 @@ class GlobalState:
         return self._straggler_timer
 
     def _set_signal_handler(self) -> None:
+        """Initializes the distributed signal handler based on the configuration."""
         self._signal_handler = DistributedSignalHandler(self.cfg.train_config.exit_signal)
 
 

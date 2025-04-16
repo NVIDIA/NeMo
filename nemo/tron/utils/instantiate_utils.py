@@ -26,7 +26,9 @@ from omegaconf import OmegaConf
 from omegaconf._utils import is_structured_config
 
 
-class InstantiationException(Exception): ...
+class InstantiationException(Exception): 
+    """Custom exception type for instantiation errors."""
+    ...
 
 
 class InstantiationMode(Enum):
@@ -129,7 +131,9 @@ def instantiate(
         _partial_ = kwargs.pop(_Keys.PARTIAL, False)
 
         if _partial_:
-            raise InstantiationException("The _partial_ keyword is not compatible with top-level list instantiation")
+            raise InstantiationException(
+                "The _partial_ keyword is not compatible with top-level list instantiation"
+            )
 
         return instantiate_node(config, *args, partial=_partial_, mode=mode)
     else:
@@ -149,6 +153,42 @@ def instantiate_node(
     partial: bool = False,
     mode: InstantiationMode = InstantiationMode.LENIENT,
 ) -> Any:
+    """Recursively instantiates a node within a configuration structure.
+
+    This function handles the instantiation of individual nodes (dictionaries,
+    lists, or primitive values) within a larger configuration tree, typically
+    managed by OmegaConf.
+
+    If the node is a dictionary containing a `_target_` key, it resolves and
+    instantiates the target callable/class using the other items in the
+    dictionary as keyword arguments. Nested nodes are recursively instantiated.
+
+    If the node is a list, it recursively instantiates each item in the list.
+
+    If the node is not an OmegaConf config node (e.g., a primitive type), it's
+    returned directly.
+
+    Args:
+        node: The configuration node to instantiate (can be DictConfig, ListConfig,
+              or a primitive type).
+        *args: Positional arguments passed down from the top-level `instantiate` call,
+               used primarily for the final target call if the node is a dictionary
+               with `_target_`.
+        partial: Boolean flag indicating whether to return a `functools.partial` object
+                 instead of calling the target. This can be overridden by a
+                 `_partial_` key within the node itself.
+        mode: Instantiation mode (STRICT or LENIENT). Determines error handling
+              behavior for nested instantiations.
+
+    Returns:
+        The instantiated object, list, or the original node if it wasn't a config.
+        Returns None if the input node is None or represents a None value in OmegaConf.
+
+    Raises:
+        InstantiationException: If instantiation fails in STRICT mode, or if there are
+                                issues like incompatible arguments or non-callable targets.
+        TypeError: If a `_partial_` flag within the config is not a boolean.
+    """
     # Return None if config is None
     if node is None or (OmegaConf.is_config(node) and node._is_none()):
         return None
@@ -171,14 +211,18 @@ def instantiate_node(
         raise TypeError(msg)
 
     if OmegaConf.is_list(node):
-        items = [instantiate_node(item, mode=mode) for item in node._iter_ex(resolve=True)]
+        items = [
+            instantiate_node(item, mode=mode) for item in node._iter_ex(resolve=True)
+        ]
 
         return items
     elif OmegaConf.is_dict(node):
         exclude_keys = set(item.value for item in _Keys if item != _Keys.ARGS)
         if _is_target(node):
             should_call_target = node.get("_call_", True)
-            _target_ = _resolve_target(node.get(_Keys.TARGET), full_key, check_callable=should_call_target)
+            _target_ = _resolve_target(
+                node.get(_Keys.TARGET), full_key, check_callable=should_call_target
+            )
             kwargs = {}
             is_partial = node.get("_partial_", False) or partial
 
@@ -186,7 +230,8 @@ def instantiate_node(
                 if len(set(node.keys()) - {"_target_", "_call_"}) != 0:
                     extra_keys = set(node.keys()) - {"_target_", "_call_"}
                     raise InstantiationException(
-                        f"_call_ was set to False for target {_convert_target_to_string(_target_)}, but extra keys were found: {extra_keys}"
+                        f"_call_ was set to False for target {_convert_target_to_string(_target_)},"
+                        f" but extra keys were found: {extra_keys}"
                     )
                 else:
                     return _target_
@@ -200,11 +245,14 @@ def instantiate_node(
                         value = instantiate_node(value, mode=mode)
                     except (ImportError, InstantiationException) as e:
                         if mode == InstantiationMode.STRICT:
-                            raise InstantiationException(f"Error instantiating {value} for key {full_key}: {e}") from e
+                            raise InstantiationException(
+                                f"Error instantiating {value} for key {full_key}: {e}"
+                            ) from e
                         else:
                             value = None
                             logging.warning(
-                                f"Error instantiating {value} for key {full_key}.{key}. Using None instead in lenient mode."
+                                f"Error instantiating {value} for key {full_key}.{key}. "
+                                f"Using None instead in lenient mode."
                             )
                     kwargs[key] = _convert_node(value)
 
@@ -234,7 +282,9 @@ def _locate(path: str) -> Any:
     parts = [part for part in path.split(".")]
     for part in parts:
         if not len(part):
-            raise ValueError(f"Error loading '{path}': invalid dotstring." + "\nRelative imports are not supported.")
+            raise ValueError(
+                f"Error loading '{path}': invalid dotstring." + "\nRelative imports are not supported."
+            )
     assert len(parts) > 0
 
     # Try importing from the most specific path first (back to front)
@@ -292,7 +342,10 @@ def _call_target(
         try:
             return functools.partial(_target_, *args, **kwargs)
         except Exception as e:
-            msg = f"Error in creating partial({_convert_target_to_string(_target_)}, ...) object:" + f"\n{repr(e)}"
+            msg = (
+                f"Error in creating partial({_convert_target_to_string(_target_)}, ...) object:"
+                + f"\n{repr(e)}"
+            )
             if full_key:
                 msg += f"\nfull_key: {full_key}"
             raise InstantiationException(msg) from e
@@ -300,7 +353,9 @@ def _call_target(
         try:
             return _target_(*args, **kwargs)
         except Exception as e:
-            msg = f"Error in call to target '{_convert_target_to_string(_target_)}':\n{repr(e)}"
+            msg = (
+                f"Error in call to target '{_convert_target_to_string(_target_)}':\n{repr(e)}"
+            )
             if full_key:
                 msg += f"\nfull_key: {full_key}"
             raise InstantiationException(msg) from e

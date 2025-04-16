@@ -27,7 +27,24 @@ def megatron_pretrain(
     config: ConfigContainer,
     forward_step_func: Callable,
     dataset_provider: Optional[Callable] = None,
-):
+) -> None:
+    """Main function to run the pretraining pipeline.
+
+    Sets up the environment, model, optimizer, scheduler, and data iterators.
+    Performs training, validation, and optionally testing based on the provided
+    configuration.
+
+    Args:
+        config: The main configuration container holding all necessary parameters.
+        forward_step_func: A callable that performs a single forward and backward
+                           step, returning the loss and any computed metrics.
+        dataset_provider: Optional callable to provide train/validation/test
+                          datasets. If None, it's assumed the dataset
+                          configuration is self-contained within `config`.
+    """
+    if not config.train_config.enabled:
+        return
+
     config.validate()
 
     # SETUP

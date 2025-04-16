@@ -371,6 +371,7 @@ def get_rng_state(
 
 
 class CheckpointType(Enum):
+    """Types of checkpoints to save."""
     LEGACY = auto()
     LOCAL = auto()
     GLOBAL = auto()
@@ -423,7 +424,8 @@ def save_checkpoint(
 
     if ckpt_cfg.async_save and not is_empty_async_queue():
         print_rank_0(
-            "WARNING: Starting a checkpoint save before previous has finished. Consider increasing the checkpoint interval."
+            "WARNING: Starting a checkpoint save before previous has finished. "
+            "Consider increasing the checkpoint interval."
         )
 
     # Monitor for the checkpointing timeout (no-op if FT is not enabled)
@@ -1219,10 +1221,10 @@ def load_checkpoint(
 
 def fix_fp8_params_lose_precision_when_loading_dist_ckpt(state_dict: Dict[str, Any]) -> None:
     """
-    When "--fp8-param-gather" and "--use-dist-ckpt" are both enabled, the state dict read from
+    When fp8-param-gather and use-dist-ckpt are both enabled, the state dict read from
     dist-checkpoint loses precision (the weights read from checkpoint go through the process of
     bf16/fp16 -> fp8 -> bf16/fp16). This function is implemented to solve this problem.
-    When "--fp8-param-gather" is disabled, this function doesn't modify anything.
+    When "fp8-param-gather" is disabled, this function doesn't modify anything.
     """
     for key in state_dict.keys():
         if key.startswith("model"):
