@@ -162,6 +162,12 @@ def get_tensor_shapes_adjust_fn_for_distillation(
     decoder_seq_length: Optional[int] = None,
     forward_only: bool = False,
 ) -> Union[Callable, None]:
+    """
+    Return the function to adjust tensor shapes for Distillation in Megatron-Core's forward pass.
+
+    Currently only used during non-interleaved pipelining for Distillation.
+    Concatenates sizes of student and teacher output tensors for inter-process communication.
+    """
     if not HAVE_MODELOPT:
         return None
     if (

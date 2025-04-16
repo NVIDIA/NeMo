@@ -1380,10 +1380,15 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         return get_forward_backward_func()
 
-    @functools.cached_property
     def adjust_tensor_shapes_fn(self) -> Union[Callable, None]:
         """
-        ...
+        Retrieves the function to adjust send and receive tensor shapes in Megatron-Core's forward pass.
+
+        Currently only used during non-interleaved pipelining for Distillation.
+
+        Returns:
+            Union[Callable, None]: The function which takes in tensor shapes and returns updated shapes,
+                                   or None if not applicable.
         """
         from nemo.collections.llm.modelopt.distill.utils import get_tensor_shapes_adjust_fn_for_distillation
 
