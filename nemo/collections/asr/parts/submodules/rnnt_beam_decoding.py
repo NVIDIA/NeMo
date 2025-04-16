@@ -1682,7 +1682,6 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
             batch_size = encoder_output.shape[0]
             if self.return_best_hypothesis:
                 hyps = batched_beam_hyps.to_hyps_list(score_norm=self.score_norm)[:batch_size]
-                print(hyps)
             else:
                 hyps = batched_beam_hyps.to_nbest_hyps_list(score_norm=self.score_norm)[:batch_size]
 
