@@ -38,7 +38,9 @@ class TestLlama31NemotronUltra253B:
         assert model_config.config.seq_length == 8192
 
     def test_pretrain_recipe(self, recipe_module):
-        with pytest.raises(NotImplementedError, match='Llama33 Nemotron Super model is a distilled model based on Llama3.1 405B'):
+        with pytest.raises(
+            NotImplementedError, match='Llama33 Nemotron Super model is a distilled model based on Llama3.1 405B'
+        ):
             recipe_module.pretrain_recipe()
 
     def test_finetune_recipe_no_peft(self, recipe_module):
@@ -98,4 +100,4 @@ class TestLlama31NemotronUltra253B:
     def test_finetune_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
         recipe = recipe_module.finetune_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
         assert recipe.trainer.num_nodes == num_nodes
-        assert recipe.trainer.devices == num_gpus_per_node 
+        assert recipe.trainer.devices == num_gpus_per_node
