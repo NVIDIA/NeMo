@@ -22,7 +22,6 @@ from typing import Any, List, Literal, Optional, Union
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.enums import ModelType
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config

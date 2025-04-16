@@ -22,7 +22,6 @@ from megatron.core.num_microbatches_calculator import get_num_microbatches
 from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.core.rerun_state_machine import RerunDataIterator, RerunMode, get_rerun_state_machine
 from megatron.core.transformer import MegatronModule
-from megatron.core.utils import get_model_config
 
 from nemo.tron import fault_tolerance
 from nemo.tron.config import ConfigContainer

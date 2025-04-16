@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import signal
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 
 import torch
 import torch.distributed
