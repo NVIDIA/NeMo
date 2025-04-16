@@ -418,7 +418,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.data_sampler.if_first_step = 1
 
         rank_zero_info(
-            "*** Loaded DataModule state dict successfully. IGNORE PTL's warning below about the dataloader not being resumable."
+            "*** Loaded DataModule state dict successfully."
+            " IGNORE PTL's warning below about the dataloader not being resumable."
             " This is warning is expected because we are handling dataloader resumption manually in NeMo. ***"
         )
 
