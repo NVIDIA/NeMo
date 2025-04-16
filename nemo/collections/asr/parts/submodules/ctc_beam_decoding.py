@@ -1042,7 +1042,7 @@ class BeamCTCInferConfig:
     beam_alpha: float = 1.0
     beam_beta: float = 1.0
     beam_threshold: float = 20.0
-    beam_size_token: Optional[float] = None
+    beam_size_token: Optional[int] = None
     kenlm_path: Optional[str] = None
     blank_lm_score_mode: Optional[BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE
 

@@ -389,11 +389,10 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             active_mask = decoder_output_lengths.unsqueeze(1) > t
             log_probs = decoder_outputs[:, t, :].unsqueeze(1) * np.log10(np.e)
             
-            print("bstbstbst", self.beam_size_token)
-            if self.beam_size_token is not None:
-                _, topk_idx = log_probs.topk(k=self.beam_size_token, largest=True, sorted=True)
-                mask = torch.zeros_like(log_probs, dtype=torch.bool).scatter_(2, topk_idx, True)
-                log_probs.masked_fill_(~mask, float('inf'))
+            # if self.beam_size_token is not None:
+            #     _, topk_idx = torch.topk(log_probs, k=self.beam_size_token, largest=True, sorted=True)
+            #     mask = torch.zeros_like(log_probs, dtype=torch.bool).scatter_(dim=2, index=topk_idx, value=True)
+            #     log_probs.masked_fill_(~mask, float('inf'))
             
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
