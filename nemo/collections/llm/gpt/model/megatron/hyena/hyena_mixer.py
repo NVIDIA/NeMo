@@ -196,7 +196,7 @@ class HyenaMixer(MegatronModule):
                         # Store references to the modules, not their weights
                         self._proj_conv_module = proj_conv_module
                         self._short_conv_module = short_conv_module
-                        self.pad_size = max(self._short_conv_module.kernel_size, self._proj_conv_module.kernel_size) - 1
+                        self.effective_pad_size = (self._short_conv_module.kernel_size - 1) + (self._proj_conv_module.kernel_size - 1)
 
                     def forward(self, x, _use_cp=True):
                         # Extract weights at runtime to avoid parameter registration
@@ -231,7 +231,7 @@ class HyenaMixer(MegatronModule):
                             seq_dim = 2  # Last dimension (L)
 
                             # Get overlapping patches
-                            chunk_a, chunk_b = zigzag_get_overlapping_patches(x, seq_dim=seq_dim, overlap_size=self.pad_size)
+                            chunk_a, chunk_b = zigzag_get_overlapping_patches(x, seq_dim=seq_dim, overlap_size=self.effective_pad_size)
 
                             # Exchange regions
                             received_a, received_b = ExchangeOverlappingRegionsCausal.apply(chunk_a, chunk_b, cp_group, cp_rank)
@@ -242,15 +242,15 @@ class HyenaMixer(MegatronModule):
 
                             x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
                             result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
-                            result = result[..., self.pad_size:]  # Remove padding from output
+                            result = result[..., self.effective_pad_size:]  # Remove padding from output
                             result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
                         else:
                             # Add proper causal padding for the non-CP case
-                            x = torch.nn.functional.pad(x, (self.pad_size, 0))
+                            x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
 
                             # Call the CUDA kernel and remove the padding from result
                             result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
-                            result = result[..., self.pad_size:]  # Remove padding from output
+                            result = result[..., self.effective_pad_size:]  # Remove padding from output
                         return result
 
                 # Use the existing weights from the original model
