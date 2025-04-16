@@ -174,7 +174,13 @@ class TrainingConfig:
     """Training batch size. If set, it should be a multiple of micro-batch-size times data-parallel-size. If this value is None, then use micro-batch-size * data-parallel-size as the global batch size. This choice will result in 1 for number of micro-batches."""
 
     rampup_batch_size: Optional[List[int]] = None
-    """Batch size ramp up with the following values:  --rampup-batch-size <start batch size>                       <batch size incerement>                       <ramp-up samples> For example:   --rampup-batch-size 16 8 300000 \    --global-batch-size 1024will start with global batch size 16 and over  (1024 - 16) / 8 = 126 intervals will increase the batch size linearly to 1024. In each interval we will use approximately 300000 / 126 = 2380 samples."""
+    """Batch size ramp up with the following values: <start batch size>, <batch size increment>, <ramp-up samples> 
+    For example:
+        rampup-batch-size = [16, 8, 300000]
+         global-batch-size 1024
+    will start with global batch size 16 and over  (1024 - 16) / 8 = 126 intervals will increase the batch size linearly to 1024. 
+    In each interval we will use approximately 300000 / 126 = 2380 samples.
+    """
 
     decrease_batch_size_if_needed: bool = False
     """If set, decrease batch size if microbatch_size * dp_size does not divide batch_size. Useful for KSO (Keep Soldiering On) to continue making progress if number of healthy GPUs (and corresponding dp_size) does not support current batch_size. Old batch_size will be restored if training is re-started with dp_size that divides batch_size // microbatch_size."""

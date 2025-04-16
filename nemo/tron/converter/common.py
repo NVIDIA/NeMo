@@ -196,12 +196,29 @@ class _ModelState:
     """Helper class for used for to modify state dict of a source model during model conversion."""
 
     def __init__(self, state_dict: Dict[str, torch.Tensor]) -> None:
+        """Initializes the _ModelState object.
+
+        Args:
+            state_dict: The initial state dictionary to wrap.
+        """
         self._state_dict = state_dict
 
     def state_dict(self) -> Dict[str, torch.Tensor]:
+        """Returns the underlying state dictionary.
+
+        Returns:
+            The state dictionary managed by this object.
+        """
         return self._state_dict
 
     def to(self, dtype: torch.dtype) -> None:
+        """Converts all tensors in the state dictionary to the specified dtype in-place.
+
+        Logs a warning if any tensor's dtype is actually changed.
+
+        Args:
+            dtype: The target torch.dtype to convert tensors to.
+        """
         for k, v in self._state_dict.items():
             if v.dtype != dtype:
                 logger.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")

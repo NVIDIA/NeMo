@@ -743,12 +743,27 @@ def checkpoint_and_decide_exit(
     checkpointing_context: Dict[str, Any],
     train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
 ) -> bool:
-    # Save checkpoint and decide whether to exit based on arguments (e.g., if
-    # --exit-duration-in-mins is set). Actual exit happens in main training loop
-    # based on the return value of this function."""
-    # Exit based on signal handler.
+    """Handles checkpointing decisions and determines if training should exit.
+
+    Checks various conditions for saving a checkpoint (signal received, interval,
+    duration) and determines if the training loop should terminate based on exit
+    conditions (signal, duration, iteration interval).
+
+    Args:
+        state: The global state object.
+        model: List of model chunks (MegatronModule instances).
+        optimizer: The optimizer instance.
+        opt_param_scheduler: The optimizer parameter scheduler instance.
+        num_floating_point_operations_so_far: Cumulative TFLOPs up to this point.
+        checkpointing_context: Dictionary holding checkpointing-related state.
+        train_data_iterator: Optional training data iterator to save its state.
+
+    Returns:
+        True if the training loop should exit, False otherwise.
+    """
     saved_checkpoint = False
 
+    # Exit based on signal handler.
     if state.cfg.train_config.exit_signal_handler:
         signal_handler = state.signal_handler
         if any(signal_handler.signals_received()):

@@ -452,13 +452,16 @@ def training_log(
         if global_state.train_state.skipped_train_samples > 0:
             log_string += " skipped samples: {:12d} |".format(global_state.train_state.skipped_train_samples)
         log_string += " elapsed time per iteration (ms): {:.1f} |".format(elapsed_time_per_iteration * 1000.0)
+
+        # TODO: enable after flops is implemented
         # if logger_config.log_throughput:
         #     log_string += f' throughput per GPU (TFLOP/s/GPU): {throughput:.1f} |'
         #     if logger_config.log_timers_to_tensorboard:
         #         if tb_logger:
         #             tb_logger.add_scalar('throughput', throughput, train_state.step)
         #         if wandb_logger:
-        #             wandb_logger.log({'throughput': throughput}, train_state.step) # TODO: enable after flops is implemented
+        #             wandb_logger.log({'throughput': throughput}, train_state.step)
+
         # Decoupled_learning_rate should be not None only on first and last pipeline stage.
         log_string += f" learning rate: {learning_rate:.6E} |"
         if config.optimizer_config.decoupled_lr is not None and (

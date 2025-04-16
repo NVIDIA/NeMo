@@ -62,7 +62,8 @@ def all_gather_item(
     Args:
         item (Any): The Python object to gather.
         dtype (torch.dtype): The torch dtype to use for the intermediate tensor.
-        group (Optional[torch.distributed.ProcessGroup]): The process group to gather within (defaults to the default group).
+        group (Optional[torch.distributed.ProcessGroup]): The process group to gather within
+            (defaults to the global group).
         async_op (bool): Whether the operation should be asynchronous.
         local_rank (Optional[int]): The local rank to determine the device.
 
