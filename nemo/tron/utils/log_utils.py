@@ -15,13 +15,21 @@
 import logging
 import os
 from functools import partial
-from logging import LogRecord
-from typing import Optional
+from logging import Filter, LogRecord
+from typing import Callable, Optional, Union
 
 logger = logging.getLogger(__name__)
 
 
 def warning_filter(record: LogRecord) -> bool:
+    """Logging filter to exclude WARNING level messages.
+
+    Args:
+        record: The logging record to check.
+
+    Returns:
+        False if the record level is WARNING, True otherwise.
+    """
     if record.levelno == logging.WARNING:
         return False
 
@@ -29,18 +37,27 @@ def warning_filter(record: LogRecord) -> bool:
 
 
 def module_filter(record: LogRecord, modules_to_filter: list[str]) -> bool:
+    """Logging filter to exclude messages from specific modules.
+
+    Args:
+        record: The logging record to check.
+        modules_to_filter: A list of module name prefixes to filter out.
+
+    Returns:
+        False if the record's logger name starts with any of the specified
+        module prefixes, True otherwise.
+    """
     for module in modules_to_filter:
         if record.name.startswith(module):
             return False
     return True
 
 
-def add_filter_to_all_loggers(filter):
-    """
-    Adds the specified filter to all existing loggers.
+def add_filter_to_all_loggers(filter: Union[Filter, Callable[[LogRecord], bool]]) -> None:
+    """Add a filter to the root logger and all existing loggers.
 
     Args:
-        handler: A logging handler instance to add to all loggers
+        filter: A logging filter instance or callable to add.
     """
     # Get the root logger
     root = logging.getLogger()
@@ -58,14 +75,24 @@ def setup_logging(
     modules_to_filter: Optional[list[str]] = None,
     set_level_for_all_loggers: bool = False,
 ) -> None:
-    """Sets the logging level and filters.
+    """Set up logging level and filters for the application.
 
-    Precedence:
-    1. Config argument `logger_config.logging_level`
-    2. Env var `TRON_LOGGING_LEVEL`
-    3. Default logging level (INFO)
+    Configures the logging level based on arguments, environment variables,
+    or defaults. Optionally adds filters to suppress warnings or messages
+    from specific modules.
 
-    Returns: None
+    Logging Level Precedence:
+    1. Env var `TRON_LOGGING_LEVEL`
+    2. `logging_level` argument
+    3. Default: `logging.INFO`
+
+    Args:
+        logging_level: The desired logging level (e.g., logging.INFO, logging.DEBUG).
+        filter_warning: If True, adds a filter to suppress WARNING level messages.
+        modules_to_filter: An optional list of module name prefixes to filter out.
+        set_level_for_all_loggers: If True, sets the logging level for all existing
+                                   loggers. If False (default), only sets the level
+                                   for the root logger and loggers starting with 'nemo'.
     """
     env_logging_level = os.getenv("TRON_LOGGING_LEVEL", None)
     if env_logging_level is not None:

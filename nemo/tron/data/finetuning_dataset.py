@@ -36,13 +36,15 @@ class FinetuningDatasetBuilder:
     Args:
         dataset_root (Union[str, Path]): The root directory containing training, validation, and test data.
         tokenizer: The tokenizer to use for preprocessing text.
+        is_built_on_rank (Callable): Function that returns True if the dataset should be built on current rank.
         seq_length (int, optional): The maximum sequence length. Defaults to 2048.
         seed (int, optional): Random seed for data shuffling. Defaults to 1234.
         memmap_workers (int, optional): Number of worker processes for memmap datasets. Defaults to 1.
-        is_built_on_rank (Callable): Function that returns True if the dataset should be built on current rank.
         max_train_samples (int, optional): Maximum number of training samples. Defaults to None.
         packed_sequence_specs (Optional[dict], optional): Specifications for packed sequences. Defaults to None.
         dataset_kwargs (Optional[dict[str, Any]], optional): Additional dataset creation arguments. Defaults to None.
+        do_validation (bool, optional): Whether to build the validation dataset. Defaults to True.
+        do_test (bool, optional): Whether to build the test dataset. Defaults to True.
     """
 
     def __init__(
@@ -54,7 +56,7 @@ class FinetuningDatasetBuilder:
         seed: int = 1234,
         memmap_workers: int = 1,
         max_train_samples: Optional[int] = None,
-        packed_sequence_specs: Optional[dict] = None,
+        packed_sequence_specs: Optional[dict[str, Any]] = None,
         dataset_kwargs: Optional[dict[str, Any]] = None,
         do_validation: bool = True,
         do_test: bool = True,
@@ -88,7 +90,7 @@ class FinetuningDatasetBuilder:
         self.prepare_packed_data()
 
     def prepare_packed_data(self) -> None:
-        """Prepare packed sequence data if needed."""
+        """Prepare packed sequence data files if configured."""
         if self.packed_sequence_size > 0:
             from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
 
@@ -120,12 +122,13 @@ class FinetuningDatasetBuilder:
         """Build train, validation, and test datasets.
 
         This method creates the necessary datasets based on the configuration.
-        It first prepares packed data if needed, then builds the datasets in parallel
-        on the appropriate ranks.
+        It first ensures data preparation (e.g., packing) is done (on rank 0),
+        then builds the datasets potentially using the prepared files.
 
         Returns:
-            list[Optional[Any]]: A list containing the train, validation, and test datasets.
-                                Any of these may be None if not available or not built on current rank.
+            A list containing the train, validation, and test datasets.
+            Elements can be None if the corresponding data file doesn't exist
+            or if dataset building is skipped for the split.
         """
         # Prepare packed data if needed
         if get_rank_safe() == 0:
@@ -135,7 +138,7 @@ class FinetuningDatasetBuilder:
             torch.distributed.barrier()
 
         # This needs to be called on all ranks
-        datasets = self._build_datasets()
+        datasets: list[Optional[Any]] = self._build_datasets()
         return datasets
 
     def _build_datasets(self) -> list[Optional[Any]]:
@@ -173,8 +176,14 @@ class FinetuningDatasetBuilder:
         return [train_ds, valid_ds, test_ds]
 
     @lru_cache
-    def _create_dataset(self, path, pack_metadata_path=None, is_test=False, **kwargs):
-        """Create a dataset from the given path and parameters.
+    def _create_dataset(
+        self,
+        path: Union[str, Path],
+        pack_metadata_path: Optional[Union[str, Path]] = None,
+        is_test: bool = False,
+        **kwargs: Any,
+    ) -> Optional[Any]:
+        """Create a single dataset instance (train, validation, or test).
 
         Args:
             path: Path to the dataset file
@@ -204,12 +213,19 @@ class FinetuningDatasetBuilder:
 
     @property
     def train_path(self) -> Path:
-        """Path to training dataset file"""
+        """Path to the training dataset file (training.jsonl)."""
         return self.dataset_root / "training.jsonl"
 
     @property
     def default_pack_path(self) -> Path:
-        """The default directory to write packing files."""
+        """The default directory path for storing packed sequence files.
+
+        Constructed based on the dataset root and tokenizer model name.
+        Creates the directory if it doesn't exist.
+
+        Returns:
+            The Path object for the default packing directory.
+        """
         tokenizer_model_name = self._extract_tokenizer_model_name()
         default_pack_path = self.dataset_root / "packed" / tokenizer_model_name
         if not default_pack_path.exists():
@@ -220,7 +236,17 @@ class FinetuningDatasetBuilder:
 
     @property
     def pack_metadata(self) -> Path:
-        """Path to metadata dataset file for packed sequence."""
+        """Path to the metadata file for packed sequences.
+
+        Determined by `packed_sequence_specs` or defaults based on the
+        `default_pack_path` and `packed_sequence_size`.
+
+        Returns:
+            The Path object for the packed sequence metadata file.
+
+        Raises:
+            ValueError: If packed sequences are not configured.
+        """
         if self.packed_sequence_size > 0:
             if self.packed_sequence_specs.get("packed_metadata_path") is not None:
                 return self.packed_sequence_specs["packed_metadata_path"]
@@ -230,7 +256,17 @@ class FinetuningDatasetBuilder:
 
     @property
     def train_path_packed(self) -> Path:
-        """Path to training dataset file for packed sequence."""
+        """Path to the packed training dataset file (.npy).
+
+        Determined by `packed_sequence_specs` or defaults based on the
+        `default_pack_path` and `packed_sequence_size`.
+
+        Returns:
+            The Path object for the packed training data file.
+
+        Raises:
+            ValueError: If packed sequences are not configured.
+        """
         if self.packed_sequence_size > 0:
             if self.packed_sequence_specs.get("packed_train_data_path") is not None:
                 return self.packed_sequence_specs["packed_train_data_path"]
@@ -240,7 +276,17 @@ class FinetuningDatasetBuilder:
 
     @property
     def validation_path_packed(self) -> Path:
-        """Path to validation dataset file for packed sequence."""
+        """Path to the packed validation dataset file (.npy).
+
+        Determined by `packed_sequence_specs` or defaults based on the
+        `default_pack_path` and `packed_sequence_size`.
+
+        Returns:
+            The Path object for the packed validation data file.
+
+        Raises:
+            ValueError: If packed sequences are not configured.
+        """
         if self.packed_sequence_size > 0:
             if self.packed_sequence_specs.get("packed_val_data_path") is not None:
                 return self.packed_sequence_specs["packed_val_data_path"]
@@ -250,12 +296,12 @@ class FinetuningDatasetBuilder:
 
     @property
     def validation_path(self) -> Path:
-        """Path to validation dataset file"""
+        """Path to the validation dataset file (validation.jsonl)."""
         return self.dataset_root / "validation.jsonl"
 
     @property
     def test_path(self) -> Path:
-        """Path to test dataset file"""
+        """Path to the test dataset file (test.jsonl)."""
         return self.dataset_root / "test.jsonl"
 
     def _extract_tokenizer_model_name(self) -> str:

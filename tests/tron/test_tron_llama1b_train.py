@@ -21,7 +21,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections import llm
-from nemo.tron.api import megatron_pretrain
+from nemo.tron.pretrain import megatron_pretrain
 from nemo.tron.config import (
     CheckpointConfig,
     ConfigContainer,
@@ -135,6 +135,9 @@ class TestMockTrain:
             # Run training
             megatron_pretrain(cfg, forward_step)
 
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            
             # Check for the latest checkpoint tracker file
             if torch.distributed.get_rank() == 0:
                 latest_tracker_file = os.path.join(checkpoint_dir, "latest_train_state.pt")

@@ -14,15 +14,17 @@
 
 import math
 import time
+from typing import Any, Callable, Optional, Union
 
 import torch
 from megatron.core import mpu
 from megatron.core.num_microbatches_calculator import get_num_microbatches
 from megatron.core.pipeline_parallel import get_forward_backward_func
-from megatron.core.rerun_state_machine import RerunMode, get_rerun_state_machine
-from megatron.core.utils import get_model_config
+from megatron.core.rerun_state_machine import RerunDataIterator, RerunMode, get_rerun_state_machine
+from megatron.core.transformer import MegatronModule
 
 from nemo.tron import fault_tolerance
+from nemo.tron.config import ConfigContainer
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import is_last_rank, print_rank_0, print_rank_last
 from nemo.tron.utils.train_utils import check_forward_step_func_num_args, maybe_inject_state
@@ -30,15 +32,32 @@ from nemo.tron.utils.train_utils import check_forward_step_func_num_args, maybe_
 
 def evaluate(
     state: GlobalState,
-    forward_step_func,
-    data_iterator,
-    model,
-    process_non_loss_data_func,
-    config,
-    verbose=False,
-    non_loss_data_func=None,
-):
-    """Evaluation."""
+    forward_step_func: Callable,
+    data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
+    model: list[MegatronModule],
+    process_non_loss_data_func: Optional[Callable],
+    config: ConfigContainer,
+    verbose: bool = False,
+    non_loss_data_func: Optional[Callable] = None,
+) -> tuple[Optional[dict[str, torch.Tensor]], Optional[Any], bool]:
+    """Evaluation function.
+
+    Args:
+        state (GlobalState): The global state object.
+        forward_step_func (Callable): The function that performs a forward step.
+        data_iterator (Optional[Union[RerunDataIterator, list[RerunDataIterator]]]): Iterator over evaluation data.
+        model (list[MegatronModule]): list of model chunks.
+        process_non_loss_data_func (Optional[Callable]): Function to process non-loss data.
+        config (ConfigContainer): Configuration container (potentially redundant).
+        verbose (bool, optional): Whether to print evaluation progress. Defaults to False.
+        non_loss_data_func (Optional[Callable], optional): Function to compute non-loss data. Defaults to None.
+
+    Returns:
+        tuple[Optional[dict[str, torch.Tensor]], Optional[Any], bool]: A tuple containing:
+            - total_loss_dict: Dictionary of averaged losses.
+            - collected_non_loss_data: Data collected by non_loss_data_func.
+            - timelimit_hit: Boolean indicating if the time limit was reached.
+    """
     # Check num args to forward_step_func
     num_fw_args = check_forward_step_func_num_args(forward_step_func)
 
@@ -152,16 +171,29 @@ def evaluate(
 def evaluate_and_print_results(
     state: GlobalState,
     prefix: str,
-    forward_step_func,
-    data_iterator,
-    model,
-    config,
-    verbose=False,
-    write_to_tensorboard=True,
-    process_non_loss_data_func=None,
-    non_loss_data_func=None,
-):
-    """Helper function to evaluate and dump results on screen."""
+    forward_step_func: Callable,
+    data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
+    model: list[MegatronModule],
+    config: ConfigContainer,
+    verbose: bool = False,
+    write_to_tensorboard: bool = True,
+    process_non_loss_data_func: Optional[Callable] = None,
+    non_loss_data_func: Optional[Callable] = None,
+) -> None:
+    """Helper function to evaluate and dump results on screen.
+
+    Args:
+        state (GlobalState): The global state object.
+        prefix (str): Prefix for logging evaluation results.
+        forward_step_func (Callable): The function that performs a forward step.
+        data_iterator (Optional[Union[RerunDataIterator, list[RerunDataIterator]]]): Iterator over evaluation data.
+        model (list[MegatronModule]): list of model chunks.
+        config (ConfigContainer): Configuration container (potentially redundant).
+        verbose (bool, optional): Whether to print evaluation progress. Defaults to False.
+        write_to_tensorboard (bool, optional): Whether to write results to TensorBoard. Defaults to True.
+        process_non_loss_data_func (Optional[Callable], optional): Function to process non-loss data. Defaults to None.
+        non_loss_data_func (Optional[Callable], optional): Function to compute non-loss data. Defaults to None.
+    """
     if write_to_tensorboard:
         writer = state.tensorboard_logger
     else:

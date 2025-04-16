@@ -17,12 +17,11 @@ import os
 import signal
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.enums import ModelType
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
@@ -32,6 +31,8 @@ from nemo.tron.utils.config_utils import ConfigContainer as Container
 
 @dataclass
 class RNGConfig:
+    """Configuration settings for random number generation."""
+
     seed: int = 1234
     """Random seed used for python, numpy, pytorch, and cuda."""
 
@@ -48,6 +49,8 @@ class RNGConfig:
 
 @dataclass
 class RerunStateMachineConfig:
+    """Configuration for the rerun state machine used for result validation or stats."""
+
     error_injection_rate: int = 0
     """Rate at which to inject unexpected results, e.g. 1000 means
     once every 1000 result validations"""
@@ -62,6 +65,8 @@ class RerunStateMachineConfig:
 
 @dataclass
 class TokenizerConfig:
+    """Configuration settings for the tokenizer."""
+
     vocab_size: Optional[int] = None
     """Size of vocab before EOD or padding."""
 
@@ -99,17 +104,19 @@ class TokenizerConfig:
     tiktoken_num_special_tokens: int = 1000
     """Number of special tokens in tiktoken tokenizer"""
 
-    tiktoken_special_tokens: Optional[List[str]] = None
-    """List of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
+    tiktoken_special_tokens: Optional[list[str]] = None
+    """list of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
 
     tokenizer_prompt_format: Optional[str] = None
-    special_tokens: Optional[List[str]] = None
+    special_tokens: Optional[list[str]] = None
     image_tag_type: Optional[str] = None
     padded_vocab_size: Optional[int] = None
 
 
 @dataclass(kw_only=True)
 class DataloaderConfig:
+    """Base configuration for data loading."""
+
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
 
@@ -128,7 +135,10 @@ class DataloaderConfig:
 
 @dataclass
 class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
+    """Configuration specific to GPT datasets, inheriting from MCore and base DataloaderConfig."""
+
     def __post_init__(self) -> None:
+        """Post-initialization checks for GPT dataset config."""
         super(MCoreGPTDatasetConfig, self).__post_init__()
 
         assert self.reset_position_ids is not None
@@ -138,6 +148,8 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
 
 @dataclass(kw_only=True)
 class FinetuningDatasetConfig(DataloaderConfig):
+    """Configuration specific to finetuning datasets, inheriting from DataloaderConfig."""
+
     dataset_root: Optional[Union[str, Path]] = None
     seq_length: int
     seed: int = 1234
@@ -151,6 +163,8 @@ class FinetuningDatasetConfig(DataloaderConfig):
 
 @dataclass
 class TrainingConfig:
+    """Configuration settings related to the training loop and validation."""
+
     # ---------------- Training config. ----------------
 
     micro_batch_size: Optional[int] = None
@@ -159,8 +173,14 @@ class TrainingConfig:
     global_batch_size: Optional[int] = None
     """Training batch size. If set, it should be a multiple of micro-batch-size times data-parallel-size. If this value is None, then use micro-batch-size * data-parallel-size as the global batch size. This choice will result in 1 for number of micro-batches."""
 
-    rampup_batch_size: Optional[List[int]] = None
-    """Batch size ramp up with the following values:  --rampup-batch-size <start batch size>                       <batch size incerement>                       <ramp-up samples> For example:   --rampup-batch-size 16 8 300000 \    --global-batch-size 1024will start with global batch size 16 and over  (1024 - 16) / 8 = 126 intervals will increase the batch size linearly to 1024. In each interval we will use approximately 300000 / 126 = 2380 samples."""
+    rampup_batch_size: Optional[list[int]] = None
+    """Batch size ramp up with the following values: <start batch size>, <batch size increment>, <ramp-up samples> 
+    For example:
+        rampup-batch-size = [16, 8, 300000]
+         global-batch-size 1024
+    will start with global batch size 16 and over  (1024 - 16) / 8 = 126 intervals will increase the batch size linearly to 1024. 
+    In each interval we will use approximately 300000 / 126 = 2380 samples.
+    """
 
     decrease_batch_size_if_needed: bool = False
     """If set, decrease batch size if microbatch_size * dp_size does not divide batch_size. Useful for KSO (Keep Soldiering On) to continue making progress if number of healthy GPUs (and corresponding dp_size) does not support current batch_size. Old batch_size will be restored if training is re-started with dp_size that divides batch_size // microbatch_size."""
@@ -215,6 +235,8 @@ class TrainingConfig:
 
 @dataclass
 class DistributedInitConfig:
+    """Configuration settings for distributed training initialization."""
+
     # ---------------- Distributed config. ----------------
 
     distributed_backend: Literal["nccl", "gloo"] = "nccl"
@@ -247,6 +269,8 @@ class DistributedInitConfig:
 
 @dataclass
 class ProfilingConfig:
+    """Configuration settings for profiling the training process."""
+
     # ---------------- Profiling config. ----------------
 
     use_nsys_profiler: bool = False
@@ -261,7 +285,7 @@ class ProfilingConfig:
     use_pytorch_profiler: bool = False
     """Use the built-in pytorch profiler. Useful if you wish to view profiles in tensorboard."""
 
-    profile_ranks: List[int] = field(default_factory=lambda: [0])
+    profile_ranks: list[int] = field(default_factory=lambda: [0])
     """Global ranks to profile."""
 
     record_memory_history: bool = False
@@ -276,6 +300,8 @@ class ProfilingConfig:
 
 @dataclass(kw_only=True)
 class LoggerConfig:
+    """Configuration settings for logging, including TensorBoard and WandB."""
+
     # ---------------- Logging config. ----------------
 
     log_interval: int = 100
@@ -339,7 +365,7 @@ class LoggerConfig:
     """Filter out warning messages"""
 
     modules_to_filter: Optional[list[str]] = None
-    """List of modules to filter out from the logs"""
+    """list of modules to filter out from the logs"""
 
     set_level_for_all_loggers: bool = False
     """Set the logging level for all loggers. If False, only level for NeMo loggers will be set."""
@@ -347,6 +373,8 @@ class LoggerConfig:
 
 @dataclass(kw_only=True)
 class SchedulerConfig:
+    """Configuration settings for the learning rate scheduler and weight decay."""
+
     # ---------------- Learning rate config. ----------------
     lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
     """Learning rate decay function."""
@@ -392,6 +420,7 @@ class SchedulerConfig:
     wsd_decay_steps: Optional[int] = field(init=False, default=None)
 
     def __post_init__(self):
+        """Post-initialization checks for scheduler config."""
         if self.start_weight_decay is not None:
             assert self.start_weight_decay >= 0.0
             assert self.end_weight_decay >= self.start_weight_decay
@@ -402,6 +431,8 @@ class SchedulerConfig:
 
 @dataclass(kw_only=True)
 class CheckpointConfig:
+    """Configuration settings for model checkpointing (saving and loading)."""
+
     # ---------------- Checkpointing config. ----------------
 
     save: Optional[str] = None
@@ -506,6 +537,8 @@ class CheckpointConfig:
 
 @dataclass
 class FaultToleranceConfig:
+    """Configuration settings related to fault tolerance mechanisms (NVIDIA internal use)."""
+
     enable_ft_package: bool = False
     """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
 
@@ -527,6 +560,8 @@ class FaultToleranceConfig:
 
 @dataclass
 class StragglerDetectionConfig:
+    """Configuration settings for detecting and logging GPU stragglers."""
+
     log_straggler: bool = False
     """If set, tracks and logs straggler per GPU."""
 
@@ -546,6 +581,8 @@ class StragglerDetectionConfig:
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
 class ConfigContainer(Container):
+    """Top-level container holding all configuration objects."""
+
     rng_config: RNGConfig = field(default_factory=RNGConfig)
     rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     train_config: TrainingConfig
@@ -562,7 +599,12 @@ class ConfigContainer(Container):
     straggler_config: Optional[StragglerDetectionConfig] = None
     profiling_config: Optional[ProfilingConfig] = None
 
-    def validate(self):
+    def validate(self) -> None:
+        """Performs validation checks on the combined configuration.
+
+        Calculates dependent values like data_parallel_size and scheduler steps.
+        Ensures compatibility between different configuration settings.
+        """
         # Run validations
 
         # Distributed

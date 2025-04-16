@@ -13,11 +13,12 @@
 # limitations under the License.
 
 from functools import partial
+
 import torch
 from megatron.core import parallel_state
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 
-SPIKY_LOSS_FACTOR = 10
+SPIKY_LOSS_FACTOR: int = 10
 
 
 def masked_next_token_loss(
@@ -25,20 +26,22 @@ def masked_next_token_loss(
     output_tensor: torch.Tensor,
     check_for_nan_in_loss: bool = True,
     check_for_spiky_loss: bool = False,
-):
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, tuple[torch.Tensor, torch.Tensor]]]:
     """Loss function.
 
     Args:
-        loss_mask (torch.Tensor): Used to mask out some portions of the loss
-        output_tensor (torch.Tensor): The tensor with the losses
+        loss_mask: Used to mask out some portions of the loss
+        output_tensor: The tensor with the losses
+        check_for_nan_in_loss: Whether to check for NaN values in the loss
+        check_for_spiky_loss: Whether to check for spiky loss values
 
     Returns:
-        the loss scalar for this micro-batch
-        the number of non-padded tokens in this microbatch
-        a dict containing reporting metrics on the loss and number of tokens across
-            the data parallel ranks
+        tuple containing:
+        - The loss scalar for this micro-batch
+        - The number of non-padded tokens in this microbatch
+        - A dict containing reporting metrics on the loss and number of tokens across
+          the data parallel ranks
     """
-
     losses = output_tensor.float()
     loss_mask = loss_mask.view(-1).float()
     total_tokens = loss_mask.sum()

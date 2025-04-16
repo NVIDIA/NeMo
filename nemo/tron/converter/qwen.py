@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Exporter as _NeMo2HFQwen2Exporter
 from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Importer as _NeMo2HFQwen2Importer
@@ -67,7 +67,12 @@ class HFQwen2Exporter(BaseExporter):
 class HFQwen2Importer(BaseImporter):
     """Importer for converting Hugging Face Qwen2 models to NeMo Tron format."""
 
-    def init_hf_model(self):
+    def init_hf_model(self) -> Any:
+        """Initialize the source Hugging Face Qwen2 model.
+
+        Returns:
+            The initialized Hugging Face Qwen2 model instance.
+        """
         from transformers import AutoModelForCausalLM
 
         return AutoModelForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto", trust_remote_code=True)
@@ -76,6 +81,11 @@ class HFQwen2Importer(BaseImporter):
 
     @property
     def hf_config(self) -> "HFQwen2Config":
+        """Load and return the Hugging Face Qwen2Config from the input path.
+
+        Returns:
+            The loaded Hugging Face Qwen2Config instance.
+        """
         from transformers import Qwen2Config as HFQwen2Config
 
         if self._hf_config is not None:
