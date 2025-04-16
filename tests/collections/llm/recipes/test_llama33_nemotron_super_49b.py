@@ -109,4 +109,4 @@ class TestLlama33NemotronSuper49B:
     def test_pretrain_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
         recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
         assert recipe.trainer.num_nodes == num_nodes
-        assert recipe.trainer.devices == num_gpus_per_node 
+        assert recipe.trainer.devices == num_gpus_per_node
