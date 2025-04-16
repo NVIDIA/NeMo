@@ -34,7 +34,6 @@ from nemo.tron.config import (
 )
 from nemo.tron.llm.gpt import forward_step
 
-import logging
 
 class TestMockTrain:
     @pytest.mark.run_only_on('GPU')  # Standard pattern in NeMo tests for GPU-only tests
