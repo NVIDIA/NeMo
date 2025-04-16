@@ -193,7 +193,7 @@ def setup_model_and_tokenizer(
     trainer: nl.Trainer,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
-    inference_max_seq_length: int = 4096,
+    inference_max_seq_length: int = 2560,
 ) -> tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -209,7 +209,7 @@ def setup_model_and_tokenizer(
         inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller
            than this threshold then we will not use pipelining, otherwise we will.
         inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
-        Necessary for CUDA graphs. Defaults to 4096.
+        Necessary for CUDA graphs. Defaults to 2560.
 
     Returns:
         tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
