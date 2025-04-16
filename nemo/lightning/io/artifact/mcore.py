@@ -41,7 +41,7 @@ class MCoreArtifact(Artifact):
 
         path = pathize(path)
         path_to_save = pathize(absolute_dir) / pathize(dir_name)
-        if instance.library == 'huggingface':
+        if instance.library in ['huggingface', 'megatron']:
             if path.exists():
                 # if HF tokenizer is stored locally
                 os.makedirs(str(path_to_save), exist_ok=True)
@@ -52,11 +52,11 @@ class MCoreArtifact(Artifact):
                 path_to_save = pathize(absolute_dir) / pathize(dir_name)
                 instance.save_pretrained(path_to_save)
                 copy_file(instance.metadata_path, path_to_save, relative_dir)
-            vocab_file, merge_file = instance.vocab_file, instance.merge_file
+            vocab_file, merges_file = instance.vocab_file, instance.merges_file
             if vocab_file:
                 copy_file(pathize(vocab_file), path_to_save, relative_dir, overwrite=True)
-            if merge_file:
-                copy_file(pathize(merge_file), path_to_save, relative_dir, overwrite=True)
+            if merges_file:
+                copy_file(pathize(merges_file), path_to_save, relative_dir, overwrite=True)
             return dir_name
         else:
             # save tokenizer and it's metadata for SentencePiece and TikToken
