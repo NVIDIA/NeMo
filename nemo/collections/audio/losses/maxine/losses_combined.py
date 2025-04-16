@@ -14,8 +14,9 @@
 
 import hashlib
 from pathlib import Path
-import torch
 from typing import Optional
+
+import torch
 
 try:
     from torchaudio.functional import resample
