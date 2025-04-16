@@ -516,7 +516,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
+                        blank_lm_score_mode=self.cfg.beam.get(
+                            'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
+                        ),
                         pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                         score_norm=self.cfg.beam.get('score_norm', True),
                         allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
