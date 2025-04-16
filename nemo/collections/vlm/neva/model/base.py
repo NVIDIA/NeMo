@@ -49,6 +49,7 @@ MODEL_CONFIG_ATTR = [
     'attention_dropout',
     'fp32_residual_connection',
     'apply_residual_connection_post_layernorm',
+    'init_method_std',
     'layernorm_epsilon',
     'layernorm_zero_centered_gamma',
     'add_bias_linear',
@@ -61,9 +62,12 @@ MODEL_CONFIG_ATTR = [
     'window_size',
     'normalization',
     'qk_layernorm',
+    'position_embedding_type',
+    'rotary_base',
     'test_mode',
     'calculate_per_token_loss',
     'seq_length',
+    'share_embeddings_and_output_weights',
 ]
 
 
