@@ -21,8 +21,7 @@ def num_floating_point_operations(cfg: ConfigContainer, batch_size: int) -> floa
     """Calculate the theoretical number of floating-point operations for a training step.
 
     Computes the FLOPs based on model configuration (hidden size, layers, vocab size,
-    attention specifics, MLP size, MoE config) and batch size. Follows the methodology
-    described in Appendix A of https://arxiv.org/abs/2104.04473.
+    attention specifics, MLP size, MoE config) and batch size.
 
     Args:
         cfg (ConfigContainer): The main configuration container.
