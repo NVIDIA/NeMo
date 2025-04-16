@@ -35,9 +35,7 @@ mtd, _ = safe_import("modelopt.torch.distill")
 class BaseLoss(_Loss, metaclass=ABCMeta):
     """Abstract base class for Megatron distillation losses."""
 
-    def __init__(
-        self, model_config: "TransformerConfig", projection_layer: Optional[nn.Module] = None
-    ):
+    def __init__(self, model_config: "TransformerConfig", projection_layer: Optional[nn.Module] = None):
         """
         Constructor.
 
@@ -74,9 +72,7 @@ class HiddenStateCosineLoss(BaseLoss):
     The tensors are assumed to be intermediate activations, so extra restrictions are in place.
     """
 
-    def __init__(
-        self, model_config: "TransformerConfig", projection_layer: Optional[nn.Module] = None
-    ):
+    def __init__(self, model_config: "TransformerConfig", projection_layer: Optional[nn.Module] = None):
         """
         Constructor.
 
