@@ -21,7 +21,7 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
-from nemo.collections.llm import Llama33NemotronSuper49BConfig, LlamaNemotronModel
+from nemo.collections.llm import Llama33NemotronUltra253BConfig, LlamaNemotronModel
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
@@ -37,26 +37,26 @@ from nemo.lightning.pytorch.callbacks import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama33_nemotron_super_49b"
+NAME = "llama31_nemotron_ultra_253b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama-3.3-Nemotron-Super-49B model configuration.
+    Factory function to create a Llama-3.1-Nemotron-Ultra-253B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama-3.3-Nemotron-Super-49B model.
+        run.Config[pl.LightningModule]: Configuration for the Llama-3.1-Nemotron-Ultra-253B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama33_nemotron_super_49b ...
+            $ nemo llm pretrain model=llama31_nemotron_ultra_253b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    conf = run.Config(Llama33NemotronSuper49BConfig)
+    conf = run.Config(Llama33NemotronUltra253BConfig)
     conf.seq_length = 8192
     return run.Config(LlamaNemotronModel, config=conf)
 
@@ -70,9 +70,9 @@ def pretrain_recipe(
     fn: Callable = pretrain,
 ) -> run.Partial:
     """
-    This function is not implemented as Llama-3.3-Nemotron-Super-49B is a distilled model.
+    This function is not implemented as Llama-3.1-Nemotron-Ultra-253B is a distilled model.
 
-    The Llama-3.3-Nemotron-Super-49B model is a distilled version of the Llama-3.3-70B model,
+    The Llama-3.1-Nemotron-Ultra-253B model is a distilled version of the Llama-3.1-405B model,
     and therefore does not support pre-training. Instead, it should be fine-tuned using the
     finetune_recipe function.
 
@@ -88,25 +88,25 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory llama33_nemotron_super_49b
+            $ nemo llm pretrain --factory llama31_nemotron_ultra_253b
             # This will raise NotImplementedError
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama33_nemotron_super_49b_pretrain", num_nodes=1)
+            >>> recipe = pretrain_recipe(name="llama31_nemotron_ultra_253b_pretrain", num_nodes=1)
             # This will raise NotImplementedError
 
     Note:
-        This model is a distilled version of Llama-3.3-70B and only supports fine-tuning.
+        This model is a distilled version of Llama-3.1-405B and only supports fine-tuning.
         Use the finetune_recipe function instead for model adaptation.
     """
-    raise NotImplementedError('Llama33 Nemotron Super model is a distilled model based on Llama33-70B.')
+    raise NotImplementedError('Llama33 Nemotron Super model is a distilled model based on Llama3.1 405B.')
 
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 2,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
     seq_length: Optional[int] = None,
@@ -114,7 +114,7 @@ def finetune_recipe(
     performance_mode: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama-3.3-Nemotron-Super-49B model.
+    Create a fine-tuning recipe for Llama-3.1-Nemotron-Ultra-253B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -137,10 +137,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama33_nemotron_super_49b
+            $ nemo llm finetune --factory llama31_nemotron_ultra_253b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama33_nemotron_super_49b_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="llama31_nemotron_ultra_253b_finetune", num_nodes=2)
             >>> print(recipe)
 
     Note:
@@ -158,14 +158,15 @@ def finetune_recipe(
         seq_length = 4096 if packed_sequence else 2048
 
     recipe = default_finetune_recipe(
-        model(), "nvidia/Llama-3_3-Nemotron-Super-49B-v1", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 8
-        recipe.trainer.strategy.pipeline_model_parallel_size = 2
+        recipe.trainer.strategy.pipeline_model_parallel_size = 9
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
-        recipe.trainer.strategy.tensor_model_parallel_size = 4
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
+        recipe.trainer.strategy.pipeline_model_parallel_size = 2
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.dim = 8
         recipe.peft.alpha = 16
@@ -185,4 +186,4 @@ def finetune_recipe(
         recipe.data.dataset_kwargs = {'pad_to_max_length': True}
         recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
-    return recipe
+    return recipe 
