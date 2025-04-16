@@ -21,6 +21,7 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -555,9 +556,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         world_size = self.cluster_environment.world_size()
         os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
         os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        if timeout := os.getenv("TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC"):
+            timeout = timedelta(seconds=int(timeout))
         _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
         torch.distributed.init_process_group(
-            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store, timeout=timeout
         )
 
         if self._process_group_backend == "nccl":
@@ -902,11 +905,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 ckpt_io = self.checkpoint_io
                 if isinstance(ckpt_io, _WrappingCheckpointIO):
                     ckpt_io = ckpt_io.checkpoint_io
-                mto.plugins.save_sharded_modelopt_state(
-                    [core_model],
-                    ckpt_to_weights_subdir(filepath, is_saving=True),
-                    sharded_strategy=ckpt_io.save_sharded_strategy,
-                )
+                with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
+                    mto.plugins.save_sharded_modelopt_state(
+                        [core_model],
+                        ckpt_to_weights_subdir(filepath, is_saving=True),
+                        sharded_strategy=ckpt_io.save_sharded_strategy,
+                    )
                 logging.info("Saved Model-Optimizer state into checkpoint.")
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
