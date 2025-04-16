@@ -19,7 +19,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol, TypedDict, Union, cast
+from typing import Any, Callable, Optional, Protocol, TypedDict, Union, cast
 
 from datasets import Dataset, DatasetDict, load_dataset
 from tqdm import tqdm
@@ -38,7 +38,7 @@ class ProcessExampleOutput(TypedDict):
 
     input: str
     output: str
-    original_answers: List[str]
+    original_answers: list[str]
 
 
 class ProcessExampleFn(Protocol):
@@ -229,7 +229,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         seed: int = 1234,
         memmap_workers: int = 1,
         max_train_samples: Optional[int] = None,
-        packed_sequence_specs: Optional[Dict[str, Any]] = None,
+        packed_sequence_specs: Optional[dict[str, Any]] = None,
         download_mode: Optional[str] = None,
         val_proportion: Optional[float] = 0.05,
         split_val_from_train: bool = True,

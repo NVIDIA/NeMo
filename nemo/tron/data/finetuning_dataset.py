@@ -15,7 +15,7 @@
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 
@@ -56,8 +56,8 @@ class FinetuningDatasetBuilder:
         seed: int = 1234,
         memmap_workers: int = 1,
         max_train_samples: Optional[int] = None,
-        packed_sequence_specs: Optional[Dict[str, Any]] = None,
-        dataset_kwargs: Optional[Dict[str, Any]] = None,
+        packed_sequence_specs: Optional[dict[str, Any]] = None,
+        dataset_kwargs: Optional[dict[str, Any]] = None,
         do_validation: bool = True,
         do_test: bool = True,
     ):
@@ -118,7 +118,7 @@ class FinetuningDatasetBuilder:
                     output_metadata_path=self.pack_metadata,
                 )
 
-    def build(self) -> List[Optional[Any]]:
+    def build(self) -> list[Optional[Any]]:
         """Build train, validation, and test datasets.
 
         This method creates the necessary datasets based on the configuration.
@@ -138,10 +138,10 @@ class FinetuningDatasetBuilder:
             torch.distributed.barrier()
 
         # This needs to be called on all ranks
-        datasets: List[Optional[Any]] = self._build_datasets()
+        datasets: list[Optional[Any]] = self._build_datasets()
         return datasets
 
-    def _build_datasets(self) -> List[Optional[Any]]:
+    def _build_datasets(self) -> list[Optional[Any]]:
         """Internal method to build all datasets.
 
         Returns:

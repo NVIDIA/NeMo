@@ -16,7 +16,7 @@ import logging
 import os
 from functools import partial
 from logging import Filter, LogRecord
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def warning_filter(record: LogRecord) -> bool:
     return True
 
 
-def module_filter(record: LogRecord, modules_to_filter: List[str]) -> bool:
+def module_filter(record: LogRecord, modules_to_filter: list[str]) -> bool:
     """Logging filter to exclude messages from specific modules.
 
     Args:
@@ -72,7 +72,7 @@ def add_filter_to_all_loggers(filter: Union[Filter, Callable[[LogRecord], bool]]
 def setup_logging(
     logging_level: int = logging.INFO,
     filter_warning: bool = True,
-    modules_to_filter: Optional[List[str]] = None,
+    modules_to_filter: Optional[list[str]] = None,
     set_level_for_all_loggers: bool = False,
 ) -> None:
     """Set up logging level and filters for the application.

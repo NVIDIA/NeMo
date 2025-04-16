@@ -15,7 +15,7 @@
 import inspect
 import time
 from functools import partial
-from typing import Any, Dict, NamedTuple, Optional, Callable
+from typing import Any, Callable, NamedTuple, Optional
 
 import torch
 from megatron.core.distributed import (
@@ -244,7 +244,7 @@ def setup(
     )
 
 
-def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> Dict[str, Any]:
+def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> dict[str, Any]:
     # Context used for persisting some state between checkpoint saves.
     if checkpoint_config.non_persistent_ckpt_type != "local":
         return {}

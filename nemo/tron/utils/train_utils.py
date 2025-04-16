@@ -15,7 +15,7 @@
 import inspect
 from datetime import datetime
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -63,7 +63,7 @@ def param_is_not_shared(param: nn.Parameter) -> bool:
 
 
 def calc_params_l2_norm(
-    model: Union[MegatronModule, List[MegatronModule]], model_config: Any, force_create_fp32_copy: bool = False
+    model: Union[MegatronModule, list[MegatronModule]], model_config: Any, force_create_fp32_copy: bool = False
 ) -> float:
     """Calculate the L2 norm of model parameters across all GPUs.
 
@@ -71,7 +71,7 @@ def calc_params_l2_norm(
     (dense, MoE, sharded main params).
 
     Args:
-        model (Union[torch.nn.Module, List[torch.nn.Module]]): The model or list of model chunks.
+        model (Union[torch.nn.Module, list[torch.nn.Module]]): The model or list of model chunks.
         model_config: The model configuration object.
         force_create_fp32_copy (bool, optional): If True, always creates an FP32 copy
             for norm calculation, ignoring potential `main_param` attributes.
@@ -222,8 +222,8 @@ def logical_and_across_model_parallel_group(input: bool) -> bool:
 
 
 def training_log(
-    loss_dict: Dict[str, torch.Tensor],
-    total_loss_dict: Dict[str, Any],
+    loss_dict: dict[str, torch.Tensor],
+    total_loss_dict: dict[str, Any],
     learning_rate: Optional[float],
     decoupled_learning_rate: Optional[float],
     loss_scale: float,
@@ -241,8 +241,8 @@ def training_log(
     and prints a formatted log string to the console on the last rank.
 
     Args:
-        loss_dict (Dict[str, torch.Tensor]): Dictionary of losses for the current step.
-        total_loss_dict (Dict[str, Any]): Dictionary to accumulate losses and stats
+        loss_dict (dict[str, torch.Tensor]): Dictionary of losses for the current step.
+        total_loss_dict (dict[str, Any]): Dictionary to accumulate losses and stats
                                          across logging intervals.
         learning_rate (Optional[float]): Current learning rate.
         decoupled_learning_rate (Optional[float]): Current decoupled learning rate (if used).
@@ -525,7 +525,7 @@ def track_moe_metrics(
     iteration: int,
     tb_logger: Any,
     wandb_logger: Optional[Any] = None,
-    total_loss_dict: Optional[Dict] = None,
+    total_loss_dict: Optional[dict] = None,
     per_layer_logging: bool = False,
 ) -> None:
     """Track and log Mixture of Experts (MoE) specific metrics.
@@ -537,7 +537,7 @@ def track_moe_metrics(
         iteration (int): The current training iteration.
         tb_logger: The TensorBoard logger instance.
         wandb_logger: The WandB logger instance (optional).
-        total_loss_dict (Optional[Dict]): Dictionary to accumulate total losses (optional).
+        total_loss_dict (Optional[dict]): Dictionary to accumulate total losses (optional).
         per_layer_logging (bool): If True, logs metrics for each MoE layer individually.
     """
     # Aux loss logging

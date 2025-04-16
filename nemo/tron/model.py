@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
-
 import torch
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.distributed import (
@@ -36,7 +34,7 @@ def get_model_from_config(
     use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
     data_parallel_random_init: bool = True,
-) -> List[MegatronModule]:
+) -> list[MegatronModule]:
     """Get a model from the given configuration.
 
     This method should only be called after `init_distributed()`.
@@ -52,7 +50,7 @@ def get_model_from_config(
         data_parallel_random_init: Whether to initialize data parallel ranks with random seeds
 
     Returns:
-        List of model modules, potentially wrapped with DistributedDataParallel or TorchFullyShardedDataParallel
+        list of model modules, potentially wrapped with DistributedDataParallel or TorchFullyShardedDataParallel
     """
     model_type = _get_model_type(model_config)
     if (

@@ -17,7 +17,7 @@ import os
 import signal
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -104,11 +104,11 @@ class TokenizerConfig:
     tiktoken_num_special_tokens: int = 1000
     """Number of special tokens in tiktoken tokenizer"""
 
-    tiktoken_special_tokens: Optional[List[str]] = None
-    """List of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
+    tiktoken_special_tokens: Optional[list[str]] = None
+    """list of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
 
     tokenizer_prompt_format: Optional[str] = None
-    special_tokens: Optional[List[str]] = None
+    special_tokens: Optional[list[str]] = None
     image_tag_type: Optional[str] = None
     padded_vocab_size: Optional[int] = None
 
@@ -173,7 +173,7 @@ class TrainingConfig:
     global_batch_size: Optional[int] = None
     """Training batch size. If set, it should be a multiple of micro-batch-size times data-parallel-size. If this value is None, then use micro-batch-size * data-parallel-size as the global batch size. This choice will result in 1 for number of micro-batches."""
 
-    rampup_batch_size: Optional[List[int]] = None
+    rampup_batch_size: Optional[list[int]] = None
     """Batch size ramp up with the following values: <start batch size>, <batch size increment>, <ramp-up samples> 
     For example:
         rampup-batch-size = [16, 8, 300000]
@@ -285,7 +285,7 @@ class ProfilingConfig:
     use_pytorch_profiler: bool = False
     """Use the built-in pytorch profiler. Useful if you wish to view profiles in tensorboard."""
 
-    profile_ranks: List[int] = field(default_factory=lambda: [0])
+    profile_ranks: list[int] = field(default_factory=lambda: [0])
     """Global ranks to profile."""
 
     record_memory_history: bool = False
@@ -365,7 +365,7 @@ class LoggerConfig:
     """Filter out warning messages"""
 
     modules_to_filter: Optional[list[str]] = None
-    """List of modules to filter out from the logs"""
+    """list of modules to filter out from the logs"""
 
     set_level_for_all_loggers: bool = False
     """Set the logging level for all loggers. If False, only level for NeMo loggers will be set."""

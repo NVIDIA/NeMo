@@ -17,7 +17,7 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.profiler
@@ -57,13 +57,13 @@ from nemo.tron.utils.train_utils import (
 
 def train(
     forward_step_func: Callable,
-    model: List[MegatronModule],
+    model: list[MegatronModule],
     optimizer: MegatronOptimizer,
     scheduler: OptimizerParamScheduler,
-    train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
-    valid_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
+    train_data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
+    valid_data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
     global_state: GlobalState,
-    checkpointing_context: Dict[str, Any],
+    checkpointing_context: dict[str, Any],
     process_non_loss_data_func: Optional[Callable] = None,
     non_loss_data_func: Optional[Callable] = None,
 ) -> None:
@@ -74,7 +74,7 @@ def train(
 
     Args:
         forward_step_func: Callable that executes a single forward step.
-        model: List of model chunks (potentially wrapped in DDP).
+        model: list of model chunks (potentially wrapped in DDP).
         optimizer: The optimizer instance.
         scheduler: The learning rate scheduler instance.
         train_data_iterator: Iterator for the training dataset.
@@ -403,25 +403,25 @@ def train(
 def train_step(
     forward_step_func: Callable,
     num_fw_args: int,
-    data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
-    model: List[MegatronModule],
+    data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
+    model: list[MegatronModule],
     optimizer: MegatronOptimizer,
     scheduler: OptimizerParamScheduler,
     global_state: GlobalState,
-) -> Tuple[Dict[str, torch.Tensor], int, bool, bool, int, Optional[float], Optional[int]]:
+) -> tuple[dict[str, torch.Tensor], int, bool, bool, int, Optional[float], Optional[int]]:
     """Single training step.
 
     Args:
         forward_step_func: Function that performs a forward step
         num_fw_args: Number of arguments expected by forward_step_func
         data_iterator: Iterator over training data
-        model: List of model chunks
+        model: list of model chunks
         optimizer: Optimizer for model parameters
         scheduler: Learning rate scheduler
         global_state: Global training state
 
     Returns:
-        Tuple containing:
+        tuple containing:
         - loss_dict: Dictionary of reduced losses
         - skipped_iter: Whether the iteration was skipped (1) or not (0)
         - should_checkpoint: Whether a checkpoint should be saved
@@ -516,7 +516,7 @@ def train_step(
 
 
 def post_training_step_callbacks(
-    model: List[MegatronModule],
+    model: list[MegatronModule],
     num_floating_point_operations_since_last_log_event: float,
     straggler_timer: Any,
     iteration: int,
@@ -527,7 +527,7 @@ def post_training_step_callbacks(
     """Run all post-training-step functions (e.g., FT heartbeats, GC).
 
     Args:
-        model: List of model chunks wrapped in DDP
+        model: list of model chunks wrapped in DDP
         num_floating_point_operations_since_last_log_event: Number of floating point operations since last log
         straggler_timer: Timer for straggler detection
         iteration: Current training iteration
@@ -583,22 +583,22 @@ def post_training_step_callbacks(
             gc.collect()
 
 
-def enable_forward_pre_hook(model: List[DDP]) -> None:
+def enable_forward_pre_hook(model: list[DDP]) -> None:
     """Enable forward pre-hook for all model chunks.
 
     Args:
-        model: List of model chunks wrapped in DDP
+        model: list of model chunks wrapped in DDP
     """
     for model_chunk in model:
         assert isinstance(model_chunk, DDP)
         model_chunk.enable_forward_pre_hook()
 
 
-def disable_forward_pre_hook(model: List[DDP], param_sync: bool = True) -> None:
+def disable_forward_pre_hook(model: list[DDP], param_sync: bool = True) -> None:
     """Disable forward pre-hook for all model chunks.
 
     Args:
-        model: List of model chunks wrapped in DDP
+        model: list of model chunks wrapped in DDP
         param_sync: Whether to synchronize parameters across model chunks
     """
     for model_chunk in model:
@@ -606,7 +606,7 @@ def disable_forward_pre_hook(model: List[DDP], param_sync: bool = True) -> None:
         model_chunk.disable_forward_pre_hook(param_sync=param_sync)
 
 
-def get_start_time_from_progress_log(cfg: ConfigContainer) -> Tuple[datetime, float]:
+def get_start_time_from_progress_log(cfg: ConfigContainer) -> tuple[datetime, float]:
     """
     Gets start time of earliest job with same world size. Also returns the number
     of floating-point operations completed in last saved checkpoint.
@@ -694,13 +694,13 @@ def compute_throughputs_and_append_to_progress_log(
 
 def save_checkpoint_and_time(
     state: GlobalState,
-    model: List[MegatronModule],
+    model: list[MegatronModule],
     optimizer: MegatronOptimizer,
     opt_param_scheduler: OptimizerParamScheduler,
     num_floating_point_operations_so_far: float,
-    checkpointing_context: Dict[str, Any],
+    checkpointing_context: dict[str, Any],
     non_persistent_ckpt: bool = False,
-    train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]] = None,
+    train_data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]] = None,
 ) -> None:
     """Saves a checkpoint and logs the timing.
 
@@ -710,7 +710,7 @@ def save_checkpoint_and_time(
 
     Args:
         state: The global state object.
-        model: List of model chunks (MegatronModule instances).
+        model: list of model chunks (MegatronModule instances).
         optimizer: The optimizer instance.
         opt_param_scheduler: The optimizer parameter scheduler instance.
         num_floating_point_operations_so_far: Cumulative TFLOPs up to this point.
@@ -753,12 +753,12 @@ def save_checkpoint_and_time(
 
 def checkpoint_and_decide_exit(
     state: GlobalState,
-    model: List[MegatronModule],
+    model: list[MegatronModule],
     optimizer: MegatronOptimizer,
     opt_param_scheduler: OptimizerParamScheduler,
     num_floating_point_operations_so_far: float,
-    checkpointing_context: Dict[str, Any],
-    train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
+    checkpointing_context: dict[str, Any],
+    train_data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
 ) -> bool:
     """Handles checkpointing decisions and determines if training should exit.
 
@@ -768,7 +768,7 @@ def checkpoint_and_decide_exit(
 
     Args:
         state: The global state object.
-        model: List of model chunks (MegatronModule instances).
+        model: list of model chunks (MegatronModule instances).
         optimizer: The optimizer instance.
         opt_param_scheduler: The optimizer parameter scheduler instance.
         num_floating_point_operations_so_far: Cumulative TFLOPs up to this point.

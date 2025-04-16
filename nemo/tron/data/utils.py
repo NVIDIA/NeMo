@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import fields
-from typing import Any, Callable, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Dict, Type, Union
 
 from megatron.core import mpu
 from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
@@ -42,8 +42,8 @@ def is_dataset_built_on_rank() -> bool:
 
 
 def pretrain_train_valid_test_datasets_provider(
-    train_val_test_num_samples: List[int], dataset_config: BlendedMegatronDatasetConfig
-) -> Tuple[GPTDataset, GPTDataset, GPTDataset]:
+    train_val_test_num_samples: list[int], dataset_config: BlendedMegatronDatasetConfig
+) -> tuple[GPTDataset, GPTDataset, GPTDataset]:
     """Build pretraining train, validation, and test datasets.
 
     Uses BlendedMegatronDatasetBuilder to create GPTDataset or MockGPTDataset instances.
@@ -74,8 +74,8 @@ def pretrain_train_valid_test_datasets_provider(
 
 
 def hf_train_valid_test_datasets_provider(
-    train_val_test_num_samples: List[int], dataset_config: HFDatasetConfig, tokenizer: MegatronTokenizer
-) -> Tuple[Any, Any, Any]:
+    train_val_test_num_samples: list[int], dataset_config: HFDatasetConfig, tokenizer: MegatronTokenizer
+) -> tuple[Any, Any, Any]:
     """Build train, validation, and test datasets from a Hugging Face dataset.
 
     Uses HFDatasetBuilder to create dataset instances.
@@ -109,8 +109,8 @@ def hf_train_valid_test_datasets_provider(
 
 
 def finetuning_train_valid_test_datasets_provider(
-    train_val_test_num_samples: List[int], dataset_config: FinetuningDatasetConfig, tokenizer: MegatronTokenizer
-) -> Tuple[Any, Any, Any]:
+    train_val_test_num_samples: list[int], dataset_config: FinetuningDatasetConfig, tokenizer: MegatronTokenizer
+) -> tuple[Any, Any, Any]:
     """Build finetuning train, validation, and test datasets.
 
     Uses FinetuningDatasetBuilder to create dataset instances.

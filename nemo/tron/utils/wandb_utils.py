@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, tuple
 
 from nemo.tron.utils.common_utils import print_rank_last
 
@@ -78,5 +78,5 @@ def _get_wandb_artifact_tracker_filename(save_dir: str) -> Path:
     return Path(save_dir) / "latest_wandb_artifact_path.txt"
 
 
-def _get_artifact_name_and_version(save_dir: Path, checkpoint_path: Path) -> Tuple[str, str]:
+def _get_artifact_name_and_version(save_dir: Path, checkpoint_path: Path) -> tuple[str, str]:
     return save_dir.stem, checkpoint_path.stem

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Dict, Tuple
 
 import torch
 from megatron.core import parallel_state
@@ -27,7 +26,7 @@ def masked_next_token_loss(
     output_tensor: torch.Tensor,
     check_for_nan_in_loss: bool = True,
     check_for_spiky_loss: bool = False,
-) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, Tuple[torch.Tensor, torch.Tensor]]]:
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, tuple[torch.Tensor, torch.Tensor]]]:
     """Loss function.
 
     Args:
@@ -37,7 +36,7 @@ def masked_next_token_loss(
         check_for_spiky_loss: Whether to check for spiky loss values
 
     Returns:
-        Tuple containing:
+        tuple containing:
         - The loss scalar for this micro-batch
         - The number of non-padded tokens in this microbatch
         - A dict containing reporting metrics on the loss and number of tokens across

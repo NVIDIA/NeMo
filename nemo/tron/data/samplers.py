@@ -3,7 +3,7 @@
 """Dataloaders."""
 
 import random
-from typing import Any, Callable, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Iterator, Optional
 
 import numpy as np
 import torch
@@ -141,13 +141,13 @@ class MegatronPretrainingSampler:
         """Return the total number of samples."""
         return self.total_samples
 
-    def get_start_end_idx(self) -> Tuple[int, int]:
+    def get_start_end_idx(self) -> tuple[int, int]:
         """Calculate the start and end index for the current rank's microbatch."""
         start_idx = self.data_parallel_rank * self.micro_batch_size
         end_idx = start_idx + self.micro_batch_size
         return start_idx, end_idx
 
-    def __iter__(self) -> Iterator[List[int]]:
+    def __iter__(self) -> Iterator[list[int]]:
         """Yields lists of indices for each microbatch assigned to this rank."""
         batch = []
         # Last batch will be dropped if drop_last is not set False
@@ -250,7 +250,7 @@ class MegatronPretrainingRandomSampler:
         """Return the total number of samples."""
         return self.total_samples
 
-    def __iter__(self) -> Iterator[List[int]]:
+    def __iter__(self) -> Iterator[list[int]]:
         """Yields lists of indices for each microbatch assigned to this rank.
 
         Handles randomization within an epoch and data sharding.

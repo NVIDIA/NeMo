@@ -14,7 +14,7 @@
 
 import math
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 from megatron.core import mpu
@@ -33,27 +33,27 @@ from nemo.tron.utils.train_utils import check_forward_step_func_num_args, maybe_
 def evaluate(
     state: GlobalState,
     forward_step_func: Callable,
-    data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
-    model: List[MegatronModule],
+    data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
+    model: list[MegatronModule],
     process_non_loss_data_func: Optional[Callable],
     config: ConfigContainer,
     verbose: bool = False,
     non_loss_data_func: Optional[Callable] = None,
-) -> Tuple[Optional[Dict[str, torch.Tensor]], Optional[Any], bool]:
+) -> tuple[Optional[dict[str, torch.Tensor]], Optional[Any], bool]:
     """Evaluation function.
 
     Args:
         state (GlobalState): The global state object.
         forward_step_func (Callable): The function that performs a forward step.
-        data_iterator (Optional[Union[RerunDataIterator, List[RerunDataIterator]]]): Iterator over evaluation data.
-        model (List[MegatronModule]): List of model chunks.
+        data_iterator (Optional[Union[RerunDataIterator, list[RerunDataIterator]]]): Iterator over evaluation data.
+        model (list[MegatronModule]): list of model chunks.
         process_non_loss_data_func (Optional[Callable]): Function to process non-loss data.
         config (ConfigContainer): Configuration container (potentially redundant).
         verbose (bool, optional): Whether to print evaluation progress. Defaults to False.
         non_loss_data_func (Optional[Callable], optional): Function to compute non-loss data. Defaults to None.
 
     Returns:
-        Tuple[Optional[Dict[str, torch.Tensor]], Optional[Any], bool]: A tuple containing:
+        tuple[Optional[dict[str, torch.Tensor]], Optional[Any], bool]: A tuple containing:
             - total_loss_dict: Dictionary of averaged losses.
             - collected_non_loss_data: Data collected by non_loss_data_func.
             - timelimit_hit: Boolean indicating if the time limit was reached.
@@ -172,8 +172,8 @@ def evaluate_and_print_results(
     state: GlobalState,
     prefix: str,
     forward_step_func: Callable,
-    data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
-    model: List[MegatronModule],
+    data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
+    model: list[MegatronModule],
     config: ConfigContainer,
     verbose: bool = False,
     write_to_tensorboard: bool = True,
@@ -186,8 +186,8 @@ def evaluate_and_print_results(
         state (GlobalState): The global state object.
         prefix (str): Prefix for logging evaluation results.
         forward_step_func (Callable): The function that performs a forward step.
-        data_iterator (Optional[Union[RerunDataIterator, List[RerunDataIterator]]]): Iterator over evaluation data.
-        model (List[MegatronModule]): List of model chunks.
+        data_iterator (Optional[Union[RerunDataIterator, list[RerunDataIterator]]]): Iterator over evaluation data.
+        model (list[MegatronModule]): list of model chunks.
         config (ConfigContainer): Configuration container (potentially redundant).
         verbose (bool, optional): Whether to print evaluation progress. Defaults to False.
         write_to_tensorboard (bool, optional): Whether to write results to TensorBoard. Defaults to True.
