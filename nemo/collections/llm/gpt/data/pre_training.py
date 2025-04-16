@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.rank_zero import rank_zero_info
 from megatron.core.datasets.gpt_dataset import GPTDataset
 from megatron.core.datasets.megatron_dataset import MegatronDataset
 from torch.utils import data
@@ -415,6 +416,11 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             consistency_check=False,
         )
         self.data_sampler.if_first_step = 1
+
+        rank_zero_info(
+            "*** Loaded DataModule state dict successfully. IGNORE PTL's warning below about the dataloader not being resumable."
+            " This is warning is expected because we are handling dataloader resumption manually in NeMo. ***"
+        )
 
     def reconfigure_limit_batches(self):
         """
