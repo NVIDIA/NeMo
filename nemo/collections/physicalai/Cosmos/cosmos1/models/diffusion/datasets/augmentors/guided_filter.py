@@ -294,3 +294,5 @@ class GuidedFilterColor:
         q = ar_mean * Ir + ag_mean * Ig + ab_mean * Ib + b_mean
 
         return q
+
+# flake8: noqa: E741

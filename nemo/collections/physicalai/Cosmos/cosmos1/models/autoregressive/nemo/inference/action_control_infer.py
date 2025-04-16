@@ -33,8 +33,6 @@ from cosmos1.models.autoregressive.nemo.post_training.action_control.prepare_dat
 LATENT_SHAPE = [1, 30, 40]  # For the nvidia/Cosmos-1.0-Tokenizer-DV8x16x16
 
 
-from cosmos1.models.autoregressive.nemo.cosmos_action_control import CosmosConfigActionControl5B
-
 BOV_TOKEN = 64000
 from einops import rearrange
 

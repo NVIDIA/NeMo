@@ -914,6 +914,7 @@ class DiTCrossAttentionModel14B(VisionModule):
         padding_mask = kwargs.get('padding_mask', None)
         image_size = kwargs.get('image_size', None)
 
+        rope_emb_L_1_1_D = None
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
@@ -1357,7 +1358,8 @@ class DiTCrossAttentionExtendModel14B(VisionModule):
             input_list,
             dim=1,
         )
-
+        
+        rope_emb_L_1_1_D = None
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
@@ -1587,6 +1589,7 @@ class DiTCrossAttentionActionExtendModel14B(DiTCrossAttentionExtendModel14B):
             dim=1,
         )
 
+        rope_emb_L_1_1_D = None
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
@@ -1675,3 +1678,5 @@ class DiTCrossAttentionActionExtendModel14B(DiTCrossAttentionExtendModel14B):
         x_B_T_H_W_D = self.decoder_head(x_B_T_H_W_D, affline_emb_B_D, None, original_shape, None, adaln_lora_B_3D)
 
         return x_B_T_H_W_D
+
+# flake8: noqa: E741

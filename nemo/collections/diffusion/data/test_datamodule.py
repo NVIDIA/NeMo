@@ -75,7 +75,7 @@ def test_taskencoder():
     )
 
     start_time = time.time()
-    for i in tqdm(range(100)):
+    for _ in tqdm(range(100)):
         sample = {
             'pth': torch.randn(3, 1, 30, 30),
             'pickle': np.random.randn(256, 1024),

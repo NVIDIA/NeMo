@@ -105,6 +105,7 @@ class DiTLlamaModel(DiTCrossAttentionModel):
                 dtype=torch.bfloat16,
             ),
         ).view(-1)
+        pos_emb = None
         if self.pre_process:
             # transpose to match
             x_B_S_D = self.x_embedder(x)

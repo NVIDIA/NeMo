@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from functools import partial
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 import lightning.pytorch as L
 import torch
@@ -48,7 +50,20 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
+    """Process a single batch of data from the dataloader iterator.
+
+    This function handles the data loading step for GPT models, managing
+    pipeline parallelism by distributing data appropriately across pipeline stages.
+
+    Args:
+        dataloader_iter: Iterator over the dataloader
+        use_mtp: Whether the Multi-Token Prediction Module is used. Input needs to be passed
+                 into the last ppieline stage if mtp is used.
+
+    Returns:
+        dict[str, torch.Tensor]: Processed batch with required tensors moved to appropriate devices
+    """
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -66,12 +81,12 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     required_host_keys = set()
 
     required_device_keys.add("attention_mask")
-    if 'cu_seqlens' in _batch:
-        required_device_keys.add('cu_seqlens')
-        required_host_keys.add('cu_seqlens_argmin')
-        required_host_keys.add('max_seqlen')
+    if "cu_seqlens" in _batch:
+        required_device_keys.add("cu_seqlens")
+        required_host_keys.add("cu_seqlens_argmin")
+        required_host_keys.add("max_seqlen")
 
-    if parallel_state.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage() or use_mtp:
         required_device_keys.update(("tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_device_keys.update(("labels", "loss_mask"))
@@ -98,16 +113,16 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
         "labels": batch["labels"],
     }
 
-    if 'attention_mask' not in batch:
+    if "attention_mask" not in batch:
         assert (
             HAVE_TE
         ), "The dataloader did not provide an attention mask, however Transformer Engine was not detected. \
             This requires Transformer Engine's implementation of fused or flash attention."
     else:
-        forward_args["attention_mask"] = batch['attention_mask']
+        forward_args["attention_mask"] = batch["attention_mask"]
 
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
+    if "cu_seqlens" in batch:
+        forward_args["packed_seq_params"] = get_packed_seq_params(batch)
 
     return model(**forward_args)
 
@@ -135,7 +150,10 @@ def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     from megatron.core.models.gpt import gpt_layer_specs
 
     return gpt_layer_specs.get_gpt_layer_local_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts,
+        moe_grouped_gemm=config.moe_grouped_gemm,
+        qk_layernorm=config.qk_layernorm,
+        normalization=config.normalization,
     )
 
 
@@ -149,10 +167,56 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
         return local_layer_spec(config)
 
 
-def torch_dtype_from_mcore_config(config: TransformerConfig):
+def mtp_block_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
+    """Pass in the MTP block spec if model has MTP layers.
+
+    Args:
+        config: GPT configuration object
+
+    Returns:
+        ModuleSpec: The MTP module specification
+    """
+    if getattr(config, "mtp_num_layers", None):
+        from megatron.core.models.gpt.gpt_layer_specs import get_gpt_mtp_block_spec
+
+        if isinstance(config.transformer_layer_spec, Callable):
+            spec = config.transformer_layer_spec(config)
+        else:
+            spec = config.transformer_layer_spec
+        return get_gpt_mtp_block_spec(config, spec, use_transformer_engine=HAVE_TE)
+    else:
+        return None
+
+
+def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
+    """Extract the appropriate torch dtype from a Megatron Core configuration.
+
+    Args:
+        config: Megatron Core Transformer configuration
+
+    Returns:
+        torch.dtype: The appropriate torch dtype (float16, bfloat16, or float32)
+    """
     if config.fp16:
         return torch.float16
     elif config.bf16:
+        return torch.bfloat16
+    else:
+        return torch.float
+
+
+def torch_dtype_from_dict_config(config: dict[str, Any]) -> torch.dtype:
+    """Extract the appropriate torch dtype from a dictionary configuration.
+
+    Args:
+        config: Dictionary containing configuration parameters
+
+    Returns:
+        torch.dtype: The appropriate torch dtype (float16, bfloat16, or float32)
+    """
+    if config["fp16"]:
+        return torch.float16
+    elif config["bf16"]:
         return torch.bfloat16
     else:
         return torch.float
@@ -184,17 +248,20 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
+    vocab_size: Optional[int] = None
+    tp_comm_overlap_cfg: Optional[Union[str, dict[str, Any]]] = None
+
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         if self.enable_cuda_graph:
             assert HAVE_TE, "Transformer Engine is required for cudagraphs."
-            assert getattr(self, 'use_te_rng_tracker', False), (
+            assert getattr(self, "use_te_rng_tracker", False), (
                 "Transformer engine's RNG tracker is required for cudagraphs, it can be "
                 "enabled with use_te_rng_tracker=True'."
             )
 
         vp_size = self.virtual_pipeline_model_parallel_size
-        is_pipeline_asymmetric = getattr(self, 'account_for_embedding_in_pipeline_split', False) or getattr(
-            self, 'account_for_loss_in_pipeline_split', False
+        is_pipeline_asymmetric = getattr(self, "account_for_embedding_in_pipeline_split", False) or getattr(
+            self, "account_for_loss_in_pipeline_split", False
         )
         if vp_size and not is_pipeline_asymmetric:
             p_size = self.pipeline_model_parallel_size
@@ -208,7 +275,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
-        if hasattr(self, 'vocab_size'):
+        if self.vocab_size is not None:
             vocab_size = self.vocab_size
             if tokenizer is not None:
                 logging.info(
@@ -218,21 +285,35 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
-        model = MCoreGPTModel(
-            self,
-            transformer_layer_spec=transformer_layer_spec,
-            vocab_size=vocab_size,
-            max_sequence_length=self.seq_length,
-            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-            parallel_output=self.parallel_output,
-            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-            position_embedding_type=self.position_embedding_type,
-            rotary_percent=self.rotary_percent,
-            rotary_base=self.rotary_base,
-            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
-            post_process=post_process or parallel_state.is_pipeline_last_stage(),
-        )
+        # Initialize model as meta data instead of allocating data on a device
+        model_init_device_context = contextlib.nullcontext
+        if self.init_model_with_meta_device:
+            model_init_device_context = partial(torch.device, device='meta')
+
+        import inspect
+
+        if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
+            kwargs = {"mtp_block_spec": mtp_block_spec(self)}
+        else:
+            kwargs = {}
+        with model_init_device_context():
+            model = MCoreGPTModel(
+                self,
+                transformer_layer_spec=transformer_layer_spec,
+                vocab_size=vocab_size,
+                max_sequence_length=self.seq_length,
+                fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+                parallel_output=self.parallel_output,
+                share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+                position_embedding_type=self.position_embedding_type,
+                rotary_percent=self.rotary_percent,
+                rotary_base=self.rotary_base,
+                seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+                pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
+                post_process=post_process or parallel_state.is_pipeline_last_stage(),
+                scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
+                **kwargs,
+            )
 
         # If using full TE layer, need to set TP, CP group since the module call
         # is not routed through megatron core, which normally handles passing the
@@ -348,6 +429,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        model_context_managers: Optional[list] = [],
     ):
         super().__init__()
         self.config = config
@@ -372,7 +454,21 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         inference_params=None,
         packed_seq_params=None,
     ) -> torch.Tensor:
-        extra_kwargs = {'packed_seq_params': packed_seq_params} if packed_seq_params is not None else {}
+        """Forward pass through the GPT model.
+
+        Args:
+            input_ids: Input token IDs
+            position_ids: Position IDs for the input
+            attention_mask: Optional attention mask
+            labels: Optional labels for computing loss
+            decoder_input: Optional decoder input
+            inference_params: Optional parameters for inference
+            packed_seq_params: Optional parameters for packed sequence processing
+
+        Returns:
+            torch.Tensor: Output tensor from the model
+        """
+        extra_kwargs = {"packed_seq_params": packed_seq_params} if packed_seq_params is not None else {}
         output_tensor = self.module(
             input_ids,
             position_ids,
@@ -385,7 +481,15 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return output_tensor
 
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+    def data_step(self, dataloader_iter) -> dict[str, torch.Tensor]:
+        """Process a batch of data from the dataloader.
+
+        Args:
+            dataloader_iter: Iterator over the dataloader
+
+        Returns:
+            dict[str, torch.Tensor]: Processed batch
+        """
         return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:
@@ -399,7 +503,24 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+    def get_inference_wrapper(
+        self,
+        params_dtype: torch.dtype,
+        inference_batch_times_seqlen_threshold: int,
+        inference_max_seq_length: int = 2560,
+    ) -> torch.Tensor:
+        """Get an inference wrapper for the model.
+
+        Creates and configures a GPTInferenceWrapper around the model for efficient inference.
+
+        Args:
+            params_dtype: Data type for parameters
+            inference_batch_times_seqlen_threshold: Threshold for optimizing inference
+            inference_max_seq_length: Maximum sequence length for inference (prefill and decode)
+
+        Returns:
+            torch.Tensor: Wrapped model for inference
+        """
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
         while mcore_model:
@@ -412,12 +533,12 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         vocab_size = None
         if self.tokenizer is not None:
             vocab_size = self.tokenizer.vocab_size
-        elif hasattr(self.config, 'vocab_size'):
+        elif hasattr(self.config, "vocab_size"):
             vocab_size = self.config.vocab_size
         else:
             raise ValueError(
-                'Unable to find vocab size.'
-                ' Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+                "Unable to find vocab size."
+                " Either pass in a tokenizer with vocab size, or set vocab size in the model config"
             )
 
         inference_wrapper_config = InferenceWrapperConfig(
@@ -425,6 +546,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
+            inference_max_seq_length=inference_max_seq_length,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
@@ -445,18 +567,28 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self._validation_loss_reduction
 
 
-def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
+def get_batch_on_this_context_parallel_rank(batch) -> dict[str, torch.Tensor]:
+    """Process batch data for the current context parallel rank.
+
+    Handles the slicing of batch data across context parallel dimensions.
+
+    Args:
+        batch: Input batch
+
+    Returns:
+        dict[str, torch.Tensor]: Processed batch for the current context parallel rank
+    """
     from megatron.core import parallel_state
 
     if (cp_size := parallel_state.get_context_parallel_world_size()) > 1:
         num_valid_tokens_in_ub = None
-        if 'loss_mask' in batch and batch['loss_mask'] is not None:
-            num_valid_tokens_in_ub = batch['loss_mask'].sum()
+        if "loss_mask" in batch and batch["loss_mask"] is not None:
+            num_valid_tokens_in_ub = batch["loss_mask"].sum()
 
         cp_rank = parallel_state.get_context_parallel_rank()
         for key, val in batch.items():
             if val is not None:
-                seq_dim = 1 if key != 'attention_mask' else 2
+                seq_dim = 1 if key != "attention_mask" else 2
                 _val = val.view(
                     *val.shape[0:seq_dim],
                     2 * cp_size,
@@ -469,23 +601,23 @@ def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
                 _val = _val.index_select(seq_dim, index)
                 _val = _val.view(*val.shape[0:seq_dim], -1, *_val.shape[(seq_dim + 2) :])
                 batch[key] = _val
-        batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
+        batch["num_valid_tokens_in_ub"] = num_valid_tokens_in_ub
     return batch
 
 
 def get_packed_seq_params(batch):
     from megatron.core.packed_seq_params import PackedSeqParams
 
-    cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+    cu_seqlens = batch["cu_seqlens"].squeeze()  # remove batch size dimension (mbs=1)
     # remove -1 "paddings" added in collate_fn
-    if (cu_seqlens_argmin := batch.get('cu_seqlens_argmin', None)) is not None:
+    if (cu_seqlens_argmin := batch.get("cu_seqlens_argmin", None)) is not None:
         # pre-compute cu_seqlens_argmin in dataset class for perf
         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
     else:
         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
 
     # pre-compute max_seqlens in dataset class for perf
-    max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
+    max_seqlen = batch["max_seqlen"].squeeze() if "max_seqlen" in batch else None
 
     # these args are passed eventually into TEDotProductAttention.forward()
     return PackedSeqParams(
@@ -493,7 +625,7 @@ def get_packed_seq_params(batch):
         cu_seqlens_kv=cu_seqlens,
         max_seqlen_q=max_seqlen,
         max_seqlen_kv=max_seqlen,
-        qkv_format='thd',
+        qkv_format="thd",
     )
 
 

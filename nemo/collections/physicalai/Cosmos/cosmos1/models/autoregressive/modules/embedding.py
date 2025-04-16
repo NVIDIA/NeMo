@@ -372,6 +372,7 @@ class RotaryPositionEmbeddingPytorchV1(RotaryPositionEmbedding):
         super().__init__(
             **kwargs,
         )
+        emb = None
         if self.rope_dim == "1D":
             emb = torch.stack((self.freqs, self.freqs), dim=-1).reshape(*self.freqs.shape[:-1], -1)
         elif self.rope_dim in ["2D", "3D"]:

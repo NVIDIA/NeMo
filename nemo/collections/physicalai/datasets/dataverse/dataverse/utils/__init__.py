@@ -14,3 +14,5 @@
 
 from dataverse.utils.general import dataset_from_config, logger, print_rich_dict
 from dataverse.utils.version import get_version
+
+# flake8: noqa: F401

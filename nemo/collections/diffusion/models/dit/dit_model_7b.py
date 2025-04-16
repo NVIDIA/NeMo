@@ -950,6 +950,7 @@ class DiTCrossAttentionModel7B(VisionModule):
         padding_mask = kwargs.get('padding_mask', None)
         image_size = kwargs.get('image_size', None)
 
+        rope_emb_L_1_1_D = None
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
@@ -1401,6 +1402,7 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
             dim=1,
         )
 
+        rope_emb_L_1_1_D = None
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
@@ -1641,6 +1643,7 @@ class DiTCrossAttentionActionExtendModel7B(DiTCrossAttentionExtendModel7B):
             dim=1,
         )
 
+        rope_emb_L_1_1_D = None
         if self.pre_process:
             x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
             B, T, H, W, D = x_B_T_H_W_D.shape
@@ -2026,3 +2029,5 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
             **kwargs
         )
         return output
+
+# flake8: noqa: E741

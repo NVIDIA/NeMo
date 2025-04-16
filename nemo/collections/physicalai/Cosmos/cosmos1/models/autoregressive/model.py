@@ -233,6 +233,9 @@ class AutoRegressiveModel(torch.nn.Module):
         if model_config.vision_encoder is not None:
             # Take the LLM weights (starting with "model.") from the VLM checkpoint
             llm_checkpoint = get_partial_state_dict(llm_checkpoint, prefix="model.")
+
+        vit_checkpoint = None
+        projector_checkpoint = None
         if model_config.vision_encoder is not None:
             # For vanilla VLM ckpt before fine-tuning, `checkpoint['model']` only contains LLM weights, and `checkpoint['vision_encoder']`
             #   and `checkpoint['mm_projector']` are both for those weights

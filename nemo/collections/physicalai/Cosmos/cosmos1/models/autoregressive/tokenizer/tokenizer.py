@@ -243,7 +243,7 @@ class DiscreteMultimodalTokenizer:
             elif self.training_type == "text_to_video":
                 max_visual_seq_len = max_visual_seq_len + 1
             else:
-                max_visual_seq_len = max_visual_seq_len
+                pass
             assert (
                 max_visual_seq_len <= self.total_seq_len
             ), f"max_visual_seq_len ({max_visual_seq_len}) is greater that total sequence length ({self.total_seq_len})"

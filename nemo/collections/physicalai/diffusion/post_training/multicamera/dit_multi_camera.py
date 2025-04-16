@@ -501,7 +501,7 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
         Returns:
             Tensor: loss tensor
         """
-        ## Decoder forward
+        # Decoder forward
         # Decoder embedding.
         # print(f'x={x}')
         # x = x.squeeze(0)

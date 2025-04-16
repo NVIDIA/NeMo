@@ -487,6 +487,7 @@ class ExtendedDiffusionPipeline:
             cp_group = parallel_state.get_context_parallel_group()
             x_sigma_max = split_inputs_cp(x=x_sigma_max, seq_dim=2, cp_group=cp_group)
 
+        samples = None
         if self.sampler_type == "EDM":
             samples = self.sampler(x0_fn, x_sigma_max, num_steps=num_steps, sigma_max=self.sde.sigma_max)
         elif self.sampler_type == "RES":

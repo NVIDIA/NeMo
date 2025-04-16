@@ -1046,6 +1046,7 @@ class AddControlInputMask(Augmentor):
             # Calculate positions once before the frame loop
             box_w = W - nw * 2
             box_h = H - nh * 2
+            offset_h, offset_w = None, None
             if mask_pos == "corner":
                 offset_h = np.random.choice([0, (H - box_h)])
                 offset_w = np.random.choice([0, (W - box_w)])
@@ -1173,7 +1174,6 @@ class AddControlInputMask(Augmentor):
 
                 # Check border conditions
                 if "touch_border_thre" in self.masking_params["inpaint"]:
-                    # pylint: disable=undefined-name
                     is_foreground, _ = check_if_foreground( 
                         cur_obj_mask, border_threshold=self.masking_params["inpaint"]["touch_border_thre"]
                     )
@@ -1181,7 +1181,6 @@ class AddControlInputMask(Augmentor):
                     is_foreground = True
 
                 if "close_to_border_thre" in self.masking_params["inpaint"]:
-                    # pylint: disable=undefined-name
                     not_close_to_border = check_within_border_thres(
                         cur_obj_mask, border_threshold=self.masking_params["inpaint"]["close_to_border_thre"]
                     )
@@ -1617,3 +1616,5 @@ if __name__ == "__main__":
                 print(f"Output video saved as {output_file_path}")
 
     main(path_in)
+
+# flake8: noqa: F821

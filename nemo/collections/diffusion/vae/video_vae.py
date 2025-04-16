@@ -133,6 +133,7 @@ class BasePretrainedVideoTokenizer(ABC):
 
     @torch.no_grad()
     def encode(self, state: torch.Tensor) -> torch.Tensor:
+        origin_T = None
         if self._temporal_compress_factor == 1:
             _, _, origin_T, _, _ = state.shape
             state = rearrange(state, "b c t h w -> (b t) c 1 h w")
@@ -166,6 +167,7 @@ class BasePretrainedVideoTokenizer(ABC):
         Returns:
             torch.Tensor: The decoded video tensor reconstructed from latent space.
         """
+        origin_T = None
         if self._temporal_compress_factor == 1:
             _, _, origin_T, _, _ = latent.shape
             latent = rearrange(latent, "b c t h w -> (b t) c 1 h w")

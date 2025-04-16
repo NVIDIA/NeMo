@@ -186,6 +186,7 @@ class DiTLayerWithAdaLN(TransformerLayer):
         timestep_emb = attention_mask
 
         # ******************************************** full self attention ******************************************************
+        shift_ca, scale_ca, gate_ca = None, None, None
         if self.cross_attention:
             shift_full, scale_full, gate_full, shift_ca, scale_ca, gate_ca, shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb, adaln_lora_B_3D)
         else:
