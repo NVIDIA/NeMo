@@ -37,50 +37,11 @@ class TestLlama33NemotronSuper49B:
         assert model_config.config.__fn_or_cls__ == Llama33NemotronSuper49BConfig
         assert model_config.config.seq_length == 8192
 
-    def test_trainer(self, recipe_module):
-        trainer_config = recipe_module.trainer()
-        assert isinstance(trainer_config, run.Config)
-        assert trainer_config.__fn_or_cls__ == Trainer
-        assert trainer_config.accelerator == "gpu"
-        assert trainer_config.devices == 8
-        assert trainer_config.max_steps == 1168251
-
-        # Check strategy configuration
-        assert isinstance(trainer_config.strategy, run.Config)
-        assert trainer_config.strategy.__fn_or_cls__.__name__ == "MegatronStrategy"
-        assert trainer_config.strategy.tensor_model_parallel_size == 4
-        assert trainer_config.strategy.pipeline_model_parallel_size == 4
-        assert trainer_config.strategy.pipeline_dtype is None
-        assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
-        assert trainer_config.strategy.context_parallel_size == 2
-        assert trainer_config.strategy.sequence_parallel is False
-        assert trainer_config.strategy.gradient_as_bucket_view is True
-        assert trainer_config.strategy.ckpt_async_save is True
-        assert trainer_config.strategy.ckpt_parallel_load is True
-
-        # Check other trainer configurations
-        assert trainer_config.accumulate_grad_batches == 1
-        assert trainer_config.limit_test_batches == 50
-        assert trainer_config.limit_val_batches == 32
-        assert trainer_config.log_every_n_steps == 10
-        assert trainer_config.use_distributed_sampler is False
-        assert trainer_config.val_check_interval == 2000
-
     def test_pretrain_recipe(self, recipe_module):
-        recipe = recipe_module.pretrain_recipe()
-        assert isinstance(recipe, run.Partial)
-        assert recipe.__fn_or_cls__ == pretrain
-        assert isinstance(recipe.model, run.Config)
-        assert recipe.model.__fn_or_cls__ == LlamaNemotronModel
-        assert isinstance(recipe.trainer, run.Config)
-        assert recipe.trainer.__fn_or_cls__ == Trainer
-        assert isinstance(recipe.data, run.Config)
-        assert recipe.data.__fn_or_cls__ == MockDataModule
-        assert recipe.data.seq_length == 8192
-        assert recipe.data.global_batch_size == 512
-        assert recipe.data.micro_batch_size == 1
+        with pytest.raises(NotImplementedError, match='Llama33 Nemotron Super model is a distilled model based on Llama33-70B'):
+            recipe_module.pretrain_recipe()
 
-    def test_finetune_recipe(self, recipe_module):
+    def test_finetune_recipe_no_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
         assert isinstance(recipe, run.Partial)
         assert recipe.__fn_or_cls__ == finetune
@@ -89,9 +50,11 @@ class TestLlama33NemotronSuper49B:
         assert isinstance(recipe.trainer, run.Config)
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert recipe.trainer.strategy.tensor_model_parallel_size == 8
+        assert recipe.trainer.strategy.pipeline_model_parallel_size == 2
+        assert recipe.optim.config.lr == 5e-6
         assert recipe.peft is None
 
-    def test_lora_recipe(self, recipe_module):
+    def test_finetune_recipe_lora(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme='lora')
         assert isinstance(recipe, run.Partial)
         assert recipe.__fn_or_cls__ == finetune
@@ -100,13 +63,39 @@ class TestLlama33NemotronSuper49B:
         assert isinstance(recipe.trainer, run.Config)
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert recipe.trainer.strategy.tensor_model_parallel_size == 4
+        assert recipe.trainer.strategy.pipeline_model_parallel_size == 1
+        assert recipe.optim.config.lr == 1e-4
         assert isinstance(recipe.peft, run.Config)
         assert recipe.peft.__fn_or_cls__ == LoRA
         assert recipe.peft.dim == 8
         assert recipe.peft.alpha == 16
+        assert recipe.optim.config.use_distributed_optimizer is False
+        assert recipe.model.config.cross_entropy_loss_fusion is False
+
+    def test_finetune_recipe_dora(self, recipe_module):
+        recipe = recipe_module.finetune_recipe(peft_scheme='dora')
+        assert isinstance(recipe, run.Partial)
+        assert recipe.__fn_or_cls__ == finetune
+        assert isinstance(recipe.model, run.Config)
+        assert recipe.model.__fn_or_cls__ == LlamaNemotronModel
+        assert isinstance(recipe.trainer, run.Config)
+        assert recipe.trainer.__fn_or_cls__ == Trainer
+        assert recipe.trainer.strategy.tensor_model_parallel_size == 4
+        assert recipe.trainer.strategy.pipeline_model_parallel_size == 1
+        assert recipe.optim.config.lr == 1e-4
+        assert isinstance(recipe.peft, run.Config)
+        assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS['dora']
+        assert recipe.peft.dim == 8
+        assert recipe.peft.alpha == 16
+        assert recipe.optim.config.use_distributed_optimizer is False
+        assert recipe.model.config.cross_entropy_loss_fusion is False
+
+    def test_finetune_recipe_invalid_peft(self, recipe_module):
+        with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid"):
+            recipe_module.finetune_recipe(peft_scheme='invalid')
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(1, 8), (2, 4), (4, 2)])
-    def test_pretrain_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
-        recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+    def test_finetune_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
+        recipe = recipe_module.finetune_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
