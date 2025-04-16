@@ -230,7 +230,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     )
     mcomm_overlap_callback = run.Config(
         MegatronCommOverlapCallback,
-        tp_comm_overlap=False,
+        tp_comm_overlap=True,
     )
     recipe.trainer.callbacks.extend(
         [
