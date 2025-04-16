@@ -51,7 +51,6 @@ class MCoreArtifact(Artifact):
                 # if HF tokenizer is loaded from HF cloud
                 path_to_save = pathize(absolute_dir) / pathize(dir_name)
                 instance.save_pretrained(path_to_save)
-                copy_file(instance.metadata_path, path_to_save, relative_dir)
             vocab_file, merges_file = instance.vocab_file, instance.merges_file
             if vocab_file:
                 copy_file(pathize(vocab_file), path_to_save, relative_dir, overwrite=True)
@@ -62,8 +61,12 @@ class MCoreArtifact(Artifact):
             # save tokenizer and it's metadata for SentencePiece and TikToken
             os.makedirs(str(path_to_save), exist_ok=True)
             new_path = copy_file(path, path_to_save, relative_dir)
-            copy_file(instance.metadata_path, path_to_save, relative_dir)
-            return f"{dir_name}/{str(new_path)}"
+            dir_name = f"{dir_name}/{str(new_path)}"
+
+        # save tokenizer metadata
+        copy_file(instance.metadata_path, path_to_save, relative_dir, overwrite=True)
+
+        return dir_name
 
     def load(self, path: str) -> str:
         return path
