@@ -81,11 +81,11 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
             dataset_kwargs=dataset_kwargs,
         )
 
-        if self.packed_sequence_size != self.seq_length:
+        if self.packed_sequence_size != self.seq_length or self.packed_sequence_size > 8192:
             raise ValueError(
-                f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero "
-                f"and equal to `seq_length`.  Instead got packed_sequence_size = {self.packed_sequence_size} "
-                f"and seq_length = {self.seq_length}"
+                f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero, "
+                f"less than or equal to the max of 8192, and equal to `seq_length`.  Instead got "
+                f"packed_sequence_size = {self.packed_sequence_size} and seq_length = {self.seq_length}"
             )
 
     def prepare_data(self) -> None:
@@ -133,11 +133,11 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
             save_splits['test'] = split_dataset['train']
 
         for split_name, dataset in save_splits.items():
-            output_file = self.dataset_root / f"{split_name}.npy"
+            output_file = self.dataset_root / f"{split_name}_{self.seq_length}.npy"
             processed_data = [
                 {
-                    "input_ids": example["input_ids"],
-                    "loss_mask": [int(x != -100) for x in example["labels"]],
+                    "input_ids": list(example["input_ids"])[:self.seq_length],
+                    "loss_mask": [int(x != -100) for x in example["labels"]][:self.seq_length],
                     "seq_start_id": [0],
                 }
                 for example in dataset
@@ -156,17 +156,17 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
     @property
     def train_path(self) -> Path:
         """Path to training dataset file"""
-        return self.dataset_root / "training.npy"
+        return self.dataset_root / f"training_{self.seq_length}.npy"
 
     @property
     def validation_path(self) -> Path:
         """Path to validation dataset file"""
-        return self.dataset_root / "validation.npy"
+        return self.dataset_root / f"validation_{self.seq_length}.npy"
 
     @property
     def test_path(self) -> Path:
         """Path to test dataset file"""
-        return self.dataset_root / "test.npy"
+        return self.dataset_root / f"test_{self.seq_length}.npy"
 
     @property
     def default_pack_path(self) -> Path:

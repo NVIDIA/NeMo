@@ -14,8 +14,9 @@
 
 from nemo.collections.llm.gpt.data.alpaca import AlpacaDataModule
 from nemo.collections.llm.gpt.data.chat import ChatDataModule
+from nemo.collections.llm.gpt.data.cnn_dailymail import CNNDailyMailFineTuningDataModule
 from nemo.collections.llm.gpt.data.dolly import DollyDataModule
-from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule, HFFineTuningDataModule
 from nemo.collections.llm.gpt.data.hf_dataset import HFDatasetDataModule, HFMockDataModule
 from nemo.collections.llm.gpt.data.mlperf_govreport import MLPerfGovReportDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -26,9 +27,11 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 __all__ = [
     "AlpacaDataModule",
     "ChatDataModule",
+    "CNNDailyMailFineTuningDataModule",
     "DollyDataModule",
     "FineTuningDataModule",
     "HFDatasetDataModule",
+    "HFFineTuningDataModule",
     "HFMockDataModule",
     "MLPerfGovReportDataModule",
     "MockDataModule",
