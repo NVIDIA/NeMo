@@ -36,7 +36,6 @@ try:
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec as default_mamba_stack_spec
-    from megatron.core.transformer.spec_utils import ModuleSpec
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -45,6 +44,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE_OR_TE = False
 
 from megatron.core.transformer.enums import AttnBackend
+from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 
