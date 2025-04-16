@@ -249,7 +249,7 @@ class DistributedInitConfig:
 class ProfilingConfig:
     # ---------------- Profiling config. ----------------
 
-    profile: bool = False
+    use_nsys_profiler: bool = False
     """Enable nsys profiling. When using this option, nsys options should be specified in commandline. An example nsys commandline is `nsys profile -s none -t nvtx,cuda -o <path/to/output_file> --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop`."""
 
     profile_step_start: int = 10
@@ -269,6 +269,9 @@ class ProfilingConfig:
 
     memory_snapshot_path: str = "snapshot.pickle"
     """Specifies where to dump the memory history pickle."""
+
+    record_shapes: bool = False
+    """Record shapes of tensors."""
 
 
 @dataclass(kw_only=True)
@@ -612,3 +615,9 @@ class ConfigContainer(Container):
             self.scheduler_config.lr_warmup_steps = (
                 self.scheduler_config.lr_warmup_iters * self.train_config.global_batch_size
             )
+
+        # Profiling
+        if self.profiling_config is not None:
+            assert (
+                self.profiling_config.use_pytorch_profiler != self.profiling_config.use_nsys_profiler
+            ), "Exactly one of pytorch or nsys profiler should be enabled, not both or neither"
