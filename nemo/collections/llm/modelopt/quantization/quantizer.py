@@ -123,7 +123,9 @@ class Quantizer:
         dtype = export_config.dtype
         # Export and Quantization config sanity checks
         assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
-        assert quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES, f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
+        assert (
+            quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
+        ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
         if export_config is not None:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
@@ -213,9 +215,9 @@ class Quantizer:
 
     def _get_quant_cfg(self, model):
         decoder_type = self._get_decoder_type(model)
-        assert self.quantization_config.algorithm in QUANT_CFG_CHOICES, (
-            f"Unsupported quantization format: {self.quantization_config.algorithm}"
-        )
+        assert (
+            self.quantization_config.algorithm in QUANT_CFG_CHOICES
+        ), f"Unsupported quantization format: {self.quantization_config.algorithm}"
 
         quant_cfg = QUANT_CFG_CHOICES[self.quantization_config.algorithm]
         if "awq" in self.quantization_config.algorithm:
@@ -255,7 +257,6 @@ class Quantizer:
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
 
         return quant_cfg
-
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
         """Quantize the model and calibrate using given forward loop.
@@ -358,11 +359,11 @@ class Quantizer:
                 export_dir = export_dir / "huggingface_tokenizer"
             model.tokenizer.save_pretrained(str(export_dir))
         else:
-                # Save the model context in order to restore its tokenizer later. The destination
-                # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-                shutil.copytree(
-                    ckpt_to_context_subdir(model_dir), os.path.join(export_dir, "nemo_context"), dirs_exist_ok=True
-                )
+            # Save the model context in order to restore its tokenizer later. The destination
+            # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
+            shutil.copytree(
+                ckpt_to_context_subdir(model_dir), os.path.join(export_dir, "nemo_context"), dirs_exist_ok=True
+            )
 
     def export(self, model, model_dir: str, trainer: Optional["Trainer"] = None) -> None:
         """Export model to a TensorRT-LLM or NeMo checkpoint."""
