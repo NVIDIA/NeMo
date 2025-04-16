@@ -10,7 +10,7 @@ class IMDBHFDataModule(HFDatasetDataModule):
     def __init__(self, tokenizer, dataset_name="imdb", *args, **kwargs):
         tokenizer.pad_token = tokenizer.pad_token
         dataset = load_dataset(dataset_name)
-        sequence_length = 512
+        sequence_length = kwargs.get("seq_length", 128)
         dataset = IMDBHFDataModule.preprocess_dataset(tokenizer, sequence_length, dataset)
         dataset.pop("unsupervised")
         def collate_fn(batch):

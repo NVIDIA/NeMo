@@ -32,9 +32,9 @@ from nemo.utils.import_utils import safe_import
 
 class HFAutoModelForSequenceClassification(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
-    A LightningModule wrapper for AutoModelForMaskedLM.
+    A LightningModule wrapper for AutoModelForSequenceClassification.
 
-    This module wraps a LightningModule around a AutoModelForMaskedLM.
+    This module wraps a LightningModule around a AutoModelForSequenceClassification.
     It provides functionalities for training, validation, and checkpoint saving.
     """
 
@@ -163,7 +163,7 @@ class HFAutoModelForSequenceClassification(pl.LightningModule, io.IOMixin, fn.FN
             if not HAS_LIGER_KERNEL:
                 logging.warning("Asked to use Liger Kernel, but could not import")
             else:
-                auto_cls = liger_kernel_trf.AutoLigerKernelForMaskedLM
+                auto_cls = liger_kernel_trf.AutoLigerKernelForSequenceClassification
 
         quantization_config = None
         if self.load_in_4bit:

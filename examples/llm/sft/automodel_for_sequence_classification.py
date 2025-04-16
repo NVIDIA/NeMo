@@ -176,7 +176,6 @@ def main():
     parser.add_argument(
         '--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.'
     )
-    parser.add_argument('--mock-dataset', action='store_true', help='Use HFMockDataModule for training.')
     parser.add_argument(
         '--limit-dataset-samples',
         type=int,
@@ -250,21 +249,13 @@ def main():
     )
 
     # Instantiate training dataset.
-    dataset = None
-    if args.mock_dataset:
-        dataset = HFMockDataModule(
-            seq_length=args.seq_length,
-            micro_batch_size=args.micro_batch_size,
-            pad_seq_len_divisible=16 if args.fp8 else None,
-        )
-    else:
-        dataset = IMDBHFDataModule(
-            tokenizer=model.tokenizer,
-            micro_batch_size=args.micro_batch_size,
-            seq_length=args.seq_length,
-            limit_dataset_samples=args.limit_dataset_samples,
-            fp8=args.fp8,
-        )
+    dataset = IMDBHFDataModule(
+        tokenizer=model.tokenizer,
+        micro_batch_size=args.micro_batch_size,
+        seq_length=args.seq_length,
+        limit_dataset_samples=args.limit_dataset_samples,
+        fp8=args.fp8,
+    )
 
     llm.api.finetune(
         model=model,
