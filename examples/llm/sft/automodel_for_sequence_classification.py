@@ -20,60 +20,21 @@ import lightning.pytorch as pl
 from nemo import lightning as nl
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.collections import llm
-from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
+from nemo.collections.llm.bert.data.hf_dataset import IMDBHFDataModule
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_flat_lr
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
-#   examples/llm/peft/automodel.py \
+#   examples/llm/sft/automodel_for_sequence_classification.py \
 #   --strategy fsdp2 \
 #   --devices 8 \
-#   --model meta-llama/Llama-3.2-1B \
+#   --model "facebook/esm2_t6_8M_UR50D" \
 #   --ckpt-folder "output"
 #
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-def make_squad_hf_dataset(tokenizer, micro_batch_size, seq_length, limit_dataset_samples=None, fp8=False):
-    def formatting_prompts_func(example):
-        formatted_text = [
-            f"Context: {example['context']} Question: {example['question']} Answer:",
-            f" {example['answers']['text'][0].strip()}",
-        ]
-        context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
-        if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id and tokenizer.bos_id is not None:
-            context_ids.insert(0, tokenizer.bos_id)
-        if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
-            answer_ids.append(tokenizer.eos_id)
-
-        # Set input and labels, and pad to sequence length.
-        combined_query_answer = context_ids + answer_ids
-        seq_pad_len_ar = max(0, seq_length - len(combined_query_answer) + 1)
-        pad_token_id = tokenizer.eos_id if tokenizer.eos_id is not None else 0
-        return dict(
-            labels=combined_query_answer[1:] + [pad_token_id] * seq_pad_len_ar,
-            input_ids=combined_query_answer[:-1] + [pad_token_id] * seq_pad_len_ar,
-            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids) + [0] * seq_pad_len_ar,
-        )
-
-    splits = ['train', 'validation']
-    if limit_dataset_samples is not None:
-        assert isinstance(limit_dataset_samples, int), "Expected limit_dataset_samples to be an int"
-        splits = list(map(lambda x: f'{x}[:{limit_dataset_samples}]', splits))
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad",
-        split=splits,
-        micro_batch_size=micro_batch_size,
-        pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
-        pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-    )
-    datamodule.map(
-        formatting_prompts_func,
-        batched=False,
-        remove_columns=["id", "title", "context", "question", 'answers'],
-    )
-    return datamodule
 
 
 def make_strategy(
@@ -175,7 +136,7 @@ def main():
     parser.add_argument(
         '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
     )
-    parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
+    parser.add_argument('--max-steps', type=int, default=200, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
@@ -204,14 +165,14 @@ def main():
             'something that happens at the end of an epoch. Default to 0.0 (disabled)'
         ),
     )
-    parser.add_argument('--seq-length', default=2048, type=int, help='Sequence length to use for training')
+    parser.add_argument('--seq-length', default=128, type=int, help='Sequence length to use for training')
     parser.add_argument(
         '--trust-remote-code',
         action='store_true',
         help='Enables trust_remote_code to load HF models with unverified sources',
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
-    parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate for training.')
+    parser.add_argument('--lr', type=float, default=2e-5, help='Learning rate for training.')
     parser.add_argument(
         '--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.'
     )
@@ -258,7 +219,7 @@ def main():
     else:
         model_accelerator = None
 
-    model = llm.HFAutoModelForCausalLM(
+    model = llm.HFAutoModelForSequenceClassification(
         model_name=args.model,
         model_accelerator=model_accelerator,
         attn_implementation=args.attn_implementation,
@@ -297,7 +258,7 @@ def main():
             pad_seq_len_divisible=16 if args.fp8 else None,
         )
     else:
-        dataset = make_squad_hf_dataset(
+        dataset = IMDBHFDataModule(
             tokenizer=model.tokenizer,
             micro_batch_size=args.micro_batch_size,
             seq_length=args.seq_length,

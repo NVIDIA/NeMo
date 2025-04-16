@@ -19,7 +19,7 @@ import _io
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
-from transformers import AutoModelForMaskedLM, BitsAndBytesConfig
+from transformers import AutoModelForSequenceClassification, BitsAndBytesConfig
 
 from nemo.automodel.loss import masked_cross_entropy
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
@@ -30,7 +30,7 @@ from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
 
-class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
+class HFAutoModelForSequenceClassification(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
     A LightningModule wrapper for AutoModelForMaskedLM.
 
@@ -49,6 +49,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
+        num_labels=10,
         attn_implementation="sdpa",
         use_liger_kernel=False,
         enable_grad_ckpt=False,
@@ -56,7 +57,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         use_linear_ce_loss=True,
     ):
         """
-        Initialize the HFAutoModelForMaskedLM.
+        Initialize the HFAutoModelForSequenceClassification.
 
         Args:
             model_name (str, optional): The model name or path. Defaults to 'bert-base-uncased'.
@@ -80,6 +81,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self._tokenizer = tokenizer
         self.model = None
         self.loss_fn = loss_fn
+        self.num_labels = num_labels
         self.load_pretrained_weights = load_pretrained_weights
         self.is_hf_model = True
         self.model_transform = model_transform
@@ -117,7 +119,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AutoTokenizer: The tokenizer associated with the model.
         """
         if self._tokenizer is None:
-            self._tokenizer = HFAutoModelForMaskedLM.configure_tokenizer(
+            self._tokenizer = HFAutoModelForSequenceClassification.configure_tokenizer(
                 self.model_name, trust_remote_code=self.trust_remote_code
             )
         return self._tokenizer
@@ -155,7 +157,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def _configure_model(self, attn_implementation):
         """helper method; see also configure_model."""
         # create all your layers here
-        auto_cls = AutoModelForMaskedLM
+        auto_cls = AutoModelForSequenceClassification
         if self.use_liger_kernel:
             liger_kernel_trf, HAS_LIGER_KERNEL = safe_import('liger_kernel.transformers')
             if not HAS_LIGER_KERNEL:
@@ -176,6 +178,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.load_pretrained_weights:
             m = auto_cls.from_pretrained(
                 self.model_name,
+                num_labels=10,
                 torch_dtype=self.default_dtype,
                 device_map=None if self.load_in_4bit else self.device_map,
                 trust_remote_code=self.trust_remote_code,
@@ -282,11 +285,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
             self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
 
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
-        # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if 'input_ids' not in batch and 'tokens' in batch:
-            batch['input_ids'] = batch['tokens']
+        labels = batch.pop('label').to(self.model.device)
         batch = self._remove_extra_batch_keys(batch)
 
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
@@ -330,30 +329,10 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 outputs = self.forward(batch)
                 # Prepare for loss calculation
                 logits = outputs.logits
-                n_cls = logits.shape[-1]
-                logits = logits.view(-1, n_cls)
-                labels = labels.view(-1)
                 assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
-                loss = self.loss_fn(logits, labels, loss_mask)
+                loss = self.loss_fn(logits, labels)
             else:
-                # use num_logits_to_keep=1 to avoid full logits matrix in memory
-                # TODO: test CE with CP enabled
-                outputs = self.forward(batch, num_logits_to_keep=1)
-                hidden_states = outputs.hidden_states[-1]
-                lm_head = self.model.get_output_embeddings().weight  # Get the weight matrix
-                if loss_mask is not None:
-                    # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
-                    # -100 is the default ignore index in PyTorch's cross entropy loss
-                    labels = labels.masked_fill(loss_mask == 0, -100)
-                num_items_in_batch = torch.count_nonzero(labels != -100).item()
-                logit_softcapping = 0
-                loss = fused_linear_cross_entropy(
-                    hidden_states=hidden_states,
-                    lm_weight=lm_head,
-                    labels=labels,
-                    num_items_in_batch=num_items_in_batch,
-                    logit_softcapping=logit_softcapping,
-                )
+                raise NotImplementedError("Linear CE loss is not implemented")
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel()
 
@@ -440,23 +419,16 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch (dict): A dictionary containing the batch data, including 'labels' and optionally 'loss_mask'.
             batch_idx (int): The index of the batch.
         """
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
+        labels = batch.pop('label').to(self.model.device)
 
-        # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if 'input_ids' not in batch and 'tokens' in batch:
-            batch['input_ids'] = batch['tokens']
         batch = self._remove_extra_batch_keys(batch)
 
         outputs = self.forward(batch)
 
         logits = outputs.logits
-        n_cls = logits.shape[-1]
-        logits = logits.view(-1, n_cls)
-        labels = labels.view(-1)
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
-        loss = self.loss_fn(logits, labels, loss_mask)
+        loss = self.loss_fn(logits, labels)
         return loss
 
     def save_pretrained(self, path, state_dict):
@@ -530,7 +502,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
 
         d["torch_dtype"] = torch.bfloat16
-        return AutoModelForCausalLM.from_pretrained(**d).state_dict()
+        return AutoModelForSequenceClassification.from_pretrained(**d).state_dict()
 
     def load_state_dict(self, state_dict, strict=True, assign=False):
         """Loads the state-dict directly to self.model, therefore FQNs are expected
@@ -569,7 +541,7 @@ class HFAutoModelForMaskedLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
-    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask', 'input_ids']):
+    def _remove_extra_batch_keys(self, batch, reserved_keys=['label', 'attention_mask', 'input_ids']):
         """Remove extra keys from batch that are not kwargs in model's forward
 
         Args:
