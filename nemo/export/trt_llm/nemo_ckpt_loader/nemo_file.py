@@ -323,6 +323,16 @@ def build_tokenizer(tokenizer):
                     return self.tokenizer.decode(ids)
 
                 encode = tokenizer.tokenizer.encode_as_ids
+            elif isinstance(tokenizer, nemo_tokenizers.ByteLevelTokenizer):
+                # Define HF equivalents based on available SP methods
+                def batch_decode(self, ids):
+                    if torch.is_tensor(ids):
+                        ids = ids.cpu().numpy()
+                    if isinstance(ids, np.ndarray):
+                        ids = ids.tolist()
+                    return self.tokenizer.ids_to_text(ids)
+
+                encode = tokenizer.tokenizer.text_to_ids
             else:
                 raise NotImplementedError(f"Patching tokenizer methods for {type(tokenizer)} is not available")
 
