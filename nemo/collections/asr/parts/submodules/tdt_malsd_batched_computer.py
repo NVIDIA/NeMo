@@ -1242,6 +1242,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         out_len: torch.Tensor,
     ) -> BatchedBeamHyps:
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            return self.modified_alsd_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
+            with torch.amp.autocast(device_type="cuda", enabled=False):
+                return self.modified_alsd_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
         return self.modified_alsd_torch(encoder_output=x, encoder_output_length=out_len)

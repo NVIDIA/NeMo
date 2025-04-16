@@ -516,8 +516,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.NO_SCORE),
-                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.EARLY),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                         score_norm=self.cfg.beam.get('score_norm', True),
                         allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                         return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
@@ -542,6 +542,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                         score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', False),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                     )
         else:
             raise ValueError(
