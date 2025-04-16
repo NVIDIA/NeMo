@@ -149,11 +149,7 @@ def trainer(
     )
 
     callbacks = [
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_bootstrap_backend="nccl",
-            tp_comm_overlap=True,
-        ),
+        run.Config(TimingCallback),
         run.Config(
             ModelCheckpoint,
             every_n_train_steps=val_check_interval,
@@ -189,7 +185,7 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     vocab_file: str = None,
-    num_nodes: int = 1,
+    num_nodes: int = 32,
     num_gpus_per_node: int = 8,
     tensor_parallelism: int = 8,
     sequence_parallelism: bool = True,
@@ -245,7 +241,6 @@ def pretrain_recipe(
             log_every_n_steps=log_every_n_steps,
             save_top_k=save_top_k,
             ckpt_async_save=ckpt_async_save,
-            callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(
             MockDataModule,
@@ -336,7 +331,6 @@ def finetune_recipe(
             log_every_n_steps=log_every_n_steps,
             save_top_k=save_top_k,
             ckpt_async_save=ckpt_async_save,
-            callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(
             MockDataModule,
