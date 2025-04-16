@@ -129,7 +129,6 @@ class TestMockTrain:
                     save=checkpoint_dir,
                     ckpt_format="torch_dist",
                     fully_parallel_save=True,
-                    # async_save=True,
                 ),
                 rng_config=RNGConfig(seed=1234),
             )
