@@ -25,6 +25,7 @@ from nemo.collections.llm.bert.model import (
     BertEmbeddingMiniConfig,
     BertEmbeddingModel,
     BertModel,
+    HFAutoModelForSequenceClassification,
     HuggingFaceBertBaseConfig,
     HuggingFaceBertConfig,
     HuggingFaceBertLargeConfig,
@@ -32,7 +33,6 @@ from nemo.collections.llm.bert.model import (
     MegatronBertBaseConfig,
     MegatronBertConfig,
     MegatronBertLargeConfig,
-    HFAutoModelForSequenceClassification,
 )
 from nemo.collections.llm.gpt.data import (  # noqa: F401
     AlpacaDataModule,

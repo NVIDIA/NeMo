@@ -35,8 +35,6 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
-
-
 def make_strategy(
     strategy,
     model,

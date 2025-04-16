@@ -13,7 +13,9 @@ from nemo.collections.llm.bert.model.embedding import (
     BertEmbeddingMiniConfig,
     BertEmbeddingModel,
 )
-from nemo.collections.llm.bert.model.hf_auto_model_for_sequence_classification import HFAutoModelForSequenceClassification
+from nemo.collections.llm.bert.model.hf_auto_model_for_sequence_classification import (
+    HFAutoModelForSequenceClassification,
+)
 
 __all__ = [
     "BertConfig",

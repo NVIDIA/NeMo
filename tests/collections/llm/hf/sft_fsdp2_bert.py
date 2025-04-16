@@ -22,7 +22,6 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
 
 
-
 if __name__ == '__main__':
     if PkgVersion(get_torch_version_str()) >= PkgVersion("2.4"):
         import argparse
