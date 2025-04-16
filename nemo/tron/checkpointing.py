@@ -372,6 +372,7 @@ def get_rng_state(
 
 class CheckpointType(Enum):
     """Types of checkpoints to save."""
+
     LEGACY = auto()
     LOCAL = auto()
     GLOBAL = auto()

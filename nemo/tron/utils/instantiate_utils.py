@@ -26,8 +26,9 @@ from omegaconf import OmegaConf
 from omegaconf._utils import is_structured_config
 
 
-class InstantiationException(Exception): 
+class InstantiationException(Exception):
     """Custom exception type for instantiation errors."""
+
     ...
 
 
@@ -131,9 +132,7 @@ def instantiate(
         _partial_ = kwargs.pop(_Keys.PARTIAL, False)
 
         if _partial_:
-            raise InstantiationException(
-                "The _partial_ keyword is not compatible with top-level list instantiation"
-            )
+            raise InstantiationException("The _partial_ keyword is not compatible with top-level list instantiation")
 
         return instantiate_node(config, *args, partial=_partial_, mode=mode)
     else:
@@ -211,18 +210,14 @@ def instantiate_node(
         raise TypeError(msg)
 
     if OmegaConf.is_list(node):
-        items = [
-            instantiate_node(item, mode=mode) for item in node._iter_ex(resolve=True)
-        ]
+        items = [instantiate_node(item, mode=mode) for item in node._iter_ex(resolve=True)]
 
         return items
     elif OmegaConf.is_dict(node):
         exclude_keys = set(item.value for item in _Keys if item != _Keys.ARGS)
         if _is_target(node):
             should_call_target = node.get("_call_", True)
-            _target_ = _resolve_target(
-                node.get(_Keys.TARGET), full_key, check_callable=should_call_target
-            )
+            _target_ = _resolve_target(node.get(_Keys.TARGET), full_key, check_callable=should_call_target)
             kwargs = {}
             is_partial = node.get("_partial_", False) or partial
 
@@ -245,9 +240,7 @@ def instantiate_node(
                         value = instantiate_node(value, mode=mode)
                     except (ImportError, InstantiationException) as e:
                         if mode == InstantiationMode.STRICT:
-                            raise InstantiationException(
-                                f"Error instantiating {value} for key {full_key}: {e}"
-                            ) from e
+                            raise InstantiationException(f"Error instantiating {value} for key {full_key}: {e}") from e
                         else:
                             value = None
                             logging.warning(
@@ -282,9 +275,7 @@ def _locate(path: str) -> Any:
     parts = [part for part in path.split(".")]
     for part in parts:
         if not len(part):
-            raise ValueError(
-                f"Error loading '{path}': invalid dotstring." + "\nRelative imports are not supported."
-            )
+            raise ValueError(f"Error loading '{path}': invalid dotstring." + "\nRelative imports are not supported.")
     assert len(parts) > 0
 
     # Try importing from the most specific path first (back to front)
@@ -342,10 +333,7 @@ def _call_target(
         try:
             return functools.partial(_target_, *args, **kwargs)
         except Exception as e:
-            msg = (
-                f"Error in creating partial({_convert_target_to_string(_target_)}, ...) object:"
-                + f"\n{repr(e)}"
-            )
+            msg = f"Error in creating partial({_convert_target_to_string(_target_)}, ...) object:" + f"\n{repr(e)}"
             if full_key:
                 msg += f"\nfull_key: {full_key}"
             raise InstantiationException(msg) from e
@@ -353,9 +341,7 @@ def _call_target(
         try:
             return _target_(*args, **kwargs)
         except Exception as e:
-            msg = (
-                f"Error in call to target '{_convert_target_to_string(_target_)}':\n{repr(e)}"
-            )
+            msg = f"Error in call to target '{_convert_target_to_string(_target_)}':\n{repr(e)}"
             if full_key:
                 msg += f"\nfull_key: {full_key}"
             raise InstantiationException(msg) from e

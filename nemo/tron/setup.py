@@ -69,6 +69,7 @@ class SetupOutput(NamedTuple):
         checkpointing_context: A dictionary holding context for checkpointing operations,
                                especially for non-persistent local checkpointing.
     """
+
     state: GlobalState
     model: MegatronModule
     optimizer: MegatronOptimizer
