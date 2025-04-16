@@ -130,7 +130,7 @@ class GlobalState:
         return self._cfg
 
     @cfg.setter
-    def cfg(self, value: ConfigContainer) -> None:
+    def cfg(self, value: Optional[ConfigContainer]) -> None:
         self._cfg = value
 
         # This lazily initializes the signal handler when the config is set
