@@ -15,6 +15,7 @@
 """Computes theoretical memory footprint for model training."""
 
 import math
+from typing import Optional
 
 import torch.nn.functional as F
 
@@ -23,7 +24,23 @@ from nemo.tron.config import ConfigContainer
 NUM_BYTES_IN_MEGABYTE = 1024 * 1024
 
 
-def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
+def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose: bool = False) -> float:
+    """Compute theoretical memory footprint for model weights and optimizer states.
+
+    Calculates the number of parameters for the model based on the configuration,
+    determines the number of parameters on the most loaded shard considering
+    pipeline and tensor parallelism, and estimates the memory needed based on
+    bytes per parameter (considering precision and optimizer type).
+
+    Args:
+        config (ConfigContainer): The main configuration container.
+        verbose (bool, optional): If True, prints detailed parameter counts.
+                                Defaults to False.
+
+    Returns:
+        float: Estimated memory footprint in bytes for weights and optimizer states
+               on the most loaded GPU shard.
+    """
     model_config = config.model_config
     # Attention projection size.
     query_projection_size = model_config.kv_channels * model_config.num_attention_heads
@@ -97,7 +114,30 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
     return weight_and_optimizer_memory
 
 
-def compute_activation_memory(config: ConfigContainer, num_microbatches, verbose=False):
+def compute_activation_memory(
+    config: ConfigContainer, num_microbatches: Optional[int], verbose: bool = False
+) -> float:
+    """Compute theoretical memory footprint for activations.
+
+    Estimates activation memory based on the formula from the Megatron-LM paper
+    (Table 2, https://arxiv.org/pdf/2205.05198.pdf), accounting for sequence length,
+    batch size, hidden size, number of layers, parallelism degrees (TP, PP, virtual PP),
+    and other model specifics.
+
+    Note:
+        Currently assumes selective activation recomputation and sequence parallelism.
+        Calculations focus on the first pipeline stage, which typically has the
+        highest activation memory footprint.
+
+    Args:
+        config (ConfigContainer): The main configuration container.
+        num_microbatches (int, optional): The number of microbatches used in training.
+        verbose (bool, optional): If True, prints intermediate memory calculations.
+                                Defaults to False.
+
+    Returns:
+        float: Estimated activation memory footprint in bytes on a single GPU shard.
+    """
     # Using formula in Table 2 of https://arxiv.org/pdf/2205.05198.pdf.
     # We are trying to compute the maximum activation footprint, so all calculations in this
     # function are for the first pipeline stage.
@@ -172,7 +212,22 @@ def compute_activation_memory(config: ConfigContainer, num_microbatches, verbose
     return activation_memory / model_config.tensor_model_parallel_size
 
 
-def report_theoretical_memory(config: ConfigContainer, num_microbatches=None, verbose=False):
+def report_theoretical_memory(
+    config: ConfigContainer, num_microbatches: Optional[int] = None, verbose: bool = False
+) -> None:
+    """Compute and print the theoretical memory footprint components.
+
+    Calls `compute_weight_and_optimizer_memory` and `compute_activation_memory`
+    (if applicable based on config) and prints the results in MB.
+
+    Args:
+        config (ConfigContainer): The main configuration container.
+        num_microbatches (int, optional): The number of microbatches. Required for
+                                        accurate activation memory estimation with PP.
+                                        Defaults to None.
+        verbose (bool, optional): If True, passes verbosity flag to helper functions.
+                                Defaults to False.
+    """
     weight_and_optimizer_memory = compute_weight_and_optimizer_memory(config, verbose=verbose) / NUM_BYTES_IN_MEGABYTE
 
     # Formulae here assume sequence parallelism and selective activation recomputation.

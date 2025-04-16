@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Exporter as _NeMo2HFQwen2Exporter
 from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Importer as _NeMo2HFQwen2Importer
@@ -33,12 +33,12 @@ class HFQwen2Exporter(BaseExporter):
 
     @property
     def hf_config(self) -> "HFQwen2Config":
-        """Generate a Hugging Face Qwen2 configuration from the NeMo model configuration.
+        """Generate Hugging Face Qwen2Config from the NeMo configuration.
 
-        This property maps NeMo configuration parameters to their Hugging Face equivalents.
+        Maps NeMo configuration parameters to their Hugging Face equivalents.
 
         Returns:
-            HFQwen2Config: A Hugging Face Qwen2 configuration
+            The Hugging Face Qwen2Config instance.
         """
         if self._hf_config is not None:
             return self._hf_config
@@ -67,7 +67,12 @@ class HFQwen2Exporter(BaseExporter):
 class HFQwen2Importer(BaseImporter):
     """Importer for converting Hugging Face Qwen2 models to NeMo Tron format."""
 
-    def init_hf_model(self):
+    def init_hf_model(self) -> Any:
+        """Initialize the source Hugging Face Qwen2 model.
+
+        Returns:
+            The initialized Hugging Face Qwen2 model instance.
+        """
         from transformers import AutoModelForCausalLM
 
         return AutoModelForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto", trust_remote_code=True)
@@ -76,6 +81,11 @@ class HFQwen2Importer(BaseImporter):
 
     @property
     def hf_config(self) -> "HFQwen2Config":
+        """Load and return the Hugging Face Qwen2Config from the input path.
+
+        Returns:
+            The loaded Hugging Face Qwen2Config instance.
+        """
         from transformers import Qwen2Config as HFQwen2Config
 
         if self._hf_config is not None:
@@ -85,13 +95,12 @@ class HFQwen2Importer(BaseImporter):
 
     @property
     def tron_config(self) -> Qwen2Config:
-        """Create a NeMo Qwen2Config from the HF model config.
+        """Generate NeMo Qwen2Config from the Hugging Face configuration.
 
-        Translates the HF configuration parameters to the equivalent NeMo
-        configuration.
+        Translates the HF configuration parameters to the equivalent NeMo configuration.
 
         Returns:
-            Qwen2Config: NeMo configuration for Qwen2 models
+            The NeMo Qwen2Config instance.
         """
         if self._tron_config is not None:
             return self._tron_config

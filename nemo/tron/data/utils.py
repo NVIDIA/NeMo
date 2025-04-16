@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import fields
-from typing import Callable
+from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 from megatron.core import mpu
 from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
@@ -27,19 +27,34 @@ from nemo.tron.tokenizers.tokenizer import MegatronTokenizer
 from nemo.tron.utils.common_utils import print_rank_0
 
 
-def is_dataset_built_on_rank():
+def is_dataset_built_on_rank() -> bool:
+    """Determines whether the dataset should be built on the current rank.
+
+    Datasets are typically built only on the first and last pipeline stages
+    and the first tensor parallel rank to save memory and avoid redundancy.
+
+    Returns:
+        True if the dataset should be built on the current rank, False otherwise.
+    """
     return (
         mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
     ) and mpu.get_tensor_model_parallel_rank() == 0
 
 
 def pretrain_train_valid_test_datasets_provider(
-    train_val_test_num_samples: list[int], dataset_config: BlendedMegatronDatasetConfig
-):
-    """Build the train test and validation datasets.
+    train_val_test_num_samples: List[int], dataset_config: BlendedMegatronDatasetConfig
+) -> Tuple[GPTDataset, GPTDataset, GPTDataset]:
+    """Build pretraining train, validation, and test datasets.
+
+    Uses BlendedMegatronDatasetBuilder to create GPTDataset or MockGPTDataset instances.
 
     Args:
-        train_val_test_num_samples : A list containing the number of samples in train test and validation.
+        train_val_test_num_samples: A list containing the number of samples for
+                                    train, validation, and test datasets.
+        dataset_config: Configuration object for the blended Megatron dataset.
+
+    Returns:
+        A tuple containing the train, validation, and test datasets.
     """
 
     if dataset_config.mock:
@@ -59,12 +74,20 @@ def pretrain_train_valid_test_datasets_provider(
 
 
 def hf_train_valid_test_datasets_provider(
-    train_val_test_num_samples: list[int], dataset_config: HFDatasetConfig, tokenizer: MegatronTokenizer
-):
-    """Build the train test and validation datasets.
+    train_val_test_num_samples: List[int], dataset_config: HFDatasetConfig, tokenizer: MegatronTokenizer
+) -> Tuple[Any, Any, Any]:
+    """Build train, validation, and test datasets from a Hugging Face dataset.
+
+    Uses HFDatasetBuilder to create dataset instances.
 
     Args:
-        train_val_test_num_samples : A list containing the number of samples in train test and validation.
+        train_val_test_num_samples: A list containing the number of samples for
+                                    train, validation, and test datasets.
+        dataset_config: Configuration object for the Hugging Face dataset.
+        tokenizer: The MegatronTokenizer instance.
+
+    Returns:
+        A tuple containing the train, validation, and test datasets.
     """
     print_rank_0(
         f"> building train, validation, and test datasets for Huggingface dataset {dataset_config.dataset_name} ..."
@@ -86,12 +109,20 @@ def hf_train_valid_test_datasets_provider(
 
 
 def finetuning_train_valid_test_datasets_provider(
-    train_val_test_num_samples: list[int], dataset_config: FinetuningDatasetConfig, tokenizer: MegatronTokenizer
-):
-    """Build the train test and validation datasets.
+    train_val_test_num_samples: List[int], dataset_config: FinetuningDatasetConfig, tokenizer: MegatronTokenizer
+) -> Tuple[Any, Any, Any]:
+    """Build finetuning train, validation, and test datasets.
+
+    Uses FinetuningDatasetBuilder to create dataset instances.
 
     Args:
-        train_val_test_num_samples : A list containing the number of samples in train test and validation.
+        train_val_test_num_samples: A list containing the number of samples for
+                                    train, validation, and test datasets.
+        dataset_config: Configuration object for the finetuning dataset.
+        tokenizer: The MegatronTokenizer instance.
+
+    Returns:
+        A tuple containing the train, validation, and test datasets.
     """
     print_rank_0(
         f"> building train, validation, and test datasets for Finetuning dataset from {dataset_config.dataset_root} ..."
@@ -112,7 +143,7 @@ def finetuning_train_valid_test_datasets_provider(
     return train_ds, valid_ds, test_ds
 
 
-REGISTRY = {
+_REGISTRY: Dict[Type[Union[FinetuningDatasetConfig, BlendedMegatronDatasetConfig, HFDatasetConfig]], Callable] = {
     GPTDatasetConfig: pretrain_train_valid_test_datasets_provider,
     HFDatasetConfig: hf_train_valid_test_datasets_provider,
     FinetuningDatasetConfig: finetuning_train_valid_test_datasets_provider,
@@ -120,6 +151,14 @@ REGISTRY = {
 
 
 def get_dataset_provider(
-    dataset_config: FinetuningDatasetConfig | BlendedMegatronDatasetConfig | HFDatasetConfig,
+    dataset_config: Union[FinetuningDatasetConfig, BlendedMegatronDatasetConfig, HFDatasetConfig],
 ) -> Callable:
-    return REGISTRY[type(dataset_config)]
+    """Get the appropriate dataset provider function based on the config type.
+
+    Args:
+        dataset_config: The dataset configuration object.
+
+    Returns:
+        The callable dataset provider function corresponding to the config type.
+    """
+    return _REGISTRY[type(dataset_config)]

@@ -15,7 +15,7 @@
 import inspect
 import time
 from functools import partial
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Dict, NamedTuple, Optional, Callable
 
 import torch
 from megatron.core.distributed import (
@@ -66,10 +66,10 @@ class SetupOutput(NamedTuple):
 
 def setup(
     cfg: ConfigContainer,
-    train_valid_test_datasets_provider,
-    get_embedding_ranks=None,
-    get_position_embedding_ranks=None,
-):
+    train_valid_test_datasets_provider: Callable[..., tuple[Optional[Any], Optional[Any], Optional[Any]]],
+    get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
+    get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
+) -> SetupOutput:
     state = GlobalState()
     state.cfg = cfg
     # TODO: Freeze state.cfg

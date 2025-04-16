@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from nemo.collections.llm.gpt.model.llama import HFLlamaExporter as _NeMo2HFLlamaExporter
 from nemo.collections.llm.gpt.model.llama import HFLlamaImporter as _NeMo2HFLlamaImporter
@@ -33,12 +33,13 @@ class HFLlamaExporter(BaseExporter):
 
     @property
     def hf_config(self) -> "HFLlamaConfig":
-        """Generate a Hugging Face Llama configuration from the NeMo model configuration.
+        """Generate Hugging Face LlamaConfig from the NeMo configuration.
 
-        This property maps NeMo configuration parameters to their Hugging Face equivalents.
+        Maps NeMo configuration parameters to their Hugging Face equivalents,
+        including handling potential rope scaling differences for Llama 3.1/3.2.
 
         Returns:
-            HFLlamaConfig: A Hugging Face Llama configuration
+            The Hugging Face LlamaConfig instance.
         """
         if self._hf_config is not None:
             return self._hf_config
@@ -79,7 +80,12 @@ class HFLlamaExporter(BaseExporter):
 class HFLlamaImporter(BaseImporter):
     """Importer for converting Hugging Face Llama models to NeMo Tron format."""
 
-    def init_hf_model(self):
+    def init_hf_model(self) -> Any:
+        """Initialize the source Hugging Face Llama model.
+
+        Returns:
+            The initialized Hugging Face Llama model instance.
+        """
         from transformers import LlamaForCausalLM
 
         return LlamaForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto")
@@ -88,6 +94,11 @@ class HFLlamaImporter(BaseImporter):
 
     @property
     def hf_config(self) -> "HFLlamaConfig":
+        """Load and return the Hugging Face LlamaConfig from the input path.
+
+        Returns:
+            The loaded Hugging Face LlamaConfig instance.
+        """
         from transformers import LlamaConfig as HFLlamaConfig
 
         if self._hf_config is not None:
@@ -97,13 +108,12 @@ class HFLlamaImporter(BaseImporter):
 
     @property
     def tron_config(self) -> LlamaConfig:
-        """Create a NeMo LlamaConfig from the HF model config.
+        """Generate NeMo LlamaConfig from the Hugging Face configuration.
 
-        Translates the HF configuration parameters to the equivalent NeMo
-        configuration.
+        Translates the HF configuration parameters to the equivalent NeMo configuration.
 
         Returns:
-            LlamaConfig: NeMo configuration for Llama models
+            The NeMo LlamaConfig instance.
         """
         if self._tron_config is not None:
             return self._tron_config

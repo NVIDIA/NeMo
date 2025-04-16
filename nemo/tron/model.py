@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Union
+
 import torch
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.distributed import (
@@ -21,7 +23,7 @@ from megatron.core.distributed import (
 )
 from megatron.core.enums import ModelType
 from megatron.core.fp8_utils import is_float8tensor
-from megatron.core.transformer.module import Float16Module
+from megatron.core.transformer.module import Float16Module, MegatronModule
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
@@ -34,11 +36,24 @@ def get_model_from_config(
     use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
     data_parallel_random_init: bool = True,
-):
-    # This method should only be called after `init_distributed()`.
-    # model_provider_func is equivalent to llm.gpt.GPTConfig.configure_model()
-    # model_type is inferred from the model_config class
+) -> List[MegatronModule]:
+    """Get a model from the given configuration.
 
+    This method should only be called after `init_distributed()`.
+    model_provider_func is equivalent to llm.gpt.GPTConfig.configure_model()
+    model_type is inferred from the model_config class
+
+    Args:
+        model_config: The model configuration
+        ddp_config: The distributed data parallel configuration
+        overlap_param_gather_with_optimizer_step: Whether to overlap parameter gathering with optimizer step
+        use_torch_fsdp2: Whether to use PyTorch's Fully Sharded Data Parallel 2
+        wrap_with_ddp: Whether to wrap the model with DistributedDataParallel
+        data_parallel_random_init: Whether to initialize data parallel ranks with random seeds
+
+    Returns:
+        List of model modules, potentially wrapped with DistributedDataParallel or TorchFullyShardedDataParallel
+    """
     model_type = _get_model_type(model_config)
     if (
         parallel_state.get_pipeline_model_parallel_world_size() > 1

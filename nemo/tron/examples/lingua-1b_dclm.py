@@ -20,7 +20,6 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections import llm
-from nemo.tron.api import megatron_pretrain
 from nemo.tron.config import (
     CheckpointConfig,
     ConfigContainer,
@@ -33,6 +32,7 @@ from nemo.tron.config import (
 )
 from nemo.tron.data.loaders import get_blend_and_blend_per_split
 from nemo.tron.llm.gpt import forward_step
+from nemo.tron.pretrain import megatron_pretrain
 
 if __name__ == "__main__":
     global_batch_size = 256
