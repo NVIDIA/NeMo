@@ -417,9 +417,6 @@ def save_checkpoint(
                                          before consistency checks in distributed checkpointing.
     """
 
-    import logging
-
-    logging.critical(f"Saving checkpoint at iteration {state.train_state.step:7d}")
     train_state = state.train_state
     start_ckpt = time()
     cfg = state.cfg
@@ -648,7 +645,6 @@ def save_checkpoint(
             train_state_dict = train_state.state_dict()
 
             def train_state_finalize_fn():
-                logging.critical(f"Finalizing checkpoint from iteration {train_state.step:7d}, saving to {train_state_global_filename}")
                 train_state_dict["floating_point_operations_so_far"] = torch.tensor(
                     num_floating_point_operations_so_far, dtype=torch.float32
                 )
@@ -667,7 +663,6 @@ def save_checkpoint(
                         f"Saved async checkpoint\tIteration: {train_state_dict['step'].item()}",
                         barrier=False,
                     )
-                logging.critical(f"Saved train state from iteration {train_state.step:7d} to {train_state_global_filename}")
 
 
         if ckpt_cfg.async_save:
@@ -705,7 +700,6 @@ def save_checkpoint(
     logger.debug(f"rank: {rank}, takes {end_misc - start_misc} to finalize ckpt save ")
 
     fault_tolerance.on_checkpointing_end(global_state=state, is_async_finalization=False)
-    logging.critical(f"Checkpoint saved at iteration {state.train_state.step:7d} to {save_dir}")
 
 
 def cleanup_old_non_persistent_checkpoint(save_dir: str, leave_ckpt_num: int = 1, do_async: bool = False) -> None:
