@@ -118,6 +118,7 @@ class TestMockTrain:
                 logger_config=LoggerConfig(
                     log_interval=1,
                     tensorboard_dir=tensorboard_dir,
+                    logging_level=20,
                 ),
                 tokenizer_config=TokenizerConfig(
                     tokenizer_type="NullTokenizer",
@@ -136,21 +137,27 @@ class TestMockTrain:
             megatron_pretrain(cfg, forward_step)
 
             # Check for the latest checkpoint tracker file
-            latest_tracker_file = os.path.join(checkpoint_dir, "latest_train_state.pt")
-            assert os.path.exists(latest_tracker_file), "Latest checkpoint tracker file not found"
+            if torch.distributed.get_rank() == 0:
+                latest_tracker_file = os.path.join(checkpoint_dir, "latest_train_state.pt")
+                assert os.path.exists(latest_tracker_file), "Latest checkpoint tracker file not found"
 
-            # Check for the final checkpoint directory (should be iter_0000020)
-            final_iter_dir = os.path.join(checkpoint_dir, f"iter_{total_iters:07d}")
-            assert os.path.exists(final_iter_dir), f"Final checkpoint directory not found at {final_iter_dir}"
+                # Check for the final checkpoint directory (should be iter_0000020)
+                final_iter_dir = os.path.join(checkpoint_dir, f"iter_{total_iters:07d}")
+                assert os.path.exists(final_iter_dir), f"Final checkpoint directory not found at {final_iter_dir}"
 
-            # For distributed checkpoints, check for the metadata file
-            metadata_file = os.path.join(final_iter_dir, ".metadata")
-            assert os.path.exists(metadata_file), "Checkpoint metadata file not found"
+                # For distributed checkpoints, check for the metadata file
+                metadata_file = os.path.join(final_iter_dir, ".metadata")
+                assert os.path.exists(metadata_file), "Checkpoint metadata file not found"
 
         finally:
             # pytest's tmp_path fixture doesn't clean up immediately.
             # Clean up manually.
-            if os.path.exists(checkpoint_dir):
-                shutil.rmtree(checkpoint_dir)
-            if os.path.exists(tensorboard_dir):
-                shutil.rmtree(tensorboard_dir)
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+                if torch.distributed.get_rank() == 0:
+                    if os.path.exists(checkpoint_dir):
+                        shutil.rmtree(checkpoint_dir)
+                    if os.path.exists(tensorboard_dir):
+                        shutil.rmtree(tensorboard_dir)
+                torch.distributed.barrier()
+                torch.distributed.destroy_process_group()
