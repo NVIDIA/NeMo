@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Tuple
 
 import torch
 from megatron.core import parallel_state

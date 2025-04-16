@@ -49,10 +49,9 @@ import json
 import os
 import random
 import signal
-import sys
 import threading
 import time
-from typing import List, Optional
+from typing import List
 
 import torch
 
@@ -60,8 +59,8 @@ from nemo.tron.config import ConfigContainer, FaultToleranceConfig
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import get_rank_safe, print_rank_0
 
-_NUM_WARMUP_ITERS = 1
-_MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE = 16
+_NUM_WARMUP_ITERS: int = 1
+_MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE: int = 16
 
 
 def setup(config: ConfigContainer, global_state: GlobalState) -> None:

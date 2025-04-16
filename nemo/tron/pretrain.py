@@ -30,7 +30,7 @@ def megatron_pretrain(
 ):
     config.validate()
 
-    ## SETUP ##
+    # SETUP
     if dataset_provider is None:
         dataset_provider = get_dataset_provider(config.dataset_config)
 
@@ -44,7 +44,7 @@ def megatron_pretrain(
     test_data_iterator = setup_output.test_data_iterator
     ckpt_context = setup_output.checkpointing_context
 
-    ## TRAINING ##
+    # TRAINING
     if not config.train_config.skip_train:
         print_rank_0("training ...")
         if state.train_state.do_train and config.train_config.train_iters > 0:
@@ -76,7 +76,8 @@ def megatron_pretrain(
         print_rank_0("skipping training ...")
 
     iteration = state.train_state.step
-    ## VALIDATION ##
+
+    # VALIDATION
     if state.train_state.do_valid:
         prefix = f"iteration {iteration} on validation set"
         evaluate_and_print_results(

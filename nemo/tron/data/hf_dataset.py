@@ -38,7 +38,7 @@ class ProcessExampleOutput(TypedDict):
 
     input: str
     output: str
-    original_answers: list[str]
+    original_answers: List[str]
 
 
 class ProcessExampleFn(Protocol):

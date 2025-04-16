@@ -16,7 +16,6 @@ import logging
 import os
 import socket
 from abc import ABC, abstractmethod
-from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
 
@@ -437,6 +436,7 @@ class BaseExporter(ABC):
             An initialized Hugging Face AutoModelForCausalLM instance.
         """
         from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
             return AutoModelForCausalLM.from_config(self.hf_config, torch_dtype=dtype)
