@@ -38,7 +38,9 @@ class TestLlama33NemotronSuper49B:
         assert model_config.config.seq_length == 8192
 
     def test_pretrain_recipe(self, recipe_module):
-        with pytest.raises(NotImplementedError, match='Llama33 Nemotron Super model is a distilled model based on Llama33-70B'):
+        with pytest.raises(
+            NotImplementedError, match='Llama33 Nemotron Super model is a distilled model based on Llama33-70B'
+        ):
             recipe_module.pretrain_recipe()
 
     def test_finetune_recipe_no_peft(self, recipe_module):
