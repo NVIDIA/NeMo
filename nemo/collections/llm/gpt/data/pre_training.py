@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
 import lightning.pytorch as pl
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from megatron.core.datasets.gpt_dataset import GPTDataset
 from megatron.core.datasets.megatron_dataset import MegatronDataset
 from torch.utils import data
