@@ -16,7 +16,7 @@ import abc
 import logging
 import os
 from itertools import chain
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 
 import torch
 from lightning.pytorch.overrides.distributed import _IndexBatchSamplerWrapper
@@ -37,8 +37,10 @@ def create_dataloader(
 
 def setup_microbatch_calculator(
     global_rank: int,
+    data_parallel_size: int,
     micro_batch_size: int,
     global_batch_size: int,
+    global_batch_split_range: Optional[Tuple[int, int]] = None,
     rampup_batch_size: Optional[List[int]] = None,
 ) -> None:
     """
@@ -96,12 +98,19 @@ def setup_microbatch_calculator(
     if MCORE_MB_CALCULATOR:
         from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
+        if global_batch_split_range is not None:
+            global_batch_size_split = global_batch_split_range[1] - global_batch_split_range[0]
+        else:
+            data_parallel_size = app_state.data_parallel_size
+            global_batch_size_split = global_batch_size
+
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             init_num_microbatches_calculator(
                 rank=init_global_rank,
                 global_batch_size=global_batch_size,
+                global_batch_size_split=global_batch_size_split,
                 micro_batch_size=micro_batch_size,
-                data_parallel_size=app_state.data_parallel_size,
+                data_parallel_size=data_parallel_size,
                 rampup_batch_size=rampup_batch_size,
                 decrease_batch_size_if_needed=False,
             )
@@ -109,10 +118,14 @@ def setup_microbatch_calculator(
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
                 assert get_current_global_batch_size() == global_batch_size
                 assert get_micro_batch_size() == micro_batch_size
-                assert get_num_microbatches() == global_batch_size // (micro_batch_size * app_state.data_parallel_size)
+                assert get_num_microbatches() == global_batch_size_split // (micro_batch_size * data_parallel_size)
             else:
                 raise Exception("Microbatch calculator already initialized.")
     else:
+        assert (
+            global_batch_split_range is None
+        ), "global_batch_split_range is not supported for Apex num_microbatches_calculator!"
+
         from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
@@ -137,6 +150,7 @@ def add_megatron_sampler(
     dataloader: DataLoader,
     micro_batch_size: int,
     global_batch_size: int,
+    global_batch_split_range: Optional[Tuple[int, int]] = None,
     rampup_batch_size: Optional[List[int]] = None,
     consumed_samples: int = 0,
     dataloader_type: Literal["single", "cyclic", "batch"] = "single",
@@ -156,6 +170,8 @@ def add_megatron_sampler(
         dataloader (DataLoader): The original PyTorch DataLoader to wrap.
         micro_batch_size (int): The size of each micro-batch.
         global_batch_size (int): The effective size of the training batch across all data parallel devices.
+        global_batch_split_range (Optional[Tuple[int, int]]): The global batch size split for the world range
+            where the current GPU belongs to.
         rampup_batch_size (Optional[List[int]]): A list of target batch sizes for a gradual
             rampup schedule during training (optional).
         consumed_samples (int, optional): The number of samples consumed before
@@ -185,6 +201,7 @@ def add_megatron_sampler(
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
+            global_batch_split_range=global_batch_split_range,
             rampup_batch_size=rampup_batch_size,
             data_parallel_rank=rank,
             data_parallel_size=world_size,
@@ -251,6 +268,7 @@ class BaseMegatronSampler:
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
+        global_batch_split_range: Optional[Tuple[int, int]] = None,
         rampup_batch_size: Optional[list] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
     ) -> None:
@@ -263,13 +281,20 @@ class BaseMegatronSampler:
             raise RuntimeError(f"data parallel size must be greater than 0, but {data_parallel_size}")
         if data_parallel_rank >= data_parallel_size:
             raise RuntimeError(
-                f"data_parallel_rank should be smaller than data size, but {data_parallel_rank} >= {data_parallel_size}"
+                f"data_parallel_rank should be smaller than data size, \
+                but {data_parallel_rank} >= {data_parallel_size}"
             )
-        if global_batch_size is not None and rampup_batch_size is None:
-            if global_batch_size % (micro_batch_size * data_parallel_size) != 0:
+
+        if global_batch_split_range is not None:
+            global_batch_size_split = global_batch_split_range[1] - global_batch_split_range[0]
+        else:
+            global_batch_size_split = global_batch_size
+
+        if global_batch_size_split is not None and rampup_batch_size is None:
+            if global_batch_size_split % (micro_batch_size * data_parallel_size) != 0:
                 raise RuntimeError(
-                    f"`global_batch_size` ({global_batch_size}) is not divisible by "
-                    f"`micro_batch_size ({micro_batch_size}) x data_parallel_size "
+                    f"`global_batch_size_split` ({global_batch_size_split}) "
+                    f"is not divisible by `micro_batch_size ({micro_batch_size}) x data_parallel_size "
                     f"({data_parallel_size})`"
                 )
         if pad_samples_to_global_batch_size and global_batch_size is None:
@@ -286,6 +311,7 @@ class BaseMegatronSampler:
         self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
         self.drop_last = drop_last
         self.global_batch_size = global_batch_size
+        self.global_batch_split_range = global_batch_split_range
         self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
 
         logging.info(
@@ -319,6 +345,7 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
+        global_batch_split_range: Optional[Tuple[int, int]] = None,
         rampup_batch_size: Optional[list] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
     ):
@@ -330,6 +357,7 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
             data_parallel_size=data_parallel_size,
             drop_last=drop_last,
             global_batch_size=global_batch_size,
+            global_batch_split_range=global_batch_split_range,
             rampup_batch_size=rampup_batch_size,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
@@ -351,11 +379,23 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
             indices = chain(indices, pad_indices)
 
         for idx in indices:
-            batch.append(idx)
-            if len(batch) == self.micro_batch_times_data_parallel_size:
-                start_idx, end_idx = self.get_start_end_idx()
-                yield batch[start_idx:end_idx]
-                batch = []
+            if self.global_batch_split_range is not None:
+                if (
+                    self.global_batch_split_range[0]
+                    <= (idx % self.global_batch_size)
+                    < self.global_batch_split_range[1]
+                ):
+                    batch.append(idx)
+                    if len(batch) == self.micro_batch_times_data_parallel_size:
+                        start_idx, end_idx = self.get_start_end_idx()
+                        yield batch[start_idx:end_idx]
+                        batch = []
+            else:
+                batch.append(idx)
+                if len(batch) == self.micro_batch_times_data_parallel_size:
+                    start_idx, end_idx = self.get_start_end_idx()
+                    yield batch[start_idx:end_idx]
+                    batch = []
 
         # Check the last partial batch and see drop_last is set
         if len(batch) > 0 and not self.drop_last:
@@ -376,9 +416,14 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         data_parallel_size: int,
         drop_last: bool = True,
         global_batch_size: Optional[int] = None,
+        global_batch_split_range: Optional[Tuple[int, int]] = None,
         pad_samples_to_global_batch_size: Optional[bool] = False,
         seed: int = 0,
     ) -> None:
+        assert (
+            global_batch_split_range is None
+        ), "`MegatronPretrainingRandomSampler` does not support global_batch_split_range!"
+
         super().__init__(
             total_samples=total_samples,
             consumed_samples=consumed_samples,
@@ -387,6 +432,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
             data_parallel_size=data_parallel_size,
             drop_last=drop_last,
             global_batch_size=global_batch_size,
+            global_batch_split_range=global_batch_split_range,
             pad_samples_to_global_batch_size=pad_samples_to_global_batch_size,
         )
         assert (
@@ -394,8 +440,10 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         ), "`MegatronPretrainingRandomSampler` does not support sample padding"
         if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
             raise RuntimeError(
-                "`MegatronPretrainingRandomSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
-                  please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
+                "`MegatronPretrainingRandomSampler` does not support drop_last=False when \
+                micro_batch_size * data_parallel_size > 1. Please reduce your MBS and \
+                data parallelism to 1 if you want to use drop_last=False, or switch to \
+                drop_last=True to avoid this error"
             )
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
         self.seed = seed
