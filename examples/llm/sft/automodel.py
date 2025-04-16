@@ -36,7 +36,14 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
 def make_squad_hf_dataset(
-    tokenizer, micro_batch_size, seq_length, packed_sequence_size, limit_dataset_samples=None, fp8=False, num_replicas=1, rank=0
+    tokenizer,
+    micro_batch_size,
+    seq_length,
+    packed_sequence_size,
+    limit_dataset_samples=None,
+    fp8=False,
+    num_replicas=1,
+    rank=0,
 ):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -74,7 +81,7 @@ def make_squad_hf_dataset(
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
             pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
             num_replicas=num_replicas,
-            rank=rank,            
+            rank=rank,
         )
     else:
         datamodule = llm.HFDatasetDataModule(
@@ -253,9 +260,14 @@ def main():
         default=None,
         help='If set will limit num of dataset samples. Default None (disabled)',
     )
-    parser.add_argument('--packed-sequence-size', type=int, default=-1, help='If a positive integer, this arg'
-    'enables training with sequence packing in case of HFDatasetDataModule class and specifies the pack size.'
-    'If less than or equal to 0, sequence packing is disabled.')
+    parser.add_argument(
+        '--packed-sequence-size',
+        type=int,
+        default=-1,
+        help='If a positive integer, this arg'
+        'enables training with sequence packing in case of HFDatasetDataModule class and specifies the pack size.'
+        'If less than or equal to 0, sequence packing is disabled.',
+    )
 
     args = parser.parse_args()
 
