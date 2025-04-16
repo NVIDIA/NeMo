@@ -16,6 +16,7 @@ import math
 from collections import OrderedDict
 from dataclasses import dataclass
 
+from rotary_embedding_torch import RotaryEmbedding
 import torch
 import torch.distributed
 import torch.nn as nn
@@ -255,7 +256,7 @@ class Block(nn.Module):
         self.query = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.value = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.att_c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
-
+        self.rotary_emb = RotaryEmbedding(dim =config.n_embd // config.n_head)
         self.c_fc = nn.Linear(config.n_embd, 2 * 4 * config.n_embd, bias=config.bias)
         self.silu = nn.SiLU()
         self.mlp_c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
@@ -301,9 +302,11 @@ class Block(nn.Module):
         q = q.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
         k = k.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
         v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
+        q = q.transpose(2, 1)
+        k = k.transpose(2, 1)
 
-        sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head, device=q.device)
-        q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
+        q = self.rotary_emb.rotate_queries_or_keys(q)
+        k = self.rotary_emb.rotate_queries_or_keys(k)
         q = q.transpose(2, 1)
         k = k.transpose(2, 1)
 
