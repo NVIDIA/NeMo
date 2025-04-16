@@ -36,12 +36,8 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    try:
-        api.deploy(
-            nemo_checkpoint=args.nemo2_ckpt_path,
-            max_batch_size=args.max_batch_size,
-            triton_model_repository=args.trtllm_dir,
-        )
-    except Exception as e:
-        logging.error(f"Deploy process encountered an error: {e}")
-    logging.info("Deploy process terminated.")
+    api.deploy(
+        nemo_checkpoint=args.nemo2_ckpt_path,
+        max_batch_size=args.max_batch_size,
+        triton_model_repository=args.trtllm_dir,
+    )
