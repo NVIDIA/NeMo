@@ -120,11 +120,7 @@ def train(
 
     prof = None
     prof_config = config.profiling_config
-    if (
-        prof_config
-        and torch.distributed.get_rank() in prof_config.profile_ranks
-        and prof_config.use_pytorch_profiler
-    ):
+    if prof_config and torch.distributed.get_rank() in prof_config.profile_ranks and prof_config.use_pytorch_profiler:
         prof = torch.profiler.profile(
             schedule=torch.profiler.schedule(
                 wait=max(prof_config.profile_step_start - 1, 0),
@@ -164,13 +160,11 @@ def train(
     while global_state.train_state.step < train_config.train_iters:
         if prof_config and torch.distributed.get_rank() in prof_config.profile_ranks:
             if prof_config.use_pytorch_profiler:
-                    prof.step()
+                prof.step()
             if prof_config.use_nsys_profiler:
                 if global_state.train_state.step == prof_config.profile_step_start:
                     torch.cuda.check_error(torch.cuda.cudart().cudaProfilerStart())
-                    torch.autograd.profiler.emit_nvtx(
-                        record_shapes=prof_config.record_shapes
-                    ).__enter__()
+                    torch.autograd.profiler.emit_nvtx(record_shapes=prof_config.record_shapes).__enter__()
 
         fault_tolerance.on_checkpointing_start(global_state)
         maybe_finalize_async_save(ckpt_cfg=config.checkpoint_config, blocking=False)
