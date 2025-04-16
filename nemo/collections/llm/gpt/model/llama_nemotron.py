@@ -352,7 +352,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
                         'Unknown target model. Currently only support exporting Llama-Nemotron Nano/Super/Ultra models.'
                     )
 
-        target = self.init(torch.bfloat16, target_model_name)
+        target = self.init(torch_dtype_from_mcore_config(source.config), target_model_name)
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -475,6 +475,6 @@ __all__ = [
     "LlamaNemotronModel",
     "Llama31NemotronNano8BConfig",
     "Llama33NemotronSuper49BConfig",
-    "Llama33NemotronUltra253BConfiga",
+    "Llama33NemotronUltra253BConfig",
     "Llama31Nemotron70BConfig",
 ]
