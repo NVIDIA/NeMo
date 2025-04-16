@@ -702,6 +702,23 @@ def save_checkpoint_and_time(
     non_persistent_ckpt: bool = False,
     train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]] = None,
 ) -> None:
+    """Saves a checkpoint and logs the timing.
+
+    Wraps the `save_checkpoint` function with timers and potentially disables/
+    enables forward pre-hooks if distributed optimizer with overlapped parameter
+    gather is used.
+
+    Args:
+        state: The global state object.
+        model: List of model chunks (MegatronModule instances).
+        optimizer: The optimizer instance.
+        opt_param_scheduler: The optimizer parameter scheduler instance.
+        num_floating_point_operations_so_far: Cumulative TFLOPs up to this point.
+        checkpointing_context: Dictionary holding checkpointing-related state.
+        non_persistent_ckpt: Flag indicating if this is a non-persistent
+                             (local) checkpoint. Defaults to False.
+        train_data_iterator: Optional training data iterator to save its state.
+    """
     timers = state.timers
 
     # Stop timer to get accurate train interval time and exclude checkpointing duration
