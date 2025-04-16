@@ -21,7 +21,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections import llm
-from nemo.tron.api import megatron_pretrain
+from nemo.tron.pretrain import megatron_pretrain
 from nemo.tron.config import (
     CheckpointConfig,
     ConfigContainer,
@@ -34,6 +34,7 @@ from nemo.tron.config import (
 )
 from nemo.tron.llm.gpt import forward_step
 
+import logging
 
 class TestMockTrain:
     @pytest.mark.run_only_on('GPU')  # Standard pattern in NeMo tests for GPU-only tests
@@ -128,6 +129,7 @@ class TestMockTrain:
                     save=checkpoint_dir,
                     ckpt_format="torch_dist",
                     fully_parallel_save=True,
+                    # async_save=True,
                 ),
                 rng_config=RNGConfig(seed=1234),
             )
@@ -135,6 +137,9 @@ class TestMockTrain:
             # Run training
             megatron_pretrain(cfg, forward_step)
 
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            
             # Check for the latest checkpoint tracker file
             if torch.distributed.get_rank() == 0:
                 latest_tracker_file = os.path.join(checkpoint_dir, "latest_train_state.pt")
@@ -147,6 +152,9 @@ class TestMockTrain:
                 # For distributed checkpoints, check for the metadata file
                 metadata_file = os.path.join(final_iter_dir, ".metadata")
                 assert os.path.exists(metadata_file), "Checkpoint metadata file not found"
+
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
         finally:
             # pytest's tmp_path fixture doesn't clean up immediately.

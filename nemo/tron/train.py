@@ -17,8 +17,10 @@ import os
 import sys
 import time
 from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
+import torch.profiler
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as DDP
 from megatron.core.num_microbatches_calculator import (
@@ -27,8 +29,11 @@ from megatron.core.num_microbatches_calculator import (
     get_num_microbatches,
     update_num_microbatches,
 )
+from megatron.core.optimizer import MegatronOptimizer
+from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
 from megatron.core.pipeline_parallel import get_forward_backward_func
-from megatron.core.rerun_state_machine import get_rerun_state_machine
+from megatron.core.rerun_state_machine import RerunDataIterator, get_rerun_state_machine
+from megatron.core.transformer import MegatronModule
 from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model_config
 
 from nemo.tron import fault_tolerance
@@ -51,17 +56,34 @@ from nemo.tron.utils.train_utils import (
 
 
 def train(
-    forward_step_func,
-    model,
-    optimizer,
-    scheduler,
-    train_data_iterator,
-    valid_data_iterator,
+    forward_step_func: Callable,
+    model: List[MegatronModule],
+    optimizer: MegatronOptimizer,
+    scheduler: OptimizerParamScheduler,
+    train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
+    valid_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
     global_state: GlobalState,
-    checkpointing_context,
-    process_non_loss_data_func=None,
-    non_loss_data_func=None,
-):
+    checkpointing_context: Dict[str, Any],
+    process_non_loss_data_func: Optional[Callable] = None,
+    non_loss_data_func: Optional[Callable] = None,
+) -> None:
+    """Main training loop.
+
+    Handles the overall training process, including the iteration loop,
+    calling train_step, evaluation, checkpointing, logging, and exit conditions.
+
+    Args:
+        forward_step_func: Callable that executes a single forward step.
+        model: List of model chunks (potentially wrapped in DDP).
+        optimizer: The optimizer instance.
+        scheduler: The learning rate scheduler instance.
+        train_data_iterator: Iterator for the training dataset.
+        valid_data_iterator: Iterator for the validation dataset.
+        global_state: The GlobalState object holding various training states.
+        checkpointing_context: Context dictionary for checkpointing.
+        process_non_loss_data_func: Optional function to process non-loss data during evaluation.
+        non_loss_data_func: Optional function to compute non-loss data during evaluation.
+    """
     config: ConfigContainer = global_state.cfg
     model_config = get_model_config(model[0])
     train_config = config.train_config
@@ -379,15 +401,35 @@ def train(
 
 
 def train_step(
-    forward_step_func,
-    num_fw_args,
-    data_iterator,
-    model,
-    optimizer,
-    scheduler,
+    forward_step_func: Callable,
+    num_fw_args: int,
+    data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
+    model: List[MegatronModule],
+    optimizer: MegatronOptimizer,
+    scheduler: OptimizerParamScheduler,
     global_state: GlobalState,
-):
-    """Single training step."""
+) -> Tuple[Dict[str, torch.Tensor], int, bool, bool, int, Optional[float], Optional[int]]:
+    """Single training step.
+
+    Args:
+        forward_step_func: Function that performs a forward step
+        num_fw_args: Number of arguments expected by forward_step_func
+        data_iterator: Iterator over training data
+        model: List of model chunks
+        optimizer: Optimizer for model parameters
+        scheduler: Learning rate scheduler
+        global_state: Global training state
+
+    Returns:
+        Tuple containing:
+        - loss_dict: Dictionary of reduced losses
+        - skipped_iter: Whether the iteration was skipped (1) or not (0)
+        - should_checkpoint: Whether a checkpoint should be saved
+        - should_exit: Whether training should exit
+        - exit_code: Exit code if should_exit is True
+        - grad_norm: Gradient norm if available, None otherwise
+        - num_zeros_in_grad: Number of zeros in gradient if available, None otherwise
+    """
     cfg: ConfigContainer = global_state.cfg
     timers = global_state.timers
     model_config = get_model_config(model[0])
@@ -474,15 +516,25 @@ def train_step(
 
 
 def post_training_step_callbacks(
-    model,
-    num_floating_point_operations_since_last_log_event,
-    straggler_timer,
-    iteration,
-    prof,
+    model: List[MegatronModule],
+    num_floating_point_operations_since_last_log_event: float,
+    straggler_timer: Any,
+    iteration: int,
+    prof: Optional[torch.profiler.profile],
     config: ConfigContainer,
     should_toggle_forward_pre_hook: bool,
-):
-    """Run all post-training-step functions (e.g., FT heartbeats, GC)."""
+) -> None:
+    """Run all post-training-step functions (e.g., FT heartbeats, GC).
+
+    Args:
+        model: List of model chunks wrapped in DDP
+        num_floating_point_operations_since_last_log_event: Number of floating point operations since last log
+        straggler_timer: Timer for straggler detection
+        iteration: Current training iteration
+        prof: PyTorch profiler instance
+        config: Configuration container
+        should_toggle_forward_pre_hook: Whether to toggle forward pre-hook
+    """
     train_config = config.train_config
 
     # Bring CPU and GPU back in sync if on right iteration.
@@ -531,19 +583,30 @@ def post_training_step_callbacks(
             gc.collect()
 
 
-def enable_forward_pre_hook(model_chunks):
-    for model_chunk in model_chunks:
+def enable_forward_pre_hook(model: List[DDP]) -> None:
+    """Enable forward pre-hook for all model chunks.
+
+    Args:
+        model: List of model chunks wrapped in DDP
+    """
+    for model_chunk in model:
         assert isinstance(model_chunk, DDP)
         model_chunk.enable_forward_pre_hook()
 
 
-def disable_forward_pre_hook(model_chunks, param_sync=True):
-    for model_chunk in model_chunks:
+def disable_forward_pre_hook(model: List[DDP], param_sync: bool = True) -> None:
+    """Disable forward pre-hook for all model chunks.
+
+    Args:
+        model: List of model chunks wrapped in DDP
+        param_sync: Whether to synchronize parameters across model chunks
+    """
+    for model_chunk in model:
         assert isinstance(model_chunk, DDP)
         model_chunk.disable_forward_pre_hook(param_sync=param_sync)
 
 
-def get_start_time_from_progress_log(cfg: ConfigContainer):
+def get_start_time_from_progress_log(cfg: ConfigContainer) -> Tuple[datetime, float]:
     """
     Gets start time of earliest job with same world size. Also returns the number
     of floating-point operations completed in last saved checkpoint.
@@ -585,7 +648,19 @@ def get_start_time_from_progress_log(cfg: ConfigContainer):
     return datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S"), start_num_floating_point_operations
 
 
-def compute_throughputs_and_append_to_progress_log(state: GlobalState, num_floating_point_operations_so_far):
+def compute_throughputs_and_append_to_progress_log(
+    state: GlobalState, num_floating_point_operations_so_far: float
+) -> None:
+    """Computes job and cumulative throughputs and appends to progress log.
+
+    Calculates TFLOP/s/GPU based on floating-point operations and elapsed time.
+    Appends the computed throughputs, total FLOPs, and processed tokens to the
+    progress log file.
+
+    Args:
+        state: The GlobalState object.
+        num_floating_point_operations_so_far: Total floating-point operations completed.
+    """
     if state.cfg.checkpoint_config.save is None:
         return
 
@@ -619,14 +694,14 @@ def compute_throughputs_and_append_to_progress_log(state: GlobalState, num_float
 
 def save_checkpoint_and_time(
     state: GlobalState,
-    model,
-    optimizer,
-    opt_param_scheduler,
-    num_floating_point_operations_so_far,
-    checkpointing_context,
-    non_persistent_ckpt=False,
-    train_data_iterator=None,
-):
+    model: List[MegatronModule],
+    optimizer: MegatronOptimizer,
+    opt_param_scheduler: OptimizerParamScheduler,
+    num_floating_point_operations_so_far: float,
+    checkpointing_context: Dict[str, Any],
+    non_persistent_ckpt: bool = False,
+    train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]] = None,
+) -> None:
     timers = state.timers
 
     # Stop timer to get accurate train interval time and exclude checkpointing duration
@@ -661,16 +736,16 @@ def save_checkpoint_and_time(
 
 def checkpoint_and_decide_exit(
     state: GlobalState,
-    model,
-    optimizer,
-    opt_param_scheduler,
-    num_floating_point_operations_so_far,
-    checkpointing_context,
-    train_data_iterator,
-):
-    """Save checkpoint and decide whether to exit based on arguments (e.g., if
-    --exit-duration-in-mins is set). Actual exit happens in main training loop
-    based on the return value of this function."""
+    model: List[MegatronModule],
+    optimizer: MegatronOptimizer,
+    opt_param_scheduler: OptimizerParamScheduler,
+    num_floating_point_operations_so_far: float,
+    checkpointing_context: Dict[str, Any],
+    train_data_iterator: Optional[Union[RerunDataIterator, List[RerunDataIterator]]],
+) -> bool:
+    # Save checkpoint and decide whether to exit based on arguments (e.g., if
+    # --exit-duration-in-mins is set). Actual exit happens in main training loop
+    # based on the return value of this function."""
     # Exit based on signal handler.
     saved_checkpoint = False
 

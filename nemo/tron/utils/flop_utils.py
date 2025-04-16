@@ -17,7 +17,21 @@ import torch.nn.functional as F
 from nemo.tron.config import ConfigContainer
 
 
-def num_floating_point_operations(cfg: ConfigContainer, batch_size: int):
+def num_floating_point_operations(cfg: ConfigContainer, batch_size: int) -> float:
+    """Calculate the theoretical number of floating-point operations for a training step.
+
+    Computes the FLOPs based on model configuration (hidden size, layers, vocab size,
+    attention specifics, MLP size, MoE config) and batch size. Follows the methodology
+    described in Appendix A of https://arxiv.org/abs/2104.04473.
+
+    Args:
+        cfg (ConfigContainer): The main configuration container.
+        batch_size (int): The global batch size for the training step.
+
+    Returns:
+        float: The estimated number of floating-point operations for one training step
+               (forward + backward pass).
+    """
     # Attention projection size.
     query_projection_size = cfg.model_config.kv_channels * cfg.model_config.num_attention_heads
     query_projection_to_hidden_size_ratio = query_projection_size / cfg.model_config.hidden_size

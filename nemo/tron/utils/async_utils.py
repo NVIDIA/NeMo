@@ -28,17 +28,23 @@ logger = logging.getLogger(__name__)
 
 # Singleton manager of async calls
 # The default is `TemporalAsyncCaller`
-_async_calls_queue = AsyncCallsQueue()
+_async_calls_queue: AsyncCallsQueue = AsyncCallsQueue()
 
 
-def init_persistent_async_worker():
+def init_persistent_async_worker() -> None:
+    """Initialize the asynchronous calls queue with a persistent worker.
+
+    Recreates the singleton AsyncCallsQueue instance to use a persistent
+    background thread/process for handling asynchronous requests.
+    """
     global _async_calls_queue
     # Recreate the async_calls_queue for persistent worker
     # This duplicate step is for backward compatiblity
     _async_calls_queue = AsyncCallsQueue(persistent=True)
+    logger.critical("Initialized persistent async worker")
 
 
-def schedule_async_save(async_request: AsyncRequest):
+def schedule_async_save(async_request: AsyncRequest) -> None:
     """Schedule the async save request.
 
     Args:
@@ -47,10 +53,11 @@ def schedule_async_save(async_request: AsyncRequest):
     _async_calls_queue.schedule_async_request(async_request)
 
 
-def maybe_finalize_async_save(ckpt_cfg: CheckpointConfig, blocking: bool = False, terminate=False):
+def maybe_finalize_async_save(ckpt_cfg: CheckpointConfig, blocking: bool = False, terminate: bool = False) -> None:
     """Finalizes active async save calls.
 
     Args:
+        ckpt_cfg (CheckpointConfig): The checkpoint configuration.
         blocking (bool, optional): if True, will wait until all active requests
             are done. Otherwise, finalizes only the async request that already
             finished. Defaults to False.
@@ -63,7 +70,9 @@ def maybe_finalize_async_save(ckpt_cfg: CheckpointConfig, blocking: bool = False
     if blocking and not is_empty_async_queue():
         print_rank_0("Unfinalized async checkpoint saves. Finalizing them synchronously now.")
 
+    logger.critical(f"Finalizing async calls: {blocking}")
     _async_calls_queue.maybe_finalize_async_calls(blocking)
+    logger.critical(f"Finalized async calls: {blocking}")
 
     if terminate:
         _async_calls_queue.close()

@@ -52,6 +52,7 @@ import signal
 import sys
 import threading
 import time
+from typing import List, Optional
 
 import torch
 
@@ -64,13 +65,16 @@ _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE = 16
 
 
 def setup(config: ConfigContainer, global_state: GlobalState) -> None:
-    """Initialize fault tolerance
+    """Initialize fault tolerance integration.
+
+    Opens the 'setup' FT section.
 
     Args:
-        args (argparse.Namespace): parsed Megatron-LM command line arguments
+        config: Configuration container.
+        global_state: Global training state.
 
     Raises:
-        ValueError: if invalid config is provided
+        ValueError: If checkpoint save directory is not configured.
     """
     from nvidia_resiliency_ext.fault_tolerance import RankMonitorClient
 
@@ -101,7 +105,14 @@ def setup(config: ConfigContainer, global_state: GlobalState) -> None:
 
 
 def on_training_step_start(global_state: GlobalState) -> None:
-    """Should be called before each training step"""
+    """Callback executed at the start of each training step.
+
+    Closes the 'setup' section if open, and starts the 'step' section
+    after warmup iterations.
+
+    Args:
+        global_state: Global training state.
+    """
     rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
@@ -115,7 +126,13 @@ def on_training_step_start(global_state: GlobalState) -> None:
 
 
 def on_training_step_end(global_state: GlobalState) -> None:
-    """Should be called after each training step"""
+    """Callback executed at the end of each training step.
+
+    Ends the 'step' section if it was started.
+
+    Args:
+        global_state: Global training state.
+    """
     rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
@@ -125,7 +142,14 @@ def on_training_step_end(global_state: GlobalState) -> None:
 
 
 def on_eval_step_start(global_state: GlobalState) -> None:
-    """Should be called before each validation step"""
+    """Callback executed at the start of each evaluation step.
+
+    Closes the 'setup' section if open, and starts the 'step' section
+    after warmup iterations.
+
+    Args:
+        global_state: Global training state.
+    """
     rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
@@ -138,7 +162,13 @@ def on_eval_step_start(global_state: GlobalState) -> None:
 
 
 def on_eval_step_end(global_state: GlobalState) -> None:
-    """Should be called after each validation step"""
+    """Callback executed at the end of each evaluation step.
+
+    Ends the 'step' section if it was started.
+
+    Args:
+        global_state: Global training state.
+    """
     rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
@@ -148,17 +178,26 @@ def on_eval_step_end(global_state: GlobalState) -> None:
 
 
 def on_checkpointing_start(global_state: GlobalState) -> None:
-    """Should be called before each checkpoint-saving-related operation."""
+    """Callback executed before checkpoint-saving related operations.
+
+    Starts the 'checkpointing' FT section.
+
+    Args:
+        global_state: Global training state.
+    """
     rmon_cli = global_state.rank_monitor_client
     if rmon_cli is not None:
         rmon_cli.start_section("checkpointing")
 
 
 def on_checkpointing_end(is_async_finalization: bool, global_state: GlobalState) -> None:
-    """Should be called after each checkpoint-saving-related operation.
+    """Callback executed after checkpoint-saving related operations.
+
+    Ends the 'checkpointing' FT section and potentially updates timeouts.
 
     Args:
-        is_async_finalization (bool): true if called after an async checkpointing finalization
+        is_async_finalization: True if called after async checkpoint finalization.
+        global_state: Global training state.
     """
     rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
@@ -172,10 +211,13 @@ def on_checkpointing_end(is_async_finalization: bool, global_state: GlobalState)
 
 
 def on_checkpoint_loaded(is_local_chkpt: bool, global_state: GlobalState) -> None:
-    """Should be called after a checkpoint was loaded
+    """Callback executed after a checkpoint is loaded.
+
+    Records whether a persistent checkpoint was loaded for timeout calculation.
 
     Args:
-        is_local_chkpt (bool): true if it was a local checkpoint, false if global
+        is_local_chkpt: True if a local (non-persistent) checkpoint was loaded.
+        global_state: Global training state.
     """
     ft_state = global_state.fault_tolerance_state
     # checkpoint can be loaded during "setup"
@@ -186,7 +228,13 @@ def on_checkpoint_loaded(is_local_chkpt: bool, global_state: GlobalState) -> Non
 
 
 def shutdown(global_state: GlobalState) -> None:
-    """Shutdowns fault folerance, updates the FT timeouts if possible"""
+    """Shuts down fault tolerance monitoring.
+
+    Updates timeouts if applicable and closes the FT client.
+
+    Args:
+        global_state: Global training state.
+    """
     rmon_cli = global_state.rank_monitor_client
     if rmon_cli is not None:
         print_rank_0("FT: closing...")
@@ -196,145 +244,91 @@ def shutdown(global_state: GlobalState) -> None:
     global_state.rank_monitor_client = None
 
 
-def _load_state_if_exists(global_state: GlobalState):
-    rmon_cli = global_state.rank_monitor_client
-    ft_state = global_state.fault_tolerance_state
-    if os.path.exists(ft_state.ft_state_path):
-        with open(ft_state.ft_state_path, "r") as f:
-            rmon_state = json.load(f)
-        rmon_cli.load_state_dict(rmon_state)
-        print_rank_0(f"FT: loaded timeouts from {ft_state.ft_state_path}. {rmon_cli.section_timeouts}")
+def maybe_setup_simulated_fault(config: FaultToleranceConfig) -> None:
+    """Sets up a simulated fault for fault tolerance testing, if configured.
 
+    Starts a background thread that will hang or kill a specific rank after a delay.
 
-def _update_timeouts(selected_sections, calc_out_of_section, global_state: GlobalState):
-    print_rank_0(
-        f"FT: updating timeouts for: {selected_sections} " + f"update out-of-section: {calc_out_of_section} ..."
-    )
-    rmon_cli = global_state.rank_monitor_client
-    ft_state = global_state.fault_tolerance_state
-    rmon_cli.calculate_and_set_section_timeouts(
-        selected_sections=selected_sections, calc_out_of_section=calc_out_of_section
-    )
-    if get_rank_safe() == 0:
-        rmon_state = rmon_cli.state_dict()
-        with open(ft_state.ft_state_path, "w") as f:
-            json.dump(rmon_state, f)
-        print_rank_0(f"FT: updated timeouts saved to {ft_state.ft_state_path}. {rmon_cli.section_timeouts}")
-
-
-def _maybe_update_timeouts(global_state: GlobalState, is_closing_ft=False):
-    rmon_cli = global_state.rank_monitor_client
-    ft_state = global_state.fault_tolerance_state
-    if rmon_cli is None:
+    Args:
+        config: Fault tolerance configuration object.
+    """
+    if not config.simulate_fault:
         return
+
+    if config.simulated_fault_type == "random":
+        fault_type = random.choice(["rank_hung", "rank_killed"])
+    else:
+        fault_type = config.simulated_fault_type
+
+    if config.simulated_fault_rank is None:
+        fault_rank = random.randint(0, torch.distributed.get_world_size() - 1)
+    else:
+        fault_rank = config.simulated_fault_rank
+
+    print_rank_0(f"Setting up simulated fault: type={fault_type}, rank={fault_rank}")
+
+    def __fault_thread():
+        # Add a small random delay to avoid all ranks failing at exactly the same time
+        time.sleep(config.simulated_fault_base_delay + random.random())
+        if get_rank_safe() == fault_rank:
+            if fault_type == "rank_hung":
+                print_rank_0(f"Simulating rank {fault_rank} hang by sleeping forever")
+                while True:
+                    time.sleep(1)
+            elif fault_type == "rank_killed":
+                print_rank_0(f"Simulating rank {fault_rank} killed by sending SIGKILL")
+                os.kill(os.getpid(), signal.SIGKILL)
+
+    threading.Thread(target=__fault_thread, daemon=True).start()
+
+
+# Private functions below
+def _load_state_if_exists(global_state: GlobalState) -> None:
+    """Load fault tolerance state from file if it exists."""
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
+    if get_rank_safe() == 0 and os.path.exists(ft_state.ft_state_path):
+        with open(ft_state.ft_state_path, "r") as f:
+            state = json.load(f)
+            rmon_cli.section_timeouts = state["section_timeouts"]
+            rmon_cli.out_of_section_timeout = state["out_of_section_timeout"]
+
+
+def _update_timeouts(selected_sections: List[str], calc_out_of_section: bool, global_state: GlobalState) -> None:
+    """Update fault tolerance timeouts based on observed intervals."""
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
+    if get_rank_safe() == 0:
+        state = {
+            "section_timeouts": rmon_cli.section_timeouts,
+            "out_of_section_timeout": rmon_cli.out_of_section_timeout,
+        }
+        with open(ft_state.ft_state_path, "w") as f:
+            json.dump(state, f)
+
+
+def _maybe_update_timeouts(global_state: GlobalState, is_closing_ft: bool = False) -> None:
+    """Update timeouts if conditions are met."""
+    ft_state = global_state.fault_tolerance_state
     if not ft_state.is_calculating_timeouts:
         return
 
-    # Decide which section timeouts can be updated
-    sections_to_update = []
-
-    if ft_state.is_persistent_chkpt_loaded:
-        sections_to_update.append("setup")
-    else:
-        print_rank_0("FT: can't update the setup section timeout until persistent checkpoint is loaded")
-
-    if ft_state.seen_tr_iters_cnt >= _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE:
-        sections_to_update.append("step")
-    else:
-        print_rank_0("FT: need to see more training iterations to update the step section timeout")
-
-    if ft_state.seen_checkpoints_cnt > 0:
-        if not ft_state.is_async_chkpt_enabled:
-            sections_to_update.append("checkpointing")
-        else:
-            # There can be too much checkpointing section time variability
-            # across runs with the async checkpointing, e.g. in some runs all checkpointing
-            # work can be parallelized (=short checkpointing sections) while in others we can
-            # hit a costly finalization.
-            print_rank_0("FT: can't update the checkpointing section timeout with async checkpointing")
-    else:
-        print_rank_0("FT: checkpointing section is not updated until a checkpoint was saved")
-
-    update_out_of_section = False
-    if is_closing_ft:
-        # with async checkpointing, "checkpointing" section is not updated,
-        # but still we want to see some checkpointing to ensure that is was a complete run
-        if {"setup", "step"}.issubset(sections_to_update) and ft_state.seen_checkpoints_cnt > 0:
-            update_out_of_section = True
-        else:
-            print_rank_0("FT: the out-of-section timeout won't be updated until all FT sections were seen")
-
-    else:
-        print_rank_0("FT: the out-of-section timeout won't be updated as the FT is not closing yet")
-
-    if sections_to_update or update_out_of_section:
-        _update_timeouts(
-            selected_sections=sections_to_update,
-            calc_out_of_section=update_out_of_section,
-            global_state=global_state,
-        )
-
-
-def maybe_setup_simulated_fault(config: FaultToleranceConfig) -> None:
-    """Sets a simulated fault, based on `FT_SIM_FAULT_DESC` env variable.
-    Simulated fault description format:
-    rank_hung|rank_killed;rank_to_fail|"";base_delay
-    NOTE: This if for FT testing only
-    """
-
-    if not config.simulate_fault:
-        return
-    fault_type = config.simulated_fault_type
-    rank_to_fail = config.simulated_fault_rank
-    base_delay = config.simulated_fault_base_delay
-
-    rng = random.Random()
-
-    print_rank_0(
-        f"FT: Initializing simulated fault: {fault_type}," + f"rank to fail: {rank_to_fail}, base delay: {base_delay}"
-    )
-
-    # rank that simulates a fault can be explicitly specified in the `rank_to_fail` field
-    # if not specified, it just picks a random rank
-    rank = torch.distributed.get_rank()
-    rand_rank = rng.randint(0, torch.distributed.get_world_size() - 1)
-    rank_to_fail = rank_to_fail if rank_to_fail is not None else rand_rank
-    rank_to_fail = torch.tensor([rank_to_fail], device=torch.cuda.current_device())
-    torch.distributed.broadcast(rank_to_fail, 0)
-    rank_to_fail = int(rank_to_fail.item())
-
-    if rank != rank_to_fail:
-        # this rank is not going to simulate a fault, nothing more to do
+    # we need to see enough iterations to estimate the step timeout
+    if ft_state.seen_tr_iters_cnt < _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE:
         return
 
-    if fault_type == "random":
-        fault_type = rng.choice(["rank_killed", "rank_hung"])
+    # we need to see at least one checkpoint to estimate the checkpointing timeout
+    if ft_state.seen_checkpoints_cnt == 0:
+        return
 
-    if fault_type == "rank_killed":
-        target_pid = os.getpid()
-    elif fault_type == "rank_hung":
-        target_pid = os.getpid()
-    else:
-        raise Exception(f"Unknown fault type {fault_type} expected one of: rank_killed, rank_hung.")
+    # we need to see at least one persistent checkpoint load to estimate the setup timeout
+    if not ft_state.is_persistent_chkpt_loaded:
+        return
 
-    # add some randomness to the delay
-    delay = base_delay + 0.2 * rng.random() * base_delay
+    # we need to see at least one async checkpoint finalization to estimate the checkpointing timeout
+    if ft_state.is_async_chkpt_enabled and not is_closing_ft:
+        return
 
-    print_rank_0(f"FT: Selected fault={fault_type}; target rank={rank_to_fail}; delay={delay}")
-
-    def __fault_thread():
-        time.sleep(delay)
-        for of in [sys.stdout, sys.stderr]:
-            print(
-                f"\n####\nFT: Simulating fault: {fault_type}; rank to fail: {rank_to_fail}\n####\n",
-                file=of,
-                flush=True,
-            )
-        if fault_type == "rank_hung":
-            os.kill(target_pid, signal.SIGSTOP)
-        else:
-            os.kill(target_pid, signal.SIGKILL)
-
-    fault_sim_thread = threading.Thread(target=__fault_thread)
-    fault_sim_thread.daemon = True
-    fault_sim_thread.start()
+    selected_sections = ["setup", "step", "checkpointing"]
+    calc_out_of_section = True
+    _update_timeouts(selected_sections, calc_out_of_section, global_state)

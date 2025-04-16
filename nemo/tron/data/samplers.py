@@ -3,16 +3,16 @@
 """Dataloaders."""
 
 import random
-from typing import Callable, Optional
+from typing import Any, Callable, Iterator, List, Optional, Tuple
 
 import numpy as np
 import torch
 from megatron.core import mpu
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 
 def build_pretraining_data_loader(
-    dataset,
+    dataset: Dataset,
     consumed_samples: int,
     dataloader_type: str,
     micro_batch_size: int,
@@ -22,8 +22,33 @@ def build_pretraining_data_loader(
     collate_fn: Optional[Callable] = None,
     pin_memory: bool = True,
     persistent_workers: bool = False,
-):
-    """Build dataloader given an input dataset."""
+) -> Optional[DataLoader]:
+    """Build a dataloader for pretraining.
+
+    Selects the appropriate sampler (MegatronPretrainingSampler or
+    MegatronPretrainingRandomSampler) based on `dataloader_type` and
+    constructs a PyTorch DataLoader.
+
+    Args:
+        dataset: The dataset to load data from.
+        consumed_samples: The number of samples already consumed (for resuming).
+        dataloader_type: Type of dataloader, 'single' or 'cyclic'. 'external' passes
+                         the dataset through directly.
+        micro_batch_size: The batch size per GPU.
+        num_workers: Number of workers for the DataLoader.
+        data_sharding: Whether data sharding is enabled (used for random sampler).
+        worker_init_fn: Optional function to initialize workers.
+        collate_fn: Optional custom collate function.
+        pin_memory: Whether to pin memory for the DataLoader.
+        persistent_workers: Whether to use persistent workers.
+
+    Returns:
+        A PyTorch DataLoader instance, or the dataset itself if dataloader_type is
+        'external', or None if the input dataset is None.
+
+    Raises:
+        Exception: If an unsupported dataloader_type is provided.
+    """
 
     if dataset is None:
         return None
@@ -55,7 +80,7 @@ def build_pretraining_data_loader(
         raise Exception("{} dataloader type is not supported.".format(dataloader_type))
 
     # Torch dataloader.
-    return torch.utils.data.DataLoader(
+    return DataLoader(
         dataset,
         batch_sampler=batch_sampler,
         num_workers=num_workers,
@@ -67,9 +92,30 @@ def build_pretraining_data_loader(
 
 
 class MegatronPretrainingSampler:
+    """Batch sampler for Megatron pretraining (sequential, non-random).
+
+    Provides indices for microbatches for a specific data parallel rank,
+    ensuring that data is processed sequentially across ranks and iterations.
+
+    Args:
+        total_samples: Total number of samples in the dataset.
+        consumed_samples: Number of samples already consumed (for resuming).
+        micro_batch_size: Batch size per GPU.
+        data_parallel_rank: Rank of the current GPU in the data parallel group.
+        data_parallel_size: Total number of GPUs in the data parallel group.
+        drop_last (bool, optional): If True, drops the last incomplete batch.
+                                  Defaults to True.
+    """
+
     def __init__(
-        self, total_samples, consumed_samples, micro_batch_size, data_parallel_rank, data_parallel_size, drop_last=True
-    ):
+        self,
+        total_samples: int,
+        consumed_samples: int,
+        micro_batch_size: int,
+        data_parallel_rank: int,
+        data_parallel_size: int,
+        drop_last: bool = True,
+    ) -> None:
         # Keep a copy of input params for later use.
         self.total_samples = total_samples
         self.consumed_samples = consumed_samples
@@ -91,15 +137,18 @@ class MegatronPretrainingSampler:
             self.data_parallel_rank, data_parallel_size
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the total number of samples."""
         return self.total_samples
 
-    def get_start_end_idx(self):
+    def get_start_end_idx(self) -> Tuple[int, int]:
+        """Calculate the start and end index for the current rank's microbatch."""
         start_idx = self.data_parallel_rank * self.micro_batch_size
         end_idx = start_idx + self.micro_batch_size
         return start_idx, end_idx
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[List[int]]:
+        """Yields lists of indices for each microbatch assigned to this rank."""
         batch = []
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):
@@ -116,18 +165,32 @@ class MegatronPretrainingSampler:
 
 
 class RandomSeedDataset(Dataset):
-    def __init__(self, dataset, seed: int):
+    """A dataset wrapper that sets the random seed based on epoch and index.
+
+    Ensures reproducibility for random operations within the dataset's __getitem__
+    when using multiple workers.
+
+    Args:
+        dataset: The base dataset to wrap.
+        seed: The base random seed.
+    """
+
+    def __init__(self, dataset: Dataset, seed: int) -> None:
+        """Initialize RandomSeedDataset."""
         self.base_seed = seed
         self.curr_seed = seed
         self.dataset = dataset
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the length of the base dataset."""
         return len(self.dataset)
 
-    def set_epoch(self, epoch):
+    def set_epoch(self, epoch: int) -> None:
+        """Set the current epoch number to adjust the random seed."""
         self.curr_seed = self.base_seed + epoch
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Any:
+        """Get an item from the dataset, setting the random seed first."""
         seed = idx + self.curr_seed
         torch.manual_seed(seed)
         random.seed(seed)
@@ -136,16 +199,32 @@ class RandomSeedDataset(Dataset):
 
 
 class MegatronPretrainingRandomSampler:
+    """Batch sampler for Megatron pretraining (randomized).
+
+    Provides indices for microbatches for a specific data parallel rank,
+    randomizing the order of samples within each epoch while supporting resumption.
+    Handles data sharding across ranks if enabled.
+
+    Args:
+        dataset: The dataset (potentially wrapped with RandomSeedDataset).
+        total_samples: Total number of samples in the dataset.
+        consumed_samples: Number of samples already consumed (for resuming).
+        micro_batch_size: Batch size per GPU.
+        data_parallel_rank: Rank of the current GPU in the data parallel group.
+        data_parallel_size: Total number of GPUs in the data parallel group.
+        data_sharding: Whether data sharding is enabled.
+    """
+
     def __init__(
         self,
-        dataset,
-        total_samples,
-        consumed_samples,
-        micro_batch_size,
-        data_parallel_rank,
-        data_parallel_size,
-        data_sharding,
-    ):
+        dataset: Dataset,
+        total_samples: int,
+        consumed_samples: int,
+        micro_batch_size: int,
+        data_parallel_rank: int,
+        data_parallel_size: int,
+        data_sharding: bool,
+    ) -> None:
         # Keep a copy of input params for later use.
         self.dataset = dataset
         self.total_samples = total_samples
@@ -167,10 +246,15 @@ class MegatronPretrainingRandomSampler:
             self.data_parallel_rank, data_parallel_size
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the total number of samples."""
         return self.total_samples
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[List[int]]:
+        """Yields lists of indices for each microbatch assigned to this rank.
+
+        Handles randomization within an epoch and data sharding.
+        """
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples

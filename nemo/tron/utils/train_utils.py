@@ -15,12 +15,14 @@
 import inspect
 from datetime import datetime
 from functools import partial
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
+import torch.nn as nn
 from megatron.core import parallel_state
 from megatron.core.num_microbatches_calculator import get_num_microbatches
 from megatron.core.tensor_parallel import param_is_not_tensor_parallel_duplicate
+from megatron.core.transformer.module import MegatronModule
 from megatron.core.utils import get_data_parallel_group_if_dtensor, to_local_if_dtensor
 
 from nemo.tron.config import ConfigContainer
@@ -47,12 +49,37 @@ except ImportError:
         from megatron.core.utils import local_multi_tensor_l2_norm as multi_tensor_l2norm
 
 
-def param_is_not_shared(param):
+def param_is_not_shared(param: nn.Parameter) -> bool:
+    """Check if a parameter is marked as not shared.
+
+    Args:
+        param (torch.nn.Parameter): The parameter to check.
+
+    Returns:
+        bool: True if the parameter does not have a 'shared' attribute or if
+              param.shared is False.
+    """
     return not hasattr(param, "shared") or not param.shared
 
 
-def calc_params_l2_norm(model, model_config, force_create_fp32_copy=False):
-    """Calculate l2 norm of parameters"""
+def calc_params_l2_norm(
+    model: Union[MegatronModule, List[MegatronModule]], model_config: Any, force_create_fp32_copy: bool = False
+) -> float:
+    """Calculate the L2 norm of model parameters across all GPUs.
+
+    Handles parameter sharding (DP, TP, PP, EP) and different parameter types
+    (dense, MoE, sharded main params).
+
+    Args:
+        model (Union[torch.nn.Module, List[torch.nn.Module]]): The model or list of model chunks.
+        model_config: The model configuration object.
+        force_create_fp32_copy (bool, optional): If True, always creates an FP32 copy
+            for norm calculation, ignoring potential `main_param` attributes.
+            Defaults to False.
+
+    Returns:
+        float: The L2 norm of all parameters.
+    """
     if not isinstance(model, list):
         model = [model]
     # Seperate moe and dense params
@@ -149,13 +176,18 @@ def calc_params_l2_norm(model, model_config, force_create_fp32_copy=False):
     return norm_2.item() ** 0.5
 
 
-def reduce_max_stat_across_model_parallel_group(stat: float) -> float:
-    """
-    Ranks without an optimizer will have no grad_norm or num_zeros_in_grad stats.
-    We need to ensure the logging and writer rank has those values.
-    This function reduces a stat tensor across the model parallel group.
+def reduce_max_stat_across_model_parallel_group(stat: Optional[float]) -> Optional[float]:
+    """Calculates the max of a stat across the model parallel group.
 
-    We use an all_reduce max since the values have already been summed across optimizer ranks where possible
+    Handles cases where some ranks might have the stat as None (e.g., grad norm
+    on ranks without an optimizer).
+
+    Args:
+        stat (float): The statistic value (or None) on the current rank.
+
+    Returns:
+        float: The maximum value of the statistic across the model parallel group,
+               or None if all ranks had None.
     """
     if stat is None:
         stat = -1.0
@@ -170,8 +202,13 @@ def reduce_max_stat_across_model_parallel_group(stat: float) -> float:
 
 
 def logical_and_across_model_parallel_group(input: bool) -> bool:
-    """
-    This function gathers a bool value across the model parallel group
+    """Performs a logical AND operation across the model parallel group.
+
+    Args:
+        input (bool): The boolean value on the current rank.
+
+    Returns:
+        bool: The result of the logical AND across all ranks in the group.
     """
     if input is True:
         input = 1
@@ -185,19 +222,42 @@ def logical_and_across_model_parallel_group(input: bool) -> bool:
 
 
 def training_log(
-    loss_dict,
-    total_loss_dict,
-    learning_rate,
-    decoupled_learning_rate,
-    loss_scale,
-    report_memory_flag,
-    skipped_iter,
-    grad_norm,
-    params_norm,
-    num_zeros_in_grad,
+    loss_dict: Dict[str, torch.Tensor],
+    total_loss_dict: Dict[str, Any],
+    learning_rate: Optional[float],
+    decoupled_learning_rate: Optional[float],
+    loss_scale: float,
+    report_memory_flag: bool,
+    skipped_iter: int,
+    grad_norm: Optional[float],
+    params_norm: Optional[float],
+    num_zeros_in_grad: Optional[int],
     config: ConfigContainer,
     global_state: GlobalState,
-):
+) -> bool:
+    """Log training stats (losses, learning rate, timings, etc.).
+
+    Aggregates losses, logs metrics to TensorBoard and WandB (if enabled),
+    and prints a formatted log string to the console on the last rank.
+
+    Args:
+        loss_dict (Dict[str, torch.Tensor]): Dictionary of losses for the current step.
+        total_loss_dict (Dict[str, Any]): Dictionary to accumulate losses and stats
+                                         across logging intervals.
+        learning_rate (Optional[float]): Current learning rate.
+        decoupled_learning_rate (Optional[float]): Current decoupled learning rate (if used).
+        loss_scale (float): Current loss scale value.
+        report_memory_flag (bool): Flag to indicate if memory usage should be reported.
+        skipped_iter (int): 1 if the iteration was skipped, 0 otherwise.
+        grad_norm (Optional[float]): Gradient norm if computed, else None.
+        params_norm (Optional[float]): Parameter L2 norm if computed, else None.
+        num_zeros_in_grad (Optional[int]): Number of zeros in gradient if computed, else None.
+        config: The main configuration container.
+        global_state: The global training state.
+
+    Returns:
+        bool: The updated report_memory_flag.
+    """
     timers = global_state.timers
     train_state = global_state.train_state
     tb_logger = global_state.tensorboard_logger
@@ -441,8 +501,12 @@ def training_log(
     return report_memory_flag
 
 
-def report_memory(name):
-    """Simple GPU memory report."""
+def report_memory(name: str) -> None:
+    """Report current and peak GPU memory usage for the current rank.
+
+    Args:
+        name (str): A name to include in the output message (e.g., stage of training).
+    """
     mega_bytes = 1024.0 * 1024.0
     string = name + " memory (MB)"
     string += " | allocated: {}".format(torch.cuda.memory_allocated() / mega_bytes)
@@ -454,9 +518,25 @@ def report_memory(name):
 
 
 def track_moe_metrics(
-    loss_scale, iteration, tb_logger, wandb_logger=None, total_loss_dict=None, per_layer_logging=False
-):
-    """Track the MoE metrics for logging."""
+    loss_scale: float,
+    iteration: int,
+    tb_logger: Any,
+    wandb_logger: Optional[Any] = None,
+    total_loss_dict: Optional[Dict] = None,
+    per_layer_logging: bool = False,
+) -> None:
+    """Track and log Mixture of Experts (MoE) specific metrics.
+
+    Reduces auxiliary losses across ranks and logs them to TensorBoard and WandB.
+
+    Args:
+        loss_scale (float): The current loss scale.
+        iteration (int): The current training iteration.
+        tb_logger: The TensorBoard logger instance.
+        wandb_logger: The WandB logger instance (optional).
+        total_loss_dict (Optional[Dict]): Dictionary to accumulate total losses (optional).
+        per_layer_logging (bool): If True, logs metrics for each MoE layer individually.
+    """
     # Aux loss logging
     reduce_aux_losses_tracker_across_ranks()
     tracker = parallel_state.get_moe_layer_wise_logging_tracker()
@@ -492,7 +572,7 @@ def track_moe_metrics(
 
 
 def clear_aux_losses_tracker():
-    """Clear the auxiliary losses."""
+    """Clear the MoE auxiliary loss tracker in the parallel state."""
     tracker = parallel_state.get_moe_layer_wise_logging_tracker()
     for name in tracker:
         tracker[name]["values"].zero_()
@@ -501,7 +581,7 @@ def clear_aux_losses_tracker():
 
 
 def reduce_aux_losses_tracker_across_ranks():
-    """Collect and reduce the auxiliary losses across ranks."""
+    """Reduce the MoE auxiliary losses across pipeline and specified reduction groups."""
     tracker = parallel_state.get_moe_layer_wise_logging_tracker()
     for name in tracker:
         values = tracker[name]["values"]
@@ -515,6 +595,21 @@ def reduce_aux_losses_tracker_across_ranks():
 
 
 def maybe_inject_state(forward_step_func: Callable, state: GlobalState, num_fw_args: Optional[int] = None) -> Callable:
+    """Optionally inject the GlobalState object into the forward step function.
+
+    Checks the number of arguments of `forward_step_func`. If it expects 3 arguments,
+    it assumes the first argument is the GlobalState and returns a partial function
+    with the state injected.
+
+    Args:
+        forward_step_func: The original forward step function.
+        state: The GlobalState object to potentially inject.
+        num_fw_args: The number of arguments the forward_step_func expects (optional,
+                     will be inspected if None).
+
+    Returns:
+        The original function or a partial function with GlobalState injected.
+    """
     if not num_fw_args:
         num_fw_args = len(inspect.signature(forward_step_func).parameters)
     if num_fw_args == 3:
@@ -525,6 +620,21 @@ def maybe_inject_state(forward_step_func: Callable, state: GlobalState, num_fw_a
 
 
 def check_forward_step_func_num_args(forward_step_func: Callable) -> int:
+    """Check if the forward step function has a supported number of arguments.
+
+    Currently supports 2 or 3 arguments:
+    - func(data_iterator, model)
+    - func(state, data_iterator, model)
+
+    Args:
+        forward_step_func: The function to check.
+
+    Returns:
+        The number of arguments the function takes.
+
+    Raises:
+        AssertionError: If the function does not have 2 or 3 arguments.
+    """
     num_fw_args = len(inspect.signature(forward_step_func).parameters)
     fail_msg = f"""
     forward_step_func has {num_fw_args} arguments. Only the following signatures are supported: 

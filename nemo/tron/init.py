@@ -42,8 +42,23 @@ def initialize_megatron(
     skip_mpu_initialization: bool = False,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
-):
-    """Initialize megatron global vars, logging, and distributed state."""
+) -> Optional[Callable[[], None]]:
+    """Initialize Megatron core components and distributed setup.
+
+    Sets up logging, initializes distributed environment (torch.distributed),
+    configures microbatch calculator, and sets random seeds.
+
+    Args:
+        cfg: The main configuration container.
+        allow_no_cuda: If True, allows initialization without CUDA.
+        skip_mpu_initialization: If True, skips MPU initialization (for external managers).
+        get_embedding_ranks: Optional function to determine embedding layer ranks.
+        get_position_embedding_ranks: Optional function to determine position embedding ranks.
+
+    Returns:
+        An optional callable to finish MPU initialization if lazy_mpu_init is True,
+        otherwise None.
+    """
 
     if not allow_no_cuda:
         # Make sure cuda is available.
@@ -100,7 +115,28 @@ def torch_dist_init(
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     skip_mpu_initialization: bool,
-):
+) -> Optional[Callable[[], None]]:
+    """Initialize torch.distributed and dependent components.
+
+    Handles the core distributed setup, including process group initialization,
+    MPU (Model Parallel Unit) setup, random seed setting, and optional
+    compilation/warmup steps.
+
+    Args:
+        model_config: Configuration for the specific model (GPTConfig or T5Config).
+        dist_config: Configuration for distributed initialization settings.
+        rng_config: Configuration for random number generation.
+        micro_batch_size: The micro batch size for JIT warmup.
+        num_distributed_optimizer_instances: Number of parallel optimizer instances.
+        get_embedding_ranks: Optional function to determine embedding layer ranks.
+        get_position_embedding_ranks: Optional function to determine position embedding ranks.
+        skip_mpu_initialization: If True, returns a function to finish MPU setup later.
+
+    Returns:
+        An optional callable to finish MPU initialization if skip_mpu_initialization
+        or lazy_mpu_init is True, otherwise None.
+    """
+
     def finish_mpu_init():
         # Pytorch distributed.
         _initialize_distributed(
@@ -145,7 +181,86 @@ def torch_dist_init(
         return None
 
 
-def _initialize_tp_communicators(model_config: GPTConfig | T5Config, micro_batch_size: int):
+def init_rerun_state(rerun_state_machine_config: RerunStateMachineConfig) -> None:
+    """Initialize the rerun state machine for result validation or stats.
+
+    Sets up state saving and restoration functions, particularly for RNG trackers.
+
+    Args:
+        rerun_state_machine_config: Configuration for the rerun state machine.
+    """
+    from megatron.core.rerun_state_machine import (
+        RerunDiagnostic,
+        RerunErrorInjector,
+        RerunMode,
+        initialize_rerun_state_machine,
+    )
+
+    def state_save_func():
+        return {"rng_tracker_states": tensor_parallel.get_cuda_rng_tracker().get_states()}
+
+    def state_restore_func(state_dict):
+        if state_dict["rng_tracker_states"]:
+            tensor_parallel.get_cuda_rng_tracker().set_states(state_dict["rng_tracker_states"])
+
+    initialize_rerun_state_machine(
+        state_save_func=state_save_func,
+        state_restore_func=state_restore_func,
+        mode=RerunMode(rerun_state_machine_config.rerun_mode),
+        error_injector=RerunErrorInjector(
+            error_injection_rate=rerun_state_machine_config.error_injection_rate,
+            error_injection_type=RerunDiagnostic(rerun_state_machine_config.error_injection_type),
+        ),
+    )
+
+
+def set_jit_fusion_options(model_config: GPTConfig | T5Config, micro_batch_size: int) -> None:
+    """Set PyTorch JIT layer fusion options and warmup JIT functions.
+
+    Configures the JIT fuser (nvFuser or legacy) based on the PyTorch version
+    and warms up common fused kernels like bias_gelu and bias_dropout_add.
+
+    Args:
+        model_config: Configuration for the specific model (GPTConfig or T5Config).
+        micro_batch_size: The micro batch size used for warmup tensor shapes.
+    """
+    # flags required to enable jit fusion kernels
+    if is_torch_min_version("2.2.0a0"):
+        pass  # we're using torch.compile for jit fusion
+    elif is_torch_min_version("1.10.0a0"):
+        # nvfuser
+        torch._C._jit_set_profiling_executor(True)
+        torch._C._jit_set_profiling_mode(True)
+        torch._C._jit_override_can_fuse_on_cpu(False)
+        torch._C._jit_override_can_fuse_on_gpu(False)
+        torch._C._jit_set_texpr_fuser_enabled(False)
+        torch._C._jit_set_nvfuser_enabled(True)
+        torch._C._debug_set_autodiff_subgraph_inlining(False)
+    else:
+        # legacy pytorch fuser
+        torch._C._jit_set_profiling_mode(False)
+        torch._C._jit_set_profiling_executor(False)
+        torch._C._jit_override_can_fuse_on_cpu(True)
+        torch._C._jit_override_can_fuse_on_gpu(True)
+
+    _warmup_jit_function(model_config, micro_batch_size)
+
+
+def destroy_global_state() -> None:
+    """Destroy Megatron global states.
+
+    Cleans up resources used by microbatch calculator, global memory buffer,
+    model parallel groups, and the rerun state machine.
+    """
+    from megatron.core.rerun_state_machine import destroy_rerun_state_machine
+
+    destroy_num_microbatches_calculator()
+    parallel_state.destroy_global_memory_buffer()
+    parallel_state.destroy_model_parallel()
+    destroy_rerun_state_machine()
+
+
+def _initialize_tp_communicators(model_config: GPTConfig | T5Config, micro_batch_size: int) -> None:
     """initializing the communicators with user buffers for high-performance tensor-model-parallel
     communication overlap"""
 
@@ -199,7 +314,7 @@ def _initialize_distributed(
     num_distributed_optimizer_instances: int,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
-):
+) -> None:
     """Initialize torch.distributed and core model parallel."""
 
     device_count = torch.cuda.device_count()
@@ -265,33 +380,7 @@ def _initialize_distributed(
                 )
 
 
-def init_rerun_state(rerun_state_machine_config: RerunStateMachineConfig):
-    from megatron.core.rerun_state_machine import (
-        RerunDiagnostic,
-        RerunErrorInjector,
-        RerunMode,
-        initialize_rerun_state_machine,
-    )
-
-    def state_save_func():
-        return {"rng_tracker_states": tensor_parallel.get_cuda_rng_tracker().get_states()}
-
-    def state_restore_func(state_dict):
-        if state_dict["rng_tracker_states"]:
-            tensor_parallel.get_cuda_rng_tracker().set_states(state_dict["rng_tracker_states"])
-
-    initialize_rerun_state_machine(
-        state_save_func=state_save_func,
-        state_restore_func=state_restore_func,
-        mode=RerunMode(rerun_state_machine_config.rerun_mode),
-        error_injector=RerunErrorInjector(
-            error_injection_rate=rerun_state_machine_config.error_injection_rate,
-            error_injection_type=RerunDiagnostic(rerun_state_machine_config.error_injection_type),
-        ),
-    )
-
-
-def _compile_dataset_helpers():
+def _compile_dataset_helpers() -> None:
     # =========================
     # Compile dataset C++ code.
     # =========================
@@ -313,7 +402,7 @@ def _set_random_seed(
     data_parallel_random_init: bool = False,
     te_rng_tracker: bool = False,
     inference_rng_tracker: bool = False,
-):
+) -> None:
     """Set random seed for reproducability."""
     assert seed_ is not None and seed_ > 0, f"Seed ({seed_}) should be a positive integer."
 
@@ -333,31 +422,7 @@ def _set_random_seed(
         tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
 
 
-def set_jit_fusion_options(model_config: GPTConfig | T5Config, micro_batch_size: int):
-    """Set PyTorch JIT layer fusion options."""
-    # flags required to enable jit fusion kernels
-    if is_torch_min_version("2.2.0a0"):
-        pass  # we're using torch.compile for jit fusion
-    elif is_torch_min_version("1.10.0a0"):
-        # nvfuser
-        torch._C._jit_set_profiling_executor(True)
-        torch._C._jit_set_profiling_mode(True)
-        torch._C._jit_override_can_fuse_on_cpu(False)
-        torch._C._jit_override_can_fuse_on_gpu(False)
-        torch._C._jit_set_texpr_fuser_enabled(False)
-        torch._C._jit_set_nvfuser_enabled(True)
-        torch._C._debug_set_autodiff_subgraph_inlining(False)
-    else:
-        # legacy pytorch fuser
-        torch._C._jit_set_profiling_mode(False)
-        torch._C._jit_set_profiling_executor(False)
-        torch._C._jit_override_can_fuse_on_cpu(True)
-        torch._C._jit_override_can_fuse_on_gpu(True)
-
-    _warmup_jit_function(model_config, micro_batch_size)
-
-
-def _warmup_jit_function(model_config: GPTConfig | T5Config, micro_batch_size: int):
+def _warmup_jit_function(model_config: GPTConfig | T5Config, micro_batch_size: int) -> None:
     """Compilie JIT functions before the main training steps"""
     if model_config.fp8:
         dtype = torch.float8
@@ -427,12 +492,3 @@ def _warmup_jit_function(model_config: GPTConfig | T5Config, micro_batch_size: i
             output = bias_dropout_add_fused_train([input, bias], residual, dropout_rate)
     del bias, input, residual, output
     torch.cuda.empty_cache()
-
-
-def destroy_global_state():
-    from megatron.core.rerun_state_machine import destroy_rerun_state_machine
-
-    destroy_num_microbatches_calculator()
-    parallel_state.destroy_global_memory_buffer()
-    parallel_state.destroy_model_parallel()
-    destroy_rerun_state_machine()

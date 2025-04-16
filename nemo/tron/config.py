@@ -32,6 +32,8 @@ from nemo.tron.utils.config_utils import ConfigContainer as Container
 
 @dataclass
 class RNGConfig:
+    """Configuration settings for random number generation."""
+
     seed: int = 1234
     """Random seed used for python, numpy, pytorch, and cuda."""
 
@@ -48,6 +50,8 @@ class RNGConfig:
 
 @dataclass
 class RerunStateMachineConfig:
+    """Configuration for the rerun state machine used for result validation or stats."""
+
     error_injection_rate: int = 0
     """Rate at which to inject unexpected results, e.g. 1000 means
     once every 1000 result validations"""
@@ -62,6 +66,8 @@ class RerunStateMachineConfig:
 
 @dataclass
 class TokenizerConfig:
+    """Configuration settings for the tokenizer."""
+
     vocab_size: Optional[int] = None
     """Size of vocab before EOD or padding."""
 
@@ -110,6 +116,8 @@ class TokenizerConfig:
 
 @dataclass(kw_only=True)
 class DataloaderConfig:
+    """Base configuration for data loading."""
+
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
 
@@ -128,7 +136,10 @@ class DataloaderConfig:
 
 @dataclass
 class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
+    """Configuration specific to GPT datasets, inheriting from MCore and base DataloaderConfig."""
+
     def __post_init__(self) -> None:
+        """Post-initialization checks for GPT dataset config."""
         super(MCoreGPTDatasetConfig, self).__post_init__()
 
         assert self.reset_position_ids is not None
@@ -138,6 +149,8 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
 
 @dataclass(kw_only=True)
 class FinetuningDatasetConfig(DataloaderConfig):
+    """Configuration specific to finetuning datasets, inheriting from DataloaderConfig."""
+
     dataset_root: Optional[Union[str, Path]] = None
     seq_length: int
     seed: int = 1234
@@ -151,6 +164,8 @@ class FinetuningDatasetConfig(DataloaderConfig):
 
 @dataclass
 class TrainingConfig:
+    """Configuration settings related to the training loop and validation."""
+
     # ---------------- Training config. ----------------
 
     micro_batch_size: Optional[int] = None
@@ -215,6 +230,8 @@ class TrainingConfig:
 
 @dataclass
 class DistributedInitConfig:
+    """Configuration settings for distributed training initialization."""
+
     # ---------------- Distributed config. ----------------
 
     distributed_backend: Literal["nccl", "gloo"] = "nccl"
@@ -247,6 +264,8 @@ class DistributedInitConfig:
 
 @dataclass
 class ProfilingConfig:
+    """Configuration settings for profiling the training process."""
+
     # ---------------- Profiling config. ----------------
 
     use_nsys_profiler: bool = False
@@ -276,6 +295,8 @@ class ProfilingConfig:
 
 @dataclass(kw_only=True)
 class LoggerConfig:
+    """Configuration settings for logging, including TensorBoard and WandB."""
+
     # ---------------- Logging config. ----------------
 
     log_interval: int = 100
@@ -347,6 +368,8 @@ class LoggerConfig:
 
 @dataclass(kw_only=True)
 class SchedulerConfig:
+    """Configuration settings for the learning rate scheduler and weight decay."""
+
     # ---------------- Learning rate config. ----------------
     lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
     """Learning rate decay function."""
@@ -392,6 +415,7 @@ class SchedulerConfig:
     wsd_decay_steps: Optional[int] = field(init=False, default=None)
 
     def __post_init__(self):
+        """Post-initialization checks for scheduler config."""
         if self.start_weight_decay is not None:
             assert self.start_weight_decay >= 0.0
             assert self.end_weight_decay >= self.start_weight_decay
@@ -402,6 +426,8 @@ class SchedulerConfig:
 
 @dataclass(kw_only=True)
 class CheckpointConfig:
+    """Configuration settings for model checkpointing (saving and loading)."""
+
     # ---------------- Checkpointing config. ----------------
 
     save: Optional[str] = None
@@ -506,6 +532,8 @@ class CheckpointConfig:
 
 @dataclass
 class FaultToleranceConfig:
+    """Configuration settings related to fault tolerance mechanisms (NVIDIA internal use)."""
+
     enable_ft_package: bool = False
     """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
 
@@ -527,6 +555,8 @@ class FaultToleranceConfig:
 
 @dataclass
 class StragglerDetectionConfig:
+    """Configuration settings for detecting and logging GPU stragglers."""
+
     log_straggler: bool = False
     """If set, tracks and logs straggler per GPU."""
 
@@ -546,6 +576,8 @@ class StragglerDetectionConfig:
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
 class ConfigContainer(Container):
+    """Top-level container holding all configuration objects."""
+
     rng_config: RNGConfig = field(default_factory=RNGConfig)
     rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     train_config: TrainingConfig
@@ -562,7 +594,12 @@ class ConfigContainer(Container):
     straggler_config: Optional[StragglerDetectionConfig] = None
     profiling_config: Optional[ProfilingConfig] = None
 
-    def validate(self):
+    def validate(self) -> None:
+        """Performs validation checks on the combined configuration.
+
+        Calculates dependent values like data_parallel_size and scheduler steps.
+        Ensures compatibility between different configuration settings.
+        """
         # Run validations
 
         # Distributed

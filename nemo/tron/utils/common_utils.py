@@ -15,8 +15,9 @@
 import inspect
 import os
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple, Type, Union
 
+import torch
 import torch.distributed
 import yaml
 from megatron.core import DistributedDataParallel as DDP
@@ -32,7 +33,19 @@ except ImportError:
     ALL_MODULE_WRAPPER_CLASSNAMES = (DDP, Float16Module)
 
 
-def unwrap_model(model, module_instances=ALL_MODULE_WRAPPER_CLASSNAMES):
+def unwrap_model(
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+    module_instances: Tuple[Type[torch.nn.Module], ...] = ALL_MODULE_WRAPPER_CLASSNAMES,
+) -> Union[torch.nn.Module, List[torch.nn.Module]]:
+    """Recursively unwraps a model or list of models from common wrapper modules.
+
+    Args:
+        model: The model or list of models to unwrap.
+        module_instances: A tuple of wrapper module types to remove (e.g., DDP, Float16Module).
+
+    Returns:
+        The unwrapped model or list of models.
+    """
     return_list = True
     if not isinstance(model, list):
         model = [model]
@@ -48,10 +61,23 @@ def unwrap_model(model, module_instances=ALL_MODULE_WRAPPER_CLASSNAMES):
 
 
 def use_dist_ckpt(ckpt_format: str) -> bool:
+    """Check if the checkpoint format indicates a distributed checkpoint.
+
+    Args:
+        ckpt_format: The checkpoint format string (e.g., "torch", "torch_dist").
+
+    Returns:
+        True if the format is not "torch", False otherwise.
+    """
     return ckpt_format != "torch"
 
 
 def get_rank_safe() -> int:
+    """Get the distributed rank safely, even if torch.distributed is not initialized.
+
+    Returns:
+        The current process rank.
+    """
     # In megatron init, args.rank comes from the torchrun env var.
     # Once init has been done, args.rank is updated to value of torch get_rank()
     if torch.distributed.is_initialized():
@@ -61,6 +87,11 @@ def get_rank_safe() -> int:
 
 
 def get_world_size_safe() -> int:
+    """Get the distributed world size safely, even if torch.distributed is not initialized.
+
+    Returns:
+        The total number of processes in the distributed job.
+    """
     # In megatron init, args.world_size comes from the torchrun env var.
     # Once init has been done, args.world_size is updated to value of torch get_world_size()
     if torch.distributed.is_initialized():
@@ -70,22 +101,40 @@ def get_world_size_safe() -> int:
 
 
 def get_local_rank_preinit() -> int:
+    """Get the local rank from the environment variable, intended for use before full init.
+
+    Returns:
+        The local rank of the current process.
+    """
     return int(os.getenv("LOCAL_RANK", "0"))
 
 
-def print_rank_0(message):
-    """If distributed is initialized, print only on rank 0."""
+def print_rank_0(message: str) -> None:
+    """Print a message only on global rank 0.
+
+    Args:
+        message: The message string to print.
+    """
     rank = get_rank_safe()
     if rank == 0:
         print(message, flush=True)
 
 
-def is_last_rank():
+def is_last_rank() -> bool:
+    """Check if the current rank is the last rank in the default process group.
+
+    Returns:
+        True if the current rank is the last one, False otherwise.
+    """
     return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
 
 
-def print_rank_last(message):
-    """If distributed is initialized, print only on last rank."""
+def print_rank_last(message: str) -> None:
+    """Print a message only on the last rank of the default process group.
+
+    Args:
+        message: The message string to print.
+    """
     if torch.distributed.is_initialized():
         if is_last_rank():
             print(message, flush=True)
@@ -93,8 +142,16 @@ def print_rank_last(message):
         print(message, flush=True)
 
 
-def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
-    """Append given string to progress log."""
+def append_to_progress_log(save_dir: str, string: str, barrier: bool = True) -> None:
+    """Append a formatted string to the progress log file (rank 0 only).
+
+    Includes timestamp, job ID, and number of GPUs in the log entry.
+
+    Args:
+        save_dir: The directory where the 'progress.txt' file is located.
+        string: The message string to append.
+        barrier: If True, performs a distributed barrier before writing (rank 0 only).
+    """
     if save_dir is None:
         return
     progress_log_filename = os.path.join(save_dir, "progress.txt")
@@ -110,15 +167,41 @@ def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
             )
 
 
-def barrier_and_log(string):
-    """Note that this call will sync across all ranks."""
+def barrier_and_log(string: str) -> None:
+    """Perform a distributed barrier and then log a message on rank 0.
+
+    Args:
+        string: The message string to log.
+    """
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
     time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print_rank_0(f"[{string}] datetime: {time_str} ")
 
 
-def _safe_object_representer(dumper, data):
+def dump_dataclass_to_yaml(obj: Any, filename: Optional[str] = None) -> Optional[str]:
+    """Dump a dataclass object or other Python object to a YAML file or string.
+
+    Uses safe representers to handle common types.
+
+    Args:
+        obj: The object to dump.
+        filename: If provided, the path to the file where YAML should be written.
+                  If None, returns the YAML string directly.
+
+    Returns:
+        If filename is None, returns the YAML string representation of the object.
+        Otherwise, returns None.
+    """
+    with safe_yaml_representers():
+        if filename is not None:
+            with open(filename, "w+") as f:
+                yaml.safe_dump(obj, f)
+        else:
+            return yaml.safe_dump(obj)
+
+
+def _safe_object_representer(dumper: yaml.Dumper, data: Any) -> str:
     """
     Represent a given object as YAML using the specified dumper.
 
@@ -150,12 +233,3 @@ def _safe_object_representer(dumper, data):
         "_call_": call,
     }
     return dumper.represent_data(value)
-
-
-def dump_dataclass_to_yaml(obj: Any, filename: Optional[str] = None):
-    with safe_yaml_representers():
-        if filename is not None:
-            with open(filename, "w+") as f:
-                yaml.safe_dump(obj, f)
-        else:
-            return yaml.safe_dump(obj)
