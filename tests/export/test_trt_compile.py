@@ -16,9 +16,7 @@ import unittest
 from typing import List
 
 import torch
-
-TEST_CASE_1 = ["fp32"]
-TEST_CASE_2 = ["fp16"]
+from nemo.export import trt_compile
 
 
 class ListAdd(torch.nn.Module):
@@ -34,7 +32,6 @@ class ListAdd(torch.nn.Module):
         return x1, [y1, z1], y1 + z1
 
 
-@unittest.skip
 class TestTRTCompile(unittest.TestCase):
 
     def setUp(self):
