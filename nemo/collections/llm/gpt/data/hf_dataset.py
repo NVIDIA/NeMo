@@ -25,8 +25,12 @@ from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import packed_block_causal_mask, HFDatasetPackedSequenceHelper
+from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import (
+    HFDatasetPackedSequenceHelper,
+    packed_block_causal_mask,
+)
 from nemo.utils import logging
+
 
 def clean_split(name):
     """removes split from name
@@ -403,6 +407,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             if not self.dataset_splits[split_name] is None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
 
+
 class HFDatasetDataModulePacked(HFDatasetDataModule):
     """
     Inherits HFDatasetDataModule class and overrides methods for adding packing functionality.
@@ -415,14 +420,10 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         is set to False to avoid truncating sentences in instruct tuning. Default is False.
         max_packs (int): Maximum number of packs.
     """
+
     def __init__(
-            self,
-            path_or_dataset,
-            packed_sequence_size,
-            split_across_pack: bool = False,
-            max_packs: int =None,
-            **kwargs
-        ):
+        self, path_or_dataset, packed_sequence_size, split_across_pack: bool = False, max_packs: int = None, **kwargs
+    ):
         super().__init__(path_or_dataset, **kwargs)
         self.packed_sequence_size = packed_sequence_size
         self.split_across_pack = split_across_pack
@@ -435,8 +436,8 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         """
         seq_lens = [x["seq_lens"] for x in batch]
         block_mask = packed_block_causal_mask(
-                    seq_lens=seq_lens,
-                )
+            seq_lens=seq_lens,
+        )
 
         ## add block_mask to the batch
         for i, item in enumerate(batch):
@@ -527,6 +528,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         dataset = dataset.shuffle(seed=seed)
 
         return dataset
+
 
 class SquadHFDataModule(HFDatasetDataModule):
     """
