@@ -19,11 +19,7 @@ import torch
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
 from megatron.core.pipeline_parallel.schedules import get_tensor_shapes
-from megatron.core.utils import (
-    get_model_config,
-    get_model_type,
-    get_model_xattn,
-)
+from megatron.core.utils import get_model_config, get_model_type, get_model_xattn
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -131,8 +127,8 @@ def adjust_distillation_model_for_mcore(
         self._tensor_split_idx = shapes[0][-1]
 
     def _set_input_tensor(self, input_tensors: List[torch.Tensor]):
-        teacher_inputs = [t[..., self._tensor_split_idx:] if t is not None else t for t in input_tensors]
-        student_inputs = [t[..., :self._tensor_split_idx] if t is not None else t for t in input_tensors]
+        teacher_inputs = [t[..., self._tensor_split_idx :] if t is not None else t for t in input_tensors]
+        student_inputs = [t[..., : self._tensor_split_idx] if t is not None else t for t in input_tensors]
         type(self).set_input_tensor(self.teacher_model, teacher_inputs)
         type(self).set_input_tensor(self, student_inputs)
 
