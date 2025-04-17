@@ -218,8 +218,10 @@ def setup_model_and_tokenizer(
     inference_wrapped_model = model.get_inference_wrapper(
         params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
     )
-    return (inference_wrapped_model,
-            MCoreTokenizerWrappper(model.tokenizer, getattr(model.config, "vocab_size", None)))
+    return (
+        inference_wrapped_model,
+        MCoreTokenizerWrappper(model.tokenizer, getattr(model.config, "vocab_size", None)),
+    )
 
 
 def generate(
