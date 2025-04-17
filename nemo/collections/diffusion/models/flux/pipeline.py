@@ -565,7 +565,7 @@ class FluxInferencePipeline(nn.Module):
         else:
             raise ValueError("Either prompt or prompt_embeds must be provided.")
 
-        ## get text prompt embeddings
+        # get text prompt embeddings
         prompt_embeds, pooled_prompt_embeds, text_ids = self.encoder_prompt(
             prompt=prompt,
             prompt_embeds=prompt_embeds,
@@ -580,7 +580,7 @@ class FluxInferencePipeline(nn.Module):
             self.clip_encoder.to('cpu')
             torch.cuda.empty_cache()
 
-        ## prepare image latents
+        # prepare image latents
         num_channels_latents = self.transformer.in_channels // 4
         latents, latent_image_ids = self.prepare_latents(
             batch_size * num_images_per_prompt, num_channels_latents, height, width, dtype, device, generator, latents
@@ -875,7 +875,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         else:
             raise ValueError("Either prompt or prompt_embeds must be provided.")
 
-        ## get text prompt embeddings
+        # get text prompt embeddings
         prompt_embeds, pooled_prompt_embeds, text_ids = self.encoder_prompt(
             prompt=prompt,
             prompt_embeds=prompt_embeds,
@@ -890,7 +890,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
             self.clip_encoder.to('cpu')
             torch.cuda.empty_cache()
 
-        ## prepare image latents
+        # prepare image latents
         num_channels_latents = self.transformer.in_channels // 4
         latents, latent_image_ids = self.prepare_latents(
             batch_size * num_images_per_prompt, num_channels_latents, height, width, dtype, device, generator, latents
@@ -1006,3 +1006,5 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
                 image.save(f'{file_name}.png')
 
         return image
+
+# flake8: noqa

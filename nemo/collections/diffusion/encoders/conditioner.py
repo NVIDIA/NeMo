@@ -19,6 +19,7 @@ from typing import List, Optional, Union
 import torch
 import torch.nn as nn
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
 
 
 # pylint: disable=C0116

@@ -337,4 +337,4 @@ class AutoEncoder(nn.Module):
             logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
 
 
-# pylint: disable=C0116
+# flake8: noqa

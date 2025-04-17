@@ -15,8 +15,10 @@
 # pylint: disable=C0115,C0116,C0301
 
 from typing import Tuple
+from nemo.collections.diffusion.models.flux_controlnet.model import zero_module
 
 import torch.nn as nn
+from torch.nn import functional as F
 
 
 class ControlNetConditioningEmbedding(nn.Module):

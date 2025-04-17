@@ -928,5 +928,3 @@ def transform_single_proj_out(proj_weight):
     linear_proj = proj_weight.detach()[:, :3072].clone()
     return linear_fc2, linear_proj
 
-
-# pylint: disable=C0116
