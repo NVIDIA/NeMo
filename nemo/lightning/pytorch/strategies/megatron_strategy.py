@@ -378,7 +378,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             else:
                 logging.warning("Setting FSDP2 to False. FSDP2 require torch version >= 2.4.")
         elif fsdp == "megatron":
-            raise NotImplementedError("MCore FSDP2 is not supported yet, will be added in the future.")
+            self._fsdp = fsdp
+            if not self.ddp_config.use_custom_fsdp:
+                self.ddp_config.use_custom_fsdp = True
+                logging.warning("Setting ddp_config.use_custom_fsdp to True for MCore FSDP.")
+            logging.info("FSDP option is set to MCore. Using MCore's Custom FSDP for DP.")
         elif fsdp is not None:
             raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
 

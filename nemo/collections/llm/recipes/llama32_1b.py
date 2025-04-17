@@ -65,7 +65,7 @@ def trainer(
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
     num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
+    num_gpus_per_node: int = 2,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
@@ -115,8 +115,10 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
-            average_in_collective=True,
+            average_in_collective=True,  # Not supported for custom FSDP for now, need to be set to False if using FSDP
+            data_parallel_sharding_strategy="optim_grads_params",  # For custom FSDP only
         ),
+        fsdp="megatron",  # Set to 'megatron' to use Megatron FSDP, 'pytorch' to use PyTorch FSDP 2
     )
 
     trainer = run.Config(
@@ -144,7 +146,7 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
+    num_gpus_per_node: int = 2,
     fn: Callable = pretrain,
 ) -> run.Partial:
     """

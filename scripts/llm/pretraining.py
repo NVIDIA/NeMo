@@ -32,7 +32,7 @@ def get_parser():
     parser.add_argument(
         "--recipe",
         type=str,
-        default="llama3_8b",
+        default="llama32_1b",
         help="Choose NeMo 2.0 recipe. Recipes are named in the format of <model_name>_<model_size>(_<long_sequenth_length> or other special settings)",
     )
     parser.add_argument(
@@ -54,6 +54,7 @@ def get_parser():
         help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
+    parser.add_argument('--wandb-project', type=str, default="mcore-fsdp2", help='Wandb project to use')
     return parser
 
 
@@ -68,7 +69,7 @@ def slurm_executor(
     time: str = "01:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "nvcr.io/nvidia/nemo:dev",
+    container_image: str = "/lustre/fsw/portfolios/coreai/users/boxiangw/container/nvidia+nemo+25.02.sqsh",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
@@ -163,22 +164,35 @@ def main():
         merges_file=merges_file,
     )
 
+    if args.wandb_project is not None:
+        model = '_'.join(args.recipe.split('_')[-2:])
+        from lightning.pytorch.loggers import WandbLogger
+
+        pretrain.trainer.logger = run.Config(
+            WandbLogger,
+            project=args.wandb_project,
+            name=f"{model}_dp2",
+        )
+
     executor: run.Executor
 
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
-            user="",
-            host="",
-            remote_job_dir="",
-            account="",
-            partition="",
+            user="boxiangw",
+            host="cw-dfw-cs-001-login-01.nvidia.com",
+            remote_job_dir="/lustre/fsw/portfolios/coreai/users/boxiangw/nemo-experiments",
+            account="coreai_dlalgo_llm",
+            partition="batch",
             nodes=pretrain.trainer.num_nodes,
             devices=pretrain.trainer.devices,
-            custom_mounts=[],
+            custom_mounts=[
+                "/lustre/fsw/portfolios/coreai/users/boxiangw/container:/lustre/fsw/portfolios/coreai/users/boxiangw/container",
+                "/lustre/fsw/portfolios/coreai/users/boxiangw/ckpt:/lustre/fsw/portfolios/coreai/users/boxiangw/ckpt",
+            ],
         )
     else:
-        executor = local_executor_torchrun(nodes=pretrain.trainer.num_nodes, devices=pretrain.trainer.devices)
+        executor = local_executor_torchrun(nodes=1, devices=2)
 
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         for i in range(1):
