@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional
 import lightning.pytorch as L
 import torch
 import torch.distributed
+import torch.nn.functional as F
 from megatron.core import InferenceParams, dist_checkpointing
 from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
@@ -27,6 +28,7 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.enums import AttnBackend
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -66,6 +68,20 @@ MODEL_CONFIG_ATTR = [
     'calculate_per_token_loss',
     'seq_length',
 ]
+
+
+# import traceback
+# import warnings
+# import sys
+
+# def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+#     log = file if hasattr(file, 'write') else sys.stderr
+#     traceback.print_stack(file=log)
+#     log.write(warnings.formatwarning(message, category, filename, lineno, line))
+
+# warnings.showwarning = warn_with_traceback
+# warnings.simplefilter("always")  # Ensure all warnings are shown, not just the first occurrence
+
 
 def restore_model_weights(model, checkpoint_path, strict=False):
     """
@@ -138,6 +154,10 @@ def avlm_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         num_valid_tokens_in_ub = None
         if "loss_mask" in _batch and _batch["loss_mask"] is not None:
             num_valid_tokens_in_ub = _batch["loss_mask"].sum()
+
+            # # DEBUGGING
+            # num_valid_tokens_in_ub = _batch["loss_mask"][:,:8192].sum()
+
         _batch["num_valid_tokens_in_ub"] = num_valid_tokens_in_ub
 
     return _batch
@@ -335,6 +355,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
 
+        self.tokenizer = tokenizer
         self.encoder_hidden_state = None
         self.vision_model = None
         self.vision_projection = None
@@ -346,6 +367,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
         self.context_parallel_lm = language_transformer_config.context_parallel_size
         self.tensor_model_parallel_size_lm = language_transformer_config.tensor_model_parallel_size
+
 
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
@@ -382,8 +404,8 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 restore_model_weights(self.audio_model, config.audio_model_from_pretrained)
                 logging.info(f"Restored audio model weights from {config.audio_model_from_pretrained}")
 
-                # DEBUGGING
-                print(f"self.audio_model: {self.audio_model}")
+                # # DEBUGGING
+                # print(f"self.audio_model: {self.audio_model}")
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,
@@ -402,6 +424,39 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
+
+
+        # DEBUGGING
+        # Print model parameters for each rank
+        rank = torch.distributed.get_rank()
+        def get_params_in_millions(model):
+            return sum(p.numel() for p in model.parameters()) / 1e6
+        output = [f"\n=== Model Parameters on Rank {rank} ==="]
+        if hasattr(self, 'language_model') and self.language_model is not None:
+            output.append(f"Language Model: {get_params_in_millions(self.language_model):.2f}M params")
+        else:
+            output.append(f"Language Model: 0.00M params")
+        if hasattr(self, 'vision_model') and self.vision_model is not None:
+            output.append(f"Vision Model: {get_params_in_millions(self.vision_model):.2f}M params")
+            if hasattr(self, 'vision_projection') and self.vision_projection is not None:
+                output.append(f"Vision Projection: {get_params_in_millions(self.vision_projection):.2f}M params")
+            else:
+                output.append(f"Vision Projection: 0.00M params")
+        else:
+            output.append(f"Vision Model: 0.00M params")
+            output.append(f"Vision Projection: 0.00M params")
+        if hasattr(self, 'audio_model') and self.audio_model is not None:
+            output.append(f"Audio Model: {get_params_in_millions(self.audio_model):.2f}M params")
+            if hasattr(self, 'audio_projection') and self.audio_projection is not None:
+                output.append(f"Audio Projection: {get_params_in_millions(self.audio_projection):.2f}M params")
+            else:
+                output.append(f"Audio Projection: 0.00M params")
+        else:
+            output.append(f"Audio Model: 0.00M params") 
+            output.append(f"Audio Projection: 0.00M params")
+        output.append(f"Total Parameters: {get_params_in_millions(self):.2f}M")
+        output.append("============================\n")
+        print('\n'.join(output))
 
     def combine_embeddings(self, input_ids, image_embeddings, audio_embeddings, language_embeddings, image_token_index, audio_token_index, use_inference_kv_cache, packed_seq_params):
         """
@@ -428,44 +483,91 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         # print(f"combined_embeddings[audio_token_mask].shape: {combined_embeddings[audio_token_mask].shape}")
         # print(f"audio_embeddings.shape: {audio_embeddings.shape}")
         # print(f"combined_embeddings.shape: {combined_embeddings.shape}")
-        combined_embeddings[image_token_mask] = image_embeddings
-        combined_embeddings[audio_token_mask] = audio_embeddings
 
-        # TODO: Not sure if this is needed
-        # # Pipeline parallel expects fixed input size. Check if we need to pad.
-        # if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
-        #     max_seq_len = self._language_max_sequence_length
-        #     if packed_sequence:
-        #         last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
-        #         last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
-        #         assert (
-        #             last_seqlen_padded >= last_seqlen
-        #         ), "`language_max_sequence_length` needs to increase for sequence packing to work properly."
-        #         packed_seq_params.cu_seqlens_q_padded[-1] = max_seq_len
-        #         packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
-        #         packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
-        #         packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
+        # combined_embeddings[image_token_mask] = image_embeddings
+        # combined_embeddings[audio_token_mask] = audio_embeddings
 
-        # TODO: Not sure if this is needed
-        # if self.sequence_parallel_lm:
-        #     if self.tp_comm_overlap_lm:
-        #         # If shorter: Pad to language_max_sequence_length to use TP Comm overlap.
-        #         # If longer: Gets truncated later.
-        #         if max_seq_len < self._language_max_sequence_length:
-        #             padded_seq_len = self._language_max_sequence_length
-        #     else:
-        #         # Pad to multiple of tp size for sequence parallelism
-        #         tp_world_size = ps.get_tensor_model_parallel_world_size()
-        #         padded_seq_len = int((max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size)
-
-        #     max_seq_len = padded_seq_len
+        # DEBUGGING
+        # Error: RuntimeError: Output 0 of TransposeBackward0 is a view and is being modified inplace. This view was created inside a custom Function (or because an input was returned as-is) and the autograd logic to handle view+inplace would override the custom backward associated with the custom Function, leading to incorrect gradients. This behavior is forbidden. You can fix this by cloning the output of the custom Function.
+        # combined_embeddings = combined_embeddings.contiguous()
+        # combined_embeddings[image_token_mask] = image_embeddings
+        # combined_embeddings[audio_token_mask] = audio_embeddings
+        combined_embeddings = torch.index_put(combined_embeddings, (image_token_mask,), image_embeddings)
+        combined_embeddings = torch.index_put(combined_embeddings, (audio_token_mask,), audio_embeddings)
 
         return combined_embeddings
 
+    def pad_sequence(self, combined_embeddings, labels, loss_mask, packed_seq_params):
+        """
+        Pad the sequence (labels, loss_mask, combined_embeddings, packed_seq_params) to the language model's max sequence length.
+            combined_embeddings's shape is [batch_size, seq_len, attention head, embed_dim]
+
+        """
+
+        # determine max sequence length to pad
+        if self._language_is_pipeline_parallel:
+            max_seq_len = self._language_max_sequence_length
+        elif (self.context_parallel_lm > 1 or self.sequence_parallel_lm):
+            if (self.sequence_parallel_lm and self.tp_comm_overlap_lm):
+                # pad to language_max_sequence_length to use TP Comm overlap.
+                max_seq_len = self._language_max_sequence_length
+            else:
+                shard_factor, _ = self._get_shard_factor(packed_seq_params)
+                if combined_embeddings is not None:
+                    max_seq_len = combined_embeddings.shape[1]
+                elif labels is not None:
+                    max_seq_len = labels.shape[1]
+                else:
+                    # no padding needed
+                    max_seq_len = None
+                max_seq_len = (max_seq_len - 1) // shard_factor * shard_factor + shard_factor
+        else:
+            # no need to pad
+            return combined_embeddings, labels, loss_mask
+
+        # # DEBUGGING
+        # # context parallel lm
+        # if self.context_parallel_lm > 1:
+        #     max_seq_len = self._language_max_sequence_length
+
+        # pad labels and loss_mask
+        if labels is not None:
+            if labels.shape[1] < max_seq_len:
+                pad_size = max_seq_len - labels.shape[1]
+                labels = F.pad(labels, (0, pad_size), value=MultiModalSampleConfig.ignore_place_holder)
+                loss_mask = F.pad(loss_mask, (0, pad_size), value=0)
+
+        # pad combined_embeddings
+        if combined_embeddings is not None:
+            if combined_embeddings.shape[1] < max_seq_len:
+                pad_size = max_seq_len - combined_embeddings.shape[1]
+                # Pad along sequence dimension only, using memory-efficient padding
+                pad_shape = (0, 0, 0, pad_size)  # Pad last dim by pad_size
+                combined_embeddings = torch.nn.functional.pad(
+                    combined_embeddings.contiguous(),  # Ensure contiguous memory layout
+                    pad=pad_shape,
+                    mode='constant',
+                    value=0
+                )
+
+        # pad packed_seq_params
+        if (packed_seq_params is not None and packed_seq_params.qkv_format == "thd"):
+            last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+            last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
+            assert (
+                last_seqlen_padded >= last_seqlen
+            ), "`language_max_sequence_length` needs to increase for sequence packing to work properly."
+            packed_seq_params.cu_seqlens_q_padded[-1] = max_seq_len
+            packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
+            packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
+            packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
+        
+        return combined_embeddings, labels, loss_mask
 
     def truncate_sequence(self, combined_embeddings, labels, loss_mask, packed_seq_params):
         """
         Truncate the sequence (labels, loss_mask, combined_embeddings) to the language model's max sequence length.
+            combined_embeddings's shape is [batch_size, seq_len, attention head, embed_dim]
         """
 
         # truncate labels and loss_mask
@@ -474,16 +576,13 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             labels = labels[:, : self._language_max_sequence_length]
             loss_mask = loss_mask[:, : self._language_max_sequence_length]
 
-        # truncate final embedding
+        # truncate combined_embeddings
         if combined_embeddings is not None:
-            # transpose combined_embeddings to sbhd
-            # note this will also transpose thd, which is fine
-            combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
-            if combined_embeddings.shape[0] > self._language_max_sequence_length:
-                combined_embeddings = combined_embeddings[: self._language_max_sequence_length]
+            if combined_embeddings.shape[1] > self._language_max_sequence_length:
+                combined_embeddings = combined_embeddings[:, :self._language_max_sequence_length]
 
-        # packed seq param truncation
+        # packed_seq_params truncation
         packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
         if packed_sequence and packed_seq_params.cu_seqlens_q_padded[-1] > self._language_max_sequence_length:
             truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
@@ -549,6 +648,66 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
 
+        # # DEBUGGING
+        # rank = torch.distributed.get_rank()
+        # if rank == 0:
+        #     print("-------------")
+        #     debug_lines = []
+        #     debug_lines.append(f"[rank {rank}] input_ids.shape: {input_ids.shape if input_ids is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] labels.shape: {labels.shape if labels is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] loss_mask.shape: {loss_mask.shape if loss_mask is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] images.shape: {images.shape if images is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] audios.shape: {audios.shape if audios is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] input_ids[0]: {input_ids[0].tolist()}")
+        #     debug_lines.append(f"[rank {rank}] labels[0]: {labels[0].tolist()}")
+        #     debug_lines.append(f"[rank {rank}] loss_mask[0]: {loss_mask[0].tolist()}")
+        #     print('\n'.join(debug_lines))
+        #     # print(stop_here)
+
+        # # DEBUGGING
+        # # Print parameter counts and norms for each module by rank
+        # rank = torch.distributed.get_rank()
+        # def get_param_stats(model):
+        #     if model is None:
+        #         return 0.0, 0
+        #     total_norm = 0.0
+        #     num_params = sum(p.numel() for p in model.parameters())
+        #     for p in model.parameters():
+        #         total_norm += p.norm().item() ** 2
+        #     return torch.sqrt(torch.tensor(total_norm)).item(), num_params/1e6
+        # output = [f"\n=== Parameter Stats on Rank {rank} ==="]
+        # if hasattr(self, 'language_model') and self.language_model is not None:
+        #     norm, params = get_param_stats(self.language_model)
+        #     output.append(f"Language Model: {params:.2f}M params, norm: {norm:.6f}")
+        # else:
+        #     output.append(f"Language Model: 0.00M params, norm: 0.000000")
+        # if hasattr(self, 'vision_model') and self.vision_model is not None:
+        #     norm, params = get_param_stats(self.vision_model)
+        #     output.append(f"Vision Model: {params:.2f}M params, norm: {norm:.6f}")
+        #     if hasattr(self, 'vision_projection') and self.vision_projection is not None:
+        #         norm, params = get_param_stats(self.vision_projection)
+        #         output.append(f"Vision Projection: {params:.2f}M params, norm: {norm:.6f}")
+        #     else:
+        #         output.append(f"Vision Projection: 0.00M params, norm: 0.000000")
+        # else:
+        #     output.append(f"Vision Model: 0.00M params, norm: 0.000000")
+        #     output.append(f"Vision Projection: 0.00M params, norm: 0.000000")
+        # if hasattr(self, 'audio_model') and self.audio_model is not None:
+        #     norm, params = get_param_stats(self.audio_model)
+        #     output.append(f"Audio Model: {params:.2f}M params, norm: {norm:.6f}")
+        #     if hasattr(self, 'audio_projection') and self.audio_projection is not None:
+        #         norm, params = get_param_stats(self.audio_projection)
+        #         output.append(f"Audio Projection: {params:.2f}M params, norm: {norm:.6f}")
+        #     else:
+        #         output.append(f"Audio Projection: 0.00M params, norm: 0.000000")
+        # else:
+        #     output.append(f"Audio Model: 0.00M params, norm: 0.000000")
+        #     output.append(f"Audio Projection: 0.00M params, norm: 0.000000")
+        # norm, params = get_param_stats(self)
+        # output.append(f"Total Model: {params:.2f}M params, norm: {norm:.6f}")
+        # output.append("============================\n")
+        # print('\n'.join(output))
+
         # TODO: not sure what to do with this?
         use_inference_kv_cache = (
             inference_params is not None and "media_tokens_count" in inference_params.key_value_memory_dict
@@ -583,7 +742,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     if self._drop_vision_class_token:
                         class_token_len = getattr(self.vision_model, "class_token_len", 1)
                         image_embeddings = image_embeddings[:, class_token_len:, :]
-
                     # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
                     image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
@@ -647,46 +805,83 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         if not self.add_decoder:
             return image_embeddings, audio_embeddings
 
-
-        language_embeddings = None
+        combined_embeddings = None
         if self.pre_process:
             input_ids_text = input_ids.clone()
-            # MultiModal Token indices are assumed to be values
+            # MultiModal Token indices are assumed to be 0 values
             input_ids_text[input_ids_text < 0] = 0
 
             language_embeddings = self.language_model.embedding(
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
-
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
-        # processing image and audio embeddings, reshape them to [number_image_tokens or number_audio_tokens, embed_dim]
-        # image modality
-        embed_dim = language_embeddings.shape[-1]
-        image_embeddings = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
-        # audio modality
-        # (for audio modality, we need to base on audio_embedding_lens to filter out the padded audio embeddings)
-        audio_embeddings_max_seq_len, num_audios = audio_embeddings.shape[0], audio_embeddings.shape[1]
-        nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(audio_embeddings.device) < audio_embedding_lens.unsqueeze(0)
-        nonpadded_audio_embeddings = audio_embeddings[nonpadded_mask]
-        audio_embeddings = nonpadded_audio_embeddings
+            # processing image and audio embeddings, reshape them to [number_image_tokens or number_audio_tokens, embed_dim]
+            # image modality
+            embed_dim = language_embeddings.shape[-1]
+            image_embeddings = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+            # audio modality
+            # (for audio modality, we need to base on audio_embedding_lens to filter out the padded audio embeddings)
+            audio_embeddings_max_seq_len, num_audios = audio_embeddings.shape[0], audio_embeddings.shape[1]
+            nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(audio_embeddings.device) < audio_embedding_lens.unsqueeze(0)
+            nonpadded_audio_embeddings = audio_embeddings[nonpadded_mask]
+            audio_embeddings = nonpadded_audio_embeddings
 
-        # combine multimodal embeddings to text embeddings
-        combined_embeddings = self.combine_embeddings(
-            input_ids, 
-            image_embeddings, 
-            audio_embeddings, 
-            language_embeddings, 
-            image_token_index, 
-            audio_token_index, 
-            use_inference_kv_cache, 
-            packed_seq_params
-        )
+            # combine multimodal embeddings to text embeddings
+            combined_embeddings = self.combine_embeddings(
+                input_ids, 
+                image_embeddings, 
+                audio_embeddings, 
+                language_embeddings, 
+                image_token_index, 
+                audio_token_index, 
+                use_inference_kv_cache, 
+                packed_seq_params
+            )
 
-        # TODO: Not sure if this is needed
+        # DEBUGGING
+        rank = torch.distributed.get_rank()
+        if rank == 0:
+            print("-------------")
+            debug_lines = ["After combine_embeddings \n"]
+            debug_lines.append(f"[rank {rank}] language_embeddings.shape: {language_embeddings.shape if language_embeddings is not None else 'None'}")
+            debug_lines.append(f"[rank {rank}] image_embeddings.shape: {image_embeddings.shape if image_embeddings is not None else 'None'}")
+            debug_lines.append(f"[rank {rank}] audio_embeddings.shape: {audio_embeddings.shape if audio_embeddings is not None else 'None'}")
+            debug_lines.append(f"[rank {rank}] combined_embeddings.shape: {combined_embeddings.shape if combined_embeddings is not None else 'None'}")
+            debug_lines.append(f"[rank {rank}] labels.shape: {labels.shape if labels is not None else 'None'}")
+            debug_lines.append(f"[rank {rank}] loss_mask.shape: {loss_mask.shape if loss_mask is not None else 'None'}")
+            print('\n'.join(debug_lines))
+
+        # pad combined_embeddings, labels, loss_mask if needed
+        combined_embeddings, labels, loss_mask = self.pad_sequence(combined_embeddings, labels, loss_mask, packed_seq_params)
+
         # truncate combined_embeddings, labels, loss_mask if needed
         combined_embeddings, labels, loss_mask = self.truncate_sequence(combined_embeddings, labels, loss_mask, packed_seq_params)
 
+        # transpose combined_embeddings [b, s, h] -> [s, b, h]
+        if combined_embeddings is not None:
+            combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
+
+        # DEBUGGING
+        if loss_mask is not None:
+            loss_mask = loss_mask.contiguous()
+
+        # DEBUGGING
+        rank = torch.distributed.get_rank()
+        # if rank == 0:
+        print("-------------")
+        debug_lines = ["Before running _process_embedding_token_parallel"]
+        debug_lines.append(f"[rank {rank}] combined_embeddings.shape: {combined_embeddings.shape if combined_embeddings is not None else 'None'}")
+        debug_lines.append(f"[rank {rank}] labels.shape: {labels.shape if labels is not None else 'None'}")
+        debug_lines.append(f"[rank {rank}] loss_mask.shape: {loss_mask.shape if loss_mask is not None else 'None'}")
+        debug_lines.append(f"[rank {rank}] combined_embeddings.mean(): {combined_embeddings.mean() if combined_embeddings is not None else 'None'}")
+        debug_lines.append("-------------")
+        print('\n'.join(debug_lines))
+
+
+
+
+        # process combined_embeddings, labels, loss_mask for context/sequence parallelism
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
             if self.context_parallel_lm > 1:
                 # _process_embedding_token_parallel expects input in shape bshd for cp
@@ -698,18 +893,41 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 )
             )
 
+        # DEBUGGING
+        rank = torch.distributed.get_rank()
+        # if rank == 0:
+        debug_lines = ["[After running _process_embedding_token_parallel]"]
+        debug_lines.append(f"[rank {rank}] combined_embeddings.shape: {combined_embeddings.shape if combined_embeddings is not None else 'None'}")
+        debug_lines.append(f"[rank {rank}] labels.shape: {labels.shape if labels is not None else 'None'}")
+        debug_lines.append(f"[rank {rank}] loss_mask.shape: {loss_mask.shape if loss_mask is not None else 'None'}")
+        debug_lines.append(f"[rank {rank}] combined_embeddings.mean(): {combined_embeddings.mean() if combined_embeddings is not None else 'None'}")
+        debug_lines.append("-------------")
+        print('\n'.join(debug_lines))
+
         # # DEBUGGING
-        # print(f"input_ids.shape: {input_ids.shape}")
-        # print(f"language_embeddings.shape: {language_embeddings.shape}")
-        # print(f"combined_embeddings.shape: {combined_embeddings.shape}")
-        # print(f"labels.shape: {labels.shape}")
-        # print(f"loss_mask.shape: {loss_mask.shape}")
-        # # print(f"language_embeddings[0]: {language_embeddings[0].tolist()}")
-        # # print(f"combined_embeddings[0]: {combined_embeddings[0].tolist()}")
-        # print(f"input_ids[0]: {input_ids[0].tolist()}")
-        # print(f"labels[0]: {labels[0].tolist()}")
-        # print(f"loss_mask[0]: {loss_mask[0].tolist()}")
-        # print(stop_here)
+        # if input_ids.shape[1] < self._language_max_sequence_length:
+        #     rank = torch.distributed.get_rank()
+        #     # if rank == 0:
+        #     print("-------------")
+        #     print("------ new base.pt -------")
+        #     debug_lines = ["Before running self.language_model \n"]
+        #     # debug_lines.append(f"[rank {rank}] language_embeddings.shape: {language_embeddings.shape if language_embeddings is not None else 'None'}")
+        #     # debug_lines.append(f"[rank {rank}] image_embeddings.shape: {image_embeddings.shape if image_embeddings is not None else 'None'}")
+        #     # debug_lines.append(f"[rank {rank}] audio_embeddings.shape: {audio_embeddings.shape if audio_embeddings is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] input_ids.shape: {input_ids.shape if input_ids is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] combined_embeddings.shape: {combined_embeddings.shape if combined_embeddings is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] labels.shape: {labels.shape if labels is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] loss_mask.shape: {loss_mask.shape if loss_mask is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] input_ids.mean(): {input_ids.float().mean() if input_ids is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] combined_embeddings.mean(): {combined_embeddings.mean() if combined_embeddings is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] labels.mean(): {labels.float().mean() if labels is not None else 'None'}")
+        #     debug_lines.append(f"[rank {rank}] loss_mask.mean(): {loss_mask.float().mean() if loss_mask is not None else 'None'}")
+        #     # debug_lines.append(f"[rank {rank}] labels[0]: {labels[0].tolist() if labels is not None else 'None'}")
+        #     # debug_lines.append(f"[rank {rank}] loss_mask[0]: {loss_mask[0].tolist() if loss_mask is not None else 'None'}")
+        #     # debug_lines.append(f"[rank {rank}] packed_seq_params: {packed_seq_params if packed_seq_params is not None else 'None'}")
+        #     print('\n'.join(debug_lines))
+        #     print(stop_here)
+
 
         output = self.language_model(
             input_ids=None,
@@ -722,8 +940,34 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             packed_seq_params=packed_seq_params,
         )
 
+
+        # # DEBUGGING
+        # rank = torch.distributed.get_rank()
+        # if rank == 0:
+        #     print("-------------")
+        #     print(f"[nemo/collections/avlm/model/base.py] [({rank})] Forward pass done.")
+        #     print(f"[nemo/collections/avlm/model/base.py] [({rank})] output.shape: {output.shape if output is not None else None}")
+        #     print(f"[nemo/collections/avlm/model/base.py] [({rank})] loss_mask.shape: {loss_mask.shape if loss_mask is not None else None}")
+
+
+        # DEBUGGING
+        rank = torch.distributed.get_rank()
+        debug_lines = ["Output and loss_mask \n"]
+        debug_lines.append(f"[rank {rank}] combined_embeddings.shape: {combined_embeddings.shape if combined_embeddings is not None else None}")
+        debug_lines.append(f"[rank {rank}] output.shape: {output.shape if output is not None else None}")
+        debug_lines.append(f"[rank {rank}] loss_mask.shape: {loss_mask.shape if loss_mask is not None else None}")
+        debug_lines.append(f"[rank {rank}] combined_embeddings.mean(): {combined_embeddings.mean() if combined_embeddings is not None else None}")
+        debug_lines.append(f"[rank {rank}] output.mean(): {output.mean() if output is not None else None}")
+        debug_lines.append(f"[rank {rank}] loss_mask.mean(): {loss_mask.mean() if loss_mask is not None else None}")
+        print('\n'.join(debug_lines))
+
         if labels is None or loss_mask is None:
-            return output, audio_embedding_lens
+            return output
+
+
+        # # DEBUGGING
+        # print(stop_here)
+
 
         return output, loss_mask
 
@@ -781,6 +1025,85 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         else:
             self.language_model.set_input_tensor(input_tensor[0])
 
+    def _get_shard_factor(self, packed_seq_params):
+        """Get shard factor of sequence dimension"""
+
+        if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
+            seq_dim = 1
+        else:
+            seq_dim = 0
+        if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
+            shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
+        elif self.context_parallel_lm > 1:
+            shard_factor = self.context_parallel_lm * 2
+        elif self.sequence_parallel_lm:
+            shard_factor = self.tensor_model_parallel_size_lm
+        else:
+            shard_factor = 1
+            seq_dim = 0
+
+        return shard_factor, seq_dim
+
+    # def _process_embedding_token_parallel(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
+    #     """Processes the input data for model parallelism support."""
+
+    #     # No pre or post processing needed with PP middle chunks.
+    #     if not self.pre_process and not self.post_process:
+    #         return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+
+    #     if self.pre_process:
+    #         shard_factor, seq_dim = self._get_shard_factor(packed_seq_params)
+
+    #         assert (
+    #             combined_embeddings.shape[seq_dim] % shard_factor == 0
+    #         ), f"Sequence length should be divisible by {shard_factor} for \
+    #             Sequence/Context parallelism {combined_embeddings.shape} with dim {seq_dim}"
+    #         if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
+    #             assert (
+    #                 combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
+    #             ), "TP Comm overlap either requires Vision+Text token length \
+    #             == language_max_sequence_length"
+
+    #     if self.context_parallel_lm > 1:
+    #         batch = dict()
+    #         if self.pre_process:
+    #             batch.update(
+    #                 {
+    #                     "combined_embeddings": combined_embeddings,
+    #                 }
+    #             )
+    #         if self.post_process:
+    #             batch.update(
+    #                 {
+    #                     "new_labels": new_labels,
+    #                     "new_loss_mask": new_loss_mask,
+    #                 }
+    #             )
+    #         # Distribute sequence across CP ranks
+    #         if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
+    #             from megatron.core.utils import get_batch_on_this_cp_rank
+
+    #             if self.pre_process:
+    #                 batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
+    #             batch = get_batch_on_this_cp_rank(batch)
+    #         else:
+    #             batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
+
+    #         if self.pre_process:
+    #             combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
+    #             combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+    #         if self.post_process:
+    #             new_labels = batch["new_labels"]
+    #             new_loss_mask = batch["new_loss_mask"]
+
+    #     if self.sequence_parallel_lm and self.pre_process:
+    #         if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
+    #             combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+    #         combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
+    #             combined_embeddings
+    #         )  # [S/(CP*TP),B,H]
+
+    #     return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
     def _process_embedding_token_parallel(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
         """Processes the input data for model parallelism support."""
@@ -803,7 +1126,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             assert (
                 combined_embeddings.shape[seq_dim] % shard_factor == 0
             ), f"Sequence length should be divisible by {shard_factor} for \
-                Sequence/Context parallelism"
+                Sequence/Context parallelism {combined_embeddings.shape} with dim {seq_dim}"
             if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
                 assert (
                     combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
@@ -829,9 +1152,23 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
                 from megatron.training.utils import get_batch_on_this_cp_rank
 
-                batch = get_batch_on_this_cp_rank(batch)
+                batch = get_batch_on_this_cp_rank(batch) 
             else:
-                batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
+                try:
+                    import transformer_engine_torch as tex
+                except ModuleNotFoundError as e:
+                    logging.error(
+                        "Please update Transformer Engine to >= 1.10 to use \
+                            Context Parallel with THD format data"
+                    )
+                    raise e
+                cp_size = ps.get_context_parallel_world_size()
+                cp_rank = ps.get_context_parallel_rank()
+                for key, data in batch.items():
+                    index = tex.thd_get_partitioned_indices(
+                        packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
+                    )
+                    batch[key] = data.index_select(1, index)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]

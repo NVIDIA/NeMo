@@ -27,6 +27,7 @@ import argparse
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.transformer.enums import AttnBackend
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm, avlm
@@ -40,12 +41,25 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 def main(args):
     # pylint: disable=C0115,C0116
 
+    # DEBUGGING
+    # if use context parallel, set AttnBackend to flash
+    if args.cp_size > 1:
+        attn_backend = AttnBackend.flash
+    else:
+        attn_backend = AttnBackend.auto
+
     # Global and micro batch sizes
     gbs = args.gbs
     mbs = args.mbs
     num_workers = args.num_workers
     max_steps = args.max_steps
-    decoder_seq_length = 4096
+    decoder_seq_length = 8192
+    if args.sequence_parallel == "true":
+        args.sequence_parallel = True
+    elif args.sequence_parallel == "false":
+        args.sequence_parallel = False
+    else:
+        raise ValueError(f"Invalid sequence parallel value: {args.sequence_parallel}")
 
     if args.data_type == "energon":
         from nemo.collections.avlm.data.energon import AVLMDataModule
@@ -55,11 +69,23 @@ def main(args):
         data_path = args.data_path
 
         avlm_sample_config = AVLMSampleConfig(
-            audio_encoder_config={
+            # audio_encoder_config={ # canary audio encoder
+            #     "model_type": "whisper",
+            #     "window_stride": 0.01,
+            #     "sample_rate": 16000,
+            #     "encoder_down_sampling": 8,
+            #     "num_mel_bins": None,
+            #     "patch_size": None,
+            #     "time_stride": None,
+            #     "frequency_stride": None,
+            #     "max_spectrogram_length": None,
+            # },
+            audio_encoder_config={ # whisper audio encoder
                 "model_type": "whisper",
                 "window_stride": 0.01,
                 "sample_rate": 16000,
-                "encoder_down_sampling": 8,
+                "fixed_max_audio_length": 29.9999 * 16000,
+                "encoder_down_sampling": 2,
                 "num_mel_bins": None,
                 "patch_size": None,
                 "time_stride": None,
@@ -67,7 +93,10 @@ def main(args):
                 "max_spectrogram_length": None,
             },
             image_encoder_config={
-                "model_type": "clip",
+                "model_type": "vit",
+                "img_width": 336,
+                "img_height": 336,
+                "patch_size": 14,
             }
         )
         # Setting system prompt to empty string
@@ -81,6 +110,7 @@ def main(args):
             num_workers=num_workers,
             micro_batch_size=mbs,
             global_batch_size=gbs,
+            seq_length=decoder_seq_length,
             tokenizer=AutoTokenizer("llava-hf/llava-1.5-7b-hf"),
             multimodal_sample_config=avlm_sample_config,
             task_encoder=task_encoder,
@@ -101,13 +131,14 @@ def main(args):
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
         seq_length=decoder_seq_length,
+        attention_backend=attn_backend,
     )
-    # vision_transformer_config = vlm.HFCLIPVisionConfig(
-    #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    # )
-    # vision_model_from_pretrained = None
-    vision_transformer_config = vlm.CLIPViTL_14_336_Config()
-    vision_model_from_pretrained = "/root/.cache/nemo/models/openai/clip-vit-large-patch14"
+    vision_transformer_config = vlm.HFCLIPVisionConfig(
+        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    )
+    vision_model_from_pretrained = None
+    # vision_transformer_config = vlm.CLIPViTL_14_336_Config()
+    # vision_model_from_pretrained = "/root/.cache/nemo/models/openai/clip-vit-large-patch14"
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=vision_transformer_config.hidden_size,
@@ -115,37 +146,37 @@ def main(args):
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
 
-    # canary audio encoder
-    audio_transformer_config=ASRModuleConfig(
-        _target_="nemo.collections.asr.models.EncDecMultiTaskModel",
-        pretrained_model="nvidia/canary-1b",
-        hidden_size=1024,
-        target_module="encoder",
-        spec_augment_config={
-            "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
-            "freq_masks": 2, # set to zero to disable it
-            "time_masks": 10, # set to zero to disable it
-            "freq_width": 27,
-            "time_width": 0.05,
-        }
-    )
-    # # whisper audio encoder  # need update NeMo from Steve's branch
+    # # canary audio encoder
     # audio_transformer_config=ASRModuleConfig(
-    #     _target_="nemo.collections.speechlm.modules.asr_module.ASRModuleConfig",
-    #     use_hf_auto_model=True,
-    #     hf_trust_remote_code=False,
-    #     hf_load_pretrained_weights=True,
-    #     pretrained_model="openai/whisper-large-v3",
-    #     hidden_size=1280,
-    #     target_module="model.encoder",
+    #     _target_="nemo.collections.asr.models.EncDecMultiTaskModel",
+    #     pretrained_model="nvidia/canary-1b",
+    #     hidden_size=1024,
+    #     target_module="encoder",
     #     spec_augment_config={
     #         "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
-    #         "freq_masks": 0, # set to zero to disable it
-    #         "time_masks": 0, # set to zero to disable it
+    #         "freq_masks": 2, # set to zero to disable it
+    #         "time_masks": 10, # set to zero to disable it
     #         "freq_width": 27,
     #         "time_width": 0.05,
     #     }
     # )
+    # whisper audio encoder  # need update NeMo from Steve's branch
+    audio_transformer_config=ASRModuleConfig(
+        _target_="nemo.collections.speechlm.modules.asr_module.ASRModuleConfig",
+        use_hf_auto_model=True,
+        hf_trust_remote_code=False,
+        hf_load_pretrained_weights=True,
+        pretrained_model="openai/whisper-large-v3",
+        hidden_size=1280,
+        target_module="model.encoder",
+        # spec_augment_config={
+        #     "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
+        #     "freq_masks": 0, # set to zero to disable it
+        #     "time_masks": 0, # set to zero to disable it
+        #     "freq_width": 27,
+        #     "time_width": 0.05,
+        # }
+    )
     audio_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=audio_transformer_config.hidden_size, # need to set somehow?
@@ -163,11 +194,11 @@ def main(args):
         language_model_from_pretrained=args.language_model_path,
         vision_model_from_pretrained=vision_model_from_pretrained,
         audio_model_from_pretrained=None,
-        freeze_language_model=True,
+        freeze_language_model=False,
         freeze_vision_model=True,
-        freeze_vision_projection=False,
+        freeze_vision_projection=True,
         freeze_audio_model=True,
-        freeze_audio_projection=False,
+        freeze_audio_projection=True,
     )
     model = avlm.AVLMModel(avlm_config, tokenizer=data.tokenizer)
 
@@ -176,16 +207,17 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
+        context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=False,
+        sequence_parallel=args.sequence_parallel,
     )
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
         save_last=True,
         monitor="reduced_train_loss",
-        save_top_k=2,
-        every_n_train_steps=1000,
+        save_top_k=5,
+        every_n_train_steps=5000,
         dirpath=args.log_dir,
     )
 
@@ -199,7 +231,8 @@ def main(args):
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
         val_check_interval=args.val_check_interval,
-        limit_val_batches=gbs,
+        check_val_every_n_epoch=None,
+        limit_val_batches=1.0,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
@@ -212,7 +245,7 @@ def main(args):
     #     strategy=strategy,
     #     plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     #     callbacks=[checkpoint_callback, TimingCallback()],
-    #     val_check_interval=500,
+    #     val_check_interval=1.0,
     #     limit_val_batches=gbs,
     #     log_every_n_steps=1,
     #     num_sanity_val_steps=0,
@@ -250,13 +283,15 @@ def main(args):
         adam_beta2=0.95,
         use_distributed_optimizer=True,
         bf16=True,
+        clip_grad=1.0,
     )
-    sched = CosineAnnealingScheduler(
-        max_steps=trainer.max_steps,
-        warmup_steps=150,
-        constant_steps=0,
-        min_lr=2.0e-05,
-    )
+    # sched = CosineAnnealingScheduler(
+    #     max_steps=trainer.max_steps,
+    #     warmup_steps=150,
+    #     constant_steps=0,
+    #     min_lr=2.0e-05,
+    # )
+    sched = None
     opt = MegatronOptimizerModule(opt_config, sched)
 
     llm.pretrain(
@@ -291,6 +326,8 @@ if __name__ == "__main__":
     parser.add_argument("--tp_size", type=int, required=False, default=1)   
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
+    parser.add_argument("--cp_size", type=int, required=False, default=1)
+    parser.add_argument("--sequence_parallel", type=str, required=False, default="false", help="Enable sequence parallel")
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="avlm_pretrain")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)

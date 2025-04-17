@@ -418,6 +418,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                             model_type=self.multimodal_sample_config.audio_encoder_config['model_type'],
                             sample_rate=self.multimodal_sample_config.audio_encoder_config['sample_rate'],
                             window_stride=self.multimodal_sample_config.audio_encoder_config['window_stride'],
+                            fixed_max_audio_length=self.multimodal_sample_config.audio_encoder_config['fixed_max_audio_length'],
                             encoder_down_sampling=self.multimodal_sample_config.audio_encoder_config['encoder_down_sampling'],
                             num_mel_bins=self.multimodal_sample_config.audio_encoder_config['num_mel_bins'],
                             patch_size=self.multimodal_sample_config.audio_encoder_config['patch_size'],
@@ -466,6 +467,9 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                     encoded_image_seq_length = calculate_encoded_image_seq_length(
                         num_one_image_tiles = processed_image.shape[0],
                         model_type=self.multimodal_sample_config.image_encoder_config['model_type'],
+                        img_width=self.multimodal_sample_config.image_encoder_config['img_width'],
+                        img_height=self.multimodal_sample_config.image_encoder_config['img_height'],
+                        patch_size=self.multimodal_sample_config.image_encoder_config['patch_size'],
                         )
                     tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
 
@@ -601,6 +605,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                     model_type=self.multimodal_sample_config.audio_encoder_config['model_type'],
                     sample_rate=self.multimodal_sample_config.audio_encoder_config['sample_rate'],
                     window_stride=self.multimodal_sample_config.audio_encoder_config['window_stride'],
+                    fixed_max_audio_length=self.multimodal_sample_config.audio_encoder_config['fixed_max_audio_length'],
                     encoder_down_sampling=self.multimodal_sample_config.audio_encoder_config['encoder_down_sampling'],
                     num_mel_bins=self.multimodal_sample_config.audio_encoder_config['num_mel_bins'],
                     patch_size=self.multimodal_sample_config.audio_encoder_config['patch_size'],
@@ -655,6 +660,9 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                 encoded_image_seq_length = calculate_encoded_image_seq_length(
                     num_one_image_tiles = processed_image.shape[0],
                     model_type=self.multimodal_sample_config.image_encoder_config['model_type'],
+                    img_width=self.multimodal_sample_config.image_encoder_config['img_width'],
+                    img_height=self.multimodal_sample_config.image_encoder_config['img_height'],
+                    patch_size=self.multimodal_sample_config.image_encoder_config['patch_size'],
                     )
                 tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
 
@@ -714,6 +722,21 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         output_sample.tokens = tokens
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
+
+
+        # # DEBUGGING
+        # rank = torch.distributed.get_rank()
+        # if rank == 0:
+        #     print("-------------")
+        #     tokens = output_sample.tokens
+        #     images = output_sample.images
+        #     audios = output_sample.audios
+        #     print(f"[rank {rank}] conversation_prompt: {conversation_prompt}")
+        #     print(f"[rank {rank}] tokens.shape: {tokens.shape if tokens is not None else 'None'}")
+        # print(stop_here)
+
+
+
         return output_sample
 
 
@@ -835,9 +858,11 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
 
         rawBatch = AVLMRawBatch()
         rawBatch.__keys__ = batch_list(keys)
+        # DEBUGGING
+        # need updates from Yuanhang
         rawBatch.tokens = pad_sequence(tokens, batch_first=True)
-        rawBatch.labels = pad_sequence(labels, batch_first=True)        
-        rawBatch.loss_mask = batch_pad_stack(loss_mask)
+        rawBatch.labels = pad_sequence(labels, batch_first=True, padding_value=self.sample_config.ignore_place_holder)        
+        rawBatch.loss_mask = batch_pad_stack(loss_mask) # pad with 0s
 
         if audios:
             audios = [audio for audio_list in audios for audio in audio_list]

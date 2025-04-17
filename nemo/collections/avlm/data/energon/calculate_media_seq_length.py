@@ -4,6 +4,7 @@ import torch
 def calculate_encoded_audio_seq_length(
     model_type: str,
     audio_length: int, 
+    fixed_max_audio_length: int, 
     sample_rate: int,
     window_stride: int,
     encoder_down_sampling: int,
@@ -34,6 +35,13 @@ def calculate_encoded_audio_seq_length(
             Returns:
             - int: The number of mel frames.
             """
+
+            # DEBUGGING
+            # when there is a fixed max audio length, we use the fixed max audio length instead of the audio_length
+            # e.g. for whisper model, the audio_length is padded to 30 seconds
+            if fixed_max_audio_length is not None:
+                audio_length = fixed_max_audio_length
+
             hop_length_samples = int(window_stride * sample_rate)
             
             if window_length is None:
@@ -47,7 +55,7 @@ def calculate_encoded_audio_seq_length(
         num_mel_frames = calculate_num_mel_frames(audio_length, sample_rate, window_stride)
         encoder_seq_length = math.ceil(num_mel_frames / encoder_down_sampling)
     
-    elif model_type == "wavlm":
+    elif model_type == "wavlm": # WavLM model
         # For WavLM, use the exact convolutional calculation logic
         # WavLM uses a series of convolutional layers with different kernels and strides
         conv_kernel = [10, 3, 3, 3, 3, 2, 2]
@@ -69,7 +77,7 @@ def calculate_encoded_audio_seq_length(
         # The result is the encoder sequence length
         encoder_seq_length = input_length
     
-    elif model_type == "ast":
+    elif model_type == "ast": # audio spectrogram transformer
         assert patch_size is not None, "patch_size must be provided for ast model"
         assert frequency_stride is not None, "frequency_stride must be provided for ast model"
         assert max_spectrogram_length is not None, "max_spectrogram_length must be provided for ast model"
@@ -104,11 +112,13 @@ def calculate_encoded_audio_seq_length(
 def calculate_encoded_image_seq_length(
     num_one_image_tiles: int,
     model_type: str = None,
-    encoder_args: dict = None,
+    img_width: int = None,
+    img_height: int = None,
+    patch_size: int = None,
     ):
     
-    if model_type == "clip":
-        img_seq_length = 576 # number of patches in one image
+    if model_type == "vit":
+        img_seq_length = (img_width // patch_size) * (img_height // patch_size)
         encoder_seq_length = num_one_image_tiles * img_seq_length
     else:
         raise ValueError(f"Unsupported model type: {model_type}")

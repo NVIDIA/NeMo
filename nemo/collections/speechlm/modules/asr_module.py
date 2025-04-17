@@ -166,6 +166,10 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             imported_cls = model_utils.import_class_by_path(self._target_)
         else:
             imported_cls = nemo_asr.models.ASRModel
+
+        # DEBUGGING
+        print("Got here 1! [nemo/collections/speechlm/modules/asr_module.py]")
+
         if self.pretrained_model is not None and self.config is None:
             if str(self.pretrained_model).endswith(".nemo"):
                 asr_model = imported_cls.restore_from(self.pretrained_model)  # type: nemo_asr.models.ASRModel
@@ -185,6 +189,9 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
                 }
             )
             asr_model.maybe_init_from_pretrained_checkpoint(init_cfg)
+
+        # DEBUGGING
+        print("Got here 2! [nemo/collections/speechlm/modules/asr_module.py]")
 
         model = asr_model
         if self.target_module is not None:
