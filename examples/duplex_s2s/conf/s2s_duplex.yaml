@@ -37,7 +37,7 @@ model:
        subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
        causal_downsampling: true
        ff_expansion_factor: 4
-       self_attention_model: rel_pos_local_attn # rel_pos or abs_pos
+       self_attention_model: rel_pos # rel_pos or abs_pos
        n_heads: 8 # may need to be lower for smaller d_models
        # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
        att_context_size: [70, 1] # -1 means unlimited context
