@@ -73,7 +73,7 @@ def query(argv):
     if args.prompt_file is not None:
         with open(args.prompt_file, "r") as f:
             args.prompt = f.read()
-    
+
     outputs = query_llm(
         url=args.url,
         model_name=args.model_name,

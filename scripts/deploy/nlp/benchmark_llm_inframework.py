@@ -51,7 +51,9 @@ def get_args(argv):
     parser.add_argument("-t", "--temperature", default=1.0, type=float, help="temperature")
     parser.add_argument("-it", "--init_timeout", default=60.0, type=float, help="init timeout for the triton server")
     parser.add_argument("-clp", "--compute_logprob", default=None, action='store_true', help="Returns log_probs")
-    parser.add_argument("-w", "--warmup", default=3, type=int, help="Number of warmup queries to run before benchmarking")
+    parser.add_argument(
+        "-w", "--warmup", default=3, type=int, help="Number of warmup queries to run before benchmarking"
+    )
 
     args = parser.parse_args(argv)
     return args
@@ -72,7 +74,7 @@ def run_benchmark(
 ) -> Dict[str, Any]:
     """
     Run a benchmark of the LLM deployment.
-    
+
     Args:
         url: URL of the Triton server
         model_name: Name of the model to query
@@ -85,14 +87,14 @@ def run_benchmark(
         compute_logprob: Whether to compute log probabilities
         init_timeout: Initialization timeout
         warmup: Number of warmup queries to run
-        
+
     Returns:
         Dictionary containing benchmark results
     """
     nemo_query = NemoQueryLLMPyTorch(url, model_name)
     latencies = []
     outputs = []
-    
+
     # Warmup phase
     print(f"Running {warmup} warmup queries...")
     for _ in range(warmup):
@@ -105,22 +107,22 @@ def run_benchmark(
             compute_logprob=compute_logprob,
             init_timeout=init_timeout,
         )
-    
+
     # Benchmark phase
     print(f"Running {num_queries} benchmark queries with batch size {batch_size}...")
     num_batches = (num_queries + batch_size - 1) // batch_size
-    
+
     for batch_idx in range(num_batches):
         start_idx = batch_idx * batch_size
         end_idx = min((batch_idx + 1) * batch_size, num_queries)
         current_batch_size = end_idx - start_idx
-        
+
         # Select prompts for this batch
         batch_prompts = []
         for i in range(current_batch_size):
             prompt_idx = (start_idx + i) % len(TEST_PROMPTS)
             batch_prompts.append(TEST_PROMPTS[prompt_idx])
-        
+
         start_time = time.time()
         result = nemo_query.query_llm(
             prompts=batch_prompts,
@@ -132,16 +134,16 @@ def run_benchmark(
             init_timeout=init_timeout,
         )
         end_time = time.time()
-        
+
         # Calculate per-query latency
         batch_latency = end_time - start_time
         per_query_latency = batch_latency / current_batch_size
-        
+
         for i in range(current_batch_size):
             latencies.append(per_query_latency)
             outputs.append(result[i] if isinstance(result, list) else result)
             print(f"Query {start_idx + i + 1}/{num_queries} completed in {per_query_latency:.2f} seconds")
-    
+
     # Calculate statistics
     latencies = np.array(latencies)
     stats = {
@@ -157,7 +159,7 @@ def run_benchmark(
         "warmup_queries": warmup,
         "batch_size": batch_size,
     }
-    
+
     return stats
 
 
@@ -181,7 +183,7 @@ def print_benchmark_results(stats: Dict[str, Any]) -> None:
 
 def benchmark(argv):
     args = get_args(argv)
-    
+
     stats = run_benchmark(
         url=args.url,
         model_name=args.model_name,
@@ -195,9 +197,9 @@ def benchmark(argv):
         init_timeout=args.init_timeout,
         warmup=args.warmup,
     )
-    
+
     print_benchmark_results(stats)
 
 
 if __name__ == '__main__':
-    benchmark(sys.argv[1:]) 
+    benchmark(sys.argv[1:])

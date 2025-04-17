@@ -103,7 +103,7 @@ def nemo_deploy(argv):
         expert_model_parallel_size=args.expert_model_parallel_size,
         max_batch_size=args.max_batch_size,
         enable_flash_decode=args.enable_flash_decode,
-        enable_cuda_graphs=args.enable_cuda_graphs
+        enable_cuda_graphs=args.enable_cuda_graphs,
     )
 
     if torch.distributed.is_initialized():
