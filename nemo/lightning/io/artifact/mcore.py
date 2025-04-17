@@ -56,7 +56,6 @@ class MCoreArtifact(Artifact):
                 copy_file(pathize(vocab_file), path_to_save, relative_dir, overwrite=True)
             if merges_file:
                 copy_file(pathize(merges_file), path_to_save, relative_dir, overwrite=True)
-            return dir_name
         else:
             # save tokenizer and it's metadata for SentencePiece and TikToken
             os.makedirs(str(path_to_save), exist_ok=True)
