@@ -219,12 +219,12 @@ def setup_model_and_tokenizer(
 
     enable_flash_decode = True
     if enable_flash_decode:
-        logging.info(f"Enabling Flash Decode for in-framework inference")
+        logging.info("Enabling Flash Decode for in-framework inference")
         model.config.flash_decode = True
         model.config.attention_backend = AttnBackend.flash
     enable_cuda_graphs = True
     if enable_cuda_graphs:
-        logging.info(f"Enabling CUDA Graphs for in-framework inference")
+        logging.info("Enabling CUDA Graphs for in-framework inference")
         model.config.enable_cuda_graph = True
         model.config.use_te_rng_tracker = True
         model.config.inference_rng_tracker = True
