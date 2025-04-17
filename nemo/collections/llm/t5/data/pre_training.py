@@ -25,10 +25,10 @@ from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
+
 if TYPE_CHECKING:
     from megatron.core.datasets.t5_dataset import T5MaskedWordPieceDatasetConfig
-
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
@@ -54,7 +54,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             weights should not be provided for the validation split.
         seq_length (int): Sequence length.
         seq_length_dec (int): Sequence length of decoder.
-        tokenizer (Optional["TokenizerSpec"]): An instance of a TokenizerSpec object.
+        tokenizer (Optional["MegatronTokenizerBase"]): An instance of a MegatronTokenizerBase object.
         micro_batch_size (int): Batch size per GPU.
         global_batch_size (int): Global batch size.
         rampup_batch_size (Optional[List[int]]): Rampup batch size, should be in format of
@@ -80,7 +80,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         paths: Path | List | Dict[str, List],
         seq_length: int = 512,
         seq_length_dec: int = 128,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 64,
         global_batch_size: int = 512,
         rampup_batch_size: Optional[List[int]] = None,
@@ -145,14 +145,12 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         # create tokenizer if tokenizer is None
         if tokenizer is None:
-            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
             special_tokens = {}
             special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
-            tokenizer = get_nmt_tokenizer(
-                "megatron",
-                "BertWordPieceCase",
-                special_tokens=special_tokens,
+            tokenizer = MegatronTokenizer.from_pretrained(
+                tokenizer_path="BertWordPieceCase",
+                metadata_path={"library": "megatron", "model_type": "llama"},
+                **special_tokens,
             )
         self.tokenizer = tokenizer
 

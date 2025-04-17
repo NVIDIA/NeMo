@@ -22,8 +22,9 @@ from nemo.collections.llm.bert.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.utils import logging
 
+from megatron.core.tokenizers import MegatronTokenizerBase
+
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
@@ -39,7 +40,7 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         test_ratio: Optional[float] = 0.01,
         dataset_identifier: str = "custom_retrieval_dataset",
         seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -70,7 +71,7 @@ class CustomRetrievalDataModule(FineTuningDataModule):
             test_ratio (Optional[float]): The ratio of test set when splitting from data_root.
             dataset_identifier (str): Dataset identifier when saving the dataset to NEMO_HOME.
             seq_length (int, optional): The maximum sequence length for the input and output text. Defaults to 2048.
-            tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text.
+            tokenizer (Optional[MegatronTokenizerBase], optional): The tokenizer to use for preprocessing the text.
                 If not provided, a Megatron GPT2 BPE tokenizer will be used.
             micro_batch_size (int, optional): The micro batch size for training. Defaults to 4.
             global_batch_size (int, optional): The global batch size for training. Defaults to 8.

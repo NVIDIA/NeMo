@@ -26,9 +26,10 @@ from typing import Any, Callable, List, Optional, Type
 import numpy as np
 import torch
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Dataset
 from nemo.utils import AppState
+
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class _TextMemMapDataset(Dataset):
         newline_int: Optional[int] = 10,
         header_lines: Optional[int] = 0,
         workers: Optional[int] = None,
-        tokenizer: Optional[Type["TokenizerSpec"]] = None,
+        tokenizer: Optional[Type["MegatronTokenizerBase"]] = None,
         build_index_fn: Optional[Callable[[str, Optional[int]], bool]] = build_index_from_memdata,
         sort_dataset_paths: Optional[bool] = True,
         index_mapping_dir: Optional[str] = None,
@@ -313,7 +314,7 @@ class _JSONLMemMapDataset(_TextMemMapDataset):
         newline_int: Optional[int] = 10,
         header_lines: Optional[int] = 0,
         workers: Optional[int] = None,
-        tokenizer: Optional[Type["TokenizerSpec"]] = None,
+        tokenizer: Optional[Type["MegatronTokenizerBase"]] = None,
         sort_dataset_paths: Optional[bool] = True,
         index_mapping_dir: Optional[str] = None,
     ):
@@ -734,7 +735,7 @@ def _make_indexed_dataset_compatibility(dataset):
 
 def _preprocess(
     source: dict,
-    tokenizer: TokenizerSpec,
+    tokenizer: MegatronTokenizerBase,
     name_end_token_ids: int,
     label_start_ids: list,
     special_tokens: dict,
@@ -821,7 +822,7 @@ def _mask_targets(
         speakers (List[str]): array of speakers of each turns
         header_len (int): the system prompt length
         s_ids (List[Tensor]): array of tokenized ids of each turns
-        tokenizer (TokenizerSpec): tokenizer object
+        tokenizer (MegatronTokenizerBase): tokenizer object
         mask_role (str): the speaker id to be masked from loss computation.
         gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
         name_end_token_ids (int): end of name token ids

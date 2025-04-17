@@ -18,20 +18,20 @@ from typing import Optional
 
 import numpy as np
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
 
+from megatron.core.tokenizers import MegatronTokenizerBase
 
-def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int):
+def tokenize_dataset(path: Path, tokenizer: MegatronTokenizerBase, max_seq_length: int, seed: int):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
     and prepares it for further processing.
 
     Args:
         path (Path): Path to the dataset file.
-        tokenizer (TokenizerSpec): The tokenizer to use for tokenization.
+        tokenizer (MegatronTokenizerBase): The tokenizer to use for tokenization.
         max_seq_length (int): Maximum sequence length for the tokens.
         seed (int): Random seed for shuffling the dataset (optional).
 
@@ -53,7 +53,7 @@ def prepare_packed_sequence_data(
     output_path: Path,
     output_metadata_path: Path,
     packed_sequence_size: int,
-    tokenizer: TokenizerSpec,
+    tokenizer: MegatronTokenizerBase,
     max_seq_length: int,
     seed: Optional[int] = 0,
     packing_algorithm: str = "first_fit_shuffle",
@@ -65,7 +65,7 @@ def prepare_packed_sequence_data(
         input_path (Path): Path to the input dataset file.
         output_path (Path): Path to save the packed sequence data.
         packed_sequence_size (int): The maximum size for each packed sequence.
-        tokenizer (TokenizerSpec): The tokenizer to use for tokenization.
+        tokenizer (MegatronTokenizerBase): The tokenizer to use for tokenization.
         max_seq_length (int): Maximum sequence length for the tokens.
         seed (Optional[int]): Random seed for shuffling (optional).
         packing_algorithm (str): The algorithm used for packing sequences

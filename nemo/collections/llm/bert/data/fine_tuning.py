@@ -20,13 +20,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers import TokenizerSpec
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 
 class FineTuningDataModule(pl.LightningDataModule):
@@ -39,7 +37,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     Args:
         dataset_root (Union[str, Path]): The root directory containing the training, validation, and test data.
         seq_length (int, optional): The maximum sequence length for the input and output text. Defaults to 2048.
-        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text.
+        tokenizer (Optional[MegatronTokenizerBase], optional): The tokenizer to use for preprocessing the text.
             If not provided, a Megatron GPT2 BPE tokenizer will be used.
         micro_batch_size (int, optional): The micro batch size for training. Defaults to 4.
         global_batch_size (int, optional): The global batch size for training. Defaults to 8.
@@ -60,7 +58,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self,
         dataset_root: Union[str, Path],
         seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -212,8 +210,8 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     def _extract_tokenizer_model_name(self) -> str:
         """Automatically get the model name from model path."""
-        if isinstance(self.tokenizer, AutoTokenizer):
-            name = self.tokenizer.tokenizer.name_or_path
+        if self.tokenizer.library in ["huggingface', 'megatron"]:
+            name = self.tokenizer._tokenizer.name_or_path
             if name.endswith("context/nemo_tokenizer"):
                 # NEMO_HOME/hf_org/hf_model/context/nemo_tokenizer => hf_org--hf_model
                 tokenizer_model_name = '--'.join(name.split("/")[-4:-2])

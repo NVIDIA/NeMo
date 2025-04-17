@@ -20,10 +20,11 @@ import numpy as np
 import torch
 from datasets import load_dataset
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import _JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
+
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 
 def get_dataset_root(name: str) -> Path:
@@ -37,7 +38,7 @@ def get_dataset_root(name: str) -> Path:
 
 def create_sft_dataset(
     path: Path,
-    tokenizer: "TokenizerSpec",
+    tokenizer: "MegatronTokenizerBase",
     seq_length: int = 512,
     seq_length_dec: int = 128,
     add_bos: bool = True,
@@ -74,8 +75,8 @@ class T5SFTDataset(Dataset):
     def __init__(
         self,
         file_path: str,
-        src_tokenizer: TokenizerSpec,
-        tgt_tokenizer: TokenizerSpec,
+        src_tokenizer: MegatronTokenizerBase,
+        tgt_tokenizer: MegatronTokenizerBase,
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         add_bos_to_input: bool = True,

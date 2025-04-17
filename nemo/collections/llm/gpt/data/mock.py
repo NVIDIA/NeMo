@@ -24,10 +24,9 @@ from torch.utils.data import DataLoader, Dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
 
-_, HAVE_TE = safe_import("transformer_engine")
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+_, HAVE_TE = safe_import("transformer_engine")
 
 
 class MockDataModule(pl.LightningDataModule):
@@ -35,7 +34,7 @@ class MockDataModule(pl.LightningDataModule):
     MockDataModule will generate random token indices to simulate a dataset.
     Args:
         seq_length (int): Sequence length.
-        tokenizer (Optional["TokenizerSpec"]): An instance of a TokenizerSpec object.
+        tokenizer (Optional["MegatronTokenizerBase"]): An instance of a MegatronTokenizerBase object.
         micro_batch_size (int): Batch size per GPU.
         global_batch_size (int): Global batch size.
         rampup_batch_size (Optional[List[int]]): Rampup batch size, should be in format of
@@ -54,7 +53,7 @@ class MockDataModule(pl.LightningDataModule):
     def __init__(
         self,
         seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -81,10 +80,9 @@ class MockDataModule(pl.LightningDataModule):
         self.create_attention_mask = create_attention_mask or not HAVE_TE
 
         if tokenizer is None:
-            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
-            self.tokenizer = get_nmt_tokenizer(
-                "megatron", "GPT2BPETokenizer", vocab_file=vocab_file, merges_file=merges_file
+            self.tokenizer = MegatronTokenizer.from_pretrained(
+                tokenizer_path="GPT2BPETokenizer",
+                metadata_path={"library": "megatron", "model_type": "llama"},
             )
         else:
             self.tokenizer = tokenizer
@@ -148,7 +146,7 @@ class MockDataModule(pl.LightningDataModule):
 class _MockGPTDataset(Dataset):
     def __init__(
         self,
-        tokenizer: "TokenizerSpec",
+        tokenizer: "MegatronTokenizerBase",
         name: str,
         num_samples: int,
         seq_length: int,

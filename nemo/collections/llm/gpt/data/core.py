@@ -24,7 +24,6 @@ import numpy as np
 import torch
 from datasets import load_dataset
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import (
     _get_samples_mapping,
     _JSONLMemMapDataset,
@@ -33,6 +32,8 @@ from nemo.collections.llm.gpt.data.utils import (
 )
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
+
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def get_dataset_root(name: str) -> Path:
 
 def create_sft_dataset(
     path: Path,
-    tokenizer: "TokenizerSpec",
+    tokenizer: "MegatronTokenizerBase",
     seq_length: int = 2048,
     add_bos: bool = False,
     add_eos: bool = True,
@@ -127,7 +128,7 @@ class GPTSFTDataset(Dataset):
     def __init__(
         self,
         file_path: str,
-        tokenizer: TokenizerSpec,
+        tokenizer: MegatronTokenizerBase,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
         pad_seq_length_to_mult: int = 16,
@@ -164,7 +165,7 @@ class GPTSFTDataset(Dataset):
                     Q: What did the math of artificial viscosity do?',
                 'output': 'smoothed the shock transition without sacrificing basic physics'
             }
-        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: SentencePiece).
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits MegatronTokenizerBase (ex: SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples.
             Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset.
@@ -652,7 +653,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
     def __init__(
         self,
         file_path: str,
-        tokenizer: TokenizerSpec,
+        tokenizer: MegatronTokenizerBase,
         return_cu_seqlen: bool = True,
         pad_cu_seqlens: bool = False,
         pack_metadata_file_path: Optional[str] = None,

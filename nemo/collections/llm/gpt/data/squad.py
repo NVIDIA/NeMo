@@ -23,8 +23,9 @@ from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
+from megatron.core.tokenizers import MegatronTokenizerBase
+
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
@@ -51,7 +52,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         self,
         dataset_root: Optional[Union[str, Path]] = None,
         seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,

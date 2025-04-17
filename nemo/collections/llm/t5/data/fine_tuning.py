@@ -23,8 +23,7 @@ from torch.utils.data import DataLoader
 from nemo.collections.llm.t5.data.core import create_sft_dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers import TokenizerSpec
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
 
 class FineTuningDataModule(pl.LightningDataModule):
@@ -37,7 +36,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     Args:
         dataset_root (Union[str, Path]): The root directory containing the training, validation, and test data.
         seq_length (int, optional): The maximum sequence length for the input and output text. Defaults to 2048.
-        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text. Defaults to None.
+        tokenizer (Optional[MegatronTokenizerBase], optional): The tokenizer to use for preprocessing the text. Defaults to None.
             If not provided, a BertWordPieceCase tokenizer will be used.
         micro_batch_size (int, optional): The micro batch size for training. Defaults to 4.
         global_batch_size (int, optional): The global batch size for training. Defaults to 8.
@@ -55,7 +54,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         dataset_root: Union[str, Path],
         seq_length: int = 512,
         seq_length_dec: int = 128,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -73,14 +72,12 @@ class FineTuningDataModule(pl.LightningDataModule):
 
         # create tokenizer if tokenizer is None
         if tokenizer is None:
-            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
             special_tokens = {}
             special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
-            tokenizer = get_nmt_tokenizer(
-                "megatron",
-                "BertWordPieceCase",
-                special_tokens=special_tokens,
+            tokenizer = MegatronTokenizer.from_pretrained(
+                tokenizer_path="BertWordPieceCase",
+                metadata_path={"library": "megatron", "model_type": "llama"},
+                **special_tokens,
             )
         self.tokenizer = tokenizer
 

@@ -24,10 +24,9 @@ from torch.utils.data import DataLoader, Dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
 
-_, HAVE_TE = safe_import("transformer_engine")
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+_, HAVE_TE = safe_import("transformer_engine")
 
 
 class MockDataModule(pl.LightningDataModule):
@@ -37,7 +36,7 @@ class MockDataModule(pl.LightningDataModule):
         self,
         seq_length: int = 512,
         seq_length_dec: int = 128,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -62,9 +61,14 @@ class MockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.create_attention_mask = create_attention_mask or not HAVE_TE
 
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "BertWordPieceCase")
+        if tokenizer is None:
+            self.tokenizer = MegatronTokenizer.from_pretrained(
+                tokenizer_path="BertWordPieceCase",
+                metadata_path={"library": "megatron", "model_type": "llama"},
+            )
+        else:
+            self.tokenizer = tokenizer
+        
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,
@@ -116,7 +120,7 @@ class MockDataModule(pl.LightningDataModule):
 class _MockT5Dataset(Dataset):
     def __init__(
         self,
-        tokenizer: "TokenizerSpec",
+        tokenizer: "MegatronTokenizerBase",
         name: str,
         num_samples: int,
         seq_length: int,

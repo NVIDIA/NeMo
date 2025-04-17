@@ -20,11 +20,12 @@ import datasets
 import numpy as np
 import torch
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import _get_samples_mapping, _JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.utils import logging
+
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
@@ -40,7 +41,7 @@ def get_dataset_root(name: str) -> Path:
 
 def create_sft_dataset(
     path: Path,
-    tokenizer: "TokenizerSpec",
+    tokenizer: "MegatronTokenizerBase",
     seq_length: int = 2048,
     add_bos: bool = False,
     add_eos: bool = True,
@@ -76,7 +77,7 @@ class BertEmbeddingDataset(Dataset):
     def __init__(
         self,
         file_path: str,
-        tokenizer: TokenizerSpec,
+        tokenizer: MegatronTokenizerBase,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
         add_bos: bool = True,
@@ -94,7 +95,7 @@ class BertEmbeddingDataset(Dataset):
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
-        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec.
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits MegatronTokenizerBase.
         max_seq_length (int): maximum sequence length for each dataset examples.
             Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset.
