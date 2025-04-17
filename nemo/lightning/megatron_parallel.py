@@ -1331,12 +1331,8 @@ class MegatronStep(Generic[ModelT, DataT]):
                     MegatronStep.train_result = self.run_step(iter_data_list, seq_length)
                 torch.cuda.synchronize()
             if MegatronStep.train_graph is None:
-                if torch.distributed.get_rank() == 0:
-                    print ('Train run_step')
                 MegatronStep.train_result = self.run_step(iter_data_list, seq_length)
             else:
-                if torch.distributed.get_rank() == 0:
-                    print ('Train replay')
                 MegatronStep.train_graph.replay()
             return MegatronStep.train_result
         else:
@@ -1352,12 +1348,8 @@ class MegatronStep(Generic[ModelT, DataT]):
                     MegatronStep.val_result = self.run_step(iter_data_list, seq_length)
                 torch.cuda.synchronize()
             if MegatronStep.val_graph is None:
-                if torch.distributed.get_rank() == 0:
-                    print ('Eval run_step')
                 MegatronStep.val_result = self.run_step(iter_data_list, seq_length)
             else:
-                if torch.distributed.get_rank() == 0:
-                    print ('Eval replay')
                 MegatronStep.val_graph.replay()
             return MegatronStep.val_result
 
