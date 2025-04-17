@@ -455,7 +455,7 @@ def read_lhotse_as_conversation(config) -> tuple[CutSet, bool]:
             custom=cut.custom,
         )
 
-    cuts, is_tarred = read_lhotse_manifest(config)
+    cuts, is_tarred = read_cutset_from_config(config)
     cuts = cuts.map(cut_to_conversation)
     return cuts, is_tarred
 
