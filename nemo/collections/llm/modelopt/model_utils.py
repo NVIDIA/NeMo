@@ -19,8 +19,6 @@ from typing import Union
 import lightning.pytorch as L
 import torch
 from megatron.core.dist_checkpointing.validation import StrictHandling
-from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
-from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -28,6 +26,13 @@ from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_TE = safe_import("transformer_engine")
+if HAVE_TE:
+    # These custom modelopt specs are a mix of local MCORE and TE specs.
+    from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+    from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
 
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
