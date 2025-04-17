@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 import json
 import os
 from typing import Dict, Literal
@@ -74,7 +76,8 @@ class ActionControlDiffusionDataset(Dataset):
             fps: FPS of the video in Hz.
             num_frames: Number of frames to use in each video.
         """
-        from cosmos1.models.autoregressive.nemo.post_training.action_control.action_control_dataset import ActionControlDataset
+        from cosmos1.models.autoregressive.nemo.post_training.action_control.action_control_dataset \
+            import ActionControlDataset
 
         if subfolder is not None:
             self.dataset = ActionControlDataset(subfolder=subfolder, split=split)
@@ -136,7 +139,8 @@ class ActionControlDiffusionDataset(Dataset):
         padding_mask = torch.zeros((1, 1, self.original_video_height, self.original_video_width), dtype=self.dtype)
 
         sample = {
-            'video': video_latent, #tokens. We may not flatten it in the same way. AR model flattens it then offsets by 1 token. We may not wanna do that.
+            'video': video_latent, #tokens. We may not flatten it in the same way. AR model flattens it then 
+                                    # offsets by 1 token. We may not wanna do that.
             'noise_latent': noise_latent,
             'timesteps': timesteps,
             't5_text_embeddings': t5_text_embedding,
@@ -447,7 +451,8 @@ class DiTActionDataModule(MockDataModule):
         **kwargs
     ):
         """
-        Instantiate the datamodule. Data is automatically downloaded and cached in HF_HOME, which can be modified in ENV.
+        Instantiate the datamodule. Data is automatically downloaded and cached in HF_HOME, 
+        which can be modified in ENV.
         Pass an explicit path instead of subfolder to point to an explicit dataset directory path.
         """
         super().__init__(*args, **kwargs)

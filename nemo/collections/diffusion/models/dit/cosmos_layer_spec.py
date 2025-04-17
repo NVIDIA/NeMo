@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 import copy
 from typing import Literal, Union
 from dataclasses import dataclass
@@ -51,7 +53,12 @@ class AdaLN(MegatronModule):
     Adaptive Layer Normalization Module for DiT.
     """
 
-    def __init__(self, config: TransformerConfig, n_adaln_chunks=9, use_adaln_lora=True, adaln_lora_dim=256, norm=nn.LayerNorm):
+    def __init__(self, config: TransformerConfig, 
+        n_adaln_chunks=9, 
+        use_adaln_lora=True, 
+        adaln_lora_dim=256, 
+        norm=nn.LayerNorm
+    ):
         super().__init__(config)
         if norm == TENorm:
             self.ln = norm(config, config.hidden_size, config.layernorm_epsilon)
@@ -135,7 +142,8 @@ class DiTLayerWithAdaLN(TransformerLayer):
         )
 
         # Override Cross Attention to disable CP.
-        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to incorrect tensor shapes.
+        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as
+        #   Q and lead to incorrect tensor shapes.
         if submodules.cross_attention != IdentityOp:
             cp_override_config = copy.deepcopy(config)
             cp_override_config.context_parallel_size = 1
@@ -185,17 +193,23 @@ class DiTLayerWithAdaLN(TransformerLayer):
         
         timestep_emb = attention_mask
 
-        # ******************************************** full self attention ******************************************************
+        # ******************************************** full self attention *******************************************
         shift_ca, scale_ca, gate_ca = None, None, None
         if self.cross_attention:
-            shift_full, scale_full, gate_full, shift_ca, scale_ca, gate_ca, shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb, adaln_lora_B_3D)
+            shift_full, scale_full, gate_full, shift_ca, scale_ca, \
+            gate_ca, shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb, adaln_lora_B_3D)
         else:
-            shift_full, scale_full, gate_full, shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb, adaln_lora_B_3D)
+            shift_full, scale_full, gate_full, shift_mlp, \
+            scale_mlp, gate_mlp = self.adaLN(timestep_emb, adaln_lora_B_3D)
 
         # print(f"megatron shift={shift_full}, scale={scale_full}, gate={gate_full}")
         # adaLN with scale + shift
         # print(f"megatron pre fa = {hidden_states}")
-        pre_full_attn_layernorm_output_ada = self.adaLN.modulated_layernorm(hidden_states, shift=shift_full, scale=scale_full)
+        pre_full_attn_layernorm_output_ada = self.adaLN.modulated_layernorm(
+            hidden_states, 
+            shift=shift_full, 
+            scale=scale_full,
+        )
         # z = rearrange(pre_full_attn_layernorm_output_ada, '(T H W) B D -> B T H W D', T=4, H=16, W=16)
         # print(f'megatron after adaLN: {z}, shape={z.shape}')
         attention_output, _ = self.full_self_attention(
@@ -265,7 +279,8 @@ def get_dit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
     """T5 decoder TE spec (uses Transformer Engine components)."""
     # from megatron.training import get_args
     # args = get_args()
-    # params = {"attn_mask_type": AttnMaskType.padding if args.packing_algorithm != 'no_packing' else AttnMaskType.no_mask}
+    # params = {"attn_mask_type": AttnMaskType.padding if
+    #            args.packing_algorithm != 'no_packing' else AttnMaskType.no_mask}
     params = {"attn_mask_type":AttnMaskType.no_mask}
     return ModuleSpec(
         module=DiTLayerWithAdaLN,

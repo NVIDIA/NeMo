@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 import contextlib
 from dataclasses import dataclass
 from functools import partial
@@ -637,3 +639,4 @@ __all__ = [
     "transformer_engine_layer_spec",
     "local_layer_spec",
 ]
+

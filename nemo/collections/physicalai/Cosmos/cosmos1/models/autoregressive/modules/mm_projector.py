@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 """Multimodal projector to connect vision encoder / tokenizer with the LLM."""
 
 from typing import Any, Optional

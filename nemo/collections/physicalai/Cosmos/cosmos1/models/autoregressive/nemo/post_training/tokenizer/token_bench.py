@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 """
 Combined script to process videos in two directories (reference and generated)
 and then compute video quality metrics: PSNR and SSIM.

@@ -39,7 +39,9 @@ class CosmosT5TextEncoder(torch.nn.Module):
             self.tokenizer = T5TokenizerFast.from_pretrained(model_name, cache_dir=cache_dir)
             self.text_encoder = T5EncoderModel.from_pretrained(model_name, cache_dir=cache_dir).to(device)
         except Exception as e:
-            log.warning(f"Failed to load T5 model using cache_dir '{cache_dir}', falling back to default location: {e}")
+            log.warning(
+                f"Failed to load T5 model using cache_dir '{cache_dir}', falling back to default location: {e}"
+            )
             self.tokenizer = T5TokenizerFast.from_pretrained(model_name)
             self.text_encoder = T5EncoderModel.from_pretrained(model_name).to(device)
         self.text_encoder.eval()

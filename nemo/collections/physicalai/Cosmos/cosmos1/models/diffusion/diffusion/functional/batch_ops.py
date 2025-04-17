@@ -22,6 +22,8 @@
 #
 # If the common dimensions don't match, we raise an assertion error.
 
+# pylint: disable=C0115,C0116,C0301
+
 from torch import Tensor
 
 

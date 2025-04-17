@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 
 from typing import Optional
 
@@ -19,7 +21,6 @@ import torch
 from diffusers.models.embeddings import TimestepEmbedding, get_3d_sincos_pos_embed
 from einops import rearrange
 from megatron.core import parallel_state
-from megatron.core.models.common.embeddings.rotary_pos_embedding import get_pos_emb_on_this_cp_rank
 from megatron.core.transformer.module import MegatronModule
 from torch import nn
 

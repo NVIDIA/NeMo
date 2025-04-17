@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0116,C0301
+
 import warnings
 from typing import Callable, Dict, Tuple
 

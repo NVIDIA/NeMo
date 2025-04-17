@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 """
 This demo script is used to run inference for Cosmos-1.0-Prompt-Upsampler-12B-Text2World.
 Command:

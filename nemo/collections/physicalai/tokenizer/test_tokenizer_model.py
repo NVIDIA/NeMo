@@ -24,7 +24,12 @@ INPUT_KEY = "INPUT"
 MASK_KEY = "loss_mask"
 RECON_CONSISTENCY_KEY = f"{RECON_KEY}_consistency"
 
-tm = TokenizerModel(jit_ckpt_pth=os.path.join(os.environ["HF_HOME"], "hub/models--nvidia--Cosmos-1.0-Tokenizer-CV8x8x8/snapshots/01f87fd67cebc32f1a2fd9e99d4e9614a6b3743b"))
+tm = TokenizerModel(
+    jit_ckpt_pth=os.path.join(
+        os.environ["HF_HOME"], 
+        "hub/models--nvidia--Cosmos-1.0-Tokenizer-CV8x8x8/snapshots/01f87fd67cebc32f1a2fd9e99d4e9614a6b3743b"
+    )
+)
 
 device = torch.device("cuda")  # Move to GPU
 input_t = torch.randn([2, 3, 33, 256, 256], dtype=torch.bfloat16, device=device)

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116
+
 """
 Refined Exponential Solver (RES) in https://arxiv.org/pdf/2308.02157
 """

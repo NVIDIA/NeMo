@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 """The test for model definition of 2D layers
 
 PYTHONPATH=$PWD pytest -v cosmos1/models/tokenizer/modules/layers2d_test.py

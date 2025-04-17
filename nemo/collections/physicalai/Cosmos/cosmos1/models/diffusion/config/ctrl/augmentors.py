@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 from cosmos1.models.diffusion.config.ctrl.blurs import BilateralFilterConfig, BlurAugmentorConfig, BlurCombinationConfig
 from cosmos1.utils.lazy_config import LazyCall as L
 

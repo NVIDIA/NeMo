@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 """The network definition for discrete video tokenizer with VQ, LFQ, FSQ or ResidualFSQ. """
 from collections import OrderedDict, namedtuple
 

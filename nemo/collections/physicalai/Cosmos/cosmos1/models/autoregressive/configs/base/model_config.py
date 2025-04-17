@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0301
+
 import copy
 from typing import Callable, List, Optional
 

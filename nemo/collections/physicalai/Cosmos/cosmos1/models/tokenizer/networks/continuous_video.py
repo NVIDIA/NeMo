@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 """The causal continuous video tokenizer with VAE or AE formulation for 3D data.."""
 from collections import OrderedDict, namedtuple
 

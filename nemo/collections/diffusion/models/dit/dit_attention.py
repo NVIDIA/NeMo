@@ -1,4 +1,7 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+
+# pylint: disable=C0115,C0116,C0301
+
 from dataclasses import dataclass
 from typing import Union
 

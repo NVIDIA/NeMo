@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116
+
 from hydra.core.config_store import ConfigStore
 
 from cosmos1.models.autoregressive.diffusion_decoder.config.base.conditioner import (
