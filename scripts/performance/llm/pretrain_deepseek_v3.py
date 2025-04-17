@@ -115,6 +115,8 @@ def override_recipe_configs(
     recipe.model.config.moe_permute_fusion = True
     recipe.model.config.recompute_granularity = "selective"
     recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm", "moe", "mlp"]
+    recipe.model.config.recompute_num_layers = None
+    recipe.model.config.recompute_method = None
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.moe_router_dtype = 'fp32'
     recipe.model.config.moe_permute_fusion = True
