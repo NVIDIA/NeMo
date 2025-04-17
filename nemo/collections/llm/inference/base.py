@@ -109,7 +109,7 @@ class MCoreTokenizerWrappper:
 
 # TODO: Move to lightning Fabric API.
 def _setup_trainer_and_restore_model(
-        path: Path, trainer: nl.Trainer, model: pl.LightningModule, tokenizer: Any = None
+    path: Path, trainer: nl.Trainer, model: pl.LightningModule, tokenizer: Any = None
 ):
     """
     Sets up the trainer and restores the model from the given checkpoint path.
@@ -184,11 +184,11 @@ def _setup_trainer_and_restore_model(
 
 
 def setup_model_and_tokenizer(
-        path: Path,
-        trainer: nl.Trainer,
-        params_dtype: torch.dtype = torch.bfloat16,
-        inference_batch_times_seqlen_threshold: int = 1000,
-        inference_max_seq_length: int = 4096,
+    path: Path,
+    trainer: nl.Trainer,
+    params_dtype: torch.dtype = torch.bfloat16,
+    inference_batch_times_seqlen_threshold: int = 1000,
+    inference_max_seq_length: int = 4096,
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -223,14 +223,14 @@ def setup_model_and_tokenizer(
 
 
 def generate(
-        model: AbstractModelInferenceWrapper,
-        tokenizer: MCoreTokenizerWrappper,
-        prompts: list[str],
-        encoder_prompts: Optional[list[str]] = None,
-        add_BOS: bool = False,
-        max_batch_size: int = 4,
-        random_seed: Optional[int] = None,
-        inference_params: Optional[CommonInferenceParams] = None,
+    model: AbstractModelInferenceWrapper,
+    tokenizer: MCoreTokenizerWrappper,
+    prompts: list[str],
+    encoder_prompts: Optional[list[str]] = None,
+    add_BOS: bool = False,
+    max_batch_size: int = 4,
+    random_seed: Optional[int] = None,
+    inference_params: Optional[CommonInferenceParams] = None,
 ) -> dict:
     """
     Runs generate on the model with the given prompts.
