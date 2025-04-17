@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,58 +12,65 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import pytest
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.audio.models import PredictiveAudioToAudioModel
+from nemo.collections.audio.models import EncMaskDecAudioToAudioModel
+
+try:
+    importlib.import_module('torchaudio')
+
+    HAVE_TORCHAUDIO = True
+except ModuleNotFoundError:
+    HAVE_TORCHAUDIO = False
 
 
 @pytest.fixture()
-def predictive_model_ncsn():
+def mask_model_rnn():
 
     model = {
         'sample_rate': 16000,
         'num_outputs': 1,
         'normalize_input': True,
-        'max_utts_evaluation_metrics': 50,
     }
     encoder = {
         '_target_': 'nemo.collections.audio.modules.transforms.AudioToSpectrogram',
-        'fft_length': 510,
-        'hop_length': 128,
-        'magnitude_power': 0.5,
-        'scale': 0.33,
+        'fft_length': 512,
+        'hop_length': 256,
     }
     decoder = {
         '_target_': 'nemo.collections.audio.modules.transforms.SpectrogramToAudio',
         'fft_length': encoder['fft_length'],
         'hop_length': encoder['hop_length'],
-        'magnitude_power': encoder['magnitude_power'],
-        'scale': encoder['scale'],
     }
-    estimator = {
-        '_target_': 'nemo.collections.audio.parts.submodules.ncsnpp.SpectrogramNoiseConditionalScoreNetworkPlusPlus',
-        'in_channels': 1,  # single-channel noisy input
-        'out_channels': 1,  # single-channel estimate
-        'num_res_blocks': 3,  # increased number of res blocks
-        'pad_time_to': 64,  # pad to 64 frames for the time dimension
-        'pad_dimension_to': 0,  # no padding in the frequency dimension
+    mask_estimator = {
+        '_target_': 'nemo.collections.audio.modules.masking.MaskEstimatorRNN',
+        'num_outputs': model['num_outputs'],
+        'num_subbands': encoder['fft_length'] // 2 + 1,
+        'num_features': 256,
+        'num_layers': 3,
+        'bidirectional': True,
+    }
+    mask_processor = {
+        '_target_': 'nemo.collections.audio.modules.masking.MaskReferenceChannel',
+        'ref_channel': 0,
     }
 
     loss = {
-        '_target_': 'nemo.collections.audio.losses.MSELoss',  # computed in the time domain
+        '_target_': 'nemo.collections.audio.losses.SDRLoss',
+        'scale_invariant': True,
     }
 
     model_config = DictConfig(
         {
             'sample_rate': model['sample_rate'],
             'num_outputs': model['num_outputs'],
-            'normalize_input': model['normalize_input'],
-            'max_utts_evaluation_metrics': model['max_utts_evaluation_metrics'],
             'encoder': DictConfig(encoder),
             'decoder': DictConfig(decoder),
-            'estimator': DictConfig(estimator),
+            'mask_estimator': DictConfig(mask_estimator),
+            'mask_processor': DictConfig(mask_processor),
             'loss': DictConfig(loss),
             'optim': {
                 'optimizer': 'Adam',
@@ -73,66 +80,64 @@ def predictive_model_ncsn():
         }
     )
 
-    model = PredictiveAudioToAudioModel(cfg=model_config)
+    model = EncMaskDecAudioToAudioModel(cfg=model_config)
 
     return model
 
 
 @pytest.fixture()
-def predictive_model_conformer():
+def mask_model_flexarray():
 
     model = {
         'sample_rate': 16000,
         'num_outputs': 1,
         'normalize_input': True,
-        'max_utts_evaluation_metrics': 50,
     }
     encoder = {
         '_target_': 'nemo.collections.audio.modules.transforms.AudioToSpectrogram',
-        'fft_length': 510,
-        'hop_length': 128,
-        'magnitude_power': 0.5,
-        'scale': 0.33,
+        'fft_length': 512,
+        'hop_length': 256,
     }
     decoder = {
         '_target_': 'nemo.collections.audio.modules.transforms.SpectrogramToAudio',
         'fft_length': encoder['fft_length'],
         'hop_length': encoder['hop_length'],
-        'magnitude_power': encoder['magnitude_power'],
-        'scale': encoder['scale'],
     }
-    estimator = {
-        '_target_': 'nemo.collections.audio.parts.submodules.conformer.SpectrogramConformer',
-        'in_channels': 1,  # single-channel noisy input
-        'out_channels': 1,  # single-channel estimate
-        'feat_in': 256,  # input feature dimension = number of subbands
-        'n_layers': 8,  # number of layers in the model
-        'd_model': 512,  # the hidden size of the model
-        'subsampling_factor': 1,  # subsampling factor for the model
-        'self_attention_model': 'rel_pos',
-        'n_heads': 8,  # number of heads for the model
-        # streaming-related arguments
-        # - this is a non-streaming config
-        'conv_context_size': None,
-        'conv_norm_type': 'layer_norm',
-        'causal_downsampling': False,
-        'att_context_size': [-1, -1],
-        'att_context_style': 'regular',
+    mask_estimator = {
+        '_target_': 'nemo.collections.audio.modules.masking.MaskEstimatorFlexChannels',
+        'num_outputs': model['num_outputs'],
+        'num_subbands': encoder['fft_length'] // 2 + 1,
+        'num_blocks': 3,
+        'channel_reduction_position': 3,
+        'channel_reduction_type': 'average',
+        'channel_block_type': 'transform_average_concatenate',
+        'temporal_block_type': 'conformer_encoder',
+        'temporal_block_num_layers': 5,
+        'temporal_block_num_heads': 4,
+        'temporal_block_dimension': 128,
+        'mag_reduction': None,
+        'mag_normalization': 'mean_var',
+        'use_ipd': True,
+        'ipd_normalization': 'mean',
+    }
+    mask_processor = {
+        '_target_': 'nemo.collections.audio.modules.masking.MaskReferenceChannel',
+        'ref_channel': 0,
     }
 
     loss = {
-        '_target_': 'nemo.collections.audio.losses.MSELoss',  # computed in the time domain
+        '_target_': 'nemo.collections.audio.losses.SDRLoss',
+        'scale_invariant': True,
     }
 
     model_config = DictConfig(
         {
             'sample_rate': model['sample_rate'],
             'num_outputs': model['num_outputs'],
-            'normalize_input': model['normalize_input'],
-            'max_utts_evaluation_metrics': model['max_utts_evaluation_metrics'],
             'encoder': DictConfig(encoder),
             'decoder': DictConfig(decoder),
-            'estimator': DictConfig(estimator),
+            'mask_estimator': DictConfig(mask_estimator),
+            'mask_processor': DictConfig(mask_processor),
             'loss': DictConfig(loss),
             'optim': {
                 'optimizer': 'Adam',
@@ -142,92 +147,44 @@ def predictive_model_conformer():
         }
     )
 
-    model = PredictiveAudioToAudioModel(cfg=model_config)
+    model = EncMaskDecAudioToAudioModel(cfg=model_config)
 
     return model
 
 
 @pytest.fixture()
-def predictive_model_streaming_conformer():
+def bf_model_flexarray(mask_model_flexarray):
 
-    model = {
-        'sample_rate': 16000,
-        'num_outputs': 1,
-        'normalize_input': True,
-        'max_utts_evaluation_metrics': 50,
-    }
-    encoder = {
-        '_target_': 'nemo.collections.audio.modules.transforms.AudioToSpectrogram',
-        'fft_length': 510,
-        'hop_length': 128,
-        'magnitude_power': 0.5,
-        'scale': 0.33,
-    }
-    decoder = {
-        '_target_': 'nemo.collections.audio.modules.transforms.SpectrogramToAudio',
-        'fft_length': encoder['fft_length'],
-        'hop_length': encoder['hop_length'],
-        'magnitude_power': encoder['magnitude_power'],
-        'scale': encoder['scale'],
-    }
-    estimator = {
-        '_target_': 'nemo.collections.audio.parts.submodules.conformer.SpectrogramConformer',
-        'in_channels': 1,  # single-channel noisy input
-        'out_channels': 1,  # single-channel estimate
-        'feat_in': 256,  # input feature dimension = number of subbands
-        'n_layers': 8,  # number of layers in the model
-        'd_model': 512,  # the hidden size of the model
-        'subsampling_factor': 1,  # subsampling factor for the model
-        'self_attention_model': 'rel_pos',
-        'n_heads': 8,  # number of heads for the model
-        # streaming-related arguments
-        # - streaming config with causal convolutions and limited attention context
-        'conv_context_size': 'causal',
-        'conv_norm_type': 'layer_norm',
-        'causal_downsampling': True,
-        'att_context_size': [102, 16],
-        'att_context_style': 'chunked_limited',
+    model_config = mask_model_flexarray.to_config_dict()
+    # Switch processor to beamformer
+    model_config['mask_processor'] = {
+        '_target_': 'nemo.collections.audio.modules.masking.MaskBasedBeamformer',
+        'filter_type': 'pmwf',
+        'filter_beta': 0.0,
+        'filter_rank': 'one',
+        'ref_channel': 'max_snr',
+        'ref_hard': 1,
+        'ref_hard_use_grad': False,
+        'ref_subband_weighting': False,
+        'num_subbands': model_config['mask_estimator']['num_subbands'],
     }
 
-    loss = {
-        '_target_': 'nemo.collections.audio.losses.MSELoss',  # computed in the time domain
-    }
-
-    model_config = DictConfig(
-        {
-            'sample_rate': model['sample_rate'],
-            'num_outputs': model['num_outputs'],
-            'normalize_input': model['normalize_input'],
-            'max_utts_evaluation_metrics': model['max_utts_evaluation_metrics'],
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'estimator': DictConfig(estimator),
-            'loss': DictConfig(loss),
-            'optim': {
-                'optimizer': 'Adam',
-                'lr': 0.001,
-                'betas': (0.9, 0.98),
-            },
-        }
-    )
-
-    model = PredictiveAudioToAudioModel(cfg=model_config)
+    model = EncMaskDecAudioToAudioModel(cfg=model_config)
 
     return model
 
 
-class TestPredictiveModelNCSN:
-    """Test predictive model with NCSN estimator."""
+class TestMaskModelRNN:
+    """Test masking model with RNN mask estimator."""
 
     @pytest.mark.unit
-    def test_constructor(self, predictive_model_ncsn):
+    def test_constructor(self, mask_model_rnn):
         """Test that the model can be constructed from a config dict."""
-        model = predictive_model_ncsn.train()
+        model = mask_model_rnn.train()
         confdict = model.to_config_dict()
-        instance2 = PredictiveAudioToAudioModel.from_config_dict(confdict)
-        assert isinstance(instance2, PredictiveAudioToAudioModel)
+        instance2 = EncMaskDecAudioToAudioModel.from_config_dict(confdict)
+        assert isinstance(instance2, EncMaskDecAudioToAudioModel)
 
-    @pytest.mark.pleasefixme
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "batch_size, sample_len",
@@ -237,9 +194,9 @@ class TestPredictiveModelNCSN:
             (1, 10),  # Example 3
         ],
     )
-    def test_forward_infer(self, predictive_model_ncsn, batch_size, sample_len):
+    def test_forward_infer(self, mask_model_rnn, batch_size, sample_len):
         """Test that the model can run forward inference."""
-        model = predictive_model_ncsn.eval()
+        model = mask_model_rnn.eval()
         confdict = model.to_config_dict()
         sampling_rate = confdict['sample_rate']
         input_signal = torch.randn(size=(batch_size, 1, sample_len * sampling_rate))
@@ -273,32 +230,35 @@ class TestPredictiveModelNCSN:
         assert diff <= abs_tol
 
 
-class TestPredictiveModelConformer:
-    """Test predictive model with conformer estimator."""
+class TestMaskModelFlexArray:
+    """Test masking model with channel-flexible mask estimator."""
 
     @pytest.mark.unit
-    def test_constructor(self, predictive_model_conformer):
+    def test_constructor(self, mask_model_flexarray):
         """Test that the model can be constructed from a config dict."""
-        model = predictive_model_conformer.train()
+        model = mask_model_flexarray.train()
         confdict = model.to_config_dict()
-        instance2 = PredictiveAudioToAudioModel.from_config_dict(confdict)
-        assert isinstance(instance2, PredictiveAudioToAudioModel)
+        instance2 = EncMaskDecAudioToAudioModel.from_config_dict(confdict)
+        assert isinstance(instance2, EncMaskDecAudioToAudioModel)
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "batch_size, sample_len",
+        "batch_size, num_channels, sample_len",
         [
-            (4, 4),  # Example 1
-            (2, 8),  # Example 2
-            (1, 10),  # Example 3
+            (4, 1, 4),  # 1-channel, Example 1
+            (2, 1, 8),  # 1-channel, Example 2
+            (1, 1, 10),  # 1-channel, Example 3
+            (4, 3, 4),  # 3-channel, Example 1
+            (2, 3, 8),  # 3-channel, Example 2
+            (1, 3, 10),  # 3-channel, Example 3
         ],
     )
-    def test_forward_infer(self, predictive_model_conformer, batch_size, sample_len):
+    def test_forward_infer(self, mask_model_flexarray, batch_size, num_channels, sample_len):
         """Test that the model can run forward inference."""
-        model = predictive_model_conformer.eval()
+        model = mask_model_flexarray.eval()
         confdict = model.to_config_dict()
         sampling_rate = confdict['sample_rate']
-        input_signal = torch.randn(size=(batch_size, 1, sample_len * sampling_rate))
+        input_signal = torch.randn(size=(batch_size, num_channels, sample_len * sampling_rate))
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
 
         abs_tol = 1e-5
@@ -329,32 +289,37 @@ class TestPredictiveModelConformer:
         assert diff <= abs_tol
 
 
-class TestPredictiveModelStreamingConformer:
-    """Test predictive model with streaming conformer estimator."""
+class TestBFModelFlexArray:
+    """Test beamforming model with channel-flexible mask estimator."""
 
     @pytest.mark.unit
-    def test_constructor(self, predictive_model_streaming_conformer):
+    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
+    def test_constructor(self, bf_model_flexarray):
         """Test that the model can be constructed from a config dict."""
-        model = predictive_model_streaming_conformer.train()
+        model = bf_model_flexarray.train()
         confdict = model.to_config_dict()
-        instance2 = PredictiveAudioToAudioModel.from_config_dict(confdict)
-        assert isinstance(instance2, PredictiveAudioToAudioModel)
+        instance2 = EncMaskDecAudioToAudioModel.from_config_dict(confdict)
+        assert isinstance(instance2, EncMaskDecAudioToAudioModel)
 
     @pytest.mark.unit
+    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
     @pytest.mark.parametrize(
-        "batch_size, sample_len",
+        "batch_size, num_channels, sample_len",
         [
-            (4, 4),  # Example 1
-            (2, 8),  # Example 2
-            (1, 10),  # Example 3
+            (4, 1, 4),  # 1-channel, Example 1
+            (2, 1, 8),  # 1-channel, Example 2
+            (1, 1, 10),  # 1-channel, Example 3
+            (4, 3, 4),  # 3-channel, Example 1
+            (2, 3, 8),  # 3-channel, Example 2
+            (1, 3, 10),  # 3-channel, Example 3
         ],
     )
-    def test_forward_infer(self, predictive_model_streaming_conformer, batch_size, sample_len):
+    def test_forward_infer(self, bf_model_flexarray, batch_size, num_channels, sample_len):
         """Test that the model can run forward inference."""
-        model = predictive_model_streaming_conformer.eval()
+        model = bf_model_flexarray.eval()
         confdict = model.to_config_dict()
         sampling_rate = confdict['sample_rate']
-        input_signal = torch.randn(size=(batch_size, 1, sample_len * sampling_rate))
+        input_signal = torch.randn(size=(batch_size, num_channels, sample_len * sampling_rate))
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
 
         abs_tol = 1e-5
