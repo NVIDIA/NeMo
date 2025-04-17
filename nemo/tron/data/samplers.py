@@ -22,6 +22,8 @@ def build_pretraining_data_loader(
     collate_fn: Optional[Callable] = None,
     pin_memory: bool = True,
     persistent_workers: bool = False,
+    data_parallel_rank: int = 0,
+    data_parallel_size: int = 1,
 ):
     """Build dataloader given an input dataset."""
 
@@ -34,8 +36,8 @@ def build_pretraining_data_loader(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size(),
+            data_parallel_rank=data_parallel_rank,
+            data_parallel_size=data_parallel_size,
         )
     elif dataloader_type == "cyclic":
         batch_sampler = MegatronPretrainingRandomSampler(
@@ -43,8 +45,8 @@ def build_pretraining_data_loader(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size(),
+            data_parallel_rank=data_parallel_rank,
+            data_parallel_size=data_parallel_size,
             data_sharding=data_sharding,
         )
     elif dataloader_type == "external":

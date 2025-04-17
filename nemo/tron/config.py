@@ -224,7 +224,7 @@ class DistributedInitConfig:
     local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
 
-    lazy_mpu_init: bool = False
+    lazy_init: bool = False
     """If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on --use-cpu-initialization flag. This is for external DDP manager."""
 
     use_torch_fsdp2: bool = False
@@ -576,7 +576,7 @@ class ConfigContainer(Container):
         self.data_parallel_size = world_size // total_model_size
 
         self.model_config.use_cpu_initialization = (
-            self.model_config.use_cpu_initialization or self.dist_config.lazy_mpu_init
+            self.model_config.use_cpu_initialization or self.dist_config.lazy_init
         )
 
         # Make sure all functionality that requires Gloo process groups is disabled.
