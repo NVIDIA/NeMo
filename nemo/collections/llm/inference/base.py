@@ -317,7 +317,7 @@ def setup_mcore_engine(
         random_seed (Optional[int]): Random seed for reproducibility. Defaults to None
 
     Returns:
-        Tuple[MCoreEngine, AbstractModelInferenceWrapper, MCoreTokenizerWrapper]: 
+        Tuple[MCoreEngine, AbstractModelInferenceWrapper, MCoreTokenizerWrapper]:
             - Configured Megatron Core Engine instance
             - Inference-wrapped model
             - Tokenizer wrapper
