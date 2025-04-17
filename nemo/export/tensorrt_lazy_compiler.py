@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Sequence, Tuple, Union
 
 import torch
 
-from nemo.utils.export_utils import add_casts_around_norms, replace_for_export
 from nemo.utils.import_utils import safe_import
 
 polygraphy, polygraphy_imported = safe_import("polygraphy")
@@ -298,7 +297,7 @@ def unroll_input(input_names, input_example):
                         res.update(unroll_one(f"{name}_{i}", val[i]))
                 else:
                     res[name] = make_tensor(val)
-        except Exception as e:
+        except Exception:
             pass
         return res
 
@@ -423,7 +422,7 @@ class TrtCompiler:
 
         if skip_once_registry:
             if not fallback:
-                raise ValueError(f"trt_compile(): skip_once functionality requires fallback")
+                raise ValueError("trt_compile(): skip_once functionality requires fallback")
             skip_once_registry.register_skip_once(self)
 
         self.plan_path = plan_path
@@ -794,13 +793,22 @@ class TrtCompilerRegistry:
         self.registry = []
 
     def register_skip_once(self, c):
+        """
+        Adding TrtCompiler to registry
+        """
         self.registry.append(c)
 
     def reset_skip_once(self):
+        """
+        Resets skip counter
+        """
         for c in self.registry:
             c.skip_once = True
 
     def forward(self, model, argv, kwargs):
+        """
+        Calls original forward function after resetting skip counters for all its clients
+        """
         self.reset_skip_once()
         return self.orig_function(*argv, **kwargs)
 

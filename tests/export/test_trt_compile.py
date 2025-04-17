@@ -16,7 +16,7 @@ import unittest
 from typing import List
 
 import torch
-from nemo.export import trt_compile
+from nemo.export.tensorrt_lazy_compiler import trt_compile
 
 
 class ListAdd(torch.nn.Module):

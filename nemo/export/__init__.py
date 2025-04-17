@@ -19,5 +19,3 @@ try:
     __all__ = ["io"]
 except (ImportError, ModuleNotFoundError):
     pass
-
-from nemo.export.tensorrt_lazy_compiler import trt_compile
