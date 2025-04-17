@@ -154,6 +154,7 @@ def init_video_tokenizer(args):
     from nemo.collections.diffusion.models.model import DiT7BConfig, DiT14BConfig
 
     vae_path = os.path.join(args.cosmos_assets_dir, args.tokenizer_dir)
+    dit_config = None
     if "7b" in args.nemo_checkpoint.lower():
         dit_config = DiT7BConfig(vae_path=vae_path)
     if "14b" in args.nemo_checkpoint.lower():
@@ -242,6 +243,7 @@ def setup_diffusion_pipeline(args):
     # Initialize DiT model
     from nemo.collections.diffusion.models.model import DiT7BConfig, DiT14BConfig, DiTModel
 
+    dit_config = None
     if "7b" in args.nemo_checkpoint.lower():
         dit_config = DiT7BConfig()
     if "14b" in args.nemo_checkpoint.lower():

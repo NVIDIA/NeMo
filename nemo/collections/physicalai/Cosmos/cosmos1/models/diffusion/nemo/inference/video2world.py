@@ -281,6 +281,7 @@ def setup_diffusion_pipeline(args):
     # Initialize DiT model
     from nemo.collections.diffusion.models.model import DiT7BVideo2WorldConfig, DiT14BVideo2WorldConfig, DiTModel
 
+    dit_config = None
     if "7B" in args.model:
         dit_config = DiT7BVideo2WorldConfig()
     elif "14B" in args.model:
