@@ -582,6 +582,8 @@ def deploy(
     max_batch_size: int = 8,
     output_context_logits: bool = True,
     output_generation_logits: bool = True,
+    enable_flash_decode: bool = False,
+    enable_cuda_graphs: bool = False,
 ):
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
@@ -625,6 +627,10 @@ def deploy(
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
+        enable_flash_decode (bool): If True runs in-framework deployment with flash decode enabled(Not supported for
+        trtllm backend).
+        enable_cuda_graphs (bool): If True runs in-framework deployment with cuda graphs enabled(Not supported for
+        trtllm backend).
     """
     import os
     import uvicorn
@@ -660,6 +666,9 @@ def deploy(
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
             inference_max_seq_length=max_input_len,
+            enable_flash_decode=enable_flash_decode,
+            enable_cuda_graphs=enable_cuda_graphs,
+            max_batch_size=max_batch_size,
         )
 
         if torch.distributed.is_initialized():

@@ -57,6 +57,20 @@ def get_args(argv):
     )
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
+    parser.add_argument(
+        "-fd",
+        '--enable_flash_decode',
+        default=False,
+        action='store_true',
+        help='Enable flash decoding',
+    )
+    parser.add_argument(
+        "-cg",
+        '--enable_cuda_graphs',
+        default=False,
+        action='store_true',
+        help='Enable cuda graphs',
+    )
     args = parser.parse_args(argv)
     return args
 
@@ -87,6 +101,9 @@ def nemo_deploy(argv):
         pipeline_model_parallel_size=args.pipeline_parallelism_size,
         context_parallel_size=args.context_parallel_size,
         expert_model_parallel_size=args.expert_model_parallel_size,
+        max_batch_size=args.max_batch_size,
+        enable_flash_decode=args.enable_flash_decode,
+        enable_cuda_graphs=args.enable_cuda_graphs
     )
 
     if torch.distributed.is_initialized():

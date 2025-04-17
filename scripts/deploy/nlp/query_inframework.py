@@ -14,6 +14,7 @@
 
 import argparse
 import sys
+import time
 
 from nemo.deploy.nlp import NemoQueryLLMPyTorch
 
@@ -50,8 +51,9 @@ def query_llm(
     compute_logprob=None,
     init_timeout=60.0,
 ):
+    start_time = time.time()
     nemo_query = NemoQueryLLMPyTorch(url, model_name)
-    return nemo_query.query_llm(
+    result = nemo_query.query_llm(
         prompts=prompts,
         max_length=max_output_len,
         top_k=top_k,
@@ -60,6 +62,9 @@ def query_llm(
         compute_logprob=compute_logprob,
         init_timeout=init_timeout,
     )
+    end_time = time.time()
+    print(f"Query execution time: {end_time - start_time:.2f} seconds")
+    return result
 
 
 def query(argv):
@@ -68,7 +73,7 @@ def query(argv):
     if args.prompt_file is not None:
         with open(args.prompt_file, "r") as f:
             args.prompt = f.read()
-
+    
     outputs = query_llm(
         url=args.url,
         model_name=args.model_name,
