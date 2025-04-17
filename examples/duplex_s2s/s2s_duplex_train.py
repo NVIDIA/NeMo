@@ -64,7 +64,7 @@ def train(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     with trainer.init_module():
-        model = DuplexS2SModel(cfg.model)
+        model = DuplexS2SModel(OmegaConf.to_container(cfg.model, resolve=True))
 
     # TODO: see migration guide exp_manager -> NeMo 2
     # exp_manager / NeMo2 _setup provide:

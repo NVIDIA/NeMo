@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import builtins
+import os
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from itertools import chain
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 import hydra
 import sacrebleu
 import torch
+from huggingface_hub import CONFIG_NAME, PyTorchModelHubMixin
 from lightning import LightningModule
-from omegaconf import open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import Tensor
 from torch.distributed import init_device_mesh
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
@@ -38,6 +40,7 @@ from torch.distributed.tensor.parallel import (
     parallelize_module,
 )
 from transformers import AutoModel, AutoModelForCausalLM, DynamicCache
+from transformers.utils import cached_file
 from whisper_normalizer.english import EnglishTextNormalizer
 
 from nemo.collections.asr.models import ASRModel
@@ -49,11 +52,21 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 from nemo.utils import logging
 
 
-# TODO: PyTorchHFHubMixin
-class DuplexS2SModel(LightningModule):
-    def __init__(self, cfg) -> None:
+class DuplexS2SModel(
+    LightningModule,
+    PyTorchModelHubMixin,
+    library_name="NeMo",
+    repo_url="https://github.com/NVIDIA/NeMo",
+    docs_url="https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit",
+):
+    def __init__(self, cfg: dict) -> None:
+        assert isinstance(cfg, dict), (
+            "You must pass the config to DuplexS2SModel as a Python dict to support hyperparameter serialization "
+            f"in PTL checkpoints (we got: '{type(cfg)=}')."
+        )
         super().__init__()
-        self.cfg = cfg
+        self.save_hyperparameters()
+        self.cfg = DictConfig(cfg)
 
         self.audio_codec = _load_pretrained(AudioCodecModel, self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
         del self.audio_codec.discriminator  # free up some memory
@@ -652,6 +665,57 @@ class DuplexS2SModel(LightningModule):
             #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
             # self.perception = checkpoint_wrapper(self.perception)
             self.perception = fully_shard(self.perception, **fsdp_config)
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        *,
+        model_id: str,
+        revision: Optional[str],
+        cache_dir: Optional[Union[str, Path]],
+        force_download: bool,
+        proxies: Optional[dict],
+        resume_download: Optional[bool],
+        local_files_only: bool,
+        token: Union[str, bool, None],
+        map_location: str = "cpu",
+        strict: bool = False,
+        **model_kwargs,
+    ):
+        """
+        Load Pytorch pretrained weights and return the loaded model.
+        Wrapper over PyTorchModelHubMixin that auto-handles config in **model_kwargs.
+        """
+        resolved_config_file = cached_file(
+            model_id,
+            CONFIG_NAME,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            resume_download=resume_download,
+            proxies=proxies,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
+            _raise_exceptions_for_gated_repo=False,
+            _raise_exceptions_for_missing_entries=False,
+            _raise_exceptions_for_connection_errors=False,
+        )
+        if resolved_config_file is None:
+            raise RuntimeError(f"Missing {CONFIG_NAME} file for {model_id=}")
+        model_kwargs['cfg'] = OmegaConf.to_container(OmegaConf.load(resolved_config_file))
+        return super()._from_pretrained(
+            model_id=model_id,
+            revision=revision,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            proxies=proxies,
+            resume_download=resume_download,
+            local_files_only=local_files_only,
+            token=token,
+            map_location=map_location,
+            strict=strict,
+            **model_kwargs,
+        )
 
 
 def _load_pretrained(cls, model_path_or_name: str):
