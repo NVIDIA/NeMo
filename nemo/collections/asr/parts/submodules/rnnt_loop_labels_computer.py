@@ -196,6 +196,7 @@ class SeparateGraphsExcludeDecoderLoopLabels:
     after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
 
 
+@dataclass
 class GraphsWithWhileExcludeDecoderLoopLabels:
     """Class to store Cuda graphs for decoding when separate graphs are used"""
 
@@ -317,9 +318,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 if self.decoder_state_size_is_fixed:
                     self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
                 else:
-                    # TODO: fix while loops
-                    # self.cuda_graphs_mode = self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER
-                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER
+                    self.cuda_graphs_mode = self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER
             except (ImportError, ModuleNotFoundError, EnvironmentError) as e:
                 logging.warning(
                     "No conditional node support for Cuda.\n"
