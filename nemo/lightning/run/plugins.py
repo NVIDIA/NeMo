@@ -418,14 +418,16 @@ class TritonCacheSetup(run.Plugin):
     A plugin for setting up Triton cache environment variables.
     This should not be neccessay for Triton 3.2.0 and above.
     """
+    from nemo.core.utils.optional_libs import TRITON_AVAILABLE
 
-    from triton import __version__ as triton_version
+    if TRITON_AVAILABLE:
+        from triton import __version__ as triton_version
 
-    if triton_version <= "3.1.0":
+        if triton_version <= "3.1.0":
 
-        def setup(self, task: run.Partial | run.Script, executor: run.Executor):
-            """Set up the Triton cache environment variables."""
-            executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir + "triton_cahce"
-            executor.env_vars["TRITON_CACHE_MANAGER"] = (
-                "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
-            )
+            def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+                """Set up the Triton cache environment variables."""
+                executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir + "triton_cahce"
+                executor.env_vars["TRITON_CACHE_MANAGER"] = (
+                    "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
+                )
