@@ -79,7 +79,7 @@ def heterogeneous_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 @dataclass
 class Llama33NemotronSuper49BConfig(Llama31Config70B, HeterogeneousTransformerConfig):
-    """Configuration for an Llama31-Nemotron-Nano model."""
+    """Configuration for an Llama31-Nemotron-Super model."""
 
     hidden_size: int = 8192
     num_attention_heads: int = 64
@@ -93,7 +93,7 @@ class Llama33NemotronSuper49BConfig(Llama31Config70B, HeterogeneousTransformerCo
 
 @dataclass
 class Llama33NemotronUltra253BConfig(Llama31Config405B, HeterogeneousTransformerConfig):
-    """Configuration for an Llama31-Nemotron-Nano model."""
+    """Configuration for an Llama31-Nemotron-Ultra model."""
 
     hidden_size: int = 8192
     num_attention_heads: int = 64
