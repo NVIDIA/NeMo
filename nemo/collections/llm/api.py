@@ -576,6 +576,7 @@ def deploy(
     pipeline_parallelism_size: int = 1,
     context_parallel_size: int = 1,
     expert_model_parallel_size: int = 1,
+    expert_tensor_parallel_size: int = 1,
     dtype: str = "bfloat16",
     max_input_len: int = 4096,
     max_output_len: int = 256,
@@ -659,6 +660,7 @@ def deploy(
             pipeline_model_parallel_size=pipeline_parallelism_size,
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
+            expert_tensor_parallel_size=expert_tensor_parallel_size,
             inference_max_seq_length=max_input_len,
         )
 
