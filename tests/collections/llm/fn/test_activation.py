@@ -39,7 +39,7 @@ class TestActivationFunctions:
         # Expected values calculated based on the GELU formula
         # GELU(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
         expected = torch.tensor(
-            [-0.04540229, -0.15880796, -0.15426877, 0.0, 0.34573123, 0.84119204, 1.9545977], dtype=torch.float32
+            [-0.04540231, -0.15880801, -0.15428599, 0.0, 0.34571401, 0.84119199, 1.95459769], dtype=torch.float32
         )
 
         assert torch.allclose(result, expected, atol=1e-5)
@@ -51,7 +51,7 @@ class TestActivationFunctions:
         # Expected values calculated based on quick_gelu formula
         # quick_gelu(x) = x * sigmoid(1.702 * x)
         expected = torch.tensor(
-            [-0.03663127, -0.11920291, -0.13797298, 0.0, 0.37855947, 0.88079709, 1.9633687], dtype=torch.float32
+            [-0.06434138, -0.15420423, -0.14961156, 0.0, 0.35038844, 0.84579577, 1.93565862], dtype=torch.float32
         )
 
         assert torch.allclose(result, expected, atol=1e-5)
