@@ -99,7 +99,7 @@ def worker_init_fn(worker_id):
 
 def cosine_schedule(x: torch.Tensor):
     """
-    Maps input values from [0, 1] to [1, 0] using the first quadrant of the cosine function (resulting in a concave shape)
+    Maps input values from [0, 1] to [1, 0] using the first quadrant of the cosine function.
     Used for MaskGit mask scheduling.
     """
     return torch.cos(x * (torch.pi / 2))
@@ -130,6 +130,12 @@ class MagpieTTSModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        # import debugpy
+
+        # debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
+        # print("Waiting for debugger to attach...")
+        # debugpy.wait_for_client()  # This will block execution until the debugger attaches
+        # print("Debugger is attached!")        
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
@@ -403,13 +409,12 @@ class MagpieTTSModel(ModelPT):
 
         return all_code_logits    
 
-    def maskgit_create_mask(self, codes):
+    def maskgit_create_random_mask(self, codes):
         """
         Creates a mask where True indicates the positions that should be replaced with a MASK token.
         """
         # Codes: (B, C, T)
         B,C,T = codes.shape
-
         # get a uniform random vector uniformly sampled from [0,1) ## Todo does it need to be inclusive on the right?
         rand_values = torch.rand(B,T, device=codes.device)
         # apply the cosine schedule 
@@ -418,8 +423,6 @@ class MagpieTTSModel(ModelPT):
         n_masked = torch.ceil(frac_masked * C).long() # B,T
         # start from all unmasked
         mask = torch.zeros_like(codes, dtype=torch.bool)
-
-        # # Further below is a vectorized version of this:
         #  for b in range(B):
         #      for t in range(T):
         #          if n_masked[b,t] > 0:
@@ -427,15 +430,13 @@ class MagpieTTSModel(ModelPT):
         #              perm = torch.randperm(C)
         #              # mask the top n_masked positions
         #              mask[b, perm[:n_masked[b,t]], t] = True
+        # Above is the non-vectorized version of below
         #
-    
         # Create random permutations 
-        random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)
-        
+        random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)        
         # Create a mask tensor where each position indicates if it should be masked        
         mask_indices = torch.arange(C, device=codes.device).view(1, C, 1)
         mask = mask_indices < n_masked.view(B, 1, T) # (B, C, T)
-
         # Apply the random permutations to the mask
         mask = torch.gather(mask, 1, random_permutations)
     
@@ -444,10 +445,16 @@ class MagpieTTSModel(ModelPT):
     def maskgit_apply_random_mask(self, codes):
         # Codes: (B, C, T)
         # create random mask (with proportions determined by the cosine schedule)
-        mask = self.maskgit_create_mask(codes)
+        mask = self.maskgit_create_random_mask(codes)
         ## replace some tokens with MASK token
         codes_with_mask = torch.where(mask, self.mask_token_id, codes)
-        return codes_with_mask, mask    
+        return codes_with_mask, mask
+    
+    def maskgit_mask_all(self, codes):
+        # Codes: (B, C, T)        
+        mask = torch.ones_like(codes)
+        masked_codes = mask * self.mask_token_id
+        return mask, masked_codes
 
     def compute_loss(self, logits, audio_codes, audio_codes_lens, mask_tokens_mask=None):
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
@@ -514,48 +521,94 @@ class MagpieTTSModel(ModelPT):
 
         return all_preds
 
-    # def sample_codes_from_local_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
-    #     # dec_output: (B, E)
-    #     # import ipdb; ipdb.set_trace()
-    #     self.local_transformer.reset_cache(use_cache=True)
-    #     dec_output = dec_output.unsqueeze(1) # (B, 1, E)
-    #     local_transformer_input = self.local_transformer_in_projection(dec_output) # (B, 1, 128)
-    #     all_preds = []
-    #     for codebook_num in range(self.cfg.num_audio_codebooks):
-    #         _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
-    #         local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, T, 128)
-    #         codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, -1, :]) # (B, num_audio_tokens_per_codebook)
-    #         if use_cfg:
-    #             actual_batch_size = codebook_logits.size(0) // 2
-    #             conditional_logits = codebook_logits[:actual_batch_size]
-    #             unconditional_logits = codebook_logits[actual_batch_size:]
-    #             cfg_logits = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
-    #             codebook_logits[:actual_batch_size] = cfg_logits
+    def maskgit_sample_codes(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
+        # dec_output: (B, E)
+        # import ipdb; ipdb.set_trace()
+        device = dec_output.device
+        # disable KV cache since our transformer is not causal
+        self.local_transformer.reset_cache(use_cache=False)
+        dec_output = dec_output.unsqueeze(1) # (B, 1, E)
+        local_transformer_input_init = self.local_transformer_in_projection(dec_output) # (B, 1, D) where D is the dimension of the local transformer
+        C = self.cfg.num_audio_codebooks
+        B = dec_output.size(0)
+        n_steps = self.cfg.get('maskgit_n_steps', 4)
 
-    #         for item_idx in unfinished_items:
-    #             codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
-    #         for item_idx in finished_items:
-    #             codebook_logits[item_idx, :] = float('-inf')
-    #             codebook_logits[item_idx, self.audio_eos_id] = 0.0
+        # TODO choose initial confidence
+        min_confidence = float("-inf")
+        max_confidence = 10000
+        confidences = torch.randn(B, C, device=device) # for DEBUG... UNDO #min_confidence * torch.ones(B, C, device=device) # B
+        # initialize to all masked
+        codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
+        sampled_codes = codes.clone()
+        for step in range(n_steps):            
+            # get mask fraction
+            frac_masked = cosine_schedule(torch.tensor(step / (n_steps-1))) # is the -1 correct?
+            # how many codebooks to mask
+            n_masked = torch.ceil(C * frac_masked).long() # todo make sure this starts with exactly `C`-- or force it (to avoid numerical issues)
+            n_unmasked = C - n_masked
+            #n_unmasked = 5 # for DEBUG... UNDO
+            # pick top-confidence up to n_unmasked
+            _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
 
-    #         codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0] # (B, topk)
-    #         indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(-1) # (B, num_tokens_per_codebook)
-    #         codebook_logits_rescored = codebook_logits.clone()
-    #         codebook_logits_rescored[indices_to_remove] = float('-inf')
-    #         codebook_probs = torch.softmax(codebook_logits / temperature, dim=-1) # (B, num_tokens_per_codebook)
-    #         codebook_preds = torch.multinomial(codebook_probs, 1) # (B, 1)
-    #         if use_cfg:
-    #             codebook_preds[actual_batch_size:] = codebook_preds[:actual_batch_size]
-    #         all_preds.append(codebook_preds)
-    #         next_local_transformer_input = self.audio_embeddings[codebook_num](codebook_preds.squeeze(-1)).unsqueeze(1) # (B, 1, 128)
-    #         next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, 128)
-    #         local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, T+1, 128)
+            # replace masks of the top-k confident codebooks with the the codes that were sampled for them
+            unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
+            codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
+            
+            # build transformer input 
+            local_transformer_input = local_transformer_input_init
+            for codebook_num in range(C):
+                next_local_transformer_input = self.audio_embeddings[codebook_num](codes[:, codebook_num]).unsqueeze(1) # (B, 1, 768)
+                next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, d_local)
+                local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, codebook_num+1, d_local)
 
-    #     all_preds = torch.cat(all_preds, dim=1).long() # (B, num_codebooks)
-    #     if use_cfg:
-    #         all_preds = all_preds[:actual_batch_size]
+            # run transformer
+            _mask = torch.ones(B, C+1, device=device)
+            local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, C+1, d_local)
+            
+            # get logits
+            logits = []
+            for codebook_num in range(C):
+                # The `codebook_num+1` is to drop first position which corresponds to the magpie latent
+                codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, codebook_num+1, :]) # (B, num_audio_tokens_per_codebook)
+                logits.append(codebook_logits)
+            logits = torch.stack(logits, dim=1) # (B, C, num_audio_tokens_per_codebook)
 
-    #     return all_preds
+            # apply CFG
+            if use_cfg:
+                actual_batch_size = logits.size(0) // 2
+                conditional_logits = logits[:actual_batch_size]
+                unconditional_logits = logits[actual_batch_size:]
+                cfg_logits = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
+                logits[:actual_batch_size] = cfg_logits
+
+            # handle unfinished and finished items
+            for item_idx in unfinished_items:
+                logits[item_idx, self.audio_eos_id] = float('-inf')
+            for item_idx in finished_items:
+                logits[item_idx, :, :] = float('-inf')
+                logits[item_idx, :, self.audio_eos_id] = 0.0
+            
+            # sample with top-k
+            logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
+            indices_to_remove = logits < logits_topk[:, :, -1].unsqueeze(-1) # (B, C, num_audio_tokens_per_codebook)
+            logits_rescored = logits.clone()
+            logits_rescored[indices_to_remove] = float('-inf')
+            probs = torch.softmax(logits_rescored / temperature, dim=-1) # (B, C, num_audio_tokens_per_codebook)
+            #probs  = probs.view(B*C, -1) # (B*C, num_audio_tokens_per_codebook)            
+            sampled_codes = torch.multinomial(probs.view(B*C, -1), 1).view(B, C)
+            #probs = probs.view(B, C, -1)
+            if use_cfg:
+                # TODO: why do we need to keep second half of the batch? can probably optimize this
+                sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
+                probs[actual_batch_size:] = probs[:actual_batch_size]
+            confidences  = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
+            # set confidence to max for unmasked codebooks so that they will remain unmasked
+            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+
+            # optionally: add noise to confidences (as in token-critic paper)
+        if use_cfg:
+            codes = codes[:actual_batch_size]
+        return codes
 
     def sample_codes_from_local_transformer(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
         # dec_output: (B, E)
@@ -1521,15 +1574,32 @@ class MagpieTTSModel(ModelPT):
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
                 if self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference:
-                    audio_codes_next = self.sample_codes_from_local_transformer(
-                        dec_output=dec_out[:,-1,:],
-                        temperature=temperature,
-                        topk=topk,
-                        unfinished_items=unifinished_items,
-                        finished_items=finished_items,
-                        use_cfg=use_cfg,
-                        cfg_scale=cfg_scale
-                    )
+                    if not self.cfg.get("use_local_transformer_maskgit", True): # TODO make it False
+                        audio_codes_next = self.sample_codes_from_local_transformer(
+                            dec_output=dec_out[:,-1,:],
+                            temperature=temperature,
+                            topk=topk,
+                            unfinished_items=unifinished_items,
+                            finished_items=finished_items,
+                            use_cfg=use_cfg,
+                            cfg_scale=cfg_scale
+                        )
+                    else:
+                            import debugpy
+
+                            # debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
+                            # print("Waiting for debugger to attach...")
+                            # debugpy.wait_for_client()  # This will block execution until the debugger attaches
+                            # print("Debugger is attached!")                               
+                            audio_codes_next = self.maskgit_sample_codes(
+                            dec_output=dec_out[:,-1,:],
+                            temperature=temperature,
+                            topk=topk,
+                            unfinished_items=unifinished_items,
+                            finished_items=finished_items,
+                            use_cfg=use_cfg,
+                            cfg_scale=cfg_scale
+                        )
                     all_codes_next_argmax = audio_codes_next
                 else:
                     audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
