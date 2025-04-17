@@ -15,7 +15,8 @@ from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
-
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config
@@ -107,10 +108,39 @@ def pretrain_recipe(
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 3
     recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 2
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None
+    recipe.trainer.strategy.expert_tensor_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 2
+    recipe.trainer.strategy.ddp.grad_reduce_in_fp32 = False
 
-    recipe.model.config.recompute_granularity = "full"
-    recipe.model.config.recompute_method = "uniform"
-    recipe.model.config.recompute_num_layers = 1
+    # recompute
+    recipe.model.config.recompute_granularity = "selective"
+    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm", "moe", "mlp"]
+    # recipe.model.config.recompute_granularity = "full"
+    # recipe.model.config.recompute_method = "uniform"
+    # recipe.model.config.recompute_num_layers = 1
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    # DeepEP
+    recipe.model.config.moe_token_dispatcher_type = "flex"
+    recipe.model.config.moe_enable_deepep = True
+    recipe.model.config.moe_shared_expert_overlap = False
+    recipe.model.config.moe_router_dtype = 'fp32'
+    recipe.model.config.moe_permute_fusion = True
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=1,
+        gc_interval_val=1,
+    )
+    # token_drop_callback = run.Config(MegatronTokenDropCallback)
+    comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+
+    recipe.trainer.callbacks.append(garbage_collection_callback)
+    # recipe.trainer.callbacks.append(token_drop_callback)
+    recipe.trainer.callbacks.append(comm_overlap_callback)
 
     return recipe
 
