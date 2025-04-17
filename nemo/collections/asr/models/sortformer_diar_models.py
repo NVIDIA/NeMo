@@ -631,7 +631,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         feat_len = processed_signal.shape[2]
         num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
-        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length, feat_seq_offset=processed_signal_offset), total=num_chunks, desc="Streaming Steps", disable=self.training):
+        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, 
+                                                                                                                                        feat_seq_length=processed_signal_length, 
+                                                                                                                                        feat_seq_offset=processed_signal_offset), 
+                                                                                          total=num_chunks, 
+                                                                                          desc="Streaming Steps", 
+                                                                                          disable=self.training
+                                                                                        ):
             MEM, MEM_LENS, FIFO_QUEUE, FIFO_LENS, MEM_PREDS, _, total_pred, spk_perm = self.forward_streaming_step(
                 processed_signal=chunk_feat_seq_t,
                 processed_signal_length=feat_lengths,
@@ -709,49 +715,39 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Dimension: (batch_size, total_pred_len, num_speakers)
             
         """
+        batch_size = processed_signal.shape[0]
 
-        # B = processed_signal.shape[0]
+        if self.async_streaming:
+            if mem_last_time is None:
+                mem_last_time = torch.zeros((batch_size, self.sortformer_modules.mem_len, self.sortformer_modules.fc_d_model), device=self.device)
+                mem_preds_last_time = torch.full((batch_size, self.sortformer_modules.mem_len, self.sortformer_modules.n_spk), -0.1, device=self.device)
+                mem_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device) #zero offsets
+            if fifo_last_time is None:
+                fifo_last_time = torch.zeros((batch_size, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
+                fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device) #zero offsets
+        else:
+            if mem_last_time is None:
+                mem_last_time = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
+            if fifo_last_time is None:
+                fifo_last_time = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
 
-        # if self.async_streaming:
-        #     if mem_last_time is None:
-        #         mem_last_time = torch.zeros((B, self.sortformer_modules.mem_len, self.sortformer_modules.fc_d_model), device=self.device)
-        #         mem_preds_last_time = torch.full((B, self.sortformer_modules.mem_len, self.sortformer_modules.n_spk), -0.1, device=self.device)
-        #         mem_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
-        #     if fifo_last_time is None:
-        #         fifo_last_time = torch.zeros((B, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
-        #         fifo_lengths = torch.zeros((B,), dtype=torch.long, device=self.device) #zero offsets
-        # else:
-        #     if mem_last_time is None:
-        #         mem_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
-        #     if fifo_last_time is None:
-        #         fifo_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+        if previous_pred_out is None:
+            previous_pred_out = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.n_spk, device=self.device)
 
-        # if previous_pred_out is None:
-        #     previous_pred_out = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.n_spk, device=self.device)
+        chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
 
-        # chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
+        if self.async_streaming:
+            mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = concat_and_pad([mem_last_time, fifo_last_time, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
+        else:
+            mem_fifo_chunk_pre_encode_embs = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
+            mem_fifo_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
 
-        # if self.async_streaming:
-        #     mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = concat_and_pad([mem_last_time, fifo_last_time, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
-        # else:
-        #     mem_fifo_chunk_pre_encode_embs = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
-        #     mem_fifo_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
+        mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
+        mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
 
-        # mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
-        # mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
-
-        mem_fifo_chunk_preds, mem_fifo_chunk_fc_encoder_lengths = self.sortformer_modules.prepare_frontend_enc_inputs(
-                                    processed_signal=processed_signal,
-                                    processed_signal_length=processed_signal_length,
-                                    previous_pred_out=previous_pred_out,
-                                    async_streaming=self.async_streaming,
-                                    device=processed_signal.device
-                                )
-
-        B, T, C  = mem_fifo_chunk_preds.shape
-        preds_mask = torch.arange(T, device=self.device).view(1, -1, 1).expand(B,-1,C) < mem_fifo_chunk_fc_encoder_lengths.view(-1, 1, 1).expand(-1,T,C)
+        batch_size, frames, n_spks = mem_fifo_chunk_preds.shape
+        preds_mask = torch.arange(frames, device=self.device).view(1, -1, 1).expand(batch_size, -1, n_spks) < mem_fifo_chunk_fc_encoder_lengths.view(-1, 1, 1).expand(-1, frames, n_spks)
         mem_fifo_chunk_preds = torch.where(preds_mask, mem_fifo_chunk_preds, torch.tensor(0.1))
-
         if self.async_streaming:
             mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_fifo_async(
                 mem=mem_last_time,

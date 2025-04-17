@@ -257,39 +257,45 @@ class SortformerModules(NeuralModule, Exportable):
         processed_signal,
         processed_signal_length,
         previous_pred_out: Optional[torch.Tensor]=None,
-        async_streaming: bool=False,
-        device: torch.device=None,
+        fifo_last_time=None,
+        fifo_lengths=None,
+        mem_last_time=None,
+        mem_lengths=None,
+        async_streaming: bool=True,
+        encoder_pre_encode=None,
+        # frontend_encoder=None,
     ):
         batch_size = processed_signal.shape[0]
-        if self.async_streaming:
-            if mem_last_time is None:
-                mem_last_time = torch.zeros((batch_size, self.mem_len, self.fc_d_model), device=self.device)
-                # mem_preds_last_time = torch.full((batch_size, self.mem_len, self.n_spk), -0.1, device=self.device)
-                mem_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device) #zero offsets
-            if fifo_last_time is None:
-                fifo_last_time = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device=self.device)
-                fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device) #zero offsets
-        else:
-            if mem_last_time is None:
-                mem_last_time = self.init_memory(batch_size=batch_size, d_model=self.fc_d_model, device=self.device)# memory to save the embeddings from start
-            if fifo_last_time is None:
-                fifo_last_time = self.init_memory(batch_size=batch_size, d_model=self.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+        device = processed_signal.device
+        # if async_streaming:
+        if mem_last_time is None:
+            mem_last_time = torch.zeros((batch_size, self.mem_len, self.fc_d_model), device=device)
+            mem_preds_last_time = torch.full((batch_size, self.mem_len, self.n_spk), -0.1, device=device)
+            mem_lengths = torch.zeros((batch_size,), dtype=torch.long, device=device) #zero offsets
+        if fifo_last_time is None:
+            fifo_last_time = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device=device)
+            fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device=device) #zero offsets
+        # else:
+        #     if mem_last_time is None:
+        #         mem_last_time = self.init_memory(batch_size=batch_size, d_model=self.fc_d_model, device=device)# memory to save the embeddings from start
+        #     if fifo_last_time is None:
+        #         fifo_last_time = self.init_memory(batch_size=batch_size, d_model=self.fc_d_model, device=device)# memory to save the embedding from the latest chunks
 
         if previous_pred_out is None:
-            previous_pred_out = self.init_memory(batch_size=batch_size, d_model=self.n_spk, device=self.device)
+            previous_pred_out = self.init_memory(batch_size=batch_size, d_model=self.n_spk, device=device)
 
-        chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
+        chunk_pre_encode_embs, chunk_pre_encode_lengths = encoder_pre_encode(x=processed_signal, lengths=processed_signal_length)
 
-        if self.async_streaming:
+        if async_streaming:
             mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths = concat_and_pad([mem_last_time, fifo_last_time, chunk_pre_encode_embs], [mem_lengths, fifo_lengths, chunk_pre_encode_lengths])
         else:
-            mem_fifo_chunk_pre_encode_embs = self.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=self.device)
+            mem_fifo_chunk_pre_encode_embs = self.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], dim=1, device=device)
             mem_fifo_chunk_pre_encode_lengths = mem_last_time.shape[1] + fifo_last_time.shape[1] + chunk_pre_encode_lengths
 
-        mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
-        mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
-        return mem_fifo_chunk_preds, mem_fifo_chunk_fc_encoder_lengths
-        
+        # mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths = frontend_encoder(processed_signal=mem_fifo_chunk_pre_encode_embs, processed_signal_length=mem_fifo_chunk_pre_encode_lengths, pre_encode_input=True)
+        # mem_fifo_chunk_preds = self.forward_infer(mem_fifo_chunk_fc_encoder_embs, mem_fifo_chunk_fc_encoder_lengths)
+        # return mem_fifo_chunk_preds, mem_fifo_chunk_fc_encoder_lengths, chunk_pre_encode_embs, chunk_pre_encode_lengths
+        return previous_pred_out, mem_lengths, mem_last_time, mem_preds_last_time, fifo_last_time, fifo_lengths, mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths, chunk_pre_encode_embs, chunk_pre_encode_lengths
 
     def update_memory_fifo_async(
         self,
