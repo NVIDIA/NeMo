@@ -106,14 +106,14 @@ class SortformerModules(NeuralModule, Exportable):
         min_pos_scores_rate: float = 0.5,
     ):
         super().__init__()
-        self.mem_sil_frames_per_spk = mem_sil_frames_per_spk
+        self.spkcache_sil_frames_per_spk = mem_sil_frames_per_spk
         self.step_left_context = step_left_context
         self.step_right_context = step_right_context
         self.subsampling_factor = subsampling_factor
-        self.mem_len = mem_len
+        self.spkcache_len = mem_len
         self.fifo_len = fifo_len
         self.step_len = step_len
-        self.mem_refresh_rate = mem_refresh_rate
+        self.spkcache_refresh_rate = mem_refresh_rate
         self.fc_d_model = fc_d_model
         self.tf_d_model = tf_d_model
         self.hidden_size = tf_d_model
@@ -123,7 +123,6 @@ class SortformerModules(NeuralModule, Exportable):
         self.single_hidden_to_spks = nn.Linear(self.hidden_size, self.n_spk)
         self.dropout = nn.Dropout(dropout_rate)
         self.encoder_proj = nn.Linear(self.fc_d_model, self.tf_d_model)
-        self.visualization: bool = False
         self.log = False
         self.causal_attn_rate = causal_attn_rate
         self.causal_attn_rc = causal_attn_rc
@@ -137,6 +136,7 @@ class SortformerModules(NeuralModule, Exportable):
         self.strong_boost_rate = strong_boost_rate
         self.weak_boost_rate = weak_boost_rate
         self.min_pos_scores_rate = min_pos_scores_rate
+        self.visualization = False
 
     def length_to_mask(self, lengths, max_length: int):
         """
@@ -259,8 +259,8 @@ class SortformerModules(NeuralModule, Exportable):
         previous_pred_out: Optional[torch.Tensor]=None,
         fifo_last_time=None,
         fifo_lengths=None,
-        mem_last_time=None,
-        mem_lengths=None,
+        spkcache_last_time=None,
+        spkcache_lengths=None,
         async_streaming: bool=True,
         encoder_pre_encode=None,
         # frontend_encoder=None,
@@ -269,8 +269,8 @@ class SortformerModules(NeuralModule, Exportable):
         device = processed_signal.device
         # if async_streaming:
         if mem_last_time is None:
-            mem_last_time = torch.zeros((batch_size, self.mem_len, self.fc_d_model), device=device)
-            mem_preds_last_time = torch.full((batch_size, self.mem_len, self.n_spk), 0.0, device=device)
+            mem_last_time = torch.zeros((batch_size, self.spkcache_len, self.fc_d_model), device=device)
+            mem_preds_last_time = torch.full((batch_size, self.spkcache_len, self.n_spk), 0.0, device=device)
             mem_lengths = torch.zeros((batch_size,), dtype=torch.long, device=device) #zero offsets
         if fifo_last_time is None:
             fifo_last_time = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device=device)
@@ -297,11 +297,11 @@ class SortformerModules(NeuralModule, Exportable):
         # return mem_fifo_chunk_preds, mem_fifo_chunk_fc_encoder_lengths, chunk_pre_encode_embs, chunk_pre_encode_lengths
         return previous_pred_out, mem_lengths, mem_last_time, mem_preds_last_time, fifo_last_time, fifo_lengths, mem_fifo_chunk_pre_encode_embs, mem_fifo_chunk_pre_encode_lengths, chunk_pre_encode_embs, chunk_pre_encode_lengths
 
-    def update_memory_fifo_async(
+    def streaming_update_async(
         self,
-        mem,
-        mem_lengths,
-        mem_preds,
+        spkcache,
+        spkcache_lengths,
+        spkcache_preds,
         fifo,
         fifo_lengths,
         chunk,
@@ -311,17 +311,17 @@ class SortformerModules(NeuralModule, Exportable):
         rc: int = 0
     ):
         """
-        Update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions.
-        Asynchronous version, which mean memory, fifo and chunk may have different lengths within a batch.
+        Update the speaker cache and FIFO queue with the chunk of embeddings and speaker predictions.
+        Asynchronous version, which means speaker cache, FIFO and chunk may have different lengths within a batch.
         Should be used for real stremaing applicaitons.
 
         Args:
-            mem (torch.Tensor): memory buffer to save the embeddings from start
-                Dimension: (batch_size, mem_len, emb_dim)
-            mem_lengths (torch.Tensor): lengths of memory buffer
+            spkcache (torch.Tensor): speaker cache to save the embeddings from start
+                Dimension: (batch_size, spkcache_len, emb_dim)
+            spkcache_lengths (torch.Tensor): lengths of speaker cache
                 Dimension: (batch_size,)
-            mem_preds (torch.Tensor): speaker predictions for memory buffer
-                Dimension: (batch_size, mem_len, num_spk)
+            spkcache_preds (torch.Tensor): speaker activity probabilities for speaker cache
+                Dimension: (batch_size, spkcache_len, n_spk)
             fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks.
                 Dimension: (batch_size, fifo_len, emb_dim)
             fifo_lengths (torch.Tensor): lengths of FIFO queue
@@ -330,56 +330,56 @@ class SortformerModules(NeuralModule, Exportable):
                 Dimension: (batch_size, lc+chunk_len+rc, emb_dim)
             chunk_lengths (torch.Tensor): lengths of current chunk
                 Dimension: (batch_size,)
-            preds (torch.Tensor): speaker predictions of the [mem + fifo + chunk] embeddings
-                Dimension: (batch_size, mem_len + fifo_len + lc+chunk_len+rc, num_spks)
+            preds (torch.Tensor): speaker predictions of the [spkcache + fifo + chunk] embeddings
+                Dimension: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
             lc and rc (int): left & right offset of the chunk,
-                only the chunk[:, lc:chunk_len+lc] is used for FIFO queue and memory update
+                only the chunk[:, lc:chunk_len+lc] is used for update of speaker cache and FIFO queue
 
         Returns:
-            mem (torch.Tensor): updated memory buffer
-                Dimension: (batch_size, mem_len, emb_dim)
-            mem_lengths (torch.Tensor): unpated lengths of memory buffer
+            spkcache (torch.Tensor): updated speaker cache
+                Dimension: (batch_size, spkcache_len, emb_dim)
+            spkcache_lengths (torch.Tensor): updated lengths of speaker cache
                 Dimension: (batch_size,)
             fifo (torch.Tensor): updated FIFO queue
                 Dimension: (batch_size, fifo_len, emb_dim)
             fifo_lengths (torch.Tensor): updated lengths of FIFO queue
                 Dimension: (batch_size,)
-            mem_preds (torch.Tensor): updated speaker predictions for memory buffer
-                Dimension: (batch_size, mem_len, num_spk)
+            spkcache_preds (torch.Tensor): updated speaker predictions for speaker cache
+                Dimension: (batch_size, spkcache_len, num_spk)
             fifo_preds (torch.Tensor): speaker predictions for FIFO queuer
                 Dimension: (batch_size, fifo_len, num_spk)
             chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
                 Dimension: (batch_size, chunk_len, num_spks)
         """
 
-        batch_size, _, emb_dim = mem.shape
+        batch_size, _, emb_dim = spkcache.shape
         n_spk = preds.shape[2]
 
-        max_mem_len, max_fifo_len, max_chunk_len = mem.shape[1], fifo.shape[1], chunk.shape[1] - lc - rc
+        max_spkcache_len, max_fifo_len, max_chunk_len = spkcache.shape[1], fifo.shape[1], chunk.shape[1] - lc - rc
 
         if self.fifo_len == 0:
             max_pop_out_len = max_chunk_len
-        elif self.mem_refresh_rate == 0:
+        elif self.spkcache_refresh_rate == 0:
             max_pop_out_len = self.fifo_len
         else:
-            max_pop_out_len = min(self.mem_refresh_rate * self.step_len, self.fifo_len)
+            max_pop_out_len = min(self.spkcache_refresh_rate * self.step_len, self.fifo_len)
 
         fifo_preds = torch.zeros((batch_size, max_fifo_len, n_spk), device=preds.device)
         chunk_preds = torch.zeros((batch_size, max_chunk_len, n_spk), device=preds.device)
         chunk_lengths = (chunk_lengths - lc).clamp(min=0,max=max_chunk_len)
         updated_fifo = torch.zeros((batch_size, max_fifo_len + max_chunk_len, emb_dim), device=preds.device)
         updated_fifo_preds = torch.zeros((batch_size, max_fifo_len + max_chunk_len, n_spk), device=preds.device)
-        updated_mem = torch.zeros((batch_size, max_mem_len + max_pop_out_len, emb_dim), device=preds.device)
-        updated_mem_preds = torch.full((batch_size, max_mem_len + max_pop_out_len, n_spk), 0.0, device=preds.device)
+        updated_spkcache = torch.zeros((batch_size, max_spkcache_len + max_pop_out_len, emb_dim), device=preds.device)
+        updated_spkcache_preds = torch.full((batch_size, max_spkcache_len + max_pop_out_len, n_spk), 0.0, device=preds.device)
 
         for batch_index in range(batch_size):
-            mem_len = mem_lengths[batch_index].item()
+            spkcache_len = spkcache_lengths[batch_index].item()
             fifo_len = fifo_lengths[batch_index].item()
             chunk_len = chunk_lengths[batch_index].item()
-            fifo_preds[batch_index, :fifo_len, :] = preds[batch_index, mem_len:mem_len+fifo_len, :]
-            chunk_preds[batch_index, :chunk_len, :] = preds[batch_index, mem_len+fifo_len+lc:mem_len+fifo_len+lc+chunk_len]
-            updated_mem[batch_index, :mem_len, :] = mem[batch_index, :mem_len, :]
-            updated_mem_preds[batch_index, :mem_len, :] = mem_preds[batch_index, :mem_len, :]
+            fifo_preds[batch_index, :fifo_len, :] = preds[batch_index, spkcache_len:spkcache_len+fifo_len, :]
+            chunk_preds[batch_index, :chunk_len, :] = preds[batch_index, spkcache_len+fifo_len+lc:spkcache_len+fifo_len+lc+chunk_len]
+            updated_spkcache[batch_index, :spkcache_len, :] = spkcache[batch_index, :spkcache_len, :]
+            updated_spkcache_preds[batch_index, :spkcache_len, :] = spkcache_preds[batch_index, :spkcache_len, :]
             updated_fifo[batch_index, :fifo_len, :] = fifo[batch_index, :fifo_len, :]
             updated_fifo_preds[batch_index, :fifo_len, :] = fifo_preds[batch_index, :fifo_len, :]
 
@@ -388,17 +388,17 @@ class SortformerModules(NeuralModule, Exportable):
             updated_fifo[batch_index, fifo_len:fifo_len+chunk_len, :] = chunk[batch_index, lc:lc+chunk_len, :]
             updated_fifo_preds[batch_index, fifo_len:fifo_len+chunk_len, :] = chunk_preds[batch_index, :chunk_len, :]
             if fifo_len + chunk_len > max_fifo_len:
-                # move pop_out_len first frames of fifo to memory
+                # move pop_out_len first frames of FIFO queue to speaker cache
                 pop_out_len = min(max_pop_out_len, fifo_len + chunk_len)
-                mem_lengths[batch_index] += pop_out_len
-                updated_mem[batch_index, mem_len:mem_len+pop_out_len, :] = updated_fifo[batch_index, :pop_out_len, :]
-                if updated_mem_preds[batch_index, 0, 0] >= 0:
-                    # memory already compressed at least once
-                    updated_mem_preds[batch_index, mem_len:mem_len+pop_out_len, :] = updated_fifo_preds[batch_index, :pop_out_len, :]
-                elif mem_len + pop_out_len > self.mem_len:
-                    # will compress memory for the first time
-                    updated_mem_preds[batch_index, :mem_len, :] = preds[batch_index, :mem_len, :]
-                    updated_mem_preds[batch_index, mem_len:mem_len+pop_out_len, :] = updated_fifo_preds[batch_index, :pop_out_len, :]
+                spkcache_lengths[batch_index] += pop_out_len
+                updated_spkcache[batch_index, spkcache_len:spkcache_len+pop_out_len, :] = updated_fifo[batch_index, :pop_out_len, :]
+                if updated_spkcache_preds[batch_index, 0, 0] >= 0:
+                    # speaker cache already compressed at least once
+                    updated_spkcache_preds[batch_index, spkcache_len:spkcache_len+pop_out_len, :] = updated_fifo_preds[batch_index, :pop_out_len, :]
+                elif spkcache_len + pop_out_len > self.spkcache_len:
+                    # will compress speaker cache for the first time
+                    updated_spkcache_preds[batch_index, :spkcache_len, :] = preds[batch_index, :spkcache_len, :]
+                    updated_spkcache_preds[batch_index, spkcache_len:spkcache_len+pop_out_len, :] = updated_fifo_preds[batch_index, :pop_out_len, :]
                 fifo_lengths[batch_index] -= pop_out_len
                 new_fifo_len = fifo_lengths[batch_index].item()
                 updated_fifo[batch_index, :new_fifo_len, :] = updated_fifo[batch_index, pop_out_len:pop_out_len+new_fifo_len, :]
@@ -406,25 +406,25 @@ class SortformerModules(NeuralModule, Exportable):
 
         fifo = updated_fifo[:, :max_fifo_len, :]
 
-        # update memory
-        need_compress = (mem_lengths > self.mem_len)
-        mem = updated_mem[:, :self.mem_len:, :]
-        mem_preds = updated_mem_preds[:, :self.mem_len:, :]
+        # update speaker cache
+        need_compress = (spkcache_lengths > self.spkcache_len)
+        spkcache = updated_spkcache[:, :self.spkcache_len:, :]
+        spkcache_preds = updated_spkcache_preds[:, :self.spkcache_len:, :]
 
         idx = torch.where(need_compress)[0]
         if len(idx) > 0:
-            mem[idx], mem_preds[idx], _ = self._compress_spk_cache(emb_seq=updated_mem[idx], preds=updated_mem_preds[idx], permute_spk=False)
-            mem_lengths[idx] = mem_lengths[idx].clamp(max=self.mem_len)
+            spkcache[idx], spkcache_preds[idx], _ = self._compress_spkcache(emb_seq=updated_spkcache[idx], preds=updated_spkcache_preds[idx], permute_spk=False)
+            spkcache_lengths[idx] = spkcache_lengths[idx].clamp(max=self.spkcache_len)
 
         if self.log:
-            logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
+            logging.info(f"MC spkcache: {spkcache.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
 
-        return mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, chunk_preds
+        return spkcache, spkcache_lengths, fifo, fifo_lengths, spkcache_preds, fifo_preds, chunk_preds
 
-    def update_memory_fifo(
+    def streaming_update(
         self,
-        mem,
-        mem_preds,
+        spkcache,
+        spkcache_preds,
         fifo,
         chunk,
         preds,
@@ -433,33 +433,33 @@ class SortformerModules(NeuralModule, Exportable):
         rc: int = 0
     ):
         """
-        Update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions.
-        Synchronous version, which mean memory, fifo and chunk have same lengths within a batch.
+        Update the speaker cache and FIFO queue with the chunk of embeddings and speaker predictions.
+        Synchronous version, which means speaker cahce, FIFO queue and chunk have same lengths within a batch.
         Should be used for training and evaluation, not for real stremaing applicaitons.
 
         Args:
-            mem (torch.Tensor): memory buffer to save the embeddings from start
-                Dimension: (batch_size, mem_len, emb_dim)
-            mem_preds (torch.Tensor): speaker predictions for memory buffer
-                Dimension: (batch_size, mem_len, num_spk)
+            spkcache (torch.Tensor): speaker cache to save the embeddings from start
+                Dimension: (batch_size, spkcache_len, emb_dim)
+            spkcache_preds (torch.Tensor): speaker activity probabilities for speaker cache
+                Dimension: (batch_size, spkcache_len, num_spk)
             fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks.
                 Dimension: (batch_size, fifo_len, emb_dim)
             chunk (torch.Tensor): chunk of embeddings to be predicted
                 Dimension: (batch_size, lc+chunk_len+rc, emb_dim)
-            preds (torch.Tensor): speaker predictions of the [mem + fifo + chunk] embeddings
-                Dimension: (batch_size, mem_len + fifo_len + lc+chunk_len+rc, num_spks)
+            preds (torch.Tensor): speaker predictions of the [spkcache + fifo + chunk] embeddings
+                Dimension: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
             spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores on previous step
                 Dimension: (batch_size, n_spk)
             lc and rc (int): left & right offset of the chunk,
-                only the chunk[:, lc:chunk_len+lc] is used for FIFO queue and memory update
+                only the chunk[:, lc:chunk_len+lc] is used for update of speaker cache and FIFO queue
 
         Returns:
-            mem (torch.Tensor): updated memory buffer
-                Dimension: (batch_size, mem_len, emb_dim)
+            spkcache (torch.Tensor): updated speaker cache
+                Dimension: (batch_size, spkcache_len, emb_dim)
             fifo (torch.Tensor): updated FIFO queue
                 Dimension: (batch_size, fifo_len, emb_dim)
-            mem_preds (torch.Tensor): updated speaker predictions for memory buffer
-                Dimension: (batch_size, mem_len, num_spk)
+            spkcache_preds (torch.Tensor): updated speaker predictions for speaker cache
+                Dimension: (batch_size, spkcache_len, num_spk)
             fifo_preds (torch.Tensor): speaker predictions for FIFO queuer
                 Dimension: (batch_size, fifo_len, num_spk)
             chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
@@ -468,70 +468,70 @@ class SortformerModules(NeuralModule, Exportable):
                 Dimension: (batch_size, n_spk)
         """
 
-        batch_size, _, emb_dim = mem.shape
+        batch_size, _, emb_dim = spkcache.shape
 
-        mem_len, fifo_len, chunk_len = mem.shape[1], fifo.shape[1], chunk.shape[1] - lc - rc
+        spkcache_len, fifo_len, chunk_len = spkcache.shape[1], fifo.shape[1], chunk.shape[1] - lc - rc
         if spk_perm is not None:
             inv_spk_perm = torch.stack([torch.argsort(spk_perm[batch_index]) for batch_index in range(batch_size)])
             preds = torch.stack([preds[batch_index, :, inv_spk_perm[batch_index]] for batch_index in range(batch_size)])
 
-        fifo_preds = preds[:, mem_len:mem_len + fifo_len]
+        fifo_preds = preds[:, spkcache_len:spkcache_len + fifo_len]
         chunk = chunk[:, lc:chunk_len + lc]
-        chunk_preds = preds[:, mem_len + fifo_len + lc:mem_len + fifo_len + chunk_len + lc]
+        chunk_preds = preds[:, spkcache_len + fifo_len + lc:spkcache_len + fifo_len + chunk_len + lc]
 
         if self.fifo_len == 0:
-            if mem_len == 0 and self.init_step_len < self.step_len:
+            if spkcache_len == 0 and self.init_step_len < self.step_len:
                 fifo = torch.cat([fifo, chunk], dim=1)
                 if fifo_len >= self.step_len:
                     pop_out_embs = fifo
                     pop_out_preds = torch.cat([fifo_preds, chunk_preds], dim=1)
-                    fifo = self.init_memory(batch_size, emb_dim, mem.device)
+                    fifo = self.init_memory(batch_size, emb_dim, spkcache.device)
                 else:
-                    pop_out_embs = self.init_memory(batch_size, emb_dim, mem.device)
-                    pop_out_preds = self.init_memory(batch_size, self.n_spk, mem.device)
+                    pop_out_embs = self.init_memory(batch_size, emb_dim, spkcache.device)
+                    pop_out_preds = self.init_memory(batch_size, self.n_spk, spkcache.device)
             else:
                 assert fifo_len == self.fifo_len
                 pop_out_embs, pop_out_preds = chunk, chunk_preds
         else:
             fifo = torch.cat([fifo, chunk], dim=1)
             if fifo.size(1) <= self.fifo_len:
-                pop_out_embs = self.init_memory(batch_size, emb_dim, mem.device)
-                pop_out_preds = self.init_memory(batch_size, self.n_spk, mem.device)
+                pop_out_embs = self.init_memory(batch_size, emb_dim, spkcache.device)
+                pop_out_preds = self.init_memory(batch_size, self.n_spk, spkcache.device)
             else:
-                if self.mem_refresh_rate == 0:
-                    # Clear fifo queue when it reaches the max_fifo_len and update memory buffer
+                if self.spkcache_refresh_rate == 0:
+                    # Clear fifo queue when it reaches the max_fifo_len and update speaker cache
                     pop_out_embs  = fifo[:, :fifo_len]
                     pop_out_preds = fifo_preds
-                    fifo = self.init_memory(batch_size, emb_dim, mem.device)
-                elif self.mem_refresh_rate == 1:
-                    # Pop out the oldest chunk from the fifo queue and update memory buffer
+                    fifo = self.init_memory(batch_size, emb_dim, spkcache.device)
+                elif self.spkcache_refresh_rate == 1:
+                    # Pop out the oldest chunk from the fifo queue and update speaker cache
                     pop_out_embs  = fifo[:, :-self.fifo_len]
                     pop_out_preds = fifo_preds[:, :pop_out_embs.shape[1]]
                     fifo = fifo[:, -self.fifo_len:]
                     assert pop_out_embs.shape[1] > 0
                 else:
-                    # Pop out self.mem_refresh_rate oldest chunks from the fifo queue and update memory buffer
-                    pop_out_embs = fifo[:, :chunk_len*self.mem_refresh_rate]
+                    # Pop out self.spkcache_refresh_rate oldest chunks from the fifo queue and update speaker cache
+                    pop_out_embs = fifo[:, :chunk_len*self.spkcache_refresh_rate]
                     pop_out_preds = fifo_preds[:, :pop_out_embs.shape[1]]
                     fifo = fifo[:, pop_out_embs.shape[1]:]
 
-        if pop_out_embs.shape[1] > 0: # only update memory buffer when pop_out_embs is not empty
-            mem = torch.cat([mem, pop_out_embs], dim=1)
-            if mem_preds is not None: # if memory has been already updated at least once
-                mem_preds = torch.cat([mem_preds, pop_out_preds], dim=1)
-            if mem.shape[1] > self.mem_len:
-                if mem_preds is None: # if this is a first memory update
-                    mem_preds = torch.cat([preds[:, :mem_len], pop_out_preds], dim=1)
-                mem, mem_preds, spk_perm = self._compress_spk_cache(
-                    emb_seq=mem,
-                    preds=mem_preds,
+        if pop_out_embs.shape[1] > 0: # only update speaker cache when pop_out_embs is not empty
+            spkcache = torch.cat([spkcache, pop_out_embs], dim=1)
+            if spkcache_preds is not None: # if speaker cache has been already updated at least once
+                spkcache_preds = torch.cat([spkcache_preds, pop_out_preds], dim=1)
+            if spkcache.shape[1] > self.spkcache_len:
+                if spkcache_preds is None: # if this is a first update of speaker cache
+                    spkcache_preds = torch.cat([preds[:, :spkcache_len], pop_out_preds], dim=1)
+                spkcache, spkcache_preds, spk_perm = self._compress_spkcache(
+                    emb_seq=spkcache,
+                    preds=spkcache_preds,
                     permute_spk=self.training
                 )
 
         if self.log:
-            logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
+            logging.info(f"MC spkcache: {spkcache.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
 
-        return mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm
+        return spkcache, fifo, spkcache_preds, fifo_preds, chunk_preds, spk_perm
 
     def _boost_topk_scores(
         self,
@@ -606,8 +606,8 @@ class SortformerModules(NeuralModule, Exportable):
 
     def _get_topk_indices(self, scores):
         """
-        Get indices corresponding to mem_len highest scores, and binary mask for disabled frames in memory.
-        Disabled frames correspond to either -inf score or mem_sil_frames_per_spk frames of extra silence 
+        Get indices corresponding to spkcache_len highest scores, and binary mask for frames in topk to be disabled.
+        Disabled frames correspond to either -inf score or spkcache_sil_frames_per_spk frames of extra silence 
         Mean silence embedding will be used for these frames.
 
         Args:
@@ -615,31 +615,31 @@ class SortformerModules(NeuralModule, Exportable):
                 Shape: (batch_size, n_frames, n_spk)
 
         Returns:
-            topk_indices_sorted (torch.Tensor): Tensor containing frame indices of mem_len highest scores.
-                Shape: (batch_size, mem_len)
-            is_disabled (torch.Tensor): Tensor containing binary mask for disabled frames in memory.
-                Shape: (batch_size, mem_len)
+            topk_indices_sorted (torch.Tensor): Tensor containing frame indices of spkcache_len highest scores.
+                Shape: (batch_size, spkcache_len)
+            is_disabled (torch.Tensor): Tensor containing binary mask for frames in topk to be disabled.
+                Shape: (batch_size, spkcache_len)
         """
 
         batch_size, n_frames, n_spk = scores.shape
-        n_frames_no_sil = n_frames - self.mem_sil_frames_per_spk
+        n_frames_no_sil = n_frames - self.spkcache_sil_frames_per_spk
         # Concatenate scores for all speakers
-        # Get mem_len frames with highest scores
+        # Get spkcache_len frames with highest scores
         # Replace topk_indices corresponding to -inf score with a placeholder index self.max_index
         # Sort topk_indices to preserve original order of frames
         # Get correct indices corresponding to original frames
         scores_flatten = scores.permute(0,2,1).reshape(batch_size, -1)
-        topk_values, topk_indices = torch.topk(scores_flatten, self.mem_len, dim=1, sorted=False)
+        topk_values, topk_indices = torch.topk(scores_flatten, self.spkcache_len, dim=1, sorted=False)
         valid_topk_mask = (topk_values != float('-inf'))
         topk_indices = torch.where(valid_topk_mask, topk_indices, torch.tensor(self.max_index))
-        topk_indices_sorted, _ = torch.sort(topk_indices, dim=1) # Shape: (batch_size, mem_len)
+        topk_indices_sorted, _ = torch.sort(topk_indices, dim=1) # Shape: (batch_size, spkcache_len)
         is_disabled = (topk_indices_sorted == self.max_index)
         topk_indices_sorted = torch.remainder(topk_indices_sorted, n_frames)
         is_disabled += (topk_indices_sorted >= n_frames_no_sil)
         topk_indices_sorted[is_disabled] = 0 # Set a placeholder index to make gather work
         return topk_indices_sorted, is_disabled
 
-    def _gather_spk_cache_and_preds(self, emb_seq, preds, topk_indices, is_disabled):
+    def _gather_spkcache_and_preds(self, emb_seq, preds, topk_indices, is_disabled):
         """
         Gather embeddings from emb_seq and speaker activities from preds corresponding to topk_indices.
         For disabled frames, use mean silence embedding and zero probability instead.
@@ -650,39 +650,39 @@ class SortformerModules(NeuralModule, Exportable):
             preds (torch.Tensor): Tensor containing speaker activity probabilities.
                 Shape: (batch_size, n_frames, n_spk)
             topk_indices (torch.Tensor): Tensor containing indices of frames to gather.
-                Shape: (batch_size, mem_len)
+                Shape: (batch_size, spkcache_len)
             is_disabled (torch.Tensor): Tensor containing binary mask for disabled frames.
-                Shape: (batch_size, mem_len)
+                Shape: (batch_size, spkcache_len)
 
         Returns:
             emb_seq_gathered (torch.Tensor): Tensor containing gathered embeddings.
-                Shape: (batch_size, mem_len, emb_dim)
+                Shape: (batch_size, spkcache_len, emb_dim)
             preds_gathered (torch.Tensor): Tensor containing gathered speaker activities.
-                Shape: (batch_size, mem_len, n_spk)
+                Shape: (batch_size, spkcache_len, n_spk)
         """
         emb_dim, n_spk = emb_seq.shape[2], preds.shape[2]
         # Expand topk_indices_sorted to emb_dim in last dimension to use gather
-        # Gather memory buffer including placeholder embeddings for silence frames
+        # Gather speaker cache embeddings, including placeholder embeddings for silence frames
         # Get mean silence embedding
         # Replace the placeholder embeddings with actual mean silence embedding
         indices_expanded_emb = topk_indices.unsqueeze(-1).expand(-1, -1, emb_dim)
-        emb_seq_gathered = torch.gather(emb_seq, 1, indices_expanded_emb) # (batch_size, mem_len, emb_dim)
+        emb_seq_gathered = torch.gather(emb_seq, 1, indices_expanded_emb) # (batch_size, spkcache_len, emb_dim)
         mean_sil_emb = self._get_silence_profile(emb_seq, preds)
-        mean_sil_emb_expanded = mean_sil_emb.unsqueeze(1).expand(-1, self.mem_len, -1)
+        mean_sil_emb_expanded = mean_sil_emb.unsqueeze(1).expand(-1, self.spkcache_len, -1)
         emb_seq_gathered = torch.where(is_disabled.unsqueeze(-1), mean_sil_emb_expanded, emb_seq_gathered)
 
         # Expand topk indices to n_spk in last dimension to use gather
-        # Gather memory preds including placeholder preds for silence frames
+        # Gather speaker cache preds, including placeholder preds for silence frames
         # Replace the placeholder preds with zeros
         indices_expanded_spk = topk_indices.unsqueeze(-1).expand(-1, -1, n_spk)
-        preds_gathered = torch.gather(preds, 1, indices_expanded_spk) # (batch_size, mem_len, n_spk)
+        preds_gathered = torch.gather(preds, 1, indices_expanded_spk) # (batch_size, spkcache_len, n_spk)
         preds_gathered = torch.where(is_disabled.unsqueeze(-1), torch.tensor(0.0), preds_gathered)
         return emb_seq_gathered, preds_gathered
 
     def _get_max_perm_index(self, scores):
         """
         Get number of first speakers having at least one positive score.
-        These speakers will be randomly permuted during _compress_spk_cache (training only).
+        These speakers will be randomly permuted during _compress_spkcache (training only).
 
         Args:
             scores (torch.Tensor): Tensor containing speaker scores.
@@ -758,33 +758,33 @@ class SortformerModules(NeuralModule, Exportable):
         scores = torch.stack(scores_list).to(scores.device)
         return scores, spk_perm
 
-    def _compress_spk_cache(self, emb_seq, preds, permute_spk: bool=False):
+    def _compress_spkcache(self, emb_seq, preds, permute_spk: bool=False):
         """
         Compress speaker cache for streaming inference.
-        Keep mem_len most important frames out of input n_frames, based on preds.
+        Keep spkcache_len most important frames out of input n_frames, based on preds.
 
         Args:
-            emb_seq (torch.Tensor): Tensor containing n_frames > mem_len embeddings
+            emb_seq (torch.Tensor): Tensor containing n_frames > spkcache_len embeddings
                 Dimension: (batch_size, n_frames, emb_dim)
-            preds (torch.Tensor): Tensor containing n_frames > mem_len speaker activity probabilities
+            preds (torch.Tensor): Tensor containing n_frames > spkcache_len speaker activity probabilities
                 Dimension: (batch_size, n_frames, n_spk)
             permute_spk (bool): If true, will generate a random permutation of existing speakers
 
         Returns:
-            memory_buff (torch.Tensor): Tensor containing mem_len most important embeddings from emb_seq.
+            spkcache (torch.Tensor): Tensor containing spkcache_len most important embeddings from emb_seq.
             Embeddings are ordered by speakers. Within each speaker, original order of frames is kept.
-                Dimension: (batch_size, mem_len, emb_dim)
-            mem_preds (torch.Tensor): predictions corresponding to memory buffer
-                Dimension: (batch_size, mem_len, n_spk)
+                Dimension: (batch_size, spkcache_len, emb_dim)
+            spkcache_preds (torch.Tensor): predictions corresponding to speaker cache
+                Dimension: (batch_size, spkcache_len, n_spk)
             spk_perm (torch.Tensor): random speaker permutation tensor if permute_spk=True, otherwise None
                 Dimension: (batch_size, n_spk)
         """
         batch_size, n_frames, n_spk = preds.shape
         emb_dim = emb_seq.shape[2]
-        mem_len_per_spk = self.mem_len // n_spk - self.mem_sil_frames_per_spk
-        strong_boost_per_spk = math.floor(mem_len_per_spk * self.strong_boost_rate)
-        weak_boost_per_spk = math.floor(mem_len_per_spk  * self.weak_boost_rate)
-        min_pos_scores_per_spk = math.floor(mem_len_per_spk * self.min_pos_scores_rate)
+        spkcache_len_per_spk = self.spkcache_len // n_spk - self.spkcache_sil_frames_per_spk
+        strong_boost_per_spk = math.floor(spkcache_len_per_spk * self.strong_boost_rate)
+        weak_boost_per_spk = math.floor(spkcache_len_per_spk  * self.weak_boost_rate)
+        min_pos_scores_per_spk = math.floor(spkcache_len_per_spk * self.min_pos_scores_rate)
 
         scores = self._get_log_pred_scores(preds)
         scores = self._disable_low_scores(preds, scores, min_pos_scores_per_spk)
@@ -796,7 +796,7 @@ class SortformerModules(NeuralModule, Exportable):
             spk_perm = None
 
         if self.scores_boost_latest > 0: # Boost newly added frames
-            scores[:,self.mem_len:,:] += self.scores_boost_latest
+            scores[:,self.spkcache_len:,:] += self.scores_boost_latest
 
         if self.training:
             if self.scores_add_rnd > 0: # Add random noise to scores
@@ -807,12 +807,12 @@ class SortformerModules(NeuralModule, Exportable):
         # Weak boosting to prevent dominance of one speaker in speaker cache
         scores = self._boost_topk_scores(scores, weak_boost_per_spk, scale_factor=1)
 
-        if self.mem_sil_frames_per_spk > 0: # Add number of silence frames in the end of each block
+        if self.spkcache_sil_frames_per_spk > 0: # Add number of silence frames in the end of each block
             pad = torch.full(
-                (batch_size, self.mem_sil_frames_per_spk, n_spk), float('inf'), device=scores.device
+                (batch_size, self.spkcache_sil_frames_per_spk, n_spk), float('inf'), device=scores.device
             )
-            scores = torch.cat([scores, pad], dim=1) # (batch_size, n_frames + mem_sil_frames_per_spk, n_spk)
+            scores = torch.cat([scores, pad], dim=1) # (batch_size, n_frames + spkcache_sil_frames_per_spk, n_spk)
 
         topk_indices, is_disabled = self._get_topk_indices(scores)
-        memory_buff, mem_preds = self._gather_spk_cache_and_preds(emb_seq, preds, topk_indices, is_disabled)
-        return memory_buff, mem_preds, spk_perm
+        spkcache, spkcache_preds = self._gather_spkcache_and_preds(emb_seq, preds, topk_indices, is_disabled)
+        return spkcache, spkcache_preds, spk_perm

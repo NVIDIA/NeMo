@@ -385,12 +385,12 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.streaming_mode = cfg.streaming_mode
     diar_model.sortformer_modules.init_step_len = cfg.init_step_len
     diar_model.sortformer_modules.step_len = cfg.step_len
-    diar_model.sortformer_modules.mem_len = cfg.mem_len
+    diar_model.sortformer_modules.spkcache_len = cfg.mem_len
     diar_model.sortformer_modules.step_left_context = cfg.step_left_context
     diar_model.sortformer_modules.step_right_context = cfg.step_right_context
     diar_model.sortformer_modules.fifo_len = cfg.fifo_len
     diar_model.sortformer_modules.log = cfg.log
-    diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
+    diar_model.sortformer_modules.spkcache_refresh_rate = cfg.mem_refresh_rate
 
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
     tensor_path, model_id, tensor_filename = get_tensor_path(cfg)
