@@ -55,7 +55,12 @@ if __name__ == "__main__":
         inference_only=True,
         strategy_kwargs={"sequence_parallel": False, "replace_progress_bar": False},
         trainer_kwargs={},
-        model_config_overrides={"sequence_parallel": False, "moe_grouped_gemm": False, "gradient_accumulation_fusion": False, "make_vocab_size_divisible_by": 1},
+        model_config_overrides={
+            "sequence_parallel": False,
+            "moe_grouped_gemm": False,
+            "gradient_accumulation_fusion": False,
+            "make_vocab_size_divisible_by": 1,
+        },
         # WAR: We force vocab size to be divisible by 1 as it performs inconsistent padding upon restore
     )
 
