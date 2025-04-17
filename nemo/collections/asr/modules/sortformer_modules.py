@@ -401,7 +401,7 @@ class SortformerModules(NeuralModule, Exportable):
                     updated_spkcache_preds[batch_index, spkcache_len:spkcache_len+pop_out_len, :] = updated_fifo_preds[batch_index, :pop_out_len, :]
                 fifo_lengths[batch_index] -= pop_out_len
                 new_fifo_len = fifo_lengths[batch_index].item()
-                updated_fifo[batch_index, :new_fifo_len, :] = updated_fifo[batch_index, pop_out_len:pop_out_len+new_fifo_len, :]
+                updated_fifo[batch_index, :new_fifo_len, :] = updated_fifo[batch_index, pop_out_len:pop_out_len+new_fifo_len, :].clone()
                 updated_fifo[batch_index, new_fifo_len:, :] = 0
 
         fifo = updated_fifo[:, :max_fifo_len, :]
