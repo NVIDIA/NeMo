@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 import torch
 from torch import nn
 
+from nemo.collections.llm import GPTConfig
 from nemo.collections.llm.gpt.model.base import GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.gpt.model.llama import (
     Llama31Config,
