@@ -427,7 +427,7 @@ class MagpieTTSModel(ModelPT):
             indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(-1) # (B, num_tokens_per_codebook)
             codebook_logits_rescored = codebook_logits.clone()
             codebook_logits_rescored[indices_to_remove] = float('-inf')
-            codebook_probs = torch.softmax(codebook_logits / temperature, dim=-1) # (B, num_tokens_per_codebook)
+            codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1) # (B, num_tokens_per_codebook)
             codebook_preds = torch.multinomial(codebook_probs, 1) # (B, 1)
             if use_cfg:
                 codebook_preds[actual_batch_size:] = codebook_preds[:actual_batch_size]
@@ -462,7 +462,7 @@ class MagpieTTSModel(ModelPT):
             codebook_logits_rescored = codebook_logits.clone()
             codebook_logits_rescored[indices_to_remove] = float('-inf')
 
-            codebook_probs = torch.softmax(codebook_logits / temperature, dim=-1)  # (B, num_tokens_per_codebook)
+            codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1)  # (B, num_tokens_per_codebook)
             codebook_preds = torch.multinomial(codebook_probs, 1)  # (B, 1)
             all_preds.append(codebook_preds)
         all_preds = torch.cat(all_preds, dim=1).long()  # (B, num_codebooks)
