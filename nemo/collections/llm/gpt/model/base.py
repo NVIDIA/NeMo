@@ -253,6 +253,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     vocab_size: Optional[int] = None
     tp_comm_overlap_cfg: Optional[Union[str, dict[str, Any]]] = None
 
+    vocab_size: Optional[int] = None
+    tp_comm_overlap_cfg: Optional[Union[str, dict[str, Any]]] = None
+
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         if self.enable_cuda_graph:
             assert HAVE_TE, "Transformer Engine is required for cudagraphs."

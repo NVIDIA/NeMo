@@ -15,9 +15,17 @@
 import math
 from dataclasses import dataclass, field
 from typing import List, Literal
-import bitsandbytes
 
 import torch
+
+from nemo.utils.import_utils import safe_import
+
+if torch.cuda.is_available():
+    bitsandbytes, HAVE_BNB = safe_import("bitsandbytes")
+else:
+    bitsandbytes = None
+    HAVE_BNB = False
+
 import torch.nn.functional as F
 from torch import nn
 
@@ -331,7 +339,10 @@ def patch_linear_module(
         cls = orig_linear.__class__
         new_cls = type('PatchedTELinearAdapter', (TELinearAdapter, cls), {})
     # If the model uses quantized weights, we want to use orig_linear's forward
-    if hasattr(orig_linear, 'quant_state') and orig_linear.quant_state.__class__ == bitsandbytes.functional.QuantState:
+    if (
+        getattr(orig_linear, 'quant_state', None) is not None
+        and orig_linear.quant_state.__class__ == bitsandbytes.functional.QuantState
+    ):
         orig_linear.super_fwd = orig_linear.forward
 
     orig_linear.__class__ = new_cls
@@ -419,9 +430,12 @@ class LoRA(PEFT, ModuleMatcher):
                 # - is DTensor (has _local_tensor attribute)
                 # - has quant_state attribute
                 if (
-                    self._is_fsdp_v1
+                    self._add_via_setattr
                     or hasattr(m.weight.data, '_local_tensor')
-                    or (hasattr(m, 'quant_state') and m.quant_state.__class__ == bitsandbytes.functional.QuantState)
+                    or (
+                        getattr(m, 'quant_state', None) is not None
+                        and m.quant_state.__class__ == bitsandbytes.functional.QuantState
+                    )
                 ):
                     lora_cls = patch_linear_module
                 elif HAVE_TE and m.__class__ == te.Linear:
@@ -446,7 +460,6 @@ class LoRA(PEFT, ModuleMatcher):
                 self.dim,
                 base_linear_name=full_name,
                 activation='identity',
-                norm_position=None,
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,

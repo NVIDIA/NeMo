@@ -96,6 +96,9 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     attention_dropout: float = 0
     use_cpu_initialization: bool = True
     gradient_accumulation_fusion: bool = True
+    enable_cuda_graph: bool = False
+    use_te_rng_tracker: bool = False
+    cuda_graph_warmup_steps: int = 2
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step
@@ -303,7 +306,7 @@ class Flux(VisionModule):
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
 
         for id_block, block in enumerate(self.single_blocks):
-            hidden_states = block(
+            hidden_states, _ = block(
                 hidden_states=hidden_states,
                 rotary_pos_emb=rotary_pos_emb,
                 emb=vec_emb,
