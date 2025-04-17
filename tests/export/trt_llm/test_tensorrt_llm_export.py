@@ -30,8 +30,7 @@ def test_nemo2_convert_to_safe_tensors(tensor_parallelism_size, pipeline_paralle
 
     trt_llm_exporter = TensorRTLLM(model_dir="/tmp/safe_tensor_test/")
     trt_llm_exporter.convert_to_safe_tensors(
-        # nemo_checkpoint_path="/home/TestData/llm/models/llama32_1b_nemo2",
-        nemo_checkpoint_path="/opt/checkpoints/hf_llama32_1b_nemo2/",
+        nemo_checkpoint_path="/home/TestData/llm/models/llama32_1b_nemo2",
         model_type="llama",
         delete_existing_files=True,
         tensor_parallelism_size=tensor_parallelism_size,
@@ -63,8 +62,7 @@ def test_nemo2_convert_to_export():
 
     trt_llm_exporter = TensorRTLLM(model_dir="/tmp/safe_tensor_test_2/")
     trt_llm_exporter.export(
-        #nemo_checkpoint_path="/home/TestData/llm/models/llama32_1b_nemo2",
-        nemo_checkpoint_path="/opt/checkpoints/hf_llama32_1b_nemo2/",
+        nemo_checkpoint_path="/home/TestData/llm/models/llama32_1b_nemo2",
         model_type="llama",
         delete_existing_files=True,
         tensor_parallelism_size=1,
