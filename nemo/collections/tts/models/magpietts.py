@@ -407,7 +407,7 @@ class MagpieTTSModel(ModelPT):
             audio_codes_target.size(0), audio_codes_target.size(2), -1
         ) # (B, T', C * num_audio_tokens_per_codebook)
 
-        return all_code_logits    
+        return all_code_logits
 
     def maskgit_create_random_mask(self, codes):
         """
@@ -531,22 +531,21 @@ class MagpieTTSModel(ModelPT):
         local_transformer_input_init = self.local_transformer_in_projection(dec_output) # (B, 1, D) where D is the dimension of the local transformer
         C = self.cfg.num_audio_codebooks
         B = dec_output.size(0)
-        n_steps = self.cfg.get('maskgit_n_steps', 4)
+        n_steps = self.cfg.get('maskgit_n_steps', 3)
 
         # TODO choose initial confidence
         min_confidence = float("-inf")
         max_confidence = 10000
-        confidences = torch.randn(B, C, device=device) # for DEBUG... UNDO #min_confidence * torch.ones(B, C, device=device) # B
+        confidences = min_confidence * torch.ones(B, C, device=device)
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
         for step in range(n_steps):            
             # get mask fraction
-            frac_masked = cosine_schedule(torch.tensor(step / (n_steps-1))) # is the -1 correct?
+            frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
             # how many codebooks to mask
             n_masked = torch.ceil(C * frac_masked).long() # todo make sure this starts with exactly `C`-- or force it (to avoid numerical issues)
             n_unmasked = C - n_masked
-            #n_unmasked = 5 # for DEBUG... UNDO
             # pick top-confidence up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
 
@@ -594,9 +593,7 @@ class MagpieTTSModel(ModelPT):
             logits_rescored = logits.clone()
             logits_rescored[indices_to_remove] = float('-inf')
             probs = torch.softmax(logits_rescored / temperature, dim=-1) # (B, C, num_audio_tokens_per_codebook)
-            #probs  = probs.view(B*C, -1) # (B*C, num_audio_tokens_per_codebook)            
             sampled_codes = torch.multinomial(probs.view(B*C, -1), 1).view(B, C)
-            #probs = probs.view(B, C, -1)
             if use_cfg:
                 # TODO: why do we need to keep second half of the batch? can probably optimize this
                 sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
@@ -605,7 +602,12 @@ class MagpieTTSModel(ModelPT):
             # set confidence to max for unmasked codebooks so that they will remain unmasked
             confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
 
+            # replace entries in sampled_codes with previously unmasked codebooks
+            sampled_codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
             # optionally: add noise to confidences (as in token-critic paper)
+        
+        codes = sampled_codes
+        assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens at the end of MaskGit sampling"
         if use_cfg:
             codes = codes[:actual_batch_size]
         return codes
@@ -1585,12 +1587,13 @@ class MagpieTTSModel(ModelPT):
                             cfg_scale=cfg_scale
                         )
                     else:
-                            import debugpy
-
-                            # debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
-                            # print("Waiting for debugger to attach...")
-                            # debugpy.wait_for_client()  # This will block execution until the debugger attaches
-                            # print("Debugger is attached!")                               
+                            # import debugpy
+                            # # only attach if not already attached
+                            # if not debugpy.is_client_connected():
+                            #     debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
+                            #     print("Waiting for debugger to attach...")
+                            #     debugpy.wait_for_client()  # This will block execution until the debugger attaches
+                            #     print("Debugger is attached!")                               
                             audio_codes_next = self.maskgit_sample_codes(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
