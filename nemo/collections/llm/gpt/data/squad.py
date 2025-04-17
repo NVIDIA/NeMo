@@ -17,13 +17,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from datasets import DatasetDict, load_dataset
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs

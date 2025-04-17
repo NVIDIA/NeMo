@@ -23,6 +23,7 @@ import datasets
 import numpy as np
 import torch
 from datasets import load_dataset
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.collections.llm.gpt.data.utils import (
     _get_samples_mapping,
@@ -32,8 +33,6 @@ from nemo.collections.llm.gpt.data.utils import (
 )
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 logger = logging.getLogger(__name__)
 

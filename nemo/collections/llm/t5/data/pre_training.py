@@ -19,13 +19,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from megatron.core.datasets.t5_dataset import T5MaskedWordPieceDatasetConfig

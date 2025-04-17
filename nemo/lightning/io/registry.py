@@ -49,6 +49,7 @@ except ImportError:
 
 try:
     from nemo.collections.common.tokenizers import ByteLevelTokenizer, SentencePieceTokenizer, TiktokenTokenizer
+
     track_io(SentencePieceTokenizer, artifacts=[FileArtifact("model_path")])
     track_io(TiktokenTokenizer, artifacts=[FileArtifact("vocab_file")])
     track_io(ByteLevelTokenizer)
@@ -60,6 +61,7 @@ except ImportError:
 try:
     # track MCore tokenizers
     from megatron.core.tokenizers import MegatronTokenizerBase
+
     track_io(MegatronTokenizerBase, artifacts=[MCoreArtifact("path")])
 except ImportError:
     # Tokenizers are not available, no need to track it.

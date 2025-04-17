@@ -17,12 +17,12 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
 
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 def tokenize_dataset(path: Path, tokenizer: MegatronTokenizerBase, max_seq_length: int, seed: int):
     """

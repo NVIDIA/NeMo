@@ -18,12 +18,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Union
 
 import lightning.pytorch as pl
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from torch.utils.data import DataLoader
 
 from nemo.collections.llm.t5.data.core import create_sft_dataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
 
 class FineTuningDataModule(pl.LightningDataModule):

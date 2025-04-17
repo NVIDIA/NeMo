@@ -25,11 +25,10 @@ from typing import Any, Callable, List, Optional, Type
 
 import numpy as np
 import torch
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.core.classes import Dataset
 from nemo.utils import AppState
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 logger = logging.getLogger(__name__)
 

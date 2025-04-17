@@ -17,13 +17,12 @@ import shutil
 from typing import TYPE_CHECKING, List, Optional
 
 from datasets import DatasetDict, load_dataset
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.collections.llm.t5.data.core import get_dataset_root
 from nemo.collections.llm.t5.data.fine_tuning import FineTuningDataModule
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 
 class SquadDataModule(FineTuningDataModule, IOMixin):

@@ -20,8 +20,8 @@ tokenizers. It enables automatic serialization and deserialization of MegatronCo
 within NeMo's configuration framework.
 """
 
-import os
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import Union
@@ -74,11 +74,11 @@ class MCoreArtifact(Artifact):
 
 
 def copy_file(
-        src: Union[Path, str],
-        path: Union[Path, str],
-        relative_dst: Union[Path, str],
-        overwrite: bool = False,
-    ) -> Path:
+    src: Union[Path, str],
+    path: Union[Path, str],
+    relative_dst: Union[Path, str],
+    overwrite: bool = False,
+) -> Path:
     """
     Copies files to checkpoint directory.
 
@@ -106,7 +106,7 @@ def pathize(path: Union[str, Path]) -> Path:
 
     Args:
         path (str): path to the file.
-    
+
     Retunrs:
         Path: file's Path object.
     """

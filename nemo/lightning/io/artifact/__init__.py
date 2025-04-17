@@ -3,4 +3,12 @@ from nemo.lightning.io.artifact.file import DirArtifact, DirOrStringArtifact, Fi
 from nemo.lightning.io.artifact.hf_auto import HFAutoArtifact
 from nemo.lightning.io.artifact.mcore import MCoreArtifact
 
-__all__ = ["Artifact", "FileArtifact", "PathArtifact", "DirArtifact", "DirOrStringArtifact", "HFAutoArtifact", "MCoreArtifact"]
+__all__ = [
+    "Artifact",
+    "FileArtifact",
+    "PathArtifact",
+    "DirArtifact",
+    "DirOrStringArtifact",
+    "HFAutoArtifact",
+    "MCoreArtifact",
+]

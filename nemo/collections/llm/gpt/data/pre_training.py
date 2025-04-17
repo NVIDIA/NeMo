@@ -22,14 +22,13 @@ import lightning.pytorch as pl
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from megatron.core.datasets.gpt_dataset import GPTDataset
 from megatron.core.datasets.megatron_dataset import MegatronDataset
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
-
-from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -225,8 +224,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         if tokenizer is None:
             self.tokenizer = MegatronTokenizer.from_pretrained(
-                tokenizer_path="GPT2BPETokenizer",
-                metadata_path={"library": "megatron", "model_type": "llama"}
+                tokenizer_path="GPT2BPETokenizer", metadata_path={"library": "megatron", "model_type": "llama"}
             )
         else:
             self.tokenizer = tokenizer

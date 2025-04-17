@@ -18,12 +18,11 @@ import lightning.pytorch as pl
 import numpy as np
 import torch
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
 
 class BERTMockDataModule(pl.LightningDataModule):

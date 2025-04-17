@@ -19,13 +19,12 @@ from typing import Literal, Mapping, Optional
 import datasets
 import numpy as np
 import torch
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.collections.llm.gpt.data.utils import _get_samples_mapping, _JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.utils import logging
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True

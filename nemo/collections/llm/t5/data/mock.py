@@ -18,13 +18,12 @@ import lightning.pytorch as pl
 import numpy as np
 import torch
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
-
-from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -68,7 +67,7 @@ class MockDataModule(pl.LightningDataModule):
             )
         else:
             self.tokenizer = tokenizer
-        
+
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,

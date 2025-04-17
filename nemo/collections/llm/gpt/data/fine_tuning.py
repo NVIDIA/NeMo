@@ -18,14 +18,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import lightning.pytorch as pl
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch.utils.data import DataLoader
 
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
