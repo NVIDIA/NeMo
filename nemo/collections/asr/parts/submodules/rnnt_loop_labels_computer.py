@@ -79,6 +79,7 @@ class LoopLabelsState:
 
     last_decoder_state: Any  # last state from the decoder, needed for the output
     decoder_state: Any  # current decoder state
+    decoder_output_before_projection: torch.Tensor  # output from the decoder (not projected)
     decoder_output: torch.Tensor  # output from the decoder (projected)
 
     batched_hyps: rnnt_utils.BatchedHyps  # batched hypotheses - decoding result
@@ -183,6 +184,25 @@ class SeparateGraphsLoopLabels:
     after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
 
 
+@dataclass
+class SeparateGraphsExcludeDecoderLoopLabels:
+    """
+    Class to store Cuda graphs for decoding when separate graphs are used and decoder is not compatible with CUDA graphs
+    """
+
+    before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    before_inner_loop_no_decoder: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+
+
+class GraphsWithWhileExcludeDecoderLoopLabels:
+    """Class to store Cuda graphs for decoding when separate graphs are used"""
+
+    before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    full_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+
+
 class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     """
     Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
@@ -197,15 +217,24 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
     CUDA_PROGRAM_NAME = b"while_loop_labels_conditional_rnnt.cu"
 
     class CudaGraphsMode(PrettyStrEnum):
-        FULL_GRAPH = "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
-        NO_WHILE_LOOPS = "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
-        NO_GRAPHS = "no_graphs"  # decoding without graphs, stateful implementation, only for testing purposes
+        # Cuda graphs with conditional nodes, fastest implementation
+        FULL_GRAPH = "full_graph"
+        # Cuda graphs with while loops, but decoder is excluded from the graph
+        WITH_WHILE_LOOPS_EXCLUDE_DECODER = "with_while_loops_exclude_decoder"
+        # Cuda graphs with while loops, but decoder is excluded from the graph
+        NO_WHILE_LOOPS_EXCLUDE_DECODER = "no_while_loops_exclude_decoder"
+        # Decoding with PyTorch while loops + partial Cuda graphs
+        NO_WHILE_LOOPS = "no_while_loops"
+        # decoding without graphs, stateful implementation, only for testing purposes
+        NO_GRAPHS = "no_graphs"
 
-    separate_graphs: Optional[SeparateGraphsLoopLabels]
-    full_graph: Optional[torch.cuda.CUDAGraph]
-    cuda_graphs_mode: Optional[CudaGraphsMode]
-    state: Optional[LoopLabelsState]
-    ngram_lm_batch: Optional[NGramGPULanguageModel]
+    separate_graphs: Optional[SeparateGraphsLoopLabels] = None
+    separate_graphs_no_decoder: Optional[SeparateGraphsExcludeDecoderLoopLabels] = None
+    graphs_with_while_no_decoder: Optional[GraphsWithWhileExcludeDecoderLoopLabels] = None
+    full_graph: Optional[torch.cuda.CUDAGraph] = None
+    cuda_graphs_mode: Optional[CudaGraphsMode] = None
+    state: Optional[LoopLabelsState] = None
+    ngram_lm_batch: Optional[NGramGPULanguageModel] = None
 
     def __init__(
         self,
@@ -285,14 +314,22 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             # basic requirements met, need to check while loops
             try:
                 check_cuda_python_cuda_graphs_conditional_nodes_supported()
-                self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
+                if self.decoder_state_size_is_fixed:
+                    self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
+                else:
+                    # TODO: implement WITH_WHILE_LOOPS_EXCLUDE_DECODER
+                    # self.cuda_graphs_mode = self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER
+                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER
             except (ImportError, ModuleNotFoundError, EnvironmentError) as e:
                 logging.warning(
                     "No conditional node support for Cuda.\n"
                     "Cuda graphs with while loops are disabled, decoding speed will be slower\n"
                     f"Reason: {e}"
                 )
-                self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
+                if self.decoder_state_size_is_fixed:
+                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
+                else:
+                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER
         self.reset_cuda_graphs_state()
 
     def disable_cuda_graphs(self):
@@ -308,6 +345,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
+        self.separate_graphs_no_decoder = None
+        self.graphs_with_while_no_decoder = None
 
     def loop_labels_torch(
         self,
@@ -568,27 +607,45 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(encoder_output_length)
         # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
-        if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
-            self.full_graph.replay()
-        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
-            self.separate_graphs.before_outer_loop.replay()
-            while self.state.active_mask_any.item():
-                self.separate_graphs.before_inner_loop.replay()
-                while self.state.advance_mask_any.item():
-                    self.separate_graphs.inner_loop_code.replay()
-                self.separate_graphs.after_inner_loop.replay()
-        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_GRAPHS:
-            # this mode is only for testing purposes
-            # manual loop instead of using graphs
-            self._before_outer_loop()
-            while self.state.active_mask_any.item():
-                self._before_inner_loop_get_decoder_output()
-                self._before_inner_loop_get_joint_output()
-                while self.state.advance_mask_any.item():
-                    self._inner_loop_code()
-                self._after_inner_loop()
-        else:
-            raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
+        match self.cuda_graphs_mode:
+            case self.CudaGraphsMode.FULL_GRAPH:
+                self.full_graph.replay()
+            case self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER:
+                self.graphs_with_while_no_decoder.before_outer_loop.replay()
+                while self.state.active_mask_any.item():
+                    # NB: explicitly call decoder output function instead of graph
+                    self._before_inner_loop_get_decoder_output()
+                    # full rest code with while loop compiled
+                    self.graphs_with_while_no_decoder.full_inner_loop.replay()
+            case self.CudaGraphsMode.NO_WHILE_LOOPS:
+                self.separate_graphs.before_outer_loop.replay()
+                while self.state.active_mask_any.item():
+                    self.separate_graphs.before_inner_loop.replay()
+                    while self.state.advance_mask_any.item():
+                        self.separate_graphs.inner_loop_code.replay()
+                    self.separate_graphs.after_inner_loop.replay()
+            case self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER:
+                self.separate_graphs_no_decoder.before_outer_loop.replay()
+                while self.state.active_mask_any.item():
+                    # NB: explicitly call decoder output function instead of graph
+                    self._before_inner_loop_get_decoder_output()
+                    self.separate_graphs_no_decoder.before_inner_loop_no_decoder.replay()
+                    while self.state.advance_mask_any.item():
+                        self.separate_graphs_no_decoder.inner_loop_code.replay()
+                    self.separate_graphs_no_decoder.after_inner_loop.replay()
+            case self.CudaGraphsMode.NO_GRAPHS:
+                # this mode is only for testing purposes
+                # manual loop instead of using graphs
+                self._before_outer_loop()
+                while self.state.active_mask_any.item():
+                    self._before_inner_loop_get_decoder_output()
+                    self._before_inner_loop_project_decoder_and_query_lm()
+                    self._before_inner_loop_get_joint_output()
+                    while self.state.advance_mask_any.item():
+                        self._inner_loop_code()
+                    self._after_inner_loop()
+            case _:
+                raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
         return (
             self.state.batched_hyps,
@@ -655,11 +712,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
         self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
-        decoder_output, *_ = self.decoder.predict(
+        self.state.decoder_output_before_projection, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
         # to avoid recalculation of joint projection, store decoder output in state
-        self.state.decoder_output = self.joint.project_prednet(decoder_output)
+        self.state.decoder_output = self.joint.project_prednet(self.state.decoder_output_before_projection)
 
         if self.ngram_lm_batch is not None:
             device = encoder_output_projected.device
@@ -674,17 +731,21 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
-        if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
-            self._full_graph_compile()
-        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
-            self._partial_graphs_compile()
-        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_GRAPHS:
-            # no graphs needed
-            pass
-        else:
-            raise NotImplementedError
+        match self.cuda_graphs_mode:
+            case self.CudaGraphsMode.FULL_GRAPH:
+                self._full_graph_compile()
+            case self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER:
+                raise NotImplementedError
+            case self.CudaGraphsMode.NO_WHILE_LOOPS:
+                self._separate_graphs_compile()
+            case self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER:
+                self._separate_graphs_compile_no_decoder()
+            case self.CudaGraphsMode.NO_GRAPHS:
+                pass  # nothing to compile
+            case _:
+                raise NotImplementedError(f"Not implemented graph mode: {self.cuda_graphs_mode}")
 
-    def _partial_graphs_compile(self):
+    def _separate_graphs_compile(self):
         """Compile decoding by parts"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
@@ -707,6 +768,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             ),
         ):
             self._before_inner_loop_get_decoder_output()
+            self._before_inner_loop_project_decoder_and_query_lm()
             self._before_inner_loop_get_joint_output()
 
         with (
@@ -723,6 +785,58 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             torch.inference_mode(),
             torch.cuda.graph(
                 self.separate_graphs.after_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
+            ),
+        ):
+            self._after_inner_loop()
+
+    def _separate_graphs_compile_no_decoder(self):
+        """Compile decoding by parts"""
+        # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
+        stream_for_graph = torch.cuda.Stream(self.state.device)
+        stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
+        self.separate_graphs_no_decoder = SeparateGraphsExcludeDecoderLoopLabels()
+        with (
+            torch.cuda.stream(stream_for_graph),
+            torch.inference_mode(),
+            torch.cuda.graph(
+                self.separate_graphs_no_decoder.before_outer_loop,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
+            ),
+        ):
+            self._before_outer_loop()
+
+        with (
+            torch.cuda.stream(stream_for_graph),
+            torch.inference_mode(),
+            torch.cuda.graph(
+                self.separate_graphs_no_decoder.before_inner_loop_no_decoder,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
+            ),
+        ):
+            # NB: get decoder output - not compiled
+            self._before_inner_loop_project_decoder_and_query_lm()
+            self._before_inner_loop_get_joint_output()
+
+        with (
+            torch.cuda.stream(stream_for_graph),
+            torch.inference_mode(),
+            torch.cuda.graph(
+                self.separate_graphs_no_decoder.inner_loop_code,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
+            ),
+        ):
+            self._inner_loop_code()
+
+        with (
+            torch.cuda.stream(stream_for_graph),
+            torch.inference_mode(),
+            torch.cuda.graph(
+                self.separate_graphs_no_decoder.after_inner_loop,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
             ),
         ):
             self._after_inner_loop()
@@ -757,6 +871,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
                 self._before_inner_loop_get_decoder_output()
+                self._before_inner_loop_project_decoder_and_query_lm()
                 self._before_inner_loop_get_joint_output()
                 # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
@@ -782,10 +897,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             self.state.alignments.clear_()
 
         # initial state
-        self.decoder.batch_replace_states_all(
-            src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
-            dst_states=self.state.decoder_state,
-        )
+        if self.decoder_state_size_is_fixed:
+            self.decoder.batch_replace_states_all(
+                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
+                dst_states=self.state.decoder_state,
+            )
         # initial state - lm
         if self.ngram_lm_batch is not None:
             self.state.batch_lm_states.copy_(
@@ -816,8 +932,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
-        self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
-        decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        self.state.decoder_output_before_projection.copy_(decoder_output)
+        if self.decoder_state_size_is_fixed:
+            self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
+
+    def _before_inner_loop_project_decoder_and_query_lm(self):
+        # do not recalculate joint projection
+        decoder_output_projected = self.joint.project_prednet(self.state.decoder_output_before_projection)
         self.state.decoder_output.copy_(decoder_output_projected)
 
         # get lm scores/states
@@ -948,11 +1069,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # select states for hyps that became inactive (is it necessary?)
         # this seems to be redundant, but used in the `loop_frames` output
         torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
-        self.decoder.batch_replace_states_mask(
-            src_states=self.state.decoder_state,
-            dst_states=self.state.last_decoder_state,
-            mask=self.state.became_inactive_mask,
-        )
+        if self.decoder_state_size_is_fixed:
+            self.decoder.batch_replace_states_mask(
+                src_states=self.state.decoder_state,
+                dst_states=self.state.last_decoder_state,
+                mask=self.state.became_inactive_mask,
+            )
 
         self.state.batched_hyps.add_results_masked_no_checks_(
             self.state.active_mask,
