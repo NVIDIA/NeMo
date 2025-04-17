@@ -317,7 +317,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 if self.decoder_state_size_is_fixed:
                     self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
                 else:
-                    self.cuda_graphs_mode = self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER
+                    # TODO: fix while loops
+                    # self.cuda_graphs_mode = self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER
+                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER
             except (ImportError, ModuleNotFoundError, EnvironmentError) as e:
                 logging.warning(
                     "No conditional node support for Cuda.\n"
@@ -609,6 +611,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             case self.CudaGraphsMode.FULL_GRAPH:
                 self.full_graph.replay()
             case self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER:
+                if not self.decoder_state_size_is_fixed:
+                    self.state.decoder_state = self.decoder.initialize_state(self.state.encoder_output_projected)
                 self.graphs_with_while_no_decoder.before_outer_loop.replay()
                 while self.state.active_mask_any.item():
                     # NB: explicitly call decoder output function instead of graph
@@ -623,6 +627,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                         self.separate_graphs.inner_loop_code.replay()
                     self.separate_graphs.after_inner_loop.replay()
             case self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER:
+                if not self.decoder_state_size_is_fixed:
+                    self.state.decoder_state = self.decoder.initialize_state(self.state.encoder_output_projected)
                 self.separate_graphs_no_decoder.before_outer_loop.replay()
                 while self.state.active_mask_any.item():
                     # NB: explicitly call decoder output function instead of graph
@@ -634,6 +640,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             case self.CudaGraphsMode.NO_GRAPHS:
                 # this mode is only for testing purposes
                 # manual loop instead of using graphs
+                if not self.decoder_state_size_is_fixed:
+                    self.state.decoder_state = self.decoder.initialize_state(self.state.encoder_output_projected)
                 self._before_outer_loop()
                 while self.state.active_mask_any.item():
                     self._before_inner_loop_get_decoder_output()
@@ -984,6 +992,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self.state.decoder_output_before_projection.copy_(decoder_output)
         if self.decoder_state_size_is_fixed:
             self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
+        else:
+            self.state.decoder_state = new_state
 
     def _before_inner_loop_project_decoder_and_query_lm(self):
         # do not recalculate joint projection
