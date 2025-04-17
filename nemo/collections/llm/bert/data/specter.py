@@ -16,14 +16,12 @@ import shutil
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from datasets import DatasetDict, load_dataset
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.collections.llm.bert.data.core import get_dataset_root
 from nemo.collections.llm.bert.data.fine_tuning import FineTuningDataModule
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
-
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 class SpecterDataModule(FineTuningDataModule, IOMixin):
@@ -45,7 +43,7 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
         self,
         dataset_root: str = None,
         seq_length: int = 512,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,

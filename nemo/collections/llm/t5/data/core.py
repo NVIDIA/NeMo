@@ -19,8 +19,8 @@ from typing import Optional
 import numpy as np
 import torch
 from datasets import load_dataset
+from megatron.core.tokenizers import MegatronTokenizerBase
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import _JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -37,7 +37,7 @@ def get_dataset_root(name: str) -> Path:
 
 def create_sft_dataset(
     path: Path,
-    tokenizer: "TokenizerSpec",
+    tokenizer: "MegatronTokenizerBase",
     seq_length: int = 512,
     seq_length_dec: int = 128,
     add_bos: bool = True,
@@ -74,8 +74,8 @@ class T5SFTDataset(Dataset):
     def __init__(
         self,
         file_path: str,
-        src_tokenizer: TokenizerSpec,
-        tgt_tokenizer: TokenizerSpec,
+        src_tokenizer: MegatronTokenizerBase,
+        tgt_tokenizer: MegatronTokenizerBase,
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         add_bos_to_input: bool = True,
@@ -121,7 +121,7 @@ class T5SFTDataset(Dataset):
             )
 
     def _process_src(self, src):
-        src = self.src_tokenizer.text_to_ids(src.strip())
+        src = self.src_tokenizer.tokenize(src.strip())
         if self.add_bos_to_input:
             src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
         if self.add_eos_to_input:
@@ -133,7 +133,7 @@ class T5SFTDataset(Dataset):
     def _process_tgt(self, tgt):
         tgt = (
             [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
-            + self.tgt_tokenizer.text_to_ids(tgt.strip())
+            + self.tgt_tokenizer.tokenize(tgt.strip())
             + [self.tgt_tokenizer.eos_id]
         )
         if len(tgt) > self.max_tgt_seq_length:
