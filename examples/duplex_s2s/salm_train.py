@@ -50,7 +50,7 @@ class PROFILING(Callback):
             torch.cuda.profiler.cudart().cudaProfilerStop()
 
 
-@hydra_runner(config_path="conf", config_name="s2s_duplex")
+@hydra_runner(config_path="conf", config_name="salm")
 def train(cfg):
     OmegaConf.resolve(cfg)
     torch.distributed.init_process_group(backend="nccl")

@@ -14,7 +14,7 @@
 
 from abc import ABC
 from functools import lru_cache
-from typing import Any, Type
+from typing import Any, Sequence, Type
 
 import torch
 
@@ -246,6 +246,25 @@ class PromptFormatter(ABC):
         self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
     ) -> list[int]:
         prompt = prompt_template
+
+        # case where one of the turns has a pre-tokenized value
+        # if any(isinstance(v, int) or (isinstance(v, Sequence) and isinstance(v[0], int)) for v in slot_values.values()):
+        #     # 1st pass - replace string slots
+        #     for slot in expected_slots:
+        #         value = slot_values.get(slot)
+        #         assert value is not None, f"Missing required {slot=} in {slot_values=} for {prompt_template=}"
+        #         if isinstance(value, str):
+        #             prompt = prompt.replace(_mangled(slot), value)
+        #     # 2nd pass - tokenize pieces and glue them together
+        #     ans = []
+        #     for slot in expected_slots:
+        #         value = slot_values.get(slot)
+        #         if isinstance(value, str):
+        #             continue
+        #         slot_tokens = [value] if isinstance(value, int) else list(value)
+        #         lhs, rhs = prompt.split(_mangled(slot))
+
+        # normal case
         for slot in expected_slots:
             # For the final substitution of 'slot' in the template we have to mangle it to '|slot|' anyway,
             # but 'slot' form enables to use valid python identifiers as **kwargs
@@ -280,7 +299,7 @@ class PromptFormatter(ABC):
         for turn in turns:
             assert "role" in turn, f"A turn must have have a 'role' key. We received {turn=}"
             role = turn["role"]
-            assert role in roles, f"Found turn with {role=}, but availables roles are {roles}"
+            assert role in roles, f"Found turn with {role=}, but available roles are {roles}"
             expected_slots = self.get_slots(role)
             slot_values = turn.get("slots", {})
             if expected_slots:

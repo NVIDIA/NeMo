@@ -12,14 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import builtins
+import re
 import warnings
+from collections import defaultdict
 from contextlib import contextmanager
 from itertools import chain
 from pathlib import Path
-from typing import Any
+from typing import Any, Generator, Iterable
 
 import hydra
+import sacrebleu
 import torch
+import torchmetrics.functional.text
 from lightning import LightningModule
 from omegaconf import open_dict
 from torch import Tensor
@@ -35,6 +39,7 @@ from torch.distributed.tensor.parallel import (
     loss_parallel,
     parallelize_module,
 )
+from torch.nn import CrossEntropyLoss
 from torchmetrics.text import SacreBLEUScore
 from transformers import AutoModel, AutoModelForCausalLM, DynamicCache
 
@@ -59,13 +64,12 @@ class SALM(LightningModule):
         # However, for S2S we need to access the activations before LM head directly
         # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
-        llm = AutoModelForCausalLM.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
-        self.llm = llm.model  # fetch PretrainedBaseModel from model "ForCausalLM"
-        self.lm_head = llm.lm_head
+        self.tokenizer.add_special_tokens({"additional_special_tokens": [self.audio_locator_tag]})
+        self.llm = AutoModelForCausalLM.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
         # Note: we have to "move out" the token embedding outside of LLM to avoid
         #       messing up FSDP/TP hooks.
-        self.embed_tokens = self.llm.embed_tokens
-        del self.llm.embed_tokens
+        self.embed_tokens = self.llm.model.embed_tokens
+        del self.llm.model.embed_tokens
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
         asr = _load_pretrained(ASRModel, self.cfg.pretrained_asr).to(torch.bfloat16).eval()
@@ -79,7 +83,7 @@ class SALM(LightningModule):
     @property
     def text_vocab_size(self):
         """Return the size of the text tokenizer."""
-        return self.tokenizer.vocab_size
+        return self.embed_tokens.num_embeddings
 
     @property
     def text_bos_id(self) -> int:
@@ -122,6 +126,7 @@ class SALM(LightningModule):
     def forward(
         self,
         input_embeds: Tensor,
+        attention_mask: Tensor = None,
         cache=None,
     ) -> dict[str, Tensor]:
         """
@@ -133,10 +138,13 @@ class SALM(LightningModule):
         """
         # input_embeds and out: (B, T, H)
         out = self.llm(
-            inputs_embeds=input_embeds, past_key_values=cache, use_cache=cache is not None, return_dict=True
+            inputs_embeds=input_embeds,
+            attention_mask=attention_mask,
+            past_key_values=cache,
+            use_cache=cache is not None,
+            return_dict=True,
         )
-        text_logits = self.lm_head(out['last_hidden_state'])  # (B, T, text_vocab_size)
-        ans = {"logits": text_logits}
+        ans = {"logits": out['logits']}  # (B, T, text_vocab_size)
         if cache is not None:
             ans["cache"] = out["past_key_values"]
         return ans
@@ -166,65 +174,58 @@ class SALM(LightningModule):
             input_signal=batch["audios"], input_signal_length=batch["audio_lens"]
         )
         audio_embs = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
-        text_embs = self.embed_tokens(batch["token_ids"])
-        combined_embs = replace_placeholders(batch["input_ids"], text_embs, self.audio_locator_tag_id, audio_embs)
-        # loss_mask = ...
+        text_embs = self.embed_tokens(batch["input_ids"].where(batch["input_ids"] > self.text_vocab_size, 0))
+        input_embs, target_ids, attention_mask = replace_placeholders_and_build_targets(
+            input_ids=batch["input_ids"],
+            embeds=text_embs,
+            padding_id=self.text_pad_id,
+            placeholder_id=self.audio_locator_tag_id,
+            replacements=audio_embs,
+            target_ids=batch["input_ids"].where(batch["loss_mask"], -100),
+        )
+        input_embs = input_embs[:, :-1]
+        attention_mask = attention_mask[:, :-1]
+        target_ids = target_ids[:, 1:]
 
         # Combine target audio and text into a single tensor to slice them together.
         # It will also help us truncate the sequence lengths to be divisible by TP world size,
         # when TP is enabled.
         # Input ids: (B, T, K+1)
-        input_ids = torch.cat([target_codes, target_tokens[..., None]], dim=-1)
         if self._use_tp:
             tp_world_size = self.device_mesh["tensor_parallel"].size()
-            if (remainder := (input_ids.shape[1] - 1) % tp_world_size) != 0:
+            if (remainder := (input_embs.shape[1] - 1) % tp_world_size) != 0:
                 # Truncate some tokens from the end to make the sequence lenght shape divisible by tensor parallelism
                 # world size. Otherwise, sequence parallelism will change the input shape making leading to mismatches.
-                input_ids = input_ids[:, :-remainder]
-                source_encoded = source_encoded[:, :-remainder]
-
-        text_inputs = input_ids[:, :-1, -1]  # (B, T-1)
-        text_labels = input_ids[:, 1:, -1]  # (B, T-1)
-        audio_inputs = input_ids[:, :-1, :-1]  # (B, T-1, K)
-        audio_labels = input_ids[:, 1:, :-1]  # (B, T-1, K)
-
-        # Input embeds: (B, T-1, H)
-        # Note: the order of addition should be consistent with inference code due to
-        #       a low numerical precision, i.e.: Input speech + (Output text + Output speech)
-        #       Remember that addition is not associative in low precision floating point!
-        input_embeds = self.embed_tokens(text_inputs)
-        for cbidx in range(self._num_codebooks):
-            input_embeds.add_(self.embed_audio_tokens[cbidx](audio_inputs[..., cbidx]))
-        input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3))
+                input_embs = input_embs[:, :-remainder]
+                attention_mask = attention_mask[:, :-remainder]
+                target_ids = target_ids[:, :-remainder]
 
         return {
-            "input_embeds": input_embeds,
-            "input_lens": source_encoded_lens - 1,
-            "output_lens": target_codes_lens - 1,
-            "text_labels": text_labels,
-            "audio_labels": audio_labels,
+            "input_embeds": input_embs,
+            "attention_mask": attention_mask,
+            "target_ids": target_ids,
         }
 
     def training_step(self, batch: dict, batch_idx: int):
+        if self.cfg.freeze_asr:
+            self.perception.preprocessor.eval()
+            self.perception.encoder.eval()
+        if self.cfg.freeze_llm:
+            self.llm.eval()
+
         inputs = self.prepare_inputs(batch)
-        forward_outputs = self(inputs["input_embeds"])
-        num_frames = inputs["input_lens"].sum()
+        forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
+        num_frames = (inputs["target_ids"] != -100).long().sum()
         with loss_parallel():
-            text_loss = (
+            loss = (
                 torch.nn.functional.cross_entropy(
-                    forward_outputs["text_logits"].flatten(0, 1),  # (B, T, Vt) -> (*, Vt)
-                    inputs["text_labels"].flatten(0, 1),
+                    forward_outputs["logits"].flatten(0, 1),  # (B, T, Vt) -> (*, Vt)
+                    inputs["target_ids"].flatten(0, 1),
                     reduction="sum",
+                    ignore_index=-100,
                 )
                 / num_frames
             )
-            audio_loss = torch.nn.functional.cross_entropy(
-                forward_outputs["audio_logits"].flatten(0, 2),  # (B, T, K, Vs) -> (*, Vs)
-                inputs["audio_labels"].flatten(0, 2),
-                reduction="sum",
-            ) / (num_frames * self._num_codebooks)
-
-        loss = text_loss + audio_loss
 
         B, T = inputs["input_embeds"].shape[:2]
         print(f"{loss=} {B=} {T=}")
@@ -234,103 +235,87 @@ class SALM(LightningModule):
             "learning_rate": (
                 torch.as_tensor(self.trainer.optimizers[0].param_groups[0]['lr'] if self._trainer is not None else 0)
             ),
-            "text_loss": text_loss,
-            "audio_loss": audio_loss,
             "batch_size": B,
             "sequence_length": T,
             "num_frames": num_frames.to(torch.float32),  # avoid warning
-            "padding_ratio": num_frames / (B * T),
+            "target_to_input_ratio": num_frames / (B * T),
+            "padding_ratio": batch["loss_mask"].long().sum() / batch["input_ids"].numel(),
         }
         self.log_dict(ans, on_step=True)
         return ans
 
     def on_validation_epoch_start(self) -> None:
-        # Cleaning up GPU memory before we load ASRModel, because it may already
-        # be quite fragmented and close to the limit after observing many
-        # dynamic shapes during the training epoch.
-        torch.cuda.memory.empty_cache()
-        self.asr = ASRModel.from_pretrained(self.cfg.scoring_asr).to(torch.bfloat16).eval()
-        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
-        # Setup a separate BLEU metric for each validation dataloader through CombinedLoader.
-        # See: https://lightning.ai/docs/pytorch/LTS/guides/data.html#accessing-dataloaders-within-lightningmodule
-        self._partial_val_losses = []
-        self.asr_bleu = {}
-        self.text_bleu = {}
-        for name in self.trainer.val_dataloaders.keys():
-            self.asr_bleu[name] = SacreBLEUScore().to(self.device)
-            self.text_bleu[name] = SacreBLEUScore().to(self.device)
+        self._partial_val_losses = defaultdict(list)
+        self._partial_accuracies = defaultdict(list)
+        # self._refs = defaultdict(list)
+        # self._hyps = defaultdict(list)
 
     def on_validation_epoch_end(self) -> None:
-        for name, bleu in self.asr_bleu.items():
-            self.log(f"val_asr_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
-            bleu.reset()
-        for name, bleu in self.text_bleu.items():
-            self.log(f"val_text_bleu_{name}", bleu.compute(), on_epoch=True, sync_dist=True)
-            bleu.reset()
-        self.asr = None  # free up GPU memory
-        val_loss = torch.mean(torch.stack(self._partial_val_losses))
-        self._partial_val_losses = None
-        self.log("val_loss", val_loss, on_epoch=True, sync_dist=True)
-        torch.cuda.memory.empty_cache()
+        val_losses = []
+        for name, vals in self._partial_val_losses.items():
+            val_loss = torch.stack(vals).mean()
+            self.log(f"val_loss_{name}", val_loss, on_epoch=True, sync_dist=True)
+            print(f"val_loss_{name}", val_loss)
+            val_losses.append(val_loss)
+        self.log("val_loss", torch.stack(val_losses).mean(), on_epoch=True, sync_dist=True)
+        print(f"val_loss", torch.stack(val_losses).mean())
+
+        accuracies = []
+        for name, accs in self._partial_accuracies.items():
+            val_acc = torch.stack(accs).mean()
+            self.log(f"val_acc_{name}", val_acc, on_epoch=True, sync_dist=True)
+            print(f"val_acc_{name}", val_acc)
+            accuracies.append(val_acc)
+        self.log("val_acc", torch.stack(accuracies).mean(), on_epoch=True, sync_dist=True)
+        print(f"val_acc", torch.stack(accuracies).mean())
+
+        # corpus_bleus = []
+        # for name in self._refs.keys():
+        #     val_bleu = torch.tensor(
+        #         sacrebleu.corpus_bleu(self._hyps[name], self._refs[name]).score, device=self.device
+        #     )
+        #     self.log(f"val_bleu_{name}", val_bleu, on_epoch=True, sync_dist=True)
+        #     corpus_bleus.append(val_bleu)
+        # self.log("val_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
+        #
+        # wers = []
+        # for name in self._refs.keys():
+        #     val_wer = torchmetrics.functional.text.word_error_rate(self._hyps[name], self._refs[name]).to(self.device)
+        #     self.log(f"val_wer_{name}", val_wer, on_epoch=True, sync_dist=True)
+        #     wers.append(val_wer)
+        # self.log("val_wer", torch.stack(wers).mean(), on_epoch=True, sync_dist=True)
+        #
+        # self._refs.clear()
+        # self._hyps.clear()
+        self._partial_val_losses.clear()
+        self._partial_accuracies.clear()
 
     def validation_step(self, batch: dict, batch_idx: int):
         for name, dataset_batch in batch.items():
             if dataset_batch is None:
                 continue  # some dataset is exhausted
             inputs = self.prepare_inputs(dataset_batch)
-            forward_outputs = self(inputs["input_embeds"])
-            num_frames = inputs["input_lens"].sum()
+            forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
+            num_frames = (inputs["target_ids"] != -100).long().sum()
             with loss_parallel():
-                text_loss = (
+                loss = (
                     torch.nn.functional.cross_entropy(
-                        forward_outputs["text_logits"].flatten(0, 1),
-                        inputs["text_labels"].flatten(0, 1),
+                        forward_outputs["logits"].flatten(0, 1),
+                        inputs["target_ids"].flatten(0, 1),
                         reduction="sum",
+                        ignore_index=-100,
                     )
                     / num_frames
                 )
-                audio_loss = torch.nn.functional.cross_entropy(
-                    forward_outputs["audio_logits"].flatten(0, 2),
-                    inputs["audio_labels"].flatten(0, 2),
-                    reduction="sum",
-                ) / (num_frames * self._num_codebooks)
 
-            loss = text_loss + audio_loss
-            self._partial_val_losses.append(loss)
+            preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
+            refs = inputs["target_ids"].view(-1)
+            preds = preds[refs != -100]
+            refs = refs[refs != -100]
+            accuracy = preds.eq(refs).float().mean()
 
-            B = inputs["input_embeds"].shape[0]
-            self.log(f"val_loss_{name}", loss, on_epoch=True, sync_dist=True, batch_size=B)
-            self.log(f"val_text_loss_{name}", text_loss, on_epoch=True, sync_dist=True, batch_size=B)
-            self.log(f"val_audio_loss_{name}", audio_loss, on_epoch=True, sync_dist=True, batch_size=B)
-
-            # ASR BLEU
-            import torchaudio
-
-            with torch.inference_mode():
-                predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=-1).transpose(1, 2)
-                with _safe_audio_codec_inference():
-                    predicted_audio, predicted_audio_lens = self._audio_codec.decode(
-                        tokens=predicted_audio_tokens, tokens_len=inputs["output_lens"]
-                    )
-                ans = self.asr.transcribe(
-                    list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
-                    batch_size=predicted_audio.shape[0],
-                    verbose=False,
-                )
-            hyp = [hyp.text for hyp in ans]
-            ref = [[tt] for tt in dataset_batch["target_texts"]]
-            for h, (r,) in zip(hyp, ref):
-                print(f"[AUDIO] Ref: {r}\n[AUDIO] Hyp: {h}")
-            self.asr_bleu[name].update(hyp, ref)
-
-            hyp = [
-                self.tokenizer.ids_to_text(hyp_ids) for hyp_ids in forward_outputs["text_logits"].argmax(dim=-1).cpu()
-            ]
-            ref = [[tt] for tt in dataset_batch["target_texts"]]
-            for h, (r,) in zip(hyp, ref):
-                print(f"[TEXT] Ref: {r}\n[TEXT] Hyp: {h}")
-            # Text BLEU
-            self.text_bleu[name].update(hyp, ref)
+            self._partial_accuracies[name].append(accuracy)
+            self._partial_val_losses[name].append(loss)
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()
@@ -341,19 +326,17 @@ class SALM(LightningModule):
     def test_step(self, *args: Any, **kwargs: Any):
         return self.validation_step(*args, **kwargs)
 
-    def _get_bos_embedding(self) -> torch.Tensor:
-        raise NotImplementedError()
-
-    @torch.inference_mode
-    def offline_inference(self, input_signal: torch.Tensor, input_signal_lens: torch.Tensor):
-        raise NotImplementedError()
-
     def backward(self, *args, **kwargs):
         with loss_parallel():
             super().backward(*args, **kwargs)
 
     def configure_optimizers(self):
-        parameters = self.parameters()
+        to_freeze = []
+        if self.cfg.freeze_llm:
+            to_freeze.extend([r"^llm\..+$", r"^embed_tokens\..+$"])
+        if self.cfg.freeze_asr:
+            to_freeze.extend([r"^perception\.preprocessor\..+$", r"^perception\.encoder\..+$"])
+        parameters = freeze_and_subset(self.named_parameters(), patterns=to_freeze)
         optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
         ans = {"optimizer": optimizer}
         if "lr_scheduler" in self.cfg:
@@ -431,9 +414,8 @@ class SALM(LightningModule):
                 # Apply the plan for the current transformer block
                 parallelize_module(transformer_block, tp_mesh, plan)
 
-            for m in (self.lm_head, self.audio_head):
                 parallelize_module(
-                    m,
+                    self.llm.lm_head,
                     tp_mesh,
                     ColwiseParallel(
                         input_layouts=Shard(1),
@@ -451,8 +433,8 @@ class SALM(LightningModule):
             for idx, layer in enumerate(self.llm.layers):
                 self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
+            self.llm.lm_head = fully_shard(self.lm_head, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
-            self.lm_head = fully_shard(self.lm_head, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
 
 
@@ -463,71 +445,134 @@ def _load_pretrained(cls, model_path_or_name: str):
         return cls.from_pretrained(model_path_or_name)
 
 
-def replace_placeholders(
+def replace_placeholders_and_build_targets(
     input_ids: torch.Tensor,
     embeds: torch.Tensor,
+    padding_id: int,
     placeholder_id: int,
     replacements: list[torch.Tensor],
-) -> torch.Tensor:
+    target_ids: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Replaces each occurrence of the placeholder_id in input_ids with the corresponding tensor
-    from the replacements list in the embeds tensor.
+    from the replacements list in the embeds tensor, and creates corresponding adjusted target_ids.
 
-        Args:
-          input_ids (Tensor): shape (batch, sequence_length); token ids.
-          embeds (Tensor): shape (batch, sequence_length, hidden_dim); embeddings for each token.
-          placeholder_id (int): an id to be replaced.
-          replacements (list of Tensor): each Tensor has shape (L_i, hidden_dim), with L_i arbitrary.
+    Args:
+      input_ids (Tensor): shape (batch, sequence_length); input token ids.
+      embeds (Tensor): shape (batch, sequence_length, hidden_dim); embeddings for each token.
+      padding_id (int): these IDs will be marked as ignore_index in target_ids.
+      placeholder_id (int): an id to be replaced.
+      replacements (list of Tensor): each Tensor has shape (L_i, hidden_dim), with L_i arbitrary.
+      target_ids (Tensor): shape (batch, sequence_length); target token ids.
 
-        Returns:
-          List[Tensor]: a list with one tensor per batch example. For each example, the tensor has
-                        shape (new_sequence_length, hidden_dim) after replacements.
+    Returns:
+      Tuple[Tensor, Tensor, Tensor]:
+        - Tensor of shape (batch, max_new_sequence_length, hidden_dim) after replacements.
+        - Tensor of shape (batch, max_new_sequence_length) with adjusted target IDs where:
+          * Original target values are preserved where input was not a placeholder or padding
+          * Positions that were placeholders, padding, or added by replacements are set to -100
+        - Tensor of shape (batch, max_new_sequence_length) with attention padding masks.
     """
+    batch_size, seq_len = input_ids.size()
+    assert target_ids.size() == input_ids.size(), "target_ids must have the same shape as input_ids"
 
-    output_sequences = []  # will contain the new embedding sequences per batch
-    replacement_counter = 0  # tracks which replacement tensor to use next
-    batch_size, orig_seq_len = input_ids.size()
+    hidden_dim = embeds.size(2)
+    device, dtype = embeds.device, embeds.dtype
+    ignore_index = -100  # Standard ignore_index value for CrossEntropyLoss
 
-    # Loop over each example in the batch
+    output_sequences = []
+    output_target_ids = []
+    output_att_masks = []
+    replacement_idx = 0
+
     for i in range(batch_size):
-        new_sequence_embeds = []  # will store pieces of the new sequence for batch i
+        # Find all placeholder positions at once using tensor operations
+        placeholder_positions = (input_ids[i] == placeholder_id).nonzero(as_tuple=True)[0]
 
-        # Loop over each token position in the current example
-        for j in range(orig_seq_len):
-            # Compare the token at (i, j) to the placeholder_id.
-            # input_ids[i, j] is a scalar tensor; .item() obtains its value.
-            if input_ids[i, j].item() == placeholder_id:
-                # Replace this single embedding vector with the entire sequence from replacements.
-                new_sequence_embeds.append(replacements[replacement_counter])
-                replacement_counter += 1
-            else:
-                # Otherwise keep the current embedding. Use unsqueeze(0) so its shape becomes (1, hidden_dim)
-                new_sequence_embeds.append(embeds[i, j].unsqueeze(0))
+        # Handle the case with no placeholders more efficiently
+        if len(placeholder_positions) == 0:
+            output_sequences.append(embeds[i])
 
-        # Concatenate the collected pieces along the sequence dimension.
-        # Note that the new sequence length may differ from the original.
-        new_sequence = torch.cat(new_sequence_embeds, dim=0)
-        output_sequences.append(new_sequence)
+            # Start with original target_ids and replace positions where input was padding
+            new_target_ids = target_ids[i].clone()
+            new_target_ids[input_ids[i] == padding_id] = ignore_index
 
-    # Optional: check that we used all replacement tensors.
-    if replacement_counter != len(replacements):
-        raise ValueError("The number of placeholder occurrences does not match the number of replacements.")
+            output_target_ids.append(new_target_ids)
+            output_att_masks.append(input_ids[i] != padding_id)
+            continue
 
-    output = torch.zeros(
-        batch_size,
-        max(os.size(0) for os in output_sequences),
-        embeds.size(2),
-        device=embeds.device,
-        dtype=embeds.dtype,
-    )
-    for idx, seq in enumerate(output_sequences):
-        output[idx, : seq.size(0), :] = seq
+        # Build segments between placeholders
+        segments = []  # For embeddings
+        target_segments = []  # For target IDs
+        att_masks = []
+        prev_pos = 0
 
-    return output
+        for pos in placeholder_positions:
+            # Add segment before placeholder (if any)
+            if pos > prev_pos:
+                segments.append(embeds[i, prev_pos:pos])
+
+                # For target IDs: keep original targets but mark positions that were padding in input
+                segment_target_ids = target_ids[i, prev_pos:pos].clone()
+                segment_target_ids[segment_target_ids == padding_id] = ignore_index
+
+                att_masks.append(segment_target_ids != padding_id)
+                target_segments.append(segment_target_ids)
+
+            # Add replacement for embeddings
+            rep = replacements[replacement_idx]
+            segments.append(rep)
+
+            # For target IDs: all replacement positions get ignore_index
+            target_segments.append(torch.full((rep.size(0),), ignore_index, dtype=torch.long, device=device))
+            att_masks.append(torch.ones((rep.size(0),), dtype=torch.bool, device=device))
+
+            replacement_idx += 1
+            prev_pos = pos + 1  # Skip placeholder
+
+        # Add remaining segment after last placeholder (if any)
+        if prev_pos < seq_len:
+            segments.append(embeds[i, prev_pos:seq_len])
+
+            # For target IDs: keep original targets but mark positions that were padding in input
+            segment_target_ids = target_ids[i, prev_pos:seq_len].clone()
+            segment_target_ids[segment_target_ids == padding_id] = ignore_index
+
+            att_masks.append(segment_target_ids != padding_id)
+            target_segments.append(segment_target_ids)
+
+        # Concatenate all segments for this example
+        output_sequences.append(torch.cat(segments, dim=0))
+        output_target_ids.append(torch.cat(target_segments, dim=0))
+        output_att_masks.append(torch.cat(att_masks, dim=0))
+
+    # Verify all replacements were used
+    if replacement_idx != len(replacements):
+        raise ValueError(f"Expected {len(replacements)} replacements but used {replacement_idx}")
+
+    # Create padded output tensors
+    max_seq_length = max(seq.size(0) for seq in output_sequences)
+    output = torch.zeros(batch_size, max_seq_length, hidden_dim, device=device, dtype=dtype)
+    new_target_ids = torch.full((batch_size, max_seq_length), ignore_index, dtype=torch.long, device=device)
+    attention_masks = torch.zeros((batch_size, max_seq_length), dtype=torch.bool, device=device)
+
+    for i, (seq, tgt, att) in enumerate(zip(output_sequences, output_target_ids, output_att_masks)):
+        seq_len = seq.size(0)
+        output[i, :seq_len] = seq
+        new_target_ids[i, :seq_len] = tgt
+        attention_masks[i, :seq_len] = att
+
+    return output, new_target_ids, attention_masks
 
 
-def build_loss_mask(
-    input_ids: torch.Tensor,
-    placeholder_id: int,
-    replacements: list[torch.Tensor],
-) -> torch.Tensor:
-    raise NotImplementedError()
+def freeze_and_subset(
+    named_parameters: Iterable[tuple[str, torch.nn.Parameter]], patterns: list[str]
+) -> Generator[torch.nn.Parameter, None, None]:
+    patterns = [re.compile(p) for p in patterns]
+    for name, param in named_parameters:
+        discard = False
+        for pattern in patterns:
+            if pattern.match(name) is not None:
+                param.requires_grad = False
+                discard = True
+        if not discard:
+            yield param

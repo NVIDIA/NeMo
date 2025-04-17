@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
+
 import torch
 from lightning import LightningDataModule
 from lightning.pytorch.utilities import CombinedLoader
@@ -31,7 +33,19 @@ class SALMDataModule(LightningDataModule):
                     getattr(self.cfg, k).force_finite = True
                     getattr(self.cfg, k).force_map_dataset = True
         self.tokenizer = tokenizer
-        self.dataset = SALMDataset(pad_id=self.tokenizer.pad)
+        self.dataset = SALMDataset(pad_id=self.pad_id)
+
+    @property
+    def pad_id(self) -> int:
+        pad_id = self.tokenizer.pad
+        if pad_id is None:
+            pad_id = self.tokenizer.unk_id
+        if pad_id is None:
+            warnings.warn(
+                "The text tokenizer has no <pad> or <unk> tokens available, using ID 0 for padding (this may lead to silent bugs)."
+            )
+            pad_id = 0
+        return pad_id
 
     def train_dataloader(self):
         if "train_ds" not in self.cfg:
