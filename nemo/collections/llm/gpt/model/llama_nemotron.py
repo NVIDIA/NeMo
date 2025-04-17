@@ -18,9 +18,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
-from megatron.core.models.gpt.heterogeneous.heterogeneous_layer_specs import get_gpt_heterogeneous_layer_spec
-from megatron.core.transformer.heterogeneous.heterogeneous_config import HeterogeneousTransformerConfig
-from megatron.core.transformer.spec_utils import ModuleSpec
 from torch import nn
 
 from nemo.collections.llm import GPTConfig
@@ -37,6 +34,12 @@ from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_TE = safe_import("transformer_engine")
+from megatron.core.models.gpt.heterogeneous.heterogeneous_layer_specs import get_gpt_heterogeneous_layer_spec
+from megatron.core.transformer.heterogeneous.heterogeneous_config import HeterogeneousTransformerConfig
+from megatron.core.transformer.spec_utils import ModuleSpec
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
