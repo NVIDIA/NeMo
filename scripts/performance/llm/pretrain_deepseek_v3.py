@@ -49,6 +49,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    etp_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
     recompute_layers: int,
@@ -87,6 +88,7 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
@@ -111,6 +113,11 @@ def override_recipe_configs(
     if args.compute_dtype.lower() == "fp8":
         raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
     recipe.model.config.moe_permute_fusion = True
+    recipe.model.config.recompute_granularity = "selective"
+    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm", "moe", "mlp"]
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+    recipe.model.config.moe_router_dtype = 'fp32'
+    recipe.model.config.moe_permute_fusion = True
 
     return recipe
 
@@ -129,7 +136,7 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        _,
+        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
@@ -146,6 +153,7 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
