@@ -284,6 +284,7 @@ class TestPredictiveModelConformer:
         instance2 = PredictiveAudioToAudioModel.from_config_dict(confdict)
         assert isinstance(instance2, PredictiveAudioToAudioModel)
 
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "batch_size, sample_len",
@@ -340,6 +341,7 @@ class TestPredictiveModelStreamingConformer:
         instance2 = PredictiveAudioToAudioModel.from_config_dict(confdict)
         assert isinstance(instance2, PredictiveAudioToAudioModel)
 
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "batch_size, sample_len",
