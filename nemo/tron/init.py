@@ -124,7 +124,7 @@ def torch_dist_init(
     if skip_mpu_initialization:
         return None
 
-    if dist_config.lazy_mpu_init:
+    if dist_config.lazy_init:
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals
         parallel_state.set_tensor_model_parallel_world_size(model_config.tensor_model_parallel_size)

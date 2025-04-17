@@ -39,7 +39,6 @@ class FinetuningDatasetBuilder:
         seq_length (int, optional): The maximum sequence length. Defaults to 2048.
         seed (int, optional): Random seed for data shuffling. Defaults to 1234.
         memmap_workers (int, optional): Number of worker processes for memmap datasets. Defaults to 1.
-        is_built_on_rank (Callable): Function that returns True if the dataset should be built on current rank.
         max_train_samples (int, optional): Maximum number of training samples. Defaults to None.
         packed_sequence_specs (Optional[dict], optional): Specifications for packed sequences. Defaults to None.
         dataset_kwargs (Optional[dict[str, Any]], optional): Additional dataset creation arguments. Defaults to None.
@@ -49,7 +48,6 @@ class FinetuningDatasetBuilder:
         self,
         dataset_root: Union[str, Path],
         tokenizer,
-        is_built_on_rank: Callable,
         seq_length: int = 2048,
         seed: int = 1234,
         memmap_workers: int = 1,
@@ -64,7 +62,6 @@ class FinetuningDatasetBuilder:
         self.seq_length = seq_length
         self.seed = seed
         self.memmap_workers = memmap_workers
-        self.is_built_on_rank = is_built_on_rank
         self.max_train_samples = max_train_samples
         self.packed_sequence_specs = packed_sequence_specs
         self.packed_sequence_size = (
