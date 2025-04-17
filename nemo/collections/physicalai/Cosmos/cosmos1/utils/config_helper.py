@@ -25,12 +25,11 @@ from typing import Any, Dict, Optional
 
 import attr
 import attrs
+from cosmos1.utils import log
+from cosmos1.utils.config import Config
 from hydra import compose, initialize
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
-
-from cosmos1.utils import log
-from cosmos1.utils.config import Config
 
 
 def is_attrs_or_dataclass(obj) -> bool:

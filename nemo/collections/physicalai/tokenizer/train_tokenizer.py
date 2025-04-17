@@ -14,31 +14,30 @@
 
 # pylint: disable=C0115,C0116,C0301
 
-from einops import rearrange
+import os
+
 import nemo_run as run
+import pytorch_lightning as pl
 import torch.distributed
 import torch.utils.checkpoint
+from einops import rearrange
 from megatron.energon import DefaultTaskEncoder
 from pytorch_lightning.loggers import WandbLogger
-import os
-import pytorch_lightning as pl
+from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
 from nemo.collections.physicalai.tokenizer.augmentors import TemporalRandomCrop
 from nemo.collections.physicalai.tokenizer.data.augmentors.image.cropping import RandomCrop
-from nemo.collections.physicalai.tokenizer.data.utils import get_crop_size_info
-from nemo.collections.physicalai.tokenizer.tokenizer_model import TokenizerModel, VIDEO_KEY, MASK_KEY
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
-
-from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.pytorch.optim.pytorch import PytorchOptimizerModule
-from nemo.utils.exp_manager import TimingCallback
-from torch.utils.data import DataLoader
-from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
 from nemo.collections.physicalai.tokenizer.data.augmentors.image.normalize import Normalize
+from nemo.collections.physicalai.tokenizer.data.utils import get_crop_size_info
+from nemo.collections.physicalai.tokenizer.tokenizer_model import MASK_KEY, VIDEO_KEY, TokenizerModel
+from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
+from nemo.lightning.pytorch.optim.pytorch import PytorchOptimizerModule
+from nemo.lightning.pytorch.plugins import MegatronDataSampler
+from nemo.utils.exp_manager import TimingCallback
 
 
 class FakeDataset(torch.utils.data.Dataset):
@@ -80,6 +79,7 @@ class FakeDataset(torch.utils.data.Dataset):
         """
         return self._collate_fn(batch)
 
+
 class FakeDataModule(pl.LightningDataModule):
     def __init__(
         self,
@@ -115,7 +115,7 @@ class FakeDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         if not hasattr(self, "_train_ds"):
             self.setup()
-        return self._create_dataloader(self._train_ds)       
+        return self._create_dataloader(self._train_ds)
 
     def _create_dataloader(self, dataset, **kwargs):
         return DataLoader(
@@ -127,10 +127,13 @@ class FakeDataModule(pl.LightningDataModule):
             **kwargs,
         )
 
+
 class ImageTaskEncoder(DefaultTaskEncoder, IOMixin):
     """Image task encoder that crops and normalizes the image."""
 
-    def __init__(self, *, encoded_sample_type=None, raw_batch_type=None, batch_type=None, crop_height=256, temporal_crop=49):
+    def __init__(
+        self, *, encoded_sample_type=None, raw_batch_type=None, batch_type=None, crop_height=256, temporal_crop=49
+    ):
         super().__init__(encoded_sample_type=encoded_sample_type, raw_batch_type=raw_batch_type, batch_type=batch_type)
 
         crop_sizes = get_crop_size_info(crop_height)
@@ -151,7 +154,9 @@ class ImageTaskEncoder(DefaultTaskEncoder, IOMixin):
         sample = super().encode_sample(sample)
         sample.image.frames = rearrange(sample.image.frames, 't c h w -> c t h w')
 
-        mask_t = torch.ones_like(sample.image.frames, requires_grad=False, dtype=torch.bfloat16, device=sample.image.frames.device)
+        mask_t = torch.ones_like(
+            sample.image.frames, requires_grad=False, dtype=torch.bfloat16, device=sample.image.frames.device
+        )
 
         data = {VIDEO_KEY: sample.image.frames, MASK_KEY: mask_t, 'aspect_ratio': '1,1'}
         data = self.spatial_crop(data)
@@ -160,6 +165,7 @@ class ImageTaskEncoder(DefaultTaskEncoder, IOMixin):
         data = self.normalize(data)
         data[VIDEO_KEY] = data[VIDEO_KEY].to(torch.bfloat16)
         return data
+
 
 @run.cli.factory(target=llm.train)
 def train_tokenizer() -> run.Partial:
@@ -204,16 +210,16 @@ def train_tokenizer() -> run.Partial:
                     save_context_on_train_end=False,
                 ),
                 run.Config(PreemptionCallback),
-                run.Config(TimingCallback),     
+                run.Config(TimingCallback),
             ],
         ),
         optim=run.Config(
             PytorchOptimizerModule,
             optimizer_fn=run.Partial(
                 torch.optim.AdamW,
-                lr=1e-4, 
-                betas=(0.5, 0.999), 
-                eps=1e-8, 
+                lr=1e-4,
+                betas=(0.5, 0.999),
+                eps=1e-8,
                 weight_decay=0.01,
                 fused=True,
             ),
@@ -227,6 +233,7 @@ def train_tokenizer() -> run.Partial:
         ),
         model_transform=None,
     )
+
 
 if __name__ == "__main__":
     run.cli.main(llm.train, default_factory=train_tokenizer)

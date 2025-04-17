@@ -19,11 +19,10 @@ from typing import Optional
 
 import numpy as np
 import torch
-from einops import rearrange, repeat
-from torch import nn
-
 from cosmos1.models.diffusion.module.attention import normalize
 from cosmos1.models.diffusion.module.timm import trunc_normal_
+from einops import rearrange, repeat
+from torch import nn
 
 
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):

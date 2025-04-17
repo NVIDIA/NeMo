@@ -20,17 +20,16 @@ import os
 
 import numpy as np
 import torch
-from pytorch_retinaface.data import cfg_re50
-from pytorch_retinaface.layers.functions.prior_box import PriorBox
-from pytorch_retinaface.models.retinaface import RetinaFace
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-
 from cosmos1.models.guardrail.common.core import GuardrailRunner, PostprocessingGuardrail
 from cosmos1.models.guardrail.common.io_utils import get_video_filepaths, read_video, save_video
 from cosmos1.models.guardrail.face_blur_filter.blur_utils import pixelate_face
 from cosmos1.models.guardrail.face_blur_filter.retinaface_utils import decode_batch, filter_detected_boxes, load_model
 from cosmos1.utils import log, misc
+from pytorch_retinaface.data import cfg_re50
+from pytorch_retinaface.layers.functions.prior_box import PriorBox
+from pytorch_retinaface.models.retinaface import RetinaFace
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 DEFAULT_RETINAFACE_CHECKPOINT = "checkpoints/Cosmos-1.0-Guardrail/face_blur_filter/Resnet50_Final.pth"
 

@@ -19,8 +19,6 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
-from torch.nn.modules.module import _IncompatibleKeys
-
 from cosmos1.models.autoregressive.modules.attention import Attention
 from cosmos1.models.autoregressive.modules.embedding import (
     RotaryPositionEmbeddingPytorchV1,
@@ -32,6 +30,7 @@ from cosmos1.models.autoregressive.modules.normalization import create_norm
 from cosmos1.models.autoregressive.utils.checkpoint import process_state_dict, substrings_to_ignore
 from cosmos1.models.autoregressive.utils.misc import maybe_convert_to_namespace
 from cosmos1.utils import log
+from torch.nn.modules.module import _IncompatibleKeys
 
 
 class TransformerBlock(nn.Module):

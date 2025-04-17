@@ -21,7 +21,10 @@ import torchvision.transforms.functional as transforms_F
 from loguru import logger as logging
 
 from nemo.collections.physicalai.tokenizer.data.augmentors.augmentor import Augmentor
-from nemo.collections.physicalai.tokenizer.data.augmentors.image.misc import obtain_augmentation_size, obtain_image_size
+from nemo.collections.physicalai.tokenizer.data.augmentors.image.misc import (
+    obtain_augmentation_size,
+    obtain_image_size,
+)
 
 
 class CenterCrop(Augmentor):

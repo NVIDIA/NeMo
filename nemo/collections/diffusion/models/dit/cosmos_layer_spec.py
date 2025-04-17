@@ -15,31 +15,30 @@
 # pylint: disable=C0115,C0116,C0301
 
 import copy
-from typing import Literal, Union
 from dataclasses import dataclass
+from typing import Literal, Union
 
 import torch.nn as nn
-
-from megatron.core.transformer.identity_op import IdentityOp
-from megatron.core.transformer.module import MegatronModule
-from megatron.core.transformer.transformer_block import TransformerConfig
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.attention import (
+    CrossAttention,
+    CrossAttentionSubmodules,
+    SelfAttention,
+    SelfAttentionSubmodules,
+)
 from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEDotProductAttention,
     TEColumnParallelLinear,
+    TEDotProductAttention,
     TENorm,
     TERowParallelLinear,
 )
-from megatron.core.transformer.attention import (
-    SelfAttention,
-    SelfAttentionSubmodules,
-    CrossAttention,
-    CrossAttentionSubmodules,
-)
 from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from megatron.core.transformer.module import MegatronModule
+from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.transformer_block import TransformerConfig
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
 
 
@@ -48,16 +47,14 @@ class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
+
 class AdaLN(MegatronModule):
     """
     Adaptive Layer Normalization Module for DiT.
     """
 
-    def __init__(self, config: TransformerConfig, 
-        n_adaln_chunks=9, 
-        use_adaln_lora=True, 
-        adaln_lora_dim=256, 
-        norm=nn.LayerNorm
+    def __init__(
+        self, config: TransformerConfig, n_adaln_chunks=9, use_adaln_lora=True, adaln_lora_dim=256, norm=nn.LayerNorm
     ):
         super().__init__(config)
         if norm == TENorm:
@@ -68,8 +65,8 @@ class AdaLN(MegatronModule):
         if use_adaln_lora:
             self.adaLN_modulation = nn.Sequential(
                 nn.SiLU(),
-                nn.Linear(config.hidden_size, adaln_lora_dim*3, bias=False),
-                nn.Linear(adaln_lora_dim*3, self.n_adaln_chunks * config.hidden_size, bias=False),
+                nn.Linear(config.hidden_size, adaln_lora_dim * 3, bias=False),
+                nn.Linear(adaln_lora_dim * 3, self.n_adaln_chunks * config.hidden_size, bias=False),
             )
         else:
             self.adaLN_modulation = nn.Sequential(
@@ -83,7 +80,7 @@ class AdaLN(MegatronModule):
         adaln_lora_B_3D = list(adaln_lora_B_3D.chunk(3, dim=-1))
         modulation = list((self.adaLN_modulation(timestep_emb)).chunk(self.n_adaln_chunks, dim=-1))
         for i in range(len(modulation)):
-            modulation[i] = modulation[i] + adaln_lora_B_3D[i%3]
+            modulation[i] = modulation[i] + adaln_lora_B_3D[i % 3]
         return modulation
 
     # @jit_fuser
@@ -110,8 +107,8 @@ class AdaLN(MegatronModule):
         hidden_states = self.scale_add(residual, x, gate)
         shifted_pre_mlp_layernorm_output = self.modulated_layernorm(hidden_states, shift, scale)
         return hidden_states, shifted_pre_mlp_layernorm_output
-        
-        
+
+
 class DiTLayerWithAdaLN(TransformerLayer):
     """A single transformer layer.
 
@@ -162,7 +159,7 @@ class DiTLayerWithAdaLN(TransformerLayer):
             layer_number=layer_number,
         )
 
-        self.adaLN = AdaLN(config=self.config, n_adaln_chunks= 9 if self.cross_attention else 6)
+        self.adaLN = AdaLN(config=self.config, n_adaln_chunks=9 if self.cross_attention else 6)
 
     def forward(
         self,
@@ -173,12 +170,12 @@ class DiTLayerWithAdaLN(TransformerLayer):
         rotary_pos_emb=None,
         rotary_pos_cos=None,
         rotary_pos_sin=None,
-        attention_bias=None,        
+        attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
         sequence_len_offset=None,
     ):
-        
+
         rope_emb = rotary_pos_emb
         extra_pos_emb = packed_seq_params['extra_pos_emb']
         adaln_lora_B_3D = packed_seq_params['adaln_lora_B_3D']
@@ -187,74 +184,75 @@ class DiTLayerWithAdaLN(TransformerLayer):
         #     # extra_pos_emb = rearrange(extra_pos_emb, 'B T H W D -> (T H W) B D')
         # else:
         #     rope_emb, extra_pos_emb = rotary_pos_emb, None
-        
+
         if extra_pos_emb is not None:
             hidden_states = hidden_states + extra_pos_emb
-        
+
         timestep_emb = attention_mask
 
         # ******************************************** full self attention *******************************************
         shift_ca, scale_ca, gate_ca = None, None, None
         if self.cross_attention:
-            shift_full, scale_full, gate_full, shift_ca, scale_ca, \
-            gate_ca, shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb, adaln_lora_B_3D)
+            shift_full, scale_full, gate_full, shift_ca, scale_ca, gate_ca, shift_mlp, scale_mlp, gate_mlp = (
+                self.adaLN(timestep_emb, adaln_lora_B_3D)
+            )
         else:
-            shift_full, scale_full, gate_full, shift_mlp, \
-            scale_mlp, gate_mlp = self.adaLN(timestep_emb, adaln_lora_B_3D)
+            shift_full, scale_full, gate_full, shift_mlp, scale_mlp, gate_mlp = self.adaLN(
+                timestep_emb, adaln_lora_B_3D
+            )
 
         # print(f"megatron shift={shift_full}, scale={scale_full}, gate={gate_full}")
         # adaLN with scale + shift
         # print(f"megatron pre fa = {hidden_states}")
         pre_full_attn_layernorm_output_ada = self.adaLN.modulated_layernorm(
-            hidden_states, 
-            shift=shift_full, 
+            hidden_states,
+            shift=shift_full,
             scale=scale_full,
         )
         # z = rearrange(pre_full_attn_layernorm_output_ada, '(T H W) B D -> B T H W D', T=4, H=16, W=16)
         # print(f'megatron after adaLN: {z}, shape={z.shape}')
         attention_output, _ = self.full_self_attention(
-            pre_full_attn_layernorm_output_ada, 
-            attention_mask=None, 
+            pre_full_attn_layernorm_output_ada,
+            attention_mask=None,
             rotary_pos_emb=rope_emb,
             # packed_seq_params=packed_seq_params['self_attention'],
-            )
-        
+        )
+
         # print(f'megatron fa out={attention_output}, attention_output.shape={attention_output.shape}')
 
         if self.cross_attention:
             # ******************************************** cross attention ******************************************************
             # adaLN with scale + shift
             hidden_states, pre_cross_attn_layernorm_output_ada = self.adaLN.scaled_modulated_layernorm(
-                residual=hidden_states, 
+                residual=hidden_states,
                 x=attention_output,
                 gate=gate_full,
                 shift=shift_ca,
                 scale=scale_ca,
-                )
-            
+            )
+
             # print(f"megatron fa out={hidden_states}")
 
             attention_output, _ = self.cross_attention(
-                pre_cross_attn_layernorm_output_ada, 
-                attention_mask=context_mask, 
+                pre_cross_attn_layernorm_output_ada,
+                attention_mask=context_mask,
                 key_value_states=context,
                 # packed_seq_params=packed_seq_params['cross_attention'],
             )
-            
 
         # print(f"mcore_dit_ca_out={attention_output}")
 
         # ******************************************** mlp ******************************************************
         hidden_states, pre_mlp_layernorm_output_ada = self.adaLN.scaled_modulated_layernorm(
-            residual=hidden_states, 
+            residual=hidden_states,
             x=attention_output,
             gate=gate_ca if self.cross_attention else gate_full,
             shift=shift_mlp,
             scale=scale_mlp,
-            )
-        
+        )
+
         # print(f"megatron pre mlp={hidden_states}")
-        
+
         mlp_output, _ = self.mlp(pre_mlp_layernorm_output_ada)
         hidden_states = self.adaLN.scale_add(residual=hidden_states, x=mlp_output, gate=gate_mlp)
 
@@ -271,8 +269,8 @@ class DiTLayerWithAdaLN(TransformerLayer):
 
         return output, context
 
-import transformer_engine as te
 
+import transformer_engine as te
 
 
 def get_dit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
@@ -281,7 +279,7 @@ def get_dit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
     # args = get_args()
     # params = {"attn_mask_type": AttnMaskType.padding if
     #            args.packing_algorithm != 'no_packing' else AttnMaskType.no_mask}
-    params = {"attn_mask_type":AttnMaskType.no_mask}
+    params = {"attn_mask_type": AttnMaskType.no_mask}
     return ModuleSpec(
         module=DiTLayerWithAdaLN,
         submodules=DiTWithAdaLNSubmodules(

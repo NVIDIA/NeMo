@@ -18,8 +18,6 @@
 from typing import Callable, Dict, Optional, Tuple
 
 import torch
-from torch import Tensor
-
 from cosmos1.models.diffusion.conditioner import CosmosCondition
 from cosmos1.models.diffusion.diffusion.functional.batch_ops import batch_mul
 from cosmos1.models.diffusion.diffusion.modules.denoiser_scaling import EDMScaling
@@ -29,6 +27,7 @@ from cosmos1.models.diffusion.module.blocks import FourierFeatures
 from cosmos1.models.diffusion.module.pretrained_vae import BaseVAE
 from cosmos1.utils import log, misc
 from cosmos1.utils.lazy_config import instantiate as lazy_instantiate
+from torch import Tensor
 
 
 class EDMSDE:

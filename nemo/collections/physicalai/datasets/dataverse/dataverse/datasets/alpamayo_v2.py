@@ -25,8 +25,11 @@ from pathlib import Path
 from typing import Any, List
 
 import av
+import dataverse.utils.alpamayo.egomotion_decoder as egomotion_decoder
 import numpy as np
 import torch
+from dataverse.utils.ndas.av_metadata import get_egopose_interp, get_rig_transform, parse_calibration_data
+from dataverse.utils.ndas.camera_model import FThetaCamera, IdealPinholeCamera
 from lru import LRU
 from omegaconf import DictConfig
 from platformdirs import user_cache_path
@@ -34,22 +37,12 @@ from pyquaternion import Quaternion
 from scipy.spatial.transform import Rotation
 from torch.nn.functional import grid_sample
 
-import dataverse.utils.alpamayo.egomotion_decoder as egomotion_decoder
-from dataverse.utils.ndas.av_metadata import (
-    get_egopose_interp,
-    get_rig_transform,
-    parse_calibration_data,
-)
-from dataverse.utils.ndas.camera_model import FThetaCamera, IdealPinholeCamera
-
 from .base import BaseDataset, DataField
 
 
 class AlpamayoV2(BaseDataset):
     MAX_CACHED_VIDEOS = 2
-    ROT_FIXER = torch.from_numpy(
-        Rotation.from_euler("xzy", [0.0, -np.pi / 2, np.pi / 2]).as_matrix()
-    )[None].float()
+    ROT_FIXER = torch.from_numpy(Rotation.from_euler("xzy", [0.0, -np.pi / 2, np.pi / 2]).as_matrix())[None].float()
 
     def __init__(
         self,
@@ -62,9 +55,7 @@ class AlpamayoV2(BaseDataset):
         super().__init__()
 
         self.camkeys = camkeys
-        self.trajectory_base_camera_index = self.camkeys.index(
-            "camera_front_wide_120fov"
-        )
+        self.trajectory_base_camera_index = self.camkeys.index("camera_front_wide_120fov")
         self.tar_cache_path = tar_cache_path
         self.tar_dirs = tar_dirs
         self.rectify_cfg = rectify
@@ -182,9 +173,7 @@ class AlpamayoV2(BaseDataset):
                 frame_iterator = input_container.decode(video=0)
                 cur_frame_idx_to_batch_idx = {}
                 for batch_idx, target_frame_number in enumerate(target_frame_idxs):
-                    adjusted_target_frame_number = sync_to_original[key][
-                        target_frame_number
-                    ]
+                    adjusted_target_frame_number = sync_to_original[key][target_frame_number]
                     target_pts = adjusted_target_frame_number * average_frame_duration
                     for frame in frame_iterator:
                         # find the frame
@@ -254,12 +243,8 @@ class AlpamayoV2(BaseDataset):
         video_info = {}
 
         with tarfile.open(tar_path, "r") as f:
-            camera_metadata = self._extract_egomotion_from_sample(
-                f.extractfile(f"{clip_name}.egomotion.npz")
-            )
-            calibration = self._extract_calibration_from_sample(
-                f.extractfile(f"{clip_name}.rig.json")
-            )
+            camera_metadata = self._extract_egomotion_from_sample(f.extractfile(f"{clip_name}.egomotion.npz"))
+            calibration = self._extract_calibration_from_sample(f.extractfile(f"{clip_name}.rig.json"))
 
             for key in self.camkeys:
                 vidinfo = json.load(f.extractfile(f"{clip_name}.{key}.json"))
@@ -279,9 +264,7 @@ class AlpamayoV2(BaseDataset):
 
         sync_to_original = {}
         for key in self.camkeys:
-            sync_to_original[key] = np.searchsorted(
-                original_timestamps[key], ref_timestamps
-            )
+            sync_to_original[key] = np.searchsorted(original_timestamps[key], ref_timestamps)
 
         metadata, ego_data = {}, {}
         lidarkey = camera_metadata["sensor_name"]
@@ -291,15 +274,9 @@ class AlpamayoV2(BaseDataset):
             camera_data = {}
             camera_data["egopose"] = camera_metadata["egopose"]
             camera_data["sensor_name"] = lidarkey
-            camera_data["lidar2rig"] = get_rig_transform(
-                rig_info[lidarkey], rig2sensor=False
-            )
-            camera_data["rig2cam"] = get_rig_transform(
-                rig_info[camera_name + ".mp4"], rig2sensor=True
-            )
-            camera_data["ftheta"] = FThetaCamera.from_dict(
-                rig_info[camera_name + ".mp4"]
-            )
+            camera_data["lidar2rig"] = get_rig_transform(rig_info[lidarkey], rig2sensor=False)
+            camera_data["rig2cam"] = get_rig_transform(rig_info[camera_name + ".mp4"], rig2sensor=True)
+            camera_data["ftheta"] = FThetaCamera.from_dict(rig_info[camera_name + ".mp4"])
             egopose_lerp, cliptbase = get_egopose_interp(camera_data["egopose"])
 
             metadata[camera_name] = camera_data
@@ -333,12 +310,8 @@ class AlpamayoV2(BaseDataset):
         cfg = self.rectify_cfg
 
         # Set fov if randomized
-        seed = zlib.adler32(
-            f"{self.clip_names[video_idx]}-{cfg.fov_rng_seed}".encode("utf-8")
-        )
-        pinhole_fovd = np.random.RandomState(seed).randint(
-            cfg.fov_range[0], cfg.fov_range[1] + 1
-        )
+        seed = zlib.adler32(f"{self.clip_names[video_idx]}-{cfg.fov_rng_seed}".encode("utf-8"))
+        pinhole_fovd = np.random.RandomState(seed).randint(cfg.fov_range[0], cfg.fov_range[1] + 1)
         # target pinhole image/camera in the original resolution
         tgt_focal = cfg.width / (2.0 * math.tan(np.deg2rad(pinhole_fovd) / 2.0))
         tgt_focal = np.array([tgt_focal, tgt_focal])
@@ -387,15 +360,11 @@ class AlpamayoV2(BaseDataset):
         clip_name = self.clip_names[video_idx]
         tar_path = self.tar_index[clip_name]
 
-        ed_config = egomotion_decoder.EgoMotionDecoderConfig(
-            decode_strategy=f"uniform_{len(timestamps)}_frame"
-        )
+        ed_config = egomotion_decoder.EgoMotionDecoderConfig(decode_strategy=f"uniform_{len(timestamps)}_frame")
         with tarfile.open(tar_path, "r") as f:
             data = {}
             data["egomotion.npz"] = f.extractfile(f"{clip_name}.egomotion.npz").read()
-            data["live_egomotion.npz"] = f.extractfile(
-                f"{clip_name}.live_egomotion.npz"
-            ).read()
+            data["live_egomotion.npz"] = f.extractfile(f"{clip_name}.live_egomotion.npz").read()
             data["rig.json"] = f.extractfile(f"{clip_name}.rig.json").read()
 
         ego_data = egomotion_decoder.decode_egomotion(data, timestamps, ed_config)
@@ -415,17 +384,13 @@ class AlpamayoV2(BaseDataset):
         view_idxs: List[int],
         data_fields: List[DataField],
     ) -> dict[DataField, Any]:
-        meta_data, ego_data, video_info, sync_to_original, rig_info = (
-            self._get_meta_data(video_idx)
-        )
+        meta_data, ego_data, video_info, sync_to_original, rig_info = self._get_meta_data(video_idx)
         video_frames, frame_idx_to_batch_idx = self._get_video_frames(
             video_idx, view_idxs, frame_idxs, sync_to_original
         )
 
         if self.rectify_cfg.enabled:
-            cam_rays, tgt_intr, pos_norms = self._get_rectify_pinhole_info(
-                video_idx, view_idxs
-            )
+            cam_rays, tgt_intr, pos_norms = self._get_rectify_pinhole_info(video_idx, view_idxs)
             rays = {view_idx: cam_rays for view_idx in set(view_idxs)}
         else:
             tgt_intr, pos_norms = None, None
@@ -467,9 +432,7 @@ class AlpamayoV2(BaseDataset):
                 c2w_list = []
                 for frame_idx, view_idx in zip(frame_idxs, view_idxs):
                     cam_key = self.camkeys[view_idx]
-                    t0_stamp = video_info[cam_key][
-                        sync_to_original[cam_key][frame_idx]
-                    ]["timestamp"]
+                    t0_stamp = video_info[cam_key][sync_to_original[cam_key][frame_idx]]["timestamp"]
                     t0_val = 1e-6 * (t0_stamp - ego_data[cam_key]["cliptbase"])
 
                     world2cam = self._get_obstacles_and_camera(
@@ -513,19 +476,13 @@ class AlpamayoV2(BaseDataset):
                     if view_idx == target_traj_cam_index:
                         # compute timestamps of the target base camera
                         cam_key = self.camkeys[view_idx]
-                        t0_stamp = video_info[cam_key][
-                            sync_to_original[cam_key][frame_idx]
-                        ]["timestamp"]
+                        t0_stamp = video_info[cam_key][sync_to_original[cam_key][frame_idx]]["timestamp"]
                         timestamps.append(t0_stamp)
                 if len(timestamps) == 0:
-                    raise ValueError(
-                        "view_idxs do not contain the base camera for trajectory computation."
-                    )
+                    raise ValueError("view_idxs do not contain the base camera for trajectory computation.")
 
                 # compute trajectory for the target base camera
-                output_dict[data_field] = self.egomotion_alpamayo_parser(
-                    video_idx, timestamps
-                )
+                output_dict[data_field] = self.egomotion_alpamayo_parser(video_idx, timestamps)
                 output_dict["rig_info"] = rig_info
             else:
                 raise NotImplementedError(f"Can't handle data field {data_field}")

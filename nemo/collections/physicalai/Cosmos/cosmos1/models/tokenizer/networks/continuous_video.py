@@ -18,11 +18,10 @@
 """The causal continuous video tokenizer with VAE or AE formulation for 3D data.."""
 from collections import OrderedDict, namedtuple
 
-from loguru import logger as logging
-from torch import nn
-
 from cosmos1.models.tokenizer.modules import ContinuousFormulation, Decoder3DType, Encoder3DType
 from cosmos1.models.tokenizer.modules.layers3d import CausalConv3d
+from loguru import logger as logging
+from torch import nn
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "latent"])
 

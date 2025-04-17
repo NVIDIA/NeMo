@@ -27,13 +27,13 @@ from megatron.core.transformer.attention import (
     SelfAttention,
     SelfAttentionSubmodules,
 )
+from megatron.core.transformer.cuda_graphs import CudaGraphManager
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
     TENorm,
     TERowParallelLinear,
 )
-from megatron.core.transformer.cuda_graphs import CudaGraphManager
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -43,10 +43,11 @@ from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
+
 from nemo.collections.diffusion.models.dit.dit_attention import (
+    FluxSingleAttention,
     JointSelfAttention,
     JointSelfAttentionSubmodules,
-    FluxSingleAttention,
 )
 
 
@@ -83,7 +84,9 @@ class AdaLN(MegatronModule):
     Adaptive Layer Normalization Module for DiT.
     """
 
-    def __init__(self, config: TransformerConfig, n_adaln_chunks=9, use_adaln_lora=True, adaln_lora_dim=256, norm=nn.LayerNorm):
+    def __init__(
+        self, config: TransformerConfig, n_adaln_chunks=9, use_adaln_lora=True, adaln_lora_dim=256, norm=nn.LayerNorm
+    ):
         super().__init__(config)
         if norm == TENorm:
             self.ln = norm(config, config.hidden_size, config.layernorm_epsilon)

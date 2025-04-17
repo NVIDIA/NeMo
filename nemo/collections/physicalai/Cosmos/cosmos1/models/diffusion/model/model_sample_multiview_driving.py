@@ -17,12 +17,11 @@
 from typing import Union
 
 import torch
-from einops import rearrange
-
 from cosmos1.models.diffusion.conditioner import VideoExtendCondition
 from cosmos1.models.diffusion.model.model_t2w import DiffusionT2WModel
 from cosmos1.models.diffusion.model.model_v2w import DiffusionV2WModel
 from cosmos1.utils import log
+from einops import rearrange
 
 
 class DiffusionMultiCameraT2WModel(DiffusionT2WModel):

@@ -24,12 +24,11 @@ import json
 import random
 import time
 from contextlib import ContextDecorator
-from typing import Any, Callable, TypeVar, List, Tuple
+from typing import Any, Callable, List, Tuple, TypeVar
 
 import numpy as np
 import termcolor
 import torch
-
 from cosmos1.utils import distributed, log
 
 
@@ -68,7 +67,9 @@ def to(
         )
         return data
     elif isinstance(data, collections.abc.Mapping):
-        return type(data)({key: to(data[key], device=device, dtype=dtype, memory_format=memory_format) for key in data})
+        return type(data)(
+            {key: to(data[key], device=device, dtype=dtype, memory_format=memory_format) for key in data}
+        )
     elif isinstance(data, collections.abc.Sequence) and not isinstance(data, (str, bytes)):
         return type(data)([to(elem, device=device, dtype=dtype, memory_format=memory_format) for elem in data])
     else:

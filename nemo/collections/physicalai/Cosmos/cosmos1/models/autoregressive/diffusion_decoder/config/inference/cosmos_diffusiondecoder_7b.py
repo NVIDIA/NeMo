@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos1.models.autoregressive.diffusion_decoder.network import DiffusionDecoderGeneralDIT
 from cosmos1.utils.lazy_config import LazyCall as L
 from cosmos1.utils.lazy_config import LazyDict
+from hydra.core.config_store import ConfigStore
 
 num_frames = 57
 Cosmos_DiffusionDecoder_7B_INFERENCE_ONLY: LazyDict = LazyDict(

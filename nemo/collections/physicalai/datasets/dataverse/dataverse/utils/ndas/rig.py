@@ -48,9 +48,7 @@ def get_sensor_to_sensor_flu(sensor: str):
     return np.asarray(rot, dtype=np.float32)
 
 
-def transform_from_eulers(
-    rpy_deg: typing.Sequence[float], translation: typing.Sequence[float]
-):
+def transform_from_eulers(rpy_deg: typing.Sequence[float], translation: typing.Sequence[float]):
     """Create a 4x4 rigid transformation matrix given euler angles and translation.
 
     Args:
@@ -61,9 +59,7 @@ def transform_from_eulers(
         np.array: the constructed transformation matrix.
     """
     transform = np.eye(4)
-    transform[:3, :3] = R.from_euler(
-        seq="xyz", angles=rpy_deg, degrees=True
-    ).as_matrix()
+    transform[:3, :3] = R.from_euler(seq="xyz", angles=rpy_deg, degrees=True).as_matrix()
     transform[:3, 3] = translation
 
     return transform.astype(np.float32)
@@ -141,9 +137,7 @@ def parse_sensor_to_rig(sensor: dict, ignore_correction_T: bool = False):
     else:
         correction_T = np.zeros(3, dtype=np.float32)
 
-    correction_transform = transform_from_eulers(
-        sensor["correction_sensor_R_FLU"]["roll-pitch-yaw"], correction_T
-    )
+    correction_transform = transform_from_eulers(sensor["correction_sensor_R_FLU"]["roll-pitch-yaw"], correction_T)
 
     sensor_to_rig = nominal_FLU_to_rig @ correction_transform @ sensor_to_FLU
     nominal_sensor_to_rig = nominal_FLU_to_rig @ sensor_to_FLU

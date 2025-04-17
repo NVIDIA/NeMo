@@ -19,43 +19,40 @@ dataset_path = str(user_cache_path("AV-V2.2"))
 
 DATAVERSE_CONFIG = dict()
 tar_dirs_training = [
-                    f"{dataset_path}/trainv2-2-chunk-00",
-                    f"{dataset_path}/trainv2-2-chunk-01",
-                    f"{dataset_path}/trainv2-2-chunk-02",
-                    f"{dataset_path}/trainv2-2-chunk-03",
-                    f"{dataset_path}/trainv2-2-chunk-04",
-                    f"{dataset_path}/trainv2-2-chunk-05",
-                    f"{dataset_path}/trainv2-2-chunk-06",
-                    f"{dataset_path}/trainv2-2-chunk-07",
-                    f"{dataset_path}/trainv2-2-chunk-08",
-                    f"{dataset_path}/trainv2-2-chunk-09",
-                    f"{dataset_path}/trainv2-2-chunk-10",
-                    f"{dataset_path}/trainv2-2-chunk-11",
-                    f"{dataset_path}/trainv2-2-chunk-12",
-                    f"{dataset_path}/trainv2-2-chunk-13",
-                    f"{dataset_path}/trainv2-2-chunk-14",
-                    f"{dataset_path}/trainv2-2-chunk-15",
-                ]
+    f"{dataset_path}/trainv2-2-chunk-00",
+    f"{dataset_path}/trainv2-2-chunk-01",
+    f"{dataset_path}/trainv2-2-chunk-02",
+    f"{dataset_path}/trainv2-2-chunk-03",
+    f"{dataset_path}/trainv2-2-chunk-04",
+    f"{dataset_path}/trainv2-2-chunk-05",
+    f"{dataset_path}/trainv2-2-chunk-06",
+    f"{dataset_path}/trainv2-2-chunk-07",
+    f"{dataset_path}/trainv2-2-chunk-08",
+    f"{dataset_path}/trainv2-2-chunk-09",
+    f"{dataset_path}/trainv2-2-chunk-10",
+    f"{dataset_path}/trainv2-2-chunk-11",
+    f"{dataset_path}/trainv2-2-chunk-12",
+    f"{dataset_path}/trainv2-2-chunk-13",
+    f"{dataset_path}/trainv2-2-chunk-14",
+    f"{dataset_path}/trainv2-2-chunk-15",
+]
 
 tar_dirs_training_full = tar_dirs_training + [
-                    f"{dataset_path}/trainv2-2-chunk-16",
-                    f"{dataset_path}/trainv2-2-chunk-17",
-                    f"{dataset_path}/trainv2-2-chunk-18",
-                    f"{dataset_path}/trainv2-2-chunk-19",
-                    f"{dataset_path}/trainv2-2-chunk-20",
-                    f"{dataset_path}/trainv2-2-chunk-21",
-                    f"{dataset_path}/trainv2-2-chunk-22"
-                    ]
+    f"{dataset_path}/trainv2-2-chunk-16",
+    f"{dataset_path}/trainv2-2-chunk-17",
+    f"{dataset_path}/trainv2-2-chunk-18",
+    f"{dataset_path}/trainv2-2-chunk-19",
+    f"{dataset_path}/trainv2-2-chunk-20",
+    f"{dataset_path}/trainv2-2-chunk-21",
+    f"{dataset_path}/trainv2-2-chunk-22",
+]
 cmeare_groups = [
-                    "camera_front_wide_120fov",
-                    "camera_cross_left_120fov",
-                    "camera_cross_right_120fov",
-                    "camera_rear_tele_30fov",
-                ]
-cmeare_6_group = cmeare_groups + [
-                    "camera_rear_left_70fov",
-                    "camera_rear_right_70fov"
-                ]
+    "camera_front_wide_120fov",
+    "camera_cross_left_120fov",
+    "camera_cross_right_120fov",
+    "camera_rear_tele_30fov",
+]
+cmeare_6_group = cmeare_groups + ["camera_rear_left_70fov", "camera_rear_right_70fov"]
 
 
 DATAVERSE_CONFIG["alpamayo_v2_traj_qwen_24fps_6_cameras_frame_repeat"] = {

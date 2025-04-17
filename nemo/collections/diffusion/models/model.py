@@ -14,8 +14,8 @@
 
 # pylint: disable=C0115,C0116,C0301
 
-import os
 import importlib
+import os
 import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -32,28 +32,42 @@ from torch import nn
 from typing_extensions import override
 
 from nemo.collections.diffusion.models.dit_llama.dit_llama_model import DiTLlamaModel
-from nemo.collections.diffusion.sampler.conditioner import VideoConditioner, VideoExtendConditioner, VideoExtendConditionerControl
+from nemo.collections.diffusion.sampler.conditioner import (
+    VideoConditioner,
+    VideoExtendConditioner,
+    VideoExtendConditionerControl,
+)
 from nemo.collections.diffusion.sampler.conditioner_configs import (
+    ActionControlConfig,
     FPSConfig,
     ImageSizeConfig,
     NumFramesConfig,
     PaddingMaskConfig,
     TextConfig,
     VideoCondBoolConfig,
-    ActionControlConfig,
 )
-from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
+from nemo.collections.diffusion.sampler.cosmos.cosmos_control_diffusion_pipeline import CosmosControlDiffusionPipeline
 from nemo.collections.diffusion.sampler.cosmos.cosmos_diffusion_pipeline import CosmosDiffusionPipeline
 from nemo.collections.diffusion.sampler.cosmos.cosmos_extended_diffusion_pipeline import ExtendedDiffusionPipeline
-from nemo.collections.diffusion.sampler.cosmos.cosmos_control_diffusion_pipeline import CosmosControlDiffusionPipeline
+from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
 from nemo.collections.llm.gpt.model.base import GPTModel
 from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 from .dit.dit_model import DiTCrossAttentionModel
-from .dit.dit_model_7b import DiTCrossAttentionModel7B, DiTCrossAttentionExtendModel7B, DiTCrossAttentionActionExtendModel7B, PatchEmbed, DiTControl7B
-from .dit.dit_model_14b import DiTCrossAttentionModel14B, DiTCrossAttentionExtendModel14B, DiTCrossAttentionActionExtendModel14B
+from .dit.dit_model_7b import (
+    DiTControl7B,
+    DiTCrossAttentionActionExtendModel7B,
+    DiTCrossAttentionExtendModel7B,
+    DiTCrossAttentionModel7B,
+    PatchEmbed,
+)
+from .dit.dit_model_14b import (
+    DiTCrossAttentionActionExtendModel14B,
+    DiTCrossAttentionExtendModel14B,
+    DiTCrossAttentionModel14B,
+)
 
 
 def dit_forward_step(model, batch) -> torch.Tensor:
@@ -64,7 +78,7 @@ def dit_data_step(module, dataloader_iter):
     batch = next(dataloader_iter)[0]
     batch = get_batch_on_this_cp_rank(batch)
     batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
-    batch["is_preprocessed"] = True # assume data is preprocessed
+    batch["is_preprocessed"] = True  # assume data is preprocessed
 
     if ('seq_len_q' in batch) and ('seq_len_kv' in batch):
         cu_seqlens = batch['seq_len_q'].cumsum(dim=0).to(torch.int32)
@@ -93,6 +107,7 @@ def dit_data_step(module, dataloader_iter):
 def get_batch_on_this_cp_rank(data: Dict):
     """Split the data for context parallelism."""
     from megatron.core import mpu
+
     cp_size = mpu.get_context_parallel_world_size()
     cp_rank = mpu.get_context_parallel_rank()
 
@@ -116,7 +131,9 @@ def get_batch_on_this_cp_rank(data: Dict):
                     # FIXME packed sequencing
                     data[key] = value.view(B, C, T, cp_size, H // cp_size, W)[:, :, :, cp_rank, ...].contiguous()
         loss_mask = data["loss_mask"]
-        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[:, cp_rank, ...].contiguous()
+        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[
+            :, cp_rank, ...
+        ].contiguous()
         data['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
 
     return data
@@ -235,6 +252,7 @@ class DiTXLConfig(DiTConfig):
     hidden_size: int = 1152
     num_attention_heads: int = 16
 
+
 @dataclass
 class DiT7BConfig(DiTConfig):
     num_layers: int = 28
@@ -245,8 +263,8 @@ class DiT7BConfig(DiTConfig):
     max_frames: int = 128
     patch_spatial: int = 2
     num_attention_heads: int = 32
-    layernorm_epsilon=1e-6
-    normalization="RMSNorm"
+    layernorm_epsilon = 1e-6
+    normalization = "RMSNorm"
     gated_linear_unit: bool = False
     add_bias_linear: bool = False
     qk_layernorm_per_head: bool = True
@@ -268,9 +286,11 @@ class DiT7BConfig(DiTConfig):
     forward_step_fn = dit_forward_step
     model_name: str = 'cosmos_7b_text2world'
 
+
 @dataclass
 class DiT7BVideo2WorldConfig(DiT7BConfig):
     model_name: str = 'cosmos_7b_video2world'
+
     @override
     def configure_model(self, tokenizer=None) -> DiTCrossAttentionExtendModel7B:
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -282,18 +302,19 @@ class DiT7BVideo2WorldConfig(DiT7BConfig):
 
         model = DiTCrossAttentionExtendModel7B
         return model(
-                self,
-                fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-                parallel_output=self.parallel_output,
-                pre_process=parallel_state.is_pipeline_first_stage(),
-                post_process=parallel_state.is_pipeline_last_stage(),
-            )
+            self,
+            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+            parallel_output=self.parallel_output,
+            pre_process=parallel_state.is_pipeline_first_stage(),
+            post_process=parallel_state.is_pipeline_last_stage(),
+        )
 
 
 @dataclass
 class DiT7BControl2WorldConfig(DiT7BConfig):
     model_name: str = 'cosmos_7b_control2world'
-    # num_layers: int = 
+
+    # num_layers: int =
     @override
     def configure_model(self, tokenizer=None) -> DiTControl7B:
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -311,6 +332,7 @@ class DiT7BControl2WorldConfig(DiT7BConfig):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
+
 
 @dataclass
 class DiT7BCameraCtrlConfig(DiT7BConfig):
@@ -352,6 +374,7 @@ class DiT7BCameraCtrlConfig(DiT7BConfig):
         dit_model.extra_per_block_abs_pos_emb = True
         return dit_model
 
+
 @dataclass
 class DiT7BActionConfig(DiTConfig):
     num_layers: int = int(os.getenv("NUM_LAYERS", 28))
@@ -362,8 +385,8 @@ class DiT7BActionConfig(DiTConfig):
     max_frames: int = 128
     patch_spatial: int = 2
     num_attention_heads: int = 32
-    layernorm_epsilon=1e-6
-    normalization="RMSNorm"
+    layernorm_epsilon = 1e-6
+    normalization = "RMSNorm"
     gated_linear_unit: bool = False
     add_bias_linear: bool = False
     qk_layernorm_per_head: bool = True
@@ -389,6 +412,7 @@ class DiT7BActionConfig(DiTConfig):
     recompute_num_layers: int = 1
     action_emb_dim: int = 7
 
+
 @dataclass
 class DiT7BVideo2WorldActionConfig(DiT7BActionConfig):
     @override
@@ -408,6 +432,7 @@ class DiT7BVideo2WorldActionConfig(DiT7BActionConfig):
             post_process=parallel_state.is_pipeline_last_stage(),
         )
 
+
 @dataclass
 class DiT14BConfig(DiTConfig):
     num_layers: int = 36
@@ -418,8 +443,8 @@ class DiT14BConfig(DiTConfig):
     max_frames: int = 128
     patch_spatial: int = 2
     num_attention_heads: int = 40
-    layernorm_epsilon=1e-6
-    normalization="RMSNorm"
+    layernorm_epsilon = 1e-6
+    normalization = "RMSNorm"
     gated_linear_unit: bool = False
     add_bias_linear: bool = False
     qk_layernorm_per_head: bool = True
@@ -441,9 +466,11 @@ class DiT14BConfig(DiTConfig):
     forward_step_fn = dit_forward_step
     model_name = 'cosmos_14b_text2world'
 
+
 @dataclass
 class DiT14BVideo2WorldConfig(DiT14BConfig):
     model_name = 'cosmos_14b_video2world'
+
     @override
     def configure_model(self, tokenizer=None) -> DiTCrossAttentionExtendModel14B:
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -455,12 +482,13 @@ class DiT14BVideo2WorldConfig(DiT14BConfig):
 
         model = DiTCrossAttentionExtendModel14B
         return model(
-                self,
-                fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-                parallel_output=self.parallel_output,
-                pre_process=parallel_state.is_pipeline_first_stage(),
-                post_process=parallel_state.is_pipeline_last_stage(),
-            )
+            self,
+            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+            parallel_output=self.parallel_output,
+            pre_process=parallel_state.is_pipeline_first_stage(),
+            post_process=parallel_state.is_pipeline_last_stage(),
+        )
+
 
 @dataclass
 class DiT14BActionConfig(DiTConfig):
@@ -472,8 +500,8 @@ class DiT14BActionConfig(DiTConfig):
     max_frames: int = 128
     patch_spatial: int = 2
     num_attention_heads: int = 40
-    layernorm_epsilon=1e-6
-    normalization="RMSNorm"
+    layernorm_epsilon = 1e-6
+    normalization = "RMSNorm"
     gated_linear_unit: bool = False
     add_bias_linear: bool = False
     qk_layernorm_per_head: bool = True
@@ -499,6 +527,7 @@ class DiT14BActionConfig(DiTConfig):
     recompute_num_layers: int = 1
     action_emb_dim: int = 7
 
+
 @dataclass
 class DiT14BVideo2WorldActionConfig(DiT14BActionConfig):
     @override
@@ -517,6 +546,7 @@ class DiT14BVideo2WorldActionConfig(DiT14BActionConfig):
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
+
 
 @dataclass
 class DiTLlama30BConfig(DiTConfig):
@@ -629,7 +659,7 @@ class DiTModel(GPTModel):
                 self.conditioner = VideoExtendConditionerControl(**conditioner_configs)
                 self.diffusion_pipeline = CosmosControlDiffusionPipeline(
                     net=self,
-                    base_model=None, # initialize as empty for now
+                    base_model=None,  # initialize as empty for now
                     conditioner=self.conditioner,
                     loss_add_logvar=self.config.loss_add_logvar,
                 )
@@ -649,12 +679,16 @@ class DiTModel(GPTModel):
     def forward_step(self, batch) -> torch.Tensor:
         if hasattr(self.config, 'model_name'):
             if 'cosmos' in getattr(self.config, 'model_name'):
-                data_batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
-                data_batch["is_preprocessed"] = True # assume data is preprocessed
+                data_batch = {
+                    k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()
+                }
+                data_batch["is_preprocessed"] = True  # assume data is preprocessed
                 if parallel_state.is_pipeline_last_stage():
                     output_batch, kendall_loss = self.diffusion_pipeline.training_step(batch, 0)
                     if torch.distributed.get_rank() == 0 and wandb.run:
-                        wandb.log({k: output_batch[k] for k in ['edm_loss'] if k in output_batch}, step=self.global_step)
+                        wandb.log(
+                            {k: output_batch[k] for k in ['edm_loss'] if k in output_batch}, step=self.global_step
+                        )
                     kendall_loss = torch.mean(kendall_loss, dim=1)
                     return kendall_loss
                 else:

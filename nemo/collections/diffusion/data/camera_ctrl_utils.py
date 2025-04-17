@@ -14,8 +14,8 @@
 
 # pylint: disable=C0115,C0116,C0301
 
-import torch
 import numpy as np
+import torch
 
 from nemo.collections.diffusion.data import camera
 from nemo.collections.diffusion.data.camera import get_center_and_ray
@@ -23,7 +23,7 @@ from nemo.collections.diffusion.data.camera import get_center_and_ray
 
 def plucker_coordinates(pose: torch.tensor, intr: torch.tensor, width: int, height: int):
     """Return plücker coordinates from pose and intrinsics. Plücker coordinates are defined as
-    [(rx,ry,rz),(rx,ry,rz)x(cx,cy,cz)] where (cx,cy,cz) is the camera origin 
+    [(rx,ry,rz),(rx,ry,rz)x(cx,cy,cz)] where (cx,cy,cz) is the camera origin
     and (rx,ry,rz) is the direction of the ray.
     Plücker coordinates are used to represent a line in 3D space.
 

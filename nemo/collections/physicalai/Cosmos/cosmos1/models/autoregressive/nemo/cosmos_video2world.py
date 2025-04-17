@@ -21,9 +21,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Dict, Optional, Union
 
 import torch
+from cosmos1.models.autoregressive.nemo.cosmos import (
+    CosmosConfig,
+    CosmosConfig4B,
+    CosmosConfig12B,
+    CosmosModel,
+    RotaryEmbedding3D,
+)
+from cosmos1.models.autoregressive.nemo.inference.inference_controller import CosmosInferenceWrapper
+from cosmos1.utils import log
 from megatron.core import tensor_parallel
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.transformer.attention import (
     Attention,
     CrossAttentionSubmodules,
@@ -38,7 +48,6 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TERowParallelLinear,
 )
 from megatron.core.transformer.enums import AttnBackend, AttnMaskType
-from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -46,21 +55,12 @@ from megatron.core.transformer.transformer_layer import TransformerLayer, Transf
 from megatron.core.utils import make_viewless_tensor
 from torch import nn
 
-from cosmos1.models.autoregressive.nemo.cosmos import (
-    CosmosConfig,
-    CosmosConfig4B,
-    CosmosConfig12B,
-    CosmosModel,
-    RotaryEmbedding3D,
-)
-from cosmos1.models.autoregressive.nemo.inference.inference_controller import CosmosInferenceWrapper
-from cosmos1.utils import log
-
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_block import TransformerBlock
+
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
@@ -197,7 +197,9 @@ class CosmosVideo2WorldTransformerLayer(TransformerLayer):
         layer_number: int = 1,
         hidden_dropout: float = None,
     ):
-        super().__init__(config=config, submodules=submodules, layer_number=layer_number, hidden_dropout=hidden_dropout)
+        super().__init__(
+            config=config, submodules=submodules, layer_number=layer_number, hidden_dropout=hidden_dropout
+        )
 
     def forward(
         self,

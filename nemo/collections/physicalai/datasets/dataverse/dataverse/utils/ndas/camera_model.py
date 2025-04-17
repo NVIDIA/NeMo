@@ -107,9 +107,7 @@ class IdealPinholeCamera:
         """Returns the height of the sensor."""
         return self._height
 
-    def _focal_from_fov(
-        self, fov_x_deg: Union[float, int], fov_y_deg: Union[float, int]
-    ):
+    def _focal_from_fov(self, fov_x_deg: Union[float, int], fov_y_deg: Union[float, int]):
         """Compute the focal length from horizontal and vertical FOVs.
 
         Args:
@@ -218,9 +216,7 @@ class FThetaCamera:
         Returns:
             FThetaCamera: the newly created object.
         """
-        cx, cy, width, height, bw_poly = FThetaCamera.get_ftheta_parameters_from_json(
-            rig_dict
-        )
+        cx, cy, width, height, bw_poly = FThetaCamera.get_ftheta_parameters_from_json(rig_dict)
         return cls(cx, cy, width, height, bw_poly)
 
     @classmethod
@@ -243,9 +239,7 @@ class FThetaCamera:
             bw_poly=intrinsics[4:],
         )
 
-    def __init__(
-        self, cx: float, cy: float, width: int, height: int, bw_poly: np.ndarray
-    ):
+    def __init__(self, cx: float, cy: float, width: int, height: int, bw_poly: np.ndarray):
         """The __init__ method.
 
         Args:
@@ -266,9 +260,7 @@ class FThetaCamera:
         self._max_angle = None
         self._max_ray_angle = None
         # Populate the array of intrinsics
-        self._intrinsics = np.append([cx, cy, width, height], bw_poly).astype(
-            np.float32
-        )
+        self._intrinsics = np.append([cx, cy, width, height], bw_poly).astype(np.float32)
 
         self._update_calibrated_camera()
 
@@ -314,22 +306,14 @@ class FThetaCamera:
 
             # If we had all the terms present, sanity check to make sure they are [1, 0, 0]
             if linear_c is not None and linear_d is not None and linear_e is not None:
-                assert (
-                    linear_c == 1.0
-                ), f"Expected `linear-c` term to be 1.0 (got {linear_c}. Rig:\n{rig_dict})"
-                assert (
-                    linear_d == 0.0
-                ), f"Expected `linear-d` term to be 0.0 (got {linear_d}. Rig:\n{rig_dict})"
-                assert (
-                    linear_e == 0.0
-                ), f"Expected `linear-e` term to be 0.0 (got {linear_e}. Rig:\n{rig_dict})"
+                assert linear_c == 1.0, f"Expected `linear-c` term to be 1.0 (got {linear_c}. Rig:\n{rig_dict})"
+                assert linear_d == 0.0, f"Expected `linear-d` term to be 0.0 (got {linear_d}. Rig:\n{rig_dict})"
+                assert linear_e == 0.0, f"Expected `linear-e` term to be 0.0 (got {linear_e}. Rig:\n{rig_dict})"
 
             # If we're here, then it means we can parse the rig successfully.
             poly = props["polynomial"]
         else:
-            raise ValueError(
-                f"Unable to parse the rig. Only FTheta rigs are supported! Rig:\n{rig_dict}"
-            )
+            raise ValueError(f"Unable to parse the rig. Only FTheta rigs are supported! Rig:\n{rig_dict}")
 
         bw_poly = [np.float32(val) for val in poly.split()]
         return cx, cy, width, height, bw_poly
@@ -391,9 +375,7 @@ class FThetaCamera:
             ray_angle = (np.float32(self._max_ray_angle)).copy()
             while ray_angle >= np.float32(0.0):
                 ray_angle -= deg2rad * np.float32(1.0)
-            raise ArithmeticError(
-                "FThetaCamera: derivative of distortion within image interior is negative"
-            )
+            raise ArithmeticError("FThetaCamera: derivative of distortion within image interior is negative")
 
         # Evaluate the forward polynomial at point (self._max_ray_angle, 0)
         # Also evaluate its derivative at the same point
@@ -401,9 +383,7 @@ class FThetaCamera:
         dval = self._fw_poly.deriv()(self._max_ray_angle).item()
 
         if dval < 0:
-            raise ArithmeticError(
-                "FThetaCamera: derivative of distortion at edge of image is negative"
-            )
+            raise ArithmeticError("FThetaCamera: derivative of distortion at edge of image is negative")
 
         self._max_ray_distortion = np.asarray([val, dval], dtype=np.float32)
 
@@ -415,9 +395,7 @@ class FThetaCamera:
         """
 
         def get_max_value(p0, p1):
-            return np.linalg.norm(
-                np.asarray([p0, p1], dtype=self._center.dtype) - self._center
-            )
+            return np.linalg.norm(np.asarray([p0, p1], dtype=self._center.dtype) - self._center)
 
         max_value = 0.0
 
@@ -467,9 +445,7 @@ class FThetaCamera:
             ),
         )
         # Return the polynomial and hardcode the bias value to 0
-        return Polynomial(
-            [np.float32(val) if i > 0 else 0 for i, val in enumerate(coeffs)]
-        )
+        return Polynomial([np.float32(val) if i > 0 else 0 for i, val in enumerate(coeffs)])
 
     def pixel2ray(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Backproject 2D pixels into 3D rays.
@@ -527,9 +503,7 @@ class FThetaCamera:
         cos_alpha = rays[:, 2:] / np.linalg.norm(rays, axis=1, keepdims=True)
 
         alpha = np.empty_like(cos_alpha)
-        cos_alpha_condition = np.logical_and(
-            cos_alpha > np.float32(-1.0), cos_alpha < np.float32(1.0)
-        ).squeeze()
+        cos_alpha_condition = np.logical_and(cos_alpha > np.float32(-1.0), cos_alpha < np.float32(1.0)).squeeze()
         alpha[cos_alpha_condition] = np.arccos(cos_alpha[cos_alpha_condition])
         alpha[~cos_alpha_condition] = xy_norm[~cos_alpha_condition]
 
@@ -538,8 +512,7 @@ class FThetaCamera:
         delta[alpha_cond] = self._fw_poly(alpha[alpha_cond])
         # For outside the model (which need to do linear extrapolation)
         delta[~alpha_cond] = (
-            self._max_ray_distortion[0]
-            + (alpha[~alpha_cond] - self._max_ray_angle) * self._max_ray_distortion[1]
+            self._max_ray_distortion[0] + (alpha[~alpha_cond] - self._max_ray_angle) * self._max_ray_distortion[1]
         )
 
         # Determine the bad points with a norm of zero, and avoid division by zero
@@ -593,9 +566,7 @@ class FThetaCamera:
         max_x = self._width - 1
         max_y = self._height - 1
 
-        p = np.asarray(
-            [[0, 0], [max_x, 0], [0, max_y], [max_x, max_y]], dtype=np.float32
-        )
+        p = np.asarray([[0, 0], [max_x, 0], [0, max_y], [max_x, max_y]], dtype=np.float32)
 
         self._max_angle = max(
             max(self._get_pixel_fov(p[0, ...]), self._get_pixel_fov(p[1, ...])),
@@ -618,9 +589,7 @@ class FThetaCamera:
         return ray_angle <= self._max_angle
 
 
-def rays_to_pixels_batch(
-    rays: torch.Tensor, cam_intrinsic: torch.Tensor
-) -> torch.Tensor:
+def rays_to_pixels_batch(rays: torch.Tensor, cam_intrinsic: torch.Tensor) -> torch.Tensor:
     """Project 3D rays to 2D pixel coordinates.
 
     Computes image projection for 3D points in an
@@ -659,23 +628,15 @@ def rays_to_pixels_batch(
     alpha = (math.pi / 2.0) - torch.atan2(ray_z, ray_xy_norm)
 
     delta_valid = (
-        fw_poly[0]
-        + fw_poly[1] * alpha
-        + fw_poly[2] * alpha**2
-        + fw_poly[3] * alpha**3
-        + fw_poly[4] * alpha**4
+        fw_poly[0] + fw_poly[1] * alpha + fw_poly[2] * alpha**2 + fw_poly[3] * alpha**3 + fw_poly[4] * alpha**4
     )
     # For outside the model (which need to do linear extrapolation)
-    delta_invalid = (
-        max_ray_distortion[0] + (alpha - max_ray_angle) * max_ray_distortion[1]
-    )
+    delta_invalid = max_ray_distortion[0] + (alpha - max_ray_angle) * max_ray_distortion[1]
     delta = torch.where(alpha <= max_ray_angle, delta_valid, delta_invalid)
 
     # Determine the bad points with a norm of zero, and avoid division by zero
     delta = torch.where(ray_xy_norm > 0.0, delta, torch.tensor(0.0, device=device))
-    ray_xy_norm = torch.where(
-        ray_xy_norm > 0.0, ray_xy_norm, torch.tensor(1.0, device=device)
-    )
+    ray_xy_norm = torch.where(ray_xy_norm > 0.0, ray_xy_norm, torch.tensor(1.0, device=device))
 
     # compute pixel relative to center
     scale = delta / ray_xy_norm
@@ -687,9 +648,7 @@ def rays_to_pixels_batch(
     return pixels
 
 
-def convert_to_2d_camera_model(
-    xyz: np.ndarray, ft_camera: FThetaCamera
-) -> Tuple[np.ndarray, np.ndarray]:
+def convert_to_2d_camera_model(xyz: np.ndarray, ft_camera: FThetaCamera) -> Tuple[np.ndarray, np.ndarray]:
     """Converts a series of points in xyz to 2D canera coordinates.
 
     Args:

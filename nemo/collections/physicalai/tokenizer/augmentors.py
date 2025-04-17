@@ -17,6 +17,7 @@
 
 """Additional augmentors for image and video training loops."""
 
+import logging
 import random
 from typing import Optional
 
@@ -24,9 +25,12 @@ import torch
 
 from nemo.collections.physicalai.tokenizer.data.augmentors.augmentor import Augmentor
 from nemo.collections.physicalai.tokenizer.data.augmentors.image.cropping import RandomCrop
-from nemo.collections.physicalai.tokenizer.data.augmentors.image.misc import obtain_augmentation_size, obtain_image_size
+from nemo.collections.physicalai.tokenizer.data.augmentors.image.misc import (
+    obtain_augmentation_size,
+    obtain_image_size,
+)
 from nemo.collections.physicalai.tokenizer.data.augmentors.image.resize import ResizeSmallestSideAspectPreserving
-import logging
+
 
 class LossMask(Augmentor):
     def __init__(self, input_keys: list, output_keys: Optional[list] = None, args: Optional[dict] = None) -> None:
@@ -160,6 +164,7 @@ class CropResizeAugmentor(Augmentor):
         data_dict = self.crop_op(data_dict)
 
         return data_dict
+
 
 class TemporalRandomCrop(object):
     """Temporally crop the given frame indices at a random location.

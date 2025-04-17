@@ -114,9 +114,7 @@ class BaseDataset(ABC):
 
         else:
             # Both frame_idxs and view_idxs provided, do sanity check.
-            assert len(frame_idxs) == len(
-                view_idxs
-            ), "Frame and view indices must match."
+            assert len(frame_idxs) == len(view_idxs), "Frame and view indices must match."
 
         return self._read_data(
             video_idx=video_idx,

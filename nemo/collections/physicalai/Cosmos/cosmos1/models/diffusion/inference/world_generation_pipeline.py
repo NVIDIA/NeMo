@@ -1015,7 +1015,9 @@ class DiffusionVideo2WorldMultiViewGenerationPipeline(DiffusionText2WorldMultiVi
         if self.offload_network:
             self._load_network()
 
-        sample = self._run_model(prompt_embedding, condition_latent, negative_prompt_embedding, data_batch, state_shape)
+        sample = self._run_model(
+            prompt_embedding, condition_latent, negative_prompt_embedding, data_batch, state_shape
+        )
 
         if self.offload_network:
             self._offload_network()

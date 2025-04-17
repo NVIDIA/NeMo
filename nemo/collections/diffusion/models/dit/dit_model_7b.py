@@ -14,45 +14,42 @@
 
 # pylint: disable=C0115,C0116,C0301
 
-from torch import Tensor
-from typing import Dict, Literal, Optional, Tuple, List
+import math
+import warnings
+from typing import Dict, List, Literal, Optional, Tuple
+
 import numpy as np
 import torch
+import torch.distributed as dist
 import torch.nn as nn
+from einops import rearrange, repeat
+from einops.layers.torch import Rearrange
+from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.transformer.transformer_block import TransformerBlock
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import make_sharded_tensor_for_checkpoint
+from torch import Tensor
+from torch.autograd import Function
+from torch.distributed import ProcessGroup, all_gather, get_process_group_ranks, get_world_size
 from torchvision import transforms
 
-from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core import InferenceParams, tensor_parallel
-from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.models.common.vision_module.vision_module import VisionModule
-from megatron.core.transformer.transformer_block import TransformerBlock
-
+from nemo.collections.diffusion.models.dit.action_control.action_control_layers import ActionControlTorchMlp
 from nemo.collections.diffusion.models.dit.cosmos_layer_spec import (
     get_dit_adaln_block_with_transformer_engine_spec as DiTLayerWithAdaLNspec,
 )
-from nemo.collections.diffusion.models.dit.action_control.action_control_layers import ActionControlTorchMlp
-from einops import rearrange, repeat
-from einops.layers.torch import Rearrange
-from megatron.core import parallel_state
-from megatron.core.utils import make_sharded_tensor_for_checkpoint
 from nemo.collections.diffusion.sampler.conditioner import DataType
 
-import torch.distributed as dist
-from torch.autograd import Function
-
-from torch.distributed import ProcessGroup, get_process_group_ranks
-import math
-
-from torch import Tensor
-from torch.distributed import ProcessGroup, all_gather, get_process_group_ranks, get_world_size
-import warnings
 
 def gather_along_first_dim(tensor, process_group):
     return AllGather.apply(tensor, process_group)
 
+
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+
 
 class SDXLTimesteps(nn.Module):
     def __init__(self, num_channels: int = 320):
@@ -73,6 +70,7 @@ class SDXLTimesteps(nn.Module):
         emb = torch.cat([cos_emb, sin_emb], dim=-1)
 
         return emb.to(in_dype)
+
 
 class SDXLTimestepEmbedding(nn.Module):
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False):
@@ -179,7 +177,9 @@ class PatchEmbed(nn.Module):
                     n=spatial_patch_size,
                 ),
                 nn.Linear(
-                    in_channels * spatial_patch_size * spatial_patch_size * temporal_patch_size, out_channels, bias=bias
+                    in_channels * spatial_patch_size * spatial_patch_size * temporal_patch_size,
+                    out_channels,
+                    bias=bias,
                 ),
             )
             self.out = nn.Identity()
@@ -325,6 +325,7 @@ class RMSNorm(nn.Module):
         output = self._norm(x.float()).type_as(x)
         return output * self.weight
 
+
 def split_inputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup) -> Tensor:
     """
     Split input tensor along the sequence dimension for checkpoint parallelism.
@@ -448,6 +449,7 @@ def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
     """
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
 
+
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     """
     embed_dim: output dimension for each position
@@ -468,6 +470,7 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
     return emb
 
+
 def normalize(x: torch.Tensor, dim: Optional[List[int]] = None, eps: float = 0) -> torch.Tensor:
     """
     Normalizes the input tensor along specified dimensions such that the average square norm of elements is adjusted.
@@ -485,6 +488,7 @@ def normalize(x: torch.Tensor, dim: Optional[List[int]] = None, eps: float = 0) 
     norm = torch.linalg.vector_norm(x, dim=dim, keepdim=True, dtype=torch.float32)
     norm = torch.add(eps, norm, alpha=np.sqrt(norm.numel() / x.numel()))
     return x / norm.to(x.dtype)
+
 
 class VideoPositionEmb(nn.Module):
     def __init__(self):
@@ -519,6 +523,7 @@ class VideoPositionEmb(nn.Module):
 
     def generate_embeddings(self, B_T_H_W_C: torch.Size, fps=Optional[torch.Tensor]):
         raise NotImplementedError
+
 
 class VideoRopePosition3DEmb(VideoPositionEmb):
     def __init__(
@@ -624,6 +629,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
 
         return rearrange(em_T_H_W_D, "t h w d -> (t h w) 1 1 d").float()
 
+
 class SinCosPosEmbAxis(VideoPositionEmb):
     def __init__(
         self,
@@ -675,6 +681,7 @@ class SinCosPosEmbAxis(VideoPositionEmb):
 
         return normalize(emb, dim=-1, eps=1e-6)
 
+
 class DiTCrossAttentionModel7B(VisionModule):
     """DiT with CrossAttention model.
 
@@ -719,6 +726,7 @@ class DiTCrossAttentionModel7B(VisionModule):
 
         self.config: TransformerConfig = config
         from megatron.core.enums import ModelType
+
         self.model_type = ModelType.encoder_or_decoder
 
         self.transformer_decoder_layer_spec = DiTLayerWithAdaLNspec()
@@ -732,7 +740,7 @@ class DiTCrossAttentionModel7B(VisionModule):
         self.share_embeddings_and_output_weights = False
         self.additional_timestamp_channels = False
         self.concat_padding_mask = True
-        self.pos_emb_cls='rope3d'
+        self.pos_emb_cls = 'rope3d'
         self.use_adaln_lora = True
         self.patch_spatial = 2
         self.patch_temporal = 1
@@ -750,22 +758,28 @@ class DiTCrossAttentionModel7B(VisionModule):
 
         self.t_embedder = nn.Sequential(
             SDXLTimesteps(self.config.hidden_size),
-            SDXLTimestepEmbedding(self.config.hidden_size, self.config.hidden_size, use_adaln_lora=self.use_adaln_lora),
+            SDXLTimestepEmbedding(
+                self.config.hidden_size, self.config.hidden_size, use_adaln_lora=self.use_adaln_lora
+            ),
         )
 
         if self.pre_process:
             self.in_channels = 16
             self.in_channels = self.in_channels + 1 if self.concat_padding_mask else self.in_channels
             self.legacy_patch_emb = False
-            self.x_embedder = PatchEmbed(
-                spatial_patch_size=self.patch_spatial,
-                temporal_patch_size=self.patch_temporal,
-                in_channels=self.in_channels,
-                out_channels=self.config.hidden_size,
-                bias=False,
-                keep_spatio=True,
-                legacy_patch_emb=self.legacy_patch_emb,
-            ).cuda().to(dtype=torch.bfloat16)
+            self.x_embedder = (
+                PatchEmbed(
+                    spatial_patch_size=self.patch_spatial,
+                    temporal_patch_size=self.patch_temporal,
+                    in_channels=self.in_channels,
+                    out_channels=self.config.hidden_size,
+                    bias=False,
+                    keep_spatio=True,
+                    legacy_patch_emb=self.legacy_patch_emb,
+                )
+                .cuda()
+                .to(dtype=torch.bfloat16)
+            )
 
             self.max_img_h = 240
             self.max_img_w = 240
@@ -778,7 +792,6 @@ class DiTCrossAttentionModel7B(VisionModule):
             self.rope_w_extrp_ratio = 1.0
             self.rope_t_extrp_ratio = 2.0
             self.extra_per_block_abs_pos_emb = True
-
 
             self.pos_embedder = VideoRopePosition3DEmb(
                 model_channels=self.config.hidden_size,
@@ -805,14 +818,13 @@ class DiTCrossAttentionModel7B(VisionModule):
                     len_h=self.max_img_h // self.patch_spatial,
                     len_w=self.max_img_w // self.patch_spatial,
                     len_t=self.max_frames // self.patch_temporal,
-                    interpolation=self.pos_emb_interpolation
+                    interpolation=self.pos_emb_interpolation,
                 )
 
             if parallel_state.get_context_parallel_world_size() > 1:
                 cp_group = parallel_state.get_context_parallel_group()
                 self.pos_embedder.enable_context_parallel(cp_group)
                 self.extra_pos_embedder.enable_context_parallel(cp_group)
-
 
         if self.post_process:
             self.final_layer = FinalLayer(
@@ -827,21 +839,18 @@ class DiTCrossAttentionModel7B(VisionModule):
         self.build_additional_timestamp_embedder()
         # self.affline_norm = RMSNorm(self.config.hidden_size)
         import transformer_engine as te
+
         self.affline_norm = te.pytorch.RMSNorm(self.config.hidden_size, eps=1e-6)
         self.logvar = nn.Sequential(
-            FourierFeatures(num_channels=128, normalize=True),
-            torch.nn.Linear(128, 1, bias=False)
+            FourierFeatures(num_channels=128, normalize=True), torch.nn.Linear(128, 1, bias=False)
         )
-
 
     def build_additional_timestamp_embedder(self):
         if self.additional_timestamp_channels:
             self.additional_timestamp_channels = dict(fps=256, h=256, w=256, org_h=256, org_w=256)
             self.additional_timestamp_embedder = nn.ModuleDict()
             for cond_name, cond_emb_channels in self.additional_timestamp_channels.items():
-                print(
-                    f"Building additional timestamp embedder for {cond_name} with {cond_emb_channels} channels"
-                )
+                print(f"Building additional timestamp embedder for {cond_name} with {cond_emb_channels} channels")
                 self.additional_timestamp_embedder[cond_name] = nn.Sequential(
                     SDXLTimesteps(cond_emb_channels),
                     SDXLTimestepEmbedding(cond_emb_channels, cond_emb_channels),
@@ -857,7 +866,10 @@ class DiTCrossAttentionModel7B(VisionModule):
         return embedding
 
     def prepare_embedded_sequence(
-        self, x_B_C_T_H_W: torch.Tensor, fps: Optional[torch.Tensor] = None, padding_mask: Optional[torch.Tensor] = None
+        self,
+        x_B_C_T_H_W: torch.Tensor,
+        fps: Optional[torch.Tensor] = None,
+        padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if self.concat_padding_mask:
             padding_mask = padding_mask.squeeze(0)
@@ -1012,7 +1024,7 @@ class DiTCrossAttentionModel7B(VisionModule):
 
         packed_seq_params = {
             'adaln_lora_B_3D': adaln_lora_B_3D.detach(),
-            'extra_pos_emb': rope_emb_L_1_1_D[1].detach()
+            'extra_pos_emb': rope_emb_L_1_1_D[1].detach(),
         }
 
         x_S_B_D = self.decoder(
@@ -1054,7 +1066,7 @@ class DiTCrossAttentionModel7B(VisionModule):
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[Dict] = None
     ) -> ShardedStateDict:
-        """ Sharded state dict implementation for GPTModel backward-compatibility (removing extra state).
+        """Sharded state dict implementation for GPTModel backward-compatibility (removing extra state).
 
         Args:
             prefix (str): Module name prefix.
@@ -1066,7 +1078,7 @@ class DiTCrossAttentionModel7B(VisionModule):
         """
         sharded_state_dict = super().sharded_state_dict(prefix, sharded_offsets, metadata)
 
-        for (param_name, param) in self.t_embedder.named_parameters():
+        for param_name, param in self.t_embedder.named_parameters():
             weight_key = f'{prefix}t_embedder.{param_name}'
             self.tie_embeddings_weights_state_dict(param, sharded_state_dict, weight_key, weight_key)
 
@@ -1102,8 +1114,10 @@ class DiTCrossAttentionModel7B(VisionModule):
         # Replace the default output layer with a one sharing the weights with the embedding
         del sharded_state_dict[output_layer_weight_key]
         last_stage_word_emb_replica_id = (
-            0, # copy of first stage embedding
-            parallel_state.get_tensor_model_parallel_rank() + parallel_state.get_pipeline_model_parallel_rank() * parallel_state.get_pipeline_model_parallel_world_size(),
+            0,  # copy of first stage embedding
+            parallel_state.get_tensor_model_parallel_rank()
+            + parallel_state.get_pipeline_model_parallel_rank()
+            * parallel_state.get_pipeline_model_parallel_world_size(),
             parallel_state.get_data_parallel_rank(with_context_parallel=True),
         )
 
@@ -1113,6 +1127,7 @@ class DiTCrossAttentionModel7B(VisionModule):
             replica_id=last_stage_word_emb_replica_id,
             allow_shape_mismatch=False,
         )
+
 
 class DiTCrossAttentionExtendModel7B(VisionModule):
     """DiT with CrossAttention model.
@@ -1158,6 +1173,7 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
 
         self.config: TransformerConfig = config
         from megatron.core.enums import ModelType
+
         self.model_type = ModelType.encoder_or_decoder
 
         self.transformer_decoder_layer_spec = DiTLayerWithAdaLNspec()
@@ -1171,7 +1187,7 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
         self.share_embeddings_and_output_weights = False
         self.additional_timestamp_channels = False
         self.concat_padding_mask = True
-        self.pos_emb_cls='rope3d'
+        self.pos_emb_cls = 'rope3d'
         self.use_adaln_lora = True
         self.patch_spatial = 2
         self.patch_temporal = 1
@@ -1189,22 +1205,28 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
 
         self.t_embedder = nn.Sequential(
             SDXLTimesteps(self.config.hidden_size),
-            SDXLTimestepEmbedding(self.config.hidden_size, self.config.hidden_size, use_adaln_lora=self.use_adaln_lora),
+            SDXLTimestepEmbedding(
+                self.config.hidden_size, self.config.hidden_size, use_adaln_lora=self.use_adaln_lora
+            ),
         )
 
         if self.pre_process:
             self.in_channels = 17
             self.in_channels = self.in_channels + 1 if self.concat_padding_mask else self.in_channels
             self.legacy_patch_emb = False
-            self.x_embedder = PatchEmbed(
-                spatial_patch_size=self.patch_spatial,
-                temporal_patch_size=self.patch_temporal,
-                in_channels=self.in_channels,
-                out_channels=self.config.hidden_size,
-                bias=False,
-                keep_spatio=True,
-                legacy_patch_emb=self.legacy_patch_emb,
-            ).cuda().to(dtype=torch.bfloat16)
+            self.x_embedder = (
+                PatchEmbed(
+                    spatial_patch_size=self.patch_spatial,
+                    temporal_patch_size=self.patch_temporal,
+                    in_channels=self.in_channels,
+                    out_channels=self.config.hidden_size,
+                    bias=False,
+                    keep_spatio=True,
+                    legacy_patch_emb=self.legacy_patch_emb,
+                )
+                .cuda()
+                .to(dtype=torch.bfloat16)
+            )
 
             self.max_img_h = 240
             self.max_img_w = 240
@@ -1217,7 +1239,6 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
             self.rope_w_extrp_ratio = 1.0
             self.rope_t_extrp_ratio = 2.0
             self.extra_per_block_abs_pos_emb = True
-
 
             self.pos_embedder = VideoRopePosition3DEmb(
                 model_channels=self.config.hidden_size,
@@ -1244,14 +1265,13 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
                     len_h=self.max_img_h // self.patch_spatial,
                     len_w=self.max_img_w // self.patch_spatial,
                     len_t=self.max_frames // self.patch_temporal,
-                    interpolation=self.pos_emb_interpolation
+                    interpolation=self.pos_emb_interpolation,
                 )
 
             if parallel_state.get_context_parallel_world_size() > 1:
                 cp_group = parallel_state.get_context_parallel_group()
                 self.pos_embedder.enable_context_parallel(cp_group)
                 self.extra_pos_embedder.enable_context_parallel(cp_group)
-
 
         if self.post_process:
             self.final_layer = FinalLayer(
@@ -1266,21 +1286,18 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
         self.build_additional_timestamp_embedder()
         # self.affline_norm = RMSNorm(self.config.hidden_size)
         import transformer_engine as te
+
         self.affline_norm = te.pytorch.RMSNorm(self.config.hidden_size, eps=1e-6)
         self.logvar = nn.Sequential(
-            FourierFeatures(num_channels=128, normalize=True),
-            torch.nn.Linear(128, 1, bias=False)
+            FourierFeatures(num_channels=128, normalize=True), torch.nn.Linear(128, 1, bias=False)
         )
-
 
     def build_additional_timestamp_embedder(self):
         if self.additional_timestamp_channels:
             self.additional_timestamp_channels = dict(fps=256, h=256, w=256, org_h=256, org_w=256)
             self.additional_timestamp_embedder = nn.ModuleDict()
             for cond_name, cond_emb_channels in self.additional_timestamp_channels.items():
-                print(
-                    f"Building additional timestamp embedder for {cond_name} with {cond_emb_channels} channels"
-                )
+                print(f"Building additional timestamp embedder for {cond_name} with {cond_emb_channels} channels")
                 self.additional_timestamp_embedder[cond_name] = nn.Sequential(
                     SDXLTimesteps(cond_emb_channels),
                     SDXLTimestepEmbedding(cond_emb_channels, cond_emb_channels),
@@ -1296,7 +1313,10 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
         return embedding
 
     def prepare_embedded_sequence(
-        self, x_B_C_T_H_W: torch.Tensor, fps: Optional[torch.Tensor] = None, padding_mask: Optional[torch.Tensor] = None
+        self,
+        x_B_C_T_H_W: torch.Tensor,
+        fps: Optional[torch.Tensor] = None,
+        padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if self.concat_padding_mask:
             padding_mask = padding_mask.squeeze(0)
@@ -1397,7 +1417,7 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
         input_list = [x, condition_video_input_mask]
         if condition_video_pose is not None:
             if condition_video_pose.shape[2] > T:
-                condition_video_pose = condition_video_pose[: , :, :T, :, :].contiguous()
+                condition_video_pose = condition_video_pose[:, :, :T, :, :].contiguous()
             input_list.append(condition_video_pose)
         x = torch.cat(
             input_list,
@@ -1464,7 +1484,7 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
 
         packed_seq_params = {
             'adaln_lora_B_3D': adaln_lora_B_3D.detach(),
-            'extra_pos_emb': rope_emb_L_1_1_D[1].detach()
+            'extra_pos_emb': rope_emb_L_1_1_D[1].detach(),
         }
         for idx, block in enumerate(self.decoder.layers):
             name = f"block{idx}"
@@ -1511,7 +1531,7 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[Dict] = None
     ) -> ShardedStateDict:
-        """ Sharded state dict implementation for GPTModel backward-compatibility (removing extra state).
+        """Sharded state dict implementation for GPTModel backward-compatibility (removing extra state).
 
         Args:
             prefix (str): Module name prefix.
@@ -1528,13 +1548,13 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
             if 'camera_ctrl' in self.config.model_name:
                 sharded_state_dict['module.x_embedder.proj.1.weight'].allow_shape_mismatch = True
 
-        for (param_name, param) in self.t_embedder.named_parameters():
+        for param_name, param in self.t_embedder.named_parameters():
             weight_key = f'{prefix}t_embedder.{param_name}'
             self.tie_embeddings_weights_state_dict(param, sharded_state_dict, weight_key, weight_key)
 
         if self.additional_timestamp_channels:
             for cond_name, embedder in self.additional_timestamp_embedder.items():
-                for (param_name, param) in embedder.named_parameters():
+                for param_name, param in embedder.named_parameters():
                     weight_key = f'{prefix}additional_t_embedder_{cond_name}.{param_name}'
                     self.tie_embeddings_weights_state_dict(param, sharded_state_dict, weight_key, weight_key)
 
@@ -1565,8 +1585,10 @@ class DiTCrossAttentionExtendModel7B(VisionModule):
         # Replace the default output layer with a one sharing the weights with the embedding
         del sharded_state_dict[output_layer_weight_key]
         last_stage_word_emb_replica_id = (
-            0, # copy of first stage embedding
-            parallel_state.get_tensor_model_parallel_rank() + parallel_state.get_pipeline_model_parallel_rank() * parallel_state.get_pipeline_model_parallel_world_size(),
+            0,  # copy of first stage embedding
+            parallel_state.get_tensor_model_parallel_rank()
+            + parallel_state.get_pipeline_model_parallel_rank()
+            * parallel_state.get_pipeline_model_parallel_world_size(),
             parallel_state.get_data_parallel_rank(with_context_parallel=True),
         )
 
@@ -1603,8 +1625,15 @@ class DiTCrossAttentionActionExtendModel7B(DiTCrossAttentionExtendModel7B):
             seq_len_interpolation_factor,
         )
 
-        self.action_mlp = ActionControlTorchMlp(self.config.action_emb_dim, hidden_features=config.hidden_size, out_features=config.hidden_size)
-        self.action_mlp_3d = ActionControlTorchMlp(self.config.action_emb_dim, hidden_features=config.hidden_size, out_features=config.hidden_size, action_3d=True)
+        self.action_mlp = ActionControlTorchMlp(
+            self.config.action_emb_dim, hidden_features=config.hidden_size, out_features=config.hidden_size
+        )
+        self.action_mlp_3d = ActionControlTorchMlp(
+            self.config.action_emb_dim,
+            hidden_features=config.hidden_size,
+            out_features=config.hidden_size,
+            action_3d=True,
+        )
 
     def forward(
         self,
@@ -1713,7 +1742,7 @@ class DiTCrossAttentionActionExtendModel7B(DiTCrossAttentionExtendModel7B):
 
         packed_seq_params = {
             'adaln_lora_B_3D': adaln_lora_B_3D.detach(),
-            'extra_pos_emb': rope_emb_L_1_1_D[1].detach()
+            'extra_pos_emb': rope_emb_L_1_1_D[1].detach(),
         }
 
         # Run the TransformerBlock cross-attention decoder. attention_mask is re-purposed to pass in the affine embedding.
@@ -1739,13 +1768,14 @@ class DiTCrossAttentionActionExtendModel7B(DiTCrossAttentionExtendModel7B):
         # Returns (B, T, H, W, D) video prediction.
         return x_B_T_H_W_D
 
+
 class DiTControl7B(DiTCrossAttentionExtendModel7B):
     """
     DiTControlNet builds on top of DiTCrossAttentionExtendModel7B and mirrors the structure of repo1's ControlNet.
-    
+
     It creates a control branch (self.ctrl_net) that processes an encoded control input ("hint") and then
     uses a condition indicator mask to blend the control branch output with the original input.
-    
+
     The methods get_data_and_condition and encode_latent are assumed to be provided externally.
     """
 
@@ -1783,7 +1813,6 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
         blk = nn.Linear(hint_nf[-1], model_channels)
         self.input_hint_block.append(blk)
 
-
     def build_hint_patch_embed(self):
         concat_padding_mask, in_channels, patch_spatial, patch_temporal, model_channels = (
             self.concat_padding_mask,
@@ -1802,13 +1831,21 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
             keep_spatio=True,
             legacy_patch_emb=False,
         )
-    
+
     def prepare_hint_embedded_sequence(
-        self, x_B_C_T_H_W: torch.Tensor, fps: Optional[torch.Tensor] = None, padding_mask: Optional[torch.Tensor] = None
+        self,
+        x_B_C_T_H_W: torch.Tensor,
+        fps: Optional[torch.Tensor] = None,
+        padding_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         if self.concat_padding_mask:
-            padding_mask = transforms.functional.resize(padding_mask, list(x_B_C_T_H_W.shape[-2:]), interpolation=transforms.InterpolationMode.NEAREST)
-            x_B_C_T_H_W = torch.cat([x_B_C_T_H_W, padding_mask.unsqueeze(1).repeat(x_B_C_T_H_W.shape[0], 1, x_B_C_T_H_W.shape[2], 1, 1)], dim=1)
+            padding_mask = transforms.functional.resize(
+                padding_mask, list(x_B_C_T_H_W.shape[-2:]), interpolation=transforms.InterpolationMode.NEAREST
+            )
+            x_B_C_T_H_W = torch.cat(
+                [x_B_C_T_H_W, padding_mask.unsqueeze(1).repeat(x_B_C_T_H_W.shape[0], 1, x_B_C_T_H_W.shape[2], 1, 1)],
+                dim=1,
+            )
 
         x_B_T_H_W_D = self.x_embedder2(x_B_C_T_H_W)
 
@@ -1828,7 +1865,9 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
         padding_mask: Optional[torch.Tensor] = None,
         data_type: Optional[DataType] = DataType.VIDEO,
     ) -> torch.Tensor:
-        assert hint.size(1) <= self.hint_channels, f"Expected hint channels <= {self.hint_channels}, got {hint.size(1)}"
+        assert (
+            hint.size(1) <= self.hint_channels
+        ), f"Expected hint channels <= {self.hint_channels}, got {hint.size(1)}"
         if hint.size(1) < self.hint_channels:
             padding_shape = list(hint.shape)
             padding_shape[1] = self.hint_channels - hint.size(1)
@@ -1912,7 +1951,7 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
                 **kwargs,
             )
         guided_hints = self.encode_hint(hint, fps=fps, padding_mask=padding_mask, data_type=data_type)
-        
+
         guided_hints = torch.chunk(guided_hints, hint.shape[0] // x.shape[0], dim=3)
         assert isinstance(
             data_type, DataType
@@ -1930,9 +1969,7 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
             x = torch.cat([x, torch.zeros((B, padding_channels, T, H, W), dtype=x.dtype, device=x.device)], dim=1)
         else:
             assert x.shape[1] == self.in_channels, f"Expected {self.in_channels} channels, got {x.shape[1]}"
-        x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(
-            x, fps=fps, padding_mask=padding_mask
-        )
+        x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask)
         # logging affline scale information
         affline_scale_log_info = {}
 
@@ -1952,7 +1989,6 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
         self.affline_emb = affline_emb_B_D
         self.crossattn_emb = crossattn_emb
         self.crossattn_mask = crossattn_mask
-
 
         # if self.use_cross_attn_mask:
         #     crossattn_mask = crossattn_mask[:, None, None, :].to(dtype=torch.bool)  # [B, 1, 1, length]
@@ -1992,7 +2028,7 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
 
         packed_seq_params = {
             'adaln_lora_B_3D': adaln_lora_B_3D.detach(),
-            'extra_pos_emb': rope_emb_L_1_1_D[1].detach()
+            'extra_pos_emb': rope_emb_L_1_1_D[1].detach(),
         }
         for i, guided_hint in enumerate(guided_hints):
             for idx, block in enumerate(self.decoder.layers):
@@ -2022,14 +2058,15 @@ class DiTControl7B(DiTCrossAttentionExtendModel7B):
         output = base_model.module.module.module.forward(
             x=x_input,
             x_ctrl=outs,
-            timesteps=timesteps, 
+            timesteps=timesteps,
             crossattn_emb=crossattn_emb_input,
             inference_params=inference_params,
             packed_seq_params=packed_seq_params,
             pos_ids=pos_ids,
             condition_video_input_mask=condition_video_input_mask_input,
-            **kwargs
+            **kwargs,
         )
         return output
+
 
 # flake8: noqa: E741

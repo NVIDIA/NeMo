@@ -19,13 +19,12 @@ from dataclasses import dataclass
 from typing import Callable, Dict, Optional, Tuple
 
 import torch
-from torch import Tensor
-
 from cosmos1.models.diffusion.conditioner import BaseVideoCondition
 from cosmos1.models.diffusion.diffusion.functional.batch_ops import batch_mul
 from cosmos1.models.diffusion.diffusion.modules.res_sampler import COMMON_SOLVER_OPTIONS
 from cosmos1.models.diffusion.model.model_t2w import DiffusionT2WModel as VideoDiffusionModel
 from cosmos1.utils.lazy_config import instantiate as lazy_instantiate
+from torch import Tensor
 
 
 @dataclass

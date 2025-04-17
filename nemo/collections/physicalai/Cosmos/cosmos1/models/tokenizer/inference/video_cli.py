@@ -41,8 +41,6 @@ from argparse import ArgumentParser, Namespace
 from typing import Any
 
 import numpy as np
-from loguru import logger as logging
-
 from cosmos1.models.tokenizer.inference.utils import (
     get_filepaths,
     get_output_filepath,
@@ -52,6 +50,7 @@ from cosmos1.models.tokenizer.inference.utils import (
 )
 from cosmos1.models.tokenizer.inference.video_lib import CausalVideoTokenizer
 from cosmos1.models.tokenizer.networks import TokenizerConfigs
+from loguru import logger as logging
 
 
 def _parse_args() -> tuple[Namespace, dict[str, Any]]:

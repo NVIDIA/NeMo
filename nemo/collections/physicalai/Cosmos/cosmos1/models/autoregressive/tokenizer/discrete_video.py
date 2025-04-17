@@ -18,9 +18,8 @@
 from typing import Optional
 
 import torch
-from einops import rearrange
-
 from cosmos1.models.autoregressive.tokenizer.quantizers import FSQuantizer
+from einops import rearrange
 
 # Make sure jit model output consistenly during consecutive calls
 # Check here: https://github.com/pytorch/pytorch/issues/74534

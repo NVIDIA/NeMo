@@ -16,12 +16,11 @@ import importlib
 import logging
 
 import numpy as np
+from dataverse.datasets.base import BaseDataset
 from omegaconf.dictconfig import DictConfig
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
-
-from dataverse.datasets.base import BaseDataset
 
 try:
     import torch
@@ -30,18 +29,14 @@ except ImportError:
 
 logger = logging.getLogger("dataverse")
 logger.setLevel(logging.INFO)
-logger.addHandler(
-    RichHandler(markup=True, rich_tracebacks=True, log_time_format="[%m-%d %H:%M:%S]")
-)
+logger.addHandler(RichHandler(markup=True, rich_tracebacks=True, log_time_format="[%m-%d %H:%M:%S]"))
 
 
 def dataset_from_config(config: DictConfig, **additional_params) -> BaseDataset:
     """
     Instantiates a dataset from a config.
     """
-    assert (
-        "target" in config
-    ), "Expected key `target` to be the class name under dataverse.datasets."
+    assert "target" in config, "Expected key `target` to be the class name under dataverse.datasets."
 
     target = config.target
     params = config.get("params", dict())
@@ -50,18 +45,14 @@ def dataset_from_config(config: DictConfig, **additional_params) -> BaseDataset:
     module_name, cls_name = target.rsplit(".", 1)
 
     try:
-        dataset_module = importlib.import_module(
-            f"dataverse.datasets.{module_name}", package=None
-        )
+        dataset_module = importlib.import_module(f"dataverse.datasets.{module_name}", package=None)
     except ImportError:
         raise ImportError(
             f"Failed to import module due to the following reasons, "
             f"which can be potentially resolved by: `pip install dataverse[{module_name}]`."
         )
 
-    assert hasattr(
-        dataset_module, cls_name
-    ), f"Class {cls_name} not found in module {module_name}."
+    assert hasattr(dataset_module, cls_name), f"Class {cls_name} not found in module {module_name}."
     dataset_inst = getattr(dataset_module, cls_name)(**params)
 
     assert isinstance(dataset_inst, BaseDataset), f"{cls_name} is not a BaseDataset."
@@ -91,13 +82,7 @@ def print_rich_dict(data_dict):
 
     # Iterate through the dictionary
     for key, value in data_dict.items():
-        value_type = (
-            str(type(value))
-            .lstrip("<class ")
-            .rstrip(">")
-            .replace("torch.", "")
-            .strip("'")
-        )
+        value_type = str(type(value)).lstrip("<class ").rstrip(">").replace("torch.", "").strip("'")
         device = "-"
         mean = min_val = max_val = "-"
 

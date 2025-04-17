@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from config import ColorConfig, PerceptualConfig, FlowConfig, VideoLoss
-from loss import ColorLoss, PerceptualLoss, FlowLoss, TokenizerLoss
 import torch
+from config import ColorConfig, FlowConfig, PerceptualConfig, VideoLoss
+from loss import ColorLoss, FlowLoss, PerceptualLoss, TokenizerLoss
 
 VIDEO_KEY = "video"
 RECON_KEY = "reconstructions"

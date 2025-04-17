@@ -26,21 +26,17 @@ from pytorch_lightning.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_taskencoder import BasicDiffusionTaskEncoder
-from nemo.collections.diffusion.datamodule import (
-    DiTDataModule,
-    DiTActionDataModule,
-    DiTCameraCtrlDataModule,
-)
+from nemo.collections.diffusion.datamodule import DiTActionDataModule, DiTCameraCtrlDataModule, DiTDataModule
 from nemo.collections.diffusion.models.model import (
     DiT7BConfig,
-    DiTLlama5BConfig,
-    DiTLlama30BConfig,
-    DiTConfig,
-    DiTLConfig,
-    DiTModel,
-    DiTXLConfig,
     DiT7BVideo2WorldActionConfig,
     DiT14BVideo2WorldActionConfig,
+    DiTConfig,
+    DiTLConfig,
+    DiTLlama5BConfig,
+    DiTLlama30BConfig,
+    DiTModel,
+    DiTXLConfig,
 )
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
@@ -76,11 +72,7 @@ def videofolder_actiondatamodule() -> pl.LightningDataModule:
 @run.cli.factory
 @run.autoconvert
 def videofolder_cameractrldatamodule() -> pl.LightningDataModule:
-    data_module = DiTCameraCtrlDataModule(
-        seq_length=21760,
-        micro_batch_size=1,
-        global_batch_size=1,
-        num_val_samples=1)
+    data_module = DiTCameraCtrlDataModule(seq_length=21760, micro_batch_size=1, global_batch_size=1, num_val_samples=1)
     return data_module
 
 

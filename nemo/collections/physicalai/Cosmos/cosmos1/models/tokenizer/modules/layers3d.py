@@ -31,8 +31,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from loguru import logger as logging
-
 from cosmos1.models.tokenizer.modules.patching import Patcher, Patcher3D, UnPatcher, UnPatcher3D
 from cosmos1.models.tokenizer.modules.utils import (
     CausalNormalize,
@@ -45,6 +43,7 @@ from cosmos1.models.tokenizer.modules.utils import (
     space2batch,
     time2batch,
 )
+from loguru import logger as logging
 
 _LEGACY_NUM_GROUPS = 32
 

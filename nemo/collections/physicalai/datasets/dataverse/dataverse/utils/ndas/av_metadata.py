@@ -32,10 +32,7 @@ def get_egopose_interp(egoposes):
     first egopose. Then we return an interpolator for the ego pose
     in that frame.
     """
-    quats = [
-        Quaternion(x=row["qx"], y=row["qy"], z=row["qz"], w=row["qw"])
-        for row in egoposes
-    ]
+    quats = [Quaternion(x=row["qx"], y=row["qy"], z=row["qz"], w=row["qw"]) for row in egoposes]
     xyzs = np.array([[row["x"], row["y"], row["z"]] for row in egoposes])
 
     # choose the first timestep to define the global coordinate frame
@@ -53,9 +50,7 @@ def get_egopose_interp(egoposes):
     clipts = np.array([(row["t"] - cliptbase) * 1e-6 for row in egoposes])
 
     # ready for the interpolator
-    states = [
-        {"quat": quat, "xyz": xyz, "t": t} for quat, xyz, t in zip(quats, xyzs, clipts)
-    ]
+    states = [{"quat": quat, "xyz": xyz, "t": t} for quat, xyz, t in zip(quats, xyzs, clipts)]
     interp = get_6dof_interpolator(states)
 
     return interp, cliptbase
@@ -148,9 +143,7 @@ def steady_quaternion_direction(quats):
 
 
 def get_obstacle_interp(og_obstacles, egopose_lerp, cliptbase):
-    tvals, obstacles = local_time_filter(
-        og_obstacles, egopose_lerp["tmin"], egopose_lerp["tmax"], cliptbase
-    )
+    tvals, obstacles = local_time_filter(og_obstacles, egopose_lerp["tmin"], egopose_lerp["tmax"], cliptbase)
 
     # evaluate ego pose at the obstacle timestamps
     egoposes = egopose_lerp["interp"](tvals)
@@ -189,9 +182,7 @@ def local_time_filter(obstacles, tmin, tmax, cliptbase):
     we have the ego pose
     """
     # convert obstacle timestamps to the clip time frame
-    tvals = np.array(
-        [(row["t"] - cliptbase) * 1e-6 for row in obstacles], dtype=np.float32
-    )
+    tvals = np.array([(row["t"] - cliptbase) * 1e-6 for row in obstacles], dtype=np.float32)
 
     # filter out any obstacles outside of the range when we have ego pose
     obsmask = np.logical_and(tmin <= tvals, tvals <= tmax)
@@ -282,9 +273,7 @@ def get_clip_to_tar(datapath):
         info = json.load(reader)
 
     # id -> (tar file location, key for this clip in that tar file)
-    parsed_info = {
-        key2id(key): (os.path.join(datapath, val), key) for key, val in info.items()
-    }
+    parsed_info = {key2id(key): (os.path.join(datapath, val), key) for key, val in info.items()}
 
     # shouldn't lose any clips assuming the id is unique
     assert len(parsed_info) == len(info), f"{len(parsed_info)} {len(info)}"
@@ -343,9 +332,7 @@ def parse_obstacle_data(info, check_sensor):
                 "x": label["shape3d"]["cuboid3d"]["center"]["x"],
                 "y": label["shape3d"]["cuboid3d"]["center"]["y"],
                 "z": label["shape3d"]["cuboid3d"]["center"]["z"],
-                "theta": np.arctan2(
-                    atts["direction"]["vec2"]["y"], atts["direction"]["vec2"]["x"]
-                ),
+                "theta": np.arctan2(atts["direction"]["vec2"]["y"], atts["direction"]["vec2"]["x"]),
                 "le": label["shape3d"]["cuboid3d"]["dimensions"]["x"],
                 "wi": label["shape3d"]["cuboid3d"]["dimensions"]["y"],
                 "he": label["shape3d"]["cuboid3d"]["dimensions"]["z"],
@@ -356,9 +343,7 @@ def parse_obstacle_data(info, check_sensor):
         )
 
         # make sure sensor coordinate frame is the same as ego pose
-        assert (
-            row["sensor_name"] == check_sensor
-        ), f'{row["sensor_name"]} {check_sensor}'
+        assert row["sensor_name"] == check_sensor, f'{row["sensor_name"]} {check_sensor}'
 
     return processed
 
@@ -369,9 +354,7 @@ def parse_egopose_data(egopose_info):
     parsed = []
     sensor_names = []
     for row in egopose_info:
-        assert (
-            row["coordinate_frame"] == row["sensor_name"]
-        ), f"{row['coordinate_frame']} {row['sensor_name']}"
+        assert row["coordinate_frame"] == row["sensor_name"], f"{row['coordinate_frame']} {row['sensor_name']}"
         sensor_names.append(row["coordinate_frame"])
         parsed.append(
             {
@@ -435,10 +418,7 @@ def adjust_calib_name(name):
 
 def parse_calibration_data(calibration):
     # sensor calibration dictionary
-    rig_info = {
-        adjust_calib_name(sensor["name"]): sensor
-        for sensor in calibration["rig"]["sensors"]
-    }
+    rig_info = {adjust_calib_name(sensor["name"]): sensor for sensor in calibration["rig"]["sensors"]}
     # make sure no overwriting when adjusting the sensor name
     assert len(rig_info) == len(calibration["rig"]["sensors"])
 
@@ -455,9 +435,7 @@ def parse_calibration_data(calibration):
     return rig_info, egoparams
 
 
-def extract_obstacle_and_epomotion_from_tar(
-    sample_key, camera_keys, clip2tar, load_obstacle=True
-):
+def extract_obstacle_and_epomotion_from_tar(sample_key, camera_keys, clip2tar, load_obstacle=True):
     """Extract egomotions from tar, used by AV1.1"""
 
     metadata = {}
@@ -481,9 +459,7 @@ def extract_obstacle_and_epomotion_from_tar(
             if load_obstacle:
                 obstacle_file = tarreader.extractfile(f"{tarkey}.obstacle_3d.npz")
                 obstacle_info = np.load(obstacle_file, allow_pickle=True)
-                obstacle_parsed = parse_obstacle_data(
-                    obstacle_info, check_sensor=sensor_name
-                )
+                obstacle_parsed = parse_obstacle_data(obstacle_info, check_sensor=sensor_name)
                 camera_metadata["obstacles"] = obstacle_parsed
 
             metadata[camera_name] = camera_metadata

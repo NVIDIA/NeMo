@@ -16,16 +16,15 @@
 # pylint: disable=C0115,C0116,C0301
 
 from typing import Any, Dict, List, Optional, Union
-import PIL
 
 import numpy as np
+import PIL
 import torch
 import transformers
-from transformers import AutoImageProcessor
-from transformers.image_utils import ImageInput, is_valid_image, load_image
-
 from cosmos1.models.autoregressive.tokenizer.text_tokenizer import TextTokenizer
 from cosmos1.utils import log
+from transformers import AutoImageProcessor
+from transformers.image_utils import ImageInput, is_valid_image, load_image
 
 # Configuration for different vision-language models
 IMAGE_CONFIGS = {
@@ -164,7 +163,9 @@ class ImageTextTokenizer(TextTokenizer):
             # Load and process images
             images = [load_image_list(sample) for sample in images]
             image_kwargs = image_kwargs or {}
-            image_inputs = self.image_processor(images, patch_size=self.patch_size, return_tensors="np", **image_kwargs)
+            image_inputs = self.image_processor(
+                images, patch_size=self.patch_size, return_tensors="np", **image_kwargs
+            )
 
             # Validate image inputs
             assert "pixel_values" in image_inputs, "pixel_values not found in image_inputs"

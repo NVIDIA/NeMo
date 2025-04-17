@@ -19,11 +19,10 @@
 from collections import OrderedDict, namedtuple
 
 import torch
-from loguru import logger as logging
-from torch import nn
-
 from cosmos1.models.tokenizer.modules import DecoderType, DiscreteQuantizer, EncoderType
 from cosmos1.models.tokenizer.modules.quantizers import InvQuantizerJit
+from loguru import logger as logging
+from torch import nn
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant_info"])
 

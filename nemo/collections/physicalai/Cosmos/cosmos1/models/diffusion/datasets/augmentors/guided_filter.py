@@ -297,4 +297,5 @@ class GuidedFilterColor:
 
         return q
 
+
 # flake8: noqa: E741

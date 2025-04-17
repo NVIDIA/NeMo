@@ -26,14 +26,13 @@ import argparse
 import os
 from math import ceil
 
-from PIL import Image
-
 from cosmos1.models.autoregressive.configs.base.model_config import create_vision_language_model_config
 from cosmos1.models.autoregressive.model import AutoRegressiveModel
 from cosmos1.models.diffusion.prompt_upsampler.inference import chat_completion
 from cosmos1.models.guardrail.common import presets as guardrail_presets
 from cosmos1.utils import log
 from cosmos1.utils.io import load_from_fileobj
+from PIL import Image
 
 
 def create_vlm_prompt_upsampler(

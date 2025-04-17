@@ -15,24 +15,24 @@
 # pylint: disable=C0115,C0116,C0301
 
 import gc
+import logging
 import os
 
 import numpy as np
 import torch
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-import torch
-import logging
 import torch.distributed as dist
+import torchvision.transforms as transforms
+from einops import rearrange
+from torch.utils.data import DataLoader
 
-from nemo.collections.physicalai.datasets.dataverse.dataverse.datasets.base import DataField
 import nemo.collections.physicalai.datasets.dataverse.dataverse.utils.alpamayo.rig_decoder as rig_decoder
 import nemo.collections.physicalai.datasets.dataverse.dataverse.utils.alpamayo.transformation as transformation
-
+from nemo.collections.physicalai.datasets.dataverse.dataverse.datasets.base import DataField
 from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.config_dataverse import DATAVERSE_CONFIG
-from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.dataloader_utils import dict_collation_fn
+from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.dataloader_utils import (
+    dict_collation_fn,
+)
 from nemo.collections.physicalai.datasets.dataverse_dataset.instantiate_utils import instantiate_from_config
-from einops import rearrange
 
 try:
     from megatron.core import parallel_state
@@ -79,7 +79,7 @@ class InfiniteDataVerse:
         load_trajectory=False,
         load_frame_repeat=False,
         fps=14,
-        load_video=False
+        load_video=False,
     ):
         self.dataset = instantiate_from_config(dataset_cfg)
         self.n_data = self.dataset.num_videos()
@@ -116,14 +116,16 @@ class InfiniteDataVerse:
             if self.sample_size != []:
                 self.crop_size = self.sample_size
             else:
-                self.crop_size = [512,1024]
+                self.crop_size = [512, 1024]
         else:
             self.crop_size = crop_size
 
         if self.sample_size != []:
             self.img_transform = transforms.Compose(
                 [
-                    transforms.Resize(sample_size, interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
+                    transforms.Resize(
+                        sample_size, interpolation=transforms.InterpolationMode.BILINEAR, antialias=True
+                    ),
                     transforms.CenterCrop(self.crop_size),
                 ]
             )
@@ -133,9 +135,7 @@ class InfiniteDataVerse:
         self.camera_t5_embedding = {}
         for camera in self.dataset.camkeys:
             self.camera_t5_embedding[camera] = torch.load(
-                os.path.join(
-                    cache_dir, "multicamera", f"video_camera_embeddings_v0_{camera}.pt"
-                )
+                os.path.join(cache_dir, "multicamera", f"video_camera_embeddings_v0_{camera}.pt")
             )
 
         self.camera_text_caption = {
@@ -145,7 +145,6 @@ class InfiniteDataVerse:
             "camera_cross_right_120fov": "The video is captured from a camera mounted on a car. The camera is facing to the right.",
             "camera_rear_right_70fov": "The video is captured from a camera mounted on a car. The camera is facing the rear right side.",
             "camera_rear_left_70fov": "The video is captured from a camera mounted on a car. The camera is facing the rear left side.",
-
         }
 
     def __len__(self):
@@ -167,7 +166,7 @@ class InfiniteDataVerse:
         xyz = rearrange(xyz, '(t c) -> t c', c=3)
         rig_info = rig_decoder.decode_rig_info(rig_info)
         camera_extrinsics = torch.from_numpy(transformation.sensor_to_rig(rig_info[cam_name]))
-        
+
         rig_to_camera = np.zeros_like(camera_extrinsics)
         rig_to_camera[:3, :3] = camera_extrinsics[:3, :3].T
         rig_to_camera[:3, 3] = -camera_extrinsics[:3, :3].T @ camera_extrinsics[:3, 3]
@@ -323,7 +322,6 @@ class InfiniteDataVerse:
             trajectory = rearrange(data[DataField.TRAJECTORY], '(t c) -> t c', c=3)
             trajectory = trajectory / torch.FloatTensor([[10.0, 4.0, 1.0]])
             sample["trajectory"] = rearrange(trajectory, 't c -> (t c)')
-
 
         gc.collect()
         return sample

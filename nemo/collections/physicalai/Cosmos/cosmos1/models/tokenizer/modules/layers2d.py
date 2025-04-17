@@ -33,10 +33,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from loguru import logger as logging
-
 from cosmos1.models.tokenizer.modules.patching import Patcher, UnPatcher
 from cosmos1.models.tokenizer.modules.utils import Normalize, nonlinearity
+from loguru import logger as logging
 
 
 class Upsample(nn.Module):

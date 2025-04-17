@@ -21,8 +21,6 @@ from typing import Any
 
 import numpy as np
 import torch
-from tqdm import tqdm
-
 from cosmos1.models.tokenizer.inference.utils import (
     load_decoder_model,
     load_encoder_model,
@@ -32,6 +30,7 @@ from cosmos1.models.tokenizer.inference.utils import (
     tensor2numpy,
     unpad_video_batch,
 )
+from tqdm import tqdm
 
 
 class CausalVideoTokenizer(torch.nn.Module):

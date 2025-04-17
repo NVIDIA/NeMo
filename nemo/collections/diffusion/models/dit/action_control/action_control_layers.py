@@ -16,14 +16,20 @@
 
 import torch.nn as nn
 
+
 class ActionControlTorchMlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0, action_3d=False):
+    def __init__(
+        self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0, action_3d=False
+    ):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
         self.fc1 = nn.Linear(in_features, hidden_features if not action_3d else hidden_features * 4)
         self.activation = act_layer()
-        self.fc2 = nn.Linear(hidden_features if not action_3d else hidden_features * 4, out_features if not action_3d else out_features * 3)
+        self.fc2 = nn.Linear(
+            hidden_features if not action_3d else hidden_features * 4,
+            out_features if not action_3d else out_features * 3,
+        )
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):

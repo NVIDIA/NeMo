@@ -19,10 +19,9 @@ import math
 from typing import Optional, Union
 
 import torch
-from torch import nn
-
 from cosmos1.models.autoregressive.modules.embedding import RotaryPositionEmbedding
 from cosmos1.models.autoregressive.modules.normalization import create_norm
+from torch import nn
 
 
 class Attention(nn.Module):

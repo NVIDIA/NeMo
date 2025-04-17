@@ -73,7 +73,8 @@ def get_machine_format() -> str:
             rank = dist.get_rank()
             world_size = dist.get_world_size()
             machine_format = (
-                f"<red>[Node{node_id:<3}/{num_nodes:<3}][RANK{rank:<5}/{world_size:<5}]" + "[{process.name:<8}]</red>| "
+                f"<red>[Node{node_id:<3}/{num_nodes:<3}][RANK{rank:<5}/{world_size:<5}]"
+                + "[{process.name:<8}]</red>| "
             )
     return machine_format
 

@@ -14,14 +14,13 @@
 
 from typing import Final
 
+import dataverse.utils.alpamayo.ndas_camera_model as ndas_camera_model
+import dataverse.utils.alpamayo.rig_decoder as rig_decoder
+import dataverse.utils.alpamayo.transformation as transformation
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from matplotlib.axes import Axes
-
-import dataverse.utils.alpamayo.ndas_camera_model as ndas_camera_model
-import dataverse.utils.alpamayo.rig_decoder as rig_decoder
-import dataverse.utils.alpamayo.transformation as transformation
 
 # Used for different predicted trajectories
 # It comes from [rgb_to_hex(k) for k in plotly.colors.qualitative.Set3]
@@ -109,9 +108,7 @@ def render_image_with_traj(
 
     camera_image_np = camera_image.permute(1, 2, 0).numpy()
 
-    camera_extrinsics: torch.Tensor = torch.from_numpy(
-        transformation.sensor_to_rig(info[cam_name])
-    )
+    camera_extrinsics: torch.Tensor = torch.from_numpy(transformation.sensor_to_rig(info[cam_name]))
     camera_intrinsic = ndas_camera_model.FThetaCamera.from_dict(info[cam_name])
 
     maglev_conf = transformation.get_video_parameters([cam_name])

@@ -15,37 +15,48 @@
 # pylint: disable=C0115,C0116,C0301
 
 import logging
-from typing import Any, Dict, Callable, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import attrs
-from nemo.collections.diffusion.sampler.conditioner import AbstractEmbModel, DataType, TrainingOnlyEmbModel, VideoConditioner, Edify4Condition
-from nemo.collections.diffusion.sampler.conditioner_configs import FPSConfig, ImageSizeConfig, NumFramesConfig, PaddingMaskConfig, TextConfig
-from nemo.collections.diffusion.sampler.cosmos.cosmos_diffusion_pipeline import CosmosDiffusionPipeline
-from nemo.collections.diffusion.sampler.res.res_sampler import COMMON_SOLVER_OPTIONS
-from torch import Tensor
-
-import torch
 import einops
-from dataclasses import dataclass
+import numpy as np
+import torch
+import wandb
 from einops import rearrange, repeat
-from megatron.core import parallel_state
+from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core import InferenceParams, tensor_parallel
 from megatron.core.packed_seq_params import PackedSeqParams
-from nemo.collections.diffusion.models.dit.dit_model_7b import (
-    DiTCrossAttentionModel7B,
-    PatchEmbed,
-    get_1d_sincos_pos_embed_from_grid,
-    split_inputs_cp,
-    cat_outputs_cp
-)
-from nemo.collections.diffusion.models.model import DiT7BConfig, DiTModel, dynamic_import
-from torch import nn
+from torch import Tensor, nn
 from torch.distributed import ProcessGroup, get_process_group_ranks
 from torchvision import transforms
 from typing_extensions import override
-import numpy as np
-import wandb
+
+from nemo.collections.diffusion.models.dit.dit_model_7b import (
+    DiTCrossAttentionModel7B,
+    PatchEmbed,
+    cat_outputs_cp,
+    get_1d_sincos_pos_embed_from_grid,
+    split_inputs_cp,
+)
+from nemo.collections.diffusion.models.model import DiT7BConfig, DiTModel, dynamic_import
+from nemo.collections.diffusion.sampler.conditioner import (
+    AbstractEmbModel,
+    DataType,
+    Edify4Condition,
+    TrainingOnlyEmbModel,
+    VideoConditioner,
+)
+from nemo.collections.diffusion.sampler.conditioner_configs import (
+    FPSConfig,
+    ImageSizeConfig,
+    NumFramesConfig,
+    PaddingMaskConfig,
+    TextConfig,
+)
+from nemo.collections.diffusion.sampler.cosmos.cosmos_diffusion_pipeline import CosmosDiffusionPipeline
+from nemo.collections.diffusion.sampler.res.res_sampler import COMMON_SOLVER_OPTIONS
+
 
 class MultiCameraVideoPositionEmb(nn.Module):
     def __init__(
@@ -351,7 +362,7 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
         add_repeat_frame_embedding=True,
         concat_camera_embedding: bool = True,
         concat_traj_embedding=False,
-        in_channels = 16,
+        in_channels=16,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -384,7 +395,7 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
             .to(dtype=torch.bfloat16)
         )
 
-        if self.extra_per_block_abs_pos_emb:    
+        if self.extra_per_block_abs_pos_emb:
             self.extra_pos_embedder = MultiCameraSinCosPosEmbAxis(
                 h_extrapolation_ratio=1,
                 w_extrapolation_ratio=1,
@@ -393,7 +404,7 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
                 len_h=self.max_img_h // self.patch_spatial,
                 len_w=self.max_img_w // self.patch_spatial,
                 len_t=self.max_frames // self.patch_temporal,
-                interpolation=self.pos_emb_interpolation
+                interpolation=self.pos_emb_interpolation,
             )
 
         self.view_embeddings = nn.Embedding(n_cameras, camera_condition_dim)  # Learnable embedding layer
@@ -423,7 +434,9 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
         view_indices = torch.arange(self.n_cameras).to(x_B_C_T_H_W.device)  # View indices [0, 1, ..., V-1]
         view_embedding = self.view_embeddings(view_indices)  # Shape: [V, embedding_dim]
         view_embedding = rearrange(view_embedding, "V D -> D V")
-        view_embedding = view_embedding.unsqueeze(0).unsqueeze(3).unsqueeze(4).unsqueeze(5)  # Shape: [1, D, V, 1, 1, 1]
+        view_embedding = (
+            view_embedding.unsqueeze(0).unsqueeze(3).unsqueeze(4).unsqueeze(5)
+        )  # Shape: [1, D, V, 1, 1, 1]
 
         if self.add_repeat_frame_embedding:
             if frame_repeat is None:
@@ -482,7 +495,7 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
         else:
             x_B_T_H_W_D = x_B_T_H_W_D + self.pos_embedder(x_B_T_H_W_D)  # [B, T, H, W, D]
         return x_B_T_H_W_D, None
-    
+
     def forward(
         self,
         x: Tensor,
@@ -519,7 +532,9 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
         frame_repeat = kwargs.get('frame_repeat', None)
 
         if self.pre_process:
-            x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(x, fps=fps, padding_mask=padding_mask, trajectory=trajectory, frame_repeat=frame_repeat)
+            x_B_T_H_W_D, rope_emb_L_1_1_D = self.prepare_embedded_sequence(
+                x, fps=fps, padding_mask=padding_mask, trajectory=trajectory, frame_repeat=frame_repeat
+            )
             B, T, H, W, D = x_B_T_H_W_D.shape
             # print(f'x_T_H_W_B_D.shape={x_T_H_W_B_D.shape}')
             x_S_B_D = rearrange(x_B_T_H_W_D, "B T H W D -> (T H W) B D")
@@ -577,7 +592,7 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
 
         packed_seq_params = {
             'adaln_lora_B_3D': adaln_lora_B_3D.detach(),
-            'extra_pos_emb': rope_emb_L_1_1_D[1].detach()
+            'extra_pos_emb': rope_emb_L_1_1_D[1].detach(),
         }
         x_S_B_D = self.decoder(
             hidden_states=x_S_B_D,
@@ -590,7 +605,7 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
         # Return if not post_process
         if not self.post_process:
             return x_S_B_D
-        
+
         if self.config.sequence_parallel:
             x_S_B_D = tensor_parallel.gather_from_sequence_parallel_region(x_S_B_D)
 
@@ -618,8 +633,9 @@ class MultiCameraDiTCrossAttentionModel7B(DiTCrossAttentionModel7B):
 
         return sharded_state_dict
 
+
 class VideoExtendMultiCameraDiTCrossAttentionModel7B(MultiCameraDiTCrossAttentionModel7B):
-    def __init__(self, *args, in_channels=16,  **kwargs):
+    def __init__(self, *args, in_channels=16, **kwargs):
         # extra channel for video condition mask
         super().__init__(*args, in_channels=in_channels + 1, **kwargs)
         logging.info(f"VideoExtendGeneralDIT in_channels: {in_channels + 1}")
@@ -648,11 +664,15 @@ class VideoExtendMultiCameraDiTCrossAttentionModel7B(MultiCameraDiTCrossAttentio
                 condition_video_input_mask is not None
             ), "condition_video_input_mask is required for video data type; check if your model_obj is extend_model.FSDPDiffusionModel or the base DiffusionModel"
             if self.cp_group is not None:
-                condition_video_input_mask = rearrange(condition_video_input_mask, "B C (V T) H W -> B C V T H W", V=self.n_cameras)
+                condition_video_input_mask = rearrange(
+                    condition_video_input_mask, "B C (V T) H W -> B C V T H W", V=self.n_cameras
+                )
                 condition_video_input_mask = split_inputs_cp(
                     condition_video_input_mask, seq_dim=3, cp_group=self.cp_group
                 )
-                condition_video_input_mask =  rearrange(condition_video_input_mask, "B C V T H W -> B C (V T) H W", V=self.n_cameras)
+                condition_video_input_mask = rearrange(
+                    condition_video_input_mask, "B C V T H W -> B C (V T) H W", V=self.n_cameras
+                )
             input_list = [x, condition_video_input_mask]
             if condition_video_pose is not None:
                 if condition_video_pose.shape[2] > T:
@@ -674,12 +694,13 @@ class VideoExtendMultiCameraDiTCrossAttentionModel7B(MultiCameraDiTCrossAttentio
             **kwargs,
         )
 
+
 def dit_data_step_no_split_on_cp(module, dataloader_iter):
     batch = next(dataloader_iter)[0]
 
     batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
 
-    batch["is_preprocessed"] = True # assume data is preprocessed
+    batch["is_preprocessed"] = True  # assume data is preprocessed
     if ('seq_len_q' in batch) and ('seq_len_kv' in batch):
         cu_seqlens = batch['seq_len_q'].cumsum(dim=0).to(torch.int32)
         zero = torch.zeros(1, dtype=torch.int32, device="cuda")
@@ -702,6 +723,7 @@ def dit_data_step_no_split_on_cp(module, dataloader_iter):
         }
 
     return batch
+
 
 @dataclass
 class MultiCameraDiT7BConfig(DiT7BConfig):
@@ -733,9 +755,11 @@ class MultiCameraDiT7BConfig(DiT7BConfig):
     def configure_vae(self):
         return dynamic_import(self.vae_module)(self.vae_path, pixel_chunk_duration=self.pixel_chunk_duration)
 
+
 @dataclass
 class VideoExtendMultiCameraDiT7BConfig(MultiCameraDiT7BConfig):
-    model_name='cosmos_7b_video2world',
+    model_name = ('cosmos_7b_video2world',)
+
     @override
     def configure_model(self, tokenizer=None) -> VideoExtendMultiCameraDiTCrossAttentionModel7B:
         return VideoExtendMultiCameraDiTCrossAttentionModel7B(
@@ -751,12 +775,12 @@ class VideoExtendMultiCameraDiT7BConfig(MultiCameraDiT7BConfig):
             concat_camera_embedding=self.concat_camera_embedding,
             concat_traj_embedding=self.concat_traj_embedding,
         )
-    
+
 
 class FrameRepeatAttr(TrainingOnlyEmbModel):
     def __init__(self):
         super().__init__()
-        
+
     def forward(self, frame_repeat: torch.Tensor) -> Dict[str, torch.Tensor]:
         return {
             "frame_repeat": frame_repeat / 10.0,
@@ -764,12 +788,14 @@ class FrameRepeatAttr(TrainingOnlyEmbModel):
 
     def details(self) -> str:
         return "Frame repeat, Output key: [frame_repeat]"
-    
+
+
 @attrs.define(slots=False)
 class FrameRepeatConfig:
     obj: Any = FrameRepeatAttr()  # No arguments
     dropout_rate: float = 0.0
     input_key: str = "frame_repeat"
+
 
 class TrajectoryAttr(AbstractEmbModel):
     def __init__(self, traj_dim: int):
@@ -783,13 +809,15 @@ class TrajectoryAttr(AbstractEmbModel):
 
     def details(self) -> str:
         return f"Traj dim : {self.traj_dim} \n\tOutput key: [trajectory]"
-    
+
+
 @attrs.define(slots=False)
 class TrajectoryConfig:
     # context_dim == t5_text_embeddings_dim
     obj: Any = TrajectoryAttr(traj_dim=192)
     dropout_rate: float = 0.2
     input_key: str = "trajectory"
+
 
 class MultiCamCosmosDiffusionPipeline(CosmosDiffusionPipeline):
     def __init__(self, n_cameras, *args, **kwargs):
@@ -833,8 +861,9 @@ class MultiCamCosmosDiffusionPipeline(CosmosDiffusionPipeline):
                 x0 = rearrange(x0, "(B V) C T H W -> B C (V T) H W", V=self.n_cameras)
                 epsilon = rearrange(epsilon, "(B V) C T H W -> B C (V T) H W", V=self.n_cameras)
 
-        output_batch, kendall_loss, pred_mse, edm_loss = super(
-        ).compute_loss_with_epsilon_and_sigma(data_batch, x0_from_data_batch, x0, condition, epsilon, sigma)
+        output_batch, kendall_loss, pred_mse, edm_loss = super().compute_loss_with_epsilon_and_sigma(
+            data_batch, x0_from_data_batch, x0, condition, epsilon, sigma
+        )
         if not self.is_image_batch(data_batch):
             if self.loss_reduce == "sum" and parallel_state.get_context_parallel_world_size() > 1:
                 kendall_loss *= parallel_state.get_context_parallel_world_size()
@@ -850,7 +879,7 @@ class MultiCamCosmosDiffusionPipeline(CosmosDiffusionPipeline):
         n_sample: int | None = None,
         is_negative_prompt: bool = False,
         num_steps: int = 35,
-        solver_option: COMMON_SOLVER_OPTIONS = "2ab"
+        solver_option: COMMON_SOLVER_OPTIONS = "2ab",
     ) -> Tensor:
         """
         Generate samples from the batch. Based on given batch, it will automatically determine whether to generate image or video samples.
@@ -870,9 +899,8 @@ class MultiCamCosmosDiffusionPipeline(CosmosDiffusionPipeline):
             self._initialize_generators()
 
         x0_fn = self.get_x0_fn_from_batch(data_batch, guidance, is_negative_prompt=is_negative_prompt)
-        
+
         state_shape = list(state_shape)
-        
 
         if len(state_shape) == 4:
             state_shape = [1] + state_shape
@@ -893,7 +921,9 @@ class MultiCamCosmosDiffusionPipeline(CosmosDiffusionPipeline):
         if self.sampler_type == "EDM":
             samples = self.sampler(x0_fn, x_sigma_max, num_steps=num_steps, sigma_max=self.sde.sigma_max)
         elif self.sampler_type == "RES":
-            samples = self.sampler(x0_fn, x_sigma_max, sigma_max=self.sde.sigma_max, num_steps=num_steps, solver_option=solver_option)
+            samples = self.sampler(
+                x0_fn, x_sigma_max, sigma_max=self.sde.sigma_max, num_steps=num_steps, solver_option=solver_option
+            )
 
         if cp_enabled:
             cp_group = parallel_state.get_context_parallel_group()
@@ -952,21 +982,21 @@ class MultiCameraDiTModel(DiTModel):
         super().__init__(*args, **kwargs)
         self.vae = None
         self.conditioner = VideoConditioner(
-                        text=TextConfig(),
-                        fps=FPSConfig(),
-                        num_frames=NumFramesConfig(),
-                        image_size=ImageSizeConfig(),
-                        padding_mask=PaddingMaskConfig(),
-                        frame_repeat=FrameRepeatConfig(),
-                        trajectory=TrajectoryConfig(),
-                    )        
+            text=TextConfig(),
+            fps=FPSConfig(),
+            num_frames=NumFramesConfig(),
+            image_size=ImageSizeConfig(),
+            padding_mask=PaddingMaskConfig(),
+            frame_repeat=FrameRepeatConfig(),
+            trajectory=TrajectoryConfig(),
+        )
         self.diffusion_pipeline = MultiCamCosmosDiffusionPipeline(
             net=self,
             n_cameras=self.config.n_cameras,
             conditioner=self.conditioner,
             loss_add_logvar=self.config.loss_add_logvar,
         )
-        
+
     @torch.no_grad()
     def encode(self, state: torch.Tensor) -> torch.Tensor:
         state = rearrange(state, "B C (V T) H W -> (B V) C T H W", V=self.config.n_cameras)
@@ -979,7 +1009,7 @@ class MultiCameraDiTModel(DiTModel):
         latent = rearrange(latent, "B C (V T) H W -> (B V) C T H W", V=self.config.n_cameras)
         decoded_state = self.vae.decode(latent / self.config.sigma_data)
         decoded_state = rearrange(decoded_state, "(B V) C T H W -> B C (V T) H W", V=self.config.n_cameras)
-        return decoded_state        
+        return decoded_state
 
     @torch.no_grad()
     def data_step(self, dataloader_iter):
@@ -994,6 +1024,7 @@ class MultiCameraDiTModel(DiTModel):
         seq_len = batch['video'].shape[-1] * batch['video'].shape[-2] * batch['video'].shape[-3]
         batch["loss_mask"] = torch.ones(seq_len, dtype=torch.bfloat16, device=batch['video'].device)
         from megatron.core import mpu
+
         cp_size = mpu.get_context_parallel_world_size()
         cp_rank = mpu.get_context_parallel_rank()
 
@@ -1002,10 +1033,12 @@ class MultiCameraDiTModel(DiTModel):
             if 'loss_mask' in batch and batch['loss_mask'] is not None:
                 num_valid_tokens_in_ub = batch['loss_mask'].sum()
             batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
-            batch["loss_mask"] = batch["loss_mask"].view(cp_size, batch["loss_mask"].shape[0] // cp_size)[cp_rank, ...].contiguous()
+            batch["loss_mask"] = (
+                batch["loss_mask"].view(cp_size, batch["loss_mask"].shape[0] // cp_size)[cp_rank, ...].contiguous()
+            )
 
         return batch
-    
+
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         state_shape = batch['video'].shape
@@ -1059,6 +1092,6 @@ class MultiCameraDiTModel(DiTModel):
                 wandb.log({'prediction': videos}, step=self.global_step)
 
         return None
-    
+
     def on_validation_end(self):
         pass

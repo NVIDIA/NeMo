@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos1.models.diffusion.networks.general_dit_video_conditioned import VideoExtendGeneralDIT
 from cosmos1.utils.lazy_config import LazyCall as L
 from cosmos1.utils.lazy_config import LazyDict
+from hydra.core.config_store import ConfigStore
 
 Cosmos_1_0_Diffusion_Video2World_7B: LazyDict = LazyDict(
     dict(

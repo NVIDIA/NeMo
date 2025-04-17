@@ -642,4 +642,3 @@ __all__ = [
     "transformer_engine_layer_spec",
     "local_layer_spec",
 ]
-

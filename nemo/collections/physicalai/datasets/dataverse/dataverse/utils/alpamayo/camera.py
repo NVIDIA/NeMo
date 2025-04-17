@@ -245,14 +245,14 @@ class Quaternion:
             dim=-1,
         )
         return hamil_prod
-    
+
     def apply(self, q, p):
         out = self.product(
             self.product(q, torch.cat((torch.zeros(p.shape[:-1] + (1,)), p), -1)),
             self.invert(q),
         )
         return out[..., 1:]
-        
+
     def interpolate(self, q1, q2, alpha):  # [...,4],[...,4],[...,1]
         # https://en.wikipedia.org/wiki/Slerp
         cos_angle = (q1 * q2).sum(dim=-1, keepdim=True)  # [...,1]

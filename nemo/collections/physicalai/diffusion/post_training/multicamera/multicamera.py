@@ -14,24 +14,33 @@
 
 # pylint: disable=C0115,C0116,C0301
 
-from functools import partial
-import os
 import glob
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.alpamayo_dataloader import InfiniteDataVerse
-from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.config_dataverse import DATAVERSE_CONFIG
-from nemo.collections.physicalai.diffusion.post_training.multicamera.dit_multi_camera import MultiCameraDiT7BConfig, MultiCameraDiTModel
+import os
+from functools import partial
+
+import nemo_run as run
 from huggingface_hub import snapshot_download
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from torch.utils.data import DataLoader
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.train import pretrain
-from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.alpamayo_dataloader import (
+    InfiniteDataVerse,
+)
+from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.config_dataverse import DATAVERSE_CONFIG
+from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.dataloader_utils import (
+    dict_collation_fn,
+)
+from nemo.collections.physicalai.diffusion.post_training.multicamera.dit_multi_camera import (
+    MultiCameraDiT7BConfig,
+    MultiCameraDiTModel,
+)
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
-import nemo_run as run
-from torch.utils.data import DataLoader
-from nemo.collections.physicalai.datasets.dataverse_dataset.driving_dataloader.dataloader_utils import dict_collation_fn
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from huggingface_hub import snapshot_download
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+
 
 class SimpleDataModule(MockDataModule):
     def __init__(self, *args, dataset=None, **kwargs):
@@ -63,6 +72,7 @@ class SimpleDataModule(MockDataModule):
             **kwargs,
         )
 
+
 def get_latest_checkpoint(checkpoint_dir):
     # Get all checkpoint files
     checkpoint_files = glob.glob(os.path.join(checkpoint_dir, "*.ckpt"))
@@ -73,6 +83,7 @@ def get_latest_checkpoint(checkpoint_dir):
     # Sort by modification time (latest first)
     latest_ckpt = max(checkpoint_files, key=os.path.getmtime)
     return latest_ckpt
+
 
 @run.cli.factory(target=llm.train)
 def cosmos_multicamera_diffusion_7b_text2world_finetune() -> run.Partial:
@@ -92,7 +103,7 @@ def cosmos_multicamera_diffusion_7b_text2world_finetune() -> run.Partial:
             recompute_granularity="full",
             recompute_method="uniform",
             recompute_num_layers=1,
-        )
+        ),
     )
     recipe.trainer.strategy.ckpt_load_strictness = False
     recipe.trainer.val_check_interval = 100
@@ -107,7 +118,9 @@ def cosmos_multicamera_diffusion_7b_text2world_finetune() -> run.Partial:
     recipe.optim.config.adam_eps = 1e-8
     recipe.optim.config.adam_beta1 = 0.9
     recipe.optim.config.adam_beta2 = 0.999
-    recipe.optim.lr_scheduler = run.Config(nl.lr_scheduler.WarmupHoldPolicyScheduler, warmup_steps=1000, min_lr=1.0e-6, hold_steps=1e9)
+    recipe.optim.lr_scheduler = run.Config(
+        nl.lr_scheduler.WarmupHoldPolicyScheduler, warmup_steps=1000, min_lr=1.0e-6, hold_steps=1e9
+    )
 
     # Tensor / Sequence parallelism
     recipe.trainer.strategy.tensor_model_parallel_size = 4
@@ -139,7 +152,7 @@ def cosmos_multicamera_diffusion_7b_text2world_finetune() -> run.Partial:
     # Data setup
     recipe.data = run.Config(
         SimpleDataModule,
-        micro_batch_size=1, 
+        micro_batch_size=1,
         global_batch_size=32,
         dataset=partial(InfiniteDataVerse, **DATAVERSE_CONFIG["alpamayo_v2_traj_qwen_24fps_6_cameras_frame_repeat"]),
     )
@@ -154,13 +167,13 @@ def cosmos_multicamera_diffusion_7b_text2world_finetune() -> run.Partial:
 
     # Checkpoint load
     recipe.resume.restore_config = run.Config(
-       RestoreConfig, 
+        RestoreConfig,
         path=os.path.join(
             snapshot_download("nvidia/Cosmos-1.0-Diffusion-7B-Text2World", allow_patterns=["nemo/*"]), "nemo"
         ),  # path to diffusion model checkpoint
-       load_model_state=True,
-       load_optim_state=True,
-       load_artifacts=False,
+        load_model_state=True,
+        load_optim_state=True,
+        load_artifacts=False,
     )
     return recipe
 
@@ -175,6 +188,7 @@ def cosmos_multicamera_diffusion_7b_text2world_finetune_w_traj() -> run.Partial:
 
     return recipe
 
+
 @run.cli.factory(target=llm.train)
 def cosmos_multicamera_diffusion_7b_text2world_finetune_w_traj_debug() -> run.Partial:
     # Model setup
@@ -185,6 +199,7 @@ def cosmos_multicamera_diffusion_7b_text2world_finetune_w_traj_debug() -> run.Pa
     recipe.model.config.num_layers = 1
     recipe.resume.restore_config = None
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def cosmos_multicamera_diffusion_7b_image2world_finetune() -> run.Partial:
@@ -202,9 +217,9 @@ def cosmos_multicamera_diffusion_7b_image2world_finetune() -> run.Partial:
             # traj_condition_dim=12,
             vae_path=snapshot_download("nvidia/Cosmos-1.0-Tokenizer-CV8x8x8"),
             pixel_chunk_duration=57,
-            #recompute_granularity="full",
-            #recompute_method="uniform",
-            #recompute_num_layers=1,
+            # recompute_granularity="full",
+            # recompute_method="uniform",
+            # recompute_num_layers=1,
         ),
     )
 
@@ -214,6 +229,7 @@ def cosmos_multicamera_diffusion_7b_image2world_finetune() -> run.Partial:
     )  # path to diffusion model checkpoint
 
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def cosmos_multicamera_diffusion_7b_image2world_finetune_w_traj() -> run.Partial:
@@ -225,6 +241,6 @@ def cosmos_multicamera_diffusion_7b_image2world_finetune_w_traj() -> run.Partial
 
     return recipe
 
+
 if __name__ == "__main__":
     run.cli.main(llm.train, default_factory=cosmos_multicamera_diffusion_7b_text2world_finetune)
-

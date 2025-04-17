@@ -20,13 +20,12 @@ from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
-from megatron.core import InferenceParams
-from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
-from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
 from cosmos1.models.autoregressive.nemo.cosmos import CosmosConfig4B, CosmosConfig12B
 from cosmos1.models.autoregressive.nemo.cosmos_video2world import CosmosVideo2WorldConfig, CosmosVideo2WorldModel
 from cosmos1.models.autoregressive.nemo.inference.inference_controller import CosmosActionControlInferenceWrapper
+from megatron.core import InferenceParams
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
 
 @dataclass

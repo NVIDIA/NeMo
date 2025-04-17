@@ -22,9 +22,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 import torch
-from safetensors.torch import load_file
-from torch.nn.modules.module import _IncompatibleKeys
-
 from cosmos1.models.autoregressive.configs.base.model import ModelConfig
 from cosmos1.models.autoregressive.configs.base.tokenizer import TokenizerConfig
 from cosmos1.models.autoregressive.modules.mm_projector import MultimodalProjector
@@ -38,6 +35,8 @@ from cosmos1.models.autoregressive.utils.checkpoint import (
 )
 from cosmos1.models.autoregressive.utils.sampling import decode_n_tokens, decode_one_token, prefill
 from cosmos1.utils import log, misc
+from safetensors.torch import load_file
+from torch.nn.modules.module import _IncompatibleKeys
 
 
 class AutoRegressiveModel(torch.nn.Module):
@@ -273,7 +272,9 @@ class AutoRegressiveModel(torch.nn.Module):
         model_kwargs = {}
 
         if model_config.vision_encoder is not None:
-            assert model_config.mm_projector is not None, "mm_projector must be provided if vision_encoder is provided."
+            assert (
+                model_config.mm_projector is not None
+            ), "mm_projector must be provided if vision_encoder is provided."
             vit_config = get_vit_config(model_config.vision_encoder)
             vision_encoder = VisionTransformer.build(
                 vit_config,

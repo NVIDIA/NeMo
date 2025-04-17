@@ -24,10 +24,17 @@ import torch
 from huggingface_hub import snapshot_download
 from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+
 from nemo import lightning as nl
 from nemo.lightning.megatron_parallel import MegatronParallel
 
 MegatronParallel.init_ddp = lambda self: None
+from cosmos1.models.diffusion.conditioner import DataType
+from cosmos1.models.diffusion.inference.inference_utils import read_video_or_image_into_frames_BCTHW
+from cosmos1.models.diffusion.nemo.inference.inference_utils import get_ctrl_batch_nemo, process_prompt, save_video
+from cosmos1.utils import log
+from transformers import T5EncoderModel, T5TokenizerFast
+
 from nemo.collections.diffusion.mcore_parallel_utils import Utils
 from nemo.collections.diffusion.sampler.conditioner import VideoExtendConditionerControl
 from nemo.collections.diffusion.sampler.conditioner_configs import (
@@ -39,12 +46,6 @@ from nemo.collections.diffusion.sampler.conditioner_configs import (
     VideoCondBoolConfig,
 )
 from nemo.collections.diffusion.sampler.cosmos.cosmos_control_diffusion_pipeline import CosmosControlDiffusionPipeline
-from transformers import T5EncoderModel, T5TokenizerFast
-
-from cosmos1.models.diffusion.conditioner import DataType
-from cosmos1.models.diffusion.inference.inference_utils import read_video_or_image_into_frames_BCTHW
-from cosmos1.models.diffusion.nemo.inference.inference_utils import get_ctrl_batch_nemo, process_prompt, save_video
-from cosmos1.utils import log
 
 EXAMPLE_PROMPT = (
     "The teal robot is cooking food in a kitchen. Steam rises from a simmering pot "
@@ -328,7 +329,9 @@ def setup_diffusion_pipeline(args):
     fabric = trainer.to_fabric()
     fabric.strategy.checkpoint_io.save_ckpt_format = "zarr"
     fabric.strategy.checkpoint_io.validate_access_integrity = False
-    fabric.strategy.checkpoint_io.load_checkpoint = partial(fabric.strategy.checkpoint_io.load_checkpoint, strict=False)
+    fabric.strategy.checkpoint_io.load_checkpoint = partial(
+        fabric.strategy.checkpoint_io.load_checkpoint, strict=False
+    )
     StrictHandling.requires_global_app_metadata = staticmethod(lambda val: False)
 
     base_model = fabric.load_model(args.base_model_dir, dit_base_model).to(device="cuda", dtype=torch.bfloat16)

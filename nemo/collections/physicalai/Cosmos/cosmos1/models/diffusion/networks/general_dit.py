@@ -22,10 +22,6 @@ A general implementation of adaln-modulated VIT-like~(DiT) transformer for video
 from typing import List, Optional, Tuple
 
 import torch
-from einops import rearrange
-from torch import nn
-from torchvision import transforms
-
 from cosmos1.models.diffusion.conditioner import DataType
 from cosmos1.models.diffusion.module.attention import get_normalization
 from cosmos1.models.diffusion.module.blocks import (
@@ -37,6 +33,9 @@ from cosmos1.models.diffusion.module.blocks import (
 )
 from cosmos1.models.diffusion.module.position_embedding import LearnablePosEmbAxis, VideoRopePosition3DEmb
 from cosmos1.utils import log
+from einops import rearrange
+from torch import nn
+from torchvision import transforms
 
 
 class GeneralDIT(nn.Module):

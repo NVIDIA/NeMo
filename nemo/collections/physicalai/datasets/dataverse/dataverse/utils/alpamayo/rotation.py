@@ -63,9 +63,7 @@ def euler_2_so3(euler_angles: np.ndarray, degrees: bool = True, seq: str = "xyz"
     Out:
         (np array): rotations given so3 matrix representation [n,3,3]
     """
-    return (
-        R.from_euler(seq=seq, angles=euler_angles, degrees=degrees).as_matrix().astype(np.float32)
-    )
+    return R.from_euler(seq=seq, angles=euler_angles, degrees=degrees).as_matrix().astype(np.float32)
 
 
 def angle_wrap(

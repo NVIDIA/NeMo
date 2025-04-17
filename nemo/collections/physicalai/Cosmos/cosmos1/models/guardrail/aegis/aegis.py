@@ -18,12 +18,11 @@
 import argparse
 
 import torch
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
 from cosmos1.models.guardrail.aegis.categories import UNSAFE_CATEGORIES
 from cosmos1.models.guardrail.common.core import ContentSafetyGuardrail, GuardrailRunner
 from cosmos1.utils import log, misc
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 SAFE = misc.Color.green("SAFE")
 UNSAFE = misc.Color.red("UNSAFE")

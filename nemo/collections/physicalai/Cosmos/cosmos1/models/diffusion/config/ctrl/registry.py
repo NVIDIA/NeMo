@@ -15,8 +15,6 @@
 
 # pylint: disable=C0115,C0116,C0301
 
-from hydra.core.config_store import ConfigStore
-
 import cosmos1.models.diffusion.config.registry as base_registry
 from cosmos1.models.diffusion.config.ctrl.conditioner import (
     CTRL_HINT_KEYS,
@@ -24,6 +22,7 @@ from cosmos1.models.diffusion.config.ctrl.conditioner import (
     VideoConditionerFpsSizePaddingWithCtrlConfig,
 )
 from cosmos1.models.diffusion.config.ctrl.net_ctrl import FADITV2_14B_EncoderConfig, FADITV2EncoderConfig
+from hydra.core.config_store import ConfigStore
 
 
 def register_experiment_ctrlnet(cs):

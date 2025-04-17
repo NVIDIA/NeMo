@@ -84,4 +84,5 @@ class ControlNetConditioningEmbedding(nn.Module):
 
         return embedding
 
+
 # flake8: noqa

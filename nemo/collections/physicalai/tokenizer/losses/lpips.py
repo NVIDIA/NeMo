@@ -22,6 +22,7 @@ Adapted from: github.com/CompVis/stable-diffusion/ldm/modules/losses/contpercept
 import hashlib
 import os
 from collections import namedtuple
+from typing import Optional
 
 import requests
 import torch
@@ -31,7 +32,6 @@ import torch.utils.checkpoint as checkpoint
 from loguru import logger as logging
 from torchvision import models
 from tqdm import tqdm
-from typing import Optional
 
 
 def get_rank(group: Optional[dist.ProcessGroup] = None) -> int:
@@ -45,6 +45,7 @@ def get_rank(group: Optional[dist.ProcessGroup] = None) -> int:
         rank = dist.get_rank(group)
     return rank
 
+
 def is_rank0() -> bool:
     """Check if current process is the master GPU.
 
@@ -52,6 +53,7 @@ def is_rank0() -> bool:
         (bool): True if this function is called from the master GPU, else False.
     """
     return get_rank() == 0
+
 
 _TORCH_HOME = os.getenv("TORCH_HOME", "~/.cache/my_model")
 # TODO(freda): Update the download link to a PBSS location, safer.

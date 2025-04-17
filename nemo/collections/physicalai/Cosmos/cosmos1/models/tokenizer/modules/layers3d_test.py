@@ -24,11 +24,10 @@ import os
 import numpy as np
 import pytest
 import torch
-from torchvision.transforms import CenterCrop
-
 from cosmos1.models.tokenizer.inference.utils import read_video
 from cosmos1.models.tokenizer.inference.video_lib import CausalVideoTokenizer
 from cosmos1.models.tokenizer.networks import TokenizerConfigs
+from torchvision.transforms import CenterCrop
 
 # test configs
 TEST_CONFIGS = [

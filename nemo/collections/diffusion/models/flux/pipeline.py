@@ -1007,4 +1007,5 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
 
         return image
 
+
 # flake8: noqa
