@@ -270,7 +270,7 @@ class SortformerModules(NeuralModule, Exportable):
         # if async_streaming:
         if mem_last_time is None:
             mem_last_time = torch.zeros((batch_size, self.mem_len, self.fc_d_model), device=device)
-            mem_preds_last_time = torch.full((batch_size, self.mem_len, self.n_spk), -0.1, device=device)
+            mem_preds_last_time = torch.full((batch_size, self.mem_len, self.n_spk), 0.0, device=device)
             mem_lengths = torch.zeros((batch_size,), dtype=torch.long, device=device) #zero offsets
         if fifo_last_time is None:
             fifo_last_time = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device=device)
@@ -370,7 +370,7 @@ class SortformerModules(NeuralModule, Exportable):
         updated_fifo = torch.zeros((batch_size, max_fifo_len + max_chunk_len, emb_dim), device=preds.device)
         updated_fifo_preds = torch.zeros((batch_size, max_fifo_len + max_chunk_len, n_spk), device=preds.device)
         updated_mem = torch.zeros((batch_size, max_mem_len + max_pop_out_len, emb_dim), device=preds.device)
-        updated_mem_preds = torch.full((batch_size, max_mem_len + max_pop_out_len, n_spk), -0.1, device=preds.device)
+        updated_mem_preds = torch.full((batch_size, max_mem_len + max_pop_out_len, n_spk), 0.0, device=preds.device)
 
         for batch_index in range(batch_size):
             mem_len = mem_lengths[batch_index].item()
@@ -577,7 +577,7 @@ class SortformerModules(NeuralModule, Exportable):
             mean_sil_emb (torch.Tensor): Mean silence embedding tensor.
                 Shape: (batch_size, emb_dim)
         """
-        is_sil = (preds.sum(dim=2) < self.sil_threshold) * (preds.sum(dim=2) > -0.1)
+        is_sil = (preds.sum(dim=2) < self.sil_threshold)
         is_sil = is_sil.unsqueeze(-1)
         emb_seq_sil = torch.where(is_sil, emb_seq, torch.tensor(0.0)) # (batch_size, n_frames, emb_dim)
         emb_seq_sil_sum = emb_seq_sil.sum(dim=1) # (batch_size, emb_dim)

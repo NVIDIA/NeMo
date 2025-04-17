@@ -141,7 +141,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.eps = 1e-3
         self.loss = instantiate(self._cfg.loss)
 
-        self.pad_front = self._cfg.get("pad_front", False)
+        self.pad_front = self._cfg.get("pad_front", True)
         self.async_streaming = self._cfg.get("async_streaming", True)
 
         self.streaming_mode = self._cfg.get("streaming_mode", False)
@@ -720,7 +720,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         if self.async_streaming:
             if mem_last_time is None:
                 mem_last_time = torch.zeros((batch_size, self.sortformer_modules.mem_len, self.sortformer_modules.fc_d_model), device=self.device)
-                mem_preds_last_time = torch.full((batch_size, self.sortformer_modules.mem_len, self.sortformer_modules.n_spk), -0.1, device=self.device)
+                mem_preds_last_time = torch.full((batch_size, self.sortformer_modules.mem_len, self.sortformer_modules.n_spk), 0.0, device=self.device)
                 mem_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device) #zero offsets
             if fifo_last_time is None:
                 fifo_last_time = torch.zeros((batch_size, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
@@ -747,7 +747,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         batch_size, frames, n_spks = mem_fifo_chunk_preds.shape
         preds_mask = torch.arange(frames, device=self.device).view(1, -1, 1).expand(batch_size, -1, n_spks) < mem_fifo_chunk_fc_encoder_lengths.view(-1, 1, 1).expand(-1, frames, n_spks)
-        mem_fifo_chunk_preds = torch.where(preds_mask, mem_fifo_chunk_preds, torch.tensor(0.1))
+        mem_fifo_chunk_preds = torch.where(preds_mask, mem_fifo_chunk_preds, torch.tensor(0.0))
         if self.async_streaming:
             mem, mem_lengths, fifo, fifo_lengths, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_fifo_async(
                 mem=mem_last_time,
