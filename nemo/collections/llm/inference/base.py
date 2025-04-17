@@ -299,9 +299,30 @@ def setup_mcore_engine(
     inference_max_seq_length: int = 4096,
     enable_flash_decode: bool = False,
     enable_cuda_graphs: bool = False,
-    max_batch_size: int = 4,
+    max_batch_size: int = 32,
     random_seed: Optional[int] = None,
 ) -> MCoreEngine:
+    """
+    Sets up and returns a Megatron Core Engine for text generation inference.
+
+    Args:
+        path (Path): Path to the model checkpoint
+        trainer (nl.Trainer): NeMo Lightning trainer instance
+        params_dtype (torch.dtype): Data type for model parameters. Defaults to torch.bfloat16
+        inference_batch_times_seqlen_threshold (int): Batch size * sequence length threshold. Defaults to 1000
+        inference_max_seq_length (int): Maximum sequence length for inference. Defaults to 4096
+        enable_flash_decode (bool): Whether to enable flash attention decoding. Defaults to False
+        enable_cuda_graphs (bool): Whether to enable CUDA graphs. Defaults to False
+        max_batch_size (int): Maximum batch size for inference. Defaults to 32
+        random_seed (Optional[int]): Random seed for reproducibility. Defaults to None
+
+    Returns:
+        Tuple[MCoreEngine, AbstractModelInferenceWrapper, MCoreTokenizerWrapper]: 
+            - Configured Megatron Core Engine instance
+            - Inference-wrapped model
+            - Tokenizer wrapper
+    """
+
     model, tokenizer = setup_model_and_tokenizer(
         path,
         trainer,
