@@ -19,6 +19,7 @@ from typing import Any, Optional
 import lightning.pytorch as pl
 import torch
 import torch.distributed
+from examples.nlp.text_normalization_as_tagging.dataset_preparation.sample_each_label import vocab
 from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
@@ -29,7 +30,6 @@ from megatron.core.inference.text_generation_controllers.text_generation_control
 from megatron.core.transformer.module import MegatronModule
 
 import nemo.lightning as nl
-from examples.nlp.text_normalization_as_tagging.dataset_preparation.sample_each_label import vocab
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -218,8 +218,7 @@ def setup_model_and_tokenizer(
     inference_wrapped_model = model.get_inference_wrapper(
         params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
     )
-    return inference_wrapped_model, MCoreTokenizerWrappper(
-        model.tokenizer, getattr(model.config, "vocab_size"), None)
+    return inference_wrapped_model, MCoreTokenizerWrappper(model.tokenizer, getattr(model.config, "vocab_size"), None)
 
 
 def generate(
