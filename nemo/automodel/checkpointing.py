@@ -26,24 +26,18 @@ from torch.nn import Module
 
 from nemo.automodel.config import ConfigContainer
 from nemo.automodel.utils.common_utils import unwrap_model
+from nemo.tron.checkpointing import TRACKER_PREFIX
+from nemo.tron.checkpointing import TRAIN_STATE_FILE as _TRON_TRAIN_STATE_FILE
 from nemo.tron.checkpointing import (
-    TRACKER_PREFIX,
     checkpoint_exists,
     get_checkpoint_run_config_filename,
     get_checkpoint_train_state_filename,
     read_run_config,
     read_train_state,
 )
-from nemo.tron.checkpointing import (
-    TRAIN_STATE_FILE as _TRON_TRAIN_STATE_FILE,
-)
 from nemo.tron.state import GlobalState, TrainState
 from nemo.tron.utils import wandb_utils
-from nemo.tron.utils.common_utils import (
-    get_rank_safe,
-    get_world_size_safe,
-    print_rank_0,
-)
+from nemo.tron.utils.common_utils import get_rank_safe, get_world_size_safe, print_rank_0
 
 # -----------------------------------------------------------------------------
 # Filenames & helpers
