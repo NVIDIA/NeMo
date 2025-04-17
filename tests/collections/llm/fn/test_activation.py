@@ -44,6 +44,11 @@ class TestActivationFunctions:
 
         assert torch.allclose(result, expected, atol=1e-5)
 
+        # Also verify specific properties of GELU
+        assert torch.allclose(result[input_tensor == 0], torch.zeros_like(result[input_tensor == 0]))
+        assert torch.all(result[input_tensor > 0] > 0)
+        assert torch.all(result[input_tensor < 0] < 0)
+
     def test_quick_gelu(self, input_tensor):
         """Test the quick_gelu activation function."""
         result = quick_gelu(input_tensor)
@@ -55,6 +60,11 @@ class TestActivationFunctions:
         )
 
         assert torch.allclose(result, expected, atol=1e-5)
+
+        # Also verify properties of quick_gelu
+        assert torch.allclose(result[input_tensor == 0], torch.zeros_like(result[input_tensor == 0]))
+        assert torch.all(result[input_tensor > 0] > 0)
+        assert torch.all(result[input_tensor < 0] < 0)
 
     def test_squared_relu(self, input_tensor):
         """Test the squared_relu activation function."""
