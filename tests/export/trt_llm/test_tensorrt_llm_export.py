@@ -63,7 +63,7 @@ def test_nemo2_convert_to_export():
 
     trt_llm_exporter = TensorRTLLM(model_dir="/tmp/safe_tensor_test_2/")
     trt_llm_exporter.export(
-        #nemo_checkpoint_path="/home/TestData/llm/models/llama32_1b_nemo2",
+        # nemo_checkpoint_path="/home/TestData/llm/models/llama32_1b_nemo2",
         nemo_checkpoint_path="/opt/checkpoints/hf_llama32_1b_nemo2/",
         model_type="llama",
         delete_existing_files=True,
@@ -101,7 +101,7 @@ def test_nemo2_convert_to_export():
 
     output = trt_llm_exporter.forward(
         input_texts=["Tell me the capitol of France "],
-        max_output_len= 16,
+        max_output_len=16,
         top_k=1,
         top_p=0.0,
         temperature=0.1,
@@ -121,7 +121,9 @@ def test_nemo2_convert_to_export():
     print(output)
 
     assert Path("/tmp/safe_tensor_test_2/trtllm_engine/").exists(), "Safe tensors were not generated."
-    assert Path("/tmp/safe_tensor_test_2/trtllm_engine/rank0.engine").exists(), "Safe tensors for rank0 were not generated."
+    assert Path(
+        "/tmp/safe_tensor_test_2/trtllm_engine/rank0.engine"
+    ).exists(), "Safe tensors for rank0 were not generated."
     assert Path("/tmp/safe_tensor_test_2/trtllm_engine/config.json").exists(), "config.yaml was not generated."
 
     shutil.rmtree("/tmp/safe_tensor_test_2/")
