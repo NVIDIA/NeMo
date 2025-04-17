@@ -68,7 +68,7 @@ class DtypeConfig:
     grad_reduce_in_fp32: bool = True
     # fp8 related
     fp8: str = None
-    fp8_recipe: str = "delayed"
+    fp8_recipe: str = "tensorwise"
     first_last_layers_bf16: bool = False
     fp8_margin: int = 0
     fp8_amax_history_len: int = 1
@@ -105,7 +105,7 @@ class MegatronMixedPrecision(Precision):
         grad_reduce_in_fp32: bool = True,
         # fp8 related,
         fp8: str = None,
-        fp8_recipe: str = "delayed",  # "tensorwise", "delayed", "mxfp8" (for Blackwell only)
+        fp8_recipe: str = "tensorwise",  # "tensorwise", "delayed", "mxfp8" (for Blackwell only)
         first_last_layers_bf16: bool = False,
         fp8_margin: int = 0,
         fp8_amax_history_len: int = 1,
@@ -137,7 +137,7 @@ class MegatronMixedPrecision(Precision):
             autocast_enabled=autocast_enabled,
             grad_reduce_in_fp32=grad_reduce_in_fp32,
             fp8=fp8,
-            fp8_recipe=fp8_recipe,
+            fp8_recipe='tensorwise',
             first_last_layers_bf16=first_last_layers_bf16,
             fp8_margin=fp8_margin,
             fp8_amax_history_len=fp8_amax_history_len,
