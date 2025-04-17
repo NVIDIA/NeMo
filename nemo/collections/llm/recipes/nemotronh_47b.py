@@ -260,7 +260,7 @@ def pretrain_recipe(
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
-    resume_path,
+    resume_path: str = "nemotronh-47b-pretrain",
     vocab_file: str = None,
     dir: Optional[str] = None,
     name: str = "default",
