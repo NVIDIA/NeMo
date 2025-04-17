@@ -21,6 +21,7 @@ within NeMo's configuration framework.
 """
 
 import os
+import json
 import shutil
 from pathlib import Path
 from typing import Union
@@ -63,7 +64,8 @@ class MCoreArtifact(Artifact):
             dir_name = f"{dir_name}/{str(new_path)}"
 
         # save tokenizer metadata
-        copy_file(instance.metadata_path, path_to_save, relative_dir, overwrite=True)
+        if instance.metadata_path:
+            copy_file(instance.metadata_path, path_to_save, relative_dir, overwrite=True)
 
         return dir_name
 
