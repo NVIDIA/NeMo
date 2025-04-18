@@ -319,7 +319,7 @@ def patch_linear_module(
         (nn.Module): the monkey-patched (nn.Linear + LoRA) nn.Module
     """
 
-    assert isinstance(orig_linear, nn.Linear) or orig_linear.__class__ == te.Linear
+    assert isinstance(orig_linear, nn.Linear) or (HAVE_TE and orig_linear.__class__ == te.Linear)
 
     if isinstance(orig_linear, nn.Linear):
         LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
@@ -417,7 +417,7 @@ class LoRA(PEFT, ModuleMatcher):
 
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
-            if isinstance(m, nn.Linear) or m.__class__ == te.Linear:
+            if isinstance(m, nn.Linear) or (HAVE_TE and m.__class__ == te.Linear):
                 # Will use the `patch_linear_module` function if:
                 # - is FSDP v1
                 # - is DTensor (has _local_tensor attribute)
