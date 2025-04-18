@@ -314,8 +314,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_state: Optional[Any] = None,
-        prev_labels: Optional[torch.Tensor] = None,
+        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Pure PyTorch implementation
@@ -323,8 +322,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
-            prev_state: previous decoder state for the batch
-            prev_labels: batch of previously decoded labels
+            prev_batched_state: previous batched decoding state
         """
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
@@ -359,11 +357,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         )
 
         # initial state, needed for torch.jit to compile (cannot handle None)
-        state = self.decoder.initialize_state(encoder_output_projected) if prev_state is None else prev_state
+        state = (
+            self.decoder.initialize_state(encoder_output_projected)
+            if prev_batched_state is None
+            else prev_batched_state.prev_state
+        )
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol
-        labels = torch.full_like(batch_indices, fill_value=self._SOS) if prev_labels is None else prev_labels
+        labels = (
+            torch.full_like(batch_indices, fill_value=self._SOS)
+            if prev_batched_state is None
+            else prev_batched_state.prev_labels.clone()
+        )
 
         # time indices
         time_indices = torch.zeros_like(batch_indices)
@@ -546,8 +552,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_state: Optional[Any] = None,
-        prev_labels: Optional[torch.Tensor] = None,
+        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Implementation with CUDA graphs.
@@ -555,8 +560,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
-            prev_state: previous decoder state for the batch
-            prev_labels: batch of previously decoded labels
+            prev_batched_state: previous batched decoding state
         """
         assert self.cuda_graphs_mode is not None
 
@@ -578,7 +582,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
 
-        if prev_state is None:
+        if prev_batched_state is None:
             # initial state
             self.decoder.batch_replace_states_all(
                 src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
@@ -586,16 +590,16 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
         else:
             self.decoder.batch_replace_states_all(
-                src_states=prev_state,
+                src_states=prev_batched_state.prev_state,
                 dst_states=self.state.decoder_state,
                 batch_size=current_batch_size,
             )
 
-        if prev_labels is None:
+        if prev_batched_state is None:
             # last found labels - initially <SOS> (<blank>) symbol
             self.state.labels.fill_(self._SOS)
         else:
-            self.state.labels[:current_batch_size].copy_(prev_labels[:current_batch_size], non_blocking=True)
+            self.state.labels[:current_batch_size].copy_(prev_batched_state[:current_batch_size], non_blocking=True)
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.full_graph.replay()
@@ -1030,27 +1034,42 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-        prev_state: Optional[Any] = None,
-        prev_labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
         """
         Entry point for the decoding algorithm
 
         Args:
             x: encoder output
             out_len: encoder output length
-            prev_state: previous decoder state for the batch
-            prev_labels: batch of previously decoded labels
+            prev_batched_state: previous batched decoding state
         """
         # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
         is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             if not is_ddp:
-                return self.loop_labels_cuda_graphs(
-                    encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+                batched_hyps, batched_ali, last_decoder_state = self.loop_labels_cuda_graphs(
+                    encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
                 )
             else:
                 logging.warning("CUDA graphs are temporary disabled in distributed environment", mode=LogMode.ONCE)
-        return self.loop_labels_torch(
-            encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+                batched_hyps, batched_ali, last_decoder_state = self.loop_labels_torch(
+                    encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
+                )
+        else:
+            batched_hyps, batched_ali, last_decoder_state = self.loop_labels_torch(
+                encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
+            )
+        last_timestamps = out_len - 1
+        # correct timestamps if it is not the first chunk
+        if prev_batched_state is not None:
+            last_timestamps += prev_batched_state.last_timestamps
+            batched_hyps.timestamps += prev_batched_state.prev_last_timestamps.unsqueeze(-1)
+            if batched_ali is not None:
+                batched_ali.timestamps += prev_batched_state.prev_last_timestamps.unsqueeze(-1)
+
+        new_decoding_state = rnnt_utils.BatchedGreedyDecodingState(
+            batched_hyps=batched_hyps, decoder_state=last_decoder_state, last_timestamps=last_timestamps, lm_state=...
         )
+
+        return batched_hyps, batched_ali, new_decoding_state
