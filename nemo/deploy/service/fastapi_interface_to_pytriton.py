@@ -83,6 +83,7 @@ class CompletionRequest(BaseModel):
 
     @model_validator(mode='after')
     def set_greedy_params(self):
+        """Validate parameters for greedy decoding."""
         if self.temperature == 0 and self.top_p == 0:
             logging.warning("Both temperature and top_p are 0. Setting top_k to 1 to ensure greedy sampling.")
             self.top_k = 1
