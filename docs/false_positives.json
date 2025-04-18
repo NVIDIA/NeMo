@@ -44,6 +44,56 @@
   "status": "broken",
   "code": 0,
   "uri": "https://huggingface.co/docs/huggingface_hub/quick-start#authentication",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/docs/huggingface_hub/quick-start"
+}
+{
+  "filename": "multimodal/mllm/datasets.rst",
+  "lineno": 17,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/datasets/liuhaotian/LLaVA-Pretrain/blob/main/images.zip",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/datasets/liuhaotian/LLaVA-Pretrain/blob/main/images.zip"
+}
+{
+  "filename": "multimodal/mllm/datasets.rst",
+  "lineno": 81,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/liuhaotian/llava-llama-2-13b-chat-lightning-preview/blob/main/tokenizer.model",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/liuhaotian/llava-llama-2-13b-chat-lightning-preview/blob/main/tokenizer.model"
+}
+{
+  "filename": "nlp/machine_translation/machine_translation.rst",
+  "lineno": 664,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/models",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/models"
+}
+{
+  "filename": "asr/intro.rst",
+  "lineno": 163,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia"
+}
+{
+  "filename": "asr/results.rst",
+  "lineno": 43,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/models?pipeline_tag=automatic-speech-recognition&sort=trending&author=nvidia",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/models?pipeline_tag=automatic-speech-recognition&sort=trending&author=nvidia"
+}
+{
+  "filename": "starthere/intro.rst",
+  "lineno": 19,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/nvidia",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/nvidia"
+}
 {
   "filename": "tools/nemo_forced_aligner.rst",
   "lineno": 15,
