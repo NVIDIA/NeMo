@@ -1166,8 +1166,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         prev_state: Optional[Any] = None,
         prev_labels: Optional[torch.Tensor] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
-        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
         """
         Entry point for the decoding algorithm
 
@@ -1177,15 +1175,15 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             prev_state: previous decoder state for the batch
             prev_labels: batch of previously decoded labels
         """
+        # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
+        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             if not is_ddp:
-                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
+                return self.loop_labels_cuda_graphs(
+                    encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+                )
             else:
                 logging.warning("CUDA graphs are temporary disabled in distributed environment", mode=LogMode.ONCE)
-            return self.loop_labels_cuda_graphs(
-                encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
-            )
-
         return self.loop_labels_torch(
             encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
         )
