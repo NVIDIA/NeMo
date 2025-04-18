@@ -340,8 +340,12 @@ class TimingCallback(Callback):
         """
         self._on_batch_end("train_step_timing", pl_module)
         if self.log_tokens_per_sec:
+            if "text" in batch:
+                batch['tokens'] = batch['text']
             tokens_per_gpu = (
-                get_current_global_batch_size() * batch["tokens"].shape[1] / torch.distributed.get_world_size()
+                (get_current_global_batch_size() // trainer.accumulate_grad_batches)
+                * batch["tokens"].shape[1]
+                / torch.distributed.get_world_size()
             )
             pl_module.log(
                 "tokens_per_sec_per_gpu",
