@@ -343,9 +343,6 @@ def set_primary_perf_configs(
             recipe.trainer.plugins.first_last_layers_bf16 = False
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
-            if comm_overlap_callback_idx is not None:
-                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
-                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         if use_mcore_fsdp:
             logging.warning("Currently FSDP does not support FP8 param gather. Disabling fp8 param gather.")
