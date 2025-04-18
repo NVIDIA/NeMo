@@ -641,15 +641,16 @@ def batched_hyps_to_hypotheses(
     """
     assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
-    # We clone `timestamps` and `y_sequence` to avoid keeping references
-    # to the tensors that can be allocated by CUDA graphs. If we don't do this,
-    # subsequent batches might reuse and overwrite the same memory,
-    # leading to unexpected results due to shared references.
+    # NB: clone is necessary for online decoding to avoid reusing the same container
+    scores = batched_hyps.scores.clone().cpu()
+    current_lengths = batched_hyps.current_lengths.clone().cpu()
+    transcript = batched_hyps.transcript.clone().cpu()
+    timestamps = batched_hyps.timestamps.clone().cpu()
     hypotheses = [
         Hypothesis(
-            score=batched_hyps.scores[i].item(),
-            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]].clone(),
-            timestamp=batched_hyps.timestamps[i, : batched_hyps.current_lengths[i]].clone(),
+            score=scores[i].item(),
+            y_sequence=transcript[i, : current_lengths[i]],
+            timestamp=timestamps[i, : batched_hyps.current_lengths[i]],
             token_duration=(
                 durations
                 if not torch.all(
@@ -666,10 +667,10 @@ def batched_hyps_to_hypotheses(
         # move all data to cpu to avoid overhead with moving data by chunks
         alignment_lengths = alignments.current_lengths.cpu().tolist()
         if alignments.with_alignments:
-            alignment_logits = alignments.logits.cpu()
-            alignment_labels = alignments.labels.cpu()
+            alignment_logits = alignments.logits.clone().cpu()
+            alignment_labels = alignments.labels.clone().cpu()
         if alignments.with_frame_confidence:
-            frame_confidence = alignments.frame_confidence.cpu()
+            frame_confidence = alignments.frame_confidence.clone().cpu()
 
         # for each hypothesis - aggregate alignment using unique_consecutive for time indices (~itertools.groupby)
         for i in range(len(hypotheses)):
