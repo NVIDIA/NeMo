@@ -939,6 +939,14 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_PT_2gpu_nemorun
 
+  L2_HF_BERT_SFT_2gpu_FSDP2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_BERT_SFT_2gpu_FSDP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_HF_BERT_SFT_2gpu_FSDP2
+
   L2_HF_Transformer_PT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml

@@ -25,6 +25,7 @@ from nemo.collections.llm.bert.model import (
     BertEmbeddingMiniConfig,
     BertEmbeddingModel,
     BertModel,
+    HFAutoModelForSequenceClassification,
     HuggingFaceBertBaseConfig,
     HuggingFaceBertConfig,
     HuggingFaceBertLargeConfig,
@@ -326,6 +327,7 @@ __all__ = [
     "peft",
     "hf_dataset",
     "HFAutoModelForCausalLM",
+    "HFAutoModelForSequenceClassification",
     "HFMockDataModule",
 ]
 
