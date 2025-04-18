@@ -419,14 +419,14 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         return temporary_datalayer
 
     def div_and_conq_feat(self, input_signal, input_signal_length):
-        """ 
-        This function divides the input signal into smaller chunks and processes each chunk separately 
+        """
+        This function divides the input signal into smaller chunks and processes each chunk separately
         to prevent out-of-memory errors during feature extraction.
-        
+
         Args:
             input_signal (torch.Tensor): The input audio signal.
             input_signal_length (torch.Tensor): The lengths of the input audio signals.
-            
+
         Returns:
             processed_signal (torch.Tensor): The processed audio signal. This should match the original batch size.
             processed_signal_length (torch.Tensor): The lengths of the processed audio signals.
@@ -434,9 +434,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         processed_signal_list, processed_signal_length_list = [], []
         max_batch_sec = input_signal.shape[1]/self.preprocessor._cfg.sample_rate
         org_batch_size = input_signal.shape[0]
-        div_batch_count = int(max_batch_sec * org_batch_size//self.divide_and_conquer_feature_max_sec + 1)
+        div_batch_count = min(int(max_batch_sec * org_batch_size//self.divide_and_conquer_feature_max_sec + 1), org_batch_size)
         div_size = round(org_batch_size / div_batch_count, 0)
-        
+
         for div_count in range(div_batch_count):
             start_idx = int(div_count * div_size)
             end_idx = int((div_count + 1) * div_size)
@@ -451,15 +451,15 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             processed_signal_length_div = processed_signal_length_div.detach().cpu()
             processed_signal_list.append(processed_signal_div)
             processed_signal_length_list.append(processed_signal_length_div)
-        
+
         processed_signal = torch.cat(processed_signal_list, 0)
         processed_signal_length = torch.cat(processed_signal_length_list, 0)
         if processed_signal.shape[0] != org_batch_size:
             logging.error(f"The resulting batch size of processed signal - {processed_signal.shape[0]} is not equal to original batch size: {org_batch_size}")
         processed_signal = processed_signal.to(self.device)
-        processed_signal_length = processed_signal_length.to(self.device)    
+        processed_signal_length = processed_signal_length.to(self.device)
         return processed_signal, processed_signal_length 
-        
+
     def process_signal(self, audio_signal, audio_signal_length):
         """
         Extract audio features from time-series signal for further processing in the model.
@@ -485,12 +485,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         audio_signal, audio_signal_length = audio_signal.to(self.device), audio_signal_length.to(self.device)
         if not self.streaming_mode:
             audio_signal = (1 / (audio_signal.max() + self.eps)) * audio_signal
-            
-        if self.divide_and_conquer_feature_max_sec > 0:
+
+        batch_total_dur = audio_signal.shape[0] * audio_signal.shape[1] / self.preprocessor._cfg.sample_rate
+        if self.divide_and_conquer_feature_max_sec > 0 and self.divide_and_conquer_feature_max_sec < batch_total_dur:
             processed_signal, processed_signal_length = self.div_and_conq_feat(
                 input_signal=audio_signal, input_signal_length=audio_signal_length
-            ) 
-        else: 
+            )
+        else:
             processed_signal, processed_signal_length = self.preprocessor(
                 input_signal=audio_signal, length=audio_signal_length
             )
