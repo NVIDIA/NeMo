@@ -22,7 +22,7 @@ from tqdm import tqdm
 CROSS_ENTROPY_IGNORE_IDX = -100
 PACK_TYPE = Dict[str, Union[torch.Tensor, List[int]]]
 
-
+# based on https://github.com/pytorch/torchtune/blob/v0.6.1/torchtune/datasets/_packed.py#L17
 class HFDatasetPackedSequenceHelper:
     """
     Args:
@@ -68,7 +68,7 @@ class HFDatasetPackedSequenceHelper:
         current_pack = {
             "tokens": [],
             "labels": [],
-            "input_pos": [],
+            "position_ids": [],
             "seq_lens": [],
         }
         if self.contains_loss_mask:
@@ -90,10 +90,10 @@ class HFDatasetPackedSequenceHelper:
                     "Please set `split_across_pack=True` or increase `packed_sequence_size`."
                 )
             # Update the current pack
-            # "input_pos" is the pos ids, "seq_lens" is the len of each seq within the pack
+            # "position_ids" is the pos ids, "seq_lens" is the len of each seq within the pack
             current_pack["tokens"] += tokens
             current_pack["labels"] += labels
-            current_pack["input_pos"] += [x % self.packed_sequence_size for x in range(seq_len)]
+            current_pack["position_ids"] += [x % self.packed_sequence_size for x in range(seq_len)]
             current_pack["seq_lens"] += [seq_len]
             if self.contains_loss_mask:
                 current_pack["loss_mask"] += loss_mask
@@ -147,7 +147,7 @@ class HFDatasetPackedSequenceHelper:
         pack = {
             "tokens": current_pack["tokens"][:boundary],
             "labels": current_pack["labels"][:boundary],
-            "input_pos": current_pack["input_pos"][:boundary],
+            "position_ids": current_pack["position_ids"][:boundary],
             "seq_lens": current_pack["seq_lens"][:-1] + seq_len_padding,
         }
         if self.contains_loss_mask:
@@ -165,7 +165,7 @@ class HFDatasetPackedSequenceHelper:
         output_dict = {
             "tokens": current_pack["tokens"][boundary:],
             "labels": current_pack["labels"][boundary:],
-            "input_pos": current_pack["input_pos"][boundary:],
+            "position_ids": current_pack["position_ids"][boundary:],
             "seq_lens": [next_seq_len],
         }
         if self.contains_loss_mask:
@@ -183,7 +183,7 @@ class HFDatasetPackedSequenceHelper:
         tensor_pack = {
             "tokens": torch.tensor(pack["tokens"], dtype=torch.long),
             "labels": torch.tensor(pack["labels"], dtype=torch.long),
-            "input_pos": torch.tensor(pack["input_pos"], dtype=torch.long),
+            "position_ids": torch.tensor(pack["position_ids"], dtype=torch.long),
             "seq_lens": torch.tensor(pack["seq_lens"], dtype=torch.long),
         }
         if self.contains_loss_mask:
@@ -222,21 +222,21 @@ class HFDatasetPackedSequenceHelper:
             else pack["seq_lens"]
         )
 
-        # Pad input_pos continuing the sequence from last value
-        # in input_pos
+        # Pad position_ids continuing the sequence from last value
+        # in position_ids
         # e.g. [0 1 2] -> [0 1 2 3 4 5] for self.packed_sequence_size = 6
         num_range = torch.arange(
-            pack["input_pos"][-1] + 1,
-            pack["input_pos"][-1] + self.packed_sequence_size - len(pack["input_pos"]) + 1,
+            pack["position_ids"][-1] + 1,
+            pack["position_ids"][-1] + self.packed_sequence_size - len(pack["position_ids"]) + 1,
         )
         # Clamp to packed_sequence_size - 1 to avoid out of bounds error
         clamped_num_range = torch.clamp(num_range, 0, self.packed_sequence_size - 1)
-        padded_input_pos = torch.cat([pack["input_pos"], clamped_num_range])
+        padded_position_ids = torch.cat([pack["position_ids"], clamped_num_range])
 
         padded_pack = {
             "tokens": padded_tokens,
             "labels": padded_labels,
-            "input_pos": padded_input_pos,
+            "position_ids": padded_position_ids,
             "seq_lens": padded_seq_lens,
         }
         if self.contains_loss_mask:
@@ -279,7 +279,9 @@ def create_block_causal_mask(seq_lens: List[torch.Tensor]) -> torch.Tensor:
         ]
 
         batch_block_attn_masks.append(torch.block_diag(*block_attn_masks))
-    return torch.stack(batch_block_attn_masks)
+    # Transformers expects the attn_mask to be 4d [bs, 1, packed_sequence_size, packed_sequence_size], hence adding
+    # singleton (size 1) dimension at position 1.
+    return torch.stack(batch_block_attn_masks).unsqueeze(1)
 
 
 def packed_block_causal_mask(seq_lens: List[torch.Tensor]):
