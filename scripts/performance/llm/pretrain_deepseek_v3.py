@@ -114,7 +114,13 @@ def override_recipe_configs(
         raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
     recipe.model.config.moe_permute_fusion = True
     recipe.model.config.recompute_granularity = "selective"
-    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm", "moe", "mlp"]
+    if args.gpu.lower() in ['b200', 'gb200']:
+        recipe.model.config.recompute_modules = [
+            "core_attn",
+            "mla_up_proj",
+        ]  # recompute core attention as it is using unfused kernel
+    else:
+        recipe.model.config.recompute_modules = ["mla_up_proj"]  # recompute mla_up_proj to save memory
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.moe_router_dtype = 'fp32'
     recipe.model.config.moe_permute_fusion = True
