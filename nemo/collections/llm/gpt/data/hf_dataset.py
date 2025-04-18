@@ -441,7 +441,7 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
 
         ## add block_mask to the batch
         for i, item in enumerate(batch):
-            item['mask'] = block_mask[i].tolist()  # Convert tensor to list for compatibility
+            item['attention_mask'] = block_mask[i].tolist()  # Convert tensor to list for compatibility
         return super().collate_fn(batch, pad_token_id, pad_seq_len_divisible)
 
     def _make_dataloader(self, dataset, split, collate_fn=None):
