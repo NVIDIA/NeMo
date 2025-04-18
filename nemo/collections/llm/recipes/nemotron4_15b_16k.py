@@ -14,8 +14,8 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
 
 from nemo.collections.llm.api import pretrain
@@ -56,7 +56,7 @@ def pretrain_recipe(
     # Trainer
     tensor_parallelism: int = 2,
     pipeline_parallelism: int = 2,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 2,
     sequence_parallelism: bool = True,

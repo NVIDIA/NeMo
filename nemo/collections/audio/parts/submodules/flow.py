@@ -71,11 +71,12 @@ class ConditionalFlow(ABC):
 
         return time
 
-    def generate_time(self, batch_size: int) -> torch.Tensor:
+    def generate_time(self, batch_size: int, rng: torch.random.Generator = None) -> torch.Tensor:
         """
-        Randomly sample a batchsize of time_steps from U[0~1]
+        Randomly sample a batchsize of time_steps from U[self.time_min, self.time_max]
+        Supports an external random number generator for better reproducibility
         """
-        return torch.clamp(torch.rand((batch_size,)), self.time_min, self.time_max)
+        return torch.rand((batch_size,), generator=rng) * (self.time_max - self.time_min) + self.time_min
 
     def sample(self, *, time: torch.Tensor, x_start: torch.Tensor, x_end: torch.Tensor) -> torch.Tensor:
         """
@@ -234,7 +235,7 @@ class ConditionalFlowMatchingEulerSampler(ConditionalFlowMatchingSampler):
         if state_length is not None:
             state = mask_sequence_tensor(state, state_length)
 
-        for t in time_steps:
+        for t in time_steps[:-1]:
             time = t * torch.ones(state.shape[0], device=state.device)
 
             if estimator_condition is None:

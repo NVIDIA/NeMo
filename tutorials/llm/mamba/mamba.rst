@@ -80,27 +80,6 @@ Convert the Pytorch Checkpoint to a NeMo Checkpoint
 
 * Note: the ``mamba_ssm_ngroups`` parameter should be 1 for the Mamba2 models from the `Transformers are SSMs paper <https://arxiv.org/pdf/2405.21060>`__ (130m, 370m, 780m, 1.3b, and 2.7b) and 8 for the Mamba2 and Mamba2-Hybrid models by `NVIDIA <https://arxiv.org/pdf/2406.07887>`__ (both 8b).
 
-Model (Tensor) Parallelism for the 8b Models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* Note: Distributed checkpointing for the Mamba2 and Mamba2-Hybrid models will be implemented in the near future. For now, you should use the method below for converting to Tensor Parallel (TP) of different sizes. 
-
-The HuggingFace checkpoint for the 8b model is for TP of size 1, and so is the ``.nemo`` checkpoint obtained for the previous step. To shard the model weights for a larger TP size, use the script from <SCRIPT PATH>. The example below is for a target TP of size 4.
-
-.. code:: bash
-   
-   CUDA_VISIBLE_DEVICES="0" python /opt/NeMo/examples/nlp/language_modeling/mamba_change_num_partition.py \
-          --model_file=<path to source .nemo model> \
-          --target_file=<path to target .nemo model> \
-          --tensor_model_parallel_size=1 \
-          --target_tensor_model_parallel_size=4 \
-          --precision=bf16 \
-          --tokenizer_path=<path to tokenizer.model>
-
-After running this script, a ``.nemo`` model along with the TP-size number of folders (4 in this example) will be generated in the target path. The folders for each rank will be displayed as ``mp_rank_00`` to ``mp_rank_03`` in this example. 
-
-* Note: You can only use Tensor Parallelism for the 8b models by `NVIDIA <https://arxiv.org/pdf/2406.07887>`__ (Mamba2 8b and Mamba2-Hybrid 8b). This is due to the fact that the ``mamba_ssm_ngroups`` parameter in the model architecture should be divisible by TP size. ``mamba_ssm_ngroups`` parameter is 8 for NVIDIA models and 1 for other models in the list.
-
 Run Fine-Tuning
 ^^^^^^^^^^^^^^^
 1. Follow the steps from `here <https://nemo-framework-tme.gitlab-master-pages.nvidia.com/documentation/user-guide/latest/llms/gemma/dataprep.html>`__ to obtain and preprocess the fine-tuning dataset.
@@ -123,9 +102,6 @@ Run Fine-Tuning
     CONFIG_PATH="/opt/NeMo/examples/nlp/language_modeling/tuning/conf/"
     CONFIG_NAME="megatron_mamba_finetuning_config"
     SAVE_DIR=<path to the saving directory>
-
-    export NVTE_FUSED_ATTN=1
-    export NVTE_FLASH_ATTN=0
 
     torchrun --nproc_per_node=${NUM_DEVICES} \
             /opt/NeMo/examples/nlp/language_modeling/tuning/megatron_mamba_finetuning.py \
@@ -150,6 +126,7 @@ Run Fine-Tuning
             model.peft.peft_scheme='none' \
             model.megatron_amp_O2=True \
             model.encoder_seq_length=${SEQ_LEN} \
+            model.attention_backend='fused' \
             model.data.validation_ds.pad_to_max_length=True \
             model.data.train_ds.pad_to_max_length=True \
             model.optim.name="distributed_fused_adam" \
@@ -183,10 +160,6 @@ Evaluating the Fine-Tuned Model
     CONFIG_NAME="megatron_mamba_finetuning_config"
     SAVE_DIR=<path to the saving directory>
 
-    export NVTE_FUSED_ATTN=1
-    export NVTE_FLASH_ATTN=0
-
-
     CONFIG_PATH="/opt/NeMo/examples/nlp/language_modeling/tuning/conf/"
     CONFIG_NAME="megatron_mamba_generate_config"
 
@@ -206,6 +179,7 @@ Evaluating the Fine-Tuned Model
             exp_manager.exp_dir=${SAVE_DIR} \
             exp_manager.resume_if_exists=False \
             exp_manager.create_wandb_logger=False \
+            model.attention_backend='fused' \
             model.megatron_amp_O2=True \
             model.peft.restore_from_path=False \
             +model.peft.restore_from_ckpt.checkpoint_dir=False \

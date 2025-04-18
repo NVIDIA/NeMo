@@ -17,7 +17,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
 from transformers import AutoModel
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -50,7 +50,11 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -90,6 +94,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
+    model_config.name = "te_gpt"
     if cpu_only:
         map_location = torch.device('cpu')
         model_config.use_cpu_initialization = True
@@ -121,7 +126,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     num_layers = model.cfg.num_layers
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
-    head_size = hidden_size // head_num
+    head_size = model.cfg.get("kv_channels") or (hidden_size // head_num)  # equivalent to hf's head_dim
     heads_per_group = head_num // num_query_groups  # 32 / 2 = 16
     qkv_total_dim = head_num + 2 * num_query_groups  # 32 + 2 * 2 = 36
 
@@ -168,9 +173,21 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
 
         qkv_bias_base_name = f'transformer.encoder.layers.{l}.self_attention.query_key_value.bias'
-        q_bias = param_to_weights(qkv_bias[q_slice].reshape(-1,))
-        k_bias = param_to_weights(qkv_bias[k_slice].reshape(-1,))
-        v_bias = param_to_weights(qkv_bias[v_slice].reshape(-1,))
+        q_bias = param_to_weights(
+            qkv_bias[q_slice].reshape(
+                -1,
+            )
+        )
+        k_bias = param_to_weights(
+            qkv_bias[k_slice].reshape(
+                -1,
+            )
+        )
+        v_bias = param_to_weights(
+            qkv_bias[v_slice].reshape(
+                -1,
+            )
+        )
         checkpoint[qkv_bias_base_name] = torch.cat((q_bias, k_bias, v_bias))
 
         # attention dense

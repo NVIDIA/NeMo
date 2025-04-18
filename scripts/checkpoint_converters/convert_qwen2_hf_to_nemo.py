@@ -25,8 +25,8 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
-from pytorch_lightning.trainer.trainer import Trainer
 from transformers import Qwen2ForCausalLM, Qwen2Tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -81,8 +81,16 @@ def load_config(args, qwen_config):
         nemo_config.num_query_groups = qwen_config['num_key_value_heads']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
-    nemo_config.tokenizer.type = str(args.input_name_or_path)
-    nemo_config.tokenizer.model = str(args.input_name_or_path) + '/vocab.json'
+
+    # use HF tokenizer
+    tokenizer_dict = {
+        'library': 'huggingface',
+        'type': args.input_name_or_path,
+        'use_fast': True,
+        'trust_remote_code': True,
+    }
+    nemo_config.tokenizer = tokenizer_dict
+
     nemo_config.override_vocab_size = qwen_config['vocab_size']
 
     base = 128

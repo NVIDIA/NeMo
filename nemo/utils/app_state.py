@@ -14,19 +14,27 @@
 
 from dataclasses import dataclass
 from threading import Lock
-from typing import Dict, Optional
+from typing import Optional
 
 from nemo.utils.metaclasses import Singleton
 
 
 @dataclass()
 class ModelMetadataRegistry:
+    """
+    Dataclass for model metadata registry.
+    """
+
     guid: str
     gidx: int
     restoration_path: Optional[str] = None
 
 
 class AppState(metaclass=Singleton):
+    """
+    App state for the application.
+    """
+
     def __init__(self):
         # method call lock
         self.__lock = Lock()
@@ -40,6 +48,7 @@ class AppState(metaclass=Singleton):
         self._global_rank = None
         self._tensor_model_parallel_rank = None
         self._expert_model_parallel_rank = None
+        self._expert_tensor_parallel_rank = None
         self._pipeline_model_parallel_rank = None
         self._data_parallel_rank = None
 
@@ -48,14 +57,19 @@ class AppState(metaclass=Singleton):
         self._tensor_model_parallel_size = None
         self._tensor_model_parallel_group = None
         self._expert_model_parallel_size = None
+        self._expert_tensor_parallel_size = None
         self._pipeline_model_parallel_size = None
         self._virtual_pipeline_model_parallel_size = None
+        self._encoder_tensor_model_parallel_size = None
+        self._encoder_pipeline_model_parallel_size = None
         self._pipeline_model_parallel_group = None
         self._pipeline_model_parallel_split_rank = None
+        self._pipeline_model_parallel_comm_backend = None
         self._is_megatron_initialized = False
         self._data_parallel_size = None
         self._data_parallel_group = None
         self._use_tp_pp_dp_mapping = False
+        self._num_distributed_optimizer_instances = 1
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
         self._context_parallel_size = None
@@ -87,6 +101,9 @@ class AppState(metaclass=Singleton):
         self._files_to_copy = []
         # command-ling arguments for run
         self._cmd_args = None
+
+        # Insert NVTX ranges to categorize execution
+        self._nvtx_ranges = False
 
     @property
     def device_id(self):
@@ -178,11 +195,43 @@ class AppState(metaclass=Singleton):
 
     @expert_model_parallel_size.setter
     def expert_model_parallel_size(self, size):
-        """Property sets the number of GPUs in each expert parallel group.
-        Args:
-            size (int):  Number of GPUs in each expert parallel group.
+        """Property returns the number of GPUs in each expert parallel group.
+        Returns:
+            Number of GPUs in each expert parallel group.
         """
         self._expert_model_parallel_size = size
+
+    @property
+    def expert_tensor_parallel_size(self):
+        """Property returns the number of GPUs in each expert tensor parallel group.
+        Returns:
+            Number of GPUs in each expert tensor parallel group.
+        """
+        return self._expert_tensor_parallel_size
+
+    @expert_tensor_parallel_size.setter
+    def expert_tensor_parallel_size(self, size):
+        """Property sets the number of GPUs in each expert tensor parallel group.
+        Args:
+            size (int):  Number of GPUs in each tensor expert parallel group.
+        """
+        self._expert_tensor_parallel_size = size
+
+    @property
+    def expert_tensor_parallel_rank(self):
+        """Property returns the expert tensor model parallel rank.
+        Returns:
+            Tensor model parallel rank.
+        """
+        return self._expert_tensor_parallel_rank
+
+    @expert_tensor_parallel_rank.setter
+    def expert_tensor_parallel_rank(self, rank):
+        """Property sets the expert tensor model parallel rank.
+        Args:
+            rank (int):  Tensor model parallel rank.
+        """
+        self._expert_tensor_parallel_rank = rank
 
     @property
     def pipeline_model_parallel_size(self):
@@ -201,12 +250,84 @@ class AppState(metaclass=Singleton):
         self._pipeline_model_parallel_size = size
 
     @property
+    def pipeline_model_parallel_comm_backend(self):
+        """Property returns the backend communication library of pipeline communication.
+        Returns:
+            Backend communication library of pipeline communication.
+        """
+        return self._pipeline_model_parallel_comm_backend
+
+    @pipeline_model_parallel_comm_backend.setter
+    def pipeline_model_parallel_comm_backend(self, backend):
+        """Property sets the backend communication library of pipeline communication.
+        Args:
+            backend (str): Backend communication library of pipeline communication.
+        """
+        self._pipeline_model_parallel_comm_backend = backend
+
+    @property
+    def encoder_tensor_model_parallel_size(self):
+        """Property returns the number of GPUs in each model parallel group.
+        Returns:
+            Number of GPUs in each model parallel group.
+        """
+        return self._encoder_tensor_model_parallel_size
+
+    @encoder_tensor_model_parallel_size.setter
+    def encoder_tensor_model_parallel_size(self, size):
+        """Property sets the number of GPUs in each model parallel group.
+        Args:
+            size (int):  Number of GPUs in each model parallel group.
+        """
+        self._encoder_tensor_model_parallel_size = size
+
+    @property
+    def encoder_pipeline_model_parallel_size(self):
+        """Property returns the number of GPUs in each model parallel group.
+        Returns:
+            Number of GPUs in each model parallel group.
+        """
+        return self._encoder_pipeline_model_parallel_size
+
+    @encoder_pipeline_model_parallel_size.setter
+    def encoder_pipeline_model_parallel_size(self, size):
+        """Property sets the number of GPUs in each model parallel group.
+        Args:
+            size (int):  Number of GPUs in each model parallel group.
+        """
+        self._encoder_pipeline_model_parallel_size = size
+
+    @property
     def use_tp_pp_dp_mapping(self):
+        """Property returns whether to use TP-PP-DP mapping.
+        Returns:
+            Whether to use TP-PP-DP mapping.
+        """
         return self._use_tp_pp_dp_mapping
 
     @use_tp_pp_dp_mapping.setter
     def use_tp_pp_dp_mapping(self, use_new_mapping):
+        """Property sets whether to use TP-PP-DP mapping.
+        Args:
+            use_new_mapping (bool):  Whether to use TP-PP-DP mapping.
+        """
         self._use_tp_pp_dp_mapping = use_new_mapping
+
+    @property
+    def num_distributed_optimizer_instances(self):
+        """Property returns the factor by which the Partial DistOpt is sharded.
+        Returns:
+            The partial DistOpt shard factor
+        """
+        return self._num_distributed_optimizer_instances
+
+    @num_distributed_optimizer_instances.setter
+    def num_distributed_optimizer_instances(self, shard_factor):
+        """Property sets the factor by which the Partial DistOpt is sharded.
+        Args:
+            shard_factor (int):  The partial DistOpt shard factor.
+        """
+        self._num_distributed_optimizer_instances = shard_factor
 
     @property
     def virtual_pipeline_model_parallel_size(self):
@@ -337,8 +458,41 @@ class AppState(metaclass=Singleton):
         self._virtual_pipeline_model_parallel_rank = rank
 
     @property
+    def encoder_tensor_model_parallel_rank(self):
+        """Property returns the encoder tensor model parallel rank.
+        Returns:
+            Tensor model parallel rank.
+        """
+        return self._encoder_tensor_model_parallel_rank
+
+    @encoder_tensor_model_parallel_rank.setter
+    def encoder_tensor_model_parallel_rank(self, rank):
+        """Property sets the encoder tensor model parallel rank.
+        Args:
+            rank (int):  Tensor model parallel rank.
+        """
+        self._encoder_tensor_model_parallel_rank = rank
+
+    @property
+    def encoder_pipeline_model_parallel_rank(self):
+        """Property returns the encoder pipeline model parallel rank.
+        Returns:
+            Tensor model parallel rank.
+        """
+        return self._encoder_pipeline_model_parallel_rank
+
+    @encoder_pipeline_model_parallel_rank.setter
+    def encoder_pipeline_model_parallel_rank(self, rank):
+        """Property sets the encoder pipeline model parallel rank.
+        Args:
+            rank (int):  Tensor model parallel rank.
+        """
+        self._encoder_pipeline_model_parallel_rank = rank
+
+    @property
     def pipeline_model_parallel_split_rank(self):
-        """Property returns the rank at which Encoder and Decoder are split into different pipelines for Megatrron Encoder-Decoder models.
+        """Property returns the rank at which Encoder and Decoder are split into different pipelines for
+        Megatrron Encoder-Decoder models.
         Returns:
             Pipeline model parallel split rank.
         """
@@ -346,7 +500,8 @@ class AppState(metaclass=Singleton):
 
     @pipeline_model_parallel_split_rank.setter
     def pipeline_model_parallel_split_rank(self, rank):
-        """Property sets the rank at which Encoder and Decoder are split into different pipelines for Megatrron Encoder-Decoder models.
+        """Property sets the rank at which Encoder and Decoder are split into different pipelines for
+        Megatron Encoder-Decoder models.
         Args:
             rank (int): Model parallel split rank.
         """
@@ -607,17 +762,29 @@ class AppState(metaclass=Singleton):
 
     @property
     def model_restore_path(self):
+        """Property returns the model restore path.
+        Returns:
+            Model restore path.
+        """
         restore_path = self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
         return restore_path
 
     @model_restore_path.setter
     def model_restore_path(self, path):
+        """Property sets the model restore path.
+        Args:
+            path (str): Model restore path.
+        """
         with self.__lock:
             self._model_restore_path = path
             self._all_model_restore_paths.append(path)
 
     def register_model_guid(self, guid: str, restoration_path: Optional[str] = None):
-        # Maps a guid to its restore path (None or last absolute path)
+        """Maps a guid to its restore path (None or last absolute path).
+        Args:
+            guid (str): Guid.
+            restoration_path (Optional[str]): Restore path.
+        """
         with self.__lock:
             if guid in self._model_guid_map:
                 idx = self._model_guid_map[guid].gidx
@@ -626,35 +793,64 @@ class AppState(metaclass=Singleton):
             self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=restoration_path)
 
     def reset_model_guid_registry(self):
-        # Reset the guid mapping
+        """Resets the guid mapping."""
         with self.__lock:
             self._model_guid_map.clear()
 
     def get_model_metadata_from_guid(self, guid) -> ModelMetadataRegistry:
-        # Returns the global model idx and restoration path
+        """Returns the global model idx and restoration path.
+        Args:
+            guid (str): Guid.
+        Returns:
+            Model metadata registry.
+        """
         metadata = self._model_guid_map[guid]
         return metadata
 
     @property
     def is_model_being_restored(self) -> bool:
+        """Property returns whether the model is being restored.
+        Returns:
+            Whether the model is being restored.
+        """
         return self._is_model_being_restored
 
     @is_model_being_restored.setter
     def is_model_being_restored(self, is_restored: bool):
+        """Property sets whether the model is being restored.
+        Args:
+            is_restored (bool): Whether the model is being restored.
+        """
         self._is_model_being_restored = is_restored
 
     @property
     def nemo_file_folder(self) -> str:
+        """Property returns the nemo file folder.
+        Returns:
+            Nemo file folder.
+        """
         return self._nemo_file_folder
 
     @nemo_file_folder.setter
     def nemo_file_folder(self, path: str):
+        """Property sets the nemo file folder.
+        Args:
+            path (str): Nemo file folder.
+        """
         self._nemo_file_folder = path
 
     @property
     def restore(self) -> bool:
+        """Property returns whether to restore the model.
+        Returns:
+            Whether to restore the model.
+        """
         return self._restore
 
     @restore.setter
     def restore(self, restore: bool):
+        """Property sets whether to restore the model.
+        Args:
+            restore (bool): Whether to restore the model.
+        """
         self._restore = restore

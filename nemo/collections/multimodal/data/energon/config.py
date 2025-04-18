@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional, Tuple, Union
+
 import torch
-from nemo.collections.multimodal.data.energon.conversation import BaseConversationTemplateConfig
+from megatron.core.packed_seq_params import PackedSeqParams
+
+from nemo.collections.multimodal.data.energon.conversation import BaseConversationTemplateConfig, LLaVATemplateConfig
 
 
 @dataclass
@@ -34,13 +38,23 @@ class ImageToken(MultiModalToken):
 
 @dataclass
 class ImageTextSample:
-    '''Sample type for template formatted raw image text sample'''
+    """Sample type for template formatted raw image text sample"""
 
     __key__: str = ''
     images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    num_image_tiles: Optional[List[int]] = None
+
+
+@dataclass
+class PackedImageTextSample(ImageTextSample):
+    """Sample type for packed image text sample"""
+
+    __restore_key__: Tuple[Union[str, int, tuple], ...] = ()
+    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
 
 
 @dataclass
@@ -54,17 +68,20 @@ class ImageTextRawBatch:
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    num_image_tiles: Optional[List[int]] = None
 
 
-class LLaVATemplateConfig(BaseConversationTemplateConfig):
-    """LLava specific template configuration which extends the base config"""
+@dataclass
+class PackedImageTextRawBatch(ImageTextRawBatch):
+    """Sample type for image text raw batch"""
 
-    pass
+    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
 
 
 @dataclass
 class MultiModalSampleConfig:
-    image_token: ImageToken = ImageToken()
+    image_token: ImageToken = field(default_factory=ImageToken)
     ignore_place_holder: int = -100
-    conversation_template_config: LLaVATemplateConfig = LLaVATemplateConfig()
+    conversation_template_config: BaseConversationTemplateConfig = field(default_factory=LLaVATemplateConfig)
     image_following_text: bool = True

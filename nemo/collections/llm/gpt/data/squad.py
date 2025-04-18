@@ -13,7 +13,8 @@
 # limitations under the License.
 import json
 import shutil
-from typing import TYPE_CHECKING, List, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from datasets import DatasetDict, load_dataset
 
@@ -24,23 +25,31 @@ from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
 class SquadDataModule(FineTuningDataModule, IOMixin):
     """A data module for fine-tuning on the Squad dataset.
 
-    This class inherits from the `FineTuningDataModule` class and is specifically designed for fine-tuning models on the
-    Stanford Question Answering Dataset (SQuAD). It handles data download, preprocessing, splitting, and preparing the data
-    in a format suitable for training, validation, and testing.
+    This class inherits from the `FineTuningDataModule` class and is specifically designed for
+    fine-tuning models on the Stanford Question Answering Dataset (SQuAD). It handles data download,
+    preprocessing, splitting, and preparing the data in a format suitable for training,
+    validation, and testing.
 
     Args:
-        force_redownload (bool, optional): Whether to force re-download the dataset even if it exists locally. Defaults to False.
-        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing. Defaults to True.
+        dataset_root (Optional[Union[str, Path]]): The root directory containing the training,
+            validation, and test data. Defaults to None, which by default downloads the data.
+        force_redownload (bool, optional): Whether to force re-download the dataset even if it
+            exists locally. Defaults to False.
+        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing.
+            Defaults to True.
+
         See FineTuningDataModule for the other args
     """
 
     def __init__(
         self,
+        dataset_root: Optional[Union[str, Path]] = None,
         seq_length: int = 2048,
         tokenizer: Optional["TokenizerSpec"] = None,
         micro_batch_size: int = 4,
@@ -53,13 +62,14 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
-        pad_to_max_length: bool = False,
+        packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
+        dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
 
         super().__init__(
-            dataset_root=get_dataset_root("squad"),
+            dataset_root=dataset_root if dataset_root is not None else get_dataset_root("squad"),
             seq_length=seq_length,
             tokenizer=tokenizer,
             micro_batch_size=micro_batch_size,
@@ -70,16 +80,16 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             num_workers=num_workers,
             pin_memory=pin_memory,
             persistent_workers=persistent_workers,
-            pad_to_max_length=pad_to_max_length,
+            packed_sequence_specs=packed_sequence_specs,
+            dataset_kwargs=dataset_kwargs,
         )
 
     def prepare_data(self) -> None:
         # if train file is specified, no need to do anything
-        if self.train_path.exists() and not self.force_redownload:
-            return
-
-        dset = self._download_data()
-        self._preprocess_and_split_data(dset)
+        if not self.train_path.exists() or self.force_redownload:
+            dset = self._download_data()
+            self._preprocess_and_split_data(dset)
+        super().prepare_data()
 
     def _download_data(self):
         logging.info(f"Downloading {self.__class__.__name__}...")
@@ -98,8 +108,8 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             dset (DatasetDict): The downloaded dataset object.
             split_val_from_train (bool, optional): Whether to split the validation set from the training set.
                 If False, the validation set is split from the test set. Defaults to True.
-            val_proportion (float, optional): The proportion of the training or test set to be used for the validation split.
-                Defaults to 0.05.
+            val_proportion (float, optional): The proportion of the training or test set to be used
+                for the validation split. Defaults to 0.05.
         """
         logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
         save_splits = {}
@@ -142,4 +152,5 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
                     p.unlink()
 
     def reconfigure_limit_batches(self):
+        """no op"""
         return

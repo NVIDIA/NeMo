@@ -19,13 +19,13 @@ import os
 from typing import Any, Mapping, Optional, Union
 
 import torch
-from lightning_fabric.utilities.cloud_io import _load as pl_load
+from lightning.fabric.utilities.cloud_io import _load as pl_load
+from lightning.pytorch import Trainer
+from lightning.pytorch.core.saving import _load_state as ptl_load_state
+from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from lightning.pytorch.utilities import rank_zero_only
+from lightning.pytorch.utilities.migration import pl_legacy_patch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
-from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -67,7 +67,6 @@ class NLPModel(ModelPT, Exportable):
         self.hidden_size = None
         self.bert_model = None
         vocab_file = None
-        nemo_file = None
         config_dict = None
         config_file = None
 
@@ -112,8 +111,6 @@ class NLPModel(ModelPT, Exportable):
         self._save_restore_connector = NLPSaveRestoreConnector()
 
         if cfg.get('language_model') and not no_lm_init:
-            if cfg.get('language_model').get('nemo_file'):
-                nemo_file = self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
             if cfg.get('language_model').get('config'):
                 config_dict = OmegaConf.to_container(cfg.language_model.config)
             if cfg.get('language_model').get('config_file'):
@@ -184,16 +181,18 @@ class NLPModel(ModelPT, Exportable):
                             f.write(json.dumps(output_config, indent=2, sort_keys=True) + '\n')
                         self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
                     else:
-                        # No defaults as this case can be any possible hyper-parameter combination of MegatronBert config
+                        # No defaults as this case can be any possible
+                        # hyper-parameter combination of MegatronBert config
                         logging.info(f'For {self.pretrained_model_name}, set the config_file in the YAML file')
                 else:
                     logging.info(
-                        f'Registering MegatronBERT model config for {self.pretrained_model_name} is not yet supported. \
-                        Please override this method if needed.'
+                        f'Registering MegatronBERT model config for {self.pretrained_model_name} \
+                        is not yet supported. Please override this method if needed.'
                     )
             else:
                 logging.info(
-                    f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
+                    f'Registering BERT model config for {self.bert_model} is not yet supported. \
+                    Please override this method if needed.'
                 )
 
     def setup_tokenizer(self, cfg: DictConfig):
@@ -283,7 +282,8 @@ class NLPModel(ModelPT, Exportable):
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
-                    f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
+                    f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. \
+                    Please override this method if needed.'
                 )
 
     @staticmethod
@@ -304,6 +304,7 @@ class NLPModel(ModelPT, Exportable):
 
     @property
     def is_model_parallel_initialized(self):
+        """ """
         app_state = AppState()
         if app_state.model_parallel_group is not None:
             return True
@@ -397,7 +398,22 @@ class NLPModel(ModelPT, Exportable):
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                     model.trainer.strategy.setup_environment()
                 sharded_state_dict = model.sharded_state_dict()
-                checkpoint['state_dict'] = sharded_state_dict
+                if kwargs.get("load_mlm", False):
+                    mlm_sharded_state_dict = {}
+                    for k, v in sharded_state_dict.items():
+                        # Remove 'model.' from the sharded_state_dict keys
+                        new_key = k.replace('model.', '', 1)
+
+                        # Update the key attribute of the ShardedTensor value
+                        new_value = v
+                        if hasattr(v, 'key'):
+                            new_value.key = v.key.replace('model.', '', 1)
+
+                        # Add the updated key-value pair to the new dictionary
+                        mlm_sharded_state_dict[new_key] = new_value
+                    checkpoint['state_dict'] = mlm_sharded_state_dict
+                else:
+                    checkpoint['state_dict'] = sharded_state_dict
                 # load the checkpoint from disk
                 checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
                 # restore the weights
@@ -405,7 +421,8 @@ class NLPModel(ModelPT, Exportable):
                 if hasattr(model, 'setup_transformer_engine_tp_groups'):
                     model.setup_transformer_engine_tp_groups()
 
-            # NMT models do not have a `tokenizer` attribute, they instead have an encoder_tokenizer and decoder_tokenizer attribute.
+            # NMT models do not have a `tokenizer` attribute,
+            # they instead have an encoder_tokenizer and decoder_tokenizer attribute.
             if hasattr(cfg, "tokenizer"):
                 if cfg.tokenizer.get("tokenizer_model") is not None:
                     model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.tokenizer_model)
@@ -437,6 +454,7 @@ class NLPModel(ModelPT, Exportable):
         return checkpoint
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
+        """ """
         # starting with trasformers v4.31.0, buffer for position_ids is persistent=False
         if (
             self.bert_model is not None
@@ -449,7 +467,18 @@ class NLPModel(ModelPT, Exportable):
             pos_id_keys = [x for x in state_dict.keys() if "position_ids" in x]
             for key in pos_id_keys:
                 del state_dict[key]
-        results = super(NLPModel, self).load_state_dict(state_dict, strict=strict)
+        try:
+            results = super(NLPModel, self).load_state_dict(state_dict, strict=strict)
+        except RuntimeError as e:
+            results = super(NLPModel, self).load_state_dict(state_dict, strict=False)
+            if all(s.endswith('_extra_state') for s in results.missing_keys):
+                logging.warning(
+                    f'Loding checkpoint created with Transformer Engine version lower than 1.13. \
+                    Missing layers {results.missing_keys} will be ignored.'
+                )
+            else:
+                raise e
+
         return results
 
     @classmethod

@@ -20,13 +20,14 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
-    from transformers import AutoConfig, AutoModelForCausalLM
+    from transformers import AutoModelForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -34,6 +35,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class Baichuan2Config(GPTConfig):
+    """
+    Configuration class for the Baichuan2 Config, inheriting from GPTConfig.
+    """
+
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
     gated_linear_unit: bool = True
@@ -48,6 +53,10 @@ class Baichuan2Config(GPTConfig):
 
 @dataclass
 class Baichuan2Config7B(Baichuan2Config):
+    """
+    Configuration class for the Baichuan2 7B Config, inheriting from Baichuan2Config.
+    """
+
     num_layers: int = 32
     hidden_size: int = 4096
     num_attention_heads: int = 32
@@ -57,6 +66,13 @@ class Baichuan2Config7B(Baichuan2Config):
 
 
 class Baichuan2Model(GPTModel):
+    """
+    Baichuan2 model implementation based on the GPT model architecture.
+
+    This class provides a high-level interface for Baichuan2 models,
+    implementing the specific architecture and settings needed for Baichuan2 models.
+    """
+
     def __init__(
         self,
         config: Annotated[Optional[Baichuan2Config], Config[Baichuan2Config]] = None,
@@ -71,10 +87,33 @@ class Baichuan2Model(GPTModel):
 
 @io.model_importer(Baichuan2Model, "hf")
 class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Model]):
+    """
+    Importer for converting Hugging Face Baichuan2 models to NeMo format.
+
+    This class handles the conversion of Hugging Face's BaichuanForCausalLM models
+    to NeMo's Baichuan2 format, including weight mapping and configuration translation.
+    """
+
     def init(self) -> Baichuan2Model:
+        """
+        Initialize a NeMo Baichuan2Model instance.
+
+        Returns:
+            Baichuan2Model: Initialized NeMo Llama model with the appropriate configuration
+                        and tokenizer.
+        """
         return Baichuan2Model(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        """
+        Apply the conversion from HF to NeMo format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved NeMo model
+        """
         from transformers import AutoModelForCausalLM
 
         source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
@@ -91,6 +130,19 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from HF format to NeMo format.
+
+        Maps the weights from the HF model to the NeMo model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source HF model
+            target: Target NeMo model
+
+        Returns:
+            The result of applying the transforms
+        """
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -101,16 +153,39 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
+        transforms = [
+            _import_qkv,
+            io.state_transform(
+                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key="decoder.layers.*.mlp.linear_fc1.weight",
+                fn=TransformFns.merge_fc1,
+            ),
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """
+        Get the tokenizer for the HF model.
+
+        Returns:
+            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+        """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
 
     @property
     def config(self) -> Baichuan2Config:
+        """
+        Create a NeMo Baichuan2Config from the HF model config.
+
+        Translates the HF configuration parameters to the equivalent NeMo
+        configuration.
+
+        Returns:
+            Baichuan2Config: NeMo configuration for Baichuan2 models
+        """
         from transformers import AutoConfig as HFAutoConfig
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
@@ -142,16 +217,41 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
 
 @io.model_exporter(Baichuan2Model, "hf")
 class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalLM"]):
-    def init(self) -> "AutoModelForCausalLM":
+    """
+    Exporter for converting NeMo Baichuan2Model to Hugging Face format.
+
+    This class handles the conversion of NeMo's Baichuan2Model to Hugging Face's
+    BaichuanForCausalLM format, including weight mapping and configuration translation.
+    """
+
+    def init(self, dtype=torch.bfloat16, model_name="baichuan-inc/Baichuan2-7B-Base") -> "AutoModelForCausalLM":
+        """
+        Initialize a HF BaichuanForCausalLM instance.
+
+        Args:
+            dtype: Data type for model parameters
+
+        Returns:
+            AutoModelForCausalLM: Initialized HF Baichuan model
+        """
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
+            # Since Baichuan2 is not importable from transformers, we can only initialize the HF model
+            # from a known checkpoint. The model_name will need to be passed in.
+            hf_model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                torch_dtype=dtype,
+            )
+            # Register the AutoModel Hook so that the custom modeling files are saved during save_pretrained()
+            type(hf_model).register_for_auto_class("AutoModelForCausalLM")
+            return hf_model
 
-    def apply(self, output_path: Path) -> Path:
-        target = self.init()
+    def apply(self, output_path: Path, target_model_name=None) -> Path:
         source, _ = self.nemo_load(str(self))
+        target = self.init(torch_dtype_from_mcore_config(source.config), model_name=target_model_name)
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -161,6 +261,19 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from NeMo format to HF format.
+
+        Maps the weights from the NeMo model to the HF model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source NeMo model
+            target: Target HF model
+
+        Returns:
+            The target model with weights transferred from source
+        """
         mapping = {
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
@@ -171,28 +284,25 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+        transforms = [
+            _export_qkv,
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ),
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self):
+        """
+        Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
         return io.load_context(str(self)).model.tokenizer.tokenizer
-
-    @property
-    def config(self) -> "AutoConfig":
-        source: Baichuan2Config = io.load_context(str(self)).model.config
-
-        return AutoConfig(
-            num_hidden_layers=source.num_layers,
-            hidden_size=source.hidden_size,
-            intermediate_size=source.ffn_hidden_size,
-            num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.seq_length,
-            initializer_range=source.init_method_std,
-            rms_norm_eps=source.layernorm_epsilon,
-            num_key_value_heads=source.num_query_groups,
-            rope_theta=source.rotary_base,
-            vocab_size=self.tokenizer.vocab_size,
-        )
 
 
 @io.state_transform(
@@ -206,8 +316,7 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weights):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     qkv_weights = qkv_weights.unflatten(0, (3, hidden_size))
     old_tensor_shape = qkv_weights[0].size()
@@ -216,7 +325,7 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weights):
     q = qkv_weights[0].squeeze().view(*new_q_tensor_shape)
     k = qkv_weights[1].squeeze().view(*new_kv_tensor_shape)
     v = qkv_weights[2].squeeze().view(*new_kv_tensor_shape)
-    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:]).type_as(qkv_weights)
     for i in range(num_query_groups):
         qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
         qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
@@ -237,8 +346,7 @@ def _export_qkv(ctx: io.TransformCTX, qkv_weights):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
@@ -259,24 +367,6 @@ def _export_qkv(ctx: io.TransformCTX, qkv_weights):
             qkv_weights[v_slice].reshape(-1, hidden_size),
         ]
     )
-
-
-@io.state_transform(
-    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight",
-)
-def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0).float()
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-)
-def _export_linear_fc1(linear_fc1):
-    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-    return gate_proj, up_proj
 
 
 __all__ = [

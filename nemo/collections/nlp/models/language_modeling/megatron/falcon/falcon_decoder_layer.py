@@ -55,7 +55,7 @@ class FalconTransformerLayer(TransformerLayer):
 
     Transformer layer takes input with size [s, b, h] and returns an
     output of the same size.
-        
+
     """
 
     def __init__(
@@ -106,8 +106,12 @@ class FalconTransformerLayer(TransformerLayer):
         context=None,
         context_mask=None,
         rotary_pos_emb=None,
+        rotary_pos_cos=None,
+        rotary_pos_sin=None,
+        attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
+        sequence_len_offset=None,
     ):
         # hidden_states: [s, b, h]
 

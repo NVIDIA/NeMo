@@ -17,21 +17,20 @@ from dataclasses import dataclass
 
 GPT_BASED_MODELS = [
     "gpt3",
-    "bert",
     "llama",
-    "baichuan2",
-    "chatglm",
-    "qwen2",
+    "qwen",
     "mixtral",
     "mistral",
     "gemma",
     "nemotron",
+    "starcoder",
 ]
 
 
 @dataclass
 class ModelSizeParams:
-    """Calculates the parameters that affect model_size: hidden size, attention heads, KV channels, and FFN size. It also calculates the learning rate.
+    """Calculates the parameters that affect model_size: hidden size, attention heads,
+        KV channels, and FFN size. It also calculates the learning rate.
 
     Args:
         model_size_in_b (float): number of parameters in the desired model config, in billions.
@@ -58,6 +57,7 @@ class ModelSizeParams:
     lr: float = None
 
     def init_params(self):
+        "Initialize model architecure."
         model_name = self.model_name
         model_size_in_b = self.model_size_in_b
         if model_name in GPT_BASED_MODELS:
@@ -112,9 +112,9 @@ class ModelSizeParams:
             elif model_size_in_b <= 85.5:
                 self.hs, self.att_h, self.ffn = 6144, 96, 16384
             elif model_size_in_b <= 165.5:
-                self.hs, self.att_h, self.ffn, kv = 7680, 96, 20480, 128
+                self.hs, self.att_h, self.ffn = 7680, 96, 20480
             elif model_size_in_b <= 250:
-                self.hs, self.att_h, self.ffn, kv = 12288, 96, 32768, 128
+                self.hs, self.att_h, self.ffn = 12288, 96, 32768
             else:
                 raise ValueError("Model_size for T5 must be smaller than 250B parameters.")
         elif model_name == "mt5":
@@ -136,9 +136,9 @@ class ModelSizeParams:
             elif model_size_in_b <= 85.5:
                 self.hs, self.att_h, self.ffn = 6144, 96, 16384
             elif model_size_in_b <= 165.5:
-                self.hs, self.att_h, self.ffn, kv = 7680, 96, 20480, 128
+                self.hs, self.att_h, self.ffn = 7680, 96, 20480
             elif model_size_in_b <= 250:
-                self.hs, self.att_h, self.ffn, kv = 12288, 96, 32768, 128
+                self.hs, self.att_h, self.ffn = 12288, 96, 32768
             else:
                 raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
         elif model_name == "bert":
@@ -170,7 +170,7 @@ class ModelSizeParams:
             elif model_size_in_b <= 250.5:
                 self.hs, self.att_h = 12288, 96
             else:
-                raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
+                raise ValueError("Model_size for BERT must be smaller than 250B parameters.")
             self.ffn = 4 * self.hs
         else:
             raise NotImplementedError("Model name is not valid.")
@@ -338,9 +338,7 @@ def generic_base_config(config) -> dict:
         AutoConfigurator: config object for the Auto Configurator tool.
     """
 
-    from nemo.collections.llm.tools.auto_configurator.core.base_config import BaseConfig, calculate_model_size
-
-    default_model = False if config.model_size_in_b else True
+    from nemo.collections.llm.tools.auto_configurator.core.base_config import calculate_model_size
 
     model_size_in_b = calculate_model_size(
         config.gpu_count,
@@ -350,9 +348,9 @@ def generic_base_config(config) -> dict:
         config.num_tokens_in_b,
         config.model_type,
     )
-    base_cfg = BaseConfig(config)
+    base_cfg = config.recipe
 
-    if default_model:
+    if config.calculate_model_size:
         params = ModelSizeParams(
             model_size_in_b,
             config.vocab_size,
@@ -361,15 +359,14 @@ def generic_base_config(config) -> dict:
         )
         params.init_params()
 
-        if config.model_type in GPT_BASED_MODELS:
-            base_cfg.model.num_layers = params.layers
-            base_cfg.model.hidden_size = params.hs
-            base_cfg.model.num_attention_heads = params.att_h
-            base_cfg.model.kv_channels = params.kv
-            if not params.ffn:
-                base_cfg.model.ffn_hidden_size = params.hs * 4
-            else:
-                base_cfg.model.ffn_hidden_size = params.ffn
+        base_cfg.model.config.num_layers = params.layers
+        base_cfg.model.config.hidden_size = params.hs
+        base_cfg.model.config.num_attention_heads = params.att_h
+        base_cfg.model.config.kv_channels = params.kv
+        if not params.ffn:
+            base_cfg.model.config.ffn_hidden_size = params.hs * 4
+        else:
+            base_cfg.model.config.ffn_hidden_size = params.ffn
 
     config.model_size_in_b = model_size_in_b
 
@@ -387,18 +384,20 @@ def modify_cfg(
     ep: int,
     virtual_pipelines: int,
     mbs: int,
-    max_minutes: int,
     max_steps: int,
     num_nodes: int,
     model_name: str,
-    model_size,
+    path_to_logs: str,
+    model_size: float,
 ) -> dict:
-    """Modify the base configuration for the model with the new parameters that are specific to the current model, which the Auto Configurator tool heuristics selected.
+    """Modify the base configuration for the model with the new parameters that are specific to the current model,
+        which the Auto Configurator tool heuristics selected.
 
     Args:
         base_cfg (dict): base configuration for the current model, which will be modified in this function.
         act (int): number of activation checkpointing layers to use for the model.
-        num_mbs_act (int): sets the number of micro-batches where only a partial number of Transformer layers get checkpointed and recomputed within a window of micro-batches.
+        num_mbs_act (int): sets the number of micro-batches where only a partial number of Transformer layers
+            get checkpointed and recomputed within a window of micro-batches.
         act_per_pipe (int): sets the number of Transformer layers to skip checkpointing at later pipeline stages.
         tp (int): Tensor Parallelism (TP) value to be set for the model.
         pp (int): Pipeline Parallelism (PP) value to be set for the model.
@@ -406,34 +405,27 @@ def modify_cfg(
         ep (int): Expert Parallelism (EP) value to be set for the model.
         virtual_pipelines (int): Virtual Pipelines value to be set for the model.
         mbs (int): Micro Batch Size (MBS) value to be set for the model.
-        max_minutes (int): maximum amount of time to run this model for.
         max_steps (int): maximum number of steps to run this model for.
         num_nodes (int): number of nodes to use for the training run.
         model_name (str): name of the model, i.e. gpt3, t5, mt5...
+        path_to_logs (str): path to directory where logs will be saved.
+        model_size (float): model size.
 
     Returns:
         dict: dictionary containing the updated model configuration parameters.
     """
 
-    if model_name in GPT_BASED_MODELS:
-        att_heads = base_cfg.model.num_attention_heads
-        num_layers = base_cfg.model.num_layers
-    else:
-        att_heads = base_cfg.model.encoder.num_attention_heads
-        num_layers = base_cfg.model.encoder.num_layers
+    att_heads = base_cfg.model.config.num_attention_heads
+    num_layers = base_cfg.model.config.num_layers
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
     gbs = base_cfg.data.global_batch_size
-    seq_len = base_cfg.model.seq_length
+    seq_len = base_cfg.model.config.seq_length
 
-    new_cfg = dict(run=base_cfg.run)
+    new_cfg = {}  # dict(run=base_cfg.run)
     if act is not None:
-        if model_name in GPT_BASED_MODELS:
-            new_cfg["activations_checkpoint_num_layers"] = act
-        else:
-            new_cfg["encoder"]["activations_checkpoint_num_layers"] = act // 2
-            new_cfg["decoder"]["activations_checkpoint_num_layers"] = act // 2
+        new_cfg["activations_checkpoint_num_layers"] = act
 
     if num_mbs_act is not None and model_name in GPT_BASED_MODELS:
         new_cfg["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
@@ -448,6 +440,8 @@ def modify_cfg(
     new_cfg["pipeline_model_parallel_size"] = pp
     new_cfg["micro_batch_size"] = mbs
     new_cfg["global_batch_size"] = gbs
+    new_cfg["max_steps"] = max_steps
+    new_cfg["path_to_logs"] = path_to_logs
 
     if cp is not None:
         new_cfg["context_parallel_size"] = cp
@@ -460,11 +454,13 @@ def modify_cfg(
     mod_layers = num_layers % pp
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        new_cfg["run"][
-            "name"
-        ] = f"{model_name}_{str(model_size)}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
+        new_cfg["name"] = (
+            f"{model_name}_{str(model_size)}b_{num_nodes}nodes_"
+            f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}"
+        )
         print(
-            f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
+            f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, "
+            f"VP={virtual_pipelines}. Adding to directory."
         )
         return new_cfg
     return None

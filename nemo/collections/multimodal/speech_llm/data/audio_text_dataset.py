@@ -43,7 +43,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.utils import logging, logging_mode
+from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
 
 try:
@@ -70,7 +70,7 @@ def _audio_collate_fn(audio_signals, audio_lengths):
     """
 
     max_audio_len = 0
-    has_audio = audio_lengths[0] is not None
+    has_audio = len(audio_lengths) > 0 and audio_lengths[0] is not None
     if has_audio:
         max_audio_len = max(audio_lengths).item()
 
@@ -97,7 +97,7 @@ def _collate_item(item: Union[torch.Tensor, np.ndarray, List], max_length: int, 
     item = maybe_cast_to_list(item)
     # max_length = max([len(x) for x in item]) if item else 0
     # here [0] should be tokenizer.pad_id
-    item = [x + [pad_id] * (max_length - len(x)) for x in item]
+    item = [x[:max_length] + [pad_id] * (max_length - len(x)) for x in item]
     return item
 
 
@@ -123,7 +123,8 @@ def _speechllm_audio_text_collate_fn(
 
     loss_mask = [build_loss_mask(item)[1:] for item in batch]
 
-    max_length = max([len(x) for x in input_ids]) + tokens_to_generate
+    # add 1 for actual max length in batch
+    max_length = max([len(x) for x in input_ids]) + tokens_to_generate + 1
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
         max_length = max_seq_length
@@ -282,6 +283,9 @@ class AudioTextDataset(TextProcessing, Dataset):
         context_file: Optional[Union[List[str], str]] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        add_boa_eoa: Optional[bool] = False,
+        boa_string: Optional[str] = "<BOA>",
+        eoa_string: Optional[str] = "<EOA>",
     ):
         super().__init__(
             tokenizer=tokenizer,
@@ -304,6 +308,9 @@ class AudioTextDataset(TextProcessing, Dataset):
             end_string=end_string,
             sample_alpha=sample_alpha,
             audio_locator=audio_locator,
+            add_boa_eoa=add_boa_eoa,
+            boa_string=boa_string,
+            eoa_string=eoa_string,
         )
 
         if isinstance(manifest_filepath, str):
@@ -1073,6 +1080,7 @@ def get_audio_text_dataset_from_config(
         manifest_filepath = config.manifest_filepath
 
     data_cls = MultiAudioTextDataset if config.get('audio_locator', None) else AudioTextDataset
+    logging.info(f"Using `{data_cls.__name__}` for dataset")
     datasets = []
     if is_train:
         # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
@@ -1137,6 +1145,9 @@ def get_audio_text_dataset_from_config(
             sample_alpha=config.get('sample_alpha', None),
             context_file=context_file,
             audio_locator=config.get('audio_locator', None),
+            add_boa_eoa=config.get('add_boa_eoa', False),
+            boa_string=config.get('boa_string', None),
+            eoa_string=config.get('eoa_string', None),
         )
         datasets.append(dataset)
 

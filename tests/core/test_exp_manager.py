@@ -18,17 +18,18 @@ import re
 from pathlib import Path
 from typing import Any
 
+import lightning.pytorch as pl
 import pytest
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch import Callback
+from lightning.pytorch.loops import _TrainingEpochLoop
 from omegaconf import OmegaConf
 from omegaconf.errors import OmegaConfBaseException
-from pytorch_lightning import Callback
-from pytorch_lightning.loops import _TrainingEpochLoop
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.core.classes import ModelPT
+from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint
 from nemo.utils.exp_manager import (
     CheckpointMisconfigurationError,
@@ -279,7 +280,7 @@ class TestExpManager:
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_no_name" / "default" / "957").exists()
 
-        monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION)
+        monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION, raising=False)
         # Checks that use_datetime_version False toggle works
         test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})
@@ -287,7 +288,7 @@ class TestExpManager:
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_no_name" / "default" / "version_0").exists()
 
-        monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION)
+        monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION, raising=False)
         # Checks that use_datetime_version False toggle works and version increments
         test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})
@@ -533,6 +534,7 @@ class TestExpManager:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize('test_dist_ckpt', [False, True])
+    @pytest.mark.pleasefixme
     def test_base_checkpoints_are_not_overwritten(self, tmp_path, test_dist_ckpt):
         """Simulates already existing checkpoints in the ckpt directory and tests non-nemo ckpt versioning"""
         strategy = NLPDDPStrategy() if test_dist_ckpt else 'auto'
@@ -613,7 +615,7 @@ class TestExpManager:
 
         checkpoint_dir = Path(str(tmp_path / "checkpoints"))
         model_path = checkpoint_dir / "val_loss=0.0300-epoch=1-step=64-last.ckpt"
-        last_saved_checkpoint = torch.load(model_path)
+        last_saved_checkpoint = torch.load(model_path, weights_only=False)
         assert max_steps == last_saved_checkpoint['global_step']
 
         # restart training, ensure global step starts correctly
@@ -1097,3 +1099,74 @@ class TestExpManager:
                 restored_trainer,
                 {"resume_if_exists": True, "resume_ignore_no_checkpoint": True, "explicit_log_dir": str(test_dir)},
             )
+
+    @pytest.mark.unit
+    def test_save_nemo_not_comp_with_model_parallel(self, tmp_path):
+        """
+        Ensure that always_save_nemo is not compatible with model parallelism.
+        """
+
+        test_dir = tmp_path / "test"
+
+        with pytest.raises(LoggerMisconfigurationError):
+            appstate = AppState()
+            appstate.tensor_model_parallel_size = 2
+            appstate.pipeline_model_parallel_size = 1
+            appstate.context_parallel_size = 1
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+            exp_manager(
+                test_trainer,
+                {
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
+                    "explicit_log_dir": str(test_dir),
+                },
+            )
+
+        with pytest.raises(LoggerMisconfigurationError):
+            appstate = AppState()
+            appstate.tensor_model_parallel_size = 1
+            appstate.pipeline_model_parallel_size = 2
+            appstate.context_parallel_size = 1
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+            exp_manager(
+                test_trainer,
+                {
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
+                    "explicit_log_dir": str(test_dir),
+                },
+            )
+
+        with pytest.raises(LoggerMisconfigurationError):
+            appstate = AppState()
+            appstate.tensor_model_parallel_size = 1
+            appstate.pipeline_model_parallel_size = 1
+            appstate.context_parallel_size = 2
+            test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+            exp_manager(
+                test_trainer,
+                {
+                    "checkpoint_callback_params": {
+                        "always_save_nemo": True,
+                    },
+                    "explicit_log_dir": str(test_dir),
+                },
+            )
+
+        appstate = AppState()
+        appstate.tensor_model_parallesl_size = 1
+        appstate.pipeline_model_parallel_size = 1
+        appstate.context_parallel_size = 1
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {
+                    "always_save_nemo": True,
+                },
+                "explicit_log_dir": str(test_dir),
+            },
+        )

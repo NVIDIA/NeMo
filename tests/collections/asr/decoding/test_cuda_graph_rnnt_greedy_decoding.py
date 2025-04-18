@@ -53,8 +53,8 @@ def stt_en_fastconformer_transducer_large():
             8,
             True,
             marks=pytest.mark.xfail(
-                reason="""Cannot instantiate the 
-body cuda graph of a conditional node with a persistent kernel (in this case, 
+                reason="""Cannot instantiate the
+body cuda graph of a conditional node with a persistent kernel (in this case,
 a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
             ),
         ),
@@ -80,18 +80,26 @@ def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16,
     audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
-        actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        actual_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+
+    actual_transcripts = [hyp.text for hyp in actual_hypotheses]
+    actual_y_sequences = [hyp.y_sequence for hyp in actual_hypotheses]
 
     decoding_config["greedy"]["use_cuda_graph_decoder"] = True
 
     nemo_model.change_decoding_strategy(decoding_config)
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
-        fast_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        fast_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+
+    fast_transcripts = [hyp.text for hyp in fast_hypotheses]
+    fast_y_sequences = [hyp.y_sequence for hyp in fast_hypotheses]
 
     wer = jiwer.wer(actual_transcripts, fast_transcripts)
+    y_sequence_eq = [torch.equal(act_y, fast_y) for (act_y, fast_y) in zip(actual_y_sequences, fast_y_sequences)]
 
     assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
+    assert all(y_sequence_eq), "Cuda graph greedy decoder should match original decoder implementation."
 
     for actual, fast in zip(actual_transcripts, fast_transcripts):
         if actual != fast:
@@ -136,7 +144,8 @@ def test_loop_labels_cuda_graph_rnnt_greedy_decoder_forced_mode(
     audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
-        actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        actual_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+    actual_transcripts = [hyp.text for hyp in actual_hypotheses]
 
     # transcribe with use implementation with cuda graphs
     decoding_config["greedy"]["use_cuda_graph_decoder"] = True
@@ -144,7 +153,8 @@ def test_loop_labels_cuda_graph_rnnt_greedy_decoder_forced_mode(
     nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
-        fast_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        fast_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+    fast_transcripts = [hyp.text for hyp in fast_hypotheses]
 
     wer = jiwer.wer(actual_transcripts, fast_transcripts)
 
@@ -185,7 +195,8 @@ def test_change_devices(loop_labels: bool, stt_en_fastconformer_transducer_xlarg
     nemo_model.to(first_device)
     audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-        second_device_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        second_device_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+    second_device_transcripts = [hyp.text for hyp in second_device_hypotheses]
 
     # Test that the model can run successfully back on second_device
     # after having been first run on first_device. Because the
@@ -195,7 +206,8 @@ def test_change_devices(loop_labels: bool, stt_en_fastconformer_transducer_xlarg
     nemo_model.to(second_device)
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
-        first_device_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        first_device_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+    first_device_transcripts = [hyp.text for hyp in first_device_hypotheses]
     # Sanity check: The device we run on should not change execution
     # output.
     assert first_device_transcripts == second_device_transcripts

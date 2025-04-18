@@ -15,13 +15,12 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes import mixtral_8x7b
 from nemo.utils.exp_manager import TimingCallback
 
@@ -59,8 +58,8 @@ def trainer(
     This function sets up the distributed training strategy optimized for very long sequences.
 
     Args:
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 8.
+        num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
         run.Config: Configuration for the NeMo Lightning Trainer.
@@ -78,11 +77,11 @@ def trainer(
         It requires a substantial amount of computational resources.
     """
     return mixtral_8x7b.trainer(
-        tensor_parallelism=4,
+        tensor_parallelism=8,
         pipeline_parallelism=4,
         pipeline_parallelism_type=torch.bfloat16,
-        virtual_pipeline_parallelism=4,
-        context_parallelism=8,
+        virtual_pipeline_parallelism=None,
+        context_parallelism=4,
         sequence_parallelism=True,
         expert_parallelism=1,
         num_nodes=num_nodes,
@@ -107,8 +106,8 @@ def pretrain_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 16.
+        num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
         run.Partial: Partial configuration for pre-training.
@@ -131,50 +130,5 @@ def pretrain_recipe(
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
     recipe.data = run.Config(MockDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1)
-
-    return recipe
-
-
-@run.cli.factory(target=finetune, name=NAME)
-def finetune_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 16,
-    num_gpus_per_node: int = 8,
-) -> run.Partial:
-    """
-    Create a fine-tuning recipe for Mixtral 8x7B model with 64k sequence length.
-
-    This function sets up a complete configuration for fine-tuning, including
-    model, trainer, and data settings optimized for 64k sequence length.
-
-    Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the fine-tuning run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-
-    Returns:
-        run.Partial: Partial configuration for fine-tuning.
-
-    Examples:
-        CLI usage:
-            $ nemo llm finetune --factory mixtral_8x7b_64k
-            $ nemo llm finetune --factory "mixtral_8x7b_64k(num_nodes=16, name='my_64k_finetune')"
-
-        Python API usage:
-            >>> recipe = finetune_recipe(name="mixtral_8x7b_64k_finetune", num_nodes=16)
-            >>> print(recipe)
-
-    Note:
-        This recipe is optimized for fine-tuning with long sequences (64k) compared to the standard version.
-        It uses the SQuAD dataset adapted for 64k sequence length. Be aware that this configuration requires
-        substantial computational resources due to the model size and extended sequence length.
-    """
-    recipe = mixtral_8x7b.finetune_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
-
-    recipe.model = model()
-    recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
-    recipe.data = run.Config(SquadDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1)
 
     return recipe

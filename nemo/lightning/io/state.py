@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import inspect
 import re
 from dataclasses import dataclass
@@ -6,7 +20,9 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar,
 import numpy as np
 import torch
 from torch import nn
+
 from nemo.lightning.pytorch.utils import extract_dtypes
+from nemo.utils import logging
 
 SourceModuleT = TypeVar("SourceModuleT", bound=nn.Module)
 TargetModuleT = TypeVar("TargetModuleT", bound=nn.Module)
@@ -15,18 +31,41 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 @dataclass
 class TransformCTX:
+    """Transform Data class Definition."""
+
     source: nn.Module
     source_state: dict
     target: nn.Module
     target_state: dict
 
 
+class _ModelState:
+    """
+    Helper class for used for to modify state dict of a source model during model conversion.
+    """
+
+    def __init__(self, state_dict):
+        self._state_dict = state_dict
+
+    def state_dict(self):
+        # pylint: disable=C0115,C0116
+        return self._state_dict
+
+    def to(self, dtype):
+        # pylint: disable=C0115,C0116
+        for k, v in self._state_dict.items():
+            if v.dtype != dtype:
+                logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+            self._state_dict[k] = v.to(dtype)
+
+
 @torch.no_grad
 def apply_transforms(
-    source: nn.Module,
+    source: Union[nn.Module, _ModelState],
     target: TargetModuleT,
     mapping: Dict[str, str],
     transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = [],
+    state_dict_ignored_entries: List = [],
 ) -> TargetModuleT:
     """
     Applies a series of transformations to adapt the state dictionary of a source module to
@@ -44,6 +83,11 @@ def apply_transforms(
         transforms (Optional[List[Callable[[TransformCTX], TransformCTX]]]): A list of functions
             that modify the `TransformCTX` object. If None, no transformations beyond key renaming
             are applied. Defaults to None.
+        state_dict_ignored_entries: List of entries to ignore in _target.state_dict(). There are cases
+            where multiple entries in model's state_dict point to one entry in model's named_parameter.
+            E.g., model has multiple pointers pointing to one shared parameters (`encoder.embed_tokens.weight`,
+            `decoder.embed_tokens.weight` and `shared.weight` all points to `shared.weight
+            in T5 Huggingface implementation.). In these cases, ignore redundant entries.
 
     Returns
     -------
@@ -105,9 +149,11 @@ def apply_transforms(
     )
 
     for key, val in mapping.items():
+        logging.debug(f"Mapping {key} -> {val}")
         ctx = StateDictTransform(key, val)(ctx)
 
     for transform in transforms:
+        logging.debug(f"Transforming {transform.source_key} -> {transform.target_key}")
         ctx = transform(ctx)
 
     _params: Dict[str, nn.Parameter] = {}
@@ -115,7 +161,10 @@ def apply_transforms(
         if name in target_state:
             target_param = target_state[name]
             if param.data.shape != target_param.shape:
-                raise ValueError(f"Shape mismatch for parameter {name}: {param.shape} vs {target_param.shape}")
+                raise ValueError(
+                    f"Shape mismatch for parameter {name}: target shape {param.shape} vs "
+                    f"converted source shape {target_param.shape}"
+                )
 
             _params[name] = nn.Parameter(target_param, requires_grad=param.requires_grad)
             target_state.pop(name)
@@ -150,6 +199,7 @@ def apply_transforms(
         _module.register_buffer(_key, val)
 
     keys = list(filter(lambda x: x is not None and not x.endswith("_extra_state"), target_state.keys()))
+    keys = [key for key in keys if key not in state_dict_ignored_entries]
     if len(keys) != 0:
         raise RuntimeError(f"Additional keys: {keys} in checkpoint but not in model.")
 
@@ -161,7 +211,21 @@ def apply_transforms(
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
 
-    assert target_orig_dtypes == extract_dtypes(_target.named_parameters())
+    meta_tensor_keys = []
+    for name, param in target.named_parameters():
+        if param.is_meta:
+            meta_tensor_keys.append(name)
+
+    assert not meta_tensor_keys, (
+        f"{meta_tensor_keys}\nThere are meta tensors in the model after conversion."
+        f"Did you forget to include these parameters in the mapping or transforms in `convert_state`?"
+    )
+
+    assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
+        f"dtype mismatch between source and target state dicts. "
+        f"Left side is { {k: v for k, v in target_orig_dtypes.items() if v!=torch.bfloat16} }, "
+        f"Right side is { {k: v for k, v in extract_dtypes(_target.named_parameters()).items() if v!=torch.bfloat16} }"
+    )
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         target.module = _target
 
@@ -224,7 +288,12 @@ class StateDictTransform(Generic[F]):
             source_matches_dict = {k: _match_keys(list(source_dict.keys()), v) for k, v in source_key_dict.items()}
             target_matches = _match_keys(list(target_dict.keys()), target_key)
             param_names = list(filter(lambda x: x in source_matches_dict, fn_params))
-            for layer_names_group in zip(*([source_matches_dict[v] for v in param_names] + [target_matches])):
+            source_matches = [
+                source_matches_dict[v] if source_matches_dict[v].ndim > 0 else [source_matches_dict[v].item()]
+                for v in param_names
+            ]
+            target_matches = [target_matches if target_matches.ndim > 0 else [target_matches.item()]]
+            for layer_names_group in zip(*(source_matches + target_matches)):
                 # Wrap in a list if it's a single layer (ie non-expert)
                 if isinstance(layer_names_group[0], str):
                     layer_names_group = [[x] for x in layer_names_group]
@@ -242,14 +311,13 @@ class StateDictTransform(Generic[F]):
 
             if isinstance(target_key, str):
                 target_matches = _match_keys(target_keys, target_key)
-                if target_matches.size < 1:
+                if target_matches.size == 1 and target_matches == np.array(None):
                     raise ValueError(f"No matches found for target key: {target_key}")
             else:
                 if isinstance(target_key, dict):
                     raise ValueError("Target key must be a string or a tuple of strings.")
-
-                _matches = np.vstack([_match_keys(target_keys, key) for key in target_key])
-                target_matches = np.transpose(_matches)
+                _matches = [_match_keys(target_keys, key) for key in target_key]
+                target_matches = np.stack(_matches, axis=-1)
 
             # Determine if we are dealing with multiple source matches or multiple target matches
             multiple_sources = source_matches.ndim >= target_matches.ndim
@@ -259,7 +327,11 @@ class StateDictTransform(Generic[F]):
 
             if multiple_sources:
                 for target_index, target_match in np.ndenumerate(target_matches):
-                    source_match = source_matches[target_index]
+                    try:
+                        source_match = source_matches[target_index]
+                    except IndexError as e:
+                        logging.error(f"Enountered IndexError during transform.\n{source_matches=}\n{target_matches=}")
+                        raise e
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
@@ -272,22 +344,9 @@ class StateDictTransform(Generic[F]):
 
                         kwargs = {param: source_dict[k] for param, k in zip(fn_params, _source_match_list)}
                         target_dict[target_match] = self.call_transform(ctx, **kwargs)
+                    logging.debug(f"Matched (multi source)! {target_match=} {source_match=}")
             else:
-                if source_matches.ndim == 0:
-                    source_matches_list = [source_matches.item()]
-                    source_matches = np.array(source_matches_list, dtype=object)
-                else:
-                    source_matches_list = list(source_matches)
-
-                if source_matches.shape[0] != target_matches.shape[0]:
-                    if target_matches.shape[0] == 1 and source_matches.shape[0] == target_matches.shape[1]:
-                        source_matches_list = [source_matches_list]
-                    else:
-                        raise ValueError(
-                            "Mismatch between source and target keys: {source_matches} vs {target_matches}"
-                        )
-
-                for source_index, source_match in enumerate(source_matches_list):
+                for source_index, source_match in np.ndenumerate(source_matches):
                     target_match = target_matches[source_index]
                     source_values = (
                         [source_dict[source_match]]
@@ -305,10 +364,12 @@ class StateDictTransform(Generic[F]):
                     else:
                         for i, t in enumerate(outputs):
                             target_dict[target_match[i]] = t
+                    logging.debug(f"Matched (single source)! {target_match=} {source_match=}")
 
         return ctx
 
     def call_transform(self, ctx: TransformCTX, *args, **kwargs):
+        """Perform transform and check if the given args valid."""
         func_params = inspect.signature(self.transform).parameters
         expected_num_args = len([p for p in func_params if p not in ['self', 'ctx']])
         provided_num_args = len(args) + len(kwargs)
@@ -363,6 +424,9 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
     # Determine the shape of the output array based on the unique matches for each wildcard
     shape = [len(matches) for matches in wildcard_matches]
 
+    if len(wildcard_matches) == 0:
+        # If there is no wildcard matches, assuming it is a single match
+        shape = [1]
     # Initialize an empty array with the determined shape
     output_array = np.empty(shape, dtype=object)
 
@@ -430,3 +494,192 @@ def state_transform(
         return wrapper
 
     return wrapper(fn)
+
+
+class TransformFns:
+    """
+    A collection of common functions used in state dict transformation.
+    """
+
+    @staticmethod
+    def split_qkv(ctx: TransformCTX, linear_qkv: torch.Tensor):
+        """
+        Split interleave-concatenated qkv to q, k, v
+
+        Example: export layer linear_qkv to HF {q|k|v}_proj
+        """
+        megatron_config = ctx.source.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        # hidden_size = megatron_config.hidden_size
+        head_size = megatron_config.kv_channels
+        qkv_total_dim = head_num + 2 * num_query_groups
+
+        linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, -1])
+        # when converting base model (linear_qkv), hidden size = megatron_config.hidden_size
+        # when converting lora (linear_qkv.adapter.linear_out), hidden size = lora_r
+        hidden_size = linear_qkv.size(-1)
+        q_slice = torch.cat(
+            [
+                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                for i in range(num_query_groups)
+            ]
+        )
+        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+        q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+        k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+        v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+        return q_proj, k_proj, v_proj
+
+    @staticmethod
+    def split_qkv_bias(ctx: TransformCTX, qkv_bias: torch.Tensor):
+        """
+        Split interleave-concatenated qkv bias to separate q, k, v bias
+
+        Example: export layer linear_qkv bias to HF {q|k|v}_proj bias
+        """
+        megatron_config = ctx.source.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        head_size = megatron_config.kv_channels
+        qkv_total_dim = head_num + 2 * num_query_groups
+
+        qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
+        q_slice = torch.cat(
+            [
+                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                for i in range(num_query_groups)
+            ]
+        )
+        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+        q_bias = qkv_bias[q_slice].reshape(-1).cpu()
+        k_bias = qkv_bias[k_slice].reshape(-1).cpu()
+        v_bias = qkv_bias[v_slice].reshape(-1).cpu()
+
+        return q_bias, k_bias, v_bias
+
+    @staticmethod
+    def merge_qkv(ctx: TransformCTX, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
+        """
+        Merge q, k, v to interleave-concatenated qkv.
+
+        Example: import HF {q|k|v}_proj to layer linear_qkv
+        """
+        megatron_config = ctx.target.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        hidden_size = megatron_config.hidden_size
+        head_size = megatron_config.kv_channels
+        old_tensor_shape = q.size()
+        new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+        new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
+
+        q = q.view(*new_q_tensor_shape)
+        k = k.view(*new_kv_tensor_shape)
+        v = v.view(*new_kv_tensor_shape)
+
+        qkv_weights_l = []
+        for i in range(num_query_groups):
+            qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+            qkv_weights_l.append(k[i : i + 1, :, :])
+            qkv_weights_l.append(v[i : i + 1, :, :])
+        qkv_weights = torch.cat(qkv_weights_l)
+        assert qkv_weights.ndim == 3, qkv_weights.shape
+        assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+        assert qkv_weights.shape[1] == head_size, qkv_weights.shape
+        assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
+
+        qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+
+        return qkv_weights
+
+    @staticmethod
+    def merge_qkv_bias(ctx: TransformCTX, qb: torch.Tensor, kb: torch.Tensor, vb: torch.Tensor):
+        """
+        Merge q, k, v bias to interleave-concatenated qkv bias.
+
+        Example: import HF {q|k|v}_proj bias to layer linear_qkv bias
+        """
+        megatron_config = ctx.target.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        head_size = megatron_config.kv_channels
+
+        new_q_tensor_shape = (head_num, head_size)
+        new_kv_tensor_shape = (num_query_groups, head_size)
+
+        qb = qb.view(*new_q_tensor_shape)
+        kb = kb.view(*new_kv_tensor_shape)
+        vb = vb.view(*new_kv_tensor_shape)
+
+        qkv_bias = torch.empty((0, head_size)).type_as(qb)
+        for i in range(num_query_groups):
+            qkv_bias = torch.cat((qkv_bias, qb[i * heads_per_group : (i + 1) * heads_per_group, :]))
+            qkv_bias = torch.cat((qkv_bias, kb[i : i + 1, :]))
+            qkv_bias = torch.cat((qkv_bias, vb[i : i + 1, :]))
+        qkv_bias = qkv_bias.reshape(
+            [
+                head_size * (head_num + 2 * num_query_groups),
+            ]
+        )
+        return qkv_bias
+
+    @staticmethod
+    def merge_fc1(gate: torch.Tensor, up: torch.Tensor):
+        """
+        Merge gate and up proj into concatenated fc1
+
+        Example: import HF {gate|up}_proj to layer linear_fc1
+        """
+        return torch.cat((gate, up), dim=0)
+
+    @staticmethod
+    def split_fc1(linear_fc1: torch.Tensor):
+        """
+        Split concatenated fc1 to gate and up proj
+
+        Example: export layer linear_fc1 to HF {gate|up}_proj
+        """
+        gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
+        return gate_proj, up_proj
+
+    @staticmethod
+    def duplicate2(param: torch.Tensor):
+        """
+        Duplicate the source parameter to two target parameters
+
+        Example: export Performant LoRA linear_fc1.adapter.linear_in to HF {gate|up}_proj.lora_A
+        """
+        return param, param
+
+    @staticmethod
+    def duplicate3(param: torch.Tensor):
+        """
+        Duplicate the source parameter to three target parameters
+
+        Example: export Performant LoRA linear_qkv.adapter.linear_in to HF {q|k|v}_proj.lora_A
+        """
+        return param, param, param
+
+    @staticmethod
+    def prune_padding(ctx: TransformCTX, embedding: torch.Tensor):
+        """
+        Prune the embedding size to vocab size
+
+        Example: export embedding/output layer to HF with non-padded vocab size
+        """
+        megatron_config = ctx.target.config
+        return embedding[: megatron_config.vocab_size, :]

@@ -21,7 +21,9 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
      --checkpoint_name <checkpoint_name> \
      --nemo_file_path <path_to_output_nemo_file> \
      --tensor_model_parallel_size <tensor_model_parallel_size> \
-     --pipeline_model_parallel_size <pipeline_model_parallel_size>
+     --pipeline_model_parallel_size <pipeline_model_parallel_size> \
+     --gpus_per_node <gpus_per_node> \
+     --model_type <model_type>
 """
 
 import dis
@@ -30,10 +32,10 @@ from argparse import ArgumentParser
 
 import torch
 from genericpath import isdir
+from lightning.pytorch.plugins.environments import TorchElasticEnvironment
+from lightning.pytorch.trainer.trainer import Trainer
 from megatron.core import parallel_state
 from omegaconf import OmegaConf, open_dict
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -100,7 +102,7 @@ def get_args():
         default="gpt",
         choices=["gpt", "sft", "t5", "bert", "nmt", "bart", "retro"],
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
     parser.add_argument(
         "--precision",
@@ -109,6 +111,11 @@ def get_args():
         default='16-mixed',
         choices=['32-true', '16-mixed', 'bf16-mixed'],
         help="Precision value for the trainer that matches with precision of the ckpt",
+    )
+    parser.add_argument(
+        "--convert_mlm",
+        action="store_true",
+        help="Use this flag to convert megatron-lm checkpoints.",
     )
 
     args = parser.parse_args()
@@ -134,7 +141,7 @@ def convert(local_rank, rank, world_size, args):
             'accelerator': 'gpu',
             'precision': args.precision,
         },
-        'model': {'native_amp_init_scale': 2 ** 32, 'native_amp_growth_interval': 1000, 'hysteresis': 2},
+        'model': {'native_amp_init_scale': 2**32, 'native_amp_growth_interval': 1000, 'hysteresis': 2},
     }
     cfg = OmegaConf.create(cfg)
 
@@ -142,7 +149,7 @@ def convert(local_rank, rank, world_size, args):
     # If FP16 create a GradScaler as the build_model_parallel_config of MegatronBaseModel expects it
     if cfg.trainer.precision == '16-mixed':
         scaler = GradScaler(
-            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+            init_scale=cfg.model.get('native_amp_init_scale', 2**32),
             growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
             hysteresis=cfg.model.get('hysteresis', 2),
         )
@@ -193,7 +200,9 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == 'gpt':
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, load_mlm=args.convert_mlm
+        )
     elif args.model_type == 'sft':
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer

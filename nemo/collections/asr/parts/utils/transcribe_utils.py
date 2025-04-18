@@ -60,8 +60,11 @@ def get_buffered_pred_feat_rnnt(
         filepaths = []
         with open(manifest, "r", encoding='utf_8') as mfst_f:
             print("Parsing manifest files...")
-            for l in mfst_f:
-                row = json.loads(l.strip())
+            for L in mfst_f:
+                L = L.strip()
+                if not L:
+                    continue
+                row = json.loads(L)
                 audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
                 filepaths.append(audio_file)
                 if 'text' in row:
@@ -142,16 +145,19 @@ def get_buffered_pred_feat(
         raise ValueError("Either filepaths or manifest shoud not be None")
 
     if filepaths:
-        for l in tqdm(filepaths, desc="Sample:"):
+        for L in tqdm(filepaths, desc="Sample:"):
             asr.reset()
-            asr.read_audio_file(l, delay, model_stride_in_secs)
+            asr.read_audio_file(L, delay, model_stride_in_secs)
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)
     else:
         with open(manifest, "r", encoding='utf_8') as mfst_f:
-            for l in tqdm(mfst_f, desc="Sample:"):
+            for L in tqdm(mfst_f, desc="Sample:"):
                 asr.reset()
-                row = json.loads(l.strip())
+                L = L.strip()
+                if not L:
+                    continue
+                row = json.loads(L)
                 if 'text' in row:
                     refs.append(row['text'])
                 audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
@@ -182,6 +188,7 @@ def get_buffered_pred_feat_multitaskAED(
     manifest: str = None,
     filepaths: List[list] = None,
     delay: float = 0.0,
+    timestamps: bool = False,
 ) -> List[rnnt_utils.Hypothesis]:
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
@@ -199,7 +206,8 @@ def get_buffered_pred_feat_multitaskAED(
 
     if filepaths:
         logging.info(
-            "Deteced audio files as input, default to English ASR with Punctuation and Capitalization output. Please use manifest input for other options."
+            "Deteced audio files as input, default to English ASR with Punctuation and Capitalization output. \
+                Please use manifest input for other options."
         )
         for audio_file in tqdm(filepaths, desc="Transcribing:", total=len(filepaths), ncols=80):
             meta = {
@@ -210,6 +218,7 @@ def get_buffered_pred_feat_multitaskAED(
                 'target_lang': 'en',
                 'pnc': 'yes',
                 'answer': 'nothing',
+                'timestamp': 'yes' if timestamps else 'no',
             }
             asr.reset()
             asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=meta)
@@ -220,7 +229,14 @@ def get_buffered_pred_feat_multitaskAED(
             lines = list(fin.readlines())
             for line in tqdm(lines, desc="Transcribing:", total=len(lines), ncols=80):
                 asr.reset()
-                sample = json.loads(line.strip())
+                line = line.strip()
+                if not line:
+                    continue
+                sample = json.loads(line)
+                if (
+                    timestamps
+                ):  # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
+                    sample['timestamp'] = 'yes'
                 if 'text' in sample:
                     refs.append(sample['text'])
                 audio_file = get_full_path(audio_file=sample['audio_filepath'], manifest_file=manifest)
@@ -235,6 +251,9 @@ def get_buffered_pred_feat_multitaskAED(
 
 def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     """Wrap transcription to the expected format in func write_transcription"""
+    if isinstance(hyps[0], rnnt_utils.Hypothesis):
+        return hyps
+
     wrapped_hyps = []
     for hyp in hyps:
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)
@@ -281,12 +300,16 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             - append_pred (bool): Flag indicating whether to append predictions to an existing dataset.
             - audio_type (str): Type of audio files to consider.
             - dataset_manifest (str): Path to the dataset manifest file.
-            - audio_key (str, optional): Key in the manifest file specifying the audio file path. Defaults to 'audio_filepath'.
-            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file. Defaults to True.
+            - audio_key (str, optional): Key in the manifest file specifying the audio file path.
+                Defaults to 'audio_filepath'.
+            - presort_manifest (bool, optional): Flag indicating whether to presort the manifest file.
+                Defaults to True.
     Returns:
         Tuple[List[str], bool]: A tuple containing the following:
-            - filepaths (List[str]): List of filepaths to the audio files if path to the directory containing audio files is provided.
-            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset manifest file is provided.
+            - filepaths (List[str]): List of filepaths to the audio files if path to the directory
+                containing audio files is provided.
+            - sorted_manifest_path (bool): Path to the sorted manifest file if path to the dataset
+                manifest file is provided.
     """
 
     filepaths = None
@@ -304,17 +327,21 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
 
         with open(cfg.dataset_manifest, "rt") as fh:
             for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
                 item = json.loads(line)
                 item[audio_key] = get_full_path(item[audio_key], cfg.dataset_manifest)
                 if item.get("duration") is None and cfg.presort_manifest:
                     raise ValueError(
-                        f"Requested presort_manifest=True, but line {line} in manifest {cfg.dataset_manifest} lacks a 'duration' field."
+                        f"Requested presort_manifest=True, but line {line} in manifest {cfg.dataset_manifest} \
+                            lacks a 'duration' field."
                     )
 
         with NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
                 audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
-                item[audio_key] = audio_file
+                item['audio_filepath'] = audio_file
                 filepaths.append(audio_file)
                 f.write(json.dumps(item) + "\n")
         sorted_manifest_path = f.name
@@ -332,7 +359,7 @@ def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> List[dict
 
 def restore_transcription_order(manifest_path: str, transcriptions: list) -> list:
     with open(manifest_path) as f:
-        items = [(idx, json.loads(l)) for idx, l in enumerate(f)]
+        items = [(idx, json.loads(l)) for idx, l in enumerate(f) if l.strip() != ""]
     if not all("duration" in item[1] and item[1]["duration"] is not None for item in items):
         return transcriptions
     new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]
@@ -388,7 +415,7 @@ def write_transcription(
     model_name: str,
     filepaths: List[str] = None,
     compute_langs: bool = False,
-    compute_timestamps: bool = False,
+    timestamps: bool = False,
 ) -> Tuple[str, str]:
     """Write generated transcription to output file."""
     if cfg.append_pred:
@@ -433,15 +460,15 @@ def write_transcription(
                 else:  # transcription is Hypothesis
                     item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
 
-                    if compute_timestamps:
-                        timestamps = transcription.timestep
+                    if timestamps:
+                        timestamps = transcription.timestamp
                         if timestamps is not None and isinstance(timestamps, dict):
                             timestamps.pop(
                                 'timestep', None
                             )  # Pytorch tensor calculating index of each token, not needed.
                             for key in timestamps.keys():
                                 values = normalize_timestamp_output(timestamps[key])
-                                item[f'timestamps_{key}'] = values
+                                item[f'{key}'] = values
 
                     if compute_langs:
                         item['pred_lang'] = transcription.langs
@@ -452,21 +479,24 @@ def write_transcription(
         else:
             with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
+                    line = line.strip()
+                    if not line:
+                        continue
                     item = json.loads(line)
                     if not return_hypotheses:  # transcription is str
                         item[pred_text_attr_name] = best_hyps[idx]
                     else:  # transcription is Hypothesis
                         item[pred_text_attr_name] = best_hyps[idx].text
 
-                        if compute_timestamps:
-                            timestamps = best_hyps[idx].timestep
+                        if timestamps:
+                            timestamps = best_hyps[idx].timestamp
                             if timestamps is not None and isinstance(timestamps, dict):
                                 timestamps.pop(
                                     'timestep', None
                                 )  # Pytorch tensor calculating index of each token, not needed.
                                 for key in timestamps.keys():
                                     values = normalize_timestamp_output(timestamps[key])
-                                    item[f'timestamps_{key}'] = values
+                                    item[f'{key}'] = values
 
                         if compute_langs:
                             item['pred_lang'] = best_hyps[idx].langs
@@ -492,10 +522,14 @@ def compute_metrics_per_sample(
 
     Args:
         manifest_path: str, Required - path to dataset JSON manifest file (in NeMo format)
-        reference_field: str, Optional - name of field in .json manifest with the reference text ("text" by default).
-        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text ("pred_text" by default).
-        metrics: list[str], Optional - list of metrics to be computed (currently supported "wer", "cer", "punct_er")
-        punctuation_marks: list[str], Optional - list of punctuation marks for computing punctuation error rate ([".", ",", "?"] by default).
+        reference_field: str, Optional - name of field in .json manifest with the reference text
+            ("text" by default).
+        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text
+            ("pred_text" by default).
+        metrics: list[str], Optional - list of metrics to be computed
+            (currently supported "wer", "cer", "punct_er")
+        punctuation_marks: list[str], Optional - list of punctuation marks for computing
+            punctuation error rate ([".", ",", "?"] by default).
         output_manifest_path: str, Optional - path where .json manifest with calculated metrics will be saved.
 
     Returns:
@@ -529,7 +563,7 @@ def compute_metrics_per_sample(
 
     with open(manifest_path, 'r') as manifest:
         lines = manifest.readlines()
-        samples = [json.loads(line) for line in lines]
+        samples = [json.loads(line) for line in lines if line.strip() != ""]
         samples_with_metrics = []
 
         logging.info(f"Computing {', '.join(metrics)} per sample")
@@ -579,7 +613,7 @@ class PunctuationCapitalization:
         """
         if punctuation_marks:
             self.regex_punctuation = re.compile(fr"([{''.join(punctuation_marks)}])")
-            self.regex_extra_space = re.compile('\s{2,}')
+            self.regex_extra_space = re.compile(r'\s{2,}')
         else:
             self.regex_punctuation = None
 

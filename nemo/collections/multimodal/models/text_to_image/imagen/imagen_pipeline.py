@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Union
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf.omegaconf import OmegaConf
-from pytorch_lightning import Trainer
 from torch.cuda.amp import autocast
 
 from nemo.collections.multimodal.models.text_to_image.imagen.imagen import Imagen, MegatronImagen
@@ -73,7 +73,9 @@ class ImagenPipeline(Callable):
             model_cfg.micro_batch_size = 1
             model_cfg.global_batch_size = 1
             model = MegatronImagen.restore_from(
-                restore_path=model_ckpt, override_config_path=model_cfg, trainer=trainer,
+                restore_path=model_ckpt,
+                override_config_path=model_cfg,
+                trainer=trainer,
             )
         elif model_ckpt.endswith('.ckpt'):
             model_cfg = OmegaConf.load(model_cfg)
@@ -81,7 +83,7 @@ class ImagenPipeline(Callable):
             model_cfg.model.micro_batch_size = 1
             model_cfg.model.global_batch_size = 1
             model = MegatronImagen(cfg=model_cfg.model, trainer=trainer)
-            checkpoint = torch.load(model_ckpt, map_location=lambda storage, loc: storage)
+            checkpoint = torch.load(model_ckpt, map_location=lambda storage, loc: storage, weights_only=False)
 
             # Change weight keys if training using TorchInductor
             state_dict = checkpoint['state_dict']
@@ -128,7 +130,9 @@ class ImagenPipeline(Callable):
         models = []
         print('Load base model.')
         model = ImagenPipeline._load_model(
-            model_ckpt=customized_models.base_ckpt, model_cfg=customized_models.base_cfg, trainer=trainer,
+            model_ckpt=customized_models.base_ckpt,
+            model_cfg=customized_models.base_cfg,
+            trainer=trainer,
         )
         models.append(model)
 

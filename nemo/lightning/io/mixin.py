@@ -1,3 +1,18 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import dataclasses
 import functools
 import inspect
 import json
@@ -6,7 +21,6 @@ import threading
 import types
 import uuid
 from copy import deepcopy
-from dataclasses import is_dataclass
 from pathlib import Path
 from pydoc import locate
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
@@ -15,6 +29,8 @@ import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 from cloudpickle import dump
 from cloudpickle import load as pickle_load
+from fiddle._src import config as config_lib
+from fiddle._src import partial
 from fiddle._src.experimental import serialization
 from typing_extensions import Self
 
@@ -22,6 +38,7 @@ from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
+from nemo.lightning.io.to_config import to_config
 from nemo.utils import logging
 
 ConnT = TypeVar("ConnT", bound=ModelConnector)
@@ -31,6 +48,82 @@ _enable_ext()
 
 # Thread-local storage for artifacts directory
 _thread_local = threading.local()
+
+
+def _is_default_factory(arg: Any) -> bool:
+    return arg == dataclasses._HAS_DEFAULT_FACTORY
+
+
+def _ordered_arguments_with_default(data: config_lib.Config) -> Dict[Union[int, str], Any]:
+    result = config_lib.ordered_arguments(data, include_defaults=True)
+    for key, arg in result.items():
+        if isinstance(arg, config_lib.Config):
+            ordered_arg = _ordered_arguments_with_default(arg)
+            result[key] = ordered_arg
+        elif _is_default_factory(arg):
+            if dataclasses.is_dataclass(data.__fn_or_cls__):
+                fields = dataclasses.fields(data.__fn_or_cls__)
+                for field in fields:
+                    if field.name == key:
+                        result[key] = field.default_factory()
+                        break
+
+    if "__fn_or_cls__" in result:
+        raise ValueError(
+            "It is not supported to dump objects of functions/classes " "that have a __fn_or_cls__ parameter."
+        )
+
+    result["_target_"] = (
+        f"{inspect.getmodule(config_lib.get_callable(data)).__name__}" f".{config_lib.get_callable(data).__qualname__}"
+    )
+    if isinstance(data, partial.Partial):
+        result["_partial_"] = True
+
+    return result
+
+
+def _config_representer_with_defaults(dumper, data, type_name="Config"):
+    """Returns a YAML representation of `data`."""
+    value = _ordered_arguments_with_default(data)
+    return dumper.represent_data(value)
+
+
+def _partial_representer_with_defaults(dumper, data):
+    return _config_representer_with_defaults(dumper, data, type_name="Partial")
+
+
+def _safe_object_representer(dumper, data):
+    """
+    Represent a given object as YAML using the specified dumper.
+
+    This function is a fallback for objects that don't have specific representers.
+    If the object has __qualname__ attr,
+    the __target__ is set to f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}".
+    If the object does not have a __qualname__ attr, the __target__ is set from its __class__ attr.
+    The __call__ key is used to indicate whether the target should be called to create an instance.
+
+    Args:
+        dumper (yaml.Dumper): The YAML dumper to use for serialization.
+        data (Any): The data to serialize. This can be any Python object,
+            but if it's a class or a class instance, special handling will be applied.
+
+    Returns:
+        str: The YAML representation of the data.
+    """
+    try:
+        obj = data
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
+        call = False
+    except AttributeError:
+        obj = data.__class__
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
+        call = True
+
+    value = {
+        "_target_": target,  # type: ignore
+        "_call_": call,
+    }
+    return dumper.represent_data(value)
 
 
 class IOMixin:
@@ -128,9 +221,10 @@ class IOMixin:
 
     @classmethod
     def io_artifacts(cls) -> List[Artifact]:
+        """Initialize io artifacts"""
         return []
 
-    def io_dump(self, output: Path):
+    def io_dump(self, output: Path, yaml_attrs: list[str]):
         """
         Serializes the configuration object (`__io__`) to a file, allowing the object state to be
         saved and later restored. Also creates an artifacts directory and stores it in a thread-local
@@ -151,10 +245,14 @@ class IOMixin:
 
         config_path = output_path / "io.json"
         with open(config_path, "w") as f:
-            io = deepcopy(self.__io__)
-            _artifact_transform_save(io, output_path, local_artifacts_dir)
+            io = _artifact_transform_save(self, deepcopy(self.__io__), output_path, local_artifacts_dir)
             json = serialization.dump_json(io)
             f.write(json)
+
+        yaml_configs = self._io_dump_yaml(io, attrs=yaml_attrs)
+        for attr, serialized_str in yaml_configs.items():
+            _path = output_path / f"{attr}.yaml"
+            _path.write_text(serialized_str)
 
         # Clear thread-local storage after io_dump is complete
         del _thread_local.local_artifacts_dir
@@ -163,6 +261,29 @@ class IOMixin:
         # Check if artifacts directory is empty and delete if so
         if not any(artifacts_dir.iterdir()):
             shutil.rmtree(artifacts_dir)
+
+    def _io_dump_yaml(self, io: config_lib.Config, attrs: list[str]):
+        import yaml
+
+        original_representers = yaml.SafeDumper.yaml_representers.copy()
+
+        from nemo_run.config import Config, Partial
+        from nemo_run.core.serialization.yaml import YamlSerializer
+
+        yaml.SafeDumper.add_representer(config_lib.Config, _config_representer_with_defaults)
+        yaml.SafeDumper.add_representer(partial.Partial, _partial_representer_with_defaults)
+        yaml.SafeDumper.add_representer(Config, _config_representer_with_defaults)
+        yaml.SafeDumper.add_representer(Partial, _partial_representer_with_defaults)
+
+        yaml.SafeDumper.add_multi_representer(object, _safe_object_representer)
+
+        serializer = YamlSerializer()
+        result = {}
+        for attr in attrs:
+            result[attr] = serializer.serialize(getattr(io, attr))
+
+        yaml.SafeDumper.yaml_representers = original_representers
+        return result
 
 
 class ConnectorMixin:
@@ -336,7 +457,7 @@ class ConnectorMixin:
 
         connector = cls._IMPORTERS.get(str(cls) + ext) if importer else cls._EXPORTERS.get(str(cls) + ext)
         if not connector:
-            raise ValueError(f"No connector found for extension '{ext}'")
+            raise ValueError(f"No connector found for extension '{ext}' for {cls}")
 
         if not _path:
             if not connector.default_path:
@@ -408,14 +529,13 @@ def _io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
     """
     sig = inspect.signature(init_fn)
     bound_args = sig.bind_partial(self, *args, **kwargs)
-    bound_args.apply_defaults()
     config_kwargs = {k: v for k, v in bound_args.arguments.items() if k != "self"}
 
     to_del = []
     for key in config_kwargs:
         if isinstance(config_kwargs[key], IOProtocol):
             config_kwargs[key] = config_kwargs[key].__io__
-        if is_dataclass(config_kwargs[key]):
+        if dataclasses.is_dataclass(config_kwargs[key]):
             config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(config_kwargs[key], allow_post_init=True)
             # Check if the arg is a factory (dataclasses.field)
         if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
@@ -501,7 +621,9 @@ def _io_flatten_object(instance):
 
 
 def _io_unflatten_object(values, metadata):
-    assert hasattr(_thread_local, "output_dir")
+    if not hasattr(_thread_local, "output_dir"):
+        return fdl.Config.__unflatten__(values, metadata)
+
     output_dir = _thread_local.output_dir
 
     if len(values) == 1:
@@ -521,37 +643,68 @@ def _io_path_elements_fn(x):
     return x.__io__.__path_elements__()
 
 
-def _artifact_transform_save(cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
-    for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+def _artifact_transform_save(instance, cfg: fdl.Config, output_path: Path, relative_dir: Path = Path(".")):
+    artifacts = getattr(cfg.__fn_or_cls__, "__io_artifacts__", [])
+
+    for artifact in artifacts:
         # Allow optional artifacts
-        if artifact.skip:
+        if artifact.skip or (not hasattr(cfg, artifact.attr) and not artifact.required):
             continue
+
+        if not hasattr(cfg, artifact.attr) and artifact.required:
+            raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
+
         current_val = getattr(cfg, artifact.attr)
         if current_val is None:
             if artifact.required:
                 raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
             continue
-        ## dump artifact and return the relative path
-        new_val = artifact.dump(current_val, output_path, relative_dir)
+        # dump artifact and return the relative path
+        new_val = artifact.dump(instance, current_val, output_path, relative_dir)
         setattr(cfg, artifact.attr, new_val)
 
     for attr in dir(cfg):
         try:
-            if isinstance(getattr(cfg, attr), fdl.Config):
-                _artifact_transform_save(getattr(cfg, attr), output_path=output_path, relative_dir=relative_dir)
+            child = getattr(cfg, attr)
+        except AttributeError:
+            continue
+        child = to_config(child)
+        try:
+            if isinstance(child, (fdl.Config, fdl.Partial)):
+                setattr(
+                    cfg,
+                    attr,
+                    _artifact_transform_save(
+                        getattr(instance, attr, None),
+                        child,
+                        output_path=output_path,
+                        relative_dir=relative_dir,
+                    ),
+                )
         except ValueError:
             pass
+
+    return cfg
 
 
 def _artifact_transform_load(cfg: fdl.Config, path: Path):
     for artifact in getattr(cfg.__fn_or_cls__, "__io_artifacts__", []):
+        # We expect an artifact.attr to be a string or a fdl.Config.
+        # Some parameteres can be a string or a filepath. When those parameters are just strings,
+        # we will represent it with a fdl.Config, and will skip the rest of the loop (base-dir adjustment).
+        current_val = getattr(cfg, artifact.attr)
+        if isinstance(current_val, fdl.Config):
+            # artifact.attr is a string not a path.
+            setattr(cfg, artifact.attr, fdl.build(current_val).attr)
+            continue
+
         if artifact.skip:
             continue
         current_val = getattr(cfg, artifact.attr)
         # __init__ arguments can be None
         if current_val is None:
             continue
-        ## replace local path with absolute one
+        # replace local path with absolute one
         new_val = str(Path(path) / current_val)
         setattr(cfg, artifact.attr, new_val)
 
@@ -563,14 +716,53 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
             pass
 
 
-def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None) -> CkptType:
+def drop_unexpected_params(config: fdl.Config) -> bool:
+    """
+    Analyzes config to detect unexpected keyword arguments -- for example, deprecated parameters -- and
+    updates the config by dropping them. Returns True if the config gets updated and False otherwise.
+
+    Args:
+        config (fdl.Config): The configuration object to analyze.
+    """
+
+    updated = False
+
+    def analyze(config: fdl.Config, prefix: str):
+        if isinstance(config, fdl.Config):
+            signature = inspect.signature(config.__fn_or_cls__)
+
+            accept_kwargs = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in signature.parameters.values())
+
+            if not accept_kwargs:
+                to_drop = [param for param in config.__arguments__ if param not in signature.parameters]
+
+                if to_drop:
+                    nonlocal updated
+                    updated = True
+                    logging.warning(f"Deprecated parameters to drop from {prefix}: {to_drop}")
+                    for param in to_drop:
+                        del config.__arguments__[param]
+            else:
+                logging.debug(f"Skip analyzing {prefix} as it accepts arbitrary keyword arguments.")
+
+            # Proceed recursively for all arguments
+            for key, value in config.__arguments__.items():
+                analyze(value, prefix + "." + key)
+
+    analyze(config, "<root>")
+
+    return updated
+
+
+def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None, build: bool = True) -> CkptType:
     """
     Loads a configuration from a pickle file and constructs an object of the specified type.
 
     Args:
         path (Path): The path to the pickle file or directory containing 'io.pkl'.
         output_type (Type[CkptType]): The type of the object to be constructed from the loaded data.
-        subpath (Optional[str]): Subpath to selectively load only specific objects inside the output_type. Defaults to None.
+        subpath (Optional[str]): Subpath to selectively load only specific objects inside the output_type.
+                                 Defaults to None.
 
     Returns
     -------
@@ -597,7 +789,7 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     if subpath:
         subpath = "<root>." + subpath
 
-    ## add IO functionality to custom objects present in the json file
+    # add IO functionality to custom objects present in the json file
     with open(_path) as f:
         j = json.load(f)
     for obj, val in j.get("objects", {}).items():
@@ -626,5 +818,10 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
 
     config = serialization.Deserialization(json_config).result
     _artifact_transform_load(config, path)
+
+    drop_unexpected_params(config)
+
+    if not build:
+        return config
 
     return fdl.build(config)

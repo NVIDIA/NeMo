@@ -30,7 +30,10 @@ except (ImportError, ModuleNotFoundError):
 
 
 def gather_features(
-    image_features, text_features, local_loss=False, gather_with_grad=False,
+    image_features,
+    text_features,
+    local_loss=False,
+    gather_with_grad=False,
 ):
     """
     Gathers image and text features across multiple data parallel processes.
@@ -109,8 +112,12 @@ class ClipLoss(nn.Module):
     """
 
     def __init__(
-        self, local_loss=False, gather_with_grad=False, cache_labels=False,
+        self,
+        local_loss=False,
+        gather_with_grad=False,
+        cache_labels=False,
     ):
+        """Init"""
         super().__init__()
         self.local_loss = local_loss
         self.gather_with_grad = gather_with_grad
@@ -124,6 +131,7 @@ class ClipLoss(nn.Module):
         self.rank = parallel_state.get_data_parallel_rank()
 
     def forward(self, output_tensor):
+        """Forward for loss"""
         image_features, text_features, logit_scale = output_tensor
         device = image_features.device
         if self.world_size > 1:
