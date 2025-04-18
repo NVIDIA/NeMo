@@ -326,6 +326,11 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+
+    if compute_dtype is not None and compute_dtype.lower() == "bf16":
+        recipe.optim.config.use_precision_aware_optimizer = True
+
     # low precision training configs
     if compute_dtype is not None and compute_dtype.lower() == "fp8":
         if fp8_recipe is None:
@@ -338,6 +343,9 @@ def set_primary_perf_configs(
             recipe.trainer.plugins.first_last_layers_bf16 = False
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
+            if comm_overlap_callback_idx is not None:
+                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         if use_mcore_fsdp:
             logging.warning("Currently FSDP does not support FP8 param gather. Disabling fp8 param gather.")
