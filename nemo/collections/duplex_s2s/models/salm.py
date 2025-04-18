@@ -11,19 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import builtins
 import re
 import warnings
 from collections import defaultdict
-from contextlib import contextmanager
-from itertools import chain
+from itertools import repeat
 from pathlib import Path
-from typing import Any, Generator, Iterable
+from typing import Any, Generator, Iterable, Optional
 
 import hydra
-import sacrebleu
 import torch
-import torchmetrics.functional.text
+from lhotse.dataset.collation import collate_vectors
 from lightning import LightningModule
 from omegaconf import open_dict
 from torch import Tensor
@@ -39,16 +36,12 @@ from torch.distributed.tensor.parallel import (
     loss_parallel,
     parallelize_module,
 )
-from torch.nn import CrossEntropyLoss
-from torchmetrics.text import SacreBLEUScore
-from transformers import AutoModel, AutoModelForCausalLM, DynamicCache
+from transformers import AutoModelForCausalLM, GenerationConfig
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
-from nemo.collections.tts.models import AudioCodecModel
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
@@ -160,13 +153,6 @@ class SALM(LightningModule):
         * Take care of any necessary slicing to align the shapes of source audio,
             target audio, and target token ids.
         """
-
-        # def print(*args, **kwargs):
-        #     if hasattr(self, "device_mesh") and self.device_mesh is not None:
-        #         builtins.print(f"[{self.device_mesh.get_coordinate()}]", *args, **kwargs)
-        #     else:
-        #         builtins.print(f"[{torch.distributed.get_rank()}]", *args, **kwargs)
-
         # Source audio encoding.
         # Input audio: (B, T_samples)
         # Audio embeddings: (B, T, H)
@@ -228,8 +214,6 @@ class SALM(LightningModule):
             )
 
         B, T = inputs["input_embeds"].shape[:2]
-        print(f"{loss=} {B=} {T=}")
-
         ans = {
             "loss": loss,
             "learning_rate": (
@@ -255,19 +239,15 @@ class SALM(LightningModule):
         for name, vals in self._partial_val_losses.items():
             val_loss = torch.stack(vals).mean()
             self.log(f"val_loss_{name}", val_loss, on_epoch=True, sync_dist=True)
-            print(f"val_loss_{name}", val_loss)
             val_losses.append(val_loss)
         self.log("val_loss", torch.stack(val_losses).mean(), on_epoch=True, sync_dist=True)
-        print(f"val_loss", torch.stack(val_losses).mean())
 
         accuracies = []
         for name, accs in self._partial_accuracies.items():
             val_acc = torch.stack(accs).mean()
             self.log(f"val_acc_{name}", val_acc, on_epoch=True, sync_dist=True)
-            print(f"val_acc_{name}", val_acc)
             accuracies.append(val_acc)
         self.log("val_acc", torch.stack(accuracies).mean(), on_epoch=True, sync_dist=True)
-        print(f"val_acc", torch.stack(accuracies).mean())
 
         # corpus_bleus = []
         # for name in self._refs.keys():
@@ -329,6 +309,74 @@ class SALM(LightningModule):
     def backward(self, *args, **kwargs):
         with loss_parallel():
             super().backward(*args, **kwargs)
+
+    @torch.no_grad()
+    def generate(
+        self,
+        prompts: list[list[dict[str]]],
+        audios: torch.Tensor = None,
+        audio_lens: torch.Tensor = None,
+        generation_config: GenerationConfig = None,
+    ) -> torch.Tensor:
+        """
+        Generate LLM answers given text or mixed text+audio prompts.
+
+        Inputs:
+            prompts: batch of prompts as list[dict] each in the following format
+                [
+                  # batch example id 0
+                  [{"role": "user"}, "slots": {"message": "Repeat after me, translating to Polish.<audio_locator_tag>"}]
+                  # batch example id 1
+                  [{"role": "user"}, "slots": {"message": "Repeat after me.<audio_locator_tag>"}]
+                ]
+                "role" is LLM-specific, you can pass multiple turns as well.
+            audios: Optional. Time-domain audio signal zero-padded batch of shape (B, T).
+                The number of audios must correspond to the number of occurrences of <audio_locator_tag> in prompts.
+                Each prompt can have multiple audios.
+            audio_lens: Optional. Length of each audio example.
+            generation_config: Optional HuggingFace GenerationConfig object.
+        """
+        # Encode prompt dicts into int token ids.
+        formatter = PromptFormatter.resolve(self.cfg.prompt_format)(self.tokenizer)
+        tokens = collate_vectors(
+            [formatter.encode_dialog(turns=prompt)["input_ids"] for prompt in prompts], padding_value=self.text_pad_id
+        ).to(self.device)
+        if audios is not None:
+            # Audio + text input for generation.
+            # Prepare token embeddings and audio embeddings.
+            tokens_to_embed = tokens.where(tokens != self.audio_locator_tag_id, 0)
+            token_embeds = self.embed_tokens(tokens_to_embed)
+            audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
+            # Insert audio embeddings into relevant positions in text embeddings.
+            input_embeds, _, attention_mask = replace_placeholders_and_build_targets(
+                input_ids=tokens,
+                embeds=token_embeds,
+                padding_id=self.text_pad_id,
+                placeholder_id=self.audio_locator_tag_id,
+                replacements=[audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)],
+                target_ids=None,
+            )
+            fake_input_ids = torch.zeros(input_embeds.shape[1], dtype=torch.long, device=input_embeds.device)
+            generation_inputs = self.llm.prepare_inputs_for_generation(
+                input_ids=fake_input_ids,
+                inputs_embeds=input_embeds,
+                attention_mask=attention_mask,
+                cache_position=[0],
+            )
+            del generation_inputs['position_ids']  # causes hallucination issues ... ?
+        else:
+            # Text-only generation.
+            attention_mask = tokens != self.text_pad_id
+            generation_inputs = {"input_ids": tokens, "attention_mask": attention_mask}
+        # Generate the answers using HF Generate API.
+        # Note: we need to put the text embedding layer back to the LLM for processing.
+        self.llm.model.embed_tokens = self.embed_tokens
+        answer_tokens = self.llm.generate(
+            **generation_inputs,
+            generation_config=generation_config,
+        )
+        del self.llm.model.embed_tokens
+        return answer_tokens
 
     def configure_optimizers(self):
         to_freeze = []
@@ -451,8 +499,8 @@ def replace_placeholders_and_build_targets(
     padding_id: int,
     placeholder_id: int,
     replacements: list[torch.Tensor],
-    target_ids: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    target_ids: Optional[torch.Tensor] = None,
+) -> tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor]:
     """Replaces each occurrence of the placeholder_id in input_ids with the corresponding tensor
     from the replacements list in the embeds tensor, and creates corresponding adjusted target_ids.
 
@@ -470,10 +518,12 @@ def replace_placeholders_and_build_targets(
         - Tensor of shape (batch, max_new_sequence_length) with adjusted target IDs where:
           * Original target values are preserved where input was not a placeholder or padding
           * Positions that were placeholders, padding, or added by replacements are set to -100
+          Will be None if target_ids input was None.
         - Tensor of shape (batch, max_new_sequence_length) with attention padding masks.
     """
     batch_size, seq_len = input_ids.size()
-    assert target_ids.size() == input_ids.size(), "target_ids must have the same shape as input_ids"
+    if target_ids is not None:
+        assert target_ids.size() == input_ids.size(), "target_ids must have the same shape as input_ids"
 
     hidden_dim = embeds.size(2)
     device, dtype = embeds.device, embeds.dtype
@@ -493,10 +543,10 @@ def replace_placeholders_and_build_targets(
             output_sequences.append(embeds[i])
 
             # Start with original target_ids and replace positions where input was padding
-            new_target_ids = target_ids[i].clone()
-            new_target_ids[input_ids[i] == padding_id] = ignore_index
-
-            output_target_ids.append(new_target_ids)
+            if target_ids is not None:
+                new_target_ids = target_ids[i].clone()
+                new_target_ids[input_ids[i] == padding_id] = ignore_index
+                output_target_ids.append(new_target_ids)
             output_att_masks.append(input_ids[i] != padding_id)
             continue
 
@@ -512,11 +562,11 @@ def replace_placeholders_and_build_targets(
                 segments.append(embeds[i, prev_pos:pos])
 
                 # For target IDs: keep original targets but mark positions that were padding in input
-                segment_target_ids = target_ids[i, prev_pos:pos].clone()
-                segment_target_ids[segment_target_ids == padding_id] = ignore_index
-
-                att_masks.append(segment_target_ids != padding_id)
-                target_segments.append(segment_target_ids)
+                if target_ids is not None:
+                    segment_target_ids = target_ids[i, prev_pos:pos].clone()
+                    segment_target_ids[segment_target_ids == padding_id] = ignore_index
+                    target_segments.append(segment_target_ids)
+                att_masks.append(input_ids[i, prev_pos:pos] != padding_id)
 
             # Add replacement for embeddings
             rep = replacements[replacement_idx]
@@ -534,16 +584,17 @@ def replace_placeholders_and_build_targets(
             segments.append(embeds[i, prev_pos:seq_len])
 
             # For target IDs: keep original targets but mark positions that were padding in input
-            segment_target_ids = target_ids[i, prev_pos:seq_len].clone()
-            segment_target_ids[segment_target_ids == padding_id] = ignore_index
-
-            att_masks.append(segment_target_ids != padding_id)
-            target_segments.append(segment_target_ids)
+            if target_ids is not None:
+                segment_target_ids = target_ids[i, prev_pos:seq_len].clone()
+                segment_target_ids[segment_target_ids == padding_id] = ignore_index
+                target_segments.append(segment_target_ids)
+            att_masks.append(input_ids[i, prev_pos:seq_len] != padding_id)
 
         # Concatenate all segments for this example
         output_sequences.append(torch.cat(segments, dim=0))
-        output_target_ids.append(torch.cat(target_segments, dim=0))
         output_att_masks.append(torch.cat(att_masks, dim=0))
+        if target_ids is not None:
+            output_target_ids.append(torch.cat(target_segments, dim=0))
 
     # Verify all replacements were used
     if replacement_idx != len(replacements):
@@ -552,13 +603,19 @@ def replace_placeholders_and_build_targets(
     # Create padded output tensors
     max_seq_length = max(seq.size(0) for seq in output_sequences)
     output = torch.zeros(batch_size, max_seq_length, hidden_dim, device=device, dtype=dtype)
-    new_target_ids = torch.full((batch_size, max_seq_length), ignore_index, dtype=torch.long, device=device)
+    if target_ids is not None:
+        new_target_ids = torch.full((batch_size, max_seq_length), ignore_index, dtype=torch.long, device=device)
+    else:
+        new_target_ids = None
     attention_masks = torch.zeros((batch_size, max_seq_length), dtype=torch.bool, device=device)
 
+    if target_ids is None:
+        output_target_ids = repeat(None)
     for i, (seq, tgt, att) in enumerate(zip(output_sequences, output_target_ids, output_att_masks)):
         seq_len = seq.size(0)
         output[i, :seq_len] = seq
-        new_target_ids[i, :seq_len] = tgt
+        if tgt is not None:
+            new_target_ids[i, :seq_len] = tgt
         attention_masks[i, :seq_len] = att
 
     return output, new_target_ids, attention_masks

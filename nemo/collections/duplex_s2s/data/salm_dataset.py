@@ -49,11 +49,7 @@ class SALMDataset(torch.utils.data.Dataset):
         return {
             "audios": audios,
             "audio_lens": audio_lens,
-            # "example_idx_to_audio_idxs": example_idx_to_audio_idxs,
             "input_ids": collate_vectors([c.input_ids for c in conversations], padding_value=self.pad_id),
-            # "answer_offsets": torch.tensor([len(c.context_ids for c in conversations)], dtype=torch.long),
-            # "context_ids": collate_vectors([c.context_ids for c in conversations], padding_value=self.pad_id),
-            # "answer_ids": collate_vectors([c.answer_ids for c in conversations], padding_value=self.pad_id),
             "loss_mask": collate_vectors([c.mask for c in conversations], padding_value=0).to(torch.bool),
         }
 

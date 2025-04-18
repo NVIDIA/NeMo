@@ -12,6 +12,7 @@ model:
   freeze_llm: true
   freeze_asr: true
 
+  prompt_format: llama2
   audio_locator_tag: "<|audioplaceholder|>"  # placeholder token for audio turn is expected
 
   perception:
