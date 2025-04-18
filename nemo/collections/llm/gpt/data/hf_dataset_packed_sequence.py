@@ -22,6 +22,7 @@ from tqdm import tqdm
 CROSS_ENTROPY_IGNORE_IDX = -100
 PACK_TYPE = Dict[str, Union[torch.Tensor, List[int]]]
 
+
 # based on https://github.com/pytorch/torchtune/blob/v0.6.1/torchtune/datasets/_packed.py#L17
 class HFDatasetPackedSequenceHelper:
     """
