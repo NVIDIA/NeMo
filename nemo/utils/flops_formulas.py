@@ -380,6 +380,10 @@ def deepseekv3(config: FLOPSConfig):
     per_input_params = mla_params + ffn_params
     per_input_linear_flops = 6 * per_input_params * config.enc_seq_len
 
+    print( (per_input_attention_flops + per_input_linear_flops) * config.gbs)
+    print(per_input_params / (config.layers + config.mtp_num_layers))
+    print(config.vocab_size * config.hs + config.hs * 2 * config.hs)
+
     # vocab flops
     per_input_vocab_flops = 6 * config.vocab_size * config.hs * config.enc_seq_len
     if config.mtp_num_layers is not None:
@@ -388,3 +392,26 @@ def deepseekv3(config: FLOPSConfig):
             per_input_vocab_flops += 6 * config.hs * 2 * config.hs * config.enc_seq_len
 
     return (per_input_attention_flops + per_input_linear_flops + per_input_vocab_flops) * config.gbs
+
+if __name__ == "__main__":
+    kwargs = {
+        "gbs": 1,
+        "enc_seq_len": 4096,
+        "hs": 7168,
+        "layers": 4,
+        "attention_heads": 128,
+        "ffn_hs": 18432,
+        "vocab_size": 128000,
+        "q_lora_rank": 1536,
+        "kv_lora_rank": 512,
+        "qk_head_dim": 128,
+        "qk_pos_emb_head_dim": 64,
+        "v_head_dim": 128,
+        "mtp_num_layers": 1,
+        "moe_router_topk": 8,
+        "moe_layer_freq": [1]*4 ,
+        "moe_shared_expert_intermediate_size": 2048,
+        "moe_ffn_hidden_size": 2048,
+    }
+    config = FLOPSConfig(**kwargs)
+    print(deepseekv3(config))
