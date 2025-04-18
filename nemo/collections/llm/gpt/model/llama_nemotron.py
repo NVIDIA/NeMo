@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 import torch
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTModel, GPTConfig, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.gpt.model.llama import (
     Llama31Config,
     Llama31Config8B,
@@ -27,8 +27,10 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama31Config405B,
     LlamaConfig,
 )
-from nemo.collections.llm.gpt.model.llama_nemotron_config import LLAMA_33_NEMOTRON_SUPER_49B_HETEROGENEOUS_CONFIG, \
-    LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG
+from nemo.collections.llm.gpt.model.llama_nemotron_config import (
+    LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG,
+    LLAMA_33_NEMOTRON_SUPER_49B_HETEROGENEOUS_CONFIG,
+)
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
@@ -393,7 +395,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         target = self.init(
             torch_dtype_from_mcore_config(source.config),
             from_config=not is_heterogeneous,
-            model_name=target_model_name
+            model_name=target_model_name,
         )
         target = self.convert_state(source, target)
 

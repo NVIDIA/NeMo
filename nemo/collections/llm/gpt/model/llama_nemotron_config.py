@@ -1503,7 +1503,7 @@ LLAMA_33_NEMOTRON_SUPER_49B_HETEROGENEOUS_CONFIG = """
 """
 
 # Config copy from https://huggingface.co/nvidia/Llama-3_1-Nemotron-Ultra-253B-v1/blob/main/config.json
-LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG="""
+LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG = """
 {
   "_name_or_path": "llama_nemotron_ultra",
   "architectures": [

@@ -15,8 +15,8 @@
 import torch.nn.functional as F
 
 from nemo.collections.llm.gpt.model.llama_nemotron import (
-    Llama31NemotronNano8BConfig,
     Llama31Nemotron70BConfig,
+    Llama31NemotronNano8BConfig,
     Llama33NemotronSuper49BConfig,
     Llama33NemotronUltra253BConfig,
 )
@@ -101,4 +101,4 @@ def test_llama33_nemotron_ultra_253b_config():
     assert config.share_embeddings_and_output_weights is False
     assert config.make_vocab_size_divisible_by == 128
     assert config.heterogeneous_layers_config_encoded_json is not None
-    assert config.transformer_layer_spec is not None 
+    assert config.transformer_layer_spec is not None
