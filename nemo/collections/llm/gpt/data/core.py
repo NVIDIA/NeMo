@@ -30,6 +30,8 @@ from nemo.collections.llm.gpt.data.utils import (
     _JSONLMemMapDataset,
     _OnlineSampleMapping,
     _preprocess,
+    _preprocess_hf_chat_template,
+    _transform_to_chat_message,
 )
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -887,7 +889,21 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
-    """ """
+    """
+    Dataset for fine-tuning a chat model.
+
+    Accepts conversational data in ShareGPT format or HuggingFace chat template format.
+    ShareGPT format:
+    {"conversations": [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]}
+    HuggingFace chat template format:
+    {"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+
+    If use_hf_tokenizer_chat_template is True, the dataset will try to usethe HuggingFace chat template format or convert the ShareGPT format if needed.
+    """
+
+    def __init__(self, use_hf_tokenizer_chat_template: bool = False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_hf_tokenizer_chat_template = use_hf_tokenizer_chat_template
 
     def _maybe_validate_prompt_template(self):
         pass
@@ -915,15 +931,22 @@ class GPTSFTChatDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        result = _preprocess(
-            example,
-            self.tokenizer,
-            self.name_end_token_ids,
-            self.label_start_tokens,
-            self.special_tokens,
-            self.num_turn_start_tokens,
-        )
-
+        if not self.use_hf_tokenizer_chat_template:
+            result = _preprocess(
+                example,
+                self.tokenizer,
+                self.name_end_token_ids,
+                self.label_start_tokens,
+                self.special_tokens,
+                self.num_turn_start_tokens,
+            )
+        else:
+            if "conversations" in example:
+                example = _transform_to_chat_message(example)
+                result = _preprocess_hf_chat_template(
+                    example,
+                    self.tokenizer,
+                )
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in ['conversations']}
         result['metadata'] = metadata

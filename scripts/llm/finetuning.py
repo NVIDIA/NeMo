@@ -17,6 +17,7 @@
 # It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and
 # NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
+"""Fine-tuning script for chat datasets. Uses the HuggingFace tokenizer chat template by default."""
 import argparse
 from functools import partial
 from typing import Any, Optional
@@ -216,6 +217,7 @@ def main():
         tokenizer=tokenizer,
         global_batch_size=args.global_batch_size,
         micro_batch_size=args.micro_batch_size,
+        use_hf_tokenizer_chat_template=True,
     )
 
     executor: run.Executor

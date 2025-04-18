@@ -732,7 +732,6 @@ def _make_indexed_dataset_compatibility(dataset):
     return dataset
 
 
-'''
 def _preprocess(
     source: dict,
     tokenizer: TokenizerSpec,
@@ -801,44 +800,43 @@ def _preprocess(
     answer_ids = input_ids[last_ignore_index_pos:]
 
     return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
-'''
 
 
-def transform_to_chat_message(conversations):
+def _transform_to_chat_message(source: dict):
     """
-    Convert JSONL conversation format to chat message format.
+    Convert ShareGPT conversation format to HuggingFace chat message format.
 
     Input format:
-    [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]
+    {"conversations": [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]}
 
     Output format:
-    [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+    {"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
     """
     messages = []
-    for conv in conversations:
+    for conv in source["conversations"]:
         role = conv["from"].lower()  # Convert User/Assistant to user/assistant
         message = {"role": role, "content": conv["value"]}
         messages.append(message)
-    return messages
+    return {"messages": messages}
 
 
-def _preprocess(
-    source: dict,
+def _preprocess_hf_chat_template(
+    hf_chat_dict: dict,
     tokenizer: TokenizerSpec,
-    name_end_token_ids: int,
-    label_start_ids: list,
-    special_tokens: dict,
-    num_turn_start_tokens: int,
 ):
     """
     Given a conversation list (source) this function applies the following transformations:
     1. Convert JSONL conversation format to chat message format.
     2. Tokenize the chat message by applying the chat template.
     3. Calculate the mask for the assistant tokens.
+
+    Args:
+        hf_chat_dict: dict, the chat message dict from HuggingFace tokenizer.
+        tokenizer: TokenizerSpec, the tokenizer object.
     """
-    messages = transform_to_chat_message(source['conversations'])
+    # Use HuggingFace tokenizer to apply the chat template.
     tokens = tokenizer.tokenizer.apply_chat_template(
-        messages, return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt'
+        hf_chat_dict['messages'], return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt'
     )
     input_ids = tokens['input_ids'][0]
     mask = torch.tensor(tokens['assistant_masks']).to(bool)
