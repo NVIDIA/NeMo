@@ -67,7 +67,15 @@ jobs:
           mkdir -p $DIR
 
           ARG=("")
-          if [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
+          if [[ "${{ inputs.RUNNER }}" == "myVm-01" ]]; then
+            ARG=("--runtime=nvidia --gpus '"devices=0,1"')
+          elif [[ "${{ inputs.RUNNER }}" == "myVm-02" ]]; then
+            ARG=("--runtime=nvidia --gpus '"devices=2,3"')
+          elif [[ "${{ inputs.RUNNER }}" == "myVm-03" ]]; then
+            ARG=("--runtime=nvidia --gpus '"devices=4,5"')
+          elif [[ "${{ inputs.RUNNER }}" == "myVm-04" ]]; then
+            ARG=("--runtime=nvidia --gpus '"devices=6,7"')
+          elif [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
             ARG=("--runtime=nvidia --gpus all")
           fi
 
