@@ -121,6 +121,8 @@ def override_recipe_configs(
         ]  # recompute core attention as it is using unfused kernel
     else:
         recipe.model.config.recompute_modules = ["mla_up_proj"]  # recompute mla_up_proj to save memory
+    recipe.model.config.recompute_num_layers = None
+    recipe.model.config.recompute_method = None
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.moe_router_dtype = 'fp32'
     recipe.model.config.moe_permute_fusion = True
