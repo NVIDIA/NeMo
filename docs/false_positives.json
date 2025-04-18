@@ -6,3 +6,97 @@
   "uri": "https://research.fb.com/wp-content/uploads/2019/03/Neural-Models-of-Text-Normalization-for-Speech-Applications.pdf",
   "info": "400 Client Error: Bad Request for url: https://research.facebook.com/wp-content/uploads/2019/03/Neural-Models-of-Text-Normalization-for-Speech-Applications.pdf"
 }
+{
+  "filename": "tts/models.rst",
+  "lineno": 155,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://doi.org/10.1109/TASLP.2021.3129994",
+  "info": "403 Client Error: Forbidden for url: https://ieeexplore.ieee.org/document/9625818/"
+}
+{
+  "filename": "multimodal/mllm/datasets.rst",
+  "lineno": 23,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K/tree/main",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K/tree/main"
+}
+{
+  "filename": "core/core.rst",
+  "lineno": 639,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/"
+}
+{
+  "filename": "nlp/spellchecking_asr_customization.rst",
+  "lineno": 41,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/bene-ges/spellmapper_asr_customization_en",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/bene-ges/spellmapper_asr_customization_en"
+}
+{
+  "filename": "evaluation/evaluation_doc.rst",
+  "lineno": 25,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/docs/huggingface_hub/quick-start#authentication",
+{
+  "filename": "tools/nemo_forced_aligner.rst",
+  "lineno": 15,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/spaces/erastorgueva-nv/NeMo-Forced-Aligner",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/spaces/erastorgueva-nv/NeMo-Forced-Aligner"
+}
+{
+  "filename": "asr/models.rst",
+  "lineno": 25,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/spaces/nvidia/canary-1b",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/spaces/nvidia/canary-1b"
+}
+{
+  "filename": "asr/intro.rst",
+  "lineno": 189,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/spaces/hf-audio/open_asr_leaderboard",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/spaces/hf-audio/open_asr_leaderboard"
+}
+{
+  "filename": "asr/models.rst",
+  "lineno": 46,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://huggingface.co/spaces/nvidia/parakeet-tdt-1.1b",
+  "info": "403 Client Error: Forbidden for url: https://huggingface.co/spaces/nvidia/parakeet-tdt-1.1b"
+}
+{
+  "filename": "asr/api.rst",
+  "lineno": 24,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://ieeexplore.ieee.org/document/9053040",
+  "info": "403 Client Error: Forbidden for url: https://ieeexplore.ieee.org/document/9053040"
+}
+{
+  "filename": "asr/api.rst",
+  "lineno": 47,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://ieeexplore.ieee.org/document/9250505",
+  "info": "403 Client Error: Forbidden for url: https://ieeexplore.ieee.org/document/9250505"
+}
+{
+  "filename": "audio/api.rst",
+  "lineno": 9,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8462081",
+  "info": "403 Client Error: Forbidden for url: https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8462081"
+}
