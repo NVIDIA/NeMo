@@ -399,7 +399,8 @@ class Llama4Config(Llama3Config):
     moe_router_pre_softmax: bool = False
     moe_router_score_function: str = "sigmoid"
     moe_token_dispatcher_type: str = "alltoall"
-    moe_router_dtype: str = "fp32"
+    moe_router_dtype: Optional[str] = None
+    moe_apply_probs_on_input: bool = True
     # Configs that are overwritten in subclass models
     qk_l2_norm: bool = True
     rope_scaling: bool = True
