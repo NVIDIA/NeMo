@@ -128,7 +128,11 @@ def main(args) -> None:
     # messages = "The following are multiple choice questions (with answers) about world religions.\n\nWhen was the first Buddhist temple constructed in Japan?\nA. 325 CE\nB. 119 CE\nC. 451 CE\nD. 596 CE\nAnswer:"
     # messages = "The following are multiple choice questions (with answers) about world religions.\n\nGuru Nanak used what term to denote the \"divine word\" as part of divine revelation?\nA. Shabad\nB. Khalse\nC. Nam\nD. Guru\nAnswer:"
     messages = "The following are multiple choice questions (with answers) about professional psychology.\n\nA 66-year-old client who is depressed, has rhythmic hand movements, and has a flattened affect is probably suffering from\nA. Parkinson's disease\nB. Vascular Dementia\nC. a right frontal lobe tumor\nD. Alzheimer's disease\nAnswer:"
-    inputs = hf_tokenizer(messages, return_tensors="pt", add_special_tokens=True, )
+    inputs = hf_tokenizer(
+        messages,
+        return_tensors="pt",
+        add_special_tokens=True,
+    )
     input_ids = inputs["input_ids"].cuda()
 
     position_ids = (

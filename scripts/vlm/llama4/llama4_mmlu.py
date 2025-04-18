@@ -52,7 +52,7 @@ import json
 import random
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple, TextIO
+from typing import Dict, List, TextIO, Tuple
 
 import torch
 import torch.distributed as dist
@@ -113,7 +113,7 @@ class Llama4:
 
     def __init__(self, ckpt_path: Path, tp: int, pp: int, ep: int) -> None:
         ########################
-        #‑‑ Create the trainer ‑‑#
+        # ‑‑ Create the trainer ‑‑#
         ########################
         strategy = nl.MegatronStrategy(
             tensor_model_parallel_size=tp,
@@ -137,7 +137,7 @@ class Llama4:
         )
 
         #############################
-        #‑‑ Load the converted model ‑‑#
+        # ‑‑ Load the converted model ‑‑#
         #############################
         ctx_path = ckpt_to_context_subdir(ckpt_path)
         model: io.TrainerContext = io.load_context(path=ctx_path, subpath="model")
@@ -147,7 +147,7 @@ class Llama4:
         self.model.eval()
 
         ########################
-        #‑‑ Hugging Face side ‑‑#
+        # ‑‑ Hugging Face side ‑‑#
         ########################
         model_id = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
         tokenizer_wrapper = AutoTokenizer(model_id)
@@ -250,11 +250,7 @@ def evaluate(tasks_dir: Path, model: Llama4, sample_ratio: float, log_fh: TextIO
 
         for line in sampled_lines:
             record = json.loads(line)
-            prompt = (
-                record.get("arguments", {})
-                .get("gen_args_0", {})
-                .get("arg_0")
-            )
+            prompt = record.get("arguments", {}).get("gen_args_0", {}).get("arg_0")
             if prompt is None:
                 continue  # malformed line, skip
             target = record.get("target")  # expected to be "A".."D"
