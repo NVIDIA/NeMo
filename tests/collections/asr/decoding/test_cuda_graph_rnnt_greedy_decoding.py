@@ -218,6 +218,10 @@ def test_loop_labels_cuda_graph_ddp_mixed_precision(
     # validate using trainer
     val_results = trainer.validate(model)
     wer = val_results[0]["val_wer"]
+
+    # explicitly free resources, then test conditions
+    trainer.strategy.teardown()
+
     assert wer <= 0.1, f"WER is too high: {wer}"
 
 
