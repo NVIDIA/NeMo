@@ -142,7 +142,19 @@ class Quantizer:
         model.config.vocab_size = model.tokenizer.vocab_size
         model.freeze()
 
-    def _get_decoder_type(self, model):
+    def _get_decoder_type(self, model, optional: bool = False) -> Optional[str]:
+        """
+        Determines the decoder type for the given model. It is used for exporting a model to
+        a TensorRT-LLM checkpoint and for configuring certain parameters in the quantization algorithm.
+
+        Args:
+            model: The model instance for which the decoder type needs to be determined.
+            optional (bool): Allow to return None if the decoder type cannot be inferred.
+                Otherwise an exception will be raised in such cases.
+
+        Returns:
+            Optional[str]: The decoder type as a string if it can be determined.
+        """
         if self.export_config.decoder_type is not None:
             return self.export_config.decoder_type
 
@@ -152,10 +164,14 @@ class Quantizer:
 
         if decoder_type := get_modelopt_decoder_type(unwrapped_model):
             return decoder_type
-        raise ValueError(
-            "Could not infer the decoder type for the provided model. "
-            "Please provide the decoder type explicitly in the ExportConfig."
-        )
+
+        if not optional:
+            raise ValueError(
+                "Could not infer the decoder type for the provided model. "
+                "Please provide the decoder type explicitly in the ExportConfig."
+            )
+
+        return None
 
     @staticmethod
     def _generate_sample(model):
@@ -217,7 +233,7 @@ class Quantizer:
         )
 
     def _get_quant_cfg(self, model):
-        decoder_type = self._get_decoder_type(model)
+        decoder_type = self._get_decoder_type(model, optional=True)
         assert (
             self.quantization_config.algorithm in QUANT_CFG_CHOICES
         ), f"Unsupported quantization format: {self.quantization_config.algorithm}"
@@ -277,7 +293,7 @@ class Quantizer:
         logging.info(f"Quantizing model to {algorithm}...")
 
         self._setup(model)
-        decoder_type = self._get_decoder_type(model)
+        decoder_type = self._get_decoder_type(model, optional=True)
         quant_cfg = self._get_quant_cfg(model)
         unwrapped_model = mtq.quantize(unwrap_for_modelopt_operations(model), quant_cfg, forward_loop)
         if decoder_type == "gpt":
