@@ -389,7 +389,8 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
                     target_model_name = 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1'
                 else:
                     raise ValueError(
-                        'Unknown target model. Currently only support exporting Llama-Nemotron Nano/Super/Ultra models.'
+                        'Unknown target model. '
+                        'Currently only support exporting Llama-Nemotron Nano/Super/Ultra models.'
                     )
 
         target = self.init(
