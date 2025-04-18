@@ -693,6 +693,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 drop_extra_pre_encoded=drop_extra_pre_encoded,
             )
         elif cfg.model_type == 'offline':
+            # import pdb; pdb.set_trace()
             encoded_with_rc, encoded_len_with_rc = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
             cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len = None, None, None   
 
