@@ -53,6 +53,8 @@ from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core import Timers
+from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
 from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
@@ -945,16 +947,25 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sharded_state_dict = {}
         sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
+        strict = (
+            self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+        )
+
+        if strict in [StrictHandling.ASSUME_OK_UNEXPECTED, StrictHandling.LOG_UNEXPECTED, StrictHandling.LOG_ALL]:
+            # This is a WAR for loading non-fp8 weights into fp8 model
+            def skip_fp8_load(x):
+                if isinstance(x, ShardedObject) and '_extra_state' in x.key:
+                    x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+                return x
+
+            dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
+
         if (
             self.should_restore_optimizer_states(selective_restore=selective_restore)
             and self.trainer.state.fn == TrainerFn.FITTING
         ):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
-
-        strict = (
-            self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
-        )
 
         try:
             checkpoint = self.checkpoint_io.load_checkpoint(
