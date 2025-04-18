@@ -415,6 +415,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         micro_batch_size: Optional[int] = None,
         num_microbatches: Optional[int] = None,
         step_i: Optional[int] = None,
+        capture_cuda_graph: bool = False,
         **kwargs,
     ) -> STEP_OUTPUT:
         return self._step(
@@ -428,6 +429,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             num_microbatches=num_microbatches,
             step_i=step_i,
             forward_only=True,
+            capture_cuda_graph=capture_cuda_graph,
             **kwargs,
         )
 
@@ -1200,6 +1202,7 @@ class MegatronStep(Generic[ModelT, DataT]):
     decoder_seq_length: Optional[int] = None
     data_step: Optional[int] = None
     train_graph: torch.cuda.CUDAGraph = None
+    val_graph: torch.cuda.CUDAGraph = None
     capture_cuda_graph: bool = False
     train_result = None
     val_result = None
@@ -1250,6 +1253,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             step_i=step_i,
             data_step=data_step,
             train_graph=MegatronStep.train_graph,
+            val_graph=MegatronStep.val_graph,
             capture_cuda_graph=capture_cuda_graph,
         )
 
@@ -1332,7 +1336,21 @@ class MegatronStep(Generic[ModelT, DataT]):
                 MegatronStep.train_graph.replay()
             return MegatronStep.train_result
         else:
-            MegatronStep.val_result = self.run_step(iter_data_list, seq_length)
+            if self.capture_cuda_graph:
+                # Capture CUDAgraph
+                capture_stream = torch.cuda.Stream()
+                MegatronStep.val_graph = torch.cuda.CUDAGraph()
+                # For cases with multiple active RNG states, e.g. TP.
+                for _, state in get_all_rng_states().items():
+                    MegatronStep.val_graph.register_generator_state(state)
+                torch.cuda.synchronize()
+                with torch.cuda.graph(MegatronStep.val_graph, stream=capture_stream, capture_error_mode="global"):
+                    MegatronStep.val_result = self.run_step(iter_data_list, seq_length)
+                torch.cuda.synchronize()
+            if MegatronStep.val_graph is None:
+                MegatronStep.val_result = self.run_step(iter_data_list, seq_length)
+            else:
+                MegatronStep.val_graph.replay()
             return MegatronStep.val_result
 
     def to_data_iterator_list(
