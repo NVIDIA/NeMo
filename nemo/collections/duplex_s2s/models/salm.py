@@ -568,6 +568,7 @@ def freeze_and_subset(
     named_parameters: Iterable[tuple[str, torch.nn.Parameter]], patterns: list[str]
 ) -> Generator[torch.nn.Parameter, None, None]:
     patterns = [re.compile(p) for p in patterns]
+    trainable, nontrainable = 0, 0
     for name, param in named_parameters:
         discard = False
         for pattern in patterns:
@@ -576,3 +577,9 @@ def freeze_and_subset(
                 discard = True
         if not discard:
             yield param
+            trainable += param.numel()
+        else:
+            nontrainable += param.numel()
+    total = trainable + nontrainable
+    if torch.distributed.is_available() and torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:
+        logging.info(f"Parameters | trainable={trainable} ({trainable / total:.2%}) | total={total}")
