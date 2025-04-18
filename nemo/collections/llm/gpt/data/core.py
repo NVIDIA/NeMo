@@ -948,7 +948,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
                     self.tokenizer,
                 )
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in ['conversations']}
+        metadata = {k: v for k, v in example.items() if k not in {'conversations', 'messages'}}
         result['metadata'] = metadata
         if self.output_original_text:
             result['metadata']['conversations'] = example['conversations']
@@ -958,10 +958,11 @@ class GPTSFTChatDataset(GPTSFTDataset):
     def collate_fn(self, batch):
         input_ids = [item['input_ids'][:-1].tolist() for item in batch]
         labels = [item['input_ids'][1:].tolist() for item in batch]
-        contexts = [item['context_ids'].tolist() for item in batch]
-        answers = [item['answer_ids'].tolist() for item in batch]
         loss_mask = [item['mask'][1:].tolist() for item in batch]
         metadata = [item['metadata'] for item in batch]
+        if not self.use_hf_tokenizer_chat_template:
+            contexts = [item['context_ids'].tolist() for item in batch]
+            answers = [item['answer_ids'].tolist() for item in batch]
 
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         #  max_length = max([len(x) for x in input_ids])
@@ -970,8 +971,9 @@ class GPTSFTChatDataset(GPTSFTDataset):
             input_ids = [x[: self.max_seq_length] for x in input_ids]
             labels = [x[: self.max_seq_length] for x in labels]
             loss_mask = [x[: self.max_seq_length] for x in loss_mask]
-            contexts = [x[: self.max_seq_length] for x in contexts]
-            answers = [x[: self.max_seq_length] for x in answers]
+            if not self.use_hf_tokenizer_chat_template:
+                contexts = [x[: self.max_seq_length] for x in contexts]
+                answers = [x[: self.max_seq_length] for x in answers]
 
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
@@ -990,20 +992,26 @@ class GPTSFTChatDataset(GPTSFTDataset):
         )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
-        context_lengths = torch.LongTensor([len(x) for x in contexts])
-        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
-        answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        if not self.use_hf_tokenizer_chat_template:
+            context_lengths = torch.LongTensor([len(x) for x in contexts])
+            contexts = torch.LongTensor(
+                self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id)
+            )
+            answers = torch.LongTensor(
+                self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id)
+            )
 
         processed_batch = {
             'tokens': input_ids,
             'labels': labels,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
-            'contexts': contexts,
-            'context_lengths': context_lengths,
-            'answers': answers,
             'metadata': metadata,
         }
+        if not self.use_hf_tokenizer_chat_template:
+            processed_batch['contexts'] = contexts
+            processed_batch['answers'] = answers
+            processed_batch['context_lengths'] = context_lengths
 
         if not self.get_attention_mask_from_fusion:
             processed_batch['attention_mask'] = attention_mask
