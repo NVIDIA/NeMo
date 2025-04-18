@@ -351,7 +351,6 @@ class SortformerModules(NeuralModule, Exportable):
             chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
                 Dimension: (batch_size, chunk_len, num_spks)
         """
-
         batch_size, _, emb_dim = spkcache.shape
         n_spk = preds.shape[2]
 
@@ -621,14 +620,14 @@ class SortformerModules(NeuralModule, Exportable):
                 Shape: (batch_size, spkcache_len)
         """
 
-        batch_size, n_frames, n_spk = scores.shape
+        batch_size, n_frames, _ = scores.shape
         n_frames_no_sil = n_frames - self.spkcache_sil_frames_per_spk
         # Concatenate scores for all speakers
         # Get spkcache_len frames with highest scores
         # Replace topk_indices corresponding to -inf score with a placeholder index self.max_index
         # Sort topk_indices to preserve original order of frames
         # Get correct indices corresponding to original frames
-        scores_flatten = scores.permute(0,2,1).reshape(batch_size, -1)
+        scores_flatten = scores.permute(0, 2, 1).reshape(batch_size, -1)
         topk_values, topk_indices = torch.topk(scores_flatten, self.spkcache_len, dim=1, sorted=False)
         valid_topk_mask = (topk_values != float('-inf'))
         topk_indices = torch.where(valid_topk_mask, topk_indices, torch.tensor(self.max_index))
@@ -717,8 +716,6 @@ class SortformerModules(NeuralModule, Exportable):
             scores (torch.Tensor): Tensor containing speaker scores.
                 Shape: (batch_size, n_frames, n_spk)
         """
-
-        batch_size, _, n_spk = scores.shape
         is_speech = preds > 0.5
         # Replace scores for non-speech with -inf
         scores = torch.where(is_speech, scores, torch.tensor(float('-inf')))
@@ -780,7 +777,6 @@ class SortformerModules(NeuralModule, Exportable):
                 Dimension: (batch_size, n_spk)
         """
         batch_size, n_frames, n_spk = preds.shape
-        emb_dim = emb_seq.shape[2]
         spkcache_len_per_spk = self.spkcache_len // n_spk - self.spkcache_sil_frames_per_spk
         strong_boost_per_spk = math.floor(spkcache_len_per_spk * self.strong_boost_rate)
         weak_boost_per_spk = math.floor(spkcache_len_per_spk  * self.weak_boost_rate)

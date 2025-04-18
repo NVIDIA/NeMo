@@ -26,6 +26,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from dataclasses import dataclass
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
@@ -75,6 +76,16 @@ def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
         start_indices = end_indices
 
     return output, total_lengths
+
+class StreamingSortformerStates:
+    MEM = None  # speaker cache to store embeddings from start
+    MEM_LENS = None
+    MEM_PREDS = None  # speaker cache predictions
+    FIFO_QUEUE = None  # to save the embedding from the latest chunks
+    FIFO_LENS = None
+    total_pred = None
+    spk_perm = None
+        
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixin):
     """
@@ -431,6 +442,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             processed_signal (torch.Tensor): The processed audio signal. This should match the original batch size.
             processed_signal_length (torch.Tensor): The lengths of the processed audio signals.
         """
+        input_signal = input_signal.cpu()
         processed_signal_list, processed_signal_length_list = [], []
         max_batch_sec = input_signal.shape[1]/self.preprocessor._cfg.sample_rate
         org_batch_size = input_signal.shape[0]
@@ -442,7 +454,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             end_idx = int((div_count + 1) * div_size)
             if start_idx >= org_batch_size:
                 break
-            input_signal_div = input_signal[start_idx:end_idx, :]
+            input_signal_div = input_signal[start_idx:end_idx, :].to(self.device)
             input_signal_length_div = input_signal_length[start_idx:end_idx]
             processed_signal_div, processed_signal_length_div = self.preprocessor(
                     input_signal=input_signal_div, length=input_signal_length_div
@@ -476,10 +488,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Shape: (batch_size,)
 
         Returns:
-            tuple: A tuple containing:
-                - processed_signal (torch.Tensor): The preprocessed audio signal.
+                processed_signal (torch.Tensor): The preprocessed audio signal.
                     Shape: (batch_size, num_features, num_frames)
-                - processed_signal_length (torch.Tensor): The length of each processed signal.
+                processed_signal_length (torch.Tensor): The length of each processed signal.
                     Shape: (batch_size,)
         """
         audio_signal, audio_signal_length = audio_signal.to(self.device), audio_signal_length.to(self.device)
@@ -634,15 +645,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             total_pred (torch.Tensor): tensor containing predicted speaker labels for the current chunk and all previous chunks
                 Dimension: (batch_size, pred_len, num_speakers)
         """
-
-        MEM = None # speaker cache to store embeddings from start
-        MEM_LENS = None
-        MEM_PREDS = None # speaker cache predictions
-        FIFO_QUEUE = None #  to save the embedding from the latest chunks
-        FIFO_LENS = None
-        total_pred = None
-        spk_perm = None
-
+        streaming_state = StreamingSortformerStates()
+        
         B, C, T = processed_signal.shape
         if self.pad_front:
             deltas = (T - processed_signal_length) % (self.sortformer_modules.step_len*self.sortformer_modules.subsampling_factor)
