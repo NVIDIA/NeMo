@@ -133,7 +133,7 @@ def main(args):
         context_parallel_size=args.cp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=True,
+        sequence_parallel=True if args.tp_size > 1 else False,
     )
 
     # Checkpoint callback setup
