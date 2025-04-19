@@ -188,7 +188,7 @@ def main():
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
-        '--accumulate-grad-batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
+        '--accumulate-grad-batches', '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
@@ -251,7 +251,6 @@ def main():
             devices=args.devices,
             num_nodes=args.num_nodes,
             tp_size=args.tp_size,
-            pp_size=1,  # Default to 1 as it's not in args
             cp_size=args.cp_size,
         )
     except ValueError as e:
