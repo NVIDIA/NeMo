@@ -4,12 +4,11 @@ import functools
 import logging
 from contextlib import contextmanager
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed import tensor as dtensor
+from torch.distributed import DeviceMesh
 from torch.utils._pytree import tree_flatten, tree_unflatten
 
 from megatron.core import parallel_state
@@ -110,6 +109,7 @@ class FullyShardedDataParallel(_BaseDataParallel):
         disable_bucketing: bool = False,
         device: Optional[torch.device] = None,
         device_mesh: Optional[DeviceMesh] = None,
+        fsdp2_dtensor: bool = False,
     ):
         super().__init__(config=config, module=module)
         if has_config_logger_enabled(config):
@@ -122,26 +122,24 @@ class FullyShardedDataParallel(_BaseDataParallel):
             f'Setting up DistributedDataParallel with config {self.ddp_config}',
         )
 
-        # Assign process groups based on device mesh.
+        # Assign process groups based on device mesh or process group.
         self.device = device if device else f"cuda:{torch.cuda.current_device()}"
         self.device_mesh = device_mesh
-        if self.device_mesh is None:
-            self.dp_cp_group = parallel_state.get_data_parallel_group(
-                with_context_parallel=True, partial_data_parallel=False
-            )
-            self.expt_dp_group = parallel_state.get_expert_data_parallel_group()
-            self.dp_cp_mesh = DeviceMesh.from_group(self.dp_cp_group, device_type=self.device.split(':')[0], mesh_dim_names=("dp_cp",))
-        else:
+        self.dp_cp_group = None
+        self.dp_cp_mesh = None
+        self.expt_dp_group = None
+        self.expt_dp_mesh = None
+        if isinstance(self.device_mesh, DeviceMesh):
             cp_size = getattr(config, 'context_parallel_size', 1)
-            if 'dp_cp' in device_mesh.mesh_dim_names:
-                self.dp_cp_group = device_mesh['dp_cp'].get_group()
-                self.dp_cp_mesh = device_mesh['dp_cp']
-            elif 'dp' in device_mesh.mesh_dim_names and cp_size == 1:
-                self.dp_cp_group = device_mesh['dp'].get_group()
-                self.dp_cp_mesh = device_mesh['dp']
+            if 'dp_cp' in self.device_mesh.mesh_dim_names:
+                self.dp_cp_group = self.device_mesh['dp_cp'].get_group()
+                self.dp_cp_mesh = self.device_mesh['dp_cp']
+            elif 'dp' in self.device_mesh.mesh_dim_names and cp_size == 1:
+                self.dp_cp_group = self.device_mesh['dp'].get_group()
+                self.dp_cp_mesh = self.device_mesh['dp']
             else:
                 raise ValueError(
-                    "Required process group missing: 'dp_cp' (or 'dp' when context_parallel_size=1)"
+                    "Required process group missing in device mesh: 'dp_cp' (or 'dp' when context_parallel_size=1)"
                 )
 
             have_expert_parameters = False
@@ -150,20 +148,22 @@ class FullyShardedDataParallel(_BaseDataParallel):
                     have_expert_parameters = True
                     break
             if have_expert_parameters:
-                assert 'expt_dp' in device_mesh.mesh_dim_names, 'Expert process group (expt_dp) is required when using expert parameters.'
-                self.expt_dp_group = device_mesh['expt_dp']
-            else:
-                self.expt_dp_group = None
-
-        # Convert module parameters to DTensor.
-        self.module = dtensor.distribute_module(module, device_mesh=self.dp_cp_mesh)
+                assert 'expt_dp' in self.device_mesh.mesh_dim_names, 'Expert process group (expt_dp) is required when using expert parameters.'
+                self.expt_dp_group = self.device_mesh['expt_dp'].get_group()
+                self.expt_dp_mesh = self.device_mesh['expt_dp']
+        else:
+            # Retrieve process groups and build device mesh from Megatron parallel_state.
+            self.dp_cp_group = parallel_state.get_data_parallel_group(
+                with_context_parallel=True, partial_data_parallel=False
+            )
+            self.expt_dp_group = parallel_state.get_expert_data_parallel_group()
 
         self.bucket_size = self.ddp_config.bucket_size
         if disable_bucketing:
             self.bucket_size = None
 
+        self.fsdp2_dtensor = fsdp2_dtensor
         self.param_to_bucket_group = {}
-
         if fsdp_unit_modules is not None:
             self.fsdp_unit_modules = fsdp_unit_modules
         else:
@@ -222,14 +222,15 @@ class FullyShardedDataParallel(_BaseDataParallel):
                 fsdp_unit_modules=self.fsdp_unit_modules,
                 data_parallel_sharding_strategy=self.data_parallel_sharding_strategy,
             ),
-            device_mesh=self.dp_cp_mesh,
             data_parallel_group=self.dp_cp_group,
             expert_data_parallel_group=self.expt_dp_group,
             preserve_fp32_weights=self.ddp_config.preserve_fp32_weights,
             grad_reduce_in_fp32=self.ddp_config.grad_reduce_in_fp32,
             gradient_scaling_factor=gradient_scaling_factor,
             expert_gradient_scaling_factor=expert_gradient_scaling_factor,
-            device=self.device,
+            # TODO(@cspades): Refactor this logic, but the idea is to use DTensor if the
+            # ParamAndGradBuffer uses a DeviceMesh, or Tensor if it just uses a torch.device.
+            device=self.dp_cp_mesh if self.fsdp2_dtensor else self.device,
             reset_parameters_for_meta_device_init_module=self.config.init_model_with_meta_device,
         )
 
@@ -425,21 +426,7 @@ class FullyShardedDataParallel(_BaseDataParallel):
                     bucket_id = self.param_and_grad_buffer.param_to_param_group[param]
                     self.all_gather_pipeline.wait_bucket_ready(bucket_id)
 
-            # Convert the input tensors to DTensor.
-            args_pre_forward = []
-            kwargs_pre_forward = {}
-            for obj in args:
-                if torch.is_tensor(obj) and not isinstance(obj, dtensor.DTensor):
-                    args_pre_forward.append(dtensor.distribute_tensor(obj, device_mesh=self.dp_cp_mesh))
-                else:
-                    args_pre_forward.append(obj)
-            for key, obj in kwargs.items():
-                if torch.is_tensor(obj) and not isinstance(obj, dtensor.DTensor):
-                    kwargs_pre_forward[key] = dtensor.distribute_tensor(obj, device_mesh=self.dp_cp_mesh)
-                else:
-                    kwargs_pre_forward[key] = obj
-
-            return tuple(args_pre_forward), kwargs_pre_forward
+            return args, kwargs
 
         def _register_post_backward_hook(
             post_backward_hook: callable,
