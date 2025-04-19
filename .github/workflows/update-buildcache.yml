@@ -24,10 +24,6 @@ on:
         type: string
         description: VM to use for build
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name || 'main' }}-${{ github.event_name }}
-  cancel-in-progress: true
-
 jobs:
   cicd-test-container-build:
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.26.0
