@@ -264,6 +264,19 @@ class SortformerModules(NeuralModule, Exportable):
         else:
             return embs
 
+    def init_streaming_state(self, batch_size: int = 1, async_streaming: bool = False, device: torch.device = None):
+        streaming_state = StreamingSortformerState()
+        if async_streaming:
+            streaming_state.spkcache = torch.zeros((batch_size, self.spkcache_len, self.fc_d_model), device = device)
+            streaming_state.spkcache_preds = torch.zeros((batch_size, self.spkcache_len, self.n_spk), device = device)
+            streaming_state.spkcache_lengths = torch.zeros((batch_size,), dtype=torch.long, device = device)
+            streaming_state.fifo = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device = device)
+            streaming_state.fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device = device)
+        else:
+            streaming_state.spkcache = torch.zeros((batch_size, 0, self.fc_d_model), device = device)
+            streaming_state.fifo = torch.zeros((batch_size, 0, self.fc_d_model), device = device)
+        return streaming_state
+
     def streaming_update_async(
         self,
         streaming_state,
@@ -405,19 +418,6 @@ class SortformerModules(NeuralModule, Exportable):
 
         return streaming_state, chunk_preds
 
-    def init_streaming_state(self, batch_size: int = 1, async_streaming: bool = False, device: torch.device = None):
-        streaming_state = StreamingSortformerState()
-        if async_streaming:
-            streaming_state.spkcache = torch.zeros((batch_size, self.spkcache_len, self.fc_d_model), device = device)
-            streaming_state.spkcache_preds = torch.zeros((batch_size, self.spkcache_len, self.n_spk), device = device)
-            streaming_state.spkcache_lengths = torch.zeros((batch_size,), dtype=torch.long, device = device)
-            streaming_state.fifo = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device = device)
-            streaming_state.fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device = device)
-        else:
-            streaming_state.spkcache = torch.zeros((batch_size, 0, self.fc_d_model), device = device)
-            streaming_state.fifo = torch.zeros((batch_size, 0, self.fc_d_model), device = device)
-        return streaming_state
-
     def streaming_update(
         self,
         streaming_state,
@@ -478,43 +478,27 @@ class SortformerModules(NeuralModule, Exportable):
         chunk = chunk[:, lc:chunk_len + lc]
         chunk_preds = preds[:, spkcache_len + fifo_len + lc:spkcache_len + fifo_len + chunk_len + lc]
 
+        # pop_out_len is the number of frames we will pop out from FIFO to update spkcache
         if self.fifo_len == 0:
-            if spkcache_len == 0 and self.init_step_len < self.step_len:
-                streaming_state.fifo = torch.cat([streaming_state.fifo, chunk], dim=1)
-                if fifo_len >= self.step_len:
-                    pop_out_embs = streaming_state.fifo
-                    pop_out_preds = torch.cat([streaming_state.fifo_preds, chunk_preds], dim=1)
-                    streaming_state.fifo = torch.zeros((batch_size, 0, emb_dim), device=chunk.device)
-                else:
-                    pop_out_embs = torch.zeros((batch_size, 0, emb_dim), device=chunk.device)
-                    pop_out_preds = torch.zeros((batch_size, 0, self.n_spk), device=chunk.device)
-            else:
-                assert fifo_len == self.fifo_len
-                pop_out_embs, pop_out_preds = chunk, chunk_preds
+            pop_out_len = chunk_len
+        elif self.spkcache_refresh_rate == 0:
+            pop_out_len = self.fifo_len
         else:
-            streaming_state.fifo = torch.cat([streaming_state.fifo, chunk], dim=1)
-            if streaming_state.fifo.size(1) <= self.fifo_len:
-                pop_out_embs = torch.zeros((batch_size, 0, emb_dim), device=chunk.device)
-                pop_out_preds = torch.zeros((batch_size, 0, self.n_spk), device=chunk.device)
-            else:
-                if self.spkcache_refresh_rate == 0:
-                    # Clear fifo queue when it reaches the max_fifo_len and update speaker cache
-                    pop_out_embs = streaming_state.fifo[:, :fifo_len]
-                    pop_out_preds = streaming_state.fifo_preds
-                    streaming_state.fifo = torch.zeros((batch_size, 0, emb_dim), device=chunk.device)
-                elif self.spkcache_refresh_rate == 1:
-                    # Pop out the oldest chunk from the fifo queue and update speaker cache
-                    pop_out_embs = streaming_state.fifo[:, :-self.fifo_len]
-                    pop_out_preds = streaming_state.fifo_preds[:, :pop_out_embs.shape[1]]
-                    streaming_state.fifo = streaming_state.fifo[:, -self.fifo_len:]
-                    assert pop_out_embs.shape[1] > 0
-                else:
-                    # Pop out self.spkcache_refresh_rate oldest chunks from the fifo queue and update speaker cache
-                    pop_out_embs = streaming_state.fifo[:, :chunk_len * self.spkcache_refresh_rate]
-                    pop_out_preds = streaming_state.fifo_preds[:, :pop_out_embs.shape[1]]
-                    streaming_state.fifo = streaming_state.fifo[:, pop_out_embs.shape[1]:]
+            pop_out_len = min(self.spkcache_refresh_rate * self.step_len, self.fifo_len)
 
-        if pop_out_embs.shape[1] > 0:  # only update speaker cache when pop_out_embs is not empty
+        # append chunk to fifo
+        streaming_state.fifo = torch.cat([streaming_state.fifo, chunk], dim=1)
+        streaming_state.fifo_preds = torch.cat([streaming_state.fifo_preds, chunk_preds], dim=1)
+
+        if fifo_len + chunk_len > self.fifo_len:
+            # extract pop_out_len first frames from FIFO queue
+            pop_out_len = min(pop_out_len, fifo_len + chunk_len)
+            pop_out_embs = streaming_state.fifo[:, :pop_out_len]
+            pop_out_preds = streaming_state.fifo_preds[:, :pop_out_len]
+            streaming_state.fifo = streaming_state.fifo[:, pop_out_len:]
+            streaming_state.fifo_preds = streaming_state.fifo_preds[:, pop_out_len:]
+
+            # append pop_out_embs to spkcache
             streaming_state.spkcache = torch.cat([streaming_state.spkcache, pop_out_embs], dim=1)
             if streaming_state.spkcache_preds is not None:  # if speaker cache has been already updated at least once
                 streaming_state.spkcache_preds = torch.cat([streaming_state.spkcache_preds, pop_out_preds], dim=1)
