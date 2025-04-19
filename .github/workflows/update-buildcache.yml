@@ -15,6 +15,7 @@ name: Update build cache
 on:
   schedule:
     - cron: 0 0 * * *
+  push:
   workflow_dispatch:
     inputs:
       runner:
