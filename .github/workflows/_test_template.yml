@@ -68,13 +68,13 @@ jobs:
 
           ARG=("")
           if [[ "${{ runner.name }}" == "myVm-01" ]]; then
-            ARG=("--runtime=nvidia --gpus '"device=0,1"')
+            ARG=("--runtime=nvidia --gpus '\"device=0,1\"'")
           elif [[ "${{ runner.name }}" == "myVm-02" ]]; then
-            ARG=("--runtime=nvidia --gpus '"device=2,3"')
+            ARG=("--runtime=nvidia --gpus '\"device=2,3\"'")
           elif [[ "${{ runner.name }}" == "myVm-03" ]]; then
-            ARG=("--runtime=nvidia --gpus '"device=4,5"')
+            ARG=("--runtime=nvidia --gpus '\"device=4,5\"'")
           elif [[ "${{ runner.name }}" == "myVm-04" ]]; then
-            ARG=("--runtime=nvidia --gpus '"devices=6,7"')
+            ARG=("--runtime=nvidia --gpus '\"devices=6,7\"'")
           elif [[ "${{ runner.name }}" != *cpu* ]]; then
             ARG=("--runtime=nvidia --gpus all")
           fi
