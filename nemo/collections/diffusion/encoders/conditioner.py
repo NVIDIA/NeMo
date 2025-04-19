@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
 
 
 # pylint: disable=C0116

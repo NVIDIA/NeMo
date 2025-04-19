@@ -163,6 +163,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         self._save_sharded_strategy = None
         self.validated_consistency = False
+        self.validate_access_integrity = True
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
@@ -298,6 +299,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             checkpoint_dir=str(path),
             sharded_strategy=sharded_strategy,
             strict=strict,
+            validate_access_integrity=self.validate_access_integrity,
         )
         checkpoint = _fix_tensors_device(checkpoint)
         end_time = time.time()

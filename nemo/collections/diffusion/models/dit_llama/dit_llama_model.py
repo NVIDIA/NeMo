@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from functools import partial
+# pylint: disable=C0115,C0116,C0301
+
+
 from typing import Literal
 
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -54,9 +56,7 @@ class DiTLlamaModel(DiTCrossAttentionModel):
             patch_temporal=patch_temporal,
             in_channels=in_channels,
             out_channels=out_channels,
-            transformer_decoder_layer_spec=partial(
-                get_dit_llama_spec, num_experts=config.num_moe_experts, attn_mask_type=config.attn_mask_type
-            ),
+            transformer_decoder_layer_spec=get_dit_llama_spec,
             pos_embedder=dit_embeddings.FactorizedLearnable3DEmbedding,
             **kwargs,
         )

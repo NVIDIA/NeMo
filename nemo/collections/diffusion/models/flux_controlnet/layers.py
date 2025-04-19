@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 from typing import Tuple
 
 import torch.nn as nn
+from torch.nn import functional as F
 
 
 class ControlNetConditioningEmbedding(nn.Module):
@@ -80,3 +83,6 @@ class ControlNetConditioningEmbedding(nn.Module):
         embedding = self.conv_out(embedding)
 
         return embedding
+
+
+# flake8: noqa
