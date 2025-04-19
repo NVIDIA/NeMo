@@ -75,8 +75,20 @@ jobs:
             ARG=("--runtime=nvidia --gpus '\"device=4,5\"'")
           elif [[ "${{ runner.name }}" == "myVm-04" ]]; then
             ARG=("--runtime=nvidia --gpus '\"device=6,7\"'")
-          elif [[ "${{ runner.name }}" != *cpu* ]]; then
-            ARG=("--runtime=nvidia --gpus all")
+          elif [[ "${{ runner.name }}" == "azure-gpu-vm-runner9-01" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=MIG-9f2e05f2-6a30-5661-b196-51d202ba6fd4,MIG-083b05c1-b5ea-504a-bce3-4a5709709381\"'")
+          elif [[ "${{ runner.name }}" == "azure-gpu-vm-runner9-02" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=MIG-b5474da0-8ab4-5199-8760-b70e869ca3ef,MIG-91226f2b-fb03-509c-b798-7d274be81f0c\"'")
+          elif [[ "${{ runner.name }}" == "azure-gpu-vm-runner9-03" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=MIG-f5c74e3d-b240-51e5-87d9-d06b7f7d6c8b,MIG-35db8d3e-e62c-580f-b8fa-497bbd188852\"'")
+          elif [[ "${{ runner.name }}" == "azure-gpu-vm-runner9-04" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=MIG-1632034c-a425-5148-8558-4814c34055d1,MIG-6ff11dbd-304a-5a21-9651-7c2fbd4cb3aa\"'")
+          elif [[ "${{ runner.name }}" == "azure-gpu-vm-runner9-05" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=MIG-6503b4ea-01f2-5099-9383-865131fb7b69,MIG-855cc3fb-7ec7-5f83-b1ca-dfd37ee9ae20\"'")
+          elif [[ "${{ runner.name }}" == "azure-gpu-vm-runner9-06" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=MIG-f12af0ca-5bec-5e0c-ad65-494b26528f4e,MIG-eb39ebd5-9ba7-5dbd-bbd1-f544a2a80ddb\"'")
+          elif [[ "${{ runner.name }}" == "azure-gpu-vm-runner9-07" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=MIG-7c2b8266-6dd2-58c6-a2ac-baa2c2ad117c,MIG-34c9d9e7-f2aa-5b67-94c6-45058e38bf95\"'")
           fi
 
           cmd=$(cat <<RUN_TEST_EOF
