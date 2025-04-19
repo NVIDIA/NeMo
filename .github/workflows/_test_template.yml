@@ -74,7 +74,7 @@ jobs:
           elif [[ "${{ runner.name }}" == "myVm-03" ]]; then
             ARG=("--runtime=nvidia --gpus '\"device=4,5\"'")
           elif [[ "${{ runner.name }}" == "myVm-04" ]]; then
-            ARG=("--runtime=nvidia --gpus '\"devices=6,7\"'")
+            ARG=("--runtime=nvidia --gpus '\"device=6,7\"'")
           elif [[ "${{ runner.name }}" != *cpu* ]]; then
             ARG=("--runtime=nvidia --gpus all")
           fi
