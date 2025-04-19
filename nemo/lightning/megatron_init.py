@@ -108,6 +108,7 @@ def initialize_model_parallel_for_nemo(
     apex_transformer_log_level=30,
     use_tp_pp_dp_mapping=False,
     use_te_rng_tracker=False,
+    nccl_communicator_config_path=None,
 ):
     """Initialize model parallel groups in NeMo."""
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -130,6 +131,7 @@ def initialize_model_parallel_for_nemo(
     app_state.use_fp8 = use_fp8
     app_state.init_mpi_proc_group = init_mpi_proc_group
     app_state.expert_tensor_parallel_size = expert_tensor_parallel_size
+    app_state.nccl_communicator_config_path = nccl_communicator_config_path
     (
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,
