@@ -66,18 +66,35 @@ jobs:
         run: |
           mkdir -p $DIR
 
+          # Map of runner names to GPU device configurations
+          declare -A GPU_CONFIGS=(
+            ["myVm-01"]="0,1"
+            ["myVm-02"]="2,3" 
+            ["myVm-03"]="4,5"
+            ["myVm-04"]="6,7"
+            ["azure-gpu-vm-runner9-01"]="MIG-9f2e05f2-6a30-5661-b196-51d202ba6fd4,MIG-083b05c1-b5ea-504a-bce3-4a5709709381"
+            ["azure-gpu-vm-runner9-02"]="MIG-b5474da0-8ab4-5199-8760-b70e869ca3ef,MIG-91226f2b-fb03-509c-b798-7d274be81f0c"
+            ["azure-gpu-vm-runner9-03"]="MIG-f5c74e3d-b240-51e5-87d9-d06b7f7d6c8b,MIG-35db8d3e-e62c-580f-b8fa-497bbd188852"
+            ["azure-gpu-vm-runner9-04"]="MIG-1632034c-a425-5148-8558-4814c34055d1,MIG-6ff11dbd-304a-5a21-9651-7c2fbd4cb3aa"
+            ["azure-gpu-vm-runner9-05"]="MIG-6503b4ea-01f2-5099-9383-865131fb7b69,MIG-855cc3fb-7ec7-5f83-b1ca-dfd37ee9ae20"
+            ["azure-gpu-vm-runner9-06"]="MIG-f12af0ca-5bec-5e0c-ad65-494b26528f4e,MIG-eb39ebd5-9ba7-5dbd-bbd1-f544a2a80ddb"
+            ["azure-gpu-vm-runner9-07"]="MIG-7c2b8266-6dd2-58c6-a2ac-baa2c2ad117c,MIG-34c9d9e7-f2aa-5b67-94c6-45058e38bf95"
+          )
+
           ARG=("")
-          if [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
+          if [[ -n "${GPU_CONFIGS[${{ runner.name }}]}" ]]; then
+            ARG=("--runtime=nvidia --gpus '\"device=${GPU_CONFIGS[${{ runner.name }}]}\"'")
+          elif [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
             ARG=("--runtime=nvidia --gpus all")
           fi
 
           cmd=$(cat <<RUN_TEST_EOF
           #!/bin/bash
-          docker container rm -f nemo_container_${{ github.run_id }} || true
+          docker container rm -f nemo_container_${{ github.run_id }}_${{ runner.name }} || true
           docker run \
             --rm \
             -d \
-            --name nemo_container_${{ github.run_id }} ${ARG[@]} \
+            --name nemo_container_${{ github.run_id }}_${{ runner.name }} ${ARG[@]} \
             --shm-size=64g \
             --env TRANSFORMERS_OFFLINE=0 \
             --env HYDRA_FULL_ERROR=1 \
@@ -107,7 +124,7 @@ jobs:
           (
             set -e
 
-            docker exec -t nemo_container_${{ github.run_id }} bash -c 'RUN_ID=${{ github.run_id }} bash tests/functional_tests/$SCRIPT.sh && echo "Finished successfully." || echo "Did not finish."'
+            docker exec -t nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c 'RUN_ID=${{ github.run_id }} bash tests/functional_tests/$SCRIPT.sh && echo "Finished successfully." || echo "Did not finish."'
           ) 2>&1 | tee $DIR/err.log
 
           RUN_TEST_EOF
@@ -137,10 +154,10 @@ jobs:
           potential_infra_failure=$(cat $DIR/err.log | grep -Eqiw "device" && echo true || echo false)
           echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
 
-          docker exec nemo_container_${{ github.run_id }} coverage combine
-          docker exec nemo_container_${{ github.run_id }} coverage xml
-          docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage $DIR/.coverage 
-          docker cp nemo_container_${{ github.run_id }}:/workspace/coverage.xml $DIR/coverage.xml
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} coverage combine
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} coverage xml
+          docker cp nemo_container_${{ github.run_id }}_${{ runner.name }}:/workspace/.coverage $DIR/.coverage 
+          docker cp nemo_container_${{ github.run_id }}_${{ runner.name }}:/workspace/coverage.xml $DIR/coverage.xml
 
           coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
           echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
@@ -162,7 +179,7 @@ jobs:
       - name: Test coverage
         shell: bash -x -e -u -o pipefail {0}
         run: |
-          docker exec -t nemo_container_${{ github.run_id }} coverage report -i
+          docker exec -t nemo_container_${{ github.run_id }}_${{ runner.name }} coverage report -i
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -179,9 +196,9 @@ jobs:
       - name: after_script
         if: always() && inputs.AFTER_SCRIPT != ':'
         run: |
-          docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c '${{ inputs.AFTER_SCRIPT }}'
 
       - name: Container shutdown
         if: always()
         run: |
-          docker container rm -f nemo_container_${{ github.run_id }} || true
+          docker container rm -f nemo_container_${{ github.run_id }}_${{ runner.name }} || true
