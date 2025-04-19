@@ -207,9 +207,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     activation_offload_layers = 0 if activation_offload_layers is None else int(activation_offload_layers)
 
     recompute_modules = (
-        config.get("recompute_modules").split('/')
-        if args.recompute_modules is None
-        else args.recompute_modules
+        config.get("recompute_modules").split('/') if args.recompute_modules is None else args.recompute_modules
     )
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
@@ -326,11 +324,15 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading = True
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
-    
+
     if recompute_modules is not None:
         recipe.model.config.recompute_modules = recompute_modules
-        assert recipe.model.config.recompute_granularity == "selective", "recompute_granularity must be selective when recompute_modules is provided"
-        assert recipe.model.config.recompute_num_layers is None, "recompute_num_layers must be None when recompute_modules is provided"
+        assert (
+            recipe.model.config.recompute_granularity == "selective"
+        ), "recompute_granularity must be selective when recompute_modules is provided"
+        assert (
+            recipe.model.config.recompute_num_layers is None
+        ), "recompute_num_layers must be None when recompute_modules is provided"
 
     return recipe
 
