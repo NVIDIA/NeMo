@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def calculate_valid_accumulate_grad_batches(
     global_batch_size: int,
     micro_batch_size: int,
@@ -23,7 +24,7 @@ def calculate_valid_accumulate_grad_batches(
     cp_size: int = 1,
 ) -> int:
     """Calculate valid gradient accumulation steps based on the given parameters.
-    
+
     Args:
         global_batch_size (int): The desired global batch size
         micro_batch_size (int): The micro batch size per GPU
@@ -32,37 +33,35 @@ def calculate_valid_accumulate_grad_batches(
         tp_size (int, optional): Tensor parallel size. Defaults to 1.
         pp_size (int, optional): Pipeline parallel size. Defaults to 1.
         cp_size (int, optional): Context parallel size. Defaults to 1.
-    
+
     Returns:
         int: The calculated gradient accumulation steps
-        
+
     Raises:
         ValueError: If the parameters result in invalid configuration
     """
-    
+
     if any(x <= 0 for x in [global_batch_size, micro_batch_size, devices, num_nodes, tp_size, pp_size, cp_size]):
         raise ValueError("All parameters must be positive")
-    
+
     # Calculate world size and validate divisibility
     world_size = devices * num_nodes
     model_parallel_size = tp_size * pp_size * cp_size
-    
+
     if world_size % model_parallel_size != 0:
-        raise ValueError(
-            f"World size ({world_size}) must be divisible by model parallel size ({model_parallel_size})"
-        )
-    
+        raise ValueError(f"World size ({world_size}) must be divisible by model parallel size ({model_parallel_size})")
+
     # Calculate data parallel size
     data_parallel_size = world_size // model_parallel_size
-    
+
     # Calculate accumulate_grad_batches
     accumulate_grad_batches = global_batch_size / (micro_batch_size * data_parallel_size)
-    
+
     # Validate the result
     if not accumulate_grad_batches.is_integer():
         raise ValueError(
             f"Invalid configuration: global_batch_size ({global_batch_size}) must be divisible by "
             f"micro_batch_size * data_parallel_size ({micro_batch_size * data_parallel_size})"
         )
-    
+
     return int(accumulate_grad_batches)

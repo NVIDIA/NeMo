@@ -188,7 +188,11 @@ def main():
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
-        '--accumulate-grad-batches', '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
+        '--accumulate-grad-batches',
+        '--accumulate_grad_batches',
+        type=int,
+        default=1,
+        help='Number of batches to accumulate gradient over.',
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
@@ -279,9 +283,7 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(
-            llm.adam.pytorch_adam_with_flat_lr(lr=args.lr)
-        )  # foreach need to be False for TP
+        optimizer = fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=args.lr))  # foreach need to be False for TP
 
     if args.fp8:
         from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
