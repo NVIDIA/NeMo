@@ -157,7 +157,6 @@ def finetune_recipe(
     )
 
     model = run.Config(vlm.Qwen2VLModel, qwen2vl_config, tokenizer=tokenizer)
-    print(f"{model=}")
     nemo_resume = run.Config(
         nl.AutoResume,
         resume_if_exists=True,
