@@ -683,7 +683,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
             att_mod = True
 
-        total_preds = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.n_spk, device=self.device)
+        total_preds = torch.zeros(B, 0, self.sortformer_modules.n_spk).to(self.device)
 
         feat_len = processed_signal.shape[2]
         num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
@@ -770,9 +770,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 streaming_state.fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device)
         else:
             if streaming_state.spkcache is None:
-                streaming_state.spkcache = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
+                # streaming_state.spkcache = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
+                streaming_state.spkcache = torch.zeros(batch_size, 0, self.sortformer_modules.fc_d_model).to(self.device)# memory to save the embeddings from start
             if streaming_state.fifo is None:
-                streaming_state.fifo = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+                # streaming_state.fifo = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
+                streaming_state.fifo = torch.zeros(batch_size, 0, self.sortformer_modules.fc_d_model).to(self.device)# memory to save the embedding from the latest chunks 
 
 #        if prev_total_preds is None:
 #            prev_total_preds = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.n_spk, device=self.device)
