@@ -26,7 +26,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from dataclasses import dataclass
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
@@ -76,16 +75,6 @@ def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
         start_indices = end_indices
 
     return output, total_lengths
-
-@dataclass
-class StreamingSortformerStates():
-    spkcache = None  # speaker cache to store embeddings from start
-    spkcache_lengths = None
-    spkcache_preds = None  # speaker cache predictions
-    fifo = None  # to save the embedding from the latest chunks
-    fifo_lengths = None
-    fifo_preds = None
-    spk_perm = None
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixin):
     """
@@ -152,8 +141,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.eps = 1e-3
         self.loss = instantiate(self._cfg.loss)
 
-        self.pad_front = self._cfg.get("pad_front", True)
-        self.async_streaming = self._cfg.get("async_streaming", True)
+        self.pad_front = self._cfg.get("pad_front", False)
+        self.async_streaming = self._cfg.get("async_streaming", False)
 
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
@@ -647,7 +636,11 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             total_pred (torch.Tensor): tensor containing predicted speaker labels for the current chunk and all previous chunks
                 Dimension: (batch_size, pred_len, num_speakers)
         """
-        streaming_state = StreamingSortformerStates()
+        streaming_state = self.sortformer_modules.init_streaming_state(
+            batch_size = processed_signal.shape[0],
+            async_streaming = self.async_streaming,
+            device = self.device
+        )
 
         B, C, T = processed_signal.shape
         if self.pad_front:
@@ -683,7 +676,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
             att_mod = True
 
-        total_preds = torch.zeros(B, 0, self.sortformer_modules.n_spk).to(self.device)
+        total_preds = torch.zeros((B, 0, self.sortformer_modules.n_spk), device=self.device)
 
         feat_len = processed_signal.shape[2]
         num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
@@ -759,25 +752,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Dimension: (batch_size, total_pred_len, num_speakers)
         """
         batch_size = processed_signal.shape[0]
-
-        if self.async_streaming:
-            if streaming_state.spkcache is None:
-                streaming_state.spkcache = torch.zeros((batch_size, self.sortformer_modules.spkcache_len, self.sortformer_modules.fc_d_model), device=self.device)
-                streaming_state.spkcache_preds = torch.full((batch_size, self.sortformer_modules.spkcache_len, self.sortformer_modules.n_spk), 0.0, device=self.device)
-                streaming_state.spkcache_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device)
-            if streaming_state.fifo is None:
-                streaming_state.fifo = torch.zeros((batch_size, self.sortformer_modules.fifo_len, self.sortformer_modules.fc_d_model), device=self.device)
-                streaming_state.fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device=self.device)
-        else:
-            if streaming_state.spkcache is None:
-                # streaming_state.spkcache = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
-                streaming_state.spkcache = torch.zeros(batch_size, 0, self.sortformer_modules.fc_d_model).to(self.device)# memory to save the embeddings from start
-            if streaming_state.fifo is None:
-                # streaming_state.fifo = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embedding from the latest chunks
-                streaming_state.fifo = torch.zeros(batch_size, 0, self.sortformer_modules.fc_d_model).to(self.device)# memory to save the embedding from the latest chunks 
-
-#        if prev_total_preds is None:
-#            prev_total_preds = self.sortformer_modules.init_memory(batch_size=batch_size, d_model=self.sortformer_modules.n_spk, device=self.device)
 
         chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(
             x=processed_signal,
