@@ -39,9 +39,6 @@ def calculate_valid_accumulate_grad_batches(
     Raises:
         ValueError: If the parameters result in invalid configuration
     """
-    # Validate inputs
-    if not all(isinstance(x, int) for x in [global_batch_size, micro_batch_size, devices, num_nodes, tp_size, pp_size, cp_size]):
-        raise ValueError("All parameters must be integers")
     
     if any(x <= 0 for x in [global_batch_size, micro_batch_size, devices, num_nodes, tp_size, pp_size, cp_size]):
         raise ValueError("All parameters must be positive")
