@@ -74,6 +74,7 @@ class AppState(metaclass=Singleton):
         self._use_fp8 = False
         self._context_parallel_size = None
         self._init_mpi_proc_gruop = False
+        self._nccl_communicator_config_path = None
 
         self._random_seed = None
 
@@ -570,6 +571,22 @@ class AppState(metaclass=Singleton):
             use_fp8:  Use of FP8.
         """
         self._use_fp8 = use_fp8
+
+    @property
+    def nccl_communicator_config_path(self):
+        """Property returns the path to NCCL communicator config file.
+        Returns:
+            Path to the NCCL communicator config file.
+        """
+        return self._nccl_communicator_config_path
+
+    @nccl_communicator_config_path.setter
+    def nccl_communicator_config_path(self, nccl_communicator_config_path):
+        """Property sets the path to NCCL communicator config file.
+        Args:
+            nccl_communicator_config_path:  Path to the NCCL communicator config file.
+        """
+        self._nccl_communicator_config_path = nccl_communicator_config_path
 
     @property
     def context_parallel_size(self):
