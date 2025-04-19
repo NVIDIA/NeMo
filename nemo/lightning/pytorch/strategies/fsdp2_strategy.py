@@ -19,7 +19,7 @@ import re
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import lightning.pytorch as pl
 import torch
@@ -39,7 +39,9 @@ from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     create_checkpoint_io,
     fsdp2_strategy_parallelize,
+    custom_fsdp2_strategy_parallelize,
 )
+from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
@@ -76,8 +78,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         offload_policy: 'CPUOffloadPolicy' = None,
         data_sampler=None,
         checkpoint_io=None,
+        cfsdp2: bool = False,
+        cfsdp2_unit_modules: Optional[List[str]] = None,
+        ddp_config: Optional[DistributedDataParallelConfig] = None,
         mp_policy=None,
-        parallelize_fn=fsdp2_strategy_parallelize,
         use_hf_tp_plan: bool = True,
         custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
         **kwargs,
@@ -116,6 +120,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.context_parallel_size = context_parallel_size
         self.data_sampler = data_sampler
         self.checkpoint = None
+        self.parallelized = False
+        self.cfsdp2 = cfsdp2
+        self.cfsdp2_unit_modules = cfsdp2_unit_modules
+        self.ddp_config = ddp_config
         self.mp_policy = mp_policy
         if self.mp_policy is None:
             assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
@@ -126,7 +134,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 cast_forward_inputs=True,
             )
         self.store: Optional[torch.distributed.Store] = None
-        self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
         self.sequence_parallel = sequence_parallel
         self.use_hf_tp_plan = use_hf_tp_plan
@@ -252,13 +259,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             mesh_dim_names=mesh_dim_names,
         )
 
-        # Construct sharding and reduction meshes for specific configurations.
-        # Replace existing mesh strategies if a custom mesh design is provided.
-        # WARNING: ADDING MESHES INCREASES MEMORY USAGE. Use device meshes for
-        # multiple dimensions of parallelism if possible.
-        if self._device_mesh["context_parallel"].size() > 1:
-            # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
-            self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
+        # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
+        self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
 
         self.lightning_module._device_mesh = self._device_mesh
 
@@ -284,21 +286,31 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     def parallelize(self):
         """Applies fully_shard on model"""
-        if self.parallelize_fn is not None:
-            # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
-            # Apply FSDP2 and TP to the model
-            self.parallelize_fn(
-                self.lightning_module.model,
-                device_mesh=self._device_mesh,
-                mp_policy=self.mp_policy,
-                use_hf_tp_plan=self.use_hf_tp_plan,
-                tp_shard_plan=self.tp_shard_plan,
-                offload_policy=self.offload_policy,
-            )
-            # Apply this only once
-            self.parallelize_fn = None
+        if not self.parallelized:
+            # Mark model parallelized.
+            self.parallelized = True
+            if self.cfsdp2 and self.cfsdp2_unit_modules:    # ... cfsdp2_unit_modules is not None and not an empty list
+                # Use custom FSDP2.
+                custom_fsdp2_strategy_parallelize(
+                    self.lightning_module.model,
+                    device_mesh=self._device_mesh,
+                    ddp_config=self.ddp_config,
+                    cfsdp2_unit_modules=self.cfsdp2_unit_modules,
+                    tp_shard_plan=self.tp_shard_plan,
+                )
+            else:
+                # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
+                # Apply FSDP2 and TP to the model.
+                fsdp2_strategy_parallelize(
+                    self.lightning_module.model,
+                    device_mesh=self._device_mesh,
+                    mp_policy=self.mp_policy,
+                    use_hf_tp_plan=self.use_hf_tp_plan,
+                    tp_shard_plan=self.tp_shard_plan,
+                    offload_policy=self.offload_policy,
+                )
         else:
-            logging.warning("Called parallelize more than once.")
+            logging.warning("Called FSDP2Strategy.parallelize() more than once.")
 
     @override
     def _setup_distributed(self) -> None:

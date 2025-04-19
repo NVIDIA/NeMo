@@ -24,6 +24,7 @@ from nemo.automodel.misc_utils import calculate_valid_accumulate_grad_batches
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
@@ -118,6 +119,8 @@ def make_strategy(
     cp_size=None,
     sequence_parallel=False,
     use_hf_tp_plan=False,
+    cfsdp2=False,
+    cfsdp2_unit_modules=None,
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -147,9 +150,19 @@ def make_strategy(
             tensor_parallel_size=tp_size,
             context_parallel_size=cp_size,
             sequence_parallel=sequence_parallel,
+            cfsdp2=cfsdp2,
+            cfsdp2_unit_modules=cfsdp2_unit_modules,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
             use_hf_tp_plan=use_hf_tp_plan,
+            ddp_config=DistributedDataParallelConfig(
+                check_for_nan_in_grad=True,
+                data_parallel_sharding_strategy="optim_grads_params",
+                grad_reduce_in_fp32=True,
+                overlap_grad_reduce=True,
+                overlap_param_gather=True,
+                average_in_collective=False,
+            ),
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -198,6 +211,8 @@ def main():
         help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
     )
     parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
+    parser.add_argument('--cfsdp2', action='store_true', help='Use custom FSDP2.')
+    parser.add_argument('--cfsdp2-unit-modules', type=str, nargs='+', default=None, help='Set of custom FSDP2 unit module classes to use for sharding. Required for custom FSDP2.')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
@@ -343,6 +358,8 @@ def main():
         cp_size=args.cp_size,
         sequence_parallel=args.sequence_parallel,
         use_hf_tp_plan=args.use_hf_tp_plan,
+        cfsdp2=args.cfsdp2,
+        cfsdp2_unit_modules=args.cfsdp2_unit_modules,
     )
 
     resume = (
