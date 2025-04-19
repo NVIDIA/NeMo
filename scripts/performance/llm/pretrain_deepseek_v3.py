@@ -54,11 +54,18 @@ def override_recipe_configs(
     use_mcore_fsdp: bool,
     recompute_layers: int,
     activation_offload_layers: int,
+    recompute_modules: Optional[List[str]] = None,
 ):
     """
     DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
     """
     recipe = pretrain_recipe()
+    recipe.model.config.moe_permute_fusion = True
+    recipe.model.config.recompute_granularity = "selective"
+    recipe.model.config.recompute_num_layers = None
+    recipe.model.config.recompute_method = None
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+    recipe.model.config.moe_router_dtype = 'fp32'
 
     callbacks = []
     if USE_TOKEN_DROP:
@@ -93,6 +100,7 @@ def override_recipe_configs(
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
+        recompute_modules=recompute_modules,
     )
     recipe = set_exp_logging_configs(
         recipe,
@@ -112,20 +120,6 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
-    recipe.model.config.moe_permute_fusion = True
-    recipe.model.config.recompute_granularity = "selective"
-    if args.gpu.lower() in ['b200', 'gb200']:
-        recipe.model.config.recompute_modules = [
-            "core_attn",
-            "mla_up_proj",
-        ]  # recompute core attention as it is using unfused kernel
-    else:
-        recipe.model.config.recompute_modules = ["mla_up_proj"]  # recompute mla_up_proj to save memory
-    recipe.model.config.recompute_num_layers = None
-    recipe.model.config.recompute_method = None
-    recipe.model.config.cross_entropy_fusion_impl = "te"
-    recipe.model.config.moe_router_dtype = 'fp32'
-    recipe.model.config.moe_permute_fusion = True
 
     return recipe
 
@@ -149,6 +143,7 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
+        recompute_modules,
     ) = kwargs
 
     recipe = override_recipe_configs(
@@ -166,6 +161,7 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
+        recompute_modules,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
