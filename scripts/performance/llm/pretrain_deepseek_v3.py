@@ -72,7 +72,7 @@ def override_recipe_configs(
 
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
     recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
-    
+
     callbacks = []
     if USE_TOKEN_DROP:
         callbacks.append(run.Config(MegatronTokenDropCallback))
