@@ -233,7 +233,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Lightning')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       IS_UNIT_TEST: true
       SCRIPT: L0_Unit_Tests_GPU_Lightning
 
@@ -354,7 +354,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Setup_Test_Data_And_Models')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L0_Setup_Test_Data_And_Models
 
   L0_Unit_Tests_Eval:
@@ -362,7 +362,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_Eval')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       IS_UNIT_TEST: true
       SCRIPT: L0_Unit_Tests_Eval
 
@@ -440,7 +440,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_to_Text_EMA')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speech_to_Text_EMA
 
   L2_Speech_to_Text_AED:
@@ -481,7 +481,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
 
   L2_Speaker_dev_run_Speech_to_Label:
@@ -497,7 +497,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
 
   L2_Speaker_dev_run_Clustering_Diarizer_Inference:
@@ -505,7 +505,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Clustering_Diarizer_Inference')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speaker_dev_run_Clustering_Diarizer_Inference
 
   L2_Speaker_dev_run_Neural_Diarizer_Inference:
@@ -513,7 +513,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Neural_Diarizer_Inference')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speaker_dev_run_Neural_Diarizer_Inference
 
   L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
@@ -521,7 +521,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
 
   # L2: ASR Multi-dataloader dev run
@@ -564,7 +564,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Estimate_Duration_Bins')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speech_Estimate_Duration_Bins
 
   # L2: OOMptimizer
@@ -573,7 +573,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speech_Batch_Size_OOMptimizer
 
   # L2: OOMptimizer Canary (has a different batch schema)
@@ -582,7 +582,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Batch_Size_OOMptimizer_Canary')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
       IS_OPTIONAL: true
 
@@ -592,7 +592,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Speech_to_Text_Transcribe')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speech_Transcription_Speech_to_Text_Transcribe
 
   # L2: Speech Transcription
@@ -601,7 +601,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
 
   L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
@@ -609,7 +609,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speech_Transcription_Canary_Transcribe_With_Prompt
 
   L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
@@ -617,7 +617,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       IS_OPTIONAL: true
 
@@ -627,7 +627,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir
 
   # L2: Longform with TimeStamps from Audio Dir
@@ -636,7 +636,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir
 
   # L2: Longform with TimeStamps from manifest
@@ -645,7 +645,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest
 
   # L2: Segmentation Tool
@@ -654,7 +654,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
 
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
@@ -662,7 +662,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
 
   # L2: G2P Models
@@ -671,7 +671,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
 
     # TODO: pleasefixme @redoctopus
@@ -705,7 +705,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
 
   # TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
@@ -741,7 +741,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Inference')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NMT_Attention_is_All_You_Need_Inference
 
   # L2: NMT Attention is All You Need Finetuning
@@ -767,7 +767,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
 
   L2_Megatron_NMT_Training_TP2:
@@ -775,7 +775,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_NMT_Training_TP2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_Megatron_NMT_Training_TP2
 
   L2_VLM_HF_Transformer_PEFT:
@@ -791,7 +791,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_FSDP2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_VLM_HF_Transformer_PEFT_FSDP2
 
   L2_VLM_HF_Transformer_PEFT_4bit:
@@ -807,7 +807,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_VLM_HF_Transformer_SFT_FSDP2
 
   L2_HF_Transformer_PEFT_notebook:
@@ -815,7 +815,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_PEFT_notebook
 
   L2_HF_Transformer_PEFT:
@@ -839,7 +839,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_PEFT_2gpu
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2_liger:
@@ -847,7 +847,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2_liger') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2_liger
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8:
@@ -864,7 +864,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2
 
   L2_HF_Transformer_PEFT_2gpu_nemorun:
@@ -872,7 +872,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_nemorun')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_PEFT_2gpu_nemorun
 
   L2_HF_Transformer_SFT_2gpu:
@@ -880,7 +880,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_SFT_2gpu
 
   L2_HF_Transformer_SFT_2gpu_FSDP2:
@@ -888,7 +888,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_SFT_2gpu_FSDP2
 
   L2_HF_Transformer_SFT_2gpu_FSDP2_fp8:
@@ -905,7 +905,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_SFT_2gpu_nemorun
 
   L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
@@ -913,7 +913,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
 
   L2_HF_Transformer_SFT_FSDP2_2gpu:
@@ -921,7 +921,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_FSDP2_2gpu')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_SFT_FSDP2_2gpu
 
   L2_HF_Transformer_PT_2gpu:
@@ -929,7 +929,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_PT_2gpu
 
   L2_HF_Transformer_PT_2gpu_nemorun:
@@ -937,7 +937,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu_nemorun')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_PT_2gpu_nemorun
 
   L2_HF_Transformer_PT:
@@ -961,7 +961,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_SFT_notebook
 
   L2_HF_Transformer_SFT:
@@ -1003,7 +1003,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SpeechLM_SFT_2gpu') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_HF_Transformer_SpeechLM_SFT_2gpu
 
   # L2: TTS Fast dev runs 1
@@ -1020,7 +1020,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_WaveGlow')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_TTS_Fast_dev_runs_1_WaveGlow
 
   L2_TTS_Fast_dev_runs_1_FastPitch:
@@ -1028,7 +1028,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_FastPitch')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_TTS_Fast_dev_runs_1_FastPitch
 
   # OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS:
@@ -1078,7 +1078,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Hifigan')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_TTS_Fast_dev_runs_1_Hifigan
 
   # L2: NeRF
@@ -1133,7 +1133,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_Pretraining_no_transformer_engine')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_Pretraining_no_transformer_engine
 
   L2_NeMo_2_llama3_pretraining_recipe:
@@ -1141,7 +1141,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_pretraining_recipe')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_llama3_pretraining_recipe
 
   L2_NeMo_2_llama3_fault_tolerance_plugin:
@@ -1149,7 +1149,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_fault_tolerance_plugin')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_llama3_fault_tolerance_plugin
 
   L2_NeMo_2_llama3_straggler_detection:
@@ -1157,7 +1157,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_straggler_detection')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_llama3_straggler_detection
 
   L2_NeMo_2_GPT_DDP_Param_Parity_check:
@@ -1165,7 +1165,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_DDP_Param_Parity_check')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_DDP_Param_Parity_check
 
   L2_NeMo_2_Hyena_Conversion_from_HF:
@@ -1173,7 +1173,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Hyena_Conversion_from_HF')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Hyena_Conversion_from_HF
 
   L2_NeMo_2_Hyena_DDP_Pretraining_Test:
@@ -1207,7 +1207,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_HF_MODEL_IMPORT')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_HF_MODEL_IMPORT
 
   L2_NeMo_2_jit_callback:
@@ -1215,7 +1215,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_jit_callback')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_jit_callback
 
   L2_NeMo_2_T5_Pretraining:
@@ -1223,7 +1223,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_Pretraining')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_T5_Pretraining
 
   L2_NeMo_2_T5_MockData_Pretraining:
@@ -1231,7 +1231,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_MockData_Pretraining')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_T5_MockData_Pretraining
 
   L2_NeMo_2_T5_Finetuning:
@@ -1239,7 +1239,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_Finetuning')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_T5_Finetuning
 
   L2_NeMo_2_T5_Squad:
@@ -1247,7 +1247,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_Squad')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_T5_Squad
 
   L2_NeMo_2_T5_LoRA:
@@ -1255,7 +1255,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_LoRA')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_T5_LoRA
 
   L2_NeMo_2_BERT_Pretraining_Megatron:
@@ -1263,7 +1263,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_BERT_Pretraining_Megatron')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_BERT_Pretraining_Megatron
 
   L2_NeMo_2_BERT_Pretraining_HuggingFace:
@@ -1271,7 +1271,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_BERT_Pretraining_HuggingFace')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_BERT_Pretraining_HuggingFace
 
   L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2:
@@ -1377,7 +1377,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2
       IS_OPTIONAL: true
 
@@ -1386,7 +1386,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_MLLAMA_PRELOADED_FINETUNE_TP2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_MLLAMA_PRELOADED_FINETUNE_TP2
 
   L2_NeMo_2_MLLAMA_ENERGON_FINETUNE_TP2:
@@ -1394,7 +1394,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_MLLAMA_ENERGON_FINETUNE_TP2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_MLLAMA_ENERGON_FINETUNE_TP2
 
   L2_NeMo_2_MLLAMA_IMPORT:
@@ -1410,7 +1410,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_Pretraining')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mixtral_Pretraining
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1:
@@ -1418,7 +1418,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS2:
@@ -1426,7 +1426,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
 
   L2_NeMo_2_GPT_SFT_TP1PP2_MBS2:
@@ -1434,7 +1434,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP2_MBS2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
 
   L2_NeMo_2_GPT_SFT_TP2PP1_MBS2:
@@ -1442,7 +1442,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP2PP1_MBS2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED:
@@ -1450,7 +1450,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1:
@@ -1458,7 +1458,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2:
@@ -1466,7 +1466,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
 
   L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2:
@@ -1474,7 +1474,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
 
   L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2:
@@ -1482,7 +1482,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED:
@@ -1490,7 +1490,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED:
@@ -1498,7 +1498,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED:
@@ -1506,7 +1506,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat:
@@ -1514,7 +1514,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude:
@@ -1522,7 +1522,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
@@ -1530,7 +1530,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
 
   L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1:
@@ -1538,7 +1538,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
 
   L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
@@ -1546,7 +1546,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
@@ -1554,7 +1554,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude:
@@ -1562,7 +1562,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude
 
   L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1:
@@ -1570,7 +1570,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
 
   L2_NEMO_2_LoRA_MERGE:
@@ -1578,7 +1578,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_LoRA_MERGE')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NEMO_2_LoRA_MERGE
 
   L2_NEMO_2_LoRA_Export:
@@ -1602,7 +1602,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
 
   L2_NeMo_2_Automodel_PTQ_trtllm:
@@ -1610,7 +1610,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Automodel_PTQ_trtllm')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Automodel_PTQ_trtllm
 
   L2_NeMo_2_Automodel_PTQ_hf:
@@ -1618,7 +1618,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Automodel_PTQ_hf')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Automodel_PTQ_hf
 
   L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
@@ -1626,7 +1626,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_trtllm')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_PTQ_Llama2_FP8_trtllm
 
   L2_NeMo_2_PTQ_Llama2_FP8_nemo:
@@ -1634,7 +1634,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_nemo')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_PTQ_Llama2_FP8_nemo
 
   L2_NeMo_2_PTQ_Unified_Export:
@@ -1642,7 +1642,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Unified_Export')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_PTQ_Unified_Export
 
   L2_NeMo_2_Distill_Llama3_TP1PP2:
@@ -1650,7 +1650,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Distill_Llama3_TP1PP2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Distill_Llama3_TP1PP2
 
   L2_NeMo_2_Prune_Llama_TP1PP2:
@@ -1658,7 +1658,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Prune_Llama_TP1PP2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Prune_Llama_TP1PP2
 
   L2_NeMo_2_Export_In_Framework:
@@ -1666,7 +1666,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Export_In_Framework')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Export_In_Framework
 
   L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING:
@@ -1674,7 +1674,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
 
   L2_NeMo_2_VLLM_VISION:
@@ -1682,7 +1682,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_VLLM_VISION')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_VLLM_VISION
 
   L2_NeMo_2_LLAVA_NEXT_HF_CONVERSION:
@@ -1690,7 +1690,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_HF_CONVERSION')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_LLAVA_NEXT_HF_CONVERSION
 
   L2_NeMo_2_LLAVA_NEXT_ENERGON_TRAIN:
@@ -1698,7 +1698,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_ENERGON_TRAIN')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_LLAVA_NEXT_ENERGON_TRAIN
 
   L2_NeMo_2_LLAVA_NEXT_ENERGON_PACKED_TRAIN:
@@ -1706,7 +1706,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_ENERGON_PACKED_TRAIN')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_LLAVA_NEXT_ENERGON_PACKED_TRAIN
 
   L2_NeMo_2_CLIP_PRETRAIN:
@@ -1714,7 +1714,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_CLIP_PRETRAIN')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_CLIP_PRETRAIN
 
   L2_NeMo_2_CLIP_INFER:
@@ -1722,7 +1722,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_CLIP_INFER')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_CLIP_INFER
 
   L2_NeMo_2_VLLM_EXPORT:
@@ -1730,7 +1730,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_VLLM_EXPORT')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_VLLM_EXPORT
 
   Optional_L2_NeMo_2_EVAL:
@@ -1771,7 +1771,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_SpeechLM_LoRA_TP1PP1_MBS2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_SpeechLM_LoRA_TP1PP1_MBS2
 
   L2_NeMo_2_Conversion_Test_Baichuan2:
@@ -1779,7 +1779,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Baichuan2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Baichuan2
 
   L2_NeMo_2_Conversion_Test_ChatGLM:
@@ -1787,7 +1787,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_ChatGLM') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_ChatGLM
 
   L2_NeMo_2_Conversion_Test_DeepSeek:
@@ -1795,7 +1795,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_DeepSeek') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_DeepSeek
 
   L2_NeMo_2_Conversion_Test_Gemma:
@@ -1803,7 +1803,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Gemma') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Gemma
 
   L2_NeMo_2_Conversion_Test_Gemma2:
@@ -1811,7 +1811,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Gemma2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Gemma2
 
   L2_NeMo_2_Conversion_Test_Mistral:
@@ -1819,7 +1819,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Mistral') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Mistral
 
   L2_NeMo_2_Conversion_Test_Llama:
@@ -1827,14 +1827,14 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Llama') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Llama
 
   L2_NeMo_2_Conversion_Test_Llama_Embedding:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Llama_Embedding
 
   L2_NeMo_2_Conversion_Test_Nemotron:
@@ -1842,7 +1842,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Nemotron') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Nemotron
 
   L2_NeMo_2_Conversion_Test_Phi3Mini:
@@ -1850,7 +1850,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Phi3Mini') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Phi3Mini
 
   L2_NeMo_2_Conversion_Test_Qwen2:
@@ -1858,7 +1858,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Qwen2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Qwen2
 
   L2_NeMo_2_Conversion_Test_Starcoder:
@@ -1866,7 +1866,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Starcoder') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Starcoder
 
   L2_NeMo_2_Conversion_Test_Starcoder2:
@@ -1874,7 +1874,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_Starcoder2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_Starcoder2
 
   L2_NeMo_2_Conversion_Test_BERT:
@@ -1882,7 +1882,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_BERT') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_BERT
 
   L2_NeMo_2_Conversion_Test_T5:
@@ -1890,7 +1890,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Conversion_Test_T5') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Conversion_Test_T5
 
   L2_NeMo_2_Export_HF_TRT_LLM:
@@ -1898,7 +1898,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Export_HF_TRT_LLM')
     with:
-      RUNNER: mvVm
+      RUNNER: myVm
       SCRIPT: L2_NeMo_2_Export_HF_TRT_LLM
 
   Nemo_CICD_Test:
