@@ -67,6 +67,12 @@ def override_recipe_configs(
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.moe_router_dtype = 'fp32'
 
+    assert pp_size is None or pp_size == 1 or (64 % pp_size == 0), "pp_size must be 1 or a factor of 64"
+    num_layers_in_middle_pipeline_stages = 64 // pp_size
+
+    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
+    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
+    
     callbacks = []
     if USE_TOKEN_DROP:
         callbacks.append(run.Config(MegatronTokenDropCallback))
