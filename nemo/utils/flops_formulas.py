@@ -380,10 +380,6 @@ def deepseekv3(config: FLOPSConfig):
     per_input_params = mla_params + ffn_params
     per_input_linear_flops = 6 * per_input_params * config.enc_seq_len
 
-    print((per_input_attention_flops + per_input_linear_flops) * config.gbs)
-    print(per_input_params / (config.layers + config.mtp_num_layers))
-    print(config.vocab_size * config.hs + config.hs * 2 * config.hs)
-
     # vocab flops
     per_input_vocab_flops = 6 * config.vocab_size * config.hs * config.enc_seq_len
     if config.mtp_num_layers is not None:
