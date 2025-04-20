@@ -16,6 +16,7 @@
 import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
+from torch.nn import RMSNorm
 
 from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
@@ -69,6 +70,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         global_attn_separate=False,
         n_heads=4,
         conv_kernel_size=31,
+        ff_norm_type='rms_norm',
         conv_norm_type='batch_norm',
         conv_context_size=None,
         dropout=0.1,
@@ -89,13 +91,20 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
         self.fc_factor = 0.5
-
+        self.ff_norm_type = ff_norm_type
+        self.conv_norm_type = conv_norm_type
         # first feed forward module
-        self.norm_feed_forward1 = LayerNorm(d_model)
+        if ff_norm_type == 'rms_norm':
+            self.norm_feed_forward1 = RMSNorm(d_model)
+        else:
+            self.norm_feed_forward1 = LayerNorm(d_model)
         self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout, use_bias=use_bias)
 
         # convolution module
-        self.norm_conv = LayerNorm(d_model)
+        if ff_norm_type == 'rms_norm':
+            self.norm_conv = RMSNorm(d_model)
+        else:
+            self.norm_conv = LayerNorm(d_model)
         self.conv = ConformerConvolution(
             d_model=d_model,
             kernel_size=conv_kernel_size,
@@ -105,7 +114,10 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         )
 
         # multi-headed self-attention module
-        self.norm_self_att = LayerNorm(d_model)
+        if ff_norm_type == 'rms_norm':
+            self.norm_self_att = RMSNorm(d_model)
+        else:
+            self.norm_self_att = LayerNorm(d_model)
         MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
@@ -151,11 +163,17 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
             )
 
         # second feed forward module
-        self.norm_feed_forward2 = LayerNorm(d_model)
+        if ff_norm_type == 'rms_norm':
+            self.norm_feed_forward2 = RMSNorm(d_model)
+        else:
+            self.norm_feed_forward2 = LayerNorm(d_model)
         self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout, use_bias=use_bias)
 
         self.dropout = nn.Dropout(dropout)
-        self.norm_out = LayerNorm(d_model)
+        if ff_norm_type == 'rms_norm':
+            self.norm_out = RMSNorm(d_model)
+        else:
+            self.norm_out = LayerNorm(d_model)
 
     def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None, cache_last_channel=None, cache_last_time=None):
         """
@@ -301,6 +319,8 @@ class ConformerConvolution(nn.Module):
             self.batch_norm = nn.LayerNorm(dw_conv_input_dim)
         elif norm_type == 'fused_batch_norm':
             self.batch_norm = FusedBatchNorm1d(dw_conv_input_dim)
+        elif norm_type == 'rms_norm':
+            self.batch_norm = RMSNorm(dw_conv_input_dim)
         elif norm_type.startswith('group_norm'):
             num_groups = int(norm_type.replace("group_norm", ""))
             self.batch_norm = nn.GroupNorm(num_groups=num_groups, num_channels=d_model)
@@ -334,7 +354,7 @@ class ConformerConvolution(nn.Module):
         if cache is not None:
             x, cache = x
 
-        if self.norm_type == "layer_norm":
+        if self.norm_type == "layer_norm" or self.norm_type == "rms_norm":
             x = x.transpose(1, 2)
             x = self.batch_norm(x)
             x = x.transpose(1, 2)
