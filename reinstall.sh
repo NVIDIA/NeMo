@@ -23,6 +23,7 @@ export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r
 export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 export TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
 export TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
+export NVIDIA_PYTORCH_VERSION=${NVIDIA_PYTORCH_VERSION:-""}
 
 trt() {
   local mode="$1"

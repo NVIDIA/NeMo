@@ -7,7 +7,7 @@
     },
     "transformer_engine": {
       "repo": "https://github.com/NVIDIA/TransformerEngine",
-      "ref": "b6a2a48f65c226d301c1a181e6131459f494a576"
+      "ref": "bee4649c15a79ffcb9689ca7c0c963f5febaa28a"
     },
     "megatron-lm": {
       "repo": "https://github.com/NVIDIA/Megatron-LM",
