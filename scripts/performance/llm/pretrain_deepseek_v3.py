@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+from typing import List, Optional
 
 import nemo_run as run
 
