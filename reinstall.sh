@@ -48,7 +48,7 @@ trt() {
   popd
 
   if [[ "$mode" == "install" ]]; then
-    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+    if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       cd $TRTLLM_DIR
       set +u
 
@@ -88,7 +88,7 @@ trtllm() {
   popd
 
   if [[ "$mode" == "build" ]]; then
-    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+    if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       cd $TRTLLM_DIR
       python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
     fi
@@ -115,7 +115,7 @@ te() {
   popd
 
   if [[ "$mode" == "build" ]]; then
-    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+    if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       cd $TE_DIR
       git submodule init
       git submodule update
@@ -178,7 +178,7 @@ mcore() {
   popd
 
   build() {
-    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+    if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $MAMBA_DIR
       pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
     fi
@@ -207,7 +207,7 @@ vllm() {
   VLLM_DIR="$INSTALL_DIR/vllm"
 
   build() {
-    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+    if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       ${PIP} install --no-cache-dir virtualenv
       virtualenv $INSTALL_DIR/venv
       $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage
@@ -266,7 +266,7 @@ nemo() {
     "nemo_run"                                                                                 # Not compatible in Python 3.12
   )
 
-  if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+  if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
     DEPS+=(
       "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" # Compiling NvRX requires CUDA
     )
@@ -289,12 +289,12 @@ ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
 echo 'Upgrading tools'
 ${PIP} install -U --no-cache-dir "setuptools==76.0.0" pybind11 wheel ${PIP}
 
-if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
+if [ "${NVIDIA_PYTORCH_VERSION}" != "" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
   echo "Will not install numba"
 
 else
-  if [ -n "${CONDA_PREFIX}" ]; then
+  if [ "${CONDA_PREFIX}" != "" ]; then
     echo 'Installing numba'
     conda install -y -c conda-forge numba
   else
