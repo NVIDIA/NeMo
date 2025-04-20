@@ -352,7 +352,7 @@ def set_primary_perf_configs(
         if use_mcore_fsdp:
             logging.warning("Currently FSDP does not support FP8 param gather. Disabling fp8 param gather.")
             recipe.trainer.plugins.fp8_param_gather = False
-    
+
     # Activation recompute configs
     if recompute_modules is not None:
         recipe.model.config.recompute_modules = recompute_modules
