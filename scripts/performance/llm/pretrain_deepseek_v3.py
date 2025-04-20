@@ -107,6 +107,8 @@ def override_recipe_configs(
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
+        compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
         recompute_modules=recompute_modules,
     )
     recipe = set_exp_logging_configs(
