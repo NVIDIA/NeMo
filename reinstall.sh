@@ -24,6 +24,7 @@ export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 export TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
 export TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
 export NVIDIA_PYTORCH_VERSION=${NVIDIA_PYTORCH_VERSION:-""}
+export CONDA_PREFIX=${CONDA_PREFIX:-""}
 
 trt() {
   local mode="$1"
@@ -265,12 +266,18 @@ nemo() {
     "nemo_run"                                                                                 # Not compatible in Python 3.12
   )
 
+  if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+    DEPS+=(
+      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" # Compiling NvRX requires CUDA
+    )
+  fi
+
   echo 'Installing dependencies of nemo'
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
   # needs no-deps to avoid installing triton on top of pytorch-triton.
   pip install --no-deps --no-cache-dir "liger-kernel==0.5.4; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
-  pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86aba72cfd2f0d8abecaf81c13c4528ea07d8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
+
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
