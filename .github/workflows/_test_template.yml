@@ -44,6 +44,7 @@ on:
 jobs:
   main:
     runs-on: ${{ inputs.RUNNER }}
+    name: ${{ inputs.SCRIPT }}
     outputs:
       conclusion: ${{ steps.check.conclusion }}
       log: ${{ steps.check.outputs.log }}
