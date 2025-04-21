@@ -308,7 +308,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: self.collate_fn(
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
                 x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=pad_seq_len_divisible
             )
         else:
@@ -334,7 +334,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
-    def collate_fn(self, batch, pad_token_id=0, pad_seq_len_divisible=None):
+    @staticmethod
+    def collate_fn(batch, pad_token_id=0, pad_seq_len_divisible=None):
         """Default batch collator"""
         return {
             key: batchify(
@@ -367,7 +368,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         """Dataloader creator"""
         assert dataset is not None
         if collate_fn is None:
-            collate_fn = lambda x: self.collate_fn(
+            collate_fn = lambda x: self._collate_fn(
                 x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible
             )
 
