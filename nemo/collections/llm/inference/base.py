@@ -191,8 +191,8 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 4096,
-    enable_flash_decode: bool = False,
-    enable_cuda_graphs: bool = False,
+    enable_flash_decode: bool = True,
+    enable_cuda_graphs: bool = True,
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -297,8 +297,8 @@ def setup_mcore_engine(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 4096,
-    enable_flash_decode: bool = False,
-    enable_cuda_graphs: bool = False,
+    enable_flash_decode: bool = True,
+    enable_cuda_graphs: bool = True,
     max_batch_size: int = 32,
     random_seed: Optional[int] = None,
 ) -> MCoreEngine:

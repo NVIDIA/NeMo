@@ -582,8 +582,8 @@ def deploy(
     max_batch_size: int = 8,
     output_context_logits: bool = True,
     output_generation_logits: bool = True,
-    enable_flash_decode: bool = False,
-    enable_cuda_graphs: bool = False,
+    enable_flash_decode: bool = True,
+    enable_cuda_graphs: bool = True,
 ):
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
