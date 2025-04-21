@@ -25,7 +25,7 @@ from lhotse.utils import ifnone
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.data.lhotse.text_adapters import TextTurn
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
-from nemo.collections.common.prompts import Llama2PromptFormatter
+from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.utils import logging
 
@@ -52,6 +52,30 @@ class SALMDataset(torch.utils.data.Dataset):
             "input_ids": collate_vectors([c.input_ids for c in conversations], padding_value=self.pad_id),
             "loss_mask": collate_vectors([c.mask for c in conversations], padding_value=0).to(torch.bool),
         }
+
+
+@registered_prompt_format_fn(NeMoMultimodalConversation, Llama3PromptFormatter)
+def default_multimodal_conversation_prompt_format_fn(
+    example: NeMoMultimodalConversation, prompt: Llama3PromptFormatter
+):
+    # Collapse consecutive same-role turns into single turn for proper prompt formatting.
+    turns = groupby(
+        [
+            {
+                "role": turn.role,
+                "slots": {"message": turn.value if isinstance(turn, TextTurn) else turn.audio_locator_tag},
+            }
+            for turn in example.turns
+        ],
+        key=lambda turn: turn["role"],
+    )
+    turns = [
+        {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
+        for role, turn_grp in turns
+    ]
+    if hasattr(example, "system_prompt"):
+        turns = [{"role": "system", "slots": {"message": example.system_prompt}}] + turns
+    return prompt.encode_dialog(turns)
 
 
 @registered_prompt_format_fn(NeMoMultimodalConversation, Llama2PromptFormatter)

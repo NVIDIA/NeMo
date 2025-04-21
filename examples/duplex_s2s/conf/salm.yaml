@@ -1,18 +1,19 @@
 model:
   # Every name/path here starting with 'pretrained' is used to initialize the model weights.
-  pretrained_llm: TinyLlama/TinyLlama_v1.1
+#  pretrained_llm: TinyLlama/TinyLlama_v1.1
 #  pretrained_llm: google/gemma-2-2b-it
 #  pretrained_llm: google/gemma-2-9b-it
 #  pretrained_llm: meta-llama/Llama-3.2-3B-Instruct
 #  pretrained_llm: meta-llama/Llama-3.1-8B-Instruct
 #  pretrained_llm: Qwen/Qwen2.5-7B-Instruct
 #  pretrained_asr: stt_en_fastconformer_hybrid_large_streaming_80ms
-  pretrained_asr: nvidia/canary-180m-flash
+  pretrained_llm: nvidia/Llama-3.1-Nemotron-Nano-8B-v1
+  pretrained_asr: nvidia/canary-1b-flash
 
   freeze_llm: true
   freeze_asr: true
 
-  prompt_format: llama2
+  prompt_format: llama3
   audio_locator_tag: "<|audioplaceholder|>"  # placeholder token for audio turn is expected
 
   perception:
@@ -29,10 +30,10 @@ model:
 
      modality_adapter:
        _target_: nemo.collections.asr.modules.ConformerEncoder
-       feat_in: 512
+       feat_in: 1024
        feat_out: -1 # you may set it if you need different output size other than the default d_model
        n_layers: 2
-       d_model: 512
+       d_model: 1024
        subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
        subsampling_factor: 1 # must be power of 2 for striding and vggnet
        subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
@@ -85,7 +86,7 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
-  max_steps: 1000000
+  max_steps: 100000
   limit_train_batches: 100  # "epoch" size
   val_check_interval: ${trainer.limit_train_batches}
   limit_val_batches: 10
@@ -94,34 +95,37 @@ trainer:
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
-#    _target_: lightning.pytorch.strategies.ModelParallelStrategy
-#    tensor_parallel_size: 1
-#    data_parallel_size: 2
-    _target_: lightning.pytorch.strategies.DDPStrategy
-    gradient_as_bucket_view: true
-    find_unused_parameters: true
+    _target_: lightning.pytorch.strategies.ModelParallelStrategy
+    tensor_parallel_size: 1
+    data_parallel_size: 2
+#    _target_: lightning.pytorch.strategies.DDPStrategy
+#    gradient_as_bucket_view: true
+#    find_unused_parameters: true
 
 data:
   train_ds:
     sample_rate: 16000
-    prompt_format: llama2
+    prompt_format: ${model.prompt_format}
     token_equivalent_duration: 0.08
     input_cfg:
       - type: lhotse_as_conversation
-        shar_path: /home/pzelasko/data/mini-libri/train-clean-5-shar
+        cuts_path: /home/pzelasko/data/mini-libri/cuts_dev-clean-2-lower.jsonl.gz
         audio_locator_tag: ${model.audio_locator_tag}
         tags:
-          system_prompt: "Repeat after me, only in lowercase:"
-#      - type: lhotse_shar
-#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
-#      - type: lhotse_shar
-#        shar_path: /home/pzelasko/exp/duplex_s2s/timestamp_train
+          system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
+          context: "Repeat after me, typing in lowercase."
+#      - type: lhotse_as_conversation
+#        shar_path: /home/pzelasko/data/mini-libri/train-clean-5-shar
+#        audio_locator_tag: ${model.audio_locator_tag}
+#        tags:
+#          system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
+#          context: "Repeat after me, typing in lowercase."
     seed: 42
     shuffle: true
     shard_seed: "randomized"
     num_workers: 1
 
-    batch_size: 32
+    batch_size: 2
 #    batch_duration: 100
 #    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
 #    use_bucketing: true
@@ -132,7 +136,7 @@ data:
     # The entries under 'datasets' are a list of separate dataloaders.
     # The structure is <dataset-name>: {<dataloader-dict-config>}
     # They inherit all settings from validation_ds, but can individually override them.
-    prompt_format: llama2
+    prompt_format: ${model.prompt_format}
     token_equivalent_duration: 0.08
     datasets:
       dev-clean-2:
@@ -141,14 +145,16 @@ data:
             cuts_path: /home/pzelasko/data/mini-libri/cuts_dev-clean-2-lower.jsonl.gz
             audio_locator_tag: ${model.audio_locator_tag}
             tags:
-              system_prompt: "Repeat after me, only in lowercase:"
-      train-clean-5:
-        input_cfg:
-          - type: lhotse_as_conversation
-            cuts_path: /home/pzelasko/data/mini-libri/cuts_train-clean-5-lower.jsonl.gz
-            audio_locator_tag: ${model.audio_locator_tag}
-            tags:
-              system_prompt: "Repeat after me, only in lowercase:"
+              system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
+              context: "Repeat after me, typing in lowercase."
+#      train-clean-5:
+#        input_cfg:
+#          - type: lhotse_as_conversation
+#            cuts_path: /home/pzelasko/data/mini-libri/cuts_train-clean-5-lower.jsonl.gz
+#            audio_locator_tag: ${model.audio_locator_tag}
+#            tags:
+#              system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
+#              context: "Repeat after me, typing in lowercase."
 #      traindata:
 #        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
 #      valdata:

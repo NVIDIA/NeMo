@@ -167,9 +167,8 @@ def llama3(cut: Cut, prompt: Llama3PromptFormatter) -> dict[str, torch.Tensor]:
 
     turns = []
     if cut.has_custom("system_prompt"):
-        turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": context}})
-    else:
-        turns.append({"role": "user", "slots": {"message": context}})
+        turns.append({"role": "system", "slots": {"message": cut.system_prompt}})
+    turns.append({"role": "user", "slots": {"message": context}})
     if (answer := cut.supervisions[0].text) is not None:
         turns.append({"role": "assistant", "slots": {"message": answer}})
     return prompt.encode_dialog(turns)

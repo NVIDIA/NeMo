@@ -341,6 +341,8 @@ class SALM(LightningModule):
         tokens = collate_vectors(
             [formatter.encode_dialog(turns=prompt)["input_ids"] for prompt in prompts], padding_value=self.text_pad_id
         ).to(self.device)
+        # tokens = self.tokenizer.tokenizer.apply_chat_template(prompts)
+        tokens = collate_vectors(tokens, padding_value=self.text_pad_id).to(self.device)
         if audios is not None:
             # Audio + text input for generation.
             # Prepare token embeddings and audio embeddings.
@@ -430,7 +432,7 @@ class SALM(LightningModule):
             parallelize_module(self.llm, tp_mesh, plan)
 
             # Parallelize each transformer block
-            for transformer_block in self.llm.layers:
+            for transformer_block in self.llm.model.layers:
                 plan = {
                     "input_layernorm": SequenceParallel(),
                     "self_attn.q_proj": ColwiseParallel(),
@@ -462,26 +464,26 @@ class SALM(LightningModule):
                 # Apply the plan for the current transformer block
                 parallelize_module(transformer_block, tp_mesh, plan)
 
-                parallelize_module(
-                    self.llm.lm_head,
-                    tp_mesh,
-                    ColwiseParallel(
-                        input_layouts=Shard(1),
-                        # Optional: Shard the output along the class dimension to compute the loss in parallel.
-                        # See `loss_parallel` in `train.py`
-                        output_layouts=Shard(-1),
-                        use_local_output=False,
-                    ),
-                )
+            parallelize_module(
+                self.llm.lm_head,
+                tp_mesh,
+                ColwiseParallel(
+                    input_layouts=Shard(1),
+                    # Optional: Shard the output along the class dimension to compute the loss in parallel.
+                    # See `loss_parallel` in `train.py`
+                    output_layouts=Shard(-1),
+                    use_local_output=False,
+                ),
+            )
 
         if (dp_mesh := device_mesh["data_parallel"]).size() > 1:
             assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
             self._use_fsdp = True
-            fsdp_config = {"mesh": dp_mesh, "mp_policy": MixedPrecisionPolicy(torch.bfloat16)}
-            for idx, layer in enumerate(self.llm.layers):
-                self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
+            fsdp_config = {"mesh": dp_mesh}
+            for idx, layer in enumerate(self.llm.model.layers):
+                self.llm.model.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
-            self.llm.lm_head = fully_shard(self.lm_head, **fsdp_config)
+            self.llm.lm_head = fully_shard(self.llm.lm_head, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
 
