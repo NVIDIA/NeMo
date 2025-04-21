@@ -130,7 +130,6 @@ class SortformerModules(NeuralModule, Exportable):
         self.causal_attn_rc = causal_attn_rc
         self.use_causal_eval = use_causal_eval
         self.scores_add_rnd = scores_add_rnd
-        self.init_step_len = init_step_len
         self.max_index = max_index
         self.pred_score_threshold = pred_score_threshold
         self.scores_boost_latest = scores_boost_latest
@@ -188,11 +187,11 @@ class SortformerModules(NeuralModule, Exportable):
                 f"feat_len={feat_len}, num_chunks={num_chunks}, "
                 f"feat_seq_length={feat_seq_length}, feat_seq_offset={feat_seq_offset}"
             )
+
         stt_feat, end_feat, step_idx = 0, 0, 0
-        current_step_len = min(self.init_step_len, self.step_len)
         while end_feat < feat_len:
             left_offset = min(self.step_left_context * self.subsampling_factor, stt_feat)
-            end_feat = min(stt_feat + current_step_len * self.subsampling_factor, feat_len)
+            end_feat = min(stt_feat + self.step_len * self.subsampling_factor, feat_len)
             right_offset = min(self.step_right_context * self.subsampling_factor, feat_len - end_feat)
             chunk_feat_seq = feat_seq[:, :, stt_feat - left_offset:end_feat + right_offset]
             feat_lengths = (
@@ -204,20 +203,12 @@ class SortformerModules(NeuralModule, Exportable):
             chunk_feat_seq_t = torch.transpose(chunk_feat_seq, 1, 2)
             if self.log:
                 logging.info(
-                    f"step_idx: {step_idx}, current step len: {current_step_len}, "
+                    f"step_idx: {step_idx}, "
                     f"chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}, "
                     f"chunk_feat_lengths: {feat_lengths}"
                 )
             yield step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset
             step_idx += 1
-            if end_feat >= self.step_len * self.subsampling_factor:
-                current_step_len = self.step_len
-            elif (
-                end_feat < self.step_len * self.subsampling_factor
-                and current_step_len < self.step_len
-                and end_feat >= 4 * current_step_len * self.subsampling_factor
-            ):
-                current_step_len *= 2
 
     def forward_speaker_sigmoids(self, hidden_out):
         """
