@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
 
-import pytest
 import torch
-from datasets import Dataset, DatasetDict
-from torch.utils.data import DataLoader
+from datasets import Dataset
 
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import (
-    SquadHFDataModule,
     batchify,
     extract_key_from_dicts,
     make_dataset_splits,
