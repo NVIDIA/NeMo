@@ -14,20 +14,22 @@
 
 import copy
 import re
+import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Set, Union
 
 import numpy as np
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding, tdt_beam_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
+from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import BlankLMScoreMode, PruningMode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 
 
 class AbstractRNNTDecoding(ConfidenceMixin):
@@ -57,15 +59,24 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
                 U is the number of target tokens for the current timestep Ti.
 
+            tdt_include_token_duration: Bool flag, which determines whether predicted durations for each token
+            need to be included in the Hypothesis object. Defaults to False.
+
             compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrete intervals of timestamps.
                 The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
 
             rnnt_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
                 Can take the following values - "char" for character/subword time stamps, "word" for word level
-                time stamps and "all" (default), for both character level and word level time stamps.
+                time stamps, "segment" for segment level time stamps and "all" (default), for character, word and
+                segment level time stamps.
 
             word_seperator: Str token representing the seperator between words.
+
+            segment_seperators: List containing tokens representing the seperator(s) between segments.
+
+            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming
+            the segments.
 
             preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
                 generated during decoding (sample / batched). When set to true, the Hypothesis will contain
@@ -94,8 +105,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
-                    Valid options are `mean`, `min`, `max`, `prod`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word
+                    confidence. Valid options are `mean`, `min`, `max`, `prod`.
+                tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
+                    attached to the regular frame confidence,
+                    making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
 
@@ -166,31 +180,33 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                     and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                    in order to reduce expensive beam search cost later. int >= 0.
+                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep
+                    this as 1 in order to reduce expensive beam search cost later. int >= 0.
 
                 maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
                     Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                    and affects the speed of inference since large values will perform large beam search in the next step.
+                    and affects the speed of inference since large values will perform large beam search in the next
+                    step.
 
-                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                    expansion apart from the "most likely" candidate.
-                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                    tuned on a validation set.
+                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the
+                    expansions. The default (2.3) is selected from the paper. It performs a comparison
+                    (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and
+                    max_log_prob is the "most" likely token to be predicted. Gamma therefore provides a margin of
+                    additional tokens which can be potential candidates for expansion apart from the "most likely"
+                    candidate. Lower values will reduce the number of expansions (by increasing pruning-by-value,
+                    thereby improving speed but hurting accuracy). Higher values will increase the number of expansions
+                    (by reducing pruning-by-value, thereby reducing speed but potentially improving accuracy). This is
+                    a hyper parameter to be experimentally tuned on a validation set.
 
                 softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
         blank_id: The id of the RNNT blank token.
+        supported_punctuation: Set of punctuation marks in the vocabulary
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, supported_punctuation: Optional[Set] = None):
         super(AbstractRNNTDecoding, self).__init__()
 
         # Convert dataclass to config object
@@ -199,6 +215,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         self.cfg = decoding_cfg
         self.blank_id = blank_id
+        self.supported_punctuation = supported_punctuation
         self.num_extra_outputs = joint.num_extra_outputs
         self.big_blank_durations = self.cfg.get("big_blank_durations", None)
         self.durations = self.cfg.get("durations", None)
@@ -207,15 +224,21 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
+        self.tdt_include_token_duration = self.cfg.get('tdt_include_token_duration', False)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
+        self.segment_seperators = self.cfg.get('segment_seperators', ['.', '?', '!'])
+        self.segment_gap_threshold = self.cfg.get('segment_gap_threshold', None)
 
-        if self.durations is not None and self.durations != []:  # this means it's a TDT model.
+        self._is_tdt = self.durations is not None and self.durations != []  # this means it's a TDT model.
+        if self._is_tdt:
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
             if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
-            if self.cfg.strategy not in ['greedy', 'greedy_batch']:
-                raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
+            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes', "malsd_batch"]:
+                raise ValueError(
+                    "currently only greedy, greedy_batch, beam and maes inference is supported for TDT models"
+                )
 
         if (
             self.big_blank_durations is not None and self.big_blank_durations != []
@@ -227,7 +250,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch', "maes_batch"]
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -248,11 +271,20 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 self.compute_timestamps = self.cfg.beam.get('compute_timestamps', False)
 
         # Test if alignments are being preserved for RNNT
-        if self.compute_timestamps is True and self.preserve_alignments is False:
+        if not self._is_tdt and self.compute_timestamps is True and self.preserve_alignments is False:
             raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
+
+        if self._is_tdt:
+            if self.preserve_frame_confidence is True and self.preserve_alignments is False:
+                raise ValueError(
+                    "If `preserve_frame_confidence` flag is set, then `preserve_alignments` flag must also be set."
+                )
+            self.tdt_include_token_duration = self.tdt_include_token_duration or self.compute_timestamps
+            self._compute_offsets = self._compute_offsets_tdt
+            self._refine_timestamps = self._refine_timestamps_tdt
 
         # Confidence estimation is not implemented for these strategies
         if (
@@ -264,7 +296,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         if self.cfg.strategy == 'greedy':
             if self.big_blank_durations is None or self.big_blank_durations == []:
-                if self.durations is None or self.durations == []:
+                if not self._is_tdt:
                     self.decoding = rnnt_greedy_decoding.GreedyRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
@@ -289,6 +321,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
+                        include_duration=self.tdt_include_token_duration,
+                        include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                     )
             else:
@@ -307,7 +341,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         elif self.cfg.strategy == 'greedy_batch':
             if self.big_blank_durations is None or self.big_blank_durations == []:
-                if self.durations is None or self.durations == []:
+                if not self._is_tdt:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
@@ -319,8 +353,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
-                        loop_labels=self.cfg.greedy.get('loop_labels', False),
-                        use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', False),
+                        loop_labels=self.cfg.greedy.get('loop_labels', True),
+                        use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
+                        ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     )
                 else:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
@@ -334,7 +370,12 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
+                        include_duration=self.tdt_include_token_duration,
+                        include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
+                        use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
+                        ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     )
 
             else:
@@ -352,20 +393,32 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
 
         elif self.cfg.strategy == 'beam':
-
-            self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                beam_size=self.cfg.beam.beam_size,
-                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
-                search_type='default',
-                score_norm=self.cfg.beam.get('score_norm', True),
-                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
-                preserve_alignments=self.preserve_alignments,
-            )
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='default',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                    )
+                else:
+                    self.decoding = tdt_beam_decoding.BeamTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='default',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                    )
 
         elif self.cfg.strategy == 'tsd':
-
             self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -379,7 +432,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'alsd':
-
             self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -393,28 +445,109 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         elif self.cfg.strategy == 'maes':
-
-            self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                beam_size=self.cfg.beam.beam_size,
-                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
-                search_type='maes',
-                score_norm=self.cfg.beam.get('score_norm', True),
-                maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
-                maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
-                maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
-                maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
-                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
-                preserve_alignments=self.preserve_alignments,
-                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
-                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
-                hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
-            )
-
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='maes',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
+                        hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
+                    )
+                else:
+                    self.decoding = tdt_beam_decoding.BeamTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                        search_type='maes',
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
+                        softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
+                    )
+        elif self.cfg.strategy == 'malsd_batch':
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get(
+                            'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
+                        ),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    )
+                else:
+                    self.decoding = tdt_beam_decoding.BeamBatchedTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get(
+                            'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
+                        ),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    )
+        elif self.cfg.strategy == 'maes_batch':
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='maes_batch',
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get(
+                            'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
+                        ),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', False),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    )
         else:
-
             raise ValueError(
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"
@@ -429,7 +562,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         encoded_lengths: torch.Tensor,
         return_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
-    ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
+    ) -> Union[List[Hypothesis], List[List[Hypothesis]]]:
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
@@ -439,18 +572,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             return_hypotheses: bool. If set to True it will return list of Hypothesis or NBestHypotheses
 
         Returns:
-            If `return_best_hypothesis` is set:
-                A tuple (hypotheses, None):
-                hypotheses - list of Hypothesis (best hypothesis per sample).
+            If `return_all_hypothesis` is set:
+                A list[list[Hypothesis]].
                     Look at rnnt_utils.Hypothesis for more information.
 
-            If `return_best_hypothesis` is not set:
-                A tuple(hypotheses, all_hypotheses)
-                hypotheses - list of Hypothesis (best hypothesis per sample).
+            If `return_all_hypothesis` is not set:
+                A list[Hypothesis].
+                List of best hypotheses
                     Look at rnnt_utils.Hypothesis for more information.
-                all_hypotheses - list of NBestHypotheses. Each NBestHypotheses further contains a sorted
-                    list of all the hypotheses of the model per sample.
-                    Look at rnnt_utils.NBestHypotheses for more information.
         """
         # Compute hypotheses
         with torch.inference_mode():
@@ -481,11 +610,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 all_hypotheses.append(decoded_hyps)
 
             if return_hypotheses:
-                return hypotheses, all_hypotheses
+                return all_hypotheses  # type: list[list[Hypothesis]]
 
-            best_hyp_text = [h.text for h in hypotheses]
-            all_hyp_text = [h.text for hh in all_hypotheses for h in hh]
-            return best_hyp_text, all_hyp_text
+            all_hyp = [[Hypothesis(h.score, h.y_sequence, h.text) for h in hh] for hh in all_hypotheses]
+            return all_hyp
 
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
@@ -502,10 +630,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     self.preserve_word_confidence or self.preserve_token_confidence
                 ):
                     hypotheses = self.compute_confidence(hypotheses)
-                return hypotheses, None
+                return hypotheses
 
-            best_hyp_text = [h.text for h in hypotheses]
-            return best_hyp_text, None
+            return [Hypothesis(h.score, h.y_sequence, h.text) for h in hypotheses]
 
     def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
         """
@@ -529,13 +656,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             if self.big_blank_durations is not None and self.big_blank_durations != []:  # multi-blank RNNT
                 num_extra_outputs = len(self.big_blank_durations)
                 prediction = [p for p in prediction if p < self.blank_id - num_extra_outputs]
-            elif self.durations is not None and self.durations != []:  # TDT model.
+            elif self._is_tdt:  # TDT model.
                 prediction = [p for p in prediction if p < self.blank_id]
             else:  # standard RNN-T
                 prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
-            if self.compute_timestamps is True:
+            if self.compute_timestamps is True and self._is_tdt:
+                hypothesis = (prediction, None, None)
+            elif self.compute_timestamps is True:
                 # keep the original predictions, wrap with the number of repetitions per token and alignments
                 # this is done so that `rnnt_decoder_predictions_tensor()` can process this hypothesis
                 # in order to compute exact time stamps.
@@ -568,28 +697,70 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         Returns:
             A list of hypotheses with high-level confidence scores.
         """
-        if self.exclude_blank_from_confidence:
+        if self._is_tdt:
+            # if self.tdt_include_duration_confidence is True then frame_confidence elements consist of two numbers
+            maybe_pre_aggregate = (
+                (lambda x: self._aggregate_confidence(x)) if self.tdt_include_duration_confidence else (lambda x: x)
+            )
             for hyp in hypotheses_list:
-                hyp.token_confidence = hyp.non_blank_frame_confidence
-        else:
-            for hyp in hypotheses_list:
-                offset = 0
                 token_confidence = []
-                if len(hyp.timestep) > 0:
-                    for ts, te in zip(hyp.timestep, hyp.timestep[1:] + [len(hyp.frame_confidence)]):
-                        if ts != te:
-                            # <blank> tokens are considered to belong to the last non-blank token, if any.
-                            token_confidence.append(
-                                self._aggregate_confidence(
-                                    [hyp.frame_confidence[ts][offset]]
-                                    + [fc[0] for fc in hyp.frame_confidence[ts + 1 : te]]
+                # trying to recover frame_confidence according to alignments
+                subsequent_blank_confidence = []
+                # going backwards since <blank> tokens are considered belonging to the last non-blank token.
+                for fc, fa in zip(hyp.frame_confidence[::-1], hyp.alignments[::-1]):
+                    # there is only one score per frame most of the time
+                    if len(fa) > 1:
+                        for i, a in reversed(list(enumerate(fa))):
+                            if a[-1] == self.blank_id:
+                                if not self.exclude_blank_from_confidence:
+                                    subsequent_blank_confidence.append(maybe_pre_aggregate(fc[i]))
+                            elif not subsequent_blank_confidence:
+                                token_confidence.append(maybe_pre_aggregate(fc[i]))
+                            else:
+                                token_confidence.append(
+                                    self._aggregate_confidence(
+                                        [maybe_pre_aggregate(fc[i])] + subsequent_blank_confidence
+                                    )
                                 )
-                            )
-                            offset = 0
+                                subsequent_blank_confidence = []
+                    else:
+                        i, a = 0, fa[0]
+                        if a[-1] == self.blank_id:
+                            if not self.exclude_blank_from_confidence:
+                                subsequent_blank_confidence.append(maybe_pre_aggregate(fc[i]))
+                        elif not subsequent_blank_confidence:
+                            token_confidence.append(maybe_pre_aggregate(fc[i]))
                         else:
-                            token_confidence.append(hyp.frame_confidence[ts][offset])
-                            offset += 1
+                            token_confidence.append(
+                                self._aggregate_confidence([maybe_pre_aggregate(fc[i])] + subsequent_blank_confidence)
+                            )
+                            subsequent_blank_confidence = []
+                token_confidence = token_confidence[::-1]
                 hyp.token_confidence = token_confidence
+        else:
+            if self.exclude_blank_from_confidence:
+                for hyp in hypotheses_list:
+                    hyp.token_confidence = hyp.non_blank_frame_confidence
+            else:
+                for hyp in hypotheses_list:
+                    timestep = hyp.timestamp.tolist() if isinstance(hyp.timestamp, torch.Tensor) else hyp.timestamp
+                    offset = 0
+                    token_confidence = []
+                    if len(timestep) > 0:
+                        for ts, te in zip(timestep, timestep[1:] + [len(hyp.frame_confidence)]):
+                            if ts != te:
+                                # <blank> tokens are considered to belong to the last non-blank token, if any.
+                                token_confidence.append(
+                                    self._aggregate_confidence(
+                                        [hyp.frame_confidence[ts][offset]]
+                                        + [fc[0] for fc in hyp.frame_confidence[ts + 1 : te]]
+                                    )
+                                )
+                                offset = 0
+                            else:
+                                token_confidence.append(hyp.frame_confidence[ts][offset])
+                                offset += 1
+                    hyp.token_confidence = token_confidence
         if self.preserve_word_confidence:
             for hyp in hypotheses_list:
                 hyp.word_confidence = self._aggregate_token_confidence(hyp)
@@ -651,6 +822,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         raise NotImplementedError()
 
     def update_joint_fused_batch_size(self):
+        """ "
+        Updates the fused batch size for the joint module if applicable.
+
+        If `joint_fused_batch_size` is set, verifies that the joint module has
+        the required `set_fused_batch_size` and `set_fuse_loss_wer` functions.
+        If present, updates the batch size; otherwise, logs a warning.
+
+        If `joint_fused_batch_size` is <= 0, disables fused batch processing.
+        """
         if self.joint_fused_batch_size is None:
             # do nothing and let the Joint itself handle setting up of the fused batch
             return
@@ -677,7 +857,22 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             self.decoding.joint.set_fuse_loss_wer(False)
 
     def compute_rnnt_timestamps(self, hypothesis: Hypothesis, timestamp_type: str = "all"):
-        assert timestamp_type in ['char', 'word', 'all']
+        """
+        Computes character, word, and segment timestamps for an RNN-T hypothesis.
+
+        This function generates timestamps for characters, words, and segments within
+        a hypothesis sequence. The type of timestamps computed depends on `timestamp_type`,
+        which can be 'char', 'word', 'segment', or 'all'.
+
+        Args:
+            hypothesis (Hypothesis): Hypothesis.
+            timestamp_type (str): Type of timestamps to compute. Options are 'char', 'word', 'segment', or 'all'.
+                                Defaults to 'all'.
+
+        Returns:
+            Hypothesis: The updated hypothesis with computed timestamps for characters, words, and/or segments.
+        """
+        assert timestamp_type in ['char', 'word', 'segment', 'all']
 
         # Unpack the temporary storage
         decoded_prediction, alignments, token_repetitions = hypothesis.text
@@ -692,14 +887,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Assert number of offsets and hypothesis tokens are 1:1 match.
         num_flattened_tokens = 0
         for t in range(len(char_offsets)):
-            # Subtract one here for the extra RNNT BLANK token emitted to designate "End of timestep"
-            num_flattened_tokens += len(char_offsets[t]['char']) - 1
+            # Count all tokens except for RNNT BLANK token emitted to designate "End of timestep"
+            num_flattened_tokens += len([c for c in char_offsets[t]['char'] if c != self.blank_id])
 
         if num_flattened_tokens != len(hypothesis.text):
             raise ValueError(
                 f"`char_offsets`: {char_offsets} and `processed_tokens`: {hypothesis.text}"
                 " have to be of the same length, but are: "
-                f"`len(offsets)`: {len(char_offsets)} and `len(processed_tokens)`:"
+                f"`len(offsets)`: {num_flattened_tokens} and `len(processed_tokens)`:"
                 f" {len(hypothesis.text)}"
             )
 
@@ -708,9 +903,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Correctly process the token ids to chars/subwords.
         for i, offsets in enumerate(char_offsets):
             decoded_chars = []
-            for char in offsets['char'][:-1]:  # ignore the RNNT Blank token at end of every timestep with -1 subset
-                decoded_chars.append(self.decode_tokens_to_str([int(char)]))
+            for char in offsets['char']:
+                if char != self.blank_id:  # ignore the RNNT Blank token
+                    decoded_chars.append(self.decode_tokens_to_str([int(char)]))
             char_offsets[i]["char"] = decoded_chars
+
+        encoded_char_offsets, char_offsets = self._refine_timestamps(
+            encoded_char_offsets, char_offsets, self.supported_punctuation
+        )
 
         # detect char vs subword models
         lens = []
@@ -734,9 +934,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # retrieve word offsets from character offsets
         word_offsets = None
-        if timestamp_type in ['word', 'all']:
+        if timestamp_type in ['word', 'segment', 'all']:
             if text_type == 'char':
-                word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=self.word_seperator)
+                word_offsets = self._get_word_offsets_chars(
+                    char_offsets,
+                    word_delimiter_char=self.word_seperator,
+                    supported_punctuation=self.supported_punctuation,
+                )
             else:
                 # utilize the copy of char offsets with the correct integer ids for tokens
                 # so as to avoid tokenize -> detokenize -> compare -> merge steps.
@@ -745,27 +949,48 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     hypothesis,
                     decode_ids_to_tokens=self.decode_ids_to_tokens,
                     decode_tokens_to_str=self.decode_tokens_to_str,
+                    rnnt_token=self.blank_id,
+                    supported_punctuation=self.supported_punctuation,
                 )
 
+        segment_offsets = None
+        if timestamp_type in ['segment', 'all']:
+            segment_offsets = self._get_segment_offsets(
+                word_offsets,
+                segment_delimiter_tokens=self.segment_seperators,
+                supported_punctuation=self.supported_punctuation,
+                segment_gap_threshold=self.segment_gap_threshold,
+            )
+
         # attach results
-        if len(hypothesis.timestep) > 0:
-            timestep_info = hypothesis.timestep
+        if len(hypothesis.timestamp) > 0:
+            timestep_info = hypothesis.timestamp
         else:
             timestep_info = []
 
         # Setup defaults
-        hypothesis.timestep = {"timestep": timestep_info}
+        hypothesis.timestamp = {"timestep": timestep_info}
 
         # Add char / subword time stamps
         if char_offsets is not None and timestamp_type in ['char', 'all']:
-            hypothesis.timestep['char'] = char_offsets
+            hypothesis.timestamp['char'] = char_offsets
 
         # Add word time stamps
         if word_offsets is not None and timestamp_type in ['word', 'all']:
-            hypothesis.timestep['word'] = word_offsets
+            hypothesis.timestamp['word'] = word_offsets
+
+        # Add segment time stamps
+        if segment_offsets is not None and timestamp_type in ['segment', 'all']:
+            hypothesis.timestamp['segment'] = segment_offsets
 
         # Convert the flattened token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
+
+        # collapse leading spaces before . , ? for PC models
+        hypothesis.text = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis.text)
+
+        if self.compute_hypothesis_token_set:
+            hypothesis.tokens = self.decode_ids_to_tokens(decoded_prediction)
 
         return hypothesis
 
@@ -786,11 +1011,12 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         """
         start_index = 0
-
         # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
-        if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
-            start_index = max(0, hypothesis.timestep[0] - 1)
+        if hypothesis.timestamp is not None and len(hypothesis.timestamp) > 0:
+            first_timestep = hypothesis.timestamp[0]
+            first_timestep = first_timestep if isinstance(first_timestep, int) else first_timestep.item()
+            start_index = max(0, first_timestep - 1)
 
         # Construct the start and end indices brackets
         end_indices = np.asarray(token_repetitions).cumsum()
@@ -814,8 +1040,68 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         return offsets
 
     @staticmethod
+    def _compute_offsets_tdt(hypothesis: Hypothesis, *args) -> List[Dict[str, Union[str, int]]]:
+        """
+        Utility method that calculates the indidual time indices where a token starts and ends.
+
+        Args:
+            hypothesis: A Hypothesis object that contains `text` field that holds the character / subword token
+                emitted at a specific time step considering predicted durations of the previous tokens.
+
+        Returns:
+
+        """
+        if isinstance(hypothesis.timestamp, torch.Tensor):
+            hypothesis.token_duration = hypothesis.token_duration.cpu().tolist()
+
+        if isinstance(hypothesis.timestamp, torch.Tensor):
+            hypothesis.timestamp = hypothesis.timestamp.cpu().tolist()
+
+        # Merge the results per token into a list of dictionaries
+        offsets = [
+            {"char": [t], "start_offset": s, "end_offset": s + d}
+            for t, s, d in zip(hypothesis.text[0], hypothesis.timestamp, hypothesis.token_duration)
+        ]
+        return offsets
+
+    @staticmethod
+    def _refine_timestamps(
+        encoded_char_offsets: List[Dict[str, Union[str, int]]],
+        char_offsets: List[Dict[str, Union[str, int]]],
+        supported_punctuation: Optional[Set] = None,
+    ) -> List[Dict[str, Union[str, int]]]:
+
+        # no refinement for rnnt
+
+        return encoded_char_offsets, char_offsets
+
+    @staticmethod
+    def _refine_timestamps_tdt(
+        encoded_char_offsets: List[Dict[str, Union[str, int]]],
+        char_offsets: List[Dict[str, Union[str, int]]],
+        supported_punctuation: Optional[Set] = None,
+    ) -> List[Dict[str, Union[str, int]]]:
+
+        if not supported_punctuation:
+            return encoded_char_offsets, char_offsets
+
+        for i, offset in enumerate(char_offsets):
+
+            # Check if token is a punctuation mark
+            # If so, set its start and end offset as start and end of the previous token
+            # This is done because there was observed a behaviour, when punctuation marks are
+            # predicted long after preceding token (i.e. after silence)
+            if offset['char'][0] in supported_punctuation and i > 0:
+                encoded_char_offsets[i]['start_offset'] = offset['start_offset'] = char_offsets[i - 1]['end_offset']
+                encoded_char_offsets[i]['end_offset'] = offset['end_offset'] = offset['start_offset']
+
+        return encoded_char_offsets, char_offsets
+
+    @staticmethod
     def _get_word_offsets_chars(
-        offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
+        offsets: Dict[str, Union[str, float]],
+        word_delimiter_char: str = " ",
+        supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of character time stamps.
@@ -847,10 +1133,17 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     end_offset = offset["end_offset"]
                     word += char
                 else:
+                    next_puntuation = (
+                        (supported_punctuation and offsets[i + 1]['char'][0] in supported_punctuation)
+                        if i < len(offsets) - 1
+                        else False
+                    )
                     # Switching state
-                    if state == "SPACE":
+                    if state == "SPACE" and not next_puntuation:
                         # Finishing a word
                         word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+                    elif state == "SPACE" and next_puntuation:
+                        continue
                     else:
                         # Starting a new word
                         start_offset = offset["start_offset"]
@@ -870,6 +1163,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         hypothesis: Hypothesis,
         decode_ids_to_tokens: Callable[[List[int]], str],
         decode_tokens_to_str: Callable[[List[int]], str],
+        rnnt_token: int,
+        supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of sub-word time stamps.
@@ -888,40 +1183,44 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             "end_offset".
         """
         word_offsets = []
-        built_token = []
+        built_word = ""
         previous_token_index = 0
         # For every offset token
         for i, offset in enumerate(offsets):
-            # For every subword token in offset token list (ignoring the RNNT Blank token at the end)
-            for char in offset['char'][:-1]:
-                char = int(char)
+            # For every subword token in offset token list (ignoring the RNNT Blank token if it exists)
+            for char in offset['char']:
+                if char != rnnt_token:
+                    char = int(char)
 
-                # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
-                token = decode_ids_to_tokens([char])[0]
-                token_text = decode_tokens_to_str([char])
+                    # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
+                    token = decode_ids_to_tokens([char])[0]
+                    token_text = decode_tokens_to_str([char])
 
-                # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
-                # after forcing partial text conversion of the token.
-                if token != token_text:
-                    # If there are any partially or fully built sub-word token ids, construct to text.
-                    # Note: This is "old" subword, that occurs *after* current sub-word has started.
-                    if built_token:
-                        word_offsets.append(
-                            {
-                                "word": decode_tokens_to_str(built_token),
-                                "start_offset": offsets[previous_token_index]["start_offset"],
-                                "end_offset": offsets[i]["start_offset"],
-                            }
-                        )
+                    # It is a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
+                    if supported_punctuation and token_text in supported_punctuation:
+                        built_word += token_text.strip()
+                    # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
+                    # after forcing partial text conversion of the token.
+                    elif token != token_text:
+                        # If there is partially or fully built word, append to word offsets.
+                        # Note: This is "old" subword, that occurs *after* current sub-word has started.
+                        if built_word:
+                            word_offsets.append(
+                                {
+                                    "word": built_word.strip(),
+                                    "start_offset": offsets[previous_token_index]["start_offset"],
+                                    "end_offset": offsets[i - 1]["end_offset"],
+                                }
+                            )
 
-                    # Prepare list of new sub-word ids
-                    built_token.clear()
-                    built_token.append(char)
-                    previous_token_index = i
-                else:
-                    # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
-                    # Append to current sub-word list.
-                    built_token.append(char)
+                        # Prepare new built_word
+                        built_word = ""
+                        built_word += token_text
+                        previous_token_index = i
+                    else:
+                        # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
+                        # Append to current built word.
+                        built_word += token_text.strip()
 
         # Inject the start offset of the first token to word offsets
         # This is because we always skip the delay the injection of the first sub-word due to the loop
@@ -931,26 +1230,111 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         if offsets and word_offsets:
             word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
-        # If there are any remaining tokens left, inject them all into the final word offset.
+        # If there is any built word left, inject it into the final word offset.
         # The start offset of this token is the start time of the next token to process.
         # The end offset of this token is the end time of the last token from offsets.
-        # Note that built_token is a flat list; but offsets contains a nested list which
-        # may have different dimensionality.
-        # As such, we can't rely on the length of the list of built_token to index offsets.
-        if built_token:
+        # Note that as we group tokens into words, we need to keep track of
+        # the index of the first token in each word within the full char_offsets list.
+        # This lets us retrieve the correct start_offset for that word.
+        if built_word:
             # start from the previous token index as this hasn't been committed to word_offsets yet
             # if we still have content in built_token
             start_offset = offsets[previous_token_index]["start_offset"]
             word_offsets.append(
                 {
-                    "word": decode_tokens_to_str(built_token),
+                    "word": built_word.strip(),
                     "start_offset": start_offset,
                     "end_offset": offsets[-1]["end_offset"],
                 }
             )
-        built_token.clear()
-
         return word_offsets
+
+    @staticmethod
+    def _get_segment_offsets(
+        offsets: Dict[str, Union[str, float]],
+        segment_delimiter_tokens: List[str],
+        supported_punctuation: Optional[Set] = None,
+        segment_gap_threshold: Optional[int] = None,
+    ) -> Dict[str, Union[str, float]]:
+        """
+        Utility method which constructs segment time stamps out of word time stamps.
+
+        Args:
+            offsets: A list of dictionaries, each containing "word", "start_offset" and "end_offset".
+            segments_delimiter_tokens: List containing tokens representing the seperator(s) between segments.
+            supported_punctuation: Set containing punctuation marks in the vocabulary.
+            segment_gap_threshold: Number of frames between 2 consecutive words necessary to form segments out of plain
+            text.
+        Returns:
+            A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
+            "end_offset".
+        """
+        if (
+            supported_punctuation
+            and not set(segment_delimiter_tokens).intersection(supported_punctuation)
+            and not segment_gap_threshold
+        ):
+            logging.warning(
+                f"Specified segment seperators are not in supported punctuation {supported_punctuation}. "
+                "If the seperators are not punctuation marks, ignore this warning. "
+                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments.",
+                mode=logging_mode.ONCE,
+            )
+
+        segment_offsets = []
+        segment_words = []
+        previous_word_index = 0
+
+        # For every offset word
+        for i, offset in enumerate(offsets):
+
+            word = offset['word']
+            # check if thr word ends with any delimeter token or the word itself is a delimeter
+            if segment_gap_threshold and segment_words:
+                gap_between_words = offset['start_offset'] - offsets[i - 1]['end_offset']
+
+                if gap_between_words >= segment_gap_threshold:
+                    segment_offsets.append(
+                        {
+                            "segment": ' '.join(segment_words),
+                            "start_offset": offsets[previous_word_index]["start_offset"],
+                            "end_offset": offsets[i - 1]["end_offset"],
+                        }
+                    )
+
+                    segment_words = [word]
+                    previous_word_index = i
+                    continue
+
+            elif word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
+                segment_words.append(word)
+                if segment_words:
+                    segment_offsets.append(
+                        {
+                            "segment": ' '.join(segment_words),
+                            "start_offset": offsets[previous_word_index]["start_offset"],
+                            "end_offset": offset["end_offset"],
+                        }
+                    )
+
+                segment_words = []
+                previous_word_index = i + 1
+                continue
+
+            segment_words.append(word)
+
+        if segment_words:
+            start_offset = offsets[previous_word_index]["start_offset"]
+            segment_offsets.append(
+                {
+                    "segment": ' '.join(segment_words),
+                    "start_offset": start_offset,
+                    "end_offset": offsets[-1]["end_offset"],
+                }
+            )
+        segment_words.clear()
+
+        return segment_offsets
 
 
 class RNNTDecoding(AbstractRNNTDecoding):
@@ -1007,8 +1391,12 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word
+                    confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
+                tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
+                    attached to the regular frame confidence,
+                    making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
 
@@ -1080,8 +1468,8 @@ class RNNTDecoding(AbstractRNNTDecoding):
                         per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
                         at increased cost to execution time.
 
-                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                        If an integer is provided, it can decode sequences of that particular maximum length.
+                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence
+                        length. If an integer is provided, it can decode sequences of that particular maximum length.
                         If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
                         where seq_len is the length of the acoustic model output (T).
 
@@ -1093,22 +1481,23 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                         and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                        in order to reduce expensive beam search cost later. int >= 0.
+                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to
+                    keep this as 1 in order to reduce expensive beam search cost later. int >= 0.
 
                     maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
                         Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                        and affects the speed of inference since large values will perform large beam search in the next step.
+                        and affects the speed of inference since large values will perform large beam search in the
+                        next step.
 
-                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                        The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                        where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                        predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                        expansion apart from the "most likely" candidate.
-                        Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                        but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                        thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                        tuned on a validation set.
+                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the
+                        expansions. The default (2.3) is selected from the paper. It performs a comparison
+                        (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and
+                        max_log_prob is the "most" likely token to be predicted. Gamma therefore provides a margin of
+                        additional tokens which can be potential candidates for expansion apart from the "most likely"
+                        candidate. Lower values will reduce the number of expansions (by increasing pruning-by-value,
+                        thereby improving speed but hurting accuracy). Higher values will increase the number of
+                        expansions (by reducing pruning-by-value, thereby reducing speed but potentially improving
+                        accuracy). This is a hyper parameter to be experimentally tuned on a validation set.
 
                     softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
@@ -1118,10 +1507,17 @@ class RNNTDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(
-        self, decoding_cfg, decoder, joint, vocabulary,
+        self,
+        decoding_cfg,
+        decoder,
+        joint,
+        vocabulary,
     ):
         # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
         blank_id = len(vocabulary) + joint.num_extra_outputs
+        supported_punctuation = {
+            char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')
+        }
 
         if hasattr(decoding_cfg, 'model_type') and decoding_cfg.model_type == 'tdt':
             blank_id = len(vocabulary)
@@ -1129,10 +1525,16 @@ class RNNTDecoding(AbstractRNNTDecoding):
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super(RNNTDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id,
+            decoding_cfg=decoding_cfg,
+            decoder=decoder,
+            joint=joint,
+            blank_id=blank_id,
+            supported_punctuation=supported_punctuation,
         )
 
-        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer):
+        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(
+            self.decoding, tdt_beam_decoding.BeamTDTInfer
+        ):
             self.decoding.set_decoding_type('char')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
@@ -1246,6 +1648,11 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
             word_seperator: Str token representing the seperator between words.
 
+            segment_seperators: List containing tokens representing the seperator(s) between segments.
+
+            segment_gap_threshold: The threshold (in frames) that caps the gap between two words necessary for forming
+                the segments.
+
             preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
                 generated during decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
@@ -1273,8 +1680,11 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
-                    Valid options are `mean`, `min`, `max`, `prod`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word
+                    confidence. Valid options are `mean`, `min`, `max`, `prod`.
+                tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
+                    attached to the regular frame confidence,
+                    making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
 
@@ -1343,8 +1753,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                         per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
                         at increased cost to execution time.
 
-                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                        If an integer is provided, it can decode sequences of that particular maximum length.
+                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence
+                        length.If an integer is provided, it can decode sequences of that particular maximum length.
                         If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
                         where seq_len is the length of the acoustic model output (T).
 
@@ -1356,22 +1766,23 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                     maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                         and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                        in order to reduce expensive beam search cost later. int >= 0.
+                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to
+                        keep this as 1 in order to reduce expensive beam search cost later. int >= 0.
 
                     maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
                         Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                        and affects the speed of inference since large values will perform large beam search in the next step.
+                        and affects the speed of inference since large values will perform large beam search in the
+                        next step.
 
-                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                        The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                        where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                        predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                        expansion apart from the "most likely" candidate.
-                        Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                        but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                        thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                        tuned on a validation set.
+                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the
+                        expansions. The default (2.3) is selected from the paper. It performs a comparison
+                        (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and
+                        max_log_prob is the "most" likely token to be predicted. Gamma therefore provides a margin of
+                        additional tokens which can be potential candidates for expansion apart from the "most likely"
+                        candidate. Lower values will reduce the number of expansions (by increasing pruning-by-value,
+                        thereby improving speed but hurting accuracy). Higher values will increase the number of
+                        expansions (by reducing pruning-by-value, thereby reducing speed but potentially improving
+                        accuracy). This is a hyper parameter to be experimentally tuned on a validation set.
 
                     softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
@@ -1382,6 +1793,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size  # RNNT or TDT models.
+        supported_punctuation = tokenizer.supported_punctuation
 
         # multi-blank RNNTs
         if hasattr(decoding_cfg, 'model_type') and decoding_cfg.model_type == 'multiblank':
@@ -1390,10 +1802,16 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         self.tokenizer = tokenizer
 
         super(RNNTBPEDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
+            decoding_cfg=decoding_cfg,
+            decoder=decoder,
+            joint=joint,
+            blank_id=blank_id,
+            supported_punctuation=supported_punctuation,
         )
 
-        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer):
+        if isinstance(self.decoding, rnnt_beam_decoding.BeamRNNTInfer) or isinstance(
+            self.decoding, tdt_beam_decoding.BeamTDTInfer
+        ):
             self.decoding.set_decoding_type('subword')
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
@@ -1494,7 +1912,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                     hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
             else:
                 logging.warning(
-                    "Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer"
+                    "Ignoring request for lang output in hypotheses since the model does not use an aggregate \
+                        tokenizer"
                 )
 
         return hypotheses
@@ -1502,6 +1921,10 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
 @dataclass
 class RNNTDecodingConfig:
+    """
+    RNNT Decoding config
+    """
+
     model_type: str = "rnnt"  # one of "rnnt", "multiblank" or "tdt"
     strategy: str = "greedy_batch"
 
@@ -1509,6 +1932,9 @@ class RNNTDecodingConfig:
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
+
+    # include token duration
+    tdt_include_token_duration: Optional[bool] = None
 
     #  confidence config
     confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
@@ -1524,6 +1950,12 @@ class RNNTDecodingConfig:
 
     # token representing word seperator
     word_seperator: str = " "
+
+    # tokens representing segments seperators
+    segment_seperators: Optional[List[str]] = field(default_factory=lambda: [".", "!", "?"])
+
+    # threshold (in frames) that caps the gap between two words necessary for forming the segments
+    segment_gap_threshold: Optional[int] = None
 
     # type of timestamps to calculate
     rnnt_timestamp_type: str = "all"  # can be char, word or all for both
@@ -1550,4 +1982,8 @@ class RNNTDecodingConfig:
 
 @dataclass
 class RNNTBPEDecodingConfig(RNNTDecodingConfig):
+    """
+    RNNT BPE Decoding Config
+    """
+
     pass

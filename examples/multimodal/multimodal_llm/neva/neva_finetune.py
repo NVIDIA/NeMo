@@ -22,8 +22,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-mp.set_start_method("spawn", force=True)
-
 
 @hydra_runner(config_path="conf", config_name="neva_finetune")
 def main(cfg) -> None:
@@ -42,6 +40,7 @@ def main(cfg) -> None:
             override_config_path=cfg.model,
             save_restore_connector=NLPSaveRestoreConnector(),
             strict=False,
+            validate_access_integrity=False if cfg.model.pipeline_model_parallel_size > 1 else True,
         )
 
     trainer.fit(model)

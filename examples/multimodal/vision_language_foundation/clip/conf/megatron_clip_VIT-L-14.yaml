@@ -1,3 +1,50 @@
+trainer:
+  devices: 1
+  num_nodes: 1
+  accelerator: gpu
+  precision: 32
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  use_distributed_sampler: False
+  max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
+  max_steps: 375000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
+  val_check_interval: 100
+  check_val_every_n_epoch: null
+  limit_val_batches: 50
+  limit_test_batches: 500
+  accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
+  gradient_clip_val: 1.0
+  benchmark: False
+  enable_model_summary: False # default PTL callback for this does not support model parallelism, instead we log manually
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: megatron_clip
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: null
+    name: null
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint}
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
+    filename: 'megatron_clip--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+  ema:
+    enable: False
+    decay: 0.9999
+    validate_original_weights: False
+    every_n_steps: 1
+    cpu_offload: False
+
 model:
   precision: 32
   # specify micro_batch_size, global_batch_size, and model parallelism
@@ -18,6 +65,9 @@ model:
   #  numerical results as the naïve method.
   local_loss: False # calculate loss w/ local features @ global (instead of realizing full global @ global matrix)
   gather_with_grad: True # enable full distributed gradient for feature gather, set this to False may cause convergence issue
+
+  mcore_gpt: False
+  transformer_engine: False
 
   vision:
     precision: 32
@@ -135,7 +185,6 @@ model:
     bias_activation_fusion: False
     megatron_legacy: True
 
-    transformer_engine: False
     fp8: False # enables fp8 in TransformerLayer forward
     fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
     fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID

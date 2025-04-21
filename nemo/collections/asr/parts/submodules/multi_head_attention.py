@@ -38,6 +38,7 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.attention
 import torch.nn.functional as F
 
 from nemo.utils import avoid_float16_autocast_context
@@ -48,6 +49,8 @@ __all__ = [
     'PositionalEncoding',
 ]
 
+INF_VAL = 10000.0
+
 
 class MultiHeadAttention(nn.Module):
     """Multi-Head Attention layer of Transformer.
@@ -55,21 +58,45 @@ class MultiHeadAttention(nn.Module):
         n_head (int): number of heads
         n_feat (int): size of the features
         dropout_rate (float): dropout rate
+        use_bias (bool): whether to remove bias in linear and conv layers
+        use_pytorch_sdpa (bool): use torch sdpa instead of manual attention
+        use_pytorch_sdpa_backends list[str]: list of backend names to use in sdpa. None or empty list means all backends. e.g. ["MATH"]
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0):
+    def __init__(
+        self,
+        n_head,
+        n_feat,
+        dropout_rate,
+        max_cache_len=0,
+        use_bias=True,
+        use_pytorch_sdpa=False,
+        use_pytorch_sdpa_backends=None,
+    ):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
+        self.use_pytorch_sdpa = use_pytorch_sdpa
+        if self.use_pytorch_sdpa and use_pytorch_sdpa_backends:
+            use_pytorch_sdpa_backends = list(
+                map(
+                    lambda backend_name: getattr(torch.nn.attention.SDPBackend, backend_name),
+                    use_pytorch_sdpa_backends,
+                )
+            )
+        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
+
         self.cache_drop_size = None
+        self.use_bias = use_bias
+        self.dropout_rate = dropout_rate
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
         self.s_d_k = math.sqrt(self.d_k)
         self.h = n_head
-        self.linear_q = nn.Linear(n_feat, n_feat)
-        self.linear_k = nn.Linear(n_feat, n_feat)
-        self.linear_v = nn.Linear(n_feat, n_feat)
-        self.linear_out = nn.Linear(n_feat, n_feat)
+        self.linear_q = nn.Linear(n_feat, n_feat, bias=use_bias)
+        self.linear_k = nn.Linear(n_feat, n_feat, bias=use_bias)
+        self.linear_v = nn.Linear(n_feat, n_feat, bias=use_bias)
+        self.linear_out = nn.Linear(n_feat, n_feat, bias=use_bias)
         self.dropout = nn.Dropout(p=dropout_rate)
 
         self._max_cache_len = max_cache_len
@@ -107,7 +134,7 @@ class MultiHeadAttention(nn.Module):
         n_batch = value.size(0)
         if mask is not None:
             mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
-            scores = scores.masked_fill(mask, -10000.0)
+            scores = scores.masked_fill(mask, -INF_VAL)
             attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
         else:
             attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
@@ -139,8 +166,36 @@ class MultiHeadAttention(nn.Module):
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
-            scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
-            out = self.forward_attention(v, scores, mask)
+
+            if self.use_pytorch_sdpa:
+                n_batch = value.size(0)
+
+                if mask is not None:
+                    mask = ~mask.unsqueeze(1)
+
+                dropout_rate = self.dropout_rate if self.training else 0
+                if self.use_pytorch_sdpa_backends:
+                    with torch.nn.attention.sdpa_kernel(self.use_pytorch_sdpa_backends):
+                        out = torch.nn.functional.scaled_dot_product_attention(
+                            q, k, v, attn_mask=mask, dropout_p=dropout_rate
+                        )
+                else:
+                    out = torch.nn.functional.scaled_dot_product_attention(
+                        q, k, v, attn_mask=mask, dropout_p=dropout_rate
+                    )
+
+                # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
+                if mask is not None:
+                    all_masked_rows = torch.all(~mask, dim=-1)
+                    all_masked_rows.unsqueeze_(-1)
+                    out = out.masked_fill(all_masked_rows, 0.0)
+
+                out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+                out = self.linear_out(out)  # (batch, time1, d_model)
+            else:
+                scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
+                out = self.forward_attention(v, scores, mask)
+
         if cache is None:
             return out
         else:
@@ -161,11 +216,31 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         n_head (int): number of heads
         n_feat (int): size of the features
         dropout_rate (float): dropout rate
+        use_bias (bool): whether to apply bias in linear and conv layers of MultiHeadAttention
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0):
+    def __init__(
+        self,
+        n_head,
+        n_feat,
+        dropout_rate,
+        pos_bias_u,
+        pos_bias_v,
+        max_cache_len=0,
+        use_bias=True,
+        use_pytorch_sdpa=False,
+        use_pytorch_sdpa_backends=None,
+    ):
         """Construct an RelPositionMultiHeadedAttention object."""
-        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=max_cache_len)
+        super().__init__(
+            n_head=n_head,
+            n_feat=n_feat,
+            dropout_rate=dropout_rate,
+            max_cache_len=max_cache_len,
+            use_bias=use_bias,
+            use_pytorch_sdpa=use_pytorch_sdpa,
+            use_pytorch_sdpa_backends=use_pytorch_sdpa_backends,
+        )
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable biases are used in matrix c and matrix d
@@ -219,6 +294,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 
             n_batch_pos = pos_emb.size(0)
+            n_batch = value.size(0)
             p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k)
             p = p.transpose(1, 2)  # (batch, head, time1, d_k)
 
@@ -231,18 +307,46 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             # first compute matrix a and matrix c
             # as described in https://arxiv.org/abs/1901.02860 Section 3.3
             # (batch, head, time1, time2)
-            matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
 
             # compute matrix b and matrix d
             # (batch, head, time1, time2)
             matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
             matrix_bd = self.rel_shift(matrix_bd)
-            # drops extra elements in the matrix_bd to match the matrix_ac's size
-            matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
-            scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
+            if self.use_pytorch_sdpa:
+                scale_factor = 1 / math.sqrt(q_with_bias_u.size(-1))
+                matrix_bd = matrix_bd[:, :, :, : k.size(-2)] * scale_factor
 
-            out = self.forward_attention(v, scores, mask)
+                if mask is not None:
+                    mask = mask.unsqueeze(1)
+                    matrix_bd.masked_fill_(mask, -INF_VAL)
+
+                dropout_rate = self.dropout_rate if self.training else 0
+                if self.use_pytorch_sdpa_backends:
+                    with torch.nn.attention.sdpa_kernel(self.use_pytorch_sdpa_backends):
+                        out = torch.nn.functional.scaled_dot_product_attention(
+                            q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=dropout_rate
+                        )
+                else:
+                    out = torch.nn.functional.scaled_dot_product_attention(
+                        q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=dropout_rate
+                    )
+
+                # this IF block can be deleted when https://github.com/pytorch/pytorch/pull/131863 is in the stable version
+                if mask is not None:
+                    all_masked_rows = torch.all(mask, dim=-1)
+                    all_masked_rows.unsqueeze_(-1)
+                    all_masked_rows = all_masked_rows.expand(-1, out.size(1), -1, out.size(-1))
+                    out = out.masked_fill(all_masked_rows, 0.0)
+
+                out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+                out = self.linear_out(out)  # (batch, time1, d_model)
+            else:
+                # drops extra elements in the matrix_bd to match the matrix_ac's size
+                matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
+                matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
+                scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
+                out = self.forward_attention(v, scores, mask)
 
         if cache is None:
             return out
@@ -253,7 +357,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
     """Multi-Head Attention layer of Transformer-XL with sliding window local+global attention from Longformer.
     Partially adapted from allenai (https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py)
-    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py) 
+    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py)
     Paper: https://arxiv.org/abs/1901.02860 (Transformer-XL),
            https://arxiv.org/abs/2004.05150 (Longformer)
     Args:
@@ -267,6 +371,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_tokens (int): number of tokens to be used for global attention
         global_tokens_spacing (int): how far apart the global tokens are
         global_attn_separate (bool): whether the q, k, v layers used for global tokens should be separate
+        use_bias (bool): whether to apply bias in linear and conv layers of MultiHeadAttention
     """
 
     def __init__(
@@ -281,6 +386,9 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_tokens=0,
         global_tokens_spacing=1,
         global_attn_separate=False,
+        use_bias=True,
+        use_pytorch_sdpa=False,
+        use_pytorch_sdpa_backends=None,
     ):
         """Construct an RelPositionMultiHeadAttentionLongformer object."""
         super().__init__(
@@ -290,16 +398,23 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             pos_bias_u=pos_bias_u,
             pos_bias_v=pos_bias_v,
             max_cache_len=max_cache_len,
+            use_bias=use_bias,
+            use_pytorch_sdpa=use_pytorch_sdpa,
+            use_pytorch_sdpa_backends=use_pytorch_sdpa_backends,
         )
+
+        if use_pytorch_sdpa:
+            raise NotImplementedError("Not implemented for Longformer yet")
+
         self.att_context_size = att_context_size
         self.global_tokens = global_tokens
         self.global_tokens_spacing = global_tokens_spacing
         self.global_attn_separate = global_attn_separate
 
         if self.global_attn_separate:
-            self.global_q = nn.Linear(n_feat, n_feat)
-            self.global_k = nn.Linear(n_feat, n_feat)
-            self.global_v = nn.Linear(n_feat, n_feat)
+            self.global_q = nn.Linear(n_feat, n_feat, bias=use_bias)
+            self.global_k = nn.Linear(n_feat, n_feat, bias=use_bias)
+            self.global_v = nn.Linear(n_feat, n_feat, bias=use_bias)
 
     def forward(self, query, key, value, pad_mask, pos_emb, cache=None):
         """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
@@ -362,14 +477,14 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             # (batch, head, time, 2w + 1)
 
             # mask invalid positions
-            scores[:, :, :, :start_pos] = -10000.0
-            scores[:, :, :, end_pos + 1 :] = -10000.0
+            scores[:, :, :, :start_pos] = -INF_VAL
+            scores[:, :, :, end_pos + 1 :] = -INF_VAL
 
             # This implementation is fast and takes very little memory because num_heads x hidden_size = 1
             # from (bsz x seq_len) to (bsz x num_heads x seqlen x hidden_size)
             mask = mask.unsqueeze(dim=1).unsqueeze(dim=-1)
             # cast to float/half then replace 1's with -inf
-            float_mask = mask.type_as(scores).masked_fill(mask, -10000.0)
+            float_mask = mask.type_as(scores).masked_fill(mask, -INF_VAL)
             ones = float_mask.new_ones(size=float_mask.size())  # tensor of ones
             # diagonal mask with zeros everywhere and -inf inplace of padding
             d_mask = self.sliding_chunks_matmul_qk(ones, float_mask, w, padding_value=0.0)
@@ -650,13 +765,17 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_attn_scores = global_attn_scores.transpose(1, 2)
 
         global_attn_scores = global_attn_scores.masked_fill(
-            is_index_masked.transpose(2, 3), torch.finfo(global_attn_scores.dtype).min,
+            is_index_masked.transpose(2, 3),
+            torch.finfo(global_attn_scores.dtype).min,
         )
 
         global_attn_scores = global_attn_scores.view(batch_size * self.h, max_num_global_attn_indices, seq_len)
 
         # compute global attn probs
-        global_attn_probs_float = nn.functional.softmax(global_attn_scores, dim=-1, dtype=torch.float32)
+        if self.training:
+            global_attn_probs_float = nn.functional.softmax(global_attn_scores, dim=-1, dtype=torch.float32)
+        else:
+            global_attn_probs_float = nn.functional.softmax(global_attn_scores, dim=-1)
 
         global_attn_probs = self.dropout(global_attn_probs_float)
 
@@ -747,7 +866,9 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         return mask.bool().to(device), ending_mask
 
     def mask_invalid_locations(
-        self, input_tensor: torch.Tensor, w: int,
+        self,
+        input_tensor: torch.Tensor,
+        w: int,
     ):
         """
         Mask locations invalid for the sliding window attention
@@ -891,27 +1012,27 @@ class PositionalEncoding(torch.nn.Module):
         else:
             self.dropout_emb = None
 
-    def create_pe(self, positions):
+    def create_pe(self, positions, dtype):
         pos_length = positions.size(0)
         pe = torch.zeros(pos_length, self.d_model, device=positions.device)
         div_term = torch.exp(
             torch.arange(0, self.d_model, 2, dtype=torch.float32, device=positions.device)
-            * -(math.log(10000.0) / self.d_model)
+            * -(math.log(INF_VAL) / self.d_model)
         )
         pe[:, 0::2] = torch.sin(positions * div_term)
         pe[:, 1::2] = torch.cos(positions * div_term)
-        pe = pe.unsqueeze(0)
+        pe = pe.unsqueeze(0).to(dtype)
         if hasattr(self, 'pe'):
             self.pe = pe
         else:
             self.register_buffer('pe', pe, persistent=False)
 
-    def extend_pe(self, length, device):
+    def extend_pe(self, length, device, dtype):
         """Reset and extend the positional encodings if needed."""
         if hasattr(self, 'pe') and self.pe.size(1) >= length:
             return
         positions = torch.arange(0, length, dtype=torch.float32, device=device).unsqueeze(1)
-        self.create_pe(positions=positions)
+        self.create_pe(positions=positions, dtype=dtype)
 
     def forward(self, x: torch.Tensor, cache_len=0):
         """Adds positional encoding.
@@ -943,7 +1064,7 @@ class RelPositionalEncoding(PositionalEncoding):
         dropout_rate_emb (float): dropout rate for the positional embeddings
     """
 
-    def extend_pe(self, length, device):
+    def extend_pe(self, length, device, dtype):
         """Reset and extend the positional encodings if needed."""
         needed_size = 2 * length - 1
         if hasattr(self, 'pe') and self.pe.size(1) >= needed_size:
@@ -951,7 +1072,7 @@ class RelPositionalEncoding(PositionalEncoding):
         # positions would be from negative numbers to positive
         # positive positions would be used for left positions and negative for right positions
         positions = torch.arange(length - 1, -length, -1, dtype=torch.float32, device=device).unsqueeze(1)
-        self.create_pe(positions=positions)
+        self.create_pe(positions=positions, dtype=dtype)
 
     def forward(self, x, cache_len=0):
         """Compute positional encoding.
@@ -997,7 +1118,7 @@ class LocalAttRelPositionalEncoding(PositionalEncoding):
         self.left_context = att_context_size[0]
         self.right_context = att_context_size[1]
 
-    def extend_pe(self, length, device):
+    def extend_pe(self, length, device, dtype):
         """Reset and extend the positional encodings only at the beginning"""
         if hasattr(self, 'pe'):
             return
@@ -1005,7 +1126,7 @@ class LocalAttRelPositionalEncoding(PositionalEncoding):
         positions = torch.arange(
             self.left_context, -self.right_context - 1, -1, dtype=torch.float32, device=device
         ).unsqueeze(1)
-        self.create_pe(positions=positions)
+        self.create_pe(positions=positions, dtype=dtype)
 
     def forward(self, x, cache_len=0):
         """Compute positional encoding.

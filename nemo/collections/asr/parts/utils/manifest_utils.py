@@ -24,12 +24,13 @@ import numpy as np
 
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
-    get_subsegments,
+    get_subsegments_scriptable,
     get_uniqname_from_filepath,
     rttm_to_labels,
     segments_manifest_to_subsegments_manifest,
     write_rttm2manifest,
 )
+from nemo.utils import logging
 from nemo.utils.data_utils import DataStoreObject
 
 
@@ -65,13 +66,15 @@ def get_ctm_line(
     output_precision: int = 2,
 ) -> str:
     """
-    Get a line in Conversation Time Mark (CTM) format. Following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
-    
-    CTM Format: 
+    Get a line in Conversation Time Mark (CTM) format. Following CTM format appeared in
+    `Rich Transcription Meeting Eval Plan: RT09` document.
+
+    CTM Format:
         <SOURCE><SP><CHANNEL><SP><BEG-TIME><SP><DURATION><SP><TOKEN><SP><CONF><SP><TYPE><SP><SPEAKER><NEWLINE>
-    
-    Reference: 
-        https://web.archive.org/web/20170119114252/http://www.itl.nist.gov/iad/mig/tests/rt/2009/docs/rt09-meeting-eval-plan-v2.pdf
+
+    Reference:
+        https://web.archive.org/web/20170119114252/
+        http://www.itl.nist.gov/iad/mig/tests/rt/2009/docs/rt09-meeting-eval-plan-v2.pdf
 
     Args:
         source (str): <SOURCE> is name of the source file, session name or utterance ID
@@ -79,11 +82,14 @@ def get_ctm_line(
         start_time (float): <BEG_TIME> is the begin time of the word, which we refer to as `start_time` in NeMo.
         duration (float): <DURATION> is duration of the word
         token (str): <TOKEN> Token or word for the current entry
-        conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty). A value of “NA” is used (in CTM format data) 
-                      when no confidence is computed and in the reference data. 
-        type_of_token (str): <TYPE> is the token type. The legal values of <TYPE> are “lex”, “frag”, “fp”, “un-lex”, “for-lex”, “non-lex”, “misc”, or “noscore”
-        speaker (str): <SPEAKER> is a string identifier for the speaker who uttered the token. This should be “null” for non-speech tokens and “unknown” when
-                       the speaker has not been determined. 
+        conf (float): <CONF> is a floating point number between 0 (no confidence) and 1 (certainty).
+                      A value of “NA” is used (in CTM format data)
+                      when no confidence is computed and in the reference data.
+        type_of_token (str): <TYPE> is the token type. The legal values of <TYPE> are
+                      “lex”, “frag”, “fp”, “un-lex”, “for-lex”, “non-lex”, “misc”, or “noscore”
+        speaker (str): <SPEAKER> is a string identifier for the speaker who uttered the token.
+                      This should be “null” for non-speech tokens and “unknown” when
+                      the speaker has not been determined.
         NA_token (str, optional): A token for  . Defaults to '<NA>'.
         output_precision (int, optional): The precision of the output floating point number. Defaults to 3.
 
@@ -178,7 +184,7 @@ def get_subsegment_dict(subsegments_manifest_file: str, window: float, shift: fl
             segment = segment.strip()
             dic = json.loads(segment)
             audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
-            subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
+            subsegments = get_subsegments_scriptable(offset=offset, window=window, shift=shift, duration=duration)
             if dic['uniq_id'] is not None:
                 uniq_id = dic['uniq_id']
             else:
@@ -367,7 +373,11 @@ def create_segment_manifest(
     segments_manifest_file = write_rttm2manifest(AUDIO_RTTM_MAP, segment_manifest_path, deci)
     subsegments_manifest_file = subsegment_manifest_path
     segments_manifest_to_subsegments_manifest(
-        segments_manifest_file, subsegments_manifest_file, window, shift, min_subsegment_duration,
+        segments_manifest_file,
+        subsegments_manifest_file,
+        window,
+        shift,
+        min_subsegment_duration,
     )
     subsegments_dict = get_subsegment_dict(subsegments_manifest_file, window, shift, deci)
     write_truncated_subsegments(input_manifest_dict, subsegments_dict, output_manifest_path, step_count, deci)
@@ -476,10 +486,24 @@ def read_manifest(manifest: Union[Path, str]) -> List[dict]:
         f = open(manifest.get(), 'r', encoding='utf-8')
     except:
         raise Exception(f"Manifest file could not be opened: {manifest}")
-    for line in f:
-        item = json.loads(line)
+
+    errors = []
+    for line in f.readlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            errors.append(line)
+            continue
         data.append(item)
     f.close()
+    if errors:
+        logging.error(f"{len(errors)} Errors encountered while reading manifest file: {manifest}")
+        for error in errors:
+            logging.error(f"-- Failed to parse line: `{error}`")
+        raise RuntimeError(f"Errors encountered while reading manifest file: {manifest}")
     return data
 
 
@@ -490,7 +514,9 @@ def write_manifest(output_path: Union[Path, str], target_manifest: List[dict], e
     Args:
         output_path (str or Path): Path to output manifest file
         target_manifest (list): List of manifest file entries
-        ensure_ascii (bool): default is True, meaning the output is guaranteed to have all incoming non-ASCII characters escaped. If ensure_ascii is false, these characters will be output as-is.
+        ensure_ascii (bool): default is True, meaning the output is guaranteed to have all incoming
+                             non-ASCII characters escaped. If ensure_ascii is false, these characters
+                             will be output as-is.
     """
     with open(output_path, "w", encoding="utf-8") as outfile:
         for tgt in target_manifest:

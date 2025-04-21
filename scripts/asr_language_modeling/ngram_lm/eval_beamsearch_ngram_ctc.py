@@ -193,8 +193,10 @@ def beam_search_eval(
                     probs_batch[prob_index], device=packed_batch.device, dtype=packed_batch.dtype
                 )
 
-            _, beams_batch = decoding.ctc_decoder_predictions_tensor(
-                packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
+            beams_batch = decoding.ctc_decoder_predictions_tensor(
+                packed_batch,
+                decoder_lengths=probs_lens,
+                return_hypotheses=True,
             )
 
         for beams_idx, beams in enumerate(beams_batch):
@@ -312,22 +314,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
             )
     else:
 
-        @contextlib.contextmanager
-        def default_autocast():
-            yield
-
-        if cfg.use_amp:
-            if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-                logging.info("AMP is enabled!\n")
-                autocast = torch.cuda.amp.autocast
-
-            else:
-                autocast = default_autocast
-        else:
-
-            autocast = default_autocast
-
-        with autocast():
+        with torch.amp.autocast(asr_model.device.type, enabled=cfg.use_amp):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
@@ -348,9 +335,9 @@ def main(cfg: EvalBeamSearchNGramConfig):
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         if isinstance(asr_model, EncDecHybridRNNTCTCModel):
-            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0]
         else:
-            pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
+            pred_text = asr_model._wer.decoding.ctc_decoder_predictions_tensor(preds_tensor)[0]
 
         if cfg.text_processing.do_lowercase:
             pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]

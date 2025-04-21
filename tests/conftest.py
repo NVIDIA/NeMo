@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
 import os.path
 import shutil
 import tarfile
@@ -25,7 +26,7 @@ from typing import Tuple
 
 import pytest
 
-from tests.fixtures.tts import *
+from nemo.utils.metaclasses import Singleton
 
 # Those variables probably should go to main NeMo configuration file (config.yaml).
 __TEST_DATA_FILENAME = "test_data.tar.gz"
@@ -68,7 +69,7 @@ def pytest_addoption(parser):
 
 @pytest.fixture
 def device(request):
-    """ Simple fixture returning string denoting the device [CPU | GPU] """
+    """Simple fixture returning string denoting the device [CPU | GPU]"""
     if request.config.getoption("--cpu"):
         return "CPU"
     else:
@@ -115,6 +116,24 @@ def cleanup_local_folder():
         rmtree('./NeMo_experiments', ignore_errors=True)
     if Path("./nemo_experiments").exists():
         rmtree('./nemo_experiments', ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def reset_singletons():
+    Singleton._Singleton__instances = {}
+
+
+@pytest.fixture(autouse=True)
+def reset_env_vars():
+    # Store the original environment variables before the test
+    original_env = dict(os.environ)
+
+    # Run the test
+    yield
+
+    # After the test, restore the original environment
+    os.environ.clear()
+    os.environ.update(original_env)
 
 
 @pytest.fixture(scope="session")
@@ -175,6 +194,7 @@ def k2_cuda_is_enabled(k2_is_appropriate) -> Tuple[bool, str]:
         return k2_is_appropriate
 
     import torch  # noqa: E402
+
     from nemo.core.utils.k2_guard import k2  # noqa: E402
 
     if torch.cuda.is_available() and k2.with_cuda:
@@ -193,13 +213,16 @@ def pytest_configure(config):
     If file absent or sizes not equal, function downloads the archive from github and unpacks it.
     """
     config.addinivalue_line(
-        "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
+        "markers",
+        "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )
     config.addinivalue_line(
-        "markers", "with_downloads: runs the test using data present in tests/.data",
+        "markers",
+        "with_downloads: runs the test using data present in tests/.data",
     )
     config.addinivalue_line(
-        "markers", "nightly: runs the nightly test for QA.",
+        "markers",
+        "nightly: runs the nightly test for QA.",
     )
     # Test dir and archive filepath.
     test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)

@@ -12,27 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os.path
+
+import pickle
+import warnings
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 
 import joblib
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     ConfidenceConfig,
     ConfidenceMethodConfig,
     get_confidence_aggregation_bank,
     get_confidence_measure_bank,
 )
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.core.classes import ModelPT
 from nemo.utils import model_utils
+from nemo.utils.decorators import deprecated
 
 
 # frozen is required to allow hashing of this class and use it
@@ -62,7 +70,10 @@ class ConfidenceSpec:
             exclude_blank=self.exclude_blank,
             aggregation=self.aggregation,
             method_cfg=ConfidenceMethodConfig(
-                name=name, entropy_type=entropy_type, alpha=self.alpha, entropy_norm=entropy_norm,
+                name=name,
+                entropy_type=entropy_type,
+                alpha=self.alpha,
+                entropy_norm=entropy_norm,
             ),
         )
 
@@ -148,6 +159,82 @@ def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig)
     return conf_value
 
 
+def safe_joblib_load(file_path: str) -> Pipeline:
+    """
+    Safely load a joblib file containing a scikit-learn pipeline.
+
+    Args:
+        file_path: Path to the joblib file
+
+    Returns:
+        Pipeline: A scikit-learn pipeline object
+
+    Raises:
+        ValueError: If the file doesn't exist or contains unauthorized content
+        SecurityError: If the file contains potentially malicious content
+    """
+    if not os.path.exists(file_path):
+        raise ValueError(f"Model file not found: {file_path}")
+
+    # Define whitelist of allowed classes for deserialization
+    ALLOWED_CLASSES = {
+        'sklearn.pipeline.Pipeline',
+        'sklearn.preprocessing._data.StandardScaler',
+        'sklearn.linear_model._logistic.LogisticRegression',
+        'numpy.ndarray',
+        'numpy.dtype',
+        'numpy._pickle',
+    }
+
+    class RestrictedUnpickler(pickle.Unpickler):
+        def find_class(self, module, name):
+            # Only allow specific classes to be loaded
+            class_path = f"{module}.{name}"
+            if class_path in ALLOWED_CLASSES:
+                if module == "numpy._pickle":
+                    import numpy as np
+
+                    return getattr(np, name)
+                return super().find_class(module, name)
+            # Log and raise exception for unauthorized classes
+            raise SecurityError(f"Unauthorized class {class_path} in joblib file")
+
+    try:
+        # Use joblib's load function with our custom unpickler
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # First try to load with our custom unpickler
+            try:
+                with open(file_path, 'rb') as f:
+                    unpickler = RestrictedUnpickler(f)
+                    model = unpickler.load()
+            except (pickle.UnpicklingError, AttributeError):
+                # If that fails, try loading with joblib's default loader first
+                # then validate the loaded object
+                model = joblib.load(file_path)
+
+                # Validate the loaded object is a sklearn Pipeline
+                if not isinstance(model, Pipeline):
+                    raise ValueError("Loaded model must be a scikit-learn Pipeline")
+
+                # Validate pipeline steps
+                for step_name, step_obj in model.named_steps.items():
+                    if not (isinstance(step_obj, (StandardScaler, LogisticRegression))):
+                        raise ValueError(f"Unauthorized pipeline step: {type(step_obj)}")
+
+        return model
+
+    except Exception as e:
+        raise SecurityError(f"Failed to safely load model: {str(e)}")
+
+
+class SecurityError(Exception):
+    """Custom exception for security-related errors."""
+
+    pass
+
+
+@deprecated(version='v2.1.0')
 class ConfidenceEnsembleModel(ModelPT):
     """Implementation of the confidence ensemble model.
 
@@ -159,7 +246,9 @@ class ConfidenceEnsembleModel(ModelPT):
     """
 
     def __init__(
-        self, cfg: DictConfig, trainer: 'Trainer' = None,
+        self,
+        cfg: DictConfig,
+        trainer: 'Trainer' = None,
     ):
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -180,7 +269,9 @@ class ConfidenceEnsembleModel(ModelPT):
                 model_cfg = self.cfg[cfg_field]
                 model_class = model_utils.import_class_by_path(model_cfg['target'])
                 self.register_nemo_submodule(
-                    name=cfg_field, config_field=cfg_field, model=model_class(model_cfg, trainer=trainer),
+                    name=cfg_field,
+                    config_field=cfg_field,
+                    model=model_class(model_cfg, trainer=trainer),
                 )
         else:
             self.num_models = len(cfg.load_models)
@@ -196,14 +287,22 @@ class ConfidenceEnsembleModel(ModelPT):
                     )
                 else:
                     self.register_nemo_submodule(
-                        cfg_field, config_field=cfg_field, model=ASRModel.from_pretrained(model, map_location="cpu"),
+                        cfg_field,
+                        config_field=cfg_field,
+                        model=ASRModel.from_pretrained(model, map_location="cpu"),
                     )
 
         # registering model selection block - this is expected to be a joblib-saved
         # pretrained sklearn pipeline containing standardization + logistic regression
         # trained to predict "most-confident" model index from the confidence scores of all models
         model_selection_block_path = self.register_artifact("model_selection_block", cfg.model_selection_block)
-        self.model_selection_block = joblib.load(model_selection_block_path)
+        try:
+            self.model_selection_block = safe_joblib_load(model_selection_block_path)
+        except SecurityError as e:
+            raise RuntimeError(f"Security error loading model selection block: {str(e)}")
+        except Exception as e:
+            raise RuntimeError(f"Error loading model selection block: {str(e)}")
+
         self.confidence_cfg = ConfidenceConfig(**self.cfg.confidence)
 
         # making sure each model has correct temperature setting in the decoder strategy

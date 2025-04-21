@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models.radtts import RadTTSModel
@@ -68,7 +68,7 @@ def main(cfg):
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
-    trainer.fit(model.cuda())
+    trainer.fit(model)
 
 
 if __name__ == '__main__':

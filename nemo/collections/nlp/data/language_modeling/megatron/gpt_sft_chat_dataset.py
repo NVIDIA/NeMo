@@ -73,7 +73,7 @@ def get_prompt_template_example(special_tokens):
 
 
 def identify_start_index_of_subsequence(subsequence, sequence):
-    """ find the location of the small tensor in the large tensor.
+    """find the location of the small tensor in the large tensor.
         e.g.  small = [1,3], large = [2,3,1,3], returns 2
               small = [3,2], large = [2,3,1,3], returns -1
     Args:
@@ -100,7 +100,7 @@ def _mask_targets(
     label_start_ids,
     num_turn_start_tokens,
 ):
-    """ This function masks the tokens so the loss is computed only on the non-masked role's responses.
+    """This function masks the tokens so the loss is computed only on the non-masked role's responses.
     For 'TEXT_TO_VALUE' type, the loss is computed on the value attributes.
 
     Args:
@@ -110,10 +110,12 @@ def _mask_targets(
         header_len (int): the system prompt length
         s_ids (List[Tensor]): array of tokenized ids of each turns
         tokenizer (TokenizerSpec): tokenizer object
-        mask_role (str): the speaker id to be masked from loss computation
+        mask_role (str): the speaker id to be masked from loss computation.
+            If there is more than 1 masked role, `mask_role` is a comma-separated string of the roles
         gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
         name_end_token_ids (int): end of name token ids
-        special_tokens (dict): special tokens used for the chat prompt. It has the keys: system_turn_start, turn_start, label_start, end_of_turn
+        special_tokens (dict): special tokens used for the chat prompt.
+            It has the keys: system_turn_start, turn_start, label_start, end_of_turn
         label_start_ids (list): list of label start token ids,
         num_turn_start_tokens (int): number of tokens of the turn_start str
     """
@@ -144,7 +146,8 @@ def _mask_targets(
                 # newline_loc = torch.where((s_id[skip_name_len:] == name_end_token_ids))[0]
                 newline_loc = identify_start_index_of_subsequence(name_end_token_ids, s_id[skip_name_len:])
                 if newline_loc < 0:
-                    # cannot find new line token, which means the the whole turn is just a partial label string. Mask the whole turn
+                    # cannot find new line token, which means the the whole turn is just a partial label string.
+                    # Mask the whole turn
                     target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
                     continue
                 # skip the label part and the new line token
@@ -153,7 +156,8 @@ def _mask_targets(
                 skip_name_len += more_skip_len
             elif gtype == 'TEXT_TO_VALUE':
                 # handles the case that condition on response to generate label
-                # skip the name part, response and the label start tokens part, the remainder is the label string without label start, e.g. 'quality:9,toxicity:8...'
+                # skip the name part, response and the label start tokens part, the remainder is
+                # the label string without label start, e.g. 'quality:9,toxicity:8...'
                 skip_name_len = location + len(label_start_ids)
         if cur_idx >= tgt_len:
             break
@@ -164,17 +168,18 @@ def _mask_targets(
         if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
             # mask the first turn completely to provide at least one turn as context for the rest
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
+        elif speaker in mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
             # leave the first turn start tag unmasked, servers severs as the end of turn signal
             target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role and (i > 1):
+        elif speaker in mask_role and (i > 1):
             # leave the first turn start tag unmasked, which severs as the end of turn signal
             target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker == mask_role and (i <= 1):
+        elif speaker in mask_role and (i <= 1):
             # mask out everything in the second turn
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         else:
-            # mask up to name part, label part for VALUE_TO_TEXT, or name part, response and label start tokens for TEXT_TO_VALUE, or just the name part if gtype is None
+            # mask up to name part, label part for VALUE_TO_TEXT, or name part,
+            # response and label start tokens for TEXT_TO_VALUE, or just the name part if gtype is None
             target[cur_idx : cur_idx + skip_name_len] = IGNORE_INDEX
         cur_idx += tokenized_len
 
@@ -237,8 +242,9 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 f"source type {gtype} not supported, only 'VALUE_TO_TEXT' and 'TEXT_TO_VALUE' are supported"
             )
         conversation += sentence["value"]
-        # if the last turn is not masked, add next token start token to the end, which will be included for loss calculation
-        if sentence_from != mask_role and i == len(source) - 1:
+        # if the last turn is not masked, add next token start token to the end,
+        # which will be included for loss calculation
+        if sentence_from not in mask_role and i == len(source) - 1:
             conversation += TURN_TOKEN
     return conversation
 
@@ -276,7 +282,11 @@ def preprocess(
         ids.append(torch.tensor(tokenized_sentence))
         tokenized_lens.append(len(tokenized_sentence))
     speakers = [sentence["from"] for sentence in source['conversations']]
-    assert mask_role in speakers, "mask role not in the conversation"
+    # assert mask_role in speakers, "mask role not in the conversation"
+    split_mask = mask_role.split(',')
+    for s in split_mask:
+        assert s in speakers, "mask role not in the conversation"
+
     target = torch.LongTensor(target)
     # not going to train on the header
     target[:header_len] = IGNORE_INDEX
@@ -310,7 +320,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
 
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
-        assert hasattr(self.tokenizer, "vocab"), "tokenizer should have vocab property, not supported"
         LABEL_START = self.special_tokens['label_start']
         END_NAME_SIGNAL = self.special_tokens['end_of_name']
 
@@ -370,11 +379,12 @@ class GPTSFTChatDataset(GPTSFTDataset):
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
-            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
+            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult))
         assert max_length <= self.max_seq_length
 
-        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-        attention_mask = torch.stack(attention_mask)
+        if not self.get_attention_mask_from_fusion:
+            attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+            attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
@@ -389,7 +399,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
         processed_batch = {
             'tokens': input_ids,
             'labels': labels,
-            'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
             'contexts': contexts,
@@ -397,5 +406,8 @@ class GPTSFTChatDataset(GPTSFTDataset):
             'answers': answers,
             'metadata': metadata,
         }
+
+        if not self.get_attention_mask_from_fusion:
+            processed_batch['attention_mask'] = attention_mask
 
         return processed_batch

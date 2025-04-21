@@ -80,6 +80,14 @@ python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --chunk_size=64 \
     --workers=64 
 ```
+
+This script supports multiple tokenizer libraries for data preprocessing.
+
+Example1: Preprocess data using any tokenizer hosted on HuggingFace:
+          --tokenizer-library=sentencepiece --tokenizer-type=HF-URL
+Example2: Preprocess data using SentencePiece tokenizer with tokenizer.model:
+          --tokenizer-library=sentencepiece --tokenizer-model=tokenizer.model
+Refer to get_nmt_tokenizer in nemo/collections/nlp/modules/common/tokenizer_util.py for complete usage.
 """
 
 import argparse
@@ -103,6 +111,7 @@ try:
     nltk_available = True
 except ImportError:
     nltk_available = False
+
 
 # https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
 class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
@@ -221,10 +230,16 @@ def get_args():
         help='What tokenizer library to use.',
     )
     group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+        '--tokenizer-type',
+        type=str,
+        default=None,
+        help='What type of tokenizer to use.',
     )
     group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+        '--tokenizer-model',
+        type=str,
+        default=None,
+        help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--files-filter', type=str, default='**/*.json*', help='files filter str')
@@ -248,7 +263,7 @@ def get_args():
     group.add_argument(
         '--preproc-folder',
         action='store_true',
-        help='If set, will preprocess all .json or .json.gz files into a single .bin and .idx file. Folder path provided via the --input arg',
+        help='If set, will preprocess all .json or .jsonl or json.gz or .jsonl.gz files into a single .bin and .idx file. Folder path provided via the --input arg',
     )
     group.add_argument('--apply-ftfy', action='store_true', help='If set, will apply ftfy to the input text')
     args = parser.parse_args()
@@ -272,14 +287,18 @@ def main():
     args = get_args()
     startup_start = time.time()
     if args.preproc_folder:
-        print('Searching folder for .json or .json.gz files...')
+        print('Searching folder for .json or .jsonl or json.gz or .jsonl.gz files...')
         assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
         json_files = (str(f) for f in pathlib.Path(args.input).glob(args.files_filter))
-        json_files = [f for f in json_files if f.endswith('.json') or f.endswith('.json.gz')]
+        json_files = [
+            f
+            for f in json_files
+            if f.endswith('.json') or f.endswith('.jsonl') or f.endswith('.json.gz') or f.endswith('.jsonl.gz')
+        ]
         if len(json_files) == 0:
-            raise FileNotFoundError('No .json or .json.gz files found in folder.')
+            raise FileNotFoundError('No .json or .jsonl or json.gz or .jsonl.gz files found in folder.')
         else:
-            print(f'Found {len(json_files)} .json or .json.gz files.')
+            print(f'Found {len(json_files)} .json or .jsonl or json.gz or .jsonl.gz files.')
     else:
         assert os.path.exists(args.input), f'File does not exist: {args.input}'
         json_files = [args.input]
@@ -327,7 +346,7 @@ def main():
         if json_file.endswith('.gz'):
             fin = gzip.open(json_file, 'r')
         else:
-            fin = open(args.input, 'r', encoding='utf-8')
+            fin = open(json_file, 'r', encoding='utf-8')
 
         encoded_docs = pool.imap(encoder.encode, fin, 25)
 

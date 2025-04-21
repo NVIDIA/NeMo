@@ -14,6 +14,7 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
+from __future__ import annotations
 import copy
 import hashlib
 import inspect
@@ -26,14 +27,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import hydra
 import torch
 import wrapt
-from huggingface_hub import HfApi
+from huggingface_hub import _CACHED_NO_EXIST, HfApi
 from huggingface_hub import get_token as get_hf_token
-from huggingface_hub import hf_hub_download, snapshot_download
+from huggingface_hub import hf_hub_download, snapshot_download, try_to_load_from_cache
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
@@ -133,7 +134,7 @@ class TypecheckMetadata:
                 while isinstance(type_val, (list, tuple)):
                     if len(type_val) > 1:
                         raise TypeError(
-                            f"Neural Type `{type_key}`: {type_val} definition contains more than one element when"
+                            f"Neural Type `{type_key}`: {type_val} definition contains more than one element when "
                             "declaring the nested container structure.\n"
                             "Please ensure that you have only 1 NeuralType inside of the entire nested structure "
                             "definition."
@@ -219,7 +220,10 @@ class Typing(ABC):
                     hasattr(value, 'neural_type')
                     and is_semantic_typecheck_enabled()
                     and not metadata.base_types[key].compare(value.neural_type)
-                    in (NeuralTypeComparisonResult.SAME, NeuralTypeComparisonResult.GREATER,)
+                    in (
+                        NeuralTypeComparisonResult.SAME,
+                        NeuralTypeComparisonResult.GREATER,
+                    )
                 ):
                     error_msg = [
                         f"{input_types[key].compare(value.neural_type)} :",
@@ -398,7 +402,10 @@ class Typing(ABC):
             hasattr(obj, 'neural_type')
             and is_semantic_typecheck_enabled()
             and not type_val.compare(obj.neural_type)
-            in (NeuralTypeComparisonResult.SAME, NeuralTypeComparisonResult.GREATER,)
+            in (
+                NeuralTypeComparisonResult.SAME,
+                NeuralTypeComparisonResult.GREATER,
+            )
         ):
             raise TypeError(
                 f"{type_val.compare(obj.neural_type)} : \n"
@@ -711,6 +718,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         return_config: bool = False,
         trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
+        return_model_file: Optional[bool] = False,
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
@@ -726,6 +734,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             strict: Passed to torch.load_state_dict. By default true.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            return_model_file: If set to true, will return just the downloaded model file in cache
 
         Returns:
             A model instance of a particular model class or its underlying config (if return_config is set).
@@ -750,6 +759,9 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             class_, nemo_model_file_in_cache = cls._get_ngc_pretrained_model_info(
                 model_name=model_name, refresh_cache=refresh_cache
             )
+
+        if return_model_file:
+            return nemo_model_file_in_cache
 
         instance = class_.restore_from(
             restore_path=nemo_model_file_in_cache,
@@ -842,6 +854,12 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         # Resolve the model name without origin for filename
         resolved_model_filename = model_name.split("/")[-1] + '.nemo'
 
+        # Try to take from cache first - if not fallback to options below
+        if not refresh_cache:
+            path = try_to_load_from_cache(repo_id=model_name, filename=resolved_model_filename)
+            if path is not None and path is not _CACHED_NO_EXIST:
+                return cls, path
+
         # Check if api token exists, use if it does
         hf_token = get_hf_token()
 
@@ -907,11 +925,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
                 token=hf_token,
             )
 
-        # Cannot pre-resolve the specific class without double instantiation (first for config, second for model params)
-        # Default to current class, and perform basic class path resolution (handled via restore_from() + target class)
-        class_ = cls
-
-        return class_, path
+        return cls, path
 
     def generate_model_card(
         self, type: str = "hf", template: str = None, template_kwargs: Optional[Dict[str, str]] = None
@@ -1004,8 +1018,14 @@ class typecheck:
 
         self.ignore_collections = ignore_collections
 
+    def __call__(self, wrapped):
+        return self.wrapped_call(wrapped)
+
+    def unwrapped_call(self, wrapped):
+        return wrapped
+
     @wrapt.decorator(enabled=is_typecheck_enabled)
-    def __call__(self, wrapped, instance: Typing, args, kwargs):
+    def wrapped_call(self, wrapped, instance: Typing, args, kwargs):
         """
         Wrapper method that can be used on any function of a class that implements :class:`~nemo.core.Typing`.
         By default, it will utilize the `input_types` and `output_types` properties of the class inheriting Typing.
@@ -1114,3 +1134,11 @@ class typecheck:
             yield
         finally:
             typecheck.set_semantic_check_enabled(enabled=True)
+
+    @staticmethod
+    def enable_wrapping(enabled: bool = True):
+        typecheck.set_typecheck_enabled(enabled)
+        if enabled:
+            typecheck.__call__ = nemo.core.classes.common.typecheck.wrapped_call
+        else:
+            typecheck.__call__ = nemo.core.classes.common.typecheck.unwrapped_call

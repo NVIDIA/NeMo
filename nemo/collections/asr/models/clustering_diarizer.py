@@ -16,14 +16,13 @@ import json
 import os
 import pickle as pkl
 import shutil
-import tarfile
 import tempfile
 from copy import deepcopy
 from typing import Any, List, Optional, Union
 
 import torch
+from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
 from nemo.collections.asr.metrics.der import score_labels
@@ -47,17 +46,8 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     prepare_manifest,
 )
 from nemo.core.classes import Model
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
-
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
 
 __all__ = ['ClusteringDiarizer']
 
@@ -74,10 +64,10 @@ def get_available_model_names(class_name):
 
 class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
     """
-    Inference model Class for offline speaker diarization. 
-    This class handles required functionality for diarization : Speech Activity Detection, Segmentation, 
-    Extract Embeddings, Clustering, Resegmentation and Scoring. 
-    All the parameters are passed through config file 
+    Inference model Class for offline speaker diarization.
+    This class handles required functionality for diarization : Speech Activity Detection, Segmentation,
+    Extract Embeddings, Clustering, Resegmentation and Scoring.
+    All the parameters are passed through config file
     """
 
     def __init__(self, cfg: Union[DictConfig, Any], speaker_model=None):
@@ -137,7 +127,10 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         Initialize speaker embedding model with model name or path passed through config
         """
         if speaker_model is not None:
-            self._speaker_model = speaker_model
+            if self._cfg.device is None and torch.cuda.is_available():
+                self._speaker_model = speaker_model.to(torch.device('cuda'))
+            else:
+                self._speaker_model = speaker_model
         else:
             model_path = self._cfg.diarizer.speaker_embeddings.model_path
             if model_path is not None and model_path.endswith('.nemo'):
@@ -158,7 +151,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(
                     model_name=model_path, map_location=self._cfg.device
                 )
-
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
@@ -171,7 +163,9 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             'sample_rate': self._cfg.sample_rate,
             'batch_size': self._cfg.get('batch_size'),
             'vad_stream': True,
-            'labels': ['infer',],
+            'labels': [
+                'infer',
+            ],
             'window_length_in_sec': self._vad_window_length_in_sec,
             'shift_length_in_sec': self._vad_shift_length_in_sec,
             'trim_silence': False,
@@ -192,8 +186,8 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
     def _run_vad(self, manifest_file):
         """
-        Run voice activity detection. 
-        Get log probability of voice activity detection and smoothes using the post processing parameters. 
+        Run voice activity detection.
+        Get log probability of voice activity detection and smoothes using the post processing parameters.
         Using generated frame level predictions generated manifest file for later speaker embedding extraction.
         input:
         manifest_file (str) : Manifest file containing path to audio file and label as infer
@@ -219,7 +213,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             tqdm(self._vad_model.test_dataloader(), desc='vad', leave=True, disable=not self.verbose)
         ):
             test_batch = [x.to(self._vad_model.device) for x in test_batch]
-            with autocast():
+            with torch.amp.autocast(self._vad_model.device.type):
                 log_probs = self._vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
                 probs = torch.softmax(log_probs, dim=-1)
                 pred = probs[:, 1]
@@ -338,7 +332,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
     def _extract_embeddings(self, manifest_file: str, scale_idx: int, num_scales: int):
         """
         This method extracts speaker embeddings from segments passed through manifest_file
-        Optionally you may save the intermediate speaker embeddings for debugging or any use. 
+        Optionally you may save the intermediate speaker embeddings for debugging or any use.
         """
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
@@ -355,7 +349,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         ):
             test_batch = [x.to(self._speaker_model.device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
-            with autocast():
+            with torch.amp.autocast(self._speaker_model.device.type):
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
                 embs = embs.view(-1, emb_shape)
@@ -384,16 +378,9 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
             prefix = get_uniqname_from_filepath(manifest_file)
             name = os.path.join(embedding_dir, prefix)
-            self._embeddings_file = name + f'_embeddings.pkl'
+            self._embeddings_file = name + '_embeddings.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
-
-    def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
-        with open(manifest_filepath, 'w', encoding='utf-8') as fp:
-            for audio_file in paths2audio_files:
-                audio_file = audio_file.strip()
-                entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': None, 'text': '-', 'label': 'infer'}
-                fp.write(json.dumps(entry) + '\n')
 
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 0):
         """
@@ -473,11 +460,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             verbose=self.verbose,
         )
 
-    @staticmethod
-    def __make_nemo_file_from_folder(filename, source_dir):
-        with tarfile.open(filename, "w:gz") as tar:
-            tar.add(source_dir, arcname="./")
-
     @rank_zero_only
     def save_to(self, save_path: str):
         """
@@ -503,16 +485,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 vad_model = os.path.join(tmpdir, _VAD_MODEL)
                 self._vad_model.save_to(vad_model)
             self._speaker_model.save_to(spkr_model)
-            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
-
-    @staticmethod
-    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
-        if not os.path.exists(path2file):
-            raise FileNotFoundError(f"{path2file} does not exist")
-        tar = tarfile.open(path2file, "r:gz")
-        tar.extractall(path=out_folder)
-        tar.close()
-        return out_folder
+            SaveRestoreConnector._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @classmethod
     def restore_from(
@@ -520,7 +493,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         restore_path: str,
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
-        strict: bool = False,
     ):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
@@ -528,7 +500,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                SaveRestoreConnector._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)

@@ -60,12 +60,14 @@ autodoc_mock_imports = [
     'IPython',
     'ipadic',
     'psutil',
+    'pytorch_lightning',
     'regex',
     'PIL',
     'boto3',
     'taming',
     'cytoolz',  # for adapters
     'megatron',  # for nlp
+    "open_clip",
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -113,10 +115,9 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.githubpages",
-    "sphinxcontrib.bibtex",
     "sphinx.ext.inheritance_diagram",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.autosectionlabel",
+    # "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
     "sphinx_copybutton",
     "sphinxext.opengraph",
@@ -132,6 +133,7 @@ bibtex_bibfiles = [
     'core/adapters/adapter_bib.bib',
     'multimodal/mm_all.bib',
     'vision/vision_all.bib',
+    'audio/audio_all.bib',
 ]
 
 intersphinx_mapping = {
@@ -274,4 +276,5 @@ ogp_site_url = 'https://nvidia.github.io/NeMo/'
 ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
 
 # MathJax CDN
-mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/mml-chtml.min.js"
+# follow recommendation here https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.mathjax
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

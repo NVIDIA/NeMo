@@ -14,11 +14,15 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Union
 
 import torch
 
-from nemo.collections.asr.modules.transformer import BeamSearchSequenceGenerator
+from nemo.collections.asr.modules.transformer import (
+    BeamSearchSequenceGenerator,
+    BeamSearchSequenceGeneratorWithNGramLM,
+)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core import Typing, typecheck
@@ -102,8 +106,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         # Input can be of dimention -
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
@@ -116,8 +119,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -131,6 +133,8 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         max_generation_delta: int = 50,
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
+        ngram_lm_model: Path | str | None = None,
+        ngram_lm_alpha: float = 0.0,
     ):
         super().__init__(
             transformer_decoder=transformer_decoder,
@@ -141,18 +145,37 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
             preserve_alignments=preserve_alignments,
         )
         self.beam_size = beam_size
-        self.beam_search = BeamSearchSequenceGenerator(
-            embedding=transformer_decoder.embedding,
-            decoder=transformer_decoder.decoder,
-            log_softmax=log_softmax_module,
-            max_sequence_length=transformer_decoder.max_sequence_length,
-            beam_size=beam_size,
-            bos=tokenizer.bos_id,
-            pad=tokenizer.pad_id,
-            eos=tokenizer.eos_id,
-            len_pen=length_penalty,
-            max_delta_length=max_generation_delta,
-        )
+        self.bos = tokenizer.bos
+        self.pad = tokenizer.pad
+        self.eos = tokenizer.eos
+        if ngram_lm_model is None:
+            self.beam_search = BeamSearchSequenceGenerator(
+                embedding=transformer_decoder.embedding,
+                decoder=transformer_decoder.decoder,
+                log_softmax=log_softmax_module,
+                max_sequence_length=transformer_decoder.max_sequence_length,
+                beam_size=beam_size,
+                bos=self.bos,
+                pad=self.pad,
+                eos=self.eos,
+                len_pen=length_penalty,
+                max_delta_length=max_generation_delta,
+            )
+        else:
+            self.beam_search = BeamSearchSequenceGeneratorWithNGramLM(
+                embedding=transformer_decoder.embedding,
+                decoder=transformer_decoder.decoder,
+                log_softmax=log_softmax_module,
+                max_sequence_length=transformer_decoder.max_sequence_length,
+                beam_size=beam_size,
+                bos=self.bos,
+                pad=self.pad,
+                eos=self.eos,
+                len_pen=length_penalty,
+                max_delta_length=max_generation_delta,
+                ngram_lm_model=ngram_lm_model,
+                ngram_lm_alpha=ngram_lm_alpha,
+            )
 
         self.preserve_alignments = preserve_alignments
         if self.preserve_alignments:
@@ -194,21 +217,50 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 beam_scores = [x.detach().cpu() for x in beam_scores]  # each item is [beam,]
                 packed_result = []
                 for i in range(len(topk_hypotheses)):
-                    hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(self.beam_size)]
+                    hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestamp=[]) for _ in range(self.beam_size)]
                     # Pack results into Hypotheses
-                    packed_result.append(
-                        NBestHypotheses(pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i]))
-                    )
+                    hypotheses = pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i])
+                    self.format_hypotheses(hypotheses, decoder_input_ids)
+                    packed_result.append(NBestHypotheses(hypotheses))
             else:
                 beam_scores = [None for _ in range(len(best_hypo))]
                 best_hypo = best_hypo.detach().cpu()
                 hypotheses = [
-                    Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(encoder_hidden_states.shape[0])
+                    Hypothesis(score=0.0, y_sequence=[], timestamp=[]) for _ in range(encoder_hidden_states.shape[0])
                 ]
                 # Pack results into Hypotheses
                 packed_result = pack_hypotheses(hypotheses, best_hypo, beam_scores)
+                self.format_hypotheses(packed_result, decoder_input_ids)
 
         return (packed_result,)
+
+    def format_hypotheses(self, packed_result: List[Hypothesis], decoder_input_ids: Union[torch.Tensor, None]) -> None:
+        """
+        For each hypothesis in the mini-batch:
+        * Remove the decoder input ids (prompt) from the predictions
+        * Remove BOS, EOS, and PAD ids from the predictions.
+        Modifies results in-place.
+        """
+        if decoder_input_ids is not None:
+            assert (
+                len(packed_result) == decoder_input_ids.shape[0]
+            ), f"Mismatching number of examples {len(packed_result)=} {decoder_input_ids.shape[0]=}"
+            decoder_input_ids = decoder_input_ids.detach().cpu()
+            for hyp, prefix in zip(packed_result, decoder_input_ids):
+                assert (
+                    hyp.y_sequence[: prefix.shape[0]] == prefix
+                ).all(), f"The decoder input IDs were not found at the beginning of prediction: {hyp.y_sequence=} {prefix=})"
+                hyp.y_sequence = hyp.y_sequence[prefix.shape[0] :]
+        for hyp in packed_result:
+            ids = hyp.y_sequence
+            ids_len = ids.shape[0]
+            pos = -1
+            while ids[pos] == self.pad or ids[pos] == self.eos:
+                pos -= 1
+                if ids_len + pos == -1:
+                    break  # empty sequence
+            if pos < -1:
+                hyp.y_sequence = ids[: pos + 1]
 
 
 @dataclass
@@ -219,3 +271,6 @@ class AEDBeamInferConfig:
     max_generation_delta: int = -1  # -1 means up to the max length of the decoder
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False
+    # ngram LM params
+    ngram_lm_model: Optional[str] = None
+    ngram_lm_alpha: float = 0.0

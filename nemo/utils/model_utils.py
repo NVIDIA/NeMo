@@ -14,6 +14,7 @@
 
 import contextlib
 import copy
+import fnmatch
 import importlib
 import os
 import shutil
@@ -23,13 +24,15 @@ from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Type, Union
 
 import wrapt
 
 from nemo.utils import AppState, logging
-from nemo.utils.data_utils import resolve_cache_dir  # imported for compatibility: model_utils.resolve_cache_dir()
-from nemo.utils.data_utils import is_datastore_path
+from nemo.utils.data_utils import (  # imported for compatibility: model_utils.resolve_cache_dir()  # noqa: F401  # pylint: disable=unused-import,line-too-long
+    is_datastore_path,
+    resolve_cache_dir,
+)
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 
@@ -42,7 +45,14 @@ try:
 except ModuleNotFoundError:
     _HAS_HYDRA = False
 
+if TYPE_CHECKING:
+    import lightning.pytorch as pl
 
+    from nemo.core.classes import ModelPT, PretrainedModelInfo
+    from nemo.core.config.modelPT import NemoConfig
+
+
+MODEL_CONFIG = "model_config.yaml"
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
 
 
@@ -65,16 +75,55 @@ class ArtifactItem:
     hashed_path: Optional[str] = None
 
 
+def detect_prefix(names: List[str]) -> str:
+    """Detect model config prefix for a list of file names.
+
+    Useful to identify prefix used within .nemo tarball checkpoint."""
+    model_config = fnmatch.filter(names, f"*{MODEL_CONFIG}")
+    assert len(model_config) == 1, f"Exactly one model config path expected, found: {model_config}."
+    prefix = model_config[0].removesuffix(MODEL_CONFIG)
+    return prefix
+
+
 def load_config(model_file: str) -> DictConfig:
     """Load model config from extracted directory or '.nemo' tarball."""
     if os.path.isfile(model_file):
         with tempfile.TemporaryDirectory() as tmp, tarfile.open(model_file, "r:") as tar:
-            tar.extract("./model_config.yaml", path=tmp)
-            model_config = OmegaConf.load(os.path.join(tmp, "model_config.yaml"))
+            prefix = detect_prefix(tar.getnames())
+            tar.extract(f"{prefix}{MODEL_CONFIG}", path=tmp)
+            model_config = OmegaConf.load(os.path.join(tmp, MODEL_CONFIG))
+    elif os.path.isdir(model_file):
+        model_config = OmegaConf.load(os.path.join(model_file, MODEL_CONFIG))
     else:
-        model_config = OmegaConf.load(os.path.join(model_file, "model_config.yaml"))
+        raise FileNotFoundError(model_file)
 
     return model_config
+
+
+def unwrap_model(model, module_instances: Optional[Union[Type, Tuple[Type]]] = None):
+    """Unwrap model from wrapper classes like Float16Module, for example."""
+
+    # TODO: Import this from megatron.core once moved there from megatron.training.
+    return_list = True
+    if not isinstance(model, list):
+        model = [model]
+        return_list = False
+    unwrapped_model = []
+    for model_module in model:
+        if module_instances:
+            while isinstance(model_module, module_instances):
+                model_module = model_module.module
+        else:  # remove any wrappers that have a '.module' attribute
+            while hasattr(model_module, "module"):
+                model_module = model_module.module
+        unwrapped_model.append(model_module)
+    if not return_list:
+        return unwrapped_model[0]
+    return unwrapped_model
+
+
+def param_is_not_shared(param):
+    return not hasattr(param, 'shared') or not param.shared
 
 
 def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:
@@ -301,13 +350,29 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
             # using the name of each of the nested dataset
             model._validation_names = [ds.name for ds in ds_values]
         else:
-            model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
+            ds_names = cfg.validation_ds.get('name', [])
+            if len(ds_names) > 0:
+                if len(ds_names) != len(ds_values):
+                    raise ValueError(
+                        f"Number of names ({len(ds_names)}) does not match number of "
+                        f"datasets ({len(ds_values)}). Got {ds_names} and {ds_values}"
+                    )
+                model._validation_names = [parse_dataset_as_name(n) for n in ds_names]
+            else:
+                model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
         unique_names_check(name_list=model._validation_names)
+
         return
 
     else:
         model.setup_validation_data(cfg.validation_ds)
-        model._validation_names = [parse_dataset_as_name(ds_values)]
+        ds_names = cfg.validation_ds.get('name', None)
+        if ds_names is not None:
+            if not isinstance(ds_names, str):
+                raise ValueError(f"`name` must be a string for single manifest, got {ds_names}")
+            model._validation_names = [parse_dataset_as_name(ds_names)]
+        else:
+            model._validation_names = [parse_dataset_as_name(ds_values)]
         unique_names_check(name_list=model._validation_names)
 
 
@@ -380,14 +445,29 @@ def resolve_test_dataloaders(model: 'ModelPT'):
             # using the name of each of the nested dataset
             model._test_names = [ds.name for ds in ds_values]
         else:
-            model._test_names = [parse_dataset_as_name(ds) for ds in ds_values]
+            ds_names = cfg.test_ds.get('name', [])
+            if len(ds_names) > 0:
+                if len(ds_names) != len(ds_values):
+                    raise ValueError(
+                        f"Number of names ({len(ds_names)}) does not match number of "
+                        f"datasets ({len(ds_values)}). Got {ds_names} and {ds_values}"
+                    )
+                model._test_names = [parse_dataset_as_name(n) for n in ds_names]
+            else:
+                model._test_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
         unique_names_check(name_list=model._test_names)
         return
 
     else:
         model.setup_test_data(cfg.test_ds)
-        model._test_names = [parse_dataset_as_name(ds_values)]
+        ds_names = cfg.test_ds.get('name', None)
+        if ds_names is not None:
+            if not isinstance(ds_names, str):
+                raise ValueError(f"`name` must be a string for single manifest, got {ds_names}")
+            model._test_names = [parse_dataset_as_name(ds_names)]
+        else:
+            model._test_names = [parse_dataset_as_name(ds_values)]
 
         unique_names_check(name_list=model._test_names)
 
@@ -431,7 +511,7 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
 
 
 def _convert_config(cfg: 'OmegaConf'):
-    """ Recursive function convertint the configuration from old hydra format to the new one. """
+    """Recursive function convertint the configuration from old hydra format to the new one."""
     if not _HAS_HYDRA:
         logging.error("This function requires Hydra/Omegaconf and it was not installed.")
         exit(1)
@@ -582,7 +662,8 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> Tuple[Op
                 return True, msg
             else:
                 msg = (
-                    f"Lib {lib_name} version ({lib_ver}) is not {operator.__name__} than required version {checked_version}.\n"
+                    f"Lib {lib_name} version ({lib_ver}) is not {operator.__name__} "
+                    f"than required version {checked_version}.\n"
                     f"Please upgrade the lib using either pip or conda to the latest version."
                 )
                 return False, msg
@@ -626,7 +707,7 @@ def inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=False):
         if app_state.pipeline_model_parallel_size is None or app_state.pipeline_model_parallel_size == 1:
             filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}{fsdp_shard}/{basename}'
         else:
-            filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
+            filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'  # pylint: disable=line-too-long
         return filepath
     else:
         fsdp_shard = f'/fsdp_shard_{app_state.data_parallel_rank:05d}' if fsdp_sharded_ckpt else ''
@@ -634,19 +715,18 @@ def inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=False):
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
-    """ PTL considers checkpoints as .ckpt files.
-        This method removes the extension and returns a path
-        to be used as a directory for distributed checkpoints
+    """PTL considers checkpoints as .ckpt files.
+    This method removes the extension and returns a path
+    to be used as a directory for distributed checkpoints
     """
 
     filepath = Path(filepath)
-
     # if it is already a distributed checkpoint, then return
     if filepath.suffix != ".ckpt" and filepath.is_dir():
         return filepath
 
     # adding this assert because we will later remove directories based on the return value of this method
-    assert filepath.suffix == ".ckpt", f'filepath: {filepath} must have .ckpt extension'
+    assert filepath.suffix == ".ckpt", f"filepath: {filepath} must have .ckpt extension"
 
     # create a new path whose name is the original filepath without the .ckpt extension
     checkpoint_dir = filepath.with_name(filepath.stem)
@@ -660,6 +740,14 @@ def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
     model_file = app_state.model_restore_path
     model_cfg = copy.deepcopy(model.cfg)
 
+    if model_cfg.tokenizer.library == "huggingface":
+        model.tokenizer.save_pretrained(output_dir)
+
+    if not hasattr(model, "artifacts"):
+        if hasattr(model_cfg, "tokenizer"):
+            OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))
+        return
+
     # Setup model file handling context: directory or tarball
     if os.path.isfile(model_file):
         model_file_handler = tarfile.open
@@ -672,11 +760,13 @@ def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
 
     # Copy or extract artifacts depending on the context
     with model_file_handler(**kwargs) as maybe_tar:
+        if maybe_tar is not None:
+            prefix = detect_prefix(maybe_tar.getnames())
         for arti_name, arti_item in model.artifacts.items():
             _, arti_file = arti_item.path.split("nemo:")
             arti_path = os.path.join(output_dir, arti_name)
             if maybe_tar is not None:
-                maybe_tar.extract(f"./{arti_file}", path=output_dir)
+                maybe_tar.extract(f"{prefix}{arti_file}", path=output_dir)
                 os.rename(os.path.join(output_dir, arti_file), arti_path)
             else:
                 shutil.copy(os.path.join(model_file, arti_file), arti_path)
@@ -684,4 +774,6 @@ def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
             # that in this case output directory should be permanent for correct artifact recovery later
             arti_path = os.path.abspath(arti_path) if use_abspath else os.path.basename(arti_path)
             OmegaConf.update(model_cfg, arti_name, arti_path)
-    OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))
+
+    if hasattr(model_cfg, "tokenizer"):
+        OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))

@@ -1,5 +1,5 @@
-NeMo ASR collection API
-=======================
+NeMo ASR API
+============
 
 
 Model Classes
@@ -41,9 +41,11 @@ Model Classes
 
 .. _confidence-ensembles-api:
 
-.. autoclass:: nemo.collections.asr.models.confidence_ensembles.ConfidenceEnsembleModel
+.. autoclass:: nemo.collections.asr.models.confidence_ensemble.ConfidenceEnsembleModel
     :show-inheritance:
     :members: transcribe
+
+.. _asr-api-modules:
 
 Modules
 -------
@@ -276,6 +278,29 @@ RNNT Decoding
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_beam_decoding.BeamBatchedRNNTInfer
+    :show-inheritance:
+    :members:
+
+TDT Decoding
+~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyBatchedTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.tdt_beam_decoding.BeamTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.tdt_beam_decoding.BeamBatchedTDTInfer
+    :show-inheritance:
+    :members:
+
 Hypotheses
 ~~~~~~~~~~
 
@@ -295,21 +320,15 @@ Adapter Networks
     :members:
     :member-order: bysource
 
------
-
 .. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapter
     :show-inheritance:
     :members:
     :member-order: bysource
 
------
-
 .. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.PositionalEncodingAdapter
     :show-inheritance:
     :members:
     :member-order: bysource
-
------
 
 .. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionalEncodingAdapter
     :show-inheritance:

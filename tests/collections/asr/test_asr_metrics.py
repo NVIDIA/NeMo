@@ -21,9 +21,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import torch
-from torchmetrics.audio.snr import SignalNoiseRatio
 
-from nemo.collections.asr.metrics.audio import AudioMetricWrapper
 from nemo.collections.asr.metrics.wer import WER, word_error_rate, word_error_rate_detail, word_error_rate_per_utt
 from nemo.collections.asr.parts.submodules.ctc_decoding import (
     CTCBPEDecoding,
@@ -128,7 +126,13 @@ class TestWordErrorRate:
             float("inf"),
             float("inf"),
         )
-        assert word_error_rate_detail(hypotheses=['cat', ''], references=['', 'gpu']) == (2.0, 1, 1.0, 1.0, 0.0,)
+        assert word_error_rate_detail(hypotheses=['cat', ''], references=['', 'gpu']) == (
+            2.0,
+            1,
+            1.0,
+            1.0,
+            0.0,
+        )
         assert word_error_rate_detail(hypotheses=['cat'], references=['cot']) == (1.0, 1, 0.0, 0.0, 1.0)
         assert word_error_rate_detail(hypotheses=['G P U'], references=['GPU']) == (3.0, 1, 2.0, 0.0, 1.0)
         assert word_error_rate_detail(hypotheses=[''], references=['ducuti motorcycle'], use_cer=True) == (
@@ -215,7 +219,7 @@ class TestWordErrorRate:
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis
         wer.decoding.preserve_alignments = True
-        hyp, _ = wer.decoding.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
+        hyp = wer.decoding.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
 
@@ -229,7 +233,7 @@ class TestWordErrorRate:
         length = torch.tensor([tensor.shape[1 - batch_dim_index]], dtype=torch.long)
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis [add length info]
-        hyp, _ = wer.decoding.ctc_decoder_predictions_tensor(tensor, decoder_lengths=length, return_hypotheses=True)
+        hyp = wer.decoding.ctc_decoder_predictions_tensor(tensor, decoder_lengths=length, return_hypotheses=True)
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
         assert hyp.length == 3
@@ -247,7 +251,7 @@ class TestWordErrorRate:
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis
         wer.decoding.preserve_alignments = True
-        hyp, _ = wer.decoding.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
+        hyp = wer.decoding.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
 
@@ -261,13 +265,15 @@ class TestWordErrorRate:
         length = torch.tensor([tensor.shape[1 - batch_dim_index]], dtype=torch.long)
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis [add length info]
-        hyp, _ = wer.decoding.ctc_decoder_predictions_tensor(tensor, decoder_lengths=length, return_hypotheses=True)
+        hyp = wer.decoding.ctc_decoder_predictions_tensor(tensor, decoder_lengths=length, return_hypotheses=True)
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
         assert hyp.length == 3
 
     def get_wer_ctc(self, prediction: str, reference: str, test_wer_bpe: bool):
-        ctc_decoder_predictions_tensor_mock = Mock(return_value=([prediction], None))
+        ctc_decoder_predictions_tensor_mock = Mock(
+            return_value=[Hypothesis(score=1.0, y_sequence=[], text=prediction)]
+        )
         if test_wer_bpe:
             decoding = Mock(
                 blank_id=self.char_tokenizer.tokenizer.vocab_size,
@@ -303,7 +309,9 @@ class TestWordErrorRate:
         return ''.join([self.vocabulary[id_] for id_ in ids])
 
     def get_wer_rnnt(self, prediction: str, reference: str, batch_dim_index: int, test_wer_bpe: bool):
-        rnnt_decoder_predictions_tensor_mock = Mock(return_value=([prediction], None))
+        rnnt_decoder_predictions_tensor_mock = Mock(
+            return_value=[Hypothesis(score=1.0, y_sequence=[], text=prediction)]
+        )
         if test_wer_bpe:
             decoding = Mock(
                 blank_id=self.char_tokenizer.tokenizer.vocab_size,
@@ -381,24 +389,24 @@ class TestWordErrorRate:
         decoding_cfg = CTCDecodingConfig()
         decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 0
+        assert len(hyp.timestamp) == 0
         assert hyp.alignments is None
 
         # Preserve timestamps and alignments
         decoding_cfg = CTCDecodingConfig(preserve_alignments=True, compute_timestamps=True)
         decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 3
+        assert len(hyp.timestamp) == 4
         assert hyp.alignments is not None
 
     @pytest.mark.unit
@@ -412,24 +420,24 @@ class TestWordErrorRate:
         decoding_cfg = CTCBPEDecodingConfig()
         decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 0
+        assert len(hyp.timestamp) == 0
         assert hyp.alignments is None
 
         # Preserve timestamps and alignments
         decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
         decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 3
+        assert len(hyp.timestamp) == 4
         assert hyp.alignments is not None
 
     @pytest.mark.unit
@@ -443,12 +451,12 @@ class TestWordErrorRate:
         decoding_cfg = CTCDecodingConfig()
         decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 0
+        assert len(hyp.timestamp) == 0
         assert hyp.alignments is None
 
         # Preserve timestamps and alignments
@@ -457,18 +465,18 @@ class TestWordErrorRate:
 
         # Cannot compute alignments from labels
         with pytest.raises(ValueError):
-            hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+            _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
 
         # Preserve timestamps
         decoding_cfg = CTCDecodingConfig(preserve_alignments=False, compute_timestamps=True)
         decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 3
+        assert len(hyp.timestamp) == 4
         assert hyp.alignments is None
 
     @pytest.mark.unit
@@ -482,24 +490,24 @@ class TestWordErrorRate:
         decoding_cfg = CTCBPEDecodingConfig()
         decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 0
+        assert len(hyp.timestamp) == 0
         assert hyp.alignments is None
 
         # Preserve timestamps and alignments
         decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
         decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 3
+        assert len(hyp.timestamp) == 4
         assert hyp.alignments is not None
 
     @pytest.mark.unit
@@ -513,12 +521,12 @@ class TestWordErrorRate:
         decoding_cfg = CTCBPEDecodingConfig()
         decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 0
+        assert len(hyp.timestamp) == 0
         assert hyp.alignments is None
 
         # Preserve timestamps and alignments
@@ -527,143 +535,16 @@ class TestWordErrorRate:
 
         # Cannot compute alignments from labels
         with pytest.raises(ValueError):
-            hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+            _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
 
         # Preserve timestamps
         decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=False, compute_timestamps=True)
         decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
 
-        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
         assert isinstance(hyp.y_sequence, torch.Tensor)
         assert hyp.length == torch.tensor(T, dtype=torch.int32)
         assert hyp.text != ''
-        assert len(hyp.timestep) == 3
+        assert len(hyp.timestamp) == 4
         assert hyp.alignments is None
-
-
-class TestAudioMetricWrapper:
-    def test_metric_full_batch(self):
-        """Test metric on batches where all examples have equal length.
-        """
-        ref_metric = SignalNoiseRatio()
-        wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
-
-        num_resets = 5
-        num_batches = 10
-        batch_size = 8
-        num_channels = 2
-        num_samples = 200
-
-        batch_shape = (batch_size, num_channels, num_samples)
-
-        for nr in range(num_resets):
-            for nb in range(num_batches):
-                target = torch.rand(*batch_shape)
-                preds = target + torch.rand(1) * torch.rand(*batch_shape)
-
-                # test forward for a single batch
-                batch_value_wrapped = wrapped_metric(preds=preds, target=target)
-                batch_value_ref = ref_metric(preds=preds, target=target)
-
-                assert torch.allclose(
-                    batch_value_wrapped, batch_value_ref
-                ), f'Metric forward not matching for batch {nb}, reset {nr}'
-
-            # test compute (over num_batches)
-            assert torch.allclose(
-                wrapped_metric.compute(), ref_metric.compute()
-            ), f'Metric compute not matching for batch {nb}, reset {nr}'
-
-            ref_metric.reset()
-            wrapped_metric.reset()
-
-    def test_input_length(self):
-        """Test metric on batches where examples have different length.
-        """
-        ref_metric = SignalNoiseRatio()
-        wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
-
-        num_resets = 5
-        num_batches = 10
-        batch_size = 8
-        num_channels = 2
-        num_samples = 200
-
-        batch_shape = (batch_size, num_channels, num_samples)
-
-        for nr in range(num_resets):
-            for nb in range(num_batches):
-                target = torch.rand(*batch_shape)
-                preds = target + torch.rand(1) * torch.rand(*batch_shape)
-
-                input_length = torch.randint(low=num_samples // 2, high=num_samples, size=(batch_size,))
-
-                # test forward for a single batch
-                batch_value_wrapped = wrapped_metric(preds=preds, target=target, input_length=input_length)
-
-                # compute reference value, assuming batch reduction using averaging
-                batch_value_ref = 0
-                for b_idx, b_len in enumerate(input_length):
-                    batch_value_ref += ref_metric(preds=preds[b_idx, ..., :b_len], target=target[b_idx, ..., :b_len])
-                batch_value_ref /= batch_size  # average
-
-                assert torch.allclose(
-                    batch_value_wrapped, batch_value_ref
-                ), f'Metric forward not matching for batch {nb}, reset {nr}'
-
-            # test compute (over num_batches)
-            assert torch.allclose(
-                wrapped_metric.compute(), ref_metric.compute()
-            ), f'Metric compute not matching for batch {nb}, reset {nr}'
-
-            ref_metric.reset()
-            wrapped_metric.reset()
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize('channel', [0, 1])
-    def test_channel(self, channel):
-        """Test metric on a single channel from a batch.
-        """
-        ref_metric = SignalNoiseRatio()
-        # select only a single channel
-        wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio(), channel=channel)
-
-        num_resets = 5
-        num_batches = 10
-        batch_size = 8
-        num_channels = 2
-        num_samples = 200
-
-        batch_shape = (batch_size, num_channels, num_samples)
-
-        for nr in range(num_resets):
-            for nb in range(num_batches):
-                target = torch.rand(*batch_shape)
-                preds = target + torch.rand(1) * torch.rand(*batch_shape)
-
-                # varying length
-                input_length = torch.randint(low=num_samples // 2, high=num_samples, size=(batch_size,))
-
-                # test forward for a single batch
-                batch_value_wrapped = wrapped_metric(preds=preds, target=target, input_length=input_length)
-
-                # compute reference value, assuming batch reduction using averaging
-                batch_value_ref = 0
-                for b_idx, b_len in enumerate(input_length):
-                    batch_value_ref += ref_metric(
-                        preds=preds[b_idx, channel, :b_len], target=target[b_idx, channel, :b_len]
-                    )
-                batch_value_ref /= batch_size  # average
-
-                assert torch.allclose(
-                    batch_value_wrapped, batch_value_ref
-                ), f'Metric forward not matching for batch {nb}, reset {nr}'
-
-            # test compute (over num_batches)
-            assert torch.allclose(
-                wrapped_metric.compute(), ref_metric.compute()
-            ), f'Metric compute not matching for batch {nb}, reset {nr}'
-
-            ref_metric.reset()
-            wrapped_metric.reset()
