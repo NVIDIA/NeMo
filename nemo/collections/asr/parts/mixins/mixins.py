@@ -901,6 +901,7 @@ class IPLMixin:
     """
     Allows model to terminate training at the end of each epoch for pseudo-label generation.
     """
+
     def check_should_stop(self):
         "Checks whether one epoch is completed and terminates if IPL is on."
         if self._cfg.get('ipl_training', None):

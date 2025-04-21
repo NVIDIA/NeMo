@@ -17,6 +17,7 @@ from typing import List, Optional
 
 import torch
 
+from nemo.collections.asr.parts.mixins.mixins import IPLMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -26,8 +27,6 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 from nemo.core.utils.neural_type_utils import get_io_names
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
-from nemo.collections.asr.parts.mixins.mixins import IPLMixin
-
 
 __all__ = ['ASRModel']
 
@@ -189,7 +188,7 @@ class ASRModel(ModelPT, ABC, IPLMixin):
         """
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
         if self.check_should_stop():
-            self.trainer.should_stop=True
+            self.trainer.should_stop = True
 
     def on_validation_epoch_start(self) -> None:
         """
