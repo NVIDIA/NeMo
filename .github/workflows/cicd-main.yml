@@ -221,6 +221,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Get workflow result
         id: result
         env:
