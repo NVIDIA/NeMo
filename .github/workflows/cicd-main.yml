@@ -159,7 +159,7 @@ jobs:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-e2e-tests:
-    needs: [pre-flight, cicd-test-container-build]
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-unit-tests.yml
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
