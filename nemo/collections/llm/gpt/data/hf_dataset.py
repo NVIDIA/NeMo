@@ -446,7 +446,7 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         self.split_across_pack = split_across_pack
         self.max_packs = max_packs
 
-    def collate_fn(self, batch):
+    def collate_fn(self, batch, pad_token_id=0):
         """
         Creates the attn_mask and append it to the batch as its required in case of packed sequences. Then calls
         HFDatasetDataModule's collate_fn.
