@@ -9,6 +9,7 @@ on:
 jobs:
   collections-asr-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_ASR
@@ -24,6 +25,7 @@ jobs:
 
   collections-audio-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_Audio
@@ -39,6 +41,7 @@ jobs:
 
   collections-common-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_Common
@@ -54,6 +57,7 @@ jobs:
 
   collections-llm-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_LLM
@@ -68,6 +72,7 @@ jobs:
 
   collections-multimodal-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_Multimodal
@@ -82,6 +87,7 @@ jobs:
 
   collections-tts-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_TTS
@@ -96,6 +102,7 @@ jobs:
 
   collections-vlm-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_VLM
@@ -110,6 +117,7 @@ jobs:
 
   core-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_Core
@@ -128,6 +136,7 @@ jobs:
 
   lightning-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_Lightning
@@ -142,6 +151,7 @@ jobs:
 
   evaluation-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_Eval
@@ -154,6 +164,7 @@ jobs:
 
   other-tests:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - script: L0_Unit_Tests_GPU_Others
