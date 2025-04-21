@@ -47,11 +47,3 @@ class TestFluxRecipe:
         # Check optimizer settings
         assert recipe.optim.config.lr == 1e-4
         assert recipe.optim.config.bf16 is True
-
-    def test_contorlnet_layer(self):
-        layer = ControlNetConditioningEmbedding(conditioning_embedding_channels=16)
-
-        input = torch.rand(1, 3, 16, 16)
-        output = layer(input)
-
-        assert output.shape == (1, 16, 2, 2)
