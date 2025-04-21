@@ -76,6 +76,7 @@ RUN \
   --mount=type=bind,source=requirements,target=/tmp/NeMo/requirements \
   --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=/tmp/NeMo/tools/ctc_segmentation/requirements.txt \
   --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh \
+  --mount=type=bind,source=external/patches,target=/tmp/NeMo/external/patches \
   --mount=type=bind,source=setup.py,target=/tmp/NeMo/setup.py \
   --mount=type=bind,source=README.md,target=/tmp/NeMo/README.md \
   --mount=type=bind,source=nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
