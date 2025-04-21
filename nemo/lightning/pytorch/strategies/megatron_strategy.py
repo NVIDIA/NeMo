@@ -135,6 +135,7 @@ class ParallelismConfig:
     num_distributed_optimizer_instances: int = 1
     nccl_communicator_config_path: str = None
 
+
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
 
