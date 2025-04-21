@@ -105,6 +105,8 @@ jobs:
 
       - name: Get last merged PR
         id: cache_from
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           LAST_PRS=$(gh api graphql -f query='
             query {
