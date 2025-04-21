@@ -454,7 +454,9 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         Creates the attn_mask and append it to the batch as its required in case of packed sequences. Then calls
         HFDatasetDataModule's collate_fn.
         """
-        batch = batch[0]
+        if isinstance(batch, list):
+            assert len(batch) == 1, "Currently only supporting batch-size=1"
+            batch = batch[0]
         seq_lens = batch.pop('seq_lens')
         # batch['attention_mask'] = create_block_causal_mask(
         #     seq_lens=seq_lens,
