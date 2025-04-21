@@ -43,7 +43,7 @@ on:
         value: ${{ jobs.main.outputs.potential_infra_failure }}
 jobs:
   main:
-    runs-on: ${{ inputs.RUNNER }}
+    runs-on: myVm # ${{ inputs.RUNNER }}
     name: ${{ inputs.SCRIPT }}
     outputs:
       conclusion: ${{ steps.check.conclusion }}
@@ -77,7 +77,7 @@ jobs:
 
           ARG=("")
           if [[ -n "${GPU_CONFIGS[${{ runner.name }}]}" ]]; then
-            ARG=("--runtime=nvidia --gpus '\"device=${GPU_CONFIGS[${{ runner.name }}]}\"'")
+            ARG=("--runtime=nvidia --cpus="48" --memory="433g" --gpus '\"device=${GPU_CONFIGS[${{ runner.name }}]}\"'")
           elif [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
             ARG=("--runtime=nvidia --gpus all")
           fi

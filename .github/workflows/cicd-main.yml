@@ -122,6 +122,7 @@ jobs:
         ${{ needs.pre-flight.outputs.BUILD_ARGS }}
       prune-filter-timerange: 24h
       use-inline-cache: false
+      runner: myVm
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
