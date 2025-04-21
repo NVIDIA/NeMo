@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo_run as run
-
-from nemo.collections import llm
 from typing import Callable, Optional
 
 import lightning.pytorch as pl
@@ -24,6 +21,7 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
+from nemo.collections import llm
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama31Config70B, LlamaModel
@@ -252,10 +250,14 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 
 
 def multi_dc_recipe():
-    pretrain = pretrain_recipe(num_nodes=1, num_gpus_per_node=8, num_distributed_optimizer_instances=2, nccl_communicator_config_path="multi_dc_nccl_communicator_config.yaml")
+    pretrain = pretrain_recipe(
+        num_nodes=1,
+        num_gpus_per_node=8,
+        num_distributed_optimizer_instances=2,
+        nccl_communicator_config_path="multi_dc_nccl_communicator_config.yaml",
+    )
 
     return pretrain
-
 
 
 if __name__ == "__main__":
