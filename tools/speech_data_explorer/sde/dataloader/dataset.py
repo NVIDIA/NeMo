@@ -11,21 +11,20 @@ from .sample import Sample
 
 
 class Dataset:
-
     """
-        A class for for processing and analyzing speech-related data.
+    A class for for processing and analyzing speech-related data.
 
-        Parameters:
-        - manifest_filepath (str): Path to the manifest file in .json format.
-        - chunksize (int): Number of lines to process in each chunk (default is 10000).
-        - data_engine (object): An optional object for additional data processing (default is None).
-        - n_jobs (int): Number of parallel processes to use for data processing (default is -1, which uses all available CPU cores).
-        - reference_field (str): The field in the manifest file representing reference text (default is "text").
-        - hypothesis_fields (list[str]): List of fields in the manifest file representing hypothesis texts (default is ["pred_text"]).
-        - hypothesis_labels (list[str]): List of labels for hypothesis fields (default is None, and labels are auto-assigned).
-        - estimate_audio_metrics (bool): Flag indicating whether to estimate audio metrics (default is False).
-        - enable_pkl (bool): Flag indicating whether to enable the use of pickle files for caching processed data (default is True).
-        - plk_filepath (str): Path to the pickle file for caching processed data (default is None).
+    Parameters:
+    - manifest_filepath (str): Path to the manifest file in .json format.
+    - chunksize (int): Number of lines to process in each chunk (default is 10000).
+    - data_engine (object): An optional object for additional data processing (default is None).
+    - n_jobs (int): Number of parallel processes to use for data processing (default is -1, which uses all available CPU cores).
+    - reference_field (str): The field in the manifest file representing reference text (default is "text").
+    - hypothesis_fields (list[str]): List of fields in the manifest file representing hypothesis texts (default is ["pred_text"]).
+    - hypothesis_labels (list[str]): List of labels for hypothesis fields (default is None, and labels are auto-assigned).
+    - estimate_audio_metrics (bool): Flag indicating whether to estimate audio metrics (default is False).
+    - enable_pkl (bool): Flag indicating whether to enable the use of pickle files for caching processed data (default is True).
+    - plk_filepath (str): Path to the pickle file for caching processed data (default is None).
     """
 
     def __init__(

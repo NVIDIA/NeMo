@@ -8,7 +8,8 @@ from sde.run_inside_docker import run_sde_inside_docker
 def parse_args():
     parser = argparse.ArgumentParser(description='Speech Data Explorer')
     parser.add_argument(
-        'manifest', help='path to JSON manifest file',
+        'manifest',
+        help='path to JSON manifest file',
     )
     parser.add_argument('--vocab', help='optional vocabulary to highlight OOV words')
     parser.add_argument('--port', default='8050', help='serving port for establishing connection')
@@ -42,10 +43,16 @@ def parse_args():
         help='field name for which you want to see statistics (optional). Example: pred_text_contextnet.',
     )
     parser.add_argument(
-        '--gpu', '-gpu', action='store_true', help='use GPU-acceleration',
+        '--gpu',
+        '-gpu',
+        action='store_true',
+        help='use GPU-acceleration',
     )
     parser.add_argument(
-        '--inside_docker', '-dckr', action='store_true', help='run SDE inside Docker container',
+        '--inside_docker',
+        '-dckr',
+        action='store_true',
+        help='run SDE inside Docker container',
     )
 
     args = parser.parse_args()

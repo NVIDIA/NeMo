@@ -11,7 +11,7 @@ import numpy as np
 class Sample:
     """
     A class representing a sample of data, including reference and hypothesis texts, for processing and analysis.
-    
+
     Attributes:
     - reference_text (str): The reference text associated with the sample.
     - num_chars (int): Number of characters in the reference text.
