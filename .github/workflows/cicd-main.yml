@@ -42,11 +42,11 @@ jobs:
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
       build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
+      cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
       HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
-      LAST_MERGED_PR: ${{ steps.last_merged_pr.outputs.LAST_MERGED_PR }}
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -104,20 +104,22 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Get last merged PR
-        id: last_merged_pr
+        id: cache_from
         run: |
-          LAST_MERGED_PR=$(gh api graphql -f query='
+          LAST_PRS=$(gh api graphql -f query='
             query {
               repository(owner: "NVIDIA", name: "NeMo") {
-                pullRequests(states: MERGED, first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                pullRequests(states: MERGED, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
                   nodes {
                     number
                   }
                 }
               }
-            }' | jq -r '.data.repository.pullRequests.nodes[0].number')
+            }' | jq -r '.data.repository.pullRequests.nodes[].number')
 
-          echo "LAST_MERGED_PR=${LAST_MERGED_PR}" | tee -a "$GITHUB_OUTPUT"
+          echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
+          echo "$LAST_PRS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
   code-linting:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
@@ -142,7 +144,7 @@ jobs:
       runner: myVm
       cache-from: |
         nemoci.azurecr.io/$IMAGE_NAME-buildcache:main
-        nemoci.azurecr.io/$IMAGE_NAME-buildcache:${{ needs.pre-flight.outputs.LAST_MERGED_PR }}
+        ${{ needs.pre-flight.outputs.cache-from }}
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
