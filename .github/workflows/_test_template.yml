@@ -116,7 +116,7 @@ jobs:
             --env TRANSFORMERS_OFFLINE=0 \
             --env HYDRA_FULL_ERROR=1 \
             --env HF_HOME=/home/TestData/HF_HOME \
-            --volume $(pwd)/${{ github.run_id }}/NeMo:/workspace/NeMo \
+            --volume $(pwd)/${{ github.run_id }}/NeMo:/workspace \
             --volume $(pwd)/${{ github.run_id }}/Megatron-LM:/workspace/Megatron-LM \
             --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
             bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
