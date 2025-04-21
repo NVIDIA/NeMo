@@ -276,7 +276,7 @@ jobs:
             //cc @pablo-garay @ko3n1g
 
       - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
-        if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
+        if: ${{ always() && steps.result.outputs.code == 'failure' && env.SLACK_WEBHOOK != '' }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
