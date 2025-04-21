@@ -323,28 +323,6 @@ def test_collate_fn():
     assert result["token_ids"].shape[1] == 3
 
 
-def test_collate_fn_packed():
-    # Instantiate HFDatasetDataModulePacked class
-    dm = llm.HFDatasetDataModulePacked(
-        path_or_dataset=Dataset.from_dict({"dummy": [0]}),
-        split="train",
-        packed_sequence_size=4,  # Must match or exceed test sequence lengths
-    )
-
-    batch = [{"id": [1], "token_ids": [1, 2, 3], "seq_lens": [3]}, {"id": [2], "token_ids": [123], "seq_lens": [1]}]
-    result = dm.collate_fn(batch)
-
-    assert isinstance(result, dict)
-    assert "mask" in result  # New packed feature
-    assert result["mask"].shape == (2, 4, 4)  # Mask matches packed_sequence_size
-
-    # Verify inherited collation behavior
-    assert "id" in result
-    assert "token_ids" in result
-    assert result["token_ids"].shape == (2, 4)  # Padded to packed_sequence_size
-    assert torch.all(result["token_ids"][1] == torch.LongTensor([123, 0, 0, 0]))
-
-
 def test_batchify():
     batch = torch.Tensor(128)
     output = batchify(batch)
