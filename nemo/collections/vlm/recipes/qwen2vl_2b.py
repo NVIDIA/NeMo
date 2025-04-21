@@ -37,7 +37,8 @@ from nemo.utils.exp_manager import TimingCallback
 
 NAME = "qwen2vl_2b"
 
-HF_MODEL_NAME="Qwen/Qwen2-VL-2B-Instruct"
+HF_MODEL_NAME = "Qwen/Qwen2-VL-2B-Instruct"
+
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
