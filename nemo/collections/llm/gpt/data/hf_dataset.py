@@ -193,6 +193,23 @@ def pad_within_micro(batch, pad_token_id, pad_seq_len_divisible=None):
         max_len = (pad_seq_len_divisible - max_len % pad_seq_len_divisible) + max_len
     return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
+def tensorify(val):
+    """Converts a list into a LongTensor if it's not already a tensor
+
+    Parameters
+    ----------
+    val: List | torch.Tensor
+
+    Returns
+    -------
+    torch.LongTensor
+    """
+    if isinstance(val, torch.Tensor):
+        return val
+    elif isinstance(val, list):
+        return torch.LongTensor(val)
+    else:
+        raise ValueError("Expected intput to be torch.Tensor or a list")
 
 class HFDatasetDataModule(pl.LightningDataModule):
     """A PyTorch Lightning DataModule for loading and managing datasets from the `datasets` library.
@@ -429,20 +446,16 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         self.split_across_pack = split_across_pack
         self.max_packs = max_packs
 
-    def collate_fn(self, batch, pad_token_id=0, pad_seq_len_divisible=None):
+    def collate_fn(self, batch):
         """
         Creates the attn_mask and append it to the batch as its required in case of packed sequences. Then calls
         HFDatasetDataModule's collate_fn.
         """
-        seq_lens = [x["seq_lens"] for x in batch]
-        block_mask = create_block_causal_mask(
+        seq_lens = batch.pop('seq_lens')
+        batch['attention_mask'] = create_block_causal_mask(
             seq_lens=seq_lens,
         )
-
-        ## add block_mask to the batch
-        # for i, item in enumerate(batch):
-        #     item['attention_mask'] = block_mask[i].tolist()  # Convert tensor to list for compatibility
-        return super().collate_fn(batch, pad_token_id, pad_seq_len_divisible)
+        return {key: batchify(tensorify(val)) for key, val in batch.items()}
 
     def _make_dataloader(self, dataset, split, collate_fn=None):
         """
