@@ -450,6 +450,7 @@ def main(cfg: StreamingEvaluationConfig):
             canary_data.active_samples = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
             canary_data.active_samples_inner_loop = torch.ones(current_batch_size, dtype=torch.bool, device=asr_model.device)
             canary_data.right_context = cfg.right_context * (1 if cfg.model_type == "offline" else 0)
+            canary_data.eos_tokens = torch.full([current_batch_size], asr_model.tokenizer.eos, dtype=torch.long, device=asr_model.device)
             canary_data.avgpool2d = torch.nn.AvgPool2d(5, stride=1, padding=2, count_include_pad=False)
             
             streaming_tran, predicted_token_ids = perform_streaming(
