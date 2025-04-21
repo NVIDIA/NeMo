@@ -11,14 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/test_hf_import.py \
-  --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf \
-  --output_path /tmp/nemo2_ckpt
-
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/export/nemo_export.py \
   --model_name test \
+  --model_dir /tmp/llama32_1b_nemo2_trt \
   --model_type llama \
-  --checkpoint_dir /tmp/nemo2_ckpt \
+  --checkpoint_dir /home/TestData/llm/models/llama32_1b_nemo2 \
   --min_tps 1 \
   --test_deployment True \
   --debug
