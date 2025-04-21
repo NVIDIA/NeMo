@@ -72,7 +72,7 @@ jobs:
       - name: Fetch Mcore tag from manifest.json
         id: mcore
         run: |
-          REF=$(cat requirements/manifest.json| jq -r '."vcs-dependencies"."megatron-lm".ref')
+          REF=$(cat ${{ github.run_id }}/NeMo/requirements/manifest.json| jq -r '."vcs-dependencies"."megatron-lm".ref')
           echo "ref=$REF" | tee -a "$GITHUB_OUTPUT"
 
       - name: Checkout Megatron-LM
