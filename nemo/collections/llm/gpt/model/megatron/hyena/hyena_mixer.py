@@ -196,6 +196,8 @@ class HyenaMixer(MegatronModule):
                         # Store references to the modules, not their weights
                         self._proj_conv_module = proj_conv_module
                         self._short_conv_module = short_conv_module
+                        # Combined padding from both convolutions - this is a key difference from the 
+                        # sequential execution of two convs which applies padding separately
                         self.effective_pad_size = (self._short_conv_module.kernel_size - 1) + (self._proj_conv_module.kernel_size - 1)
 
                     def forward(self, x, _use_cp=True):
@@ -230,10 +232,10 @@ class HyenaMixer(MegatronModule):
                             # Transfer patches across ranks
                             seq_dim = 2  # Last dimension (L)
 
-                            # Get overlapping patches
+                            # Get overlapping patches - using the combined effective padding size
                             chunk_a, chunk_b = zigzag_get_overlapping_patches(x, seq_dim=seq_dim, overlap_size=self.effective_pad_size)
 
-                            # Exchange regions
+                            # We're exchanging larger patches once instead of smaller patches twice
                             received_a, received_b = ExchangeOverlappingRegionsCausal.apply(chunk_a, chunk_b, cp_group, cp_rank)
 
                             # Pad and rearrange
