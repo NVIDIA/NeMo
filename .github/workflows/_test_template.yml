@@ -55,9 +55,9 @@ jobs:
       SCRIPT: ${{ inputs.SCRIPT }}
       IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
     steps:
-      # - name: Docker system cleanup
-      #   run: |
-      #     docker system prune -af --filter "until=24h" --force || true
+      - name: Docker system cleanup
+        run: |
+          docker system prune -af --filter "until=24h" --force || true
 
       - name: Docker pull image
         run: |
