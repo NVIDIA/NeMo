@@ -295,6 +295,8 @@ jobs:
         run: |
           if [ $RESULT == "success" ]; then
             exit 0
+          else
+            exit 1
           fi
 
   Coverage:
@@ -339,3 +341,9 @@ jobs:
           path: |
             .coverage
           include-hidden-files: true
+
+
+REPOSITORY=NVIDIA/NeMo
+RUN_ID=14583190850
+PR_NUMBER=13124
+SERVER_URL=https://github.com
