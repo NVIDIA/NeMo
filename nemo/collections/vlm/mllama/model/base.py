@@ -180,6 +180,7 @@ class CrossAttentionTextConfig(Llama31Config):
     num_cross_attention_layers: int = 8
     vocab_size: int = 128256
     apply_rope_fusion: bool = False
+    share_embeddings_and_output_weights: bool = True
 
     def _init_fusion_schedule(self, num_layers: int) -> List[int]:
         """Initialize self-attention layer / cross-attention layer fusion schedule"""

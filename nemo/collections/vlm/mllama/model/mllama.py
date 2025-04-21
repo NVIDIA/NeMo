@@ -111,7 +111,6 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
                 "language_model.model.xattn_layers.*.cross_attn.o_proj.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_proj.weight",
                 "language_model.model.xattn_layers.*.cross_attn.q_proj.weight": "language_model.decoder.xattn_layers.*.cross_attention.linear_q.weight",
                 "language_model.model.norm.weight": "language_model.decoder.final_layernorm.weight",
-                "language_model.lm_head.weight": "language_model.output_layer.weight",
                 "language_model.model.layers.*.post_attention_layernorm.weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
                 "language_model.model.layers.*.mlp.down_proj.weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
                 "language_model.model.layers.*.input_layernorm.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
