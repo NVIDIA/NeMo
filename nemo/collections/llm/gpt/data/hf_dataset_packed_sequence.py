@@ -31,11 +31,12 @@ class HFDatasetPackedSequenceHelper:
     split (str): Whether the dataset is 'train', 'val' or 'test'
     """
 
-    def __init__(self, dataset, split):
+    def __init__(self, dataset, split, padding_idx=0, contains_loss_mask=False):
         self.dataset = dataset
         self.split = split
-        self.padding_idx = 0  # Padding value to pack a sequence to self.packed_sequence_size
-        self.contains_loss_mask = False
+        # Padding value to pack a sequence to self.packed_sequence_size
+        self.padding_idx = padding_idx
+        self.contains_loss_mask = contains_loss_mask
 
     def pack(self, packed_sequence_size, split_across_pack, max_packs):
         """Iterate through the dataset. Use a buffer to hold samples until packed_sequence_size,
@@ -94,7 +95,7 @@ class HFDatasetPackedSequenceHelper:
             # "position_ids" is the pos ids, "seq_lens" is the len of each seq within the pack
             current_pack["input_ids"] += input_ids
             current_pack["labels"] += labels
-            current_pack["position_ids"] += [x % self.packed_sequence_size for x in range(seq_len)]
+            current_pack["position_ids"] += list(range(seq_len))
             current_pack["seq_lens"] += [seq_len]
             if self.contains_loss_mask:
                 current_pack["loss_mask"] += loss_mask
@@ -244,41 +245,32 @@ class HFDatasetPackedSequenceHelper:
 
         return padded_pack
 
-def create_block_causal_mask(seq_lens: List[torch.Tensor]) -> torch.Tensor:
+def create_block_causal_mask(seq_lens, device=None, dtype=torch.bool):
     """
-    Given a batch tensor of seq lens defining the lengths of samples in each pack,
-    Construct a 2D block causal mask for each pack in the batch. For example, if
-    a single sample's seq_lens is [3, 2, 1], the mask would be::
-        mask = [
-            [1, 0, 0, 0, 0, 0],
-            [1, 1, 0, 0, 0, 0],
-            [1, 1, 1, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 1, 1, 0],
-            [0, 0, 0, 0, 0, 1],
-        ]
-    Args:
-        seq_lens (List[torch.Tensor]): Sequence lengths of samples in each pack in the batch,
-            shape (batch_size, n), where n is the max number of sequences in a pack and can vary
-            across packs.
-    Returns:
-        Tensor: Block causal mask of shape (batch_size, packed_sequence_size, packed_sequence_size).
-    """
-    batch_block_attn_masks = []
-    batch_size = len(seq_lens)
-    for sample_idx in range(batch_size):
-        block_attn_masks = [
-            torch.tril(
-                torch.ones(
-                    seq_len,
-                    seq_len,
-                    dtype=torch.bool,
-                )
-            )
-            for i, seq_len in enumerate(seq_lens[sample_idx])
-        ]
+    Creates a block-diagonal causal attention mask.
 
-        batch_block_attn_masks.append(torch.block_diag(*block_attn_masks))
-    # Transformers expects the attn_mask to be 4d [bs, 1, packed_sequence_size, packed_sequence_size], hence adding
-    # singleton (size 1) dimension at position 1.
-    return torch.stack(batch_block_attn_masks).unsqueeze(1)
+    Args:
+        seq_lens (List[int]): A list of sequence lengths.
+        device: Torch device.
+        dtype: Data type for the mask.
+
+    Returns:
+        Tensor of shape (total_seq_len, total_seq_len)
+    """
+    assert isinstance(seq_lens, list)
+    assert len(seq_lens) > 0
+    assert isinstance(seq_lens[0], int)
+    # seq_lens = list(map(lambda x: x[0], seq_lens))
+    total_len = sum(seq_lens)
+    mask = torch.zeros((total_len, total_len), dtype=dtype, device=device)
+
+    start = 0
+    for length in seq_lens:
+        end = start + length
+        # Create a causal mask for this block
+        block = torch.tril(torch.ones((length, length), dtype=dtype, device=device))
+        # Insert into the large matrix
+        mask[start:end, start:end] = block
+        start = end
+
+    return mask.unsqueeze(0).unsqueeze(0)
