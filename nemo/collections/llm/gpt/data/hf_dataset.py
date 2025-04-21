@@ -434,6 +434,9 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         Creates the attn_mask and append it to the batch as its required in case of packed sequences. Then calls
         HFDatasetDataModule's collate_fn.
         """
+        # TODO @athitten There's a bug with attention-mask leading to divergence in the loss curves. Re-enable this
+        # code once that is fixed.
+        """
         seq_lens = [x["seq_lens"] for x in batch]
         block_mask = packed_block_causal_mask(
             seq_lens=seq_lens,
@@ -442,6 +445,7 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         ## add block_mask to the batch
         for i, item in enumerate(batch):
             item['attention_mask'] = block_mask[i].tolist()  # Convert tensor to list for compatibility
+        """
         return super().collate_fn(batch, pad_token_id, pad_seq_len_divisible)
 
     def _make_dataloader(self, dataset, split, collate_fn=None):

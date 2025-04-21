@@ -56,15 +56,23 @@ def make_squad_hf_dataset(
         if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
             answer_ids.append(tokenizer.eos_id)
 
-        # Set input and labels, and pad to sequence length.
-        combined_query_answer = context_ids + answer_ids
-        seq_pad_len_ar = max(0, seq_length - len(combined_query_answer) + 1)
-        pad_token_id = tokenizer.eos_id if tokenizer.eos_id is not None else 0
-        return dict(
-            labels=combined_query_answer[1:] + [pad_token_id] * seq_pad_len_ar,
-            input_ids=combined_query_answer[:-1] + [pad_token_id] * seq_pad_len_ar,
-            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids) + [0] * seq_pad_len_ar,
+        # Perform padding to seq_length if not implementing packed-sequences
+        if packed_sequence_size > 0:
+            return dict(
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
+        else:
+            # Set input and labels, and pad to sequence length.
+            combined_query_answer = context_ids + answer_ids
+            seq_pad_len_ar = max(0, seq_length - len(combined_query_answer) + 1)
+            pad_token_id = tokenizer.eos_id if tokenizer.eos_id is not None else 0
+            return dict(
+                labels=combined_query_answer[1:] + [pad_token_id] * seq_pad_len_ar,
+                input_ids=combined_query_answer[:-1] + [pad_token_id] * seq_pad_len_ar,
+                loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids) + [0] * seq_pad_len_ar,
+            )
 
     splits = ['train', 'validation']
     if limit_dataset_samples is not None:

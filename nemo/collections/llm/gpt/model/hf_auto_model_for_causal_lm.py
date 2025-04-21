@@ -291,8 +291,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch['input_ids'] = batch['tokens']
 
         # TODO(@boxiangw): Refractor. Needed for SP support
-        # We cant have this for packed seq, attn_mask not in batch indicates regular sequence (not packed)
-        if 'attention_mask' not in batch:
+        # If 'position_ids' does not exist in batch already then override it. batch in case of Packed sequence
+        # contains 'position_ids' and we don't want to override it.
+        if not 'position_ids' in batch:
             batch["position_ids"] = torch.arange(0, batch['input_ids'].shape[1]).unsqueeze(0).to(self.model.device)
 
         batch = self._remove_extra_batch_keys(batch)
