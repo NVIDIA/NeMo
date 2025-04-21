@@ -245,6 +245,7 @@ class HFDatasetPackedSequenceHelper:
 
         return padded_pack
 
+
 def create_block_causal_mask(seq_lens, device=None, dtype=torch.bool):
     """
     Creates a block-diagonal causal attention mask.

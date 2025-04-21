@@ -23,8 +23,10 @@ from nemo.collections.llm.gpt.data.hf_dataset import (
     make_dataset_splits,
     pad_within_micro,
 )
-
-from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import HFDatasetPackedSequenceHelper, CROSS_ENTROPY_IGNORE_IDX
+from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import (
+    CROSS_ENTROPY_IGNORE_IDX,
+    HFDatasetPackedSequenceHelper,
+)
 
 SQUAD_HF_CACHE = "/home/TestData/lite/hf_cache/squad/"
 SQUAD_NEMO_CACHE = "/home/TestData/lite/nemo_cache/squad"
@@ -69,11 +71,11 @@ def dummy_dataset():
     ]
     return Dataset.from_list(samples)
 
+
 def test_pack_sequences(dummy_dataset):
     packed_sequence_size = 6
     max_packs = 2
     split_across_pack = False
-
 
     dm = llm.HFDatasetDataModulePacked(
         path_or_dataset=dummy_dataset,
@@ -83,9 +85,7 @@ def test_pack_sequences(dummy_dataset):
 
     helper = HFDatasetPackedSequenceHelper(dummy_dataset, split="train")
     packed_dataset = helper.pack(
-        packed_sequence_size=packed_sequence_size,
-        split_across_pack=split_across_pack,
-        max_packs=max_packs
+        packed_sequence_size=packed_sequence_size, split_across_pack=split_across_pack, max_packs=max_packs
     )
     print(packed_dataset)
     for x in packed_dataset:

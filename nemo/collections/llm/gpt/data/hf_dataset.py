@@ -193,6 +193,7 @@ def pad_within_micro(batch, pad_token_id, pad_seq_len_divisible=None):
         max_len = (pad_seq_len_divisible - max_len % pad_seq_len_divisible) + max_len
     return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
+
 def tensorify(val):
     """Converts a list into a LongTensor if it's not already a tensor
 
@@ -210,6 +211,7 @@ def tensorify(val):
         return torch.LongTensor(val)
     else:
         raise ValueError("Expected intput to be torch.Tensor or a list")
+
 
 class HFDatasetDataModule(pl.LightningDataModule):
     """A PyTorch Lightning DataModule for loading and managing datasets from the `datasets` library.
