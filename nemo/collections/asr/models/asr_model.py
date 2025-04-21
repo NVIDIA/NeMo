@@ -26,11 +26,13 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 from nemo.core.utils.neural_type_utils import get_io_names
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
+from nemo.collections.asr.parts.mixins.mixins import IPLMixin
+
 
 __all__ = ['ASRModel']
 
 
-class ASRModel(ModelPT, ABC):
+class ASRModel(ModelPT, ABC, IPLMixin):
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss = {}
         tensorboard_logs = {}
@@ -186,6 +188,8 @@ class ASRModel(ModelPT, ABC):
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        if self.check_should_stop():
+            self.trainer.should_stop=True
 
     def on_validation_epoch_start(self) -> None:
         """

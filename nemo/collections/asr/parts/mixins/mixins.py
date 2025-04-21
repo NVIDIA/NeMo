@@ -895,3 +895,20 @@ class DiarizationMixin(VerificationMixin):
             Speaker labels
         """
         pass
+
+
+class IPLMixin:
+    """
+    Allows model to terminate training at the end of each epoch for pseudo-label generation.
+    """
+    def check_should_stop(self):
+        "Checks whether one epoch is completed and terminates if IPL is on."
+        if self._cfg.get('ipl_training', None):
+            if hasattr(self, 'epoch_done'):
+                if torch.distributed.is_initialized():
+                    torch.distributed.barrier()
+                return True
+            else:
+                self.epoch_done = True
+                return False
+        return False
