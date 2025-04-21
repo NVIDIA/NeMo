@@ -31,8 +31,8 @@ from nemo.utils import logging
 
 EOU_LABEL = 2
 EOB_LABEL = 3
-EOU_STRING = '<eou>'
-EOB_STRING = '<eob>'
+EOU_STRING = '<EOU>'
+EOB_STRING = '<EOB>'
 
 
 EOU_LENGTH_PERTURBATION = ['speed', 'time_stretch']
@@ -121,6 +121,10 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         self.cfg = cfg
         self.return_eou_labels = return_eou_labels
         self.return_cuts = return_cuts
+        self.eou_string = self.cfg.get('eou_string', EOU_STRING)
+        self.eob_string = self.cfg.get('eob_string', EOB_STRING)
+
+        self._check_special_tokens(tokenizer)
 
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
@@ -129,8 +133,6 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             self.cfg.get('window_stride', 0.01) * self.sample_rate
         )  # 160 samples for every 1ms by default
         self.num_mel_frame_per_target_frame = int(self.cfg.get('subsampling_factor', 8))
-        self.eou_string = self.cfg.get('eou_string', EOU_STRING)
-        self.eob_string = self.cfg.get('eob_string', EOB_STRING)
         self.add_sep_before_eou = self.cfg.get('add_sep_before_eou', False)
         self.padding_cfg = self.cfg.get('random_padding', None)
         self.augmentor = None
@@ -154,6 +156,21 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             if len(len_augmentor) > 0:
                 logging.info(f"EOU dataset will apply length augmentations: {len_augmentor}")
                 self.len_augmentor = process_augmentations(len_augmentor)
+
+    def _check_special_tokens(self, tokenizer: TokenizerSpec):
+        """
+        Check if the special tokens are in the tokenizer vocab.
+        """
+        special_tokens = set([self.eou_string, self.eob_string])
+        vocab_size = tokenizer.vocab_size
+        special_tokens_in_vocab = set([tokenizer.ids_to_text(vocab_size - 1), tokenizer.ids_to_text(vocab_size - 2)])
+        if special_tokens != special_tokens_in_vocab:
+            raise ValueError(
+                f"Input special tokens {special_tokens} don't match with the tokenizer vocab {special_tokens_in_vocab}. "
+                f"Please add them to tokenizer or change input `eou_string` and/or `eob_string` accordingly. "
+                "Special tokens should be added as the last two tokens in the new tokenizer. "
+                "Please refer to scripts/asr_end_of_utterance/tokenizers/add_special_tokens_to_sentencepiece.py for details."
+            )
 
     def __getitem__(self, cuts: CutSet) -> Tuple[torch.Tensor, ...]:
         audio, audio_lens, cuts = self.load_audio(cuts)

@@ -18,12 +18,12 @@ os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 import logging
 import sys
 import tempfile
-
 from argparse import ArgumentParser
 from pathlib import Path
 
 import sentencepiece as spm
 
+from nemo.collections.asr.data.audio_to_eou_label_lhotse import EOB_STRING, EOU_STRING
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 
 try:
@@ -32,7 +32,7 @@ except (ImportError, ModuleNotFoundError):
     raise Exception("Ensure that sentencepiece_model_pb2.py has been generated from the protoc compiler")
 
 
-SPECIAL_TOKENS = ["<EOU>", "<EOB>"]
+SPECIAL_TOKENS = [EOU_STRING, EOB_STRING]
 
 """Utility to add special tokens to existing sentencepiece models.
 
@@ -69,11 +69,6 @@ parser.add_argument(
     nargs='+',
     help="Special tokens to add to tokenizer",
     default=SPECIAL_TOKENS,
-)
-parser.add_argument(
-    "--is_userdefined",
-    action="store_true",
-    help="When set, the new tokens are set as user_defined tokens",
 )
 
 
@@ -153,7 +148,11 @@ def edit_spt_model(input_file, output_dir, tokens, is_userdefined):
     logging.info(f"Created new tokenizer vocab at: {vocab_txt_file}")
 
 
-def inject_special_tokens(input_file, output_dir, tokens, is_userdefined):
+def inject_special_tokens(input_file, output_dir, tokens, is_userdefined=True):
+    """
+    NOTE: is_userdefined should be set to True in order for ASR model to work
+    with the new special tokens properly.
+    """
     if not os.path.exists(input_file):
         raise ValueError(f"Input file {input_file} does not exist")
 
@@ -172,4 +171,4 @@ def inject_special_tokens(input_file, output_dir, tokens, is_userdefined):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = parser.parse_args()
-    inject_special_tokens(args.input_file, args.output_dir, args.tokens, args.is_userdefined)
+    inject_special_tokens(args.input_file, args.output_dir, args.tokens)
