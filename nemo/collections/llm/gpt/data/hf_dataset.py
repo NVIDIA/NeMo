@@ -441,20 +441,24 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
     def __init__(
         self, path_or_dataset, packed_sequence_size, split_across_pack: bool = False, max_packs: int = None, **kwargs
     ):
+        if kwargs.get('micro_batch_size', 1) > 1:
+            logging.info("HFDatasetDataModulePacked only support micro-batch-size=1")
+            kwargs['micro_batch_size'] = 1
         super().__init__(path_or_dataset, **kwargs)
         self.packed_sequence_size = packed_sequence_size
         self.split_across_pack = split_across_pack
         self.max_packs = max_packs
 
-    def collate_fn(self, batch, pad_token_id=0):
+    def collate_fn(self, batch, pad_token_id=0, pad_seq_len_divisible=None):
         """
         Creates the attn_mask and append it to the batch as its required in case of packed sequences. Then calls
         HFDatasetDataModule's collate_fn.
         """
+        batch = batch[0]
         seq_lens = batch.pop('seq_lens')
-        batch['attention_mask'] = create_block_causal_mask(
-            seq_lens=seq_lens,
-        )
+        # batch['attention_mask'] = create_block_causal_mask(
+        #     seq_lens=seq_lens,
+        # )
         return {key: batchify(tensorify(val)) for key, val in batch.items()}
 
     def _make_dataloader(self, dataset, split, collate_fn=None):
