@@ -42,6 +42,7 @@ jobs:
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
       build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
+      cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -102,6 +103,28 @@ jobs:
           echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Get last merged PR
+        id: cache_from
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST_PRS=$(gh api graphql -f query='
+            query {
+              repository(owner: "NVIDIA", name: "NeMo") {
+                pullRequests(states: MERGED, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  nodes {
+                    number
+                  }
+                }
+              }
+            }' | jq -r '.data.repository.pullRequests.nodes[].number' | while read -r number; do
+              echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
+            done)
+
+          echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
+          echo "$LAST_PRS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
   code-linting:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     needs: [pre-flight]
@@ -109,7 +132,7 @@ jobs:
 
   cicd-test-container-build:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.26.0
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
     needs: [pre-flight, code-linting]
     with:
       image-name: nemo_container
@@ -122,6 +145,10 @@ jobs:
         ${{ needs.pre-flight.outputs.BUILD_ARGS }}
       prune-filter-timerange: 24h
       use-inline-cache: false
+      runner: myVm
+      cache-from: |
+        nemoci.azurecr.io/$IMAGE_NAME-buildcache:main
+        ${{ needs.pre-flight.outputs.cache-from }}
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
