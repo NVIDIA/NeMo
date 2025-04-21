@@ -260,7 +260,7 @@ class Quantizer:
             logging.warning("Enabled KV cache quantization but enable_kv_cache is None in quantization_config")
         else:
             logging.info(f"{'Enabled' if enable_quant_kv_cache else 'Disabled'} KV cache quantization")
-            
+
         # Check if any bmm_quantizer is in the quant_cfg. If so, we need to enable the bmm_quantizer.
         if enable_quant_kv_cache:
             # Update KV cache related bmm quantizers
