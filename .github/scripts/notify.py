@@ -47,12 +47,18 @@ def send_slack_notification():
                     f"• Pipeline: <{server_url}/{repository}/actions/runs/{run_id}|View Run>\n"
                     f"• Failed Jobs:\n"
                     + "\n".join(
-                        [f"    • <{server_url}/{repository}/actions/runs/{run_id}|{job}>" for job in failed_jobs]
+                        [
+                            f"    • <{server_url}/{repository}/actions/runs/{run_id}|{job.split('/')[-1]}>"
+                            for job in failed_jobs
+                            if job.split('/')[-1] != 'Nemo_CICD_Test'
+                        ]
                     )
                 ),
             },
         }
     ]
+
+    print({"blocks": blocks})
 
     # Send to Slack
     response = requests.post(webhook_url, json={"blocks": blocks})
