@@ -38,6 +38,7 @@ EXP_DIR = '/tmp/nemo_exp/'
 # return value is ProxyDict even for all models (dense and moe).
 from megatron.core.optimizer.optimizer import ProxyDict
 
+
 def teardown(exp_dir=EXP_DIR):
     import shutil
 
