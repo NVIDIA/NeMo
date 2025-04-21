@@ -767,7 +767,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 )
             # Distribute sequence across CP ranks
             if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
-                from megatron.training.utils import get_batch_on_this_cp_rank
+                from megatron.core.utils import get_batch_on_this_cp_rank
 
                 batch = get_batch_on_this_cp_rank(batch)
             else:
