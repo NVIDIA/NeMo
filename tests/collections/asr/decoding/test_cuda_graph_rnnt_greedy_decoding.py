@@ -221,6 +221,10 @@ def test_loop_labels_cuda_graph_ddp_mixed_precision(
 
     # explicitly free resources, then test conditions
     trainer._teardown()
+    # teardown from the trainer is not enough, and problem with CPU will still exist, related issue:
+    # https://github.com/Lightning-AI/pytorch-lightning/issues/18803)
+    # solution is to destroy torch process group explicitly
+    torch.distributed.destroy_process_group()
 
     assert wer <= 0.1, f"WER is too high: {wer}"
 
