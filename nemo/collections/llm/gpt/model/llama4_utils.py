@@ -296,7 +296,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
                 value = chunkify(value, self.attention_chunk_size)
                 rotary_pos_emb = rotary_pos_emb[: self.attention_chunk_size] if rotary_pos_emb is not None else None
 
-        if parallel_state.get_context_parallel_world_size() > 1:
+        if parallel_state.get_context_parallel_world_size() > 1 and original_seq_len > self.attention_chunk_size:
             assert original_seq_len % (parallel_state.get_context_parallel_world_size() * 2) == 0
             cp_chunk_len = original_seq_len // (parallel_state.get_context_parallel_world_size() * 2)
             assert cp_chunk_len % self.attention_chunk_size == 0

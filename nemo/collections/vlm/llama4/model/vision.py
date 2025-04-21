@@ -371,7 +371,8 @@ class Llama4ViTModel(VisionModule):
             torch.Tensor: The computed RoPE tensor of shape [seq_length, 1, 1, dim],
                           ready to be applied in the attention mechanism.
         """
-        # Adapted from Llama4
+        # Adapted and modified based on Llama-stack
+        # https://github.com/meta-llama/llama-stack/blob/530d4bdfe130ace4b31f09cb0334195928d4bc08/llama_stack/models/llama/llama4/vision/encoder.py
         patch_h = patch_w = self.patch_dim
         idx_h, idx_w = self.img_h // patch_h, self.img_w // patch_w
         img_idx = torch.arange(self.img_h * self.img_w // (patch_h * patch_w), dtype=torch.int32)

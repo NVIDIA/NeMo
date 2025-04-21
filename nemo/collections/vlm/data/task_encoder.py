@@ -33,7 +33,7 @@ from megatron.energon.task_encoder.base import stateless
 from transformers import AutoImageProcessor, AutoProcessor
 
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.vlm.data.utils import convert_to_packed, greedy_knapsack, predict_seq_len
+from nemo.collections.vlm.data.utils import _find_pattern_indices, convert_to_packed, greedy_knapsack, predict_seq_len
 from nemo.utils import logging
 
 
@@ -203,6 +203,8 @@ class TaskEncoder(
             config (TaskEncoderConfig): Configuration for processing
         """
         self.config = config
+        self.hf_processor = self.config.hf_processor
+        self.tokenizer = self.config.tokenizer
 
         # Initialize encoders with the config
         self.encoders = {
@@ -363,17 +365,19 @@ class TaskEncoder(
         """
         # Apply conversation template
         messages = []
-        if self.config.chat_template:
-            messages.append({'role': 'system', 'content': self.config.chat_template})
+        if self.config.system_prompt:
+            messages.append({'role': 'system', 'content': self.config.system_prompt})
 
-        if isinstance(input_sample.context, list) and isinstance(input_sample.answers, list):
-            min_length = min(len(input_sample.context), len(input_sample.answers))
-            for i in range(min_length):
-                messages.append({'role': self.config.roles[0], 'content': input_sample.context[i]})
-                messages.append({'role': self.config.roles[1], 'content': input_sample.answers[i]})
-        else:
-            messages.append({'role': self.config.roles[0], 'content': input_sample.context})
-            messages.append({'role': self.config.roles[1], 'content': input_sample.answers})
+        # Ensure context and answers are lists for consistent processing
+        contexts = input_sample.context if isinstance(input_sample.context, list) else [input_sample.context]
+        answers = input_sample.answers if isinstance(input_sample.answers, list) else [input_sample.answers]
+
+        # Build the conversation messages, replacing image placeholder
+        min_length = min(len(contexts), len(answers))
+        for i in range(min_length):
+            context_with_placeholder = contexts[i].replace("<image>", self.config.image_token)
+            messages.append({'role': self.config.roles[0], 'content': context_with_placeholder})
+            messages.append({'role': self.config.roles[1], 'content': answers[i]})
 
         # Generate templated prompt
         conversation_prompt = self.config.tokenizer.apply_chat_template(
@@ -398,18 +402,33 @@ class TaskEncoder(
         labels = torch.ones_like(tokens) * self.config.ignore_place_holder
         answers = input_sample.answers if isinstance(input_sample.answers, list) else [input_sample.answers]
 
-        search_start = 0
+        search_start_index = 0
         for answer in answers:
-            answer_tokens = self.config.tokenizer.encode(
-                answer + self.config.stop_string, add_special_tokens=False, return_tensors="pt"
-            )[0]
+            # Tokenize the answer, including the stop string if provided
+            answer_with_stop = answer + (self.config.stop_string or "")
+            answer_tokens = self.tokenizer.tokenizer(answer_with_stop, add_special_tokens=False)["input_ids"]
+            answer_tokens_tensor = torch.tensor(answer_tokens, device=tokens.device)  # Ensure same device
 
             # Find answer pattern in tokens
-            for i in range(search_start, len(tokens) - len(answer_tokens) + 1):
-                if torch.all(tokens[i : i + len(answer_tokens)] == answer_tokens):
-                    labels[i : i + len(answer_tokens)] = tokens[i : i + len(answer_tokens)]
-                    search_start = i + len(answer_tokens)
-                    break
+            answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens_tensor, search_start_index)
+
+            if answer_start >= 0:
+                labels[answer_start:answer_end] = tokens[answer_start:answer_end]
+                search_start_index = answer_end
+            else:
+                logging.warning(
+                    "Unable to find answer segment in the tokenized conversation. "
+                    "Skipping labeling for this and subsequent answers. Details: "
+                    "\n- Processed Text: %s"
+                    "\n- Tokens: %s"
+                    "\n- Target Answer Tokens: %s"
+                    "\n- Search Start Index: %d",
+                    conversation_prompt,
+                    tokens,
+                    answer_tokens,
+                    search_start_index,
+                )
+                break
 
         # Prepare final tensors
         tokens = tokens[:-1].contiguous()

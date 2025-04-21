@@ -397,8 +397,10 @@ class Llama4Config(Llama3Config):
     moe_ffn_hidden_size: int = 8192
     moe_router_topk: int = 1
     moe_router_pre_softmax: bool = False
-    moe_router_score_function: str = 'sigmoid'
+    moe_router_score_function: str = "sigmoid"
     moe_token_dispatcher_type: str = "alltoall"
+    moe_router_dtype: Optional[str] = None
+    moe_apply_probs_on_input: bool = True
     # Configs that are overwritten in subclass models
     qk_l2_norm: bool = True
     rope_scaling: bool = True
@@ -966,6 +968,11 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
