@@ -329,7 +329,7 @@ class SortformerModules(NeuralModule, Exportable):
         elif self.spkcache_refresh_rate == 0:
             max_pop_out_len = self.fifo_len
         else:
-            max_pop_out_len = min(self.spkcache_refresh_rate * self.step_len, self.fifo_len)
+            max_pop_out_len = min(max(self.spkcache_refresh_rate, max_chunk_len), self.fifo_len)
 
         streaming_state.fifo_preds = torch.zeros((batch_size, max_fifo_len, n_spk), device=preds.device)
         chunk_preds = torch.zeros((batch_size, max_chunk_len, n_spk), device=preds.device)
@@ -475,7 +475,7 @@ class SortformerModules(NeuralModule, Exportable):
         elif self.spkcache_refresh_rate == 0:
             pop_out_len = self.fifo_len
         else:
-            pop_out_len = min(self.spkcache_refresh_rate * self.step_len, self.fifo_len)
+            pop_out_len = min(max(self.spkcache_refresh_rate, chunk_len), self.fifo_len)
 
         # append chunk to fifo
         streaming_state.fifo = torch.cat([streaming_state.fifo, chunk], dim=1)
