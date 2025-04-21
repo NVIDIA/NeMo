@@ -55,13 +55,16 @@ jobs:
       SCRIPT: ${{ inputs.SCRIPT }}
       IS_UNIT_TEST: ${{ inputs.IS_UNIT_TEST }}
     steps:
-      - name: Docker system cleanup
-        run: |
-          docker system prune -af --filter "until=24h" --force || true
+      # - name: Docker system cleanup
+      #   run: |
+      #     docker system prune -af --filter "until=24h" --force || true
 
       - name: Docker pull image
         run: |
           docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+
+      - name: Clean repos
+        run: |
 
       - name: Install jq
         run: |
@@ -76,7 +79,7 @@ jobs:
       - name: Fetch Mcore tag from manifest.json
         id: mcore
         run: |
-          REF=$(cat ${{ github.run_id }}/NeMo/requirements/manifest.json| jq -r '."vcs-dependencies"."megatron-lm".ref')
+          REF=$(cat ${{ github.run_id }}/NeMo/requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
           echo "ref=$REF" | tee -a "$GITHUB_OUTPUT"
 
       - name: Checkout Megatron-LM
