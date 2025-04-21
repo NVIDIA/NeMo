@@ -84,7 +84,7 @@ jobs:
       - name: Fetch Mcore tag from manifest.json
         id: mcore
         run: |
-          REF=$(cat ${{ github.run_id }}/NeMo/requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
+          REF=$(cat ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo/requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
           echo "ref=$REF" | tee -a "$GITHUB_OUTPUT"
 
       - name: Checkout Megatron-LM
@@ -124,8 +124,8 @@ jobs:
             --env TRANSFORMERS_OFFLINE=0 \
             --env HYDRA_FULL_ERROR=1 \
             --env HF_HOME=/home/TestData/HF_HOME \
-            --volume $(pwd)/${{ github.run_id }}/NeMo:/workspace \
-            --volume $(pwd)/${{ github.run_id }}/Megatron-LM:/workspace/Megatron-LM \
+            --volume $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo:/workspace \
+            --volume $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }}/Megatron-LM:/workspace/Megatron-LM \
             --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
             bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
           RUN_TEST_EOF
