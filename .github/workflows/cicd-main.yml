@@ -46,6 +46,7 @@ jobs:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
       HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
+      LAST_MERGED_PR: ${{ steps.last_merged_pr.outputs.LAST_MERGED_PR }}
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -102,6 +103,22 @@ jobs:
           echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Get last merged PR
+        id: last_merged_pr
+        run: |
+          LAST_MERGED_PR=$(gh api graphql -f query='
+            query {
+              repository(owner: "NVIDIA", name: "NeMo") {
+                pullRequests(states: MERGED, first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  nodes {
+                    number
+                  }
+                }
+              }
+            }' | jq -r '.data.repository.pullRequests.nodes[0].number')
+
+          echo "LAST_MERGED_PR=${LAST_MERGED_PR}" | tee -a "$GITHUB_OUTPUT"
+
   code-linting:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     needs: [pre-flight]
@@ -109,7 +126,7 @@ jobs:
 
   cicd-test-container-build:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.26.0
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@ko3n1g/feat/support-registry-cache
     needs: [pre-flight, code-linting]
     with:
       image-name: nemo_container
@@ -123,6 +140,9 @@ jobs:
       prune-filter-timerange: 24h
       use-inline-cache: false
       runner: myVm
+      cache-from: |
+        nemoci.azurecr.io/$IMAGE_NAME-buildcache:main
+        nemoci.azurecr.io/$IMAGE_NAME-buildcache:${{ needs.pre-flight.outputs.LAST_MERGED_PR }}
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
