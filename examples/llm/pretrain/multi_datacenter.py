@@ -65,7 +65,7 @@ def trainer(
     virtual_pipeline_parallelism: Optional[int] = 5,
     context_parallelism: int = 2,
     sequence_parallelism: bool = True,
-    num_nodes: int = 4,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     num_distributed_optimizer_instances: int = 1,
@@ -151,7 +151,7 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
     num_distributed_optimizer_instances: int = 1,
     nccl_communicator_config_path: Optional[str] = None,
@@ -249,13 +249,14 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     return recipe
 
 
-def multi_dc_recipe():
+def multi_dc_recipe(nodes: int = 8, gpus_per_node: int = 8):
     pretrain = pretrain_recipe(
-        num_nodes=1,
-        num_gpus_per_node=8,
+        num_nodes=nodes,
+        num_gpus_per_node=gpus_per_node,
         num_distributed_optimizer_instances=2,
-        nccl_communicator_config_path="multi_dc_nccl_communicator_config.yaml",
+        nccl_communicator_config_path="/opt/NeMo/examples/llm/pretrain/multi_dc_nccl_communicator_config.yaml"
     )
+
 
     return pretrain
 
