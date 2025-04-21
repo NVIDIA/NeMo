@@ -4,71 +4,91 @@ set -ex
 # List of all supported libraries (update this list when adding new libraries)
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
-  "te"
-  "apex"
+  "trtllm"
   "mcore"
   "nemo"
+  "vllm"
 )
 
-INSTALL_OPTION=${1:-dev}
-HEAVY_DEPS=${HEAVY_DEPS:-false}
-CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
+export INSTALL_OPTION=${1:-dev}
+export HEAVY_DEPS=${HEAVY_DEPS:-false}
+export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
+export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
+export PIP=pip
+export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
+export TRTLLM_TAG=${TRTLLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".ref')}
+export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 
-PIP=pip
-${PIP} install -U ${PIP}
-
-mcore() {
+trt() {
   local mode="$1"
-  export MAMBA_FORCE_BUILD=TRUE
-  export MAMBA_TAG=v2.2.0
-  export CAUSAL_CONV1D_FORCE_BUILD=TRUE
-  export CAUSAL_CONV_TAG=v1.2.2.post1
 
-  CAUSAL_CONV1D_DIR="/opt/causal-conv1d" &&
-    if [ ! -d "$CAUSAL_CONV1D_DIR/.git" ]; then
-      rm -rf "$CAUSAL_CONV1D_DIR" &&
-        cd $(dirname "$CAUSAL_CONV1D_DIR") &&
-        git clone https://github.com/Dao-AILab/$(basename $CAUSAL_CONV1D_DIR).git
-    fi &&
-    pushd $CAUSAL_CONV1D_DIR &&
-    git checkout -f $CAUSAL_CONV_TAG &&
+  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
+    apt-get install git-lfs &&
+    git lfs install &&
+    apt-get clean
+
+  if [ ! -d "$TRTLLM_DIR/.git" ]; then
+    rm -rf "$TRTLLM_DIR" &&
+      cd $(dirname "$TRTLLM_DIR") &&
+      git clone ${TRTLLM_REPO}
+  fi &&
+    pushd $TRTLLM_DIR &&
+    git checkout -f $TRTLLM_TAG &&
+    git lfs pull &&
     popd
 
-  MAMBA_DIR="/opt/mamba" &&
-    if [ ! -d "$MAMBA_DIR/.git" ]; then
-      rm -rf "$MAMBA_DIR" &&
-        cd $(dirname "$MAMBA_DIR") &&
-        git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git
-    fi &&
-    pushd $MAMBA_DIR &&
-    git checkout -f $MAMBA_TAG &&
-    popd
+  if [[ "$mode" == "install" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TRTLLM_DIR &&
+        . docker/common/install_tensorrt.sh \
+          --TRT_VER="10.8.0.43" \
+          --CUDA_VER="12.8" \
+          --CUDNN_VER="9.7.0.66-1" \
+          --NCCL_VER="2.25.1-1+cuda12.8" \
+          --CUBLAS_VER="12.8.3.14-1"
+    fi
+  fi
+}
 
-  MLM_DIR="/opt/Megatron-LM" &&
-    if [ ! -d "$MLM_DIR/.git" ]; then
-      rm -rf "$MLM_DIR" &&
-        cd $(dirname "$MLM_DIR") &&
-        git clone ${MLM_REPO}
-    fi &&
-    pushd $MLM_DIR &&
-    git checkout -f $MLM_TAG &&
+trtllm() {
+  local mode="$1"
+
+  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
+    apt-get install git-lfs &&
+    git lfs install &&
+    apt-get clean
+
+  if [ ! -d "$TRTLLM_DIR/.git" ]; then
+    rm -rf "$TRTLLM_DIR" &&
+      cd $(dirname "$TRTLLM_DIR") &&
+      git clone ${TRTLLM_REPO}
+  fi &&
+    pushd $TRTLLM_DIR &&
+    git checkout -f $TRTLLM_TAG &&
+    git lfs pull &&
     popd
 
   if [[ "$mode" == "build" ]]; then
-    pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MAMBA_DIR
-    pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $CAUSAL_CONV1D_DIR
-    pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MLM_DIR
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TRTLLM_DIR &&
+        python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
+    fi
   else
-    pip install --no-cache-dir $WHEELS_DIR/mcore/*.whl
-    pip install --no-cache-dir -e $MLM_DIR
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/trtllm/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com || true
   fi
 }
 
 te() {
   local mode="$1"
-  TE_DIR="/opt/TransformerEngine"
 
+  TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
+  TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
+  TE_DIR="$INSTALL_DIR/TransformerEngine"
   if [ ! -d "$TE_DIR/.git" ]; then
     rm -rf "$TE_DIR" &&
       cd $(dirname "$TE_DIR") &&
@@ -79,41 +99,135 @@ te() {
     popd
 
   if [[ "$mode" == "build" ]]; then
-    cd $TE_DIR && git submodule init && git submodule update &&
-      pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      cd $TE_DIR && git submodule init && git submodule update &&
+        pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
+    fi
   else
-    pip install --no-cache-dir $WHEELS_DIR/te/*.whl
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/te/*.whl || true
   fi
 }
 
-apex() {
+mcore() {
   local mode="$1"
-  APEX_DIR="/opt/Apex"
 
-  if [ ! -d "$APEX_DIR/.git" ]; then
-    rm -rf "$APEX_DIR" &&
-      cd $(dirname "$APEX_DIR") &&
-      git clone ${APEX_REPO}
-  fi &&
-    pushd $APEX_DIR &&
-    git checkout -f $APEX_TAG &&
+  local WHEELS_DIR=$WHEELS_DIR/mcore/
+  mkdir -p $WHEELS_DIR
+
+  export CAUSAL_CONV1D_FORCE_BUILD=TRUE
+  export CAUSAL_CONV_TAG=v1.2.2.post1
+  CAUSAL_CONV1D_DIR="$INSTALL_DIR/causal-conv1d" &&
+    if [ ! -d "$CAUSAL_CONV1D_DIR/.git" ]; then
+      rm -rf "$CAUSAL_CONV1D_DIR" &&
+        mkdir -p $(dirname "$CAUSAL_CONV1D_DIR") &&
+        cd $(dirname "$CAUSAL_CONV1D_DIR") &&
+        git clone https://github.com/Dao-AILab/$(basename $CAUSAL_CONV1D_DIR).git
+    fi &&
+    pushd $CAUSAL_CONV1D_DIR &&
+    git checkout -f $CAUSAL_CONV_TAG &&
     popd
 
+  export MAMBA_FORCE_BUILD=TRUE
+  export MAMBA_TAG=v2.2.0
+  MAMBA_DIR="$INSTALL_DIR/mamba" &&
+    if [ ! -d "$MAMBA_DIR/.git" ]; then
+      rm -rf "$MAMBA_DIR" &&
+        cd $(dirname "$MAMBA_DIR") &&
+        git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git
+    fi &&
+    pushd $MAMBA_DIR &&
+    git checkout -f $MAMBA_TAG &&
+    perl -ni -e 'print unless /triton/' setup.py &&
+    popd
+
+  MLM_REPO=${MLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."megatron-lm".repo')}
+  MLM_TAG=${MLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."megatron-lm".ref')}
+  MLM_DIR="$INSTALL_DIR/Megatron-LM" &&
+    if [ ! -d "$MLM_DIR/.git" ]; then
+      rm -rf "$MLM_DIR" &&
+        mkdir -p $(dirname "$MLM_DIR") &&
+        cd $(dirname "$MLM_DIR") &&
+        git clone ${MLM_REPO}
+    fi &&
+    pushd $MLM_DIR &&
+    git checkout -f $MLM_TAG &&
+    perl -ni -e 'print unless /triton==3.1.0/' requirements/pytorch_24.10/requirements.txt &&
+    perl -ni -e 'print unless /nvidia-resiliency-ext/' requirements/pytorch_24.10/requirements.txt &&
+    popd
+
+  build() {
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $MAMBA_DIR
+      pip wheel --no-deps --no-cache-dir --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
+    fi
+
+    pip wheel --no-deps --wheel-dir $WHEELS_DIR $MLM_DIR
+  }
+
   if [[ "$mode" == "build" ]]; then
-    cd $APEX_DIR && pip wheel --no-deps --no-build-isolation --wheel-dir $WHEELS_DIR/apex/ $APEX_DIR
+    build
   else
-    pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/apex/*.whl
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/*.whl "nvidia-pytriton ; platform_machine == 'x86_64'" || true
+    pip install --no-cache-dir -e $MLM_DIR
+  fi
+}
+
+vllm() {
+  local mode="$1"
+
+  local WHEELS_DIR=$WHEELS_DIR/vllm/
+  mkdir -p $WHEELS_DIR
+
+  VLLM_DIR="$INSTALL_DIR/vllm"
+
+  build() {
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
+      ${PIP} install --no-cache-dir virtualenv &&
+        virtualenv $INSTALL_DIR/venv &&
+        $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage &&
+        $INSTALL_DIR/venv/bin/pip wheel --no-cache-dir --no-build-isolation \
+          --wheel-dir $WHEELS_DIR/ \
+          -r $NEMO_DIR/requirements/requirements_vllm.txt \
+          -r $NEMO_DIR/requirements/requirements_deploy.txt
+    fi
+  }
+
+  if [[ "$mode" == "build" ]]; then
+    build
+  else
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    ${PIP} install --no-cache-dir virtualenv &&
+      virtualenv $INSTALL_DIR/venv &&
+      $INSTALL_DIR/venv/bin/pip install --no-cache-dir coverage &&
+      $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
   fi
 
 }
 
 nemo() {
   local mode="$1"
-  NEMO_DIR=${NEMO_DIR:-"/opt/NeMo"}
 
+  if [[ "$mode" == "build" ]]; then
+    echo "No build supported for Nemo, directly install."
+    return
+  fi
+
+  NEMO_DIR=${NEMO_DIR:-"$INSTALL_DIR/NeMo"}
   if [[ -n "$NEMO_TAG" ]]; then
     if [ ! -d "$NEMO_DIR/.git" ]; then
       rm -rf "$NEMO_DIR" &&
+        mkdir -p $(dirname "$NEMO_DIR") &&
         cd $(dirname "$NEMO_DIR") &&
         git clone ${NEMO_REPO}
     fi &&
@@ -121,45 +235,44 @@ nemo() {
       git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
       git fetch origin $NEMO_TAG &&
       git checkout -f $NEMO_TAG
+  else
+    NEMO_DIR=$CURR
   fi
 
-  ${PIP} install --no-cache-dir virtualenv &&
-    virtualenv /opt/venv &&
-    /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
-      -r $NEMO_DIR/requirements/requirements_vllm.txt \
-      -r $NEMO_DIR/requirements/requirements_deploy.txt
-
   DEPS=(
-    "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
-    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e"
-    "onnxscript @ git+https://github.com/microsoft/onnxscript"
-    "llama-index==0.10.43"
-    "unstructured==0.14.9"
-    "triton==3.1.0"
+    "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
+    "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
+    "nemo_run"                                                                                 # Not compatible in Python 3.12
+    "nvidia-modelopt[torch]==0.27.1 ; platform_system != 'Darwin'"                             # We want a specific version of nvidia-modelopt
   )
 
   echo 'Installing dependencies of nemo'
-  ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
-
+  pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
+  pip install --no-cache-dir "${DEPS[@]}"
+  # needs no-deps to avoid installing triton on top of pytorch-triton.
+  pip install --no-deps --no-cache-dir "liger-kernel==0.5.4; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
+  pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86aba72cfd2f0d8abecaf81c13c4528ea07d8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
   echo 'Installing nemo itself'
-  pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
+  pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
 
 echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
 
+echo 'Upgrading tools'
+${PIP} install -U --no-cache-dir "setuptools==76.0.0" pybind11 wheel ${PIP}
+
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-
   echo "Will not install numba"
 
 else
   if [ -n "${CONDA_PREFIX}" ]; then
-    NUMBA_VERSION=0.57.1
-    echo 'Installing numba=='${NUMBA_VERSION}
-    conda install -y -c conda-forge numba==${NUMBA_VERSION}
+    echo 'Installing numba'
+    conda install -y -c conda-forge numba
+  else
+    pip install --no-cache-dir --no-deps torch cython
   fi
 fi
 
@@ -232,6 +345,12 @@ else
 
   # Validate each library is supported
   for lib in "${LIBRARIES[@]}"; do
+    # "trt" is a valid option but not in ALL_LIBRARIES
+    # It does not get installed at the same time as the rest
+    if [[ "$lib" == "trt" ]]; then
+      continue
+    fi
+
     if [[ ! " ${ALL_LIBRARIES[@]} " =~ " ${lib} " ]]; then
       echo "Error: Unsupported library '$lib'"
       exit 1

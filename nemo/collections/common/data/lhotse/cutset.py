@@ -30,6 +30,7 @@ from nemo.collections.common.data.lhotse.nemo_adapters import (
     LazyNeMoTarredIterator,
     expand_sharded_filepaths,
 )
+from nemo.collections.common.data.lhotse.sampling import PlaceholderFilter
 from nemo.collections.common.data.lhotse.text_adapters import (
     LhotseTextAdapter,
     LhotseTextPairAdapter,
@@ -58,6 +59,10 @@ def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bo
         cuts, is_tarred = read_nemo_manifest(config)
     else:
         cuts, is_tarred = read_lhotse_manifest(config)
+
+    # After reading cuts we filter cutsets to exclude cuts with valid "_skipme" values.
+    # This filtration is done before mixing cutsets as well. Here it is being done for non-mixed cutsets.
+    cuts = cuts.filter(PlaceholderFilter())
     return cuts, is_tarred
 
 
@@ -193,6 +198,8 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "max_open_streams": config.get("max_open_streams", None),
         "token_equivalent_duration": config.get("token_equivalent_duration", None),
         "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
+        "force_map_dataset": config.get("force_map_dataset", False),
+        "force_iterable_dataset": config.get("force_iterable_dataset", False),
     }
     input_cfg = config.input_cfg
     if isinstance(input_cfg, (str, Path)):
@@ -330,7 +337,17 @@ def parse_and_combine_datasets(
         if (w := item.get("weight")) is not None:
             weights.append(w)
 
-    assert all(t == tarred_status[0] for t in tarred_status), "Mixing tarred and non-tarred datasets is not supported."
+    all_same_tarred_status = all(t == tarred_status[0] for t in tarred_status)
+    if not all_same_tarred_status:
+        if propagate_attrs["force_map_dataset"] or propagate_attrs["force_iterable_dataset"]:
+            logging.warning(
+                f"Not all datasets in the group have the same tarred status, using provided force_map_dataset ({propagate_attrs['force_map_dataset']}) and force_iterable_dataset ({propagate_attrs['force_iterable_dataset']}) to determine the final tarred status."
+            )
+        else:
+            raise ValueError(
+                "Mixing tarred and non-tarred datasets is not supported when neither force_map_dataset nor force_iterable_dataset is True."
+            )
+
     assert len(weights) == 0 or len(cuts) == len(
         weights
     ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
@@ -408,6 +425,8 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
                 logging.info(f"- {path=} {weight=}")
                 cutsets.append(cs)
                 weights.append(weight)
+
+            cutsets = [cutset.filter(PlaceholderFilter()) for cutset in cutsets]
             cuts = mux(
                 *cutsets,
                 weights=weights,
@@ -516,7 +535,10 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
     force_finite = config.force_finite
     is_tarred = config.get("tarred_audio_filepaths") is not None
     if isinstance(config.manifest_filepath, (str, Path)):
-        logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
+        logging.info(
+            f"""Initializing Lhotse CutSet from a single NeMo manifest 
+            (is_tarred={is_tarred}): '{config.manifest_filepath}'"""
+        )
         if is_tarred and not metadata_only:
             cuts = CutSet(
                 LazyNeMoTarredIterator(
@@ -545,19 +567,21 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         #   i.e., NeMo concatenated dataset
         #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
         logging.info(
-            "Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. "
-            "We found the following sources and weights: "
+            f"""Initializing Lhotse CutSet from multiple NeMo manifest 
+            (is_tarred={is_tarred}) sources with a weighted multiplexer.
+            We found the following sources and weights: """
         )
         cutsets = []
         weights = []
         tar_paths = config.tarred_audio_filepaths if is_tarred else repeat((None,))
         # Create a stream for each dataset.
         for manifest_info, tar_path in zip(config.manifest_filepath, tar_paths):
-            if isinstance(tar_path, (list, tuple, ListConfig)):
+            if is_tarred and isinstance(tar_path, (list, tuple, ListConfig)):
                 # if it's in option 1 or 2
                 (tar_path,) = tar_path
                 manifest_path = manifest_info[0]
             else:
+                # if it's in option 3
                 manifest_path = manifest_info
             # First, convert manifest_path[+tar_path] to an iterator.
             if is_tarred and not metadata_only:
@@ -597,6 +621,8 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                 cutsets.append(CutSet(nemo_iter))
                 weights.append(weight)
         # Finally, we multiplex the dataset streams to mix the data.
+        # Before that we filter cutsets to exclude cuts with valid "_skipme" values to mix the data correctly.
+        cutsets = [cutset.filter(PlaceholderFilter()) for cutset in cutsets]
         cuts = mux(
             *cutsets,
             weights=weights,
@@ -625,7 +651,11 @@ def mux(
     else:
         if not force_finite:
             cutsets = [cs.repeat() for cs in cutsets]
-        cuts = CutSet.mux(*cutsets, weights=weights, seed=seed)
+        if len(cutsets) == 1:
+            # CutSet.mux must take more than one CutSet.
+            cuts = cutsets[0]
+        else:
+            cuts = CutSet.mux(*cutsets, weights=weights, seed=seed)
     return cuts
 
 

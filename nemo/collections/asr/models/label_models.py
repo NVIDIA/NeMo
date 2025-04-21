@@ -47,7 +47,7 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
@@ -172,6 +172,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
 
         self._macro_accuracy = Accuracy(num_classes=num_classes, top_k=1, average='macro', task='multiclass')
+        self._pair_macro_accuracy = Accuracy(num_classes=2, top_k=1, average='macro', task='multiclass')
 
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecSpeakerLabelModel.from_config_dict(self._cfg.spec_augment)
@@ -356,8 +357,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
     def forward_for_export(self, audio_signal, length):
         encoded, length = self.encoder(audio_signal=audio_signal, length=length)
-        logits, embs = self.decoder(encoder_output=encoded, length=length)
-        return logits, embs
+        output = self.decoder(encoder_output=encoded, length=length)
+        return output
 
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
@@ -394,7 +395,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             loss = torch.nn.functional.mse_loss(cosine_sim, loss_labels)
         else:
             audio_signal, audio_signal_len, labels, _ = batch
-            logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+            output = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+            if isinstance(output, tuple):
+                logits, _ = output
+            else:
+                logits = output
             loss = self.loss(logits=logits, labels=labels)
 
         self.log('loss', loss)
@@ -414,7 +419,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             return self.pair_evaluation_step(batch, batch_idx, dataloader_idx, tag)
 
         audio_signal, audio_signal_len, labels, _ = batch
-        logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        output = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        if isinstance(output, tuple):
+            logits, _ = output
+        else:
+            logits = output
         loss_value = self.eval_loss(logits=logits, labels=labels)
 
         acc_top_k = self._accuracy(logits=logits, labels=labels)
@@ -455,8 +464,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         logits = torch.stack([1 - cosine_sim, cosine_sim], dim=-1)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        self._macro_accuracy.update(preds=logits, target=labels)
-        stats = self._macro_accuracy._final_state()
+        self._pair_macro_accuracy.update(preds=logits, target=labels)
+        stats = self._pair_macro_accuracy._final_state()
 
         output = {
             f'{tag}_loss': loss_value,
@@ -500,14 +509,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        self._macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
-        macro_accuracy_score = self._macro_accuracy.compute()
+        self._pair_macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
+        self._pair_macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
+        self._pair_macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
+        self._pair_macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
+        macro_accuracy_score = self._pair_macro_accuracy.compute()
 
         self._accuracy.reset()
-        self._macro_accuracy.reset()
+        self._pair_macro_accuracy.reset()
 
         tensorboard_logs = {f'{tag}_loss': loss_mean, f"{tag}_eer": eer}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):

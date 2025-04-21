@@ -25,6 +25,7 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding, tdt_beam_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
+from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import BlankLMScoreMode, PruningMode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -234,7 +235,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
             if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
-            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes']:
+            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes', "malsd_batch"]:
                 raise ValueError(
                     "currently only greedy, greedy_batch, beam and maes inference is supported for TDT models"
                 )
@@ -249,7 +250,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch', "maes_batch"]
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -354,6 +355,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         confidence_method_cfg=self.confidence_method_cfg,
                         loop_labels=self.cfg.greedy.get('loop_labels', True),
                         use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
+                        ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     )
                 else:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
@@ -371,6 +374,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                         use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
+                        ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     )
 
             else:
@@ -478,8 +483,71 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
                     )
+        elif self.cfg.strategy == 'malsd_batch':
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get(
+                            'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
+                        ),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    )
+                else:
+                    self.decoding = tdt_beam_decoding.BeamBatchedTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get(
+                            'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
+                        ),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    )
+        elif self.cfg.strategy == 'maes_batch':
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='maes_batch',
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get(
+                            'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
+                        ),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', False),
+                        return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    )
         else:
-
             raise ValueError(
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"
@@ -819,14 +887,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Assert number of offsets and hypothesis tokens are 1:1 match.
         num_flattened_tokens = 0
         for t in range(len(char_offsets)):
-            # Subtract one here for the extra RNNT BLANK token emitted to designate "End of timestep"
-            num_flattened_tokens += len(char_offsets[t]['char']) - 1
+            # Count all tokens except for RNNT BLANK token emitted to designate "End of timestep"
+            num_flattened_tokens += len([c for c in char_offsets[t]['char'] if c != self.blank_id])
 
         if num_flattened_tokens != len(hypothesis.text):
             raise ValueError(
                 f"`char_offsets`: {char_offsets} and `processed_tokens`: {hypothesis.text}"
                 " have to be of the same length, but are: "
-                f"`len(offsets)`: {len(char_offsets)} and `len(processed_tokens)`:"
+                f"`len(offsets)`: {num_flattened_tokens} and `len(processed_tokens)`:"
                 f" {len(hypothesis.text)}"
             )
 
@@ -835,8 +903,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Correctly process the token ids to chars/subwords.
         for i, offsets in enumerate(char_offsets):
             decoded_chars = []
-            for char in offsets['char'][:-1]:  # ignore the RNNT Blank token at end of every timestep with -1 subset
-                decoded_chars.append(self.decode_tokens_to_str([int(char)]))
+            for char in offsets['char']:
+                if char != self.blank_id:  # ignore the RNNT Blank token
+                    decoded_chars.append(self.decode_tokens_to_str([int(char)]))
             char_offsets[i]["char"] = decoded_chars
 
         encoded_char_offsets, char_offsets = self._refine_timestamps(
@@ -867,7 +936,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         word_offsets = None
         if timestamp_type in ['word', 'segment', 'all']:
             if text_type == 'char':
-                word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=self.word_seperator)
+                word_offsets = self._get_word_offsets_chars(
+                    char_offsets,
+                    word_delimiter_char=self.word_seperator,
+                    supported_punctuation=self.supported_punctuation,
+                )
             else:
                 # utilize the copy of char offsets with the correct integer ids for tokens
                 # so as to avoid tokenize -> detokenize -> compare -> merge steps.
@@ -876,6 +949,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     hypothesis,
                     decode_ids_to_tokens=self.decode_ids_to_tokens,
                     decode_tokens_to_str=self.decode_tokens_to_str,
+                    rnnt_token=self.blank_id,
+                    supported_punctuation=self.supported_punctuation,
                 )
 
         segment_offsets = None
@@ -911,6 +986,12 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Convert the flattened token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
 
+        # collapse leading spaces before . , ? for PC models
+        hypothesis.text = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis.text)
+
+        if self.compute_hypothesis_token_set:
+            hypothesis.tokens = self.decode_ids_to_tokens(decoded_prediction)
+
         return hypothesis
 
     @staticmethod
@@ -930,7 +1011,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         """
         start_index = 0
-
         # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
         if hypothesis.timestamp is not None and len(hypothesis.timestamp) > 0:
@@ -971,9 +1051,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         Returns:
 
         """
+        if isinstance(hypothesis.timestamp, torch.Tensor):
+            hypothesis.token_duration = hypothesis.token_duration.cpu().tolist()
+
+        if isinstance(hypothesis.timestamp, torch.Tensor):
+            hypothesis.timestamp = hypothesis.timestamp.cpu().tolist()
+
         # Merge the results per token into a list of dictionaries
         offsets = [
-            {"char": [t, -1], "start_offset": int(s), "end_offset": int(s + d)}
+            {"char": [t], "start_offset": s, "end_offset": s + d}
             for t, s, d in zip(hypothesis.text[0], hypothesis.timestamp, hypothesis.token_duration)
         ]
         return offsets
@@ -1013,7 +1099,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _get_word_offsets_chars(
-        offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
+        offsets: Dict[str, Union[str, float]],
+        word_delimiter_char: str = " ",
+        supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of character time stamps.
@@ -1045,10 +1133,17 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     end_offset = offset["end_offset"]
                     word += char
                 else:
+                    next_puntuation = (
+                        (supported_punctuation and offsets[i + 1]['char'][0] in supported_punctuation)
+                        if i < len(offsets) - 1
+                        else False
+                    )
                     # Switching state
-                    if state == "SPACE":
+                    if state == "SPACE" and not next_puntuation:
                         # Finishing a word
                         word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+                    elif state == "SPACE" and next_puntuation:
+                        continue
                     else:
                         # Starting a new word
                         start_offset = offset["start_offset"]
@@ -1068,6 +1163,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         hypothesis: Hypothesis,
         decode_ids_to_tokens: Callable[[List[int]], str],
         decode_tokens_to_str: Callable[[List[int]], str],
+        rnnt_token: int,
+        supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of sub-word time stamps.
@@ -1086,40 +1183,44 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             "end_offset".
         """
         word_offsets = []
-        built_token = []
+        built_word = ""
         previous_token_index = 0
         # For every offset token
         for i, offset in enumerate(offsets):
-            # For every subword token in offset token list (ignoring the RNNT Blank token at the end)
-            for char in offset['char'][:-1]:
-                char = int(char)
+            # For every subword token in offset token list (ignoring the RNNT Blank token if it exists)
+            for char in offset['char']:
+                if char != rnnt_token:
+                    char = int(char)
 
-                # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
-                token = decode_ids_to_tokens([char])[0]
-                token_text = decode_tokens_to_str([char])
+                    # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
+                    token = decode_ids_to_tokens([char])[0]
+                    token_text = decode_tokens_to_str([char])
 
-                # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
-                # after forcing partial text conversion of the token.
-                if token != token_text:
-                    # If there are any partially or fully built sub-word token ids, construct to text.
-                    # Note: This is "old" subword, that occurs *after* current sub-word has started.
-                    if built_token:
-                        word_offsets.append(
-                            {
-                                "word": decode_tokens_to_str(built_token),
-                                "start_offset": offsets[previous_token_index]["start_offset"],
-                                "end_offset": offsets[i - 1]["end_offset"],
-                            }
-                        )
+                    # It is a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
+                    if supported_punctuation and token_text in supported_punctuation:
+                        built_word += token_text.strip()
+                    # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
+                    # after forcing partial text conversion of the token.
+                    elif token != token_text:
+                        # If there is partially or fully built word, append to word offsets.
+                        # Note: This is "old" subword, that occurs *after* current sub-word has started.
+                        if built_word:
+                            word_offsets.append(
+                                {
+                                    "word": built_word.strip(),
+                                    "start_offset": offsets[previous_token_index]["start_offset"],
+                                    "end_offset": offsets[i - 1]["end_offset"],
+                                }
+                            )
 
-                    # Prepare list of new sub-word ids
-                    built_token.clear()
-                    built_token.append(char)
-                    previous_token_index = i
-                else:
-                    # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
-                    # Append to current sub-word list.
-                    built_token.append(char)
+                        # Prepare new built_word
+                        built_word = ""
+                        built_word += token_text
+                        previous_token_index = i
+                    else:
+                        # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
+                        # Append to current built word.
+                        built_word += token_text.strip()
 
         # Inject the start offset of the first token to word offsets
         # This is because we always skip the delay the injection of the first sub-word due to the loop
@@ -1129,25 +1230,23 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         if offsets and word_offsets:
             word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
-        # If there are any remaining tokens left, inject them all into the final word offset.
+        # If there is any built word left, inject it into the final word offset.
         # The start offset of this token is the start time of the next token to process.
         # The end offset of this token is the end time of the last token from offsets.
-        # Note that built_token is a flat list; but offsets contains a nested list which
-        # may have different dimensionality.
-        # As such, we can't rely on the length of the list of built_token to index offsets.
-        if built_token:
+        # Note that as we group tokens into words, we need to keep track of
+        # the index of the first token in each word within the full char_offsets list.
+        # This lets us retrieve the correct start_offset for that word.
+        if built_word:
             # start from the previous token index as this hasn't been committed to word_offsets yet
             # if we still have content in built_token
             start_offset = offsets[previous_token_index]["start_offset"]
             word_offsets.append(
                 {
-                    "word": decode_tokens_to_str(built_token),
+                    "word": built_word.strip(),
                     "start_offset": start_offset,
                     "end_offset": offsets[-1]["end_offset"],
                 }
             )
-        built_token.clear()
-
         return word_offsets
 
     @staticmethod
@@ -1207,7 +1306,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     previous_word_index = i
                     continue
 
-            elif word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
+            elif word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
                 segment_words.append(word)
                 if segment_words:
                     segment_offsets.append(

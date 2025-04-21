@@ -29,7 +29,6 @@ from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
-from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
@@ -526,13 +525,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
         monitor_candidates = super()._monitor_candidates(trainer)
 
         from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
+        from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 
         keys = re.findall(r"[\{](.*?)[:\}]", self.filename)
         for loss_name in ['reduced_train_loss']:
             if loss_name in keys or loss_name == self.monitor:
                 if loss_name not in monitor_candidates:
                     monitor_candidates[loss_name] = torch.tensor(0.0, device=torch.cuda.current_device())
-                _sync_from_last_pipeline_stage(monitor_candidates[loss_name], broadcast=True)
+                if isinstance(trainer.strategy, MegatronStrategy):
+                    _sync_from_last_pipeline_stage(monitor_candidates[loss_name], broadcast=True)
 
         return monitor_candidates
 
@@ -566,10 +567,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ValueError: (mcore) async_save with EMA not supported
             ValueError: (mcore) Async save requires async compatible CheckpointIO
         """
-        # if it's an HF model -> use HF's save_pretrained function.
-        if (mod := get_automodel_from_trainer(trainer)) is not None:
-            mod.save_pretrained(filepath)
-            return
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -686,13 +683,23 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
-        super()._remove_checkpoint(trainer, filepath)
+        try:
+            super()._remove_checkpoint(trainer, filepath)
+        except Exception as e:
+            logging.warning(
+                f'Error removing checkpoint, common if doing manual cleanup and restarting: {filepath}: {e}'
+            )
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
             # remove EMA copy of the state dict as well.
 
             filepath = self._ema_format_filepath(filepath)
-            super()._remove_checkpoint(trainer, filepath)
+            try:
+                super()._remove_checkpoint(trainer, filepath)
+            except Exception as e:
+                logging.warning(
+                    f'Error removing checkpoint, common if doing manual cleanup and restarting: {filepath}: {e}'
+                )
         # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
         # we don't want to remove the marker until the checkpoint is actually removed.
         self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
