@@ -37,7 +37,7 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 NAME = "qwen2vl_2b"
 
-HF_MODEL_NAME="Qwen/Qwen2-VL-2B"
+HF_MODEL_NAME="Qwen/Qwen2-VL-2B-Instruct"
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
