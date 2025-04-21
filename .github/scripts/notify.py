@@ -43,7 +43,7 @@ def send_slack_notification():
                 "text": (
                     f"*<{server_url}/{repository}/pull/{pr_number}|PR#{pr_number}: {pr.title.replace('`', '')}>*\n"
                     f"• Author: <{server_url}/{pr.user.login}|{pr.user.login}>\n"
-                    f"• Branch: `{pr.head.ref}`\n"
+                    f"• Branch: <{server_url}/{repository}/tree/{pr.head.ref}|{pr.head.ref}>\n"
                     f"• Pipeline: <{server_url}/{repository}/actions/runs/{run_id}|View Run>\n"
                     f"• Failed Jobs:\n"
                     + "\n".join(
