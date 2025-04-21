@@ -254,9 +254,8 @@ def multi_dc_recipe(nodes: int = 8, gpus_per_node: int = 8):
         num_nodes=nodes,
         num_gpus_per_node=gpus_per_node,
         num_distributed_optimizer_instances=2,
-        nccl_communicator_config_path="/opt/NeMo/examples/llm/pretrain/multi_dc_nccl_communicator_config.yaml"
+        nccl_communicator_config_path="/opt/NeMo/examples/llm/pretrain/multi_dc_nccl_communicator_config.yaml",
     )
-
 
     return pretrain
 
