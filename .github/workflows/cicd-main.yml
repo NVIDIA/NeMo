@@ -117,7 +117,9 @@ jobs:
                   }
                 }
               }
-            }' | jq -r '.data.repository.pullRequests.nodes[].number')
+            }' | jq -r '.data.repository.pullRequests.nodes[].number' | while read -r number; do
+              echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
+            done)
 
           echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
           echo "$LAST_PRS" >> $GITHUB_OUTPUT
