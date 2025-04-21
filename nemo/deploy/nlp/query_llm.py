@@ -527,3 +527,85 @@ class NemoQueryLLM(NemoQueryLLMBase):
                     yield sentences
                 else:
                     yield partial_result_dict["outputs"]
+
+
+class NemoQueryTRTLLMPytorch(NemoQueryLLMBase):
+    """
+    Sends a query to Triton for TensorRT-LLM PyTorch backend inference
+
+    Example:
+        from nemo.deploy import NemoQueryTRTLLMPytorch
+
+        nq = NemoQueryTRTLLMPytorch(url="localhost", model_name="GPT-2B")
+
+        prompts = ["hello, testing GPT inference", "another GPT inference test?"]
+        output = nq.query_llm(
+            prompts=prompts,
+            max_length=100,
+            top_k=1,
+            top_p=None,
+            temperature=None,
+        )
+        print("prompts: ", prompts)
+    """
+
+    def __init__(self, url, model_name):
+        super().__init__(
+            url=url,
+            model_name=model_name,
+        )
+
+    def query_llm(
+        self,
+        prompts: List[str],
+        max_length: int = 256,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        temperature: Optional[float] = None,
+        init_timeout: float = 60.0,
+    ):
+        """
+        Query the Triton server synchronously and return a list of responses.
+
+        Args:
+            prompts (List(str)): list of sentences.
+            max_length (int): max generated tokens.
+            top_k (int): limits us to a certain number (K) of the top tokens to consider.
+            top_p (float): limits us to the top tokens within a certain probability mass (p).
+            temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            init_timeout (flat): timeout for the connection.
+
+        Returns:
+            List[str]: A list of generated texts, one for each input prompt.
+        """
+        prompts = str_list2numpy(prompts)
+        inputs = {
+            "prompts": prompts,
+        }
+
+        if max_length is not None:
+            inputs["max_length"] = np.full(prompts.shape, max_length, dtype=np.int_)
+
+        if temperature is not None:
+            inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+
+        if top_k is not None:
+            inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
+
+        if top_p is not None:
+            inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
+
+        with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
+            result_dict = client.infer_batch(**inputs)
+            output_type = client.model_config.outputs[0].dtype
+
+            if output_type == np.bytes_:
+                if "sentences" in result_dict.keys():
+                    output = result_dict["sentences"]
+                else:
+                    return "Unknown output keyword."
+
+                sentences = np.char.decode(output.astype("bytes"), "utf-8")
+                return sentences
+            else:
+                return result_dict["sentences"]

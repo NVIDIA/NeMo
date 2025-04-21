@@ -86,7 +86,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
 
         self.model = LLM(
             model=hf_model_id_path,
-            tokenizer=tokenizer,
+            tokenizer=hf_model_id_path if tokenizer is None else tokenizer,
             tensor_parallel_size=tensor_parallel_size,
             pipeline_parallel_size=pipeline_parallel_size,
             moe_expert_parallel_size=moe_expert_parallel_size,
@@ -191,9 +191,9 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
 
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
-            temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
-            top_k = int(inputs.pop("top_k")[0][0] if "top_k" in inputs else 1)
-            top_p = inputs.pop("top_p")[0][0] if "top_p" in inputs else 0.0
+            temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else None
+            top_k = int(inputs.pop("top_k")[0][0]) if "top_k" in inputs else None
+            top_p = inputs.pop("top_p")[0][0] if "top_p" in inputs else None
             max_length = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
 
             if torch.distributed.is_initialized():
