@@ -89,21 +89,6 @@ RUN \
     rm -rf $NEMO_DIR || true
 EOF
 
-# Copy over NeMo code
-ARG NEMO_REPO
-ARG NEMO_TAG
-RUN \
-  --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/reinstall.sh <<"EOF" bash -ex
-
-  bash /tmp/reinstall.sh --library all --mode install
-
-  # Copy into workspace
-  cp -a /opt/NeMo/. /workspace/
-  cp -r /opt/Megatron-LM/ /workspace/
-
-  # set permission
-  chmod 777 -R /workspace
-EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 ENV NEMO_HOME="/home/TestData/nemo_home"

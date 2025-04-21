@@ -63,6 +63,25 @@ jobs:
         run: |
           docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
+      - name: Checkout NeMo
+        uses: actions/checkout@v2
+        with:
+          repository: NVIDIA/NeMo
+          path: ${{ github.run_id }}/NeMo
+
+      - name: Fetch Mcore tag from manifest.json
+        id: mcore
+        run: |
+          REF=$(cat requirements/manifest.json| jq -r '."vcs-dependencies"."megatron-lm".ref')
+          echo "ref=$REF" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Checkout Megatron-LM
+        uses: actions/checkout@v2
+        with:
+          repository: NVIDIA/Megatron-LM
+          path: ${{ github.run_id }}/Megatron-LM
+          ref: ${{ steps.mcore.outputs.ref }}
+
       - name: Start container
         run: |
           mkdir -p $DIR
@@ -93,6 +112,8 @@ jobs:
             --env TRANSFORMERS_OFFLINE=0 \
             --env HYDRA_FULL_ERROR=1 \
             --env HF_HOME=/home/TestData/HF_HOME \
+            --volume ${{ github.run_id }}/NeMo:/workspace/NeMo \
+            --volume ${{ github.run_id }}/Megatron-LM:/workspace/Megatron-LM \
             --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
             bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
           RUN_TEST_EOF
