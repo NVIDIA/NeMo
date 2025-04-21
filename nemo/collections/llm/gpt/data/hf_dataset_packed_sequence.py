@@ -282,17 +282,3 @@ def create_block_causal_mask(seq_lens: List[torch.Tensor]) -> torch.Tensor:
     # Transformers expects the attn_mask to be 4d [bs, 1, packed_sequence_size, packed_sequence_size], hence adding
     # singleton (size 1) dimension at position 1.
     return torch.stack(batch_block_attn_masks).unsqueeze(1)
-
-
-def packed_block_causal_mask(seq_lens: List[torch.Tensor]):
-    """
-    Create a block causal document mask for a batch of packed sequences. A standard 2D block causal mask is created
-    and returned.
-    Args:
-        seq_lens (List[torch.Tensor]): Sequence lengths of samples in each pack in the batch,
-            shape (batch_size, n), where n is the max number of sequences in a pack and can vary
-            across packs.
-    Returns:
-        _MaskType: BlockMask or Tensor if torch version < 2.5.0.
-    """
-    return create_block_causal_mask(seq_lens=seq_lens)

@@ -27,7 +27,7 @@ from torch.utils.data.distributed import DistributedSampler
 
 from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import (
     HFDatasetPackedSequenceHelper,
-    packed_block_causal_mask,
+    create_block_causal_mask,
 )
 from nemo.utils import logging
 
@@ -435,7 +435,7 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         HFDatasetDataModule's collate_fn.
         """
         seq_lens = [x["seq_lens"] for x in batch]
-        block_mask = packed_block_causal_mask(
+        block_mask = create_block_causal_mask(
             seq_lens=seq_lens,
         )
 
