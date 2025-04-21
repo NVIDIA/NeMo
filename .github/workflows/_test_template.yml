@@ -70,11 +70,16 @@ jobs:
         run: |
           curl -s https://webinstall.dev/jq | bash
 
+      - name: Create UUID
+        id: uuid
+        run: |
+          echo "id=$(uuidgen)" >> "$GITHUB_OUTPUT"
+
       - name: Checkout NeMo
         uses: actions/checkout@v2
         with:
           repository: NVIDIA/NeMo
-          path: ${{ github.run_id }}/NeMo
+          path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo
 
       - name: Fetch Mcore tag from manifest.json
         id: mcore
@@ -86,7 +91,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: NVIDIA/Megatron-LM
-          path: ${{ github.run_id }}/Megatron-LM
+          path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/Megatron-LM
           ref: ${{ steps.mcore.outputs.ref }}
 
       - name: Start container
