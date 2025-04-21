@@ -108,28 +108,30 @@ class TestActivationFunctions:
 
     def test_gradient_flow(self):
         """Test that gradients flow correctly through the activation functions."""
-        x = torch.tensor([0.5, 1.0, 2.0], dtype=torch.float32, requires_grad=True)
+        # Explicitly enable gradient computation
+        with torch.enable_grad():
+            x = torch.tensor([0.5, 1.0, 2.0], dtype=torch.float32, requires_grad=True)
 
-        # Test openai_gelu
-        y_gelu = openai_gelu(x)
-        loss_gelu = y_gelu.sum()
-        loss_gelu.backward()
-        assert x.grad is not None and not torch.allclose(x.grad, torch.zeros_like(x))
+            # Test openai_gelu
+            y_gelu = openai_gelu(x)
+            loss_gelu = y_gelu.sum()
+            loss_gelu.backward()
+            assert x.grad is not None and not torch.allclose(x.grad, torch.zeros_like(x))
 
-        # Reset gradients
-        x.grad.zero_()
+            # Reset gradients
+            x.grad.zero_()
 
-        # Test quick_gelu
-        y_quick = quick_gelu(x)
-        loss_quick = y_quick.sum()
-        loss_quick.backward()
-        assert x.grad is not None and not torch.allclose(x.grad, torch.zeros_like(x))
+            # Test quick_gelu
+            y_quick = quick_gelu(x)
+            loss_quick = y_quick.sum()
+            loss_quick.backward()
+            assert x.grad is not None and not torch.allclose(x.grad, torch.zeros_like(x))
 
-        # Reset gradients
-        x.grad.zero_()
+            # Reset gradients
+            x.grad.zero_()
 
-        # Test squared_relu
-        y_squared = squared_relu(x)
-        loss_squared = y_squared.sum()
-        loss_squared.backward()
-        assert x.grad is not None and not torch.allclose(x.grad, torch.zeros_like(x))
+            # Test squared_relu
+            y_squared = squared_relu(x)
+            loss_squared = y_squared.sum()
+            loss_squared.backward()
+            assert x.grad is not None and not torch.allclose(x.grad, torch.zeros_like(x))
