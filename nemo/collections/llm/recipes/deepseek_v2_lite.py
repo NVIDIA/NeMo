@@ -17,10 +17,10 @@ from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
-from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2LiteConfig
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.deepseek import trainer
