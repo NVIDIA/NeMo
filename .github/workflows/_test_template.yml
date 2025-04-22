@@ -62,6 +62,24 @@ jobs:
         run: |
           docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
+      - name: Clean repos
+        run: |
+
+      - name: Install jq
+        run: |
+          curl -sS https://webi.sh/jq | sh
+
+      - name: Create UUID
+        id: uuid
+        run: |
+          echo "id=$(uuidgen)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout NeMo
+        uses: actions/checkout@v2
+        with:
+          repository: NVIDIA/NeMo
+          path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo
+
       - name: Start container
         run: |
           mkdir -p $DIR
@@ -92,8 +110,9 @@ jobs:
             --env TRANSFORMERS_OFFLINE=0 \
             --env HYDRA_FULL_ERROR=1 \
             --env HF_HOME=/home/TestData/HF_HOME \
+            --volume $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo:/workspace \
             --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
-            bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
+            bash -c "cp -r /opt/Megatron-LM/ /workspace/ && sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
           RUN_TEST_EOF
           )
 
@@ -194,4 +213,6 @@ jobs:
       - name: Container shutdown
         if: always()
         run: |
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c "chown -R $(id -u):$(id -g) /workspace"
+          rm -rf $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }} || true
           docker container rm -f nemo_container_${{ github.run_id }}_${{ runner.name }} || true
