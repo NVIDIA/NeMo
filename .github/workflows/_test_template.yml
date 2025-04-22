@@ -112,7 +112,7 @@ jobs:
             --env HF_HOME=/home/TestData/HF_HOME \
             --volume $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo:/workspace \
             --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
-            bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
+            bash -c "cp -r /opt/Megatron-LM/ /workspace/ && sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
           RUN_TEST_EOF
           )
 
