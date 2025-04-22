@@ -73,6 +73,8 @@ RUN \
     
     bash /tmp/NeMo/reinstall.sh --library all --mode install
     rm -rf $NEMO_DIR || true
+    cp -r /opt/Megatron-LM/ /workspace/
+    chmod 777 -R /workspace
 EOF
 
 
