@@ -143,6 +143,7 @@ def _set_random_seed(seed: int):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    # TODO: add cuda seed
 
 
 def destroy_global_state():

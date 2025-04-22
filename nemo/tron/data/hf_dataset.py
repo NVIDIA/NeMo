@@ -75,6 +75,8 @@ def preprocess_and_split_data(
     delete_raw: bool = False,
     seed: int = 1234,
     rewrite: bool = False,
+    do_test: bool = True,
+    do_validation: bool = True,
 ):
     """Preprocesses and splits the downloaded dataset into training, validation, and test sets."""
     logger.info(f"Preprocessing {dataset_name} to jsonl format and splitting...")
@@ -88,15 +90,17 @@ def preprocess_and_split_data(
         if train_set is not None:
             break
 
-    for alias in val_aliases:
-        val_set = dset.get(alias)
-        if val_set is not None:
-            break
+    if do_validation:
+        for alias in val_aliases:
+            val_set = dset.get(alias)
+            if val_set is not None:
+                break
 
-    for alias in test_aliases:
-        test_set = dset.get(alias)
-        if test_set is not None:
-            break
+    if do_test:
+        for alias in test_aliases:
+            test_set = dset.get(alias)
+            if test_set is not None:
+                break
 
     assert train_set, f"Train set with aliases: {train_aliases} not found in dataset"
     train_set = cast(Dataset, train_set)
@@ -252,6 +256,8 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
             delete_raw=self.delete_raw,
             seed=self.seed,
             rewrite=True,
+            do_test=self.do_test,
+            do_validation=self.do_validation,
         )
         super().prepare_data()
 

@@ -27,6 +27,7 @@ from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
 from nemo.lightning.pytorch.callbacks.jit_transform import JitConfig
 from nemo.tron.llm.utils import get_batch_from_iterator
 from nemo.tron.state import GlobalState
+from nemo.tron.utils.common_utils import get_world_size_safe
 from nemo.utils.import_utils import safe_import
 
 logger = logging.getLogger(__name__)
@@ -45,10 +46,13 @@ def finalize_model_grads(model: torch.nn.Module, total_num_tokens: Optional[torc
         return
 
     group = None
+    # This is the size of the data parallel group, since DDP all reduces grads via averaging
+    group_size = get_world_size_safe()
     # TODO: Add support to select data parallel group for FSDP etc
 
-    torch.distributed.all_reduce(total_num_tokens, group=group)
-    scaling_factor = 1 / total_num_tokens
+    num_tokens = total_num_tokens.clone().detach()
+    torch.distributed.all_reduce(num_tokens, group=group)
+    scaling_factor = group_size / num_tokens
     for param in model.parameters():
         if param.grad is not None:
             param.grad.data.mul_(scaling_factor)
@@ -258,15 +262,15 @@ def forward_step(
 
     batch = {}
     batch["input_ids"] = tokens
-    if attention_mask is not None:
-        # Change to HF Transformer format
-        batch["attention_mask"] = torch.logical_not(attention_mask).bfloat16()
-    batch["position_ids"] = position_ids
+    batch["attention_mask"] = loss_mask.bfloat16()
+    # if attention_mask is not None:
+    # Change to HF Transformer format
+    # batch["attention_mask"] = torch.logical_not(attention_mask).bfloat16()
+    # batch["position_ids"] = position_ids
     # TODO(@boxiangw): Refractor. Needed for SP support
-    # batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).cuda(non_blocking=True)
+    batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).cuda(non_blocking=True)
 
     # batch = _remove_extra_batch_keys(batch)
-
     with straggler_timer:
         output_tensor = forward_with_loss_no_cp(model, batch, labels, loss_mask, config)
 

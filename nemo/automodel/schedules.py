@@ -76,7 +76,7 @@ def forward_backward_no_pipelining(
             loss, num_tokens = forward_step_func(data_iterator=data_iterator, model=model, config=config)
             num_tokens = num_tokens.clone().detach().to(torch.int)
             total_num_tokens += num_tokens.item()
-            forward_data_store.append(loss)
+            forward_data_store.append(loss.clone())
             if not forward_only:
                 loss.backward()
 
@@ -85,7 +85,7 @@ def forward_backward_no_pipelining(
     loss, num_tokens = forward_step_func(data_iterator=data_iterator, model=model, config=config)
     num_tokens = num_tokens.clone().detach().to(torch.int)
     total_num_tokens += num_tokens.item()
-    forward_data_store.append(loss)
+    forward_data_store.append(loss.clone())
 
     if not forward_only:
         loss.backward()

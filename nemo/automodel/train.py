@@ -29,7 +29,6 @@ from megatron.core.num_microbatches_calculator import (
 from nemo.automodel.checkpointing import save_checkpoint
 from nemo.automodel.config import ConfigContainer
 from nemo.automodel.eval import evaluate_and_print_results
-from nemo.automodel.init import destroy_global_state
 from nemo.automodel.schedules import ForwardStepFnProtocol, get_forward_backward_func
 from nemo.automodel.utils import flop_utils
 from nemo.automodel.utils.train_utils import reduce_loss, training_log
@@ -51,6 +50,7 @@ def train_step(
     timers = global_state.timers
     train_config = cfg.train_config
     optim_config = cfg.optimizer_config
+    model_config = cfg.model_config
 
     optimizer.zero_grad()
     if hasattr(model, "zero_grad"):
@@ -67,8 +67,9 @@ def train_step(
         forward_only=False,
         timers=timers,
     )
-    # TODO: Add pipeline parallelism
-    reporting_loss, total_num_tokens = reduce_loss(loss_store, total_num_tokens)
+    reporting_loss, reporting_num_tokens = reduce_loss(
+        loss_store, total_num_tokens, per_token_loss=cfg.model_config.calculate_per_token_loss
+    )
 
     # Empty unused memory.
     if train_config.empty_unused_memory_level >= 1:
@@ -93,7 +94,7 @@ def train_step(
         torch.cuda.empty_cache()
 
     return (
-        {"lm loss": (reporting_loss, total_num_tokens)},
+        {"lm loss": (reporting_loss, reporting_num_tokens)},
         skipped_iter,
         grad_norm,
     )

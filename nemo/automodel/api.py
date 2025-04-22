@@ -16,6 +16,7 @@ import inspect
 from functools import partial
 from typing import Callable, Optional
 
+from nemo.automodel.checkpointing import save_checkpoint
 from nemo.automodel.config import ConfigContainer
 from nemo.automodel.eval import evaluate_and_print_results
 from nemo.automodel.setup import setup
@@ -64,6 +65,18 @@ def automodel_train(
             )
 
         barrier_and_log("after training is done")
+        ckpt_config = config.checkpoint_config
+        if ckpt_config.save and state.train_state.step != 0 and ckpt_config.save_interval != 0:
+            save_checkpoint(
+                save_dir=ckpt_config.save,
+                state=state,
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                tokenizer=config.dataset_config.tokenizer,
+                save_rng=ckpt_config.save_rng,
+                save_optim=ckpt_config.save_optim,
+            )
     else:
         barrier_and_log("skipping training ...")
 

@@ -89,17 +89,16 @@ def training_log(
     # Track NaN losses
     got_nan = False
     for key in loss_dict:
+        value = (
+            loss_dict[key][0].float().item() / loss_dict[key][1].float().item()
+            if isinstance(loss_dict[key], tuple)
+            else loss_dict[key].float().item()
+        )
         if not skipped_iter:
             total_loss_dict[key] = (
-                total_loss_dict.get(key, torch.tensor([0.0], dtype=torch.float, device="cuda"))
-                + loss_dict[key][0] / loss_dict[key][1]
+                total_loss_dict.get(key, torch.tensor([0.0], dtype=torch.float, device="cuda")) + value
             )
         else:
-            value = (
-                loss_dict[key][0].float().item() / loss_dict[key][1].float().item()
-                if isinstance(loss_dict[key], tuple)
-                else loss_dict[key].float().item()
-            )
             is_nan = value == float("inf") or value == -float("inf") or value != value
             got_nan = got_nan or is_nan
 
@@ -178,16 +177,19 @@ def training_log(
         tb_logger.add_scalar("batch-size vs samples", batch_size, global_state.train_state.consumed_train_samples)
         if wandb_logger:
             wandb_logger.log({"batch-size": batch_size}, train_state.step)
+
         for key in loss_dict:
-            value = (
-                loss_dict[key][0].float().item() / loss_dict[key][1].float().item()
-                if isinstance(loss_dict[key], tuple)
-                else loss_dict[key].float().item()
-            )
-            tb_logger.add_scalar(key, value, train_state.step)
-            tb_logger.add_scalar(key + " vs samples", value, global_state.train_state.consumed_train_samples)
-            if wandb_logger:
-                wandb_logger.log({key: value}, train_state.step)
+            if key == "lm loss":
+                loss_sum = loss_dict[key][0].float().item()
+                total_num_tokens = loss_dict[key][1].float().item()
+                value = loss_sum / total_num_tokens
+                tb_logger.add_scalar(key, value, train_state.step)
+                tb_logger.add_scalar(key + " vs samples", value, global_state.train_state.consumed_train_samples)
+                if wandb_logger:
+                    wandb_logger.log({key: value}, train_state.step)
+                    wandb_logger.log({"total_num_tokens": total_num_tokens}, train_state.step)
+                    wandb_logger.log({"loss_sum": loss_sum}, train_state.step)
+
         if logger_config.log_loss_scale_to_tensorboard:
             tb_logger.add_scalar("loss-scale", loss_scale, train_state.step)
             tb_logger.add_scalar("loss-scale vs samples", loss_scale, global_state.train_state.consumed_train_samples)
@@ -281,10 +283,17 @@ def training_log(
 def reduce_loss(
     loss_store: list[torch.Tensor],
     total_num_tokens: torch.Tensor,
+    per_token_loss: bool = True,
     dp_group: Optional[torch.distributed.ProcessGroup] = None,
 ) -> torch.Tensor:
     """Reduce loss across all ranks."""
-    loss = torch.sum(torch.stack(loss_store)).clone().detach()
+    loss = torch.sum(torch.stack(loss_store).float()).view(1).clone().detach()
+
     torch.distributed.all_reduce(loss, op=torch.distributed.ReduceOp.SUM, group=dp_group)
-    torch.distributed.all_reduce(total_num_tokens, op=torch.distributed.ReduceOp.SUM, group=dp_group)
-    return loss, total_num_tokens
+
+    if per_token_loss:
+        denominator = total_num_tokens.clone().detach().to(torch.int)
+    else:
+        denominator = torch.tensor([len(loss_store)], dtype=torch.int, device="cuda")
+    torch.distributed.all_reduce(denominator, op=torch.distributed.ReduceOp.SUM, group=dp_group)
+    return loss, denominator
