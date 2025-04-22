@@ -70,7 +70,7 @@ jobs:
           # on branch `main`.
           elif [[ "$EVENT_NAME" == "push" ]]; then
             TESTS_TO_RUN=all
-            
+
           else
             echo "Unsupported event_name $EVENT_NAME provided".
             exit 1
@@ -187,7 +187,7 @@ jobs:
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Setup_Test_Data_And_Models')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Setup_Test_Data_And_Models') || contains(fromJSON(inputs.test_to_run), 'all')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L0_Setup_Test_Data_And_Models
