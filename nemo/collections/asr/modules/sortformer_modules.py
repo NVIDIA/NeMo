@@ -256,6 +256,17 @@ class SortformerModules(NeuralModule, Exportable):
             return embs
 
     def init_streaming_state(self, batch_size: int = 1, async_streaming: bool = False, device: torch.device = None):
+        """
+        Initializes StreamingSortformerState with empty tensors or zero-valued tensors.
+
+        Args:
+            batch_size (int): batch size for tensors in streaming state
+            async_streaming (bool): True for asynchronous update, False for synchronous update
+            device (torch.device): device for tensors in streaming state
+
+        Returns:
+            streaming_state (SortformerStreamingState): initialized streaming state
+        """
         streaming_state = StreamingSortformerState()
         if async_streaming:
             streaming_state.spkcache = torch.zeros((batch_size, self.spkcache_len, self.fc_d_model), device = device)
@@ -280,19 +291,10 @@ class SortformerModules(NeuralModule, Exportable):
         """
         Update the speaker cache and FIFO queue with the chunk of embeddings and speaker predictions.
         Asynchronous version, which means speaker cache, FIFO and chunk may have different lengths within a batch.
-        Should be used for real stremaing applicaitons.
+        Should be used for real streaming applications.
 
         Args:
-            spkcache (torch.Tensor): speaker cache to save the embeddings from start
-                Dimension: (batch_size, spkcache_len, emb_dim)
-            spkcache_lengths (torch.Tensor): lengths of speaker cache
-                Dimension: (batch_size,)
-            spkcache_preds (torch.Tensor): speaker activity probabilities for speaker cache
-                Dimension: (batch_size, spkcache_len, n_spk)
-            fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks.
-                Dimension: (batch_size, fifo_len, emb_dim)
-            fifo_lengths (torch.Tensor): lengths of FIFO queue
-                Dimension: (batch_size,)
+            streaming_state (SortformerStreamingState): previous streaming state including speaker cache and FIFO
             chunk (torch.Tensor): chunk of embeddings to be predicted
                 Dimension: (batch_size, lc+chunk_len+rc, emb_dim)
             chunk_lengths (torch.Tensor): lengths of current chunk
@@ -303,18 +305,7 @@ class SortformerModules(NeuralModule, Exportable):
                 only the chunk[:, lc:chunk_len+lc] is used for update of speaker cache and FIFO queue
 
         Returns:
-            spkcache (torch.Tensor): updated speaker cache
-                Dimension: (batch_size, spkcache_len, emb_dim)
-            spkcache_lengths (torch.Tensor): updated lengths of speaker cache
-                Dimension: (batch_size,)
-            fifo (torch.Tensor): updated FIFO queue
-                Dimension: (batch_size, fifo_len, emb_dim)
-            fifo_lengths (torch.Tensor): updated lengths of FIFO queue
-                Dimension: (batch_size,)
-            spkcache_preds (torch.Tensor): updated speaker predictions for speaker cache
-                Dimension: (batch_size, spkcache_len, num_spk)
-            fifo_preds (torch.Tensor): speaker predictions for FIFO queuer
-                Dimension: (batch_size, fifo_len, num_spk)
+            streaming_state (SortformerStreamingState): current streaming state including speaker cache and FIFO
             chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
                 Dimension: (batch_size, chunk_len, num_spks)
         """
@@ -420,37 +411,21 @@ class SortformerModules(NeuralModule, Exportable):
         """
         Update the speaker cache and FIFO queue with the chunk of embeddings and speaker predictions.
         Synchronous version, which means speaker cahce, FIFO queue and chunk have same lengths within a batch.
-        Should be used for training and evaluation, not for real stremaing applicaitons.
+        Should be used for training and evaluation, not for real streaming applications.
 
         Args:
-            spkcache (torch.Tensor): speaker cache to save the embeddings from start
-                Dimension: (batch_size, spkcache_len, emb_dim)
-            spkcache_preds (torch.Tensor): speaker activity probabilities for speaker cache
-                Dimension: (batch_size, spkcache_len, num_spk)
-            fifo (torch.Tensor): FIFO queue to save the embeddings from the latest chunks.
-                Dimension: (batch_size, fifo_len, emb_dim)
+            streaming_state (SortformerStreamingState): previous streaming state including speaker cache and FIFO
             chunk (torch.Tensor): chunk of embeddings to be predicted
                 Dimension: (batch_size, lc+chunk_len+rc, emb_dim)
             preds (torch.Tensor): speaker predictions of the [spkcache + fifo + chunk] embeddings
                 Dimension: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
-            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores on previous step
-                Dimension: (batch_size, n_spk)
             lc and rc (int): left & right offset of the chunk,
                 only the chunk[:, lc:chunk_len+lc] is used for update of speaker cache and FIFO queue
 
         Returns:
-            spkcache (torch.Tensor): updated speaker cache
-                Dimension: (batch_size, spkcache_len, emb_dim)
-            fifo (torch.Tensor): updated FIFO queue
-                Dimension: (batch_size, fifo_len, emb_dim)
-            spkcache_preds (torch.Tensor): updated speaker predictions for speaker cache
-                Dimension: (batch_size, spkcache_len, num_spk)
-            fifo_preds (torch.Tensor): speaker predictions for FIFO queuer
-                Dimension: (batch_size, fifo_len, num_spk)
+            streaming_state (SortformerStreamingState): current streaming state including speaker cache and FIFO
             chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
                 Dimension: (batch_size, chunk_len, num_spks)
-            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores on this step
-                Dimension: (batch_size, n_spk)
         """
 
         batch_size, _, emb_dim = chunk.shape
