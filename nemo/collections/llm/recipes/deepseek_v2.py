@@ -107,6 +107,11 @@ def pretrain_recipe(
     recipe.model.config.recompute_method = "uniform"
     recipe.model.config.recompute_num_layers = 1
 
+    # Use DeepEP
+    recipe.model.config.moe_token_dispatcher_type = "flex"
+    recipe.model.config.moe_enable_deepep = True
+    recipe.model.config.moe_shared_expert_overlap = False
+
     return recipe
 
 

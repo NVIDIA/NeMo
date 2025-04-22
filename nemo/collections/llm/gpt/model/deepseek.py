@@ -86,6 +86,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     moe_token_dispatcher_type: str = "alltoall"
     moe_router_load_balancing_type: str = 'seq_aux_loss'
     moe_shared_expert_overlap: bool = True
+    moe_router_dtype: Optional[str] = 'fp32'
 
     # MLA
     q_lora_rank: int = 1536
@@ -116,6 +117,9 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     bias_dropout_fusion: bool = True
     masked_softmax_fusion: bool = True
     gradient_accumulation_fusion: bool = True
+    cross_entropy_loss_fusion: bool =True
+    cross_entropy_fusion_impl: str = "te"
+    moe_permute_fusion: bool = True
 
     def __post_init__(self):
         super().__post_init__()

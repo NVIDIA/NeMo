@@ -118,14 +118,11 @@ def pretrain_recipe(
     # recipe.model.config.recompute_granularity = "full"
     # recipe.model.config.recompute_method = "uniform"
     # recipe.model.config.recompute_num_layers = 1
-    recipe.model.config.cross_entropy_fusion_impl = "te"
 
     # DeepEP
     recipe.model.config.moe_token_dispatcher_type = "flex"
     recipe.model.config.moe_enable_deepep = True
     recipe.model.config.moe_shared_expert_overlap = False
-    recipe.model.config.moe_router_dtype = 'fp32'
-    recipe.model.config.moe_permute_fusion = True
 
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,

@@ -102,6 +102,11 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+    # Use DeepEP
+    recipe.model.config.moe_token_dispatcher_type = "flex"
+    recipe.model.config.moe_enable_deepep = True
+    recipe.model.config.moe_shared_expert_overlap = False
+
     return recipe
 
 
