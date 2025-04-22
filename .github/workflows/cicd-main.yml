@@ -187,10 +187,10 @@ jobs:
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L0_Setup_Test_Data_And_Models
+      TESTS_TO_RUN: '["L0_Setup_Test_Data_And_Models"]'
 
   cicd-main-unit-tests:
     needs: [pre-flight, cicd-test-container-build]
