@@ -274,6 +274,7 @@ setuptools.setup(
     entry_points={
         "nemo_run.cli": [
             "llm = nemo.collections.llm",
+            "vlm = nemo.collections.vlm",
         ],
     },
 )
