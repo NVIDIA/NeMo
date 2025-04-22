@@ -129,6 +129,7 @@ class Llama3PromptFormatter(PromptFormatter):
 
     NAME = "llama3"
     OUTPUT_ROLE = "assistant"
+    INFERENCE_PREFIX = f"{LLAMA3_HEADER_BEGIN}assistant{LLAMA3_HEADER_END}{LLAMA3_NL}"
     TEMPLATE = {
         "preamble": {
             "template": LLAMA3_BOS,
@@ -146,7 +147,7 @@ class Llama3PromptFormatter(PromptFormatter):
             },
         },
         OUTPUT_ROLE: {
-            "template": f"{LLAMA3_HEADER_BEGIN}assistant{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
+            "template": f"{INFERENCE_PREFIX}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
                 "message": Modality.Text,
             },

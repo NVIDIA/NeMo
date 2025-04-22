@@ -123,7 +123,7 @@ class PromptFormatter(ABC):
 
 
         >>> formatter = PromptFormatter(tokenizer)
-        ... encoded_for_training = formatter.encode_dialog(
+        ... encoded_for_inference = formatter.encode_dialog(
         ...     turns=[
         ...         {"role": "user", "slots": {"message": "What time is it?"}},
         ...         {"role": "assistant", "slots": {"message": "Ten o'clock."}},
@@ -154,6 +154,10 @@ class PromptFormatter(ABC):
     # Turns under this role indicate responses by the model; if the last turn in
     # PromptFormatter.encode_dialog() ends with this role, it indicates a training example.
     OUTPUT_ROLE = None
+
+    # When specified, we will append this prefix at the end of the prompt at inference time.
+    # We detect inference time by the fact that the last turn is not from OUTPUT_ROLE.
+    INFERENCE_PREFIX = None
 
     # When set to true, we will insert BOS/EOS symbol at the very beginning/end of the dialog
     # (i.e., not before/after every turn).
@@ -296,6 +300,7 @@ class PromptFormatter(ABC):
                     len(preamble_turns) == 1 and preamble_turns[0] == 0
                 ), f"Preamble can only be presented at turn 0, but we found preamble turns at indexes {preamble_turns}."
 
+        is_inference = turns[-1]["role"] != self.OUTPUT_ROLE
         for turn in turns:
             assert "role" in turn, f"A turn must have have a 'role' key. We received {turn=}"
             role = turn["role"]
@@ -313,8 +318,14 @@ class PromptFormatter(ABC):
             turn_token_counts.append(len(tokens))
             turn_mask_values.append(role == self.OUTPUT_ROLE)
 
+        if is_inference and self.INFERENCE_PREFIX is not None:
+            inference_prefix = self._apply_tokenizer(self.INFERENCE_PREFIX)
+            turn_tokens.extend(inference_prefix)
+            turn_token_counts.append(len(inference_prefix))
+            turn_mask_values.append(False)  # not a training example
+
         # Insert EOS only when the last turn comes from the OUTPUT_ROLE.
-        if self.INSERT_EOS and turns[-1]["role"] == self.OUTPUT_ROLE:
+        if self.INSERT_EOS and not is_inference:
             turn_tokens.append(self.tokenizer.eos)
             turn_token_counts[-1] += 1
             turn_mask_values.append(True)
