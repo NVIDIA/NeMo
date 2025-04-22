@@ -20,6 +20,5 @@ TRANSFORMERS_OFFLINE=1 \
     --gbs=2 --mbs=2 \
     --max_steps=4 \
     --max_sequence_length=38400 \
-    --restore_path="/root/.cache/nemo/models/Qwen/Qwen2-VL-2B-Instruct/" \
     --projector_type="mcore_mlp" \
     --log_dir=/tmp/nemo2_qwen2vl_results/$RUN_ID
