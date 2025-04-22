@@ -148,11 +148,12 @@ jobs:
       cache-from: |
         nemoci.azurecr.io/$IMAGE_NAME-buildcache:main
         ${{ needs.pre-flight.outputs.cache-from }}
+      runner: myVm
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     needs: [cicd-test-container-build, pre-flight]
-    runs-on: self-hosted-azure-gpus-1
+    runs-on: myVm # self-hosted-azure-gpus-1
     steps:
       - name: Create UUID
         id: uuid

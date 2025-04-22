@@ -48,7 +48,7 @@ on:
         value: ${{ jobs.main.outputs.potential_infra_failure }}
 jobs:
   main:
-    runs-on: ${{ inputs.RUNNER }}
+    runs-on: myVm # ${{ inputs.RUNNER }}
     name: ${{ inputs.SCRIPT }}
     if: ${{ inputs.TESTS_TO_RUN == 'all' || contains(inputs.TESTS_TO_RUN, inputs.SCRIPT) }}
     outputs:
