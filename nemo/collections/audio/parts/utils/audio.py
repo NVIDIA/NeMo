@@ -19,7 +19,6 @@ import librosa
 import numpy as np
 import numpy.typing as npt
 import scipy
-import soundfile as sf
 import torch
 from scipy.spatial.distance import pdist, squareform
 
@@ -517,3 +516,55 @@ def toeplitz(x: torch.Tensor) -> torch.Tensor:
     length = x.size(-1)
     x = torch.cat([x[..., 1:].flip(dims=(-1,)), x], dim=-1)
     return x.unfold(-1, length, 1).flip(dims=(-1,))
+
+
+def covariance_matrix(x: torch.Tensor, mask: Optional[torch.Tensor] = None, eps: float = 1e-8) -> torch.Tensor:
+    """Calculate covariance matrix of the input signal.
+
+    If a mask is provided, the covariance matrix is calculated by averaging over the time dimension and weighting by the normalized mask.
+
+    Args:
+        x: input signal with shape `(..., channel, freq, time)`
+        mask: mask with shape `(..., freq, time)`. Default is `None`.
+        eps: regularization constant. Default is `1e-10`.
+
+    Returns:
+        Covariance matrix with shape (..., freq, channel, channel)
+    """
+    # Check dimensions of the input signal
+    if x.ndim < 3:
+        raise ValueError(f"Input signal must have at least 3 dimensions. Input signal shape: {x.shape}")
+
+    # Permute dimensions to (..., freq, time, channel)
+    x = x.transpose(-3, -2).transpose(-2, -1)
+
+    # For each time-step, calculate the outer product p_xx(t) = x(t) x(t)^H
+    p_xx = torch.einsum('...tm,...tn->...tmn', x, x.conj())
+
+    # Weighting across time
+    if mask is None:
+        # Average over the time dimension
+        p_xx = p_xx.mean(dim=-3)
+    else:
+        # Mask-weighted average over the time dimension
+
+        # Check dimensions of the mask
+        if mask.ndim != x.ndim - 1:
+            raise ValueError(
+                f"Mask must have the same number of dimensions as the input signal, excluding the channel dimension. Input signal shape: {x.shape}, mask shape: {mask.shape}"
+            )
+
+        if mask.shape != x.shape[:-1]:
+            raise ValueError(
+                f"Mask must have the same shape as the input signal, excluding the channel dimension. Input signal shape: {x.shape}, mask shape: {mask.shape}"
+            )
+        # Normalize the mask
+        mask = mask / (mask.sum(dim=-1, keepdim=True) + eps)
+
+        # Apply the mask to the input signal
+        p_xx = mask[..., None, None] * p_xx
+
+        # Mask-weighted average over the time dimension
+        p_xx = p_xx.sum(dim=-3)
+
+    return p_xx
