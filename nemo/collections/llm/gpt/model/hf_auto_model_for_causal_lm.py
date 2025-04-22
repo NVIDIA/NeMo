@@ -229,8 +229,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         if self.enable_grad_ckpt:
             if getattr(self.model, 'supports_gradient_checkpointing', False):
-                self.model.gradient_checkpointing_enable()
-                logging.info("#### Gradient checkpointing enabled")
+                self.model.gradient_checkpointing_enable({"use_reentrant": False})
             else:
                 # TODO(@akoumparouli): custom logic goes here, but for now just a warning
                 logging.warning("Asked to use gradient checkpoint, but model does not support it")
