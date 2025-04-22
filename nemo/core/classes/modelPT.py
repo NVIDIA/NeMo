@@ -410,14 +410,17 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
 
-        def maybe_make_save_dir(path: str):
-            if MULTISTORAGECLIENT_AVAILABLE and path.startswith(MULTISTORAGECLIENT_PROTOCOL):
+        def maybe_make_save_dir(path: Union[str, 'pathlib.Path']):
+            if MULTISTORAGECLIENT_AVAILABLE and str(path).startswith(MULTISTORAGECLIENT_PROTOCOL):
                 return
             else:
-                path = Path(path).expanduser().resolve()
                 if not path.parent.exists():
                     path.parent.mkdir(parents=True)
 
+        if MULTISTORAGECLIENT_AVAILABLE and str(save_path).startswith(MULTISTORAGECLIENT_PROTOCOL):
+            save_path = str(save_path)
+        else:
+            save_path = Path(save_path).expanduser().resolve()
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             if app_state.model_parallel_size > 1:
@@ -478,11 +481,11 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and restore_path.startswith(
+        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and str(restore_path).startswith(
             MULTISTORAGECLIENT_PROTOCOL
         )
         if is_multistorageclient_url:
-            restore_path = ModelPT.derive_restore_path_with_multistorageclient_url(restore_path)
+            restore_path = ModelPT.derive_restore_path_with_multistorageclient_url(str(restore_path))
         else:
             if save_restore_connector.model_extracted_dir is None:
                 restore_path = os.path.abspath(os.path.expanduser(restore_path))
