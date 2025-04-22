@@ -24,7 +24,7 @@ model:
   context_duration_max: 8.0
   speaker_emb_dim: 192 # Only used for single_encoder_sv_tts, ignored otherwise
   num_audio_codebooks: 8
-  num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
+  num_audio_tokens_per_codebook: 2024 # 2016 from codec + 8 reserved tokens (for things like EOS/BOS etc.)
   codec_model_downsample_factor: 1024
   load_cached_codes_if_available: true
   prior_scaling_factor: 0.5

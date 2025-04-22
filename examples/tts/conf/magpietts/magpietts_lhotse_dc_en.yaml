@@ -10,7 +10,7 @@ model:
   context_duration_min: 3.0
   context_duration_max: 5.0
   num_audio_codebooks: 8
-  num_audio_tokens_per_codebook: 2_018 # Keep atleast 2 extra for eos/bos ids
+  num_audio_tokens_per_codebook: 2024 # 2016 from codec + 8 reserved tokens (for things like EOS/BOS etc.)
   codec_model_downsample_factor: 1_024
   codec_model_name: "21fpsCausalDecoder"
   load_cached_codes_if_available: true
