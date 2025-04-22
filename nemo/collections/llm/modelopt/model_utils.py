@@ -62,6 +62,7 @@ def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     model_cfg.transformer_layer_spec = modelopt_spec
     return model_cfg
 
+
 def _set_gpt_mamba_modelopt_spec(
     model_cfg: Union[llm.GPTConfig, llm.SSMConfig]
 ) -> Union[llm.GPTConfig, llm.SSMConfig]:
@@ -84,6 +85,7 @@ def _set_gpt_mamba_modelopt_spec(
     else:
         raise ValueError(f"No modelopt layer spec supported for config type {type(model_cfg)}")
     return model_cfg
+
 
 def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> None:
     """Set model.config.transformer_layer_spec to modelopt spec if modelopt_state exists in the checkpoint."""
