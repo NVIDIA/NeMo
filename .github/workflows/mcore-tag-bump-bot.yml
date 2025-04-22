@@ -20,7 +20,7 @@ jobs:
       - name: Merge main back to weekly-bump
         run: |
           git fetch --unshallow
-          git checkout weekly-bump
+          git checkout weekly-bump 2>/dev/null || git checkout -b weekly-bump main
           git pull
           git merge --no-ff main -m "chore: Auto-merge main back to dev"
           git push
@@ -42,6 +42,7 @@ jobs:
   notify:
     if: failure()
     runs-on: ubuntu-latest
+    needs: [update-weekly-branch, mcore]
     steps:
       - name: Notify
         env:
