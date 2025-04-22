@@ -284,6 +284,7 @@ jobs:
           set -x
           pip install PyGithub
           python .github/scripts/notify.py
+
       - name: Exit
         if: ${{ always() }}
         env:
