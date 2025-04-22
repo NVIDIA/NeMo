@@ -405,7 +405,6 @@ class TestCovarianceMatrix:
             # Check if the UUT matches the reference
             assert torch.allclose(uut, ref, atol=atol), f'Example {n}: UUT not matching the reference.'
 
-
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 3])
     @pytest.mark.parametrize('num_freq', [3, 10])
@@ -455,7 +454,6 @@ class TestCovarianceMatrix:
             # Check if the UUT matches the reference
             assert torch.allclose(uut, ref, atol=atol), f'Example {n}: UUT not matching the reference.'
 
-
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 3])
     @pytest.mark.parametrize('num_freq', [17, 33])
@@ -474,7 +472,6 @@ class TestCovarianceMatrix:
         # Mask has only (freq, time) dimensions -- missing batch dimension
         with pytest.raises(ValueError):
             covariance_matrix(x=input, mask=mask[0, ...])
-
 
         # Mask has wrong number of time steps
         with pytest.raises(ValueError):
