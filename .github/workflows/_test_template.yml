@@ -31,6 +31,11 @@ on:
         description: Upload coverage as unit test
         required: false
         default: false
+      TESTS_TO_RUN:
+        type: string
+        description: Tests to run
+        required: false
+        default: "all"
     outputs:
       conclusion:
         description: Conclusion of main test step
@@ -45,6 +50,7 @@ jobs:
   main:
     runs-on: ${{ inputs.RUNNER }}
     name: ${{ inputs.SCRIPT }}
+    if: ${{ inputs.TESTS_TO_RUN == 'all' || contains(inputs.TESTS_TO_RUN, inputs.SCRIPT) }}
     outputs:
       conclusion: ${{ steps.check.conclusion }}
       log: ${{ steps.check.outputs.log }}
