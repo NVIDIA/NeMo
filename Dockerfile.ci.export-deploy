@@ -16,13 +16,40 @@
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
 
-FROM ${BASE_IMAGE} 
+FROM ${BASE_IMAGE} AS trt-base
 ARG IMAGE_LABEL
 LABEL "nemo.library"=${IMAGE_LABEL}
 
 ENV TRANSFORMERS_OFFLINE=0
 ENV HYDRA_FULL_ERROR=1
 ENV PYTHONUNBUFFERED=1
+
+# APT packages
+RUN <<"EOF" bash -ex
+apt-get update
+apt-get install -y bc libsox-fmt-all -y
+apt-get clean
+EOF
+
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library trt --mode install
+EOF
+
+
+FROM trt-base AS trt-llm-wheel
+
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library trtllm --mode build
+EOF
+
+
+FROM trt-base as final
 
 ARG MLM_REPO
 ARG MLM_TAG

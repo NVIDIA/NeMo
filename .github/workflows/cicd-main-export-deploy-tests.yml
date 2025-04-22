@@ -5,6 +5,9 @@ on:
       test_to_run:
         required: true
         type: string
+      image-name:
+        required: true
+        type: string
 
 jobs:
   e2e-export-deploy-tests:
@@ -24,3 +27,5 @@ jobs:
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
+      TESTS_TO_RUN: ${{ inputs.test_to_run }}
+      IMAGE: ${{ inputs.image-name }}
