@@ -15,7 +15,7 @@
 import _io
 import lightning.pytorch as pl
 import torch
-from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
+from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor, BitsAndBytesConfig
 
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
@@ -81,12 +81,22 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def configure_model(self):
         """Instantiates the model"""
         # create all your layers here
+
+        quantization_config = None
+        if self.load_in_4bit:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=self.default_dtype,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_storage=self.default_dtype,
+            )
         if self.load_pretrained_weights:
             self.model = AutoModelForImageTextToText.from_pretrained(
                 self.model_name,
                 torch_dtype='auto',
                 trust_remote_code=self.trust_remote_code,
-                load_in_4bit=self.load_in_4bit,
+                quantization_config=quantization_config,
                 **self.kwargs,
             )
         else:
@@ -98,11 +108,6 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         self.model.train()
         self.freeze_model()
-
-        # Ugly hack for PEFT: adapters are added here so that can be wrapped correctly with DDP.
-        if getattr(self, 'model_transform', None) is not None:
-            self.model_transform(self)
-            self.model_transform.__num_calls__ = 0
 
         # Ugly hack for PEFT: adapters are added here so that can be wrapped correctly with DDP.
         if getattr(self, 'model_transform', None) is not None:
