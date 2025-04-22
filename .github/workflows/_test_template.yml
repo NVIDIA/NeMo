@@ -43,7 +43,7 @@ on:
         value: ${{ jobs.main.outputs.potential_infra_failure }}
 jobs:
   main:
-    runs-on: myVm # ${{ inputs.RUNNER }}
+    runs-on: ${{ inputs.RUNNER }}
     name: ${{ inputs.SCRIPT }}
     outputs:
       conclusion: ${{ steps.check.conclusion }}
