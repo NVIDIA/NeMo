@@ -333,7 +333,7 @@ class ExchangeOverlappingRegionsCausal(Function):
         if recv_prev_a is None:
             recv_prev_a = torch.zeros_like(chunk_a, dtype=chunk_a.dtype, device=chunk_a.device)
         if recv_next_b is None:
-            recv_next_b = chunk_a.clone().contiguous()  # Got to receive from the same rank, but previous split.
+            recv_next_b = torch.zeros_like(chunk_b, dtype=chunk_b.dtype, device=chunk_b.device)
 
         return recv_prev_a, recv_next_b
 
@@ -401,7 +401,7 @@ class ExchangeOverlappingRegionsCausal(Function):
         else:
             _grad_chunk_b = grad_chunk_b
 
-        return _grad_chunk_a, _grad_chunk_b
+        return _grad_chunk_a, _grad_chunk_b, None, None
 
 
 # End of CP related functions
