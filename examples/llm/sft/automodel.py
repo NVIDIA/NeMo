@@ -56,7 +56,7 @@ def make_squad_hf_dataset(
         if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
             answer_ids.append(tokenizer.eos_id)
 
-        # Perform padding to seq_length if not implementing packed-sequences
+        # Do not perform padding for packed sequences
         if packed_sequence_size > 0:
             return dict(
             labels=(context_ids + answer_ids)[1:],
