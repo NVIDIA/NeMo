@@ -60,6 +60,13 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
+   :caption: Evaluation
+   :name: Evaluation
+
+   evaluation/evaluation_docs
+
+.. toctree::
+   :maxdepth: 1
    :caption: Model Checkpoints
    :name: Checkpoints
 
