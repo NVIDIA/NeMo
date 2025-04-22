@@ -245,7 +245,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
 
-    #TODO: Remove after functional error with this enabled is fixed
+    # TODO: Remove after functional error with this enabled is fixed
     recipe.model.config.use_transformer_engine_full_layer_spec = False
 
     return recipe
