@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Tuple
 
 import lightning.pytorch as pl
 import numpy as np
@@ -35,6 +35,8 @@ _model_flops_map = {
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
     "hyena": hyena,
+    "deepseekv3": flops_formulas.deepseekv3,
+    "transformer": flops_formulas.transformer,
 }
 
 
@@ -80,18 +82,33 @@ class FLOPsMeasurementCallback(Callback):
         if query_groups is None:
             query_groups = attention_heads
 
-        self.flops_config = flops_formulas.FLOPSConfig(
-            gbs=gbs,
-            enc_seq_len=enc_seq_len,
-            hs=hs,
-            layers=layers,
-            ffn_hs=ffn_hs,
-            attention_heads=attention_heads,
-            moe_router_topk=moe_router_topk,
-            query_groups=query_groups,
-            vocab_size=vocab_size,
-            model_pattern=model_pattern,
-        )
+        config_kwargs = {
+            "gbs": gbs,
+            "enc_seq_len": enc_seq_len,
+            "hs": hs,
+            "layers": layers,
+            "ffn_hs": ffn_hs,
+            "attention_heads": attention_heads,
+            "moe_router_topk": moe_router_topk,
+            "query_groups": query_groups,
+            "vocab_size": vocab_size,
+            "model_pattern": model_pattern,
+        }
+
+        from megatron.core.transformer.transformer_config import MLATransformerConfig
+
+        if isinstance(self.model_cfg, MLATransformerConfig):
+            config_kwargs["qk_head_dim"] = self.model_cfg.qk_head_dim
+            config_kwargs["qk_pos_emb_head_dim"] = self.model_cfg.qk_pos_emb_head_dim
+            config_kwargs["v_head_dim"] = self.model_cfg.v_head_dim
+            config_kwargs["q_lora_rank"] = self.model_cfg.q_lora_rank
+            config_kwargs["kv_lora_rank"] = self.model_cfg.kv_lora_rank
+        config_kwargs["moe_layer_freq"] = self.model_cfg.moe_layer_freq
+        config_kwargs["moe_shared_expert_intermediate_size"] = self.model_cfg.moe_shared_expert_intermediate_size
+        config_kwargs["moe_ffn_hidden_size"] = self.model_cfg.moe_ffn_hidden_size
+        config_kwargs["mtp_num_layers"] = self.model_cfg.mtp_num_layers
+
+        self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
         self.model = self.model.lower() if self.model is not None else self.model
 
@@ -114,19 +131,16 @@ class FLOPsMeasurementCallback(Callback):
             self.avg_train_step_time += trainer.progress_bar_metrics['train_step_timing in s']
         except KeyError:
             print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
-
         n = trainer.strategy.current_epoch_step
         if n % trainer.log_every_n_steps == 0:
             # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
-            tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
-                self.avg_train_step_time / trainer.log_every_n_steps
-            )
+            tflops_per_gpu = self.eval_tflops_per_sec_per_gpu(self.avg_train_step_time / trainer.log_every_n_steps)
             self.avg_train_step_time = 0
             pl_module.log(
-                "tflops_per_sec_per_gpu",
-                tflops_per_sec_per_gpu,
+                "TFLOPS_per_GPU",
+                tflops_per_gpu,
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
@@ -153,11 +167,10 @@ class FLOPsMeasurementCallback(Callback):
 
         return flops_per_gpu / (1e12 * train_step_time)
 
-    def eval_model_flops(self):
+    def eval_model_flops(self) -> Tuple[float, float]:
         """
         Calculate model FLOPs for a given model
         """
-
         if self.model is not None:
             model_matches = [model for model in _model_flops_map if model in self.model]
             self.model = model_matches[0] if len(model_matches) > 0 else self.model
