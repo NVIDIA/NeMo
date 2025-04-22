@@ -170,7 +170,7 @@ class T5Config(TransformerConfig, io.IOMixin):
     bias_dropout_fusion: bool = True
     deallocate_pipeline_outputs: bool = True
     pipeline_model_parallel_split_rank: int = 0
-    num_moe_experts: int = 1
+    num_moe_experts: Optional[int] = None
     recompute_num_layers: int = 1
     distribute_saved_activations: bool = False
     enable_autocast: bool = False
@@ -443,6 +443,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         """Retrieve Tokenizer from HF"""
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         # Set special tokens to match HF
         bos_token = "<pad>"

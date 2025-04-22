@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import contextlib
-from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
@@ -35,7 +34,6 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.utils.te_utils import te_version
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -54,7 +52,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-def gpt_data_step(dataloader_iter) -> dict[str, torch.Tensor]:
+def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
     """Process a single batch of data from the dataloader iterator.
 
     This function handles the data loading step for GPT models, managing
@@ -62,6 +60,8 @@ def gpt_data_step(dataloader_iter) -> dict[str, torch.Tensor]:
 
     Args:
         dataloader_iter: Iterator over the dataloader
+        use_mtp: Whether the Multi-Token Prediction Module is used. Input needs to be passed
+                 into the last ppieline stage if mtp is used.
 
     Returns:
         dict[str, torch.Tensor]: Processed batch with required tensors moved to appropriate devices
@@ -88,7 +88,7 @@ def gpt_data_step(dataloader_iter) -> dict[str, torch.Tensor]:
         required_host_keys.add("cu_seqlens_argmin")
         required_host_keys.add("max_seqlen")
 
-    if parallel_state.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage() or use_mtp:
         required_device_keys.update(("tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_device_keys.update(("labels", "loss_mask"))
@@ -188,7 +188,10 @@ def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     from megatron.core.models.gpt import gpt_layer_specs
 
     return gpt_layer_specs.get_gpt_layer_local_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts,
+        moe_grouped_gemm=config.moe_grouped_gemm,
+        qk_layernorm=config.qk_layernorm,
+        normalization=config.normalization,
     )
 
 
@@ -210,6 +213,27 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
             return transformer_engine_layer_spec(config)
     else:
         return local_layer_spec(config)
+
+
+def mtp_block_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
+    """Pass in the MTP block spec if model has MTP layers.
+
+    Args:
+        config: GPT configuration object
+
+    Returns:
+        ModuleSpec: The MTP module specification
+    """
+    if getattr(config, "mtp_num_layers", None):
+        from megatron.core.models.gpt.gpt_layer_specs import get_gpt_mtp_block_spec
+
+        if isinstance(config.transformer_layer_spec, Callable):
+            spec = config.transformer_layer_spec(config)
+        else:
+            spec = config.transformer_layer_spec
+        return get_gpt_mtp_block_spec(config, spec, use_transformer_engine=HAVE_TE)
+    else:
+        return None
 
 
 def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
@@ -326,21 +350,18 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
-        # Set FP8 recipe to DelayedScaling to initialize model with float8 precision.
-        build_model_context = nullcontext
-        if self.fp8 is not None:
-            assert HAVE_TE, "Transformer Engine is required for FP8 training."
-            te_pytorch, _ = safe_import("transformer_engine.pytorch")
-            fp8_model_init = te_pytorch.fp8_model_init
-            if te_version() >= (2, 0):
-                # In TE 2.0, the default recipe is MXFP8BlockScaling, need to change it to DelayedScaling
-                te_recipe, _ = safe_import("transformer_engine.common.recipe")
-                recipe = te_recipe.DelayedScaling()
-                build_model_context = partial(fp8_model_init, recipe=recipe)
-            else:
-                build_model_context = fp8_model_init
+        # Initialize model as meta data instead of allocating data on a device
+        model_init_device_context = contextlib.nullcontext
+        if self.init_model_with_meta_device:
+            model_init_device_context = partial(torch.device, device='meta')
 
-        with build_model_context():
+        import inspect
+
+        if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
+            kwargs = {"mtp_block_spec": mtp_block_spec(self)}
+        else:
+            kwargs = {}
+        with model_init_device_context():
             model = MCoreGPTModel(
                 self,
                 transformer_layer_spec=transformer_layer_spec,
@@ -356,6 +377,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
                 post_process=post_process or parallel_state.is_pipeline_last_stage(),
                 scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
+                **kwargs,
             )
 
         # If using full TE layer, need to set TP, CP group since the module call
@@ -636,8 +658,11 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def get_inference_wrapper(
-        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
-    ) -> torch.Tensor:
+        self,
+        params_dtype: torch.dtype,
+        inference_batch_times_seqlen_threshold: int,
+        inference_max_seq_length: int = 2560,
+    ) -> GPTInferenceWrapper:
         """Get an inference wrapper for the model.
 
         Creates and configures a GPTInferenceWrapper around the model for efficient inference.
@@ -645,9 +670,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         Args:
             params_dtype: Data type for parameters
             inference_batch_times_seqlen_threshold: Threshold for optimizing inference
+            inference_max_seq_length: Maximum sequence length for inference (prefill and decode)
 
         Returns:
-            torch.Tensor: Wrapped model for inference
+            GPTInferenceWrapper: Wrapped model for inference
         """
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module

@@ -21,6 +21,7 @@ import functools
 import inspect
 import itertools
 import queue
+import types
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
@@ -154,6 +155,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         vp_size (Optional[int]): Virtual pipeline parallel size.
         ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
             DistributedDataParallelConfig which controls the Megatron DDP configuration.
+        fsdp (Optional[str]): Whether model should run Torch FSDP2 instead of DDP, select from
+            ["megatron", "torch"]. Defaults to None.
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
@@ -188,6 +191,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
+        fsdp: Optional[str] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
@@ -222,6 +226,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.forward_step = forward_step or default_forward_step
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
+        self.fsdp = fsdp
         self.convert_module_fn = convert_module_fn
 
         # [ModelOpt]: Detect Pipeline-parallel Distillation mode.
@@ -587,8 +592,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         for model_module in self:
-            if not self._cpu and not (HAVE_CUSTOM_FSDP and self.ddp_config and self.ddp_config.use_custom_fsdp):
-                # If Megatron FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
+            if not self._cpu and (not HAVE_CUSTOM_FSDP or self.fsdp != "megatron"):
+                # If Megatron custom FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
                 model_module.cuda(torch.cuda.current_device())
 
             for param in model_module.parameters():
@@ -667,11 +672,23 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 unwrapped_module = unwrap_model(module, Float16Module)
                 if (
                     HAVE_CUSTOM_FSDP
-                    and self.ddp_config.use_custom_fsdp
+                    and self.fsdp == "megatron"
                     and not isinstance(unwrapped_module, FullyShardedDataParallel)
                 ):
-                    FSDP = FullyShardedDataParallel
-                    dist_module = FSDP(
+                    from nemo.utils import logging
+
+                    if not getattr(module.config, "use_custom_fsdp", False):
+                        setattr(module.config, "use_custom_fsdp", True)
+                        logging.warning("Setting module.config.use_custom_fsdp to True for MCore FSDP.")
+
+                    if getattr(module.config, "gradient_accumulation_fusion", True):
+                        setattr(module.config, "gradient_accumulation_fusion", False)
+                        logging.warning("Setting module.config.gradient_accumulation_fusion to False for MCore FSDP.")
+
+                    assert module.config.use_custom_fsdp, "Custom FSDP is not enabled in module.config."
+                    assert self.ddp_config.use_custom_fsdp, "Custom FSDP is not enabled in ddp_config."
+
+                    dist_module = FullyShardedDataParallel(
                         module.config,
                         self.ddp_config,
                         module,
@@ -692,6 +709,20 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             model_chunk.buffers = (
                 dist_module.buffers
             )  # We need to do this explicitly since this is a attr pytorch uses
+
+            # save a reference to the original getattr function
+            # so we can restore the class' getattr during teardown
+            original_getattr = types.FunctionType(
+                model_chunk.__getattr__.__code__,
+                model_chunk.__getattr__.__globals__,
+                model_chunk.__getattr__.__name__,
+                model_chunk.__getattr__.__defaults__,
+                model_chunk.__getattr__.__closure__,
+            )
+
+            model_chunk.original_getattr = original_getattr
+            model_chunk.original_getattr.__dict__.update(model_chunk.__getattr__.__dict__)
+
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
@@ -699,6 +730,11 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         for module in self:
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
+
+    def teardown_ddp(self):
+        for model_chunk in self:
+            if hasattr(model_chunk, "original_getattr"):
+                model_chunk.__class__.__getattr__ = model_chunk.original_getattr  # type: ignore
 
     def _setup_module(self, function, **kwargs) -> None:
         if hasattr(function, "setup"):
