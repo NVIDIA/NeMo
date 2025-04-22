@@ -15,7 +15,9 @@
 
 # This code has been adapted from the following private repo: https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/tree/prompt-learning/prefix_tuning_v2
 # Adapted by: @adithyare
-
+#
+# flake8: noqa
+# pylint: skip-file
 
 import itertools
 from typing import Any
