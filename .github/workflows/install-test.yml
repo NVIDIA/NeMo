@@ -47,6 +47,7 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
+          export NVTE_PROJECT_BUILDING=1
           for collection in "asr" "tts"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
@@ -83,6 +84,7 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
+          export NVTE_PROJECT_BUILDING=1
           for collection in "asr" "tts"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
@@ -119,6 +121,7 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
+          export NVTE_PROJECT_BUILDING=1
           for collection in "asr" "tts"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
