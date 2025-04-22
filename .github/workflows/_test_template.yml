@@ -231,6 +231,5 @@ jobs:
       - name: Container shutdown
         if: always()
         run: |
-          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c 'rm -rf /workspace/'
           docker container rm -f nemo_container_${{ github.run_id }}_${{ runner.name }} || true
           rm -rf $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }} || true
