@@ -1,13 +1,10 @@
-import pytest
 import numpy as np
+import pytest
 import torch
 from tensorrt_llm.layers import MoeConfig
 
-from nemo.export.trt_llm.converter.model_converter import (
-    determine_quantization_settings,
-    prompt_convert,
-    get_config,
-)
+from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, get_config, prompt_convert
+
 
 def test_determine_quantization_settings():
     # Test with default NeMo config (no fp8)
@@ -27,6 +24,7 @@ def test_determine_quantization_settings():
     assert not fp8_quant
     assert fp8_kv
 
+
 def test_prompt_convert_task_templates():
     # Test with task templates
     prompt_config = {
@@ -35,7 +33,7 @@ def test_prompt_convert_task_templates():
             {'taskname': 'task2'},
         ]
     }
-    
+
     # Create mock weights
     prompt_weights = {
         'prompt_table': {
@@ -43,18 +41,17 @@ def test_prompt_convert_task_templates():
             'prompt_table.task2.prompt_embeddings.weight': torch.ones(3, 4),
         }
     }
-    
+
     result = prompt_convert(prompt_config, prompt_weights)
     assert isinstance(result, torch.Tensor)
     assert result.shape == (2, 3, 4)  # (num_tasks, max_length, embedding_dim)
 
+
 def test_prompt_convert_direct_embeddings():
     # Test with direct embeddings
     prompt_config = {}
-    prompt_weights = {
-        'prompt_embeddings_weights': torch.ones(2, 3, 4)
-    }
-    
+    prompt_weights = {'prompt_embeddings_weights': torch.ones(2, 3, 4)}
+
     result = prompt_convert(prompt_config, prompt_weights)
     assert isinstance(result, torch.Tensor)
     assert result.shape == (2, 3, 4)
