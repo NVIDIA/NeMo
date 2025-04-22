@@ -228,10 +228,11 @@ jobs:
           # Get workflow run details and check job conclusions
           NUM_FAILED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | length')
           NUM_CANCELLED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "cancelled") | .name] | length')
+          NUM_SKIPPED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "skipped") | .name] | length')
             
-          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 ]]; then
+          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && $NUM_SKIPPED -eq 0 ]]; then
             RESULT="success"
-          elif [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -gt 0 ]]; then
+          elif [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -gt 0 && $NUM_SKIPPED -eq 0 ]]; then
             RESULT="cancelled"
           else
             RESULT="failure"
