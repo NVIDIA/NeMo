@@ -17,14 +17,14 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple, Union
 
 import hydra
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch._dynamo
 import torch.nn as nn
 from einops import rearrange
+from lightning.pytorch import Trainer
+from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pytorch_lightning import Trainer
-from pytorch_lightning.utilities import rank_zero_only
 from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR
@@ -589,11 +589,16 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
         return loss
 
     def setup(self, stage=None):
-        """PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+
+        We setup datasets here as Megatron datasets require DDP to instantiate.
+        See the PyTorch Lightning documentation for more information:
+        https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup
+
         Args:
-            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+            stage (str, optional):
+                Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
         self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
 

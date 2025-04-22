@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
+import logging
+import os
 import shutil
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.fabric.utilities.rank_zero import rank_zero_info
+from lightning.fabric.utilities.seed import reset_seed
+from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
+from lightning.pytorch.trainer.states import TrainerFn
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.transformer.transformer_layer import TransformerLayer
-from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
-from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
     StateDictOptions,
     get_optimizer_state_dict,
@@ -35,7 +40,7 @@ from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
-    _MegatronBatchProgress,
+    _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -45,6 +50,8 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_data_sampler,
     setup_parallel_ranks,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
@@ -74,7 +81,6 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         data_sampler=None,
-        overwrite_batch_progress: bool = True,
         **kwargs,
     ):
         super().__init__(auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
@@ -82,24 +88,61 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
-        self.overwrite_batch_progress = overwrite_batch_progress
+        self.store: Optional[torch.distributed.Store] = None
 
     @override
     def setup_environment(self) -> None:
+        """Initializes rank and process group for communications."""
         setup_parallel_ranks(self)
-        super().setup_environment()
+
+        self.accelerator.setup_device(self.root_device)
+
+        # Implementation from superclass copied below in order to pass the store to the process group init
+        reset_seed()
+        self.set_world_ranks()
+        self._process_group_backend = self._get_process_group_backend()
+        assert self.cluster_environment is not None
+
+        if not torch.distributed.is_available():
+            raise RuntimeError("torch.distributed is not available. Cannot initialize distributed process group")
+        if torch.distributed.is_initialized():
+            _logger.debug("torch.distributed is already initialized. Exiting early")
+            return
+
+        global_rank = self.cluster_environment.global_rank()
+        world_size = self.cluster_environment.world_size()
+        os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
+        os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+        torch.distributed.init_process_group(
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+        )
+
+        if self._process_group_backend == "nccl":
+            atexit.register(_destroy_dist_connection)
+
+        # On rank=0 let everyone know training is starting
+        rank_zero_info(
+            f"{'-' * 100}\n"
+            f"distributed_backend={self._process_group_backend}\n"
+            f"All distributed processes registered. Starting with {world_size} processes\n"
+            f"{'-' * 100}\n"
+        )
+
+        # if 'device_mesh' in the `kwargs` is provided as a tuple, update it into the `DeviceMesh` object here
+        if isinstance(self.kwargs.get("device_mesh"), tuple):
+            from torch.distributed.device_mesh import init_device_mesh
+
+            self.kwargs["device_mesh"] = init_device_mesh("cuda", self.kwargs["device_mesh"])
+
         init_model_parallel(self.model)
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
+        """Connect strategy to trainer and handle adjustments before the loop starts."""
         self.trainer = trainer
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
-
-        trainer_fn = trainer.state.fn
-        if trainer_fn == TrainerFn.FITTING and self.overwrite_batch_progress:
-            trainer.fit_loop.epoch_loop.batch_progress = _MegatronBatchProgress()
-
         super().setup(trainer)
 
     def _get_loss_reduction(self, step_type: str):
@@ -122,6 +165,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        """Run training step and logs results."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.train_step_context():
@@ -148,6 +192,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def validation_step(self, batch, batch_idx=None) -> Any:
+        """Run validation step and logs results."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.val_step_context():
@@ -157,6 +202,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def test_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        """Run test step and logs results."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.test_step_context():
@@ -167,6 +213,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def predict_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        """Run prediction step."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.predict_step_context():
@@ -175,6 +222,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
+        """Transform dataloader with sampler."""
         if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
 
@@ -183,6 +231,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+        """Get CheckpointIO."""
         if not self._checkpoint_io:
             self._checkpoint_io = create_checkpoint_io()
 
@@ -190,6 +239,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
+        """Set CheckpointIO."""
         self._checkpoint_io = io
 
     @property
@@ -204,9 +254,14 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        """Delete checkpoint at filepath."""
         # Taken from MegatronStrategy
+        ckpt = ckpt_to_dir(filepath)
         if self.is_global_zero:
-            shutil.rmtree(ckpt_to_dir(filepath))
+            if os.path.islink(ckpt):
+                os.unlink(ckpt)
+            else:
+                shutil.rmtree(ckpt)
 
     @override
     def save_checkpoint(
@@ -216,17 +271,17 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"))
         checkpoint["state_dict"] = OrderedDict([])
 
-        ## replace unsharded optimizer_states with sharded dict.
-        ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-        ## the checkpoint will contain only model weights. Optimizer states will be omitted.
-        if (
-            "optimizer_states" in checkpoint
-            and self.trainer.state.fn == TrainerFn.FITTING
-            and self.ckpt_save_optimizer
-        ):
+        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
+            # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
+            # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
-            checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
-            pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
+
+            # replace unsharded optimizer_states with sharded dict.
+            # note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+            # the checkpoint will contain only model weights. Optimizer states will be omitted.
+            if self.ckpt_save_optimizer:
+                checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
+                pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 

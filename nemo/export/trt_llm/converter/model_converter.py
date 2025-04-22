@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import csv
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import tensorrt_llm
@@ -82,9 +80,23 @@ def prompt_convert(prompt_config, prompt_weights):
 
 
 def determine_quantization_settings(
-    nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
+    nemo_model_config: Dict[str, Any], fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
 ) -> Tuple[bool, bool]:
-    is_nemo_quantized = nemo_model_config.get('fp8', False)
+    """
+    Determines the exported models quantization settings.
+    Reads from NeMo config, with optional override.
+
+    Args:
+        nemo_model_config (dict): NeMo model configuration
+        fp8_quantized (optional, bool): User-specified quantization flag
+        fp8_kvcache (optional, bool): User-specified cache quantization flag
+    Returns:
+        Tuple[bool, bool]:
+            - Model quantization flag
+            - Model kv-cache quantization flag
+    """
+
+    is_nemo_quantized: bool = nemo_model_config.get('fp8', False)
     if fp8_quantized is None:
         fp8_quantized = is_nemo_quantized
     if fp8_kvcache is None:
@@ -231,15 +243,12 @@ def model_to_trtllm_ckpt(
         "transformer.ln_f.bias",
     }
 
-    gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
-
     for i in range(world_size):
         mapping = tensorrt_llm.Mapping(
             world_size=world_size,
             rank=i,
             tp_size=tensor_parallel_size,
             pp_size=pipeline_parallel_size,
-            gpus_per_node=gpus_per_node,
         )
         layers_range = mapping.pp_layers(num_layers)
 
@@ -257,15 +266,15 @@ def model_to_trtllm_ckpt(
                 layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
                     new_key = new_key.replace(f"layers.{layer_num}", f"layers.{layer_num-layers_range[0]}")
+                else:
+                    continue
             if config.get("new_decoder_architecture", False) and "post_layernorm" in new_key:
                 new_key = new_key.replace("post_layernorm", "mlp_layernorm")
             weights_dict_local[new_key] = v
 
         if mapping.is_first_pp_rank():
             embedding_weight = (
-                np.ascontiguousarray(
-                    split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
-                )
+                split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
                 if use_parallel_embedding
                 else weights_dict["transformer.vocab_embedding.weight"]
             )
@@ -275,9 +284,7 @@ def model_to_trtllm_ckpt(
             pos_embedding_weight = weights_dict.get("transformer.position_embedding.weight")
             if pos_embedding_weight is not None:
                 if use_parallel_embedding:
-                    pos_embedding_weight = np.ascontiguousarray(
-                        split(pos_embedding_weight, mapping.tp_size, mapping.tp_rank)
-                    )
+                    pos_embedding_weight = split(pos_embedding_weight, mapping.tp_size, mapping.tp_rank)
                 weights_dict_local["transformer.position_embedding.weight"] = pos_embedding_weight
 
         if mapping.is_last_pp_rank():

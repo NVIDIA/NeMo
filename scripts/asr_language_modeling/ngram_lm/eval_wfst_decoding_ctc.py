@@ -300,22 +300,7 @@ def main(cfg: EvalWFSTNGramConfig):
             )
     else:
 
-        @contextlib.contextmanager
-        def default_autocast():
-            yield
-
-        if cfg.use_amp:
-            if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-                logging.info("AMP is enabled!\n")
-                autocast = torch.cuda.amp.autocast
-
-            else:
-                autocast = default_autocast
-        else:
-
-            autocast = default_autocast
-
-        with autocast():
+        with torch.amp.autocast(asr_model.device.type, enabled=cfg.use_amp):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
@@ -340,9 +325,9 @@ def main(cfg: EvalWFSTNGramConfig):
         preds_tensor = preds.to(device='cpu').unsqueeze(0)
         preds_lens = torch.tensor([preds_tensor.shape[1]], device='cpu')
         if isinstance(asr_model, EncDecHybridRNNTCTCModel):
-            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor, preds_lens)[0][0]
+            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor, preds_lens)[0]
         else:
-            pred_text = asr_model.decoding.ctc_decoder_predictions_tensor(preds_tensor, preds_lens)[0][0]
+            pred_text = asr_model.decoding.ctc_decoder_predictions_tensor(preds_tensor, preds_lens)[0]
 
         if cfg.text_processing.do_lowercase:
             pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]

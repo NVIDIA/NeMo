@@ -21,17 +21,19 @@ Conversion script to convert HuggingFace Mistral-7B checkpoints into nemo checkp
 """
 
 
+import hashlib
 import json
 import os
+import re
 from argparse import ArgumentParser
 from collections import OrderedDict
 from pathlib import Path
 
 import torch
 import torch.nn
-from omegaconf import OmegaConf
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.core.saving import _load_state as ptl_load_state
+from lightning.pytorch.trainer.trainer import Trainer
+from omegaconf import OmegaConf, open_dict
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -46,6 +48,7 @@ from nemo.utils import logging
 
 
 def get_args():
+    """parses cli args"""
     parser = ArgumentParser()
     parser.add_argument(
         "--input_name_or_path",
@@ -57,12 +60,14 @@ def get_args():
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="bf16", help="Model precision")
     parser.add_argument('--low-ram', '--low-mem', action='store_true', dest='low_ram')
+    parser.add_argument('--add-additional-tokens', action='store_true')
     parser.add_argument('--tmp-dir', default='/tmp/mistral_ckpt_parts/')
     args = parser.parse_args()
     return args
 
 
 def restore_model_from_checkpoint(cls, checkpoint, strict, **kwargs):
+    """Loads mcore ckpt"""
     try:
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
@@ -103,6 +108,7 @@ def restore_model_from_checkpoint(cls, checkpoint, strict, **kwargs):
 
 
 def load_config(mistral_config, tokenizer, config_path):
+    """Create mcor config"""
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
@@ -130,7 +136,7 @@ def load_config(mistral_config, tokenizer, config_path):
     nemo_config.activation = 'fast-swiglu'
 
     # Tokenizer config
-    if hasattr(tokenizer, 'vocab_file'):
+    if getattr(tokenizer, 'vocab_file', None) is not None:
         nemo_config.tokenizer.model = tokenizer.vocab_file
     elif os.path.exists(os.path.join(config_path, 'tekken.json')):
         # Load tekken.json, extract the 'vocab' field & write it to file.
@@ -177,6 +183,8 @@ def load_config(mistral_config, tokenizer, config_path):
 
 
 class LazyStateDict:
+    """Lazy"""
+
     def __init__(self, ckpt_index, root):
         self.map = ckpt_index
         self.root = root
@@ -192,6 +200,7 @@ class LazyStateDict:
 
 
 def load_mistral_ckpt(in_dir, load_model=True):
+    """loads mistral hf ckpt"""
     params_file = os.path.join(in_dir, 'config.json')
     assert os.path.exists(params_file)
     with open(params_file, 'r') as fp:
@@ -217,6 +226,7 @@ def load_mistral_ckpt(in_dir, load_model=True):
 
 
 def parse_precision(precision):
+    """parses precision string"""
     if precision in ["32", "16"]:
         return int(float(precision))
     elif precision in ["bf16", "bf16-mixed"]:
@@ -230,6 +240,7 @@ def parse_precision(precision):
 
 
 def make_trainer(args, nemo_config):
+    """creates PTL trainer"""
     model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path, load_model=False)
     nemo_config = load_config(model_args, tokenizer, args.input_name_or_path)
     precision = parse_precision(args.precision)
@@ -269,6 +280,7 @@ def make_trainer(args, nemo_config):
 
 
 def convert(args):
+    """converts chceckpoint from hf to nemo"""
     logging.info(f"loading checkpoint {args.input_name_or_path}")
 
     model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path)
@@ -408,6 +420,7 @@ def convert(args):
 
 
 def merge(a: dict, b: dict, path=[]):
+    """merges two state dicts"""
     is_dict = lambda x: isinstance(x, OrderedDict) or isinstance(x, dict)
     for key in b:
         if key in a:
@@ -420,7 +433,18 @@ def merge(a: dict, b: dict, path=[]):
     return a
 
 
+def md5_checksum(filepath):
+    if filepath is None:
+        return None
+    hash_md5 = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+
 def save_to_nemo(args, checkpoint):
+    """saves checkpoint to nemo format"""
 
     logging.info(f"loading checkpoint {args.input_name_or_path}")
     model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path, load_model=False)
@@ -453,15 +477,42 @@ def save_to_nemo(args, checkpoint):
     # disable cpu init
     model.cfg.use_cpu_initialization = False
     model.cfg.perform_initialization = True
+    # If user has passed --add-additional-tokens or model is mistralai/Mistral-7B-Instruct-v0.3
+    if (
+        args.add_additional_tokens
+        or md5_checksum(getattr(tokenizer, 'vocab_file', None)) == '2bbc01eba250283314fdbd53d05de94b'
+    ):
+
+        def make_token_name(token):
+            prefix = ''
+            if len(token) > 1 and token[1] == '/':
+                prefix = 'eos_'
+            else:
+                prefix = 'bos_'
+            return prefix + re.sub(r'\W', '_', token)
+
+        if len(tokenizer.added_tokens_decoder) > 0:
+            with open_dict(model.cfg.tokenizer):
+                model.cfg.tokenizer.sentencepiece_legacy = True
+                model.cfg.tokenizer.special_tokens = {}
+                model.cfg.tokenizer.special_tokens['bos_token'] = tokenizer.bos_token or "<s>"
+                model.cfg.tokenizer.special_tokens['eos_token'] = tokenizer.eos_token or "</s>"
+                model.cfg.tokenizer.special_tokens['pad_token'] = tokenizer.pad_token or "<pad>"
+                skip_tokens = set(model.cfg.tokenizer.special_tokens.values())
+                skip_tokens.add('<unk>')
+                for token_id, token in tokenizer.added_tokens_decoder.items():
+                    token_name = make_token_name(token.content)
+                    if token.content in skip_tokens:
+                        continue
+                    assert not token_name in model.cfg.tokenizer.special_tokens
+                    model.cfg.tokenizer.special_tokens[token_name] = token.content
+
     if getattr(tokenizer, 'chat_template', None) is not None:
-        import hashlib
 
         template_hash = hashlib.md5(tokenizer.chat_template.encode('utf-8')).hexdigest()
         if template_hash != "0b629f783db54e02509999196956ff40":
             logging.warning("Got unkown chat template")
         else:
-            from omegaconf import OmegaConf, open_dict
-
             with open_dict(model.cfg):
                 model.cfg.tokenizer.chat_template = OmegaConf.create(
                     {

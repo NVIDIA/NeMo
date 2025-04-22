@@ -18,9 +18,9 @@ import einops
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from lightning.pytorch import Trainer
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from torch._inductor import config as inductor_config
 
 from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
@@ -547,7 +547,7 @@ class ControlNet(nn.Module):
         else:
             print("Loading unet blocks from sd")
 
-            state_dict = torch.load(from_pretrained_unet, map_location='cpu')
+            state_dict = torch.load(from_pretrained_unet, map_location='cpu', weights_only=False)
             if 'state_dict' in state_dict.keys():
                 state_dict = state_dict['state_dict']
             model_state_dict = self.state_dict()
@@ -889,11 +889,16 @@ class MegatronControlNet(MegatronBaseModel):
         self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
     def setup(self, stage=None):
-        """PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+
+        We setup datasets here as Megatron datasets require DDP to instantiate.
+        See the PyTorch Lightning documentation for more information:
+        https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup
+
         Args:
-            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+            stage (str, optional):
+                Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
         self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
 

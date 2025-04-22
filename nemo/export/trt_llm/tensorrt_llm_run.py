@@ -23,28 +23,29 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
+import tensorrt as trt
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
+from tensorrt_llm.builder import Engine
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
-
 from transformers import PreTrainedTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
 use_trtllm_bindings = True
 try:
-    from tensorrt_llm.bindings import GptJsonConfig, GptSession, GptSessionConfig, KvCacheConfig, WorldConfig
-except Exception as e:
+    from tensorrt_llm.bindings import GptJsonConfig
+except Exception:
     use_trtllm_bindings = False
 
-use_cpp_gpt_session = True
+TRTLLM_SUPPORTS_DEVICE_DISABLE = True
 try:
-    from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
-except Exception as e:
-    use_cpp_gpt_session = False
+    from tensorrt_llm.runtime.generation import DISABLE_TORCH_DEVICE_SET
+except (ImportError, ModuleNotFoundError):
+    TRTLLM_SUPPORTS_DEVICE_DISABLE = False
 
 
 @dataclass
@@ -63,7 +64,7 @@ class TensorrtLLMHostContext:
 class TensorrtLLMWorkerContext:
     """The MPI worker side context for TRT LLM inference."""
 
-    decoder: ModelRunner = None
+    decoder: ModelRunner | ModelRunnerCpp = None
     sampling_config: SamplingConfig = None
     lora_manager: LoraManager = None
     max_batch_size: int = 0
@@ -123,7 +124,6 @@ def _read_config(config_path: Path):
         lora_plugin=config["plugin_config"]["lora_plugin"],
         lora_target_modules=config["builder_config"]["lora_target_modules"],
         quant_mode=quant_mode,
-        use_custom_all_reduce=config["plugin_config"]["use_custom_all_reduce"],
         use_context_fmha_for_generation=config["plugin_config"]["use_context_fmha_for_generation"],
         gather_context_logits=config["builder_config"]["gather_context_logits"],
         gather_generation_logits=config["builder_config"]["gather_generation_logits"],
@@ -249,6 +249,10 @@ def _forward(
         end_id = sampling_config.end_id
         num_beams = sampling_config.num_beams
 
+        for k in sampling_kwargs.keys():
+            if not hasattr(sampling_config, k):
+                raise TypeError(f"Unknown sampling args '{k}'")
+
         with torch.no_grad():
             prompt_tasks = None if task_ids is None else ",".join(str(task) for task in task_ids)
 
@@ -277,6 +281,7 @@ def _forward(
                 streaming=streaming,
                 output_sequence_lengths=True,
                 return_dict=True,
+                **sampling_kwargs,
             )
 
             torch.cuda.synchronize()
@@ -456,20 +461,17 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     this function creates a custom mapping of device_id to WorldConfig
     """
     global tensorrt_llm_worker_context
-    if isinstance(tensorrt_llm_worker_context.decoder, ModelRunnerCppGptSession):
+    if isinstance(tensorrt_llm_worker_context.decoder, ModelRunner):
         return
 
     config_path = Path(engine_dir) / f"config_{torch.distributed.get_rank()}.json"
     json_config = GptJsonConfig.parse_file(config_path)
     model_config = json_config.model_config
 
-    max_beam_width = model_config.max_beam_width
     max_batch_size = model_config.max_batch_size
     max_input_len = model_config.max_input_len
-    max_seq_len = model_config.max_seq_len
 
     tp_size = json_config.tensor_parallelism
-    pp_size = json_config.pipeline_parallelism
     assert tp_size <= gpus_per_node, "Multinode TP is not unsupported"
 
     # TRTLLM asserts that rank equals the device num however this
@@ -480,46 +482,147 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     device_ids = [i for i in range(gpus_per_node)]
     for _ in range(offset):
         device_ids.append(device_ids.pop(0))
-    world_config = WorldConfig.mpi(
-        gpus_per_node=gpus_per_node, tensor_parallelism=tp_size, pipeline_parallelism=pp_size, device_ids=device_ids
-    )
-    engine_filename = json_config.engine_filename(world_config)
+    engine_index = model_parallel_rank
+    # mpi_rank = mpi_comm().Get_rank()
+    # Copied from worldConfig.h (getDevice())
+    # mpi_device = mpi_rank % gpus_per_node
+    # TODO: Consider re-enabling
+    # assert torch.cuda.current_device() == mpi_device
+
+    # TODO: check if API exists (copied from gptJsonConfig.cpp)
+    # https://github.com/terrykong/TensorRT-LLM/blob/05316d3313360012536ace46c781518f5afae75e/cpp/tensorrt_llm/runtime/gptJsonConfig.cpp#L478
+    engine_filename = f"rank{engine_index}.engine"
     serialize_path = Path(engine_dir) / engine_filename
-    assert torch.cuda.current_device() == world_config.device
-
-    session_config = GptSessionConfig(
-        max_batch_size=max_batch_size, max_beam_width=max_beam_width, max_sequence_length=max_seq_len
-    )
-    session_config.gen_micro_batch_size = max_batch_size
-    session_config.ctx_micro_batch_size = max_batch_size
-    session_config.kv_cache_config = KvCacheConfig(
-        max_tokens=max_seq_len * max_batch_size, max_attention_window=max_seq_len
-    )
-
     with open(serialize_path, "rb") as f:
         engine_data = bytearray(f.read())
 
-    session = GptSession(session_config, model_config, world_config, engine_data)
-    decoder = ModelRunnerCppGptSession(
-        session,
-        lora_manager=None,
-        max_batch_size=max_batch_size,
-        max_input_len=max_input_len,
-        max_seq_len=max_seq_len,
-        max_beam_width=max_beam_width,
+    with open(config_path) as f:
+        json_config_str = f.read()
+
+    engine = Engine.from_buffer(engine_buffer=engine_data, json_config_str=json_config_str, rank=model_parallel_rank)
+
+    if not TRTLLM_SUPPORTS_DEVICE_DISABLE:
+        raise RuntimeError(
+            "TensorRT-LLM does not support torch device disabling. "
+            "Please upgrade TensorRT-LLM to make use of this feature."
+        )
+    elif not DISABLE_TORCH_DEVICE_SET:
+        raise RuntimeError(
+            "To use TensorRT-LLM's python ModelRunner API in load_distributed(...) "
+            "you must set the env var DISABLE_TORCH_DEVICE_SET=1"
+        )
+
+    default_kwargs = {
+        "max_output_len": None,
+        "lora_dir": None,
+        "debug_mode": False,
+        "lora_ckpt_source": "hf",
+        "medusa_choices": None,
+        "stream": None,
+        "gpu_weights_percent": 1.0,
+        "enable_context_fmha_fp32_acc": False,
+        "multi_block_mode": True,
+    }
+
+    decoder = ModelRunner.from_engine(
+        engine=engine,
+        # We want the engine to have the mp_rank,
+        # but the python runtime to not resassign the device of the current process
+        # So we will set it to the current device
+        rank=torch.cuda.current_device(),
+        **default_kwargs,
     )
 
     tensorrt_llm_worker_context.decoder = decoder
     tensorrt_llm_worker_context.max_batch_size = max_batch_size
     tensorrt_llm_worker_context.max_input_len = max_input_len
-    # Save the model config in case for refit
-    tensorrt_llm_worker_context.model_config = model_config
 
 
-def refit(weights_dict):
+def maybe_cast_to_trt_dtype(dtype):
+    """
+    Cast input dtype to TensorRT dtype if applicable.
+
+    Args:
+        dtype: Input dtype (torch.dtype or trt.DataType)
+
+    Returns:
+        trt.DataType: Corresponding TensorRT dtype
+    """
+    if isinstance(dtype, trt.DataType):
+        return dtype
+    elif isinstance(dtype, torch.dtype):
+        return tensorrt_llm._utils.torch_dtype_to_trt(dtype)
+    else:
+        raise NotImplementedError(f"Expects the type to be a tensorrt.DataType or torch.dtype, but got {type(dtype)=}")
+
+
+def refit(weights_dict: dict):
+    """
+    Refit TensorRT-LLM by hot-swapping its engine weights.
+
+    Args:
+        weights_dict: Dictionary containing new weights
+    """
     global tensorrt_llm_worker_context
-    dtype = tensorrt_llm_worker_context.model_config.data_type
-    tensorrt_llm_worker_context.decoder.session.refit_engine(weights_dict, dtype)
+    decoder = tensorrt_llm_worker_context.decoder
+    if not isinstance(decoder, ModelRunner):
+        raise ValueError(
+            f"Refit is only supported with ModelRunner, but export has been configured with {type(decoder)=}"
+        )
+
+    engine = decoder.session.runtime.engine
+    # The session dtype plumbs the model_config's dtype
+    model_dtype = maybe_cast_to_trt_dtype(decoder.session.dtype)
+    assert engine.refittable, "Tried refitting engine without refit enabled"
+
+    refitter = trt.Refitter(engine=engine, logger=trt.Logger(trt.Logger.ERROR))
+    remaining_refit_weights = set(refitter.get_all_weights())
+    skipped_weights = []
+    for trt_name, weight in weights_dict.items():
+        if trt_name not in remaining_refit_weights:
+            skipped_weights.append(trt_name)
+            continue
+        trt_weight = trt.Weights(model_dtype, weight.data_ptr(), torch.numel(weight))
+        trt_wt_location = trt.TensorLocation.DEVICE if weight.is_cuda else trt.TensorLocation.HOST
+        assert (
+            model_dtype == refitter.get_weights_prototype(trt_name).dtype == maybe_cast_to_trt_dtype(weight.dtype)
+        ), (
+            f"Expected all three of these dtypes to be the same:\n"
+            f"  {model_dtype=}\n"
+            f"  {refitter.get_weights_prototype(trt_name).dtype=}\n"
+            f"  weight.dtype={maybe_cast_to_trt_dtype(weight.dtype)}"
+        )
+
+        refitter.set_named_weights(
+            trt_name, trt_weight, trt_wt_location
+        ), f"Unable to set {trt_name=} {trt_weight=} {trt_wt_location=}"
+        remaining_refit_weights.remove(trt_name)
+    if skipped_weights:
+        logging.warning(
+            f"These weights were ignored during refit since they are not present in engine: {skipped_weights}"
+        )
+    if remaining_refit_weights:
+        logging.warning(f"Weights dict did not contain weights for these named TRT weights: {remaining_refit_weights}")
+
+    if not refitter.refit_cuda_engine():
+        raise ValueError("Refit failed!")
+
+
+def unload_engine():
+    """
+    Deletes the ModelRunner which should free up device memory
+    """
+    global tensorrt_llm_worker_context
+    decoder = tensorrt_llm_worker_context.decoder
+    if not isinstance(decoder, ModelRunner):
+        raise ValueError(
+            f"unload_engine is only supported with ModelRunner, but export has been configured with {type(decoder)=}"
+        )
+
+    logging.info("Unloading engine...")
+    del tensorrt_llm_worker_context.decoder
+    tensorrt_llm_worker_context.decoder = None
+    logging.info("Engine unloaded!")
 
 
 def prepare_input_tensors(
@@ -529,6 +632,20 @@ def prepare_input_tensors(
     task_vtoken_counts: List[int] = None,
     task_ids: List[int] = None,
 ):
+    """
+    Prepare input tensors from text input.
+
+    Args:
+        input_texts: List of input text strings
+        host_context: Context containing tokenizer and configuration
+        prompt_table: a lookup table containing trained embeddings for vtoken used in p-tuning
+        task_vtoken_counts: Optional list of vtoken counts per task
+        task_ids: Optional list of task IDs
+
+    Returns:
+        dict: Prepared input tensors for model
+    """
+
     tokenizer = host_context.tokenizer
 
     if host_context.add_bos:
@@ -581,6 +698,8 @@ def generate(
     streaming: bool = False,
     output_log_probs=False,
     multiprocessed_env=False,
+    output_context_logits=False,
+    output_generation_logits=False,
     **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
@@ -626,6 +745,7 @@ def generate(
         multiprocessed_env=multiprocessed_env,
         **sampling_kwargs,
     )
+
     assert outputs is not None
     if tensorrt_llm.mpi_rank() != 0:
         return None
@@ -639,8 +759,10 @@ def generate(
         for b in range(output_ids.shape[0])
     ]
 
-    if output_log_probs:
-        return output_lines_list, log_probs
+    if output_generation_logits:
+        return output_lines_list, outputs['generation_logits']
+    elif output_context_logits:
+        return output_lines_list, outputs['context_logits']
     return output_lines_list
 
 
@@ -770,7 +892,7 @@ def to_word_list_format(
     flat_ids = []
     offsets = []
     # The encoding of a single word can't always be trusted. See
-    #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229
+    #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229  # pylint: disable=C0301
     ids_ref = tokenizer.encode(ref_str)
     for word_dict_item in word_dict:
         item_flat_ids = []

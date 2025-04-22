@@ -14,6 +14,7 @@
 
 from typing import List, Optional
 
+from vllm.config import TokenizerPoolConfig
 from vllm.lora.request import LoRARequest
 from vllm.transformers_utils.tokenizer_group.base_tokenizer_group import BaseTokenizerGroup
 
@@ -29,27 +30,46 @@ class NemoTokenizerGroup(BaseTokenizerGroup):
         self.tokenizer = tokenizer
         self.add_bos_token = add_bos_token
 
+    @classmethod
+    def from_config(cls, tokenizer_pool_config: Optional[TokenizerPoolConfig] = None, **init_kwargs):
+        """Create a tokenizer group from a config."""
+        raise NotImplementedError
+
     def ping(self) -> bool:
+        """Check if the tokenizer group is alive."""
         return True
 
     def get_max_input_len(self, lora_request: Optional[LoRARequest] = None) -> Optional[int]:
+        """Get the maximum input length for the LoRA request."""
         return None
 
     def encode(
-        self, prompt: str, request_id: Optional[str] = None, lora_request: Optional[LoRARequest] = None
+        self,
+        prompt: str,
+        request_id: Optional[str] = None,
+        lora_request: Optional[LoRARequest] = None,
+        add_special_tokens: Optional[bool] = None,
     ) -> List[int]:
+        """Tokenizes the prompt."""
         ids = self.tokenizer.encode(prompt)
         if self.add_bos_token:
             ids = [self.tokenizer.bos_token_id] + ids
         return ids
 
     async def encode_async(
-        self, prompt: str, request_id: Optional[str] = None, lora_request: Optional[LoRARequest] = None
+        self,
+        prompt: str,
+        request_id: Optional[str] = None,
+        lora_request: Optional[LoRARequest] = None,
+        add_special_tokens: Optional[bool] = None,
     ) -> List[int]:
+        """Encode a prompt using the tokenizer group."""
         return self.tokenizer.encode(prompt)  # TODO: not sure how this is supposed to work
 
     def get_lora_tokenizer(self, lora_request: Optional[LoRARequest] = None) -> SentencePieceTokenizer:
+        """Get a tokenizer for a LoRA request."""
         return self.tokenizer
 
     async def get_lora_tokenizer_async(self, lora_request: Optional[LoRARequest] = None) -> SentencePieceTokenizer:
+        """Get a tokenizer for a LoRA request."""
         return self.tokenizer

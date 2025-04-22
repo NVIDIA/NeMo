@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 try:
-    from megatron.core.extensions.transformer_engine import TENorm
+    from megatron.core.extensions.transformer_engine import TEDotProductAttention, TENorm
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+    from megatron.core.models.gpt.gpt_layer_specs import _get_mlp_module_spec
     from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
     from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-    from megatron.core.transformer.dot_product_attention import DotProductAttention
     from megatron.core.transformer.enums import AttnMaskType
     from megatron.core.transformer.identity_op import IdentityOp
-    from megatron.core.transformer.mlp import MLP, MLPSubmodules
-    from megatron.core.transformer.moe.moe_layer import MoELayer
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 
@@ -31,25 +31,31 @@ except (ImportError, ModuleNotFoundError) as e:
 
     from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
-    TransformerLayer = TransformerLayerSubmodules = ApexGuardDefaults
-    MLP = MLPSubmodules = ModuleSpec = IdentityOp = ApexGuardDefaults
-    AttnMaskType = DotProductAttention = TENorm = ApexGuardDefaults
-    ColumnParallelLinear = RowParallelLinear = SelfAttention = SelfAttentionSubmodules = ApexGuardDefaults
-
+    ModuleSpec = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
 
 
 # Use this spec for Model Optimizer PTQ and TensorRT-LLM export
-def get_gpt_layer_modelopt_spec(num_experts: int = None) -> ModuleSpec:
-    """Mix the native spec with TENorm.
+def get_gpt_layer_modelopt_spec(num_experts: Optional[int] = None) -> ModuleSpec:
+    """Mix the native spec with TENorm and TEDotProductAttention.
 
     This is essentially the native local spec except for the layernorm implementation
     is using TENorm from Transformer-Engine. This TENorm supports both FusedLayerNorm and RMSNorm and
     prevents the apex dependency.
+
+    TEDotProductAttention is used to support sliding window attention.
+
+    Args:
+        num_experts (int): Number of experts. Defaults to None.
+
+    Returns:
+        ModuleSpec: Module specification with Megatron-Core modules.
     """
     if not HAVE_MEGATRON_CORE:
-        raise Exception(IMPORT_ERROR)
+        raise IMPORT_ERROR
+
+    mlp = _get_mlp_module_spec(use_te=False, num_experts=num_experts, moe_grouped_gemm=False)
 
     return ModuleSpec(
         module=TransformerLayer,
@@ -60,7 +66,7 @@ def get_gpt_layer_modelopt_spec(num_experts: int = None) -> ModuleSpec:
                 params={"attn_mask_type": AttnMaskType.causal},
                 submodules=SelfAttentionSubmodules(
                     linear_qkv=ColumnParallelLinear,
-                    core_attention=DotProductAttention,
+                    core_attention=TEDotProductAttention,
                     linear_proj=RowParallelLinear,
                     q_layernorm=IdentityOp,
                     k_layernorm=IdentityOp,
@@ -68,7 +74,7 @@ def get_gpt_layer_modelopt_spec(num_experts: int = None) -> ModuleSpec:
             ),
             self_attn_bda=get_bias_dropout_add,
             pre_mlp_layernorm=TENorm,
-            mlp=_get_mlp_module_spec(num_experts=num_experts),
+            mlp=mlp,
             mlp_bda=get_bias_dropout_add,
             # Map TE-layernorm-fusion keys back
             sharded_state_dict_keys_map={
@@ -77,29 +83,3 @@ def get_gpt_layer_modelopt_spec(num_experts: int = None) -> ModuleSpec:
             },
         ),
     )
-
-
-# Helper function to get module spec for MLP/MoE
-def _get_mlp_module_spec(num_experts: int = None, moe_grouped_gemm: bool = False) -> ModuleSpec:
-    if num_experts is None:
-        # Dense MLP w/ or w/o TE modules.
-        return ModuleSpec(
-            module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=ColumnParallelLinear,
-                linear_fc2=RowParallelLinear,
-            ),
-        )
-    else:
-        # Mixture of experts with modules in megatron core.
-        return ModuleSpec(
-            module=MoELayer,
-            submodules=(
-                MLPSubmodules(
-                    linear_fc1=ColumnParallelLinear,
-                    linear_fc2=RowParallelLinear,
-                )
-                if not moe_grouped_gemm
-                else None
-            ),
-        )

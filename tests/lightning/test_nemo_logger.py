@@ -19,8 +19,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from pytorch_lightning.callbacks import ModelCheckpoint as PTLModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.callbacks import ModelCheckpoint as PTLModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
@@ -115,7 +115,8 @@ class TestNeMoLogger:
             resume_ignore_no_checkpoint=True,
         ).setup(trainer)
 
-        path = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
+        path = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints")
+        path.mkdir(parents=True)
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
             nl.AutoResume(

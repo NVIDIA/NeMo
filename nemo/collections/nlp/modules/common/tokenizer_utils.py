@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os.path
 from dataclasses import MISSING, dataclass
 from typing import Dict, List, Optional
 
 from nemo.utils import logging
+
+from .huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 
@@ -32,7 +33,7 @@ def get_tokenizer_list() -> List[str]:
     """
     Returns all all supported tokenizer names
     """
-    s = set(get_pretrained_lm_models_list())
+    s = set(get_huggingface_pretrained_lm_models_list(include_external=False))
     s.update(set(get_huggingface_pretrained_lm_models_list(include_external=True)))
     return ["sentencepiece", "char", "word"] + list(s)
 
@@ -68,7 +69,8 @@ def get_tokenizer(
             To see the list of all HuggingFace pretrained models, use:
             nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
         tokenizer_model: tokenizer model file of sentencepiece
-        special_tokens: dict of special tokens
+        special_tokens: dict of special tokens.
+            For additional special tokens besides standard special tokens (bos, eos, pad, etc.), such as sentinel tokens for T5 (<extra_id_0>, <extra_id_1>, etc.), use key 'additional_special_tokens'
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
         bpe_dropout: (experimental) BPE dropout tries to corrupt the standard segmentation
@@ -111,7 +113,7 @@ def get_tokenizer(
     elif tokenizer_name == 'tiktoken':
         from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 
-        return TiktokenTokenizer(vocab_file=vocab_file)
+        return TiktokenTokenizer(vocab_file=vocab_file, special_tokens=special_tokens['additional_special_tokens'])
     elif tokenizer_name == 'word':
         from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 
@@ -154,6 +156,7 @@ def get_nmt_tokenizer(
     delimiter: Optional[str] = None,
     trust_remote_code: Optional[bool] = False,
     chat_template: Optional[Dict] = None,
+    vocab_size: Optional[int] = None,
 ):
     """
     Args:
@@ -167,6 +170,11 @@ def get_nmt_tokenizer(
             It has empirically been shown to improve inference time BLEU scores.
         r2l: Whether to return subword IDs from right to left
     """
+    import omegaconf
+    from omegaconf import OmegaConf
+
+    if isinstance(special_tokens, (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig)):
+        special_tokens = OmegaConf.to_container(special_tokens)
     if special_tokens is None:
         special_tokens_dict = {}
     else:
@@ -193,8 +201,10 @@ def get_nmt_tokenizer(
         from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
         logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
+
         return SentencePieceTokenizer(
             model_path=tokenizer_model,
+            special_tokens=special_tokens,
             legacy=legacy,
             chat_template=chat_template,
         )
@@ -223,7 +233,11 @@ def get_nmt_tokenizer(
             f'Getting Megatron tokenizer for pretrained model name: {model_name}, custom vocab file: {vocab_file}, and merges file: {merges_file}'
         )
         return get_tokenizer(
-            tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file, chat_template=chat_template
+            tokenizer_name=model_name,
+            vocab_file=vocab_file,
+            merges_file=merges_file,
+            special_tokens=special_tokens_dict,
+            chat_template=chat_template,
         )
     elif library == 'tabular':
         from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
@@ -233,8 +247,13 @@ def get_nmt_tokenizer(
         from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 
         return TiktokenTokenizer(vocab_file=vocab_file)
+    elif library == 'null':
+        assert vocab_size is not None
+        from nemo.collections.common.tokenizers.null_tokenizer import NullTokenizer
+
+        return NullTokenizer(vocab_size)
     else:
         raise NotImplementedError(
-            'Currently we only support "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'
-            'libraries.'
+            'Currently we only support "huggingface", "sentencepiece", "megatron", "byte-level", "regex", "tabular",'
+            '"tiktoken", and "null" tokenizer libraries.'
         )

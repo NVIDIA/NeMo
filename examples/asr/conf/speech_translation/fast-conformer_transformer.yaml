@@ -21,8 +21,8 @@ model:
   log_prediction: true # enables logging sample predictions in the output during training
 
   train_ds:
-    is_tarred: true
-    tarred_audio_filepaths: ???
+    is_tarred: false
+    tarred_audio_filepaths: null
     manifest_filepath: ???
     sample_rate: 16000
     shuffle: false

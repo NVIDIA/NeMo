@@ -39,6 +39,8 @@ from torch.nn import functional as F
 from torchvision import transforms
 from transformers import AutoProcessor, CLIPImageProcessor
 
+from nemo.export.utils.constants import TRTLLM_ENGINE_DIR
+
 
 def trt_dtype_to_torch(dtype):
     if dtype == trt.float16:
@@ -80,15 +82,15 @@ class MultimodalModelRunner:
         if modality == 'vision':
             self.init_image_encoder(visual_engine_dir)
         self.init_tokenizer(llm_engine_dir)
-        self.init_llm(llm_engine_dir)
+        self.init_llm(os.path.join(llm_engine_dir, TRTLLM_ENGINE_DIR))  # Engine is stored in subdirectory
         if self.model_type == 'lita' or self.model_type == 'vila' or self.model_type == 'vita':
             self.init_vision_preprocessor(visual_engine_dir)
 
     def init_tokenizer(self, llm_engine_dir):
-        if os.path.exists(os.path.join(llm_engine_dir, 'huggingface_tokenizer')):
+        if os.path.exists(os.path.join(llm_engine_dir, "tokenizer_config.json")):
             from transformers import AutoTokenizer
 
-            self.tokenizer = AutoTokenizer.from_pretrained(os.path.join(llm_engine_dir, 'huggingface_tokenizer'))
+            self.tokenizer = AutoTokenizer.from_pretrained(llm_engine_dir)
             self.tokenizer.pad_token = self.tokenizer.eos_token
             if self.model_type == 'vita':
                 self.tokenizer.im_start_id = self.tokenizer.convert_tokens_to_ids("<extra_id_4>")
@@ -171,7 +173,10 @@ class MultimodalModelRunner:
 
     def init_llm(self, llm_engine_dir):
         self.model = ModelRunner.from_dir(
-            llm_engine_dir, rank=tensorrt_llm.mpi_rank(), debug_mode=False, stream=self.stream
+            llm_engine_dir,
+            rank=tensorrt_llm.mpi_rank(),
+            debug_mode=False,
+            stream=self.stream,
         )
         self.model_config = self.model.session._model_config
         self.runtime_mapping = self.model.session.mapping
@@ -380,6 +385,7 @@ class MultimodalModelRunner:
         temperature,
         repetition_penalty,
         num_beams,
+        lora_uids=None,
     ):
         if not warmup:
             profiler.start("Generate")
@@ -412,6 +418,7 @@ class MultimodalModelRunner:
             repetition_penalty=repetition_penalty,
             num_beams=num_beams,
             output_sequence_lengths=False,
+            lora_uids=lora_uids,
             return_dict=False,
         )
 
@@ -730,23 +737,35 @@ class MultimodalModelRunner:
                 input_text = "Hi! What is in this video?"
 
             # SteerLM prompt template
-            pre_prompt = """<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n<extra_id_1>User"""
+            pre_prompt = (
+                "<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. "
+                "The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n"
+                "<extra_id_1>User"
+            )
             post_prompt = (
-                f"\n{input_text}\n<extra_id_1>Assistant\n<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4\n"
-                ""
+                f"\n{input_text}\n<extra_id_1>Assistant\n"
+                "<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,"
+                "correctness:4,coherence:4,complexity:4,verbosity:4\n"
             )
         elif self.model_type in ['vila', 'lita', 'vita']:
             if self.model_type == "vila" or self.model_type == "lita":
-                pre_prompt = "A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. USER: "
+                pre_prompt = (
+                    "A chat between a curious user and an artificial intelligence assistant. "
+                    "The assistant gives helpful, detailed, and polite answers to the user's questions. USER: "
+                )
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + " ASSISTANT:"
 
             elif self.model_type == "vita":
                 # llama3 prompt template
-                pre_prompt = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful language and vision assistant. "
-                                "You are able to understand the visual content that the user provides, "
-                                "and assist the user with a variety of tasks using natural language. <|start_header_id|>user<|end_header_id|>\n\n"""
+                pre_prompt = (
+                    "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
+                    "You are a helpful language and vision assistant. "
+                    "You are able to understand the visual content that the user provides, "
+                    "and assist the user with a variety of tasks using natural language. "
+                    "<|start_header_id|>user<|end_header_id|>\n\n"
+                )
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
@@ -786,6 +805,7 @@ class MultimodalModelRunner:
         temperature,
         repetition_penalty,
         num_beams,
+        lora_uids=None,
         run_profiling=False,
         check_accuracy=False,
     ):
@@ -807,6 +827,7 @@ class MultimodalModelRunner:
             temperature=temperature,
             repetition_penalty=repetition_penalty,
             num_beams=num_beams,
+            lora_uids=lora_uids,
         )
         num_iters = self.profiling_iterations if run_profiling else 1
         for _ in range(num_iters):
@@ -824,6 +845,7 @@ class MultimodalModelRunner:
                 temperature=temperature,
                 repetition_penalty=repetition_penalty,
                 num_beams=num_beams,
+                lora_uids=lora_uids,
             )
         if self.runtime_rank == 0:
             self.print_result(input_text, output_text, batch_size, num_beams, run_profiling, check_accuracy)
@@ -1076,6 +1098,7 @@ class SpeechllmModelRunner(MultimodalModelRunner):
         check_accuracy=False,
         input_signal=None,
         input_signal_length=None,
+        lora_uids=None,
     ):
         """
         Args:

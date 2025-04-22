@@ -16,11 +16,13 @@ import json
 import os
 import shutil
 import tarfile
+import unicodedata
 from abc import ABC, abstractmethod
 from typing import List
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
+from torch import Tensor
 
 import nemo.collections.asr.models as asr_models
 from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModelMixin
@@ -62,6 +64,8 @@ class ASRBPEMixin(ABC):
             self._setup_aggregate_tokenizer(tokenizer_cfg)
         else:
             self._setup_monolingual_tokenizer(tokenizer_cfg)
+
+        self._derive_tokenizer_properties()
 
     def _setup_monolingual_tokenizer(self, tokenizer_cfg: DictConfig):
         # Prevent tokenizer parallelism (unless user has explicitly set it)
@@ -107,8 +111,12 @@ class ASRBPEMixin(ABC):
                 if special_tokens is not None:
                     raise ValueError("`special_tokens` are no longer supported for SentencePiece based tokenizers.")
 
-            # Update special tokens
-            self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path)
+            if "custom_tokenizer" in self.tokenizer_cfg:
+                self.tokenizer = self.from_config_dict(
+                    {"_target_": tokenizer_cfg["custom_tokenizer"]["_target_"], "model_path": model_path}
+                )
+            else:
+                self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path)
 
             if 'vocab_path' in self.tokenizer_cfg:
                 vocab_path = self.tokenizer_cfg.get('vocab_path')
@@ -471,6 +479,15 @@ class ASRBPEMixin(ABC):
 
                     logging.info(f"Saved {nemo_object_name} at {os.path.join(dir, new_name)}")
 
+    def _derive_tokenizer_properties(self):
+        vocab = self.tokenizer.tokenizer.get_vocab()
+
+        capitalized_tokens = {token.strip() for token in vocab if any(char.isupper() for char in token)}
+        self.tokenizer.supports_capitalization = bool(capitalized_tokens)
+
+        punctuation = {char for token in vocab for char in token if unicodedata.category(char).startswith('P')}
+        self.tokenizer.supported_punctuation = punctuation
+
 
 class ASRModuleMixin(ASRAdapterModelMixin):
     """
@@ -574,14 +591,14 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
     def conformer_stream_step(
         self,
-        processed_signal: torch.Tensor,
-        processed_signal_length: torch.Tensor = None,
-        cache_last_channel: torch.Tensor = None,
-        cache_last_time: torch.Tensor = None,
-        cache_last_channel_len: torch.Tensor = None,
+        processed_signal: Tensor,
+        processed_signal_length: Tensor = None,
+        cache_last_channel: Tensor = None,
+        cache_last_time: Tensor = None,
+        cache_last_channel_len: Tensor = None,
         keep_all_outputs: bool = True,
         previous_hypotheses: List[Hypothesis] = None,
-        previous_pred_out: torch.Tensor = None,
+        previous_pred_out: Tensor = None,
         drop_extra_pre_encoded: int = None,
         return_transcription: bool = True,
         return_log_probs: bool = False,
@@ -593,7 +610,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             processed_signal: the input audio signals
             processed_signal_length: the length of the audios
             cache_last_channel: the cache tensor for last channel layers like MHA
-            cache_last_channel_len: engths for cache_last_channel
+            cache_last_channel_len: lengths for cache_last_channel
             cache_last_time: the cache tensor for last time layers like convolutions
             keep_all_outputs: if set to True, would not drop the extra outputs specified by encoder.streaming_cfg.valid_out_len
             previous_hypotheses: the hypotheses from the previous step for RNNT models
@@ -616,7 +633,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             raise NotImplementedError(f"stream_step does not support {type(self)}!")
 
         if not isinstance(self.encoder, StreamingEncoder):
-            raise NotImplementedError(f"Encoder of this model does not support streaming!")
+            raise NotImplementedError("Encoder of this model does not support streaming!")
 
         if isinstance(self, asr_models.EncDecRNNTModel) and return_transcription is False:
             logging.info(
@@ -682,10 +699,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         decoder_lengths=encoded_len[preds_idx : preds_idx + 1],
                         return_hypotheses=False,
                     )
-                    all_hyp_or_transcribed_texts.append(decoded_out[0][0])
+                    all_hyp_or_transcribed_texts.append(decoded_out[0])
             best_hyp = None
         else:
-            best_hyp, all_hyp_or_transcribed_texts = self.decoding.rnnt_decoder_predictions_tensor(
+            best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                 encoder_output=encoded,
                 encoded_lengths=encoded_len,
                 return_hypotheses=True,
@@ -693,8 +710,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             )
             greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
 
-            if all_hyp_or_transcribed_texts is None:
-                all_hyp_or_transcribed_texts = best_hyp
+            all_hyp_or_transcribed_texts = best_hyp
 
         result = [
             greedy_predictions,
@@ -744,7 +760,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             raise NotImplementedError(f"simulate streaming does not support {type(self)}!")
 
         if not isinstance(self.encoder, StreamingEncoder):
-            raise NotImplementedError(f"Encoder of this model does not support streaming!")
+            raise NotImplementedError("Encoder of this model does not support streaming!")
 
         data_loader = self._setup_streaming_transcribe_dataloader(paths2audio_files, batch_size, online_normalization)
 

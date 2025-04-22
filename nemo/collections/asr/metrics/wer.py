@@ -254,8 +254,9 @@ class WER(Metric):
         fold_consecutive=True,
         batch_dim_index=0,
         dist_sync_on_step=False,
+        sync_on_compute=True,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        super().__init__(dist_sync_on_step=dist_sync_on_step, sync_on_compute=sync_on_compute)
 
         self.decoding = decoding
         self.use_cer = use_cer
@@ -322,19 +323,21 @@ class WER(Metric):
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
-            hypotheses, _ = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
+            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
 
         if self.log_prediction:
-            logging.info(f"\n")
+            logging.info("\n")
             logging.info(f"reference:{references[0]}")
-            logging.info(f"predicted:{hypotheses[0]}")
+            logging.info(f"predicted:{hypotheses[0].text}")
 
         for h, r in zip(hypotheses, references):
+            if isinstance(h, list):
+                h = h[0]
             if self.use_cer:
-                h_list = list(h)
+                h_list = list(h.text)
                 r_list = list(r)
             else:
-                h_list = h.split()
+                h_list = h.text.split()
                 r_list = r.split()
             words += len(r_list)
             # Compute Levenstein's distance

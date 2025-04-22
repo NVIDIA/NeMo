@@ -19,15 +19,15 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 from hydra.utils import instantiate
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 from nemo.collections.tts.g2p.data.ctc import CTCG2PBPEDataset
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import LengthsType, NeuralType, TokenIndex
+from nemo.core.neural_types import LengthsType, LossType, NeuralType, TokenIndex
 from nemo.utils import logging
 
 try:
@@ -38,7 +38,7 @@ try:
     from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 
     ASR_AVAILABLE = True
-except (ModuleNotFoundError, ImportError) as e:
+except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
 
 
@@ -101,11 +101,21 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
-        self.wer = WER(decoding=self.decoding, use_cer=False, log_prediction=False, dist_sync_on_step=True,)
-        self.per = WER(decoding=self.decoding, use_cer=True, log_prediction=False, dist_sync_on_step=True,)
+        self.wer = WER(
+            decoding=self.decoding,
+            use_cer=False,
+            log_prediction=False,
+            dist_sync_on_step=True,
+        )
+        self.per = WER(
+            decoding=self.decoding,
+            use_cer=True,
+            log_prediction=False,
+            dist_sync_on_step=True,
+        )
 
     def setup_grapheme_tokenizer(self, cfg):
-        """ Initialized grapheme tokenizer """
+        """Initialized grapheme tokenizer"""
 
         if self.mode == "byt5":
             # Load appropriate tokenizer from HuggingFace
@@ -315,7 +325,10 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         )
 
     @torch.no_grad()
-    def _infer(self, config: DictConfig,) -> List[int]:
+    def _infer(
+        self,
+        config: DictConfig,
+    ) -> List[int]:
         """
         Runs model inference.
 
@@ -343,9 +356,10 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
                     input_len=input_len.to(device),
                 )
 
-                preds_str, _ = self.decoding.ctc_decoder_predictions_tensor(
+                preds_hyps = self.decoding.ctc_decoder_predictions_tensor(
                     log_probs, decoder_lengths=encoded_len, return_hypotheses=False
                 )
+                preds_str = [hyp.text for hyp in preds_hyps]
                 all_preds.extend(preds_str)
 
                 del greedy_predictions
@@ -383,7 +397,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
     def setup_training_data(self, cfg: DictConfig):
         if not cfg or cfg.manifest_filepath is None:
             logging.info(
-                f"Dataloader config or file_path for the train is missing, so no data loader for train is created!"
+                "Dataloader config or file_path for the train is missing, so no data loader for train is created!"
             )
             self._train_dl = None
             return
@@ -404,7 +418,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
     def setup_validation_data(self, cfg: Optional[DictConfig]):
         if not cfg or cfg.manifest_filepath is None:
             logging.info(
-                f"Dataloader config or file_path for the validation is missing, so no data loader for validation is created!"
+                "Dataloader config or file_path for the validation is missing, so no data loader for validation is created!"
             )
             self._validation_dl = None
             return
@@ -413,7 +427,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
     def setup_test_data(self, cfg: Optional[DictConfig]):
         if not cfg or cfg.manifest_filepath is None:
             logging.info(
-                f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
+                "Dataloader config or file_path for the test is missing, so no data loader for test is created!"
             )
             self._test_dl = None
             return

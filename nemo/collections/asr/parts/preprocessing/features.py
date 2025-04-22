@@ -433,7 +433,7 @@ class FilterbankFeatures(nn.Module):
             x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1)
 
         # disable autocast to get full range of stft values
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(x.device.type, enabled=False):
             x = self.stft(x)
 
         # torch stft returns complex tensor (of shape [B,N,T]); so convert to magnitude
@@ -455,8 +455,11 @@ class FilterbankFeatures(nn.Module):
         if linear_spec:
             return x, seq_len
 
-        # dot with filterbank energies
-        x = torch.matmul(self.fb.to(x.dtype), x)
+        # disable autocast, otherwise it might be automatically casted to fp16
+        # on fp16 compatible GPUs and get NaN values for input value of 65520
+        with torch.amp.autocast(x.device.type, enabled=False):
+            # dot with filterbank energies
+            x = torch.matmul(self.fb.to(x.dtype), x)
         # log features if required
         if self.log:
             if self.log_zero_guard_type == "add":
@@ -627,7 +630,7 @@ class FilterbankFeaturesTA(nn.Module):
 
     def _extract_spectrograms(self, signals: torch.Tensor) -> torch.Tensor:
         # Complex FFT needs to be done in single precision
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             features = self._mel_spec_extractor(waveform=signals)
         return features
 

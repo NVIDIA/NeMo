@@ -15,21 +15,23 @@
 
 from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
-from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.peft import PEFT_STR2CLS
+from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
@@ -116,7 +118,10 @@ def trainer(
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
+            average_in_collective=True,  # Not supported for custom FSDP for now, need to be set to False if using FSDP
+            data_parallel_sharding_strategy="optim_grads_params",  # For custom FSDP only
         ),
+        fsdp=None,  # Set to 'megatron' to use Megatron FSDP, 'pytorch' to use PyTorch FSDP 2 (WIP)
     )
 
     trainer = run.Config(
@@ -141,7 +146,12 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    performance_mode: bool = False,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for Llama3 8B model.
@@ -154,6 +164,7 @@ def pretrain_recipe(
         name (str): Name of the pre-training run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
+        performance_mode (bool): If true, enables optimizations for maximum performance.
         fn (Callable): The pre-training function to use.
 
     Returns:
@@ -167,12 +178,8 @@ def pretrain_recipe(
         Python API usage:
             >>> recipe = pretrain_recipe(name="llama3_8b_pretrain", num_nodes=2)
             >>> print(recipe)
-
-    Note:
-        For more details on pre-training LLMs with NeMo, see the pre-training
-        guide in the `examples/llm/pretrain/` directory.
     """
-    return run.Partial(
+    recipe = run.Partial(
         fn,
         model=model(),
         trainer=trainer(
@@ -186,68 +193,51 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
 
-@run.cli.factory(target=pretrain, name=NAME + "_optimized")
-def pretrain_recipe_performance(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    fn: Callable = pretrain,
-) -> run.Partial:
+    return recipe
+
+
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for Llama3 8B model.
 
-    This recipe enables performance optimizations that may not be suitable for all use cases.
+    This method enables performance optimizations that may not be suitable for all use cases.
     It builds upon the standard pre-training recipe and adds additional performance enhancements.
 
     Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        fn (Callable): The pre-training function to use.
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
 
     Returns:
         run.Partial: Partial configuration for performance-optimized pre-training.
 
-    Examples:
-            $ nemo llm pretrain --factory llama3_8b_optimized
-
-        Python API usage:
-            >>> recipe = pretrain_recipe_performance(name="llama3_8b_perf", num_nodes=4)
-            >>> print(recipe)
-
     Note:
-        Use this recipe with caution and only when you need maximum performance.
+        Use this method with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+    if not recipe.trainer.callbacks:
+        recipe.trainer.callbacks = []
 
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=100,
+        gc_interval_val=100,
     )
+    mcomm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            mcomm_overlap_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
     return recipe
-
-
-def hf_resume() -> run.Config[nl.AutoResume]:
-    """Configure automatic resumption from a Hugging Face checkpoint.
-
-    This function sets up the configuration to resume training from a pre-trained
-    Hugging Face model checkpoint.
-
-    More info about the model can be found at: https://huggingface.co/meta-llama/Meta-Llama-3-8B
-
-    Returns:
-        run.Config[nl.AutoResume]: Configuration for resuming from HuggingFace checkpoint.
-    """
-    return run.Config(
-        nl.AutoResume,
-        restore_config=run.Config(nl.RestoreConfig, path="hf://meta-llama/Meta-Llama-3-8B"),
-    )
 
 
 @run.cli.factory(target=finetune, name=NAME)
@@ -256,19 +246,29 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
+    peft_scheme: Optional[str] = 'lora',
+    seq_length: Optional[int] = None,
+    packed_sequence: Optional[bool] = None,
+    performance_mode: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Llama3 8B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
-    It uses LoRA (Low-Rank Adaptation) for efficient fine-tuning.
+    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
+        seq_length (int): Maximum number of tokens per microbatch.
+        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
+            maximum seq_length for better efficiency. By default, this value equals performance_mode.
+        performance_mode (bool): If true, enables optimizations for maximum performance.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -282,12 +282,103 @@ def finetune_recipe(
             >>> print(recipe)
 
     Note:
-        This recipe uses the SQuAD dataset for fine-tuning. For more information
-        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
-        `examples/llm/finetune/` directory.
+        This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=finetune)
-    recipe.resume = hf_resume()
-    recipe.peft = run.Config(LoRA)
-    recipe.data = run.Config(SquadDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1)
+    # Default to unpacked data in normal mode and packed data in performance mode
+    # once packing recipe is well tested, change this default to true
+    if packed_sequence is None:
+        packed_sequence = performance_mode
+
+    # For unpacked sequence, most samples in SQuAD dataset are shorter than 2K
+    if seq_length is None:
+        seq_length = 4096 if packed_sequence else 2048
+
+    recipe = default_finetune_recipe(
+        model(), "meta-llama/Meta-Llama-3-8B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+    )
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.optim.config.lr = 5e-6
+    elif peft_scheme.lower() in ['lora', 'dora']:
+        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
+        recipe.peft.dim = 8
+        recipe.peft.alpha = 16
+        recipe.optim.config.use_distributed_optimizer = False
+
+        # some settings currently do not function correctly with LoRA
+        recipe.model.config.cross_entropy_loss_fusion = False
+
+        recipe.optim.config.lr = 1e-4
+    else:
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
+
+    # Sequence length settings in the model and dataset must agree
+    recipe.model.config.seq_length = seq_length
+    recipe.data.seq_length = seq_length
+    if packed_sequence:
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
+        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+
+    if performance_mode:
+        recipe = finetune_performance_optimizations(recipe, peft_scheme)
+
+    return recipe
+
+
+def finetune_performance_optimizations(
+    recipe: run.Partial,
+    peft_scheme: str,
+) -> run.Partial:
+    """
+    Modify the given recipe to optimize settings for performance.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    Intended to build upon the standard fine-tuning recipe.
+
+    Args:
+        recipe (run.Partial): Base fine-tuning recipe to which performance optimizations will be added
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized fine-tuning.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    recipe.trainer.strategy.tensor_model_parallel_size = 1
+
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
+
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.ddp = run.Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=False,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            average_in_collective=True,
+        )
+    else:
+        recipe.peft.target_modules = ['linear_qkv']
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=False,
+        )
+    )
+    recipe.trainer.callbacks.append(run.Config(TimingCallback))
+    recipe.trainer.callbacks.append(
+        run.Config(
+            GarbageCollectionCallback,
+            100,
+            100,
+        )
+    )
+
     return recipe

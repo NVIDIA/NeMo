@@ -12,25 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import itertools
 import os
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Generator, Mapping, Optional, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping, Optional, Protocol, TypeVar
 
 import torch
 from torch import nn
+
+from nemo.lightning.megatron_init import initialize_model_parallel_for_nemo
+from nemo.utils import logging
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
 if TYPE_CHECKING:
-    from lightning_fabric.utilities.types import Optimizable
+    from lightning.fabric.utilities.types import Optimizable
     from megatron.core.model_parallel_config import ModelParallelConfig
 
 
 class SharedStateDictProtocol(Protocol):
-    def sharded_state_dict(self, prefix=""): ...
+    """ """
+
+    def sharded_state_dict(self, prefix=""):
+        """ """
+        ...
 
 
 def init_parallel_ranks(
@@ -56,7 +64,6 @@ def init_parallel_ranks(
         seed (int, optional): The seed for random number generation. Defaults to 1234.
         fp8 (bool, optional): Whether to use fp8 precision for model parameters. Defaults to False.
     """
-    from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
     from nemo.utils import AppState
 
     app_state = AppState()
@@ -67,6 +74,9 @@ def init_parallel_ranks(
         init_local_rank = app_state.local_rank
     else:
         init_world_size = world_size
+        pp = parallel_config.pipeline_model_parallel_size or 1
+        if world_size < pp:
+            raise ValueError(f"Expected world_size ({world_size}) to be greater than/equal to pipeline size ({pp})")
         init_global_rank = global_rank
         init_local_rank = local_rank
 
@@ -76,13 +86,20 @@ def init_parallel_ranks(
         local_rank=init_local_rank,
         tensor_model_parallel_size=parallel_config.tensor_model_parallel_size,
         expert_model_parallel_size=parallel_config.expert_model_parallel_size,
+        expert_tensor_parallel_size=parallel_config.expert_tensor_parallel_size,
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
+        pipeline_model_parallel_comm_backend=parallel_config.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
+        encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
+        encoder_pipeline_model_parallel_size=getattr(parallel_config, "encoder_pipeline_model_parallel_size", 0),
         seed=seed,
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
-        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False),
+        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
+        and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
+        use_te_rng_tracker=getattr(parallel_config, "use_te_rng_tracker", False),
+        use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -108,13 +125,19 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                pipeline_model_parallel_comm_backend=app_state.pipeline_model_parallel_comm_backend,
+                encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
+                encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
+                expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
+                order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
             )
 
             # assert that fake tp and pp rank match after model parallel init
             assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
             assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+            assert app_state.expert_tensor_parallel_rank == parallel_state.get_expert_tensor_parallel_rank()
 
             app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
             app_state.data_parallel_group = parallel_state.get_data_parallel_group()
@@ -126,18 +149,9 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
             if app_state.init_mpi_proc_group:
                 torch.distributed.new_group(backend="mpi")
 
-        if model:
-            # Set TP group
-            # Deep iterate but skip self to avoid infinite recursion.
-            for index, child in enumerate(model.modules()):
-                if index == 0:
-                    continue
-                if hasattr(child, "set_tensor_parallel_group"):
-                    tp_group = parallel_state.get_tensor_model_parallel_group()
-                    child.set_tensor_parallel_group(tp_group)
-
 
 def set_model_parallel_attributes(model, parallelism):
+    """ """
     # Right now mcore sub-classes ModelParellelConfig, we should remove that
     # Given Lightning's structure it would be better if parallelism is a different object
     # Since then it can be passed to the Strategy
@@ -153,6 +167,10 @@ def set_model_parallel_attributes(model, parallelism):
             setattr(config, attr_name, getattr(parallelism, attr_name))
             if hasattr(config, "__io__"):
                 setattr(config.__io__, attr_name, getattr(parallelism, attr_name))
+        if hasattr(config, '__post_init__'):
+            # MCore does not use args in __post_init__
+            # @akoumparouli: is there a better way (e.g. reinit config)?
+            config.__post_init__()
 
         return config
 
@@ -161,13 +179,21 @@ def set_model_parallel_attributes(model, parallelism):
 
 @contextmanager
 def megatron_lazy_init_context(config) -> Generator[None, None, None]:
-    def monkey_patched(c):
-        return {"device": "meta"}
+    """ """
+    try:
+        from megatron.core.extensions import transformer_engine as _te
 
-    from megatron.core.extensions import transformer_engine as _te
+        original = _te._get_extra_te_kwargs  # noqa: SLF001
 
-    original = _te._get_extra_te_kwargs  # noqa: SLF001
-    _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
+        def _get_extra_te_kwargs_meta(c):
+            """Forces device to meta"""
+            kwargs = original(c)
+            kwargs['device'] = 'meta'
+            return kwargs
+
+        _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
+    except ImportError:
+        pass
 
     _orig_perform_initialization = config.perform_initialization
     _orig_use_cpu_initialization = config.use_cpu_initialization
@@ -177,13 +203,20 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
 
     yield
 
-    _te._get_extra_te_kwargs = original  # noqa: SLF001
+    try:
+        from megatron.core.extensions import transformer_engine as _te
+
+        _te._get_extra_te_kwargs = original  # noqa: SLF001
+    except ImportError:
+        pass
+
     config.perform_initialization = _orig_perform_initialization
     config.use_cpu_initialization = _orig_use_cpu_initialization
 
 
 @contextmanager
 def megatron_cpu_init_context(config) -> Generator[None, None, None]:
+    """ """
     _orig_use_cpu_initialization = config.use_cpu_initialization
 
     config.use_cpu_initialization = True
@@ -497,7 +530,26 @@ def optimizer_sharded_state_dict(
 
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+    """ """
     from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
+
+    # convert from StrictHandling to bool for PTL
+    if strict is not None and not isinstance(strict, bool):
+        strict = parse_strict_flag(strict)
+        strict_options = [
+            StrictHandling.ASSUME_OK_UNEXPECTED,
+            StrictHandling.RAISE_UNEXPECTED,
+            StrictHandling.RAISE_ALL,
+        ]
+        strict = strict in strict_options
+
+    try:
+        from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+
+        have_custom_fsdp = True
+    except ImportError or ModuleNotFoundError:
+        have_custom_fsdp = False
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -535,15 +587,31 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
             else:
                 _state_dict[key] = value
 
-        module.load_state_dict(_state_dict, strict=strict)
+        if have_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
+            module.module.load_state_dict(_state_dict, strict=strict)
+            continue
+
+        try:
+            module.load_state_dict(_state_dict, strict=strict)
+        except RuntimeError as e:
+            missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+            if all(s.endswith('_extra_state') for s in missing_keys):
+                logging.warning(
+                    f'Loding checkpoint created with Transformer Engine version lower than 1.13. '
+                    f'Missing layers {missing_keys} will be ignored.'
+                )
+            else:
+                raise e
 
 
 def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False):
     """
-    When pipeline parallelism is enabled, casts a tensor defined on the last pipeline stage to other ranks.
+    When pipeline parallelism is enabled,
+    casts a tensor defined on the last pipeline stage to other ranks.
 
         Args:
-            value (torch.Tensor): A tensor to be casted from the final pipeline stage of a pipeline parallelism group (e.g. loss).
+            value (torch.Tensor): A tensor to be casted from the final pipeline stage of
+                a pipeline parallelism group (e.g. loss).
                 Note that this tensor should already be defined on the target rank(s) to fill with received data.
             broadcast (bool): When True, broadcasts value from the final pipeline stage rank to all ranks in its group.
                 When False, only rank zero receives value from the final pipeline stage rank in its group.
@@ -566,3 +634,83 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
                 src_rank,
                 group=parallel_state.get_pipeline_model_parallel_group(),
             )
+
+
+def setup_megatron_optimizer(
+    model,
+    config,
+    no_weight_decay_cond: Optional[Callable] = None,
+    scale_lr_cond: Optional[Callable] = None,
+    lr_mult: float = 1.0,
+):
+    """ """
+    from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
+
+    from nemo.core.optim import McoreDistributedOptimizer
+
+    assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
+
+    class McoreOpt(McoreDistributedOptimizer):
+        """ """
+
+        def sharded_state_dict(
+            self,
+            model_sharded_state_dict,
+            optimizer_state_dict=None,
+            is_loading=False,
+            sharding_type='fully_sharded_model_space',
+        ):
+            mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
+            distrib_optim_kwargs = {}
+            if "sharding_type" in mcore_optimizer_sig:
+                distrib_optim_kwargs["sharding_type"] = sharding_type
+            state_dict = self.mcore_optimizer.sharded_state_dict(
+                model_sharded_state_dict, is_loading=is_loading, **distrib_optim_kwargs
+            )
+            return state_dict
+
+    # megatron optimizer expects McoreDDP
+    ddp_modules = [m.module for m in model]
+    mcore_opt = get_megatron_optimizer(
+        config,
+        ddp_modules,
+        no_weight_decay_cond=no_weight_decay_cond,
+        scale_lr_cond=scale_lr_cond,
+        lr_mult=lr_mult,
+    )
+    # Pytorch does not have the concept of an `lr_mult` or a `wd_mult` but these are added to param
+    # groups in megatron to control which sub-modules have different learning rates or weight
+    # decays. Apply the multipliers here to each param_group's lr and wd, and to reduce confusion
+    # change the name of these variables. We need this because nemo does not use the custom
+    # megatron scheduler, and the megatron scheduler is what makes use of these mult parameters:
+    # https://github.com/NVIDIA/Megatron-LM/blob/044e2ad5/megatron/core/optimizer_param_scheduler.py#L192-L193
+    for pg in mcore_opt.param_groups:
+        if 'pre_lr_mult' in pg or 'pre_mult_wd' in pg:
+            # User has already applied custom lr and wd multipliers, don't apply `lr_mult` and
+            # `wd_mult` again. This case may be encountered when resuming training.
+            continue
+        pg['pre_mult_lr'] = pg["lr"]
+        pg['pre_mult_wd'] = pg['weight_decay']
+        new_lr = pg["lr"] * pg.get('lr_mult', 1.0)
+        new_wd = pg["weight_decay"] * pg.get("wd_mult", 1.0)
+        pg['lr'] = new_lr
+        pg['weight_decay'] = new_wd
+        # In case a future implementation makes use of `lr_mult` and `wd_mult` directly in the
+        #  scheduler, but accidentally also uses this function, remove `lr_mult` and `wd_mult` from
+        #  the param groups so that the default value of 1.0 gets applied.
+        if 'lr_mult' in pg:
+            pg['pre_lr_mult'] = pg['lr_mult']
+            del pg['lr_mult']  # remove so downstream methods do not apply again.
+        if 'wd_mult' in pg:
+            pg['pre_wd_mult'] = pg['wd_mult']
+            del pg['wd_mult']  # remove so downstream methods do not apply again
+
+    if getattr(model.ddp_config, "overlap_param_gather", False) and getattr(
+        model.ddp_config, "align_param_gather", False
+    ):
+        param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
+        param_sync_func = param_sync_func[0] if len(model) == 1 else param_sync_func
+        for module in model:
+            module.config.param_sync_func = param_sync_func
+
+    return McoreOpt(mcore_opt)

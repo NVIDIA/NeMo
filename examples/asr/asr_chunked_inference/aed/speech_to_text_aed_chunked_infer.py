@@ -13,11 +13,13 @@
 # limitations under the License.
 
 """
-This script chunks long audios into non-overlapping segments of `chunk_len_in_secs` seconds and performs inference on each 
+This script chunks long audios into non-overlapping segments of `chunk_len_in_secs` 
+seconds and performs inference on each 
 segment individually. The results are then concatenated to form the final output.
 
 Below is an example of how to run this script with the Canary-1b model.
-It's recommended to use manifest input, otherwise the model will perform English ASR with punctuations and capitalizations. 
+It's recommended to use manifest input, otherwise the model will perform English ASR 
+with punctuations and capitalizations. 
 An example manifest line:
 {
     "audio_filepath": "/path/to/audio.wav",  # path to the audio file
@@ -31,24 +33,26 @@ An example manifest line:
 Example Usage:
 python speech_to_text_aed_chunked_infer.py \
     model_path=null \
-    pretrained_name="nvidia/canary-1b" \
+    pretrained_name="nvidia/canary-1b-flash" \
     audio_dir="<(optional) path to folder of audio files>" \
     dataset_manifest="<(optional) path to manifest>" \
     output_filename="<(optional) specify output filename>" \
     chunk_len_in_secs=40.0 \
     batch_size=16 \
-    decoding.beam.beam_size=5
+    decoding.beam.beam_size=1
+
+To return word and segment level timestamps, add `timestamps=True` to the above command, 
+and set `chunk_len_in_secs=10.0` for best results.
     
 """
 
-import contextlib
 import copy
 import glob
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
@@ -67,6 +71,10 @@ from nemo.utils import logging
 
 @dataclass
 class TranscriptionConfig:
+    """
+    Transcription config
+    """
+
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -81,7 +89,7 @@ class TranscriptionConfig:
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
     # Set to True to output greedy timestamp information (only supported models)
-    compute_timestamps: bool = False
+    timestamps: bool = False
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -93,7 +101,7 @@ class TranscriptionConfig:
     )
 
     # Decoding strategy for MultitaskAED models
-    decoding: MultiTaskDecodingConfig = MultiTaskDecodingConfig()
+    decoding: MultiTaskDecodingConfig = field(default_factory=MultiTaskDecodingConfig)
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -116,14 +124,22 @@ class TranscriptionConfig:
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
+    """
+    Transcribes the input audio and can be used to infer long audio files by chunking
+    them into smaller segments.
+    """
+
+    if cfg.timestamps and cfg.chunk_len_in_secs != 10.0:
+        logging.warning(
+            "When `timestamps` is True, it's recommended to use `chunk_len_in_secs=10.0` for optimal results. "
+            "Setting `chunk_len_in_secs` to 10.0."
+        )
+        cfg.chunk_len_in_secs = 10.0
+
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
 
-    for key in cfg:
-        cfg[key] = None if cfg[key] == 'None' else cfg[key]
-
-    if is_dataclass(cfg):
-        cfg = OmegaConf.structured(cfg)
+    cfg = OmegaConf.structured(cfg)
 
     if cfg.random_seed:
         pl.seed_everything(cfg.random_seed)
@@ -164,21 +180,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     if model_cfg.preprocessor.normalize != "per_feature":
         logging.error(
-            "Only EncDecMultiTaskModel models trained with per_feature normalization are supported currently"
+            "Only EncDecMultiTaskModel models trained with per_feature normalization are supported \
+            currently"
         )
 
     # Disable config overwriting
     OmegaConf.set_struct(model_cfg.preprocessor, True)
-
-    # setup AMP (optional)
-    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-        logging.info("AMP enabled!\n")
-        autocast = torch.cuda.amp.autocast
-    else:
-
-        @contextlib.contextmanager
-        def autocast(*args, **kwargs):
-            yield
 
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
@@ -208,7 +215,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
 
-    with autocast(dtype=amp_dtype):
+    with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp, dtype=amp_dtype):
         with torch.no_grad():
             hyps = get_buffered_pred_feat_multitaskAED(
                 frame_asr,
@@ -217,10 +224,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.device,
                 manifest,
                 filepaths,
+                timestamps=cfg.timestamps,
             )
 
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, compute_timestamps=False
+        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.timestamps
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 

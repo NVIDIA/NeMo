@@ -1,22 +1,45 @@
-from pathlib import Path
-from typing import Any, Callable, Optional, Type, TypeVar
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+from pathlib import Path
+from typing import Callable, Optional, Type, overload
 import fiddle as fdl
-import pytorch_lightning as pl
-from fiddle._src.experimental import serialization
+
+import lightning.pytorch as pl
 
 from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load
 from nemo.lightning.io.pl import TrainerContext
 
 
-def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
+@overload
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = True) -> TrainerContext: ...
+
+
+@overload
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = False) -> fdl.Config[TrainerContext]: ...
+
+
+def load_context(path: Path, subpath: Optional[str] = None, build: bool = True):
     """
     Loads a TrainerContext from a json-file or directory.
 
     Args:
         path (Path): The path to the json-file or directory containing 'io.json'.
-        subpath (Optional[str]): Subpath to selectively load only specific objects inside the TrainerContext. Defaults to None.
-
+        subpath (Optional[str]): Subpath to selectively load only specific objects inside the TrainerContext.
+            Defaults to None.
+        build (bool): Whether to build the TrainerContext. Defaults to True.
+            Otherwise, the TrainerContext is returned as a Config[TrainerContext] object.
     Returns
     -------
         TrainerContext: The loaded TrainerContext instance.
@@ -29,7 +52,17 @@ def load_context(path: Path, subpath: Optional[str] = None) -> TrainerContext:
         checkpoint: TrainerContext = load_ckpt("/path/to/checkpoint", subpath="model.config")
 
     """
-    return load(path, output_type=TrainerContext, subpath=subpath)
+    if not isinstance(path, Path):
+        path = Path(path)
+    try:
+        return load(path, output_type=TrainerContext, subpath=subpath, build=build)
+    except FileNotFoundError:
+        # Maintain backwards compatibility with checkpoints that don't have '/context' dir.
+        if path.parts[-1] == 'context':
+            path = path.parent
+        else:
+            path = path / 'context'
+        return load(path, output_type=TrainerContext, subpath=subpath, build=build)
 
 
 def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
@@ -77,7 +110,7 @@ def model_exporter(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[Con
 
 
 def import_ckpt(
-    model: pl.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False
+    model: pl.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False, **kwargs
 ) -> Path:
     """
     Imports a checkpoint into a model using the model's associated importer, typically for
@@ -131,12 +164,34 @@ def import_ckpt(
         raise ValueError("Model must be an instance of ConnectorMixin")
 
     importer: ModelConnector = model.importer(source)
-    ckpt_path = importer(overwrite=overwrite, output_path=output_path)
+    ckpt_path = importer(overwrite=overwrite, output_path=output_path, **kwargs)
     importer.on_import_ckpt(model)
     return ckpt_path
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> ModelConnector:
+    """
+    Loads a ModelConnector from a trainer checkpoint for exporting the model to a different format.
+    This function first loads the model from the trainer checkpoint using the TrainerContext,
+    then retrieves the appropriate exporter based on the target format.
+
+    Args:
+        path (Path): Path to the trainer checkpoint directory or file.
+        target (str): The target format identifier for which to load the connector
+            (e.g., "hf" for HuggingFace format).
+
+    Returns:
+        ModelConnector: The loaded connector instance configured for the specified target format.
+
+    Raises:
+        ValueError: If the loaded model does not implement ConnectorMixin.
+
+    Example:
+        connector = load_connector_from_trainer_ckpt(
+            Path("/path/to/checkpoint"),
+            "hf"
+        )
+    """
     model: pl.LightningModule = load_context(path).model
 
     if not isinstance(model, ConnectorMixin):
@@ -151,6 +206,7 @@ def export_ckpt(
     output_path: Optional[Path] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], ModelConnector] = load_connector_from_trainer_ckpt,
+    **kwargs,
 ) -> Path:
     """
     Exports a checkpoint from a model using the model's associated exporter, typically for
@@ -194,4 +250,4 @@ def export_ckpt(
     exporter: ModelConnector = load_connector(path, target)
     _output_path = output_path or Path(path) / target
 
-    return exporter(overwrite=overwrite, output_path=_output_path)
+    return exporter(overwrite=overwrite, output_path=_output_path, **kwargs)

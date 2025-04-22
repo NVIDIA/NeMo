@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+from megatron.core.jit import jit_fuser
 
 
 @torch.jit.script
@@ -25,7 +26,12 @@ def openai_gelu(x):
     return gelu_impl(x)
 
 
-@torch.jit.script
+@jit_fuser
+def quick_gelu(x: torch.Tensor) -> torch.Tensor:
+    return x * torch.sigmoid(1.702 * x)
+
+
+# @torch.jit.script # remove until we have serialization
 def squared_relu(x):
     """Squared ReLU activation function."""
     return torch.pow(torch.nn.functional.relu(x), 2)

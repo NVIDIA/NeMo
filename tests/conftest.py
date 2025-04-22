@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
 import os.path
 import shutil
 import tarfile
@@ -24,6 +25,8 @@ from shutil import rmtree
 from typing import Tuple
 
 import pytest
+
+from nemo.utils.metaclasses import Singleton
 
 # Those variables probably should go to main NeMo configuration file (config.yaml).
 __TEST_DATA_FILENAME = "test_data.tar.gz"
@@ -115,6 +118,24 @@ def cleanup_local_folder():
         rmtree('./nemo_experiments', ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def reset_singletons():
+    Singleton._Singleton__instances = {}
+
+
+@pytest.fixture(autouse=True)
+def reset_env_vars():
+    # Store the original environment variables before the test
+    original_env = dict(os.environ)
+
+    # Run the test
+    yield
+
+    # After the test, restore the original environment
+    os.environ.clear()
+    os.environ.update(original_env)
+
+
 @pytest.fixture(scope="session")
 def test_data_dir():
     """
@@ -173,6 +194,7 @@ def k2_cuda_is_enabled(k2_is_appropriate) -> Tuple[bool, str]:
         return k2_is_appropriate
 
     import torch  # noqa: E402
+
     from nemo.core.utils.k2_guard import k2  # noqa: E402
 
     if torch.cuda.is_available() and k2.with_cuda:

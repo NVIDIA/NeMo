@@ -15,8 +15,8 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
 
 from nemo.collections.llm.api import finetune, pretrain
@@ -49,7 +49,7 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    num_nodes: int = 2,
+    num_nodes: int = 4,
     num_gpus_per_node: int = 8,
 ) -> run.Config:
     """
@@ -58,8 +58,8 @@ def trainer(
     This function sets up the distributed training strategy optimized for the large 70B model with longer sequences.
 
     Args:
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 4.
+        num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
         run.Config: Configuration for the NeMo Lightning Trainer.
@@ -76,10 +76,10 @@ def trainer(
         This configuration uses extensive parallelism to handle the large model size and longer sequence length efficiently.
     """
     return llama3_70b.trainer(
-        tensor_parallelism=2,
-        pipeline_parallelism=4,
+        tensor_parallelism=8,
+        pipeline_parallelism=2,
         pipeline_parallelism_type=torch.bfloat16,
-        virtual_pipeline_parallelism=5,
+        virtual_pipeline_parallelism=None,
         context_parallelism=2,
         sequence_parallelism=True,
         num_nodes=num_nodes,
@@ -91,7 +91,7 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 2,
+    num_nodes: int = 4,
     num_gpus_per_node: int = 8,
 ) -> run.Partial:
     """
@@ -103,8 +103,8 @@ def pretrain_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the pre-training run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
+        num_nodes (int, optional): Number of compute nodes to use. Defaults to 4.
+        num_gpus_per_node (int, optional): Number of GPUs per node. Defaults to 8.
 
     Returns:
         run.Partial: Partial configuration for pre-training.
@@ -127,50 +127,5 @@ def pretrain_recipe(
     recipe.model = model()
     recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
     recipe.data = run.Config(MockDataModule, seq_length=16384, global_batch_size=512, micro_batch_size=1)
-
-    return recipe
-
-
-@run.cli.factory(target=finetune, name=NAME)
-def finetune_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 2,
-    num_gpus_per_node: int = 8,
-) -> run.Partial:
-    """
-    Create a fine-tuning recipe for Llama3 70B model with 16k sequence length.
-
-    This function sets up a complete configuration for fine-tuning, including
-    model, trainer, and data settings optimized for 16k sequence length.
-
-    Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the fine-tuning run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-
-    Returns:
-        run.Partial: Partial configuration for fine-tuning.
-
-    Examples:
-        CLI usage:
-            $ nemo llm finetune --factory llama3_70b_16k
-            $ nemo llm finetune --factory "llama3_70b_16k(num_nodes=4, name='my_70b_16k_finetune')"
-
-        Python API usage:
-            >>> recipe = finetune_recipe(name="llama3_70b_16k_finetune", num_nodes=4)
-            >>> print(recipe)
-
-    Note:
-        This recipe is optimized for fine-tuning the large 70B model with longer sequences (16k).
-        It uses the SQuAD dataset adapted for 16k sequence length. Be aware that this configuration
-        requires substantial computational resources.
-    """
-    recipe = llama3_70b.finetune_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
-
-    recipe.model = model()
-    recipe.trainer = trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
-    recipe.data = run.Config(SquadDataModule, seq_length=16384, global_batch_size=512, micro_batch_size=1)
 
     return recipe

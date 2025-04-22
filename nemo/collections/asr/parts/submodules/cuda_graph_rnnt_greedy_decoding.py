@@ -293,6 +293,13 @@ class RNNTGreedyDecodeCudaGraph:
         device: torch.device,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
+        if x.device.type != "cuda":
+            # If CUDA graphs are enabled and "frame-looping" algorithm is requested, current class
+            # is not suitable to handle non-CUDA inputs; thus we are passing them to original caller
+            return self.caller._greedy_decode_blank_as_pad_loop_frames(
+                x=x, out_len=out_len, device=device, partial_hypotheses=partial_hypotheses
+            )
+
         if partial_hypotheses is not None:
             raise NotImplementedError(
                 "`partial_hypotheses` support is not available "
@@ -352,13 +359,13 @@ class RNNTGreedyDecodeCudaGraph:
         labels_packed = self.labels_cpu[valid_labels_mask]
 
         hypotheses = [
-            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
+            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestamp=[], dec_state=None) for _ in range(batch_size)
         ]
 
         timestep_start = 0
         labels_start = 0
         for i in range(batch_size):
-            hypotheses[i].timestep = timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist()
+            hypotheses[i].timestamp = timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist()
             timestep_start += timestep_segments[i]
             hypotheses[i].score = float(total_scores[i])
             hypotheses[i].y_sequence = labels_packed[labels_start : labels_start + labels_segments[i]].tolist()
