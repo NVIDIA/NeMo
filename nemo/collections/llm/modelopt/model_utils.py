@@ -29,8 +29,11 @@ from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
 _, HAVE_TE = safe_import("transformer_engine")
-if HAVE_TE:
+_, HAVE_MAMBA_SSM = safe_import("mamba_ssm")
+_, HAVE_CAUSAL_CONV1D = safe_import("causal_conv1d")
+if HAVE_TE and HAVE_MAMBA_SSM and HAVE_CAUSAL_CONV1D:
     # These custom modelopt specs are a mix of local MCORE and TE specs.
+    # Additionally, mamba-based models require both mamba_ssm and causal_conv1d.
     from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
     from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
 
