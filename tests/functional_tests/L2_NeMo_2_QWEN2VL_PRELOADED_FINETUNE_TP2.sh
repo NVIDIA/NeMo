@@ -21,7 +21,6 @@ TRANSFORMERS_OFFLINE=1 \
      --video_folder "/home/TestData/tiny_datasets/qwen2vl/videos" \
      --max_sequence_length=38400 \
      --projector_type="mcore_mlp" \
-     --restore_path "/root/.cache/nemo/models/Qwen/Qwen2-VL-2B-Instruct/" \
      --tp_size 2 --pp_size 1 \
      --gbs 4 --mbs 1 \
      --max_steps=4 \
