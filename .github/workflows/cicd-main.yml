@@ -150,7 +150,7 @@ jobs:
       prune-filter-timerange: 24h
       use-inline-cache: false
       cache-from: |
-        nemoci.azurecr.io/$IMAGE_NAME-buildcache:main
+        nemoci.azurecr.io/${{ matrix.image-name }}_buildcache:main
         ${{ needs.pre-flight.outputs.cache-from }}
 
   cicd-import-tests:
