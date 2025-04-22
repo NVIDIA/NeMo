@@ -3,3 +3,10 @@ ignore-paths=tests
 max-line-length=119
 ignore-patterns=.*\.ipynb$
 recursive=y
+load-plugins=pylint.extensions.docparams
+
+[PARAMETER_DOCUMENTATION]
+accept-no-param-doc=no
+accept-no-raise-doc=no
+accept-no-return-doc=no
+accept-no-yields-doc=no
