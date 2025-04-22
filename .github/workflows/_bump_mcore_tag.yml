@@ -33,7 +33,7 @@ jobs:
           if git ls-remote --exit-code origin ${{ inputs.nemo-target-branch }}; then
             git checkout ${{ inputs.nemo-target-branch }}
             git pull origin ${{ inputs.nemo-target-branch }}
-            git merge --no-ff main -m "chore: Auto-merge main back to ${{ inputs.nemo-target-branch }}"
+            git merge --no-ff ${{ inputs.nemo-target-branch }} -m "chore: Auto-merge main back to ${{ inputs.nemo-target-branch }}"
           else
             git checkout -b ${{ inputs.nemo-target-branch }} main
           fi

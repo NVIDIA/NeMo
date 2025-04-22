@@ -30,6 +30,7 @@ jobs:
   bump-tags:
     needs: [get-release-branch-names]
     strategy:
+      fail-fast: false
       matrix:
         include:
           - nemo-target-branch: ${{ needs.get-release-branch-names.outputs.nemo }}
