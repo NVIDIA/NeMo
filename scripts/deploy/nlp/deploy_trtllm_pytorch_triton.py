@@ -22,12 +22,15 @@ from nemo.deploy.nlp.trtllm_pytorch_deployable import TensorRTLLMPyotrchDeployab
 
 LOGGER = logging.getLogger("NeMo")
 
+
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy TensorRT-LLM PyTorch models to Triton",
     )
-    parser.add_argument("-hp", "--hf_model_id_path", required=True, type=str, help="Path to the HuggingFace model or model identifier")
+    parser.add_argument(
+        "-hp", "--hf_model_id_path", required=True, type=str, help="Path to the HuggingFace model or model identifier"
+    )
     parser.add_argument("-t", "--tokenizer", type=str, help="Path to the tokenizer or tokenizer instance")
     parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
@@ -39,10 +42,16 @@ def get_args(argv):
     )
     parser.add_argument("-tps", "--tensor_parallel_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument("-pps", "--pipeline_parallel_size", default=1, type=int, help="Pipeline parallelism size")
-    parser.add_argument("-meps", "--moe_expert_parallel_size", default=-1, type=int, help="MOE expert parallelism size")
-    parser.add_argument("-mtps", "--moe_tensor_parallel_size", default=-1, type=int, help="MOE tensor parallelism size")
+    parser.add_argument(
+        "-meps", "--moe_expert_parallel_size", default=-1, type=int, help="MOE expert parallelism size"
+    )
+    parser.add_argument(
+        "-mtps", "--moe_tensor_parallel_size", default=-1, type=int, help="MOE tensor parallelism size"
+    )
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
-    parser.add_argument("-mnt", "--max_num_tokens", default=8192, type=int, help="Maximum total tokens across all sequences in a batch")
+    parser.add_argument(
+        "-mnt", "--max_num_tokens", default=8192, type=int, help="Maximum total tokens across all sequences in a batch"
+    )
     parser.add_argument("-dt", "--dtype", default="auto", type=str, help="Model data type")
     parser.add_argument("-ab", "--attn_backend", default="TRTLLM", type=str, help="Attention kernel backend")
     parser.add_argument("-eos", "--enable_overlap_scheduler", action="store_true", help="Enable overlap scheduler")
@@ -53,6 +62,7 @@ def get_args(argv):
     parser.add_argument("-dm", "--debug_mode", action="store_true", help="Enable debug mode")
     args = parser.parse_args(argv)
     return args
+
 
 def trtllm_deploy(argv):
     args = get_args(argv)
@@ -109,6 +119,7 @@ def trtllm_deploy(argv):
 
     LOGGER.info("Model serving will be stopped.")
     nm.stop()
+
 
 if __name__ == '__main__':
     trtllm_deploy(sys.argv[1:])

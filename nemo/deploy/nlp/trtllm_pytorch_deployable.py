@@ -13,23 +13,23 @@
 # limitations under the License.
 
 import logging
-from typing import Any, List, Optional, Union
 from pathlib import Path
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import torch
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
+from tensorrt_llm import SamplingParams
+from tensorrt_llm._torch.llm import LLM, TokenizerBase
+from tensorrt_llm._torch.pyexecutor.config import PyTorchConfig
 from transformers import PreTrainedTokenizerBase
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import broadcast_list, cast_output, str_ndarray2list
-from tensorrt_llm._torch.llm import LLM
-from tensorrt_llm._torch.llm import TokenizerBase
-from tensorrt_llm._torch.pyexecutor.config import PyTorchConfig
-from tensorrt_llm import SamplingParams
 
 LOGGER = logging.getLogger("NeMo")
+
 
 class TensorRTLLMPyotrchDeployable(ITritonDeployable):
     """A Triton inference server compatible wrapper for TensorRT-LLM PyTorch backend.
@@ -97,7 +97,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
             pytorch_backend_config=pytorch_config,
             # enable_attention_dp=enable_attention_dp,
             enable_chunked_prefill=enable_chunked_prefill,
-            **kwargs
+            **kwargs,
         )
 
     def generate(
@@ -152,9 +152,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
             torch.distributed.broadcast(message, src=0)
             if message == 0:
                 prompts = broadcast_list(data=[None], src=0)
-                temperature, top_k, top_p, max_length = broadcast_list(
-                    data=[None], src=0
-                )
+                temperature, top_k, top_p, max_length = broadcast_list(data=[None], src=0)
 
                 self.generate(
                     prompts=prompts,
@@ -181,9 +179,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
 
     @property
     def get_triton_output(self):
-        return (
-            Tensor(name="sentences", shape=(-1,), dtype=bytes),
-        )
+        return (Tensor(name="sentences", shape=(-1,), dtype=bytes),)
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
