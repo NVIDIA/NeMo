@@ -96,6 +96,7 @@ te() {
   fi &&
     pushd $TE_DIR &&
     git checkout -f $TE_TAG &&
+    patch -p1 < /tmp/NeMo/external/patches/nemo_2.3.0_te.patch &&
     popd
 
   if [[ "$mode" == "build" ]]; then
@@ -243,6 +244,7 @@ nemo() {
     "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
     "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
     "nemo_run"                                                                                 # Not compatible in Python 3.12
+    "nvidia-modelopt[torch]==0.27.1 ; platform_system != 'Darwin'"                             # We want a specific version of nvidia-modelopt
   )
 
   echo 'Installing dependencies of nemo'
@@ -347,7 +349,7 @@ else
     # "trt" is a valid option but not in ALL_LIBRARIES
     # It does not get installed at the same time as the rest
     if [[ "$lib" == "trt" ]]; then
-        continue
+      continue
     fi
 
     if [[ ! " ${ALL_LIBRARIES[@]} " =~ " ${lib} " ]]; then
