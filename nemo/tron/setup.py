@@ -81,7 +81,6 @@ def setup(
         set_level_for_all_loggers=cfg.logger_config.set_level_for_all_loggers,
     )
 
-    # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(
         cfg=cfg,
         get_embedding_ranks=get_embedding_ranks,
