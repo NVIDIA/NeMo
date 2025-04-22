@@ -58,6 +58,13 @@ def get_parser():
         required=False,
     )
     parser.add_argument(
+        "--peft-scheme",
+        type=str,
+        help="Name of the peft scheme to use for fine-tuning. Allowed values: 'lora'/'dora'/'none'/None.",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "--global-batch-size",
         type=int,
         help="Global batch size.",
@@ -110,6 +117,20 @@ def get_parser():
         action="store_true",
         help="Run on slurm using run.SlurmExecutor",
         default=False,
+    )
+    parser.add_argument(
+        "--nodes",
+        type=int,
+        help="Number of nodes.",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--devices",
+        type=int,
+        help="Number of devices.",
+        required=False,
+        default=None,
     )
     return parser
 
@@ -195,9 +216,9 @@ def main():
     # Uses configs from NeMo directly
     assert hasattr(
         llm, args.recipe
-    ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequenth_length> or other special settings)"
+    ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequence_length> or other special settings)"
     finetune_recipe = getattr(llm, args.recipe).finetune_recipe
-    finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints")
+    finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme)
 
     # Overwrite the dataloader in the recipe to use your custom dataloader.
     # TODO:OVERWRITE THE DATA IN THE RECIPE TO CHAT DATASET, SFT blend (might be shareGPT format)
@@ -208,6 +229,10 @@ def main():
     finetune.trainer.val_check_interval = args.val_check_interval
     finetune.log.ckpt.save_top_k = args.save_top_k
     finetune.trainer.max_steps = args.max_steps
+    if args.nodes is not None:
+        finetune.trainer.num_nodes = args.nodes
+    if args.devices is not None:
+        finetune.trainer.devices = args.devices
 
     # Change here and add your files to custom_mounts
     finetune.data = run.Config(

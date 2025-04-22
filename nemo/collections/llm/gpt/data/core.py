@@ -591,11 +591,7 @@ class GPTSFTDataset(Dataset):
 
     @torch.no_grad()
     def _create_attention_mask(self, max_length):
-        """Create `attention_mask`.
-        Args:
-            input_ids: A 1D tensor that holds the indices of tokens.
-        """
-        # seq_length = len(input_ids)
+        """Create `attention_mask`."""
         # `attention_mask` has the shape of [1, seq_length, seq_length]
         attention_mask = torch.tril(torch.ones((max_length, max_length))).unsqueeze(0)
         attention_mask = attention_mask < 0.5
@@ -941,12 +937,12 @@ class GPTSFTChatDataset(GPTSFTDataset):
                 self.num_turn_start_tokens,
             )
         else:
-            if "conversations" in example:
+            if "conversations" in example:  # convert ShareGPT format to HuggingFace chat template format
                 example = _transform_to_chat_message(example)
-                result = _preprocess_hf_chat_template(
-                    example,
-                    self.tokenizer,
-                )
+            result = _preprocess_hf_chat_template(
+                example,
+                self.tokenizer,
+            )
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in {'conversations', 'messages'}}
         result['metadata'] = metadata
@@ -964,8 +960,12 @@ class GPTSFTChatDataset(GPTSFTDataset):
             contexts = [item['context_ids'].tolist() for item in batch]
             answers = [item['answer_ids'].tolist() for item in batch]
 
-        max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
-        #  max_length = max([len(x) for x in input_ids])
+        if not self.use_hf_tokenizer_chat_template:
+            max_length = max(
+                max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate
+            )
+        else:
+            max_length = max([len(x) for x in input_ids])
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
             input_ids = [x[: self.max_seq_length] for x in input_ids]
