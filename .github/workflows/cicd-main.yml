@@ -225,7 +225,7 @@ jobs:
       - L0_Setup_Test_Data_And_Models
       - cicd-main-unit-tests
       - cicd-main-e2e-tests
-      - cicd-main-e2e-export-deploy-tests
+      - cicd-main-export-deploy-tests
     if: always() && (github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions: write-all
