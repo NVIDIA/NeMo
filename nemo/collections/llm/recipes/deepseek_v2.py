@@ -17,6 +17,7 @@ from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -197,6 +198,7 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        raise ValueError("Packed sequence for DeepSeek is not yet supported. Please set packed_sequence=False.")
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
+        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
     return recipe
