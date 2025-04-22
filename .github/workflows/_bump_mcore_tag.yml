@@ -11,7 +11,8 @@ on:
         type: string
         description: "The target branch to bump"
     secrets:
-      PAT: ${{ secrets.PAT }}
+      PAT:
+        required: true
 
 jobs:
   update-branch:
