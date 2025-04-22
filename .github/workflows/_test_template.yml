@@ -50,7 +50,7 @@ jobs:
   main:
     runs-on: myVm # ${{ inputs.RUNNER }}
     name: ${{ inputs.SCRIPT }}
-    if: contains(fromJSON(inputs.test_to_run), inputs.SCRIPT) || contains(fromJSON(inputs.test_to_run), 'all')
+    if: contains(fromJSON(inputs.TESTS_TO_RUN), inputs.SCRIPT) || contains(fromJSON(inputs.TESTS_TO_RUN), 'all')
     outputs:
       conclusion: ${{ steps.check.conclusion }}
       log: ${{ steps.check.outputs.log }}
