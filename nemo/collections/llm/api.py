@@ -1220,9 +1220,6 @@ def _validate_config(
     else:
         assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
-    print("data", data, "\n\n")
-    print("type(data)", type(data), "\n\n")
-
     # Data validation
     assert data.micro_batch_size > 0
     assert data.global_batch_size > 0
