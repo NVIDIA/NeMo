@@ -130,12 +130,6 @@ class MagpieTTSModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        # import debugpy
-
-        # debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
-        # print("Waiting for debugger to attach...")
-        # debugpy.wait_for_client()  # This will block execution until the debugger attaches
-        # print("Debugger is attached!")        
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
@@ -467,6 +461,9 @@ class MagpieTTSModel(ModelPT):
             # 1. the token is masked
             # 2. the token is not padding
             loss_mask = loss_mask.unsqueeze(1) * mask_tokens_mask
+            if not loss_mask.any():
+                logging.warning("No tokens valid were found in compute_loss()!")
+                return torch.tensor(0.0, device=loss_mask.device), loss_mask 
         else:            
             # repeat loss mask for each codebook to simplify code below
             loss_mask = loss_mask.unsqueeze(1).repeat(1, audio_codes.size(1), 1)
@@ -521,7 +518,7 @@ class MagpieTTSModel(ModelPT):
 
         return all_preds
 
-    def maskgit_sample_codes(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
+    def maskgit_sample_codes(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3):
         # dec_output: (B, E)
         # import ipdb; ipdb.set_trace()
         device = dec_output.device
@@ -531,7 +528,6 @@ class MagpieTTSModel(ModelPT):
         local_transformer_input_init = self.local_transformer_in_projection(dec_output) # (B, 1, D) where D is the dimension of the local transformer
         C = self.cfg.num_audio_codebooks
         B = dec_output.size(0)
-        n_steps = self.cfg.get('maskgit_n_steps', 3)
 
         # TODO choose initial confidence
         min_confidence = float("-inf")
@@ -540,11 +536,20 @@ class MagpieTTSModel(ModelPT):
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
+        fixed_schedule = False
+        if n_steps == 9:
+            print("Forcing fixed schedule")
+            fixed_schedule = True
+            schedule = [8,7,6,5,4,3,2,1]
+            n_steps = C
         for step in range(n_steps):            
             # get mask fraction
             frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
             # how many codebooks to mask
             n_masked = torch.ceil(C * frac_masked).long() # todo make sure this starts with exactly `C`-- or force it (to avoid numerical issues)
+            if fixed_schedule:
+                # hack to force a fixed schedule
+                n_masked = schedule[step]
             n_unmasked = C - n_masked
             # pick top-confidence up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
@@ -1426,6 +1431,8 @@ class MagpieTTSModel(ModelPT):
             start_prior_after_n_audio_steps=10,
             compute_all_heads_attn_maps=False,
             use_local_transformer_for_inference=False,
+            use_maskgit_for_inference=False,
+            maskgit_n_steps=3
         ):
         with torch.no_grad():
             start_time = time.time()
@@ -1575,8 +1582,16 @@ class MagpieTTSModel(ModelPT):
                 unifinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
-                if self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference:
-                    if not self.cfg.get("use_local_transformer_maskgit", True): # TODO make it False
+                if False:
+                    import debugpy
+                    # only attach if not already attached
+                    if not debugpy.is_client_connected():
+                        debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
+                        print("Waiting for debugger to attach...")
+                        debugpy.wait_for_client()  # This will block execution until the debugger attaches
+                        print("Debugger is attached!")                
+                if self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference or use_maskgit_for_inference:
+                    if not use_maskgit_for_inference:
                         audio_codes_next = self.sample_codes_from_local_transformer(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
@@ -1587,13 +1602,8 @@ class MagpieTTSModel(ModelPT):
                             cfg_scale=cfg_scale
                         )
                     else:
-                            # import debugpy
-                            # # only attach if not already attached
-                            # if not debugpy.is_client_connected():
-                            #     debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
-                            #     print("Waiting for debugger to attach...")
-                            #     debugpy.wait_for_client()  # This will block execution until the debugger attaches
-                            #     print("Debugger is attached!")                               
+
+                            assert self.cfg.get("use_local_maskgit", False), "Can't inference with MaskGit if it wasn't enabled in training."
                             audio_codes_next = self.maskgit_sample_codes(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
@@ -1601,7 +1611,8 @@ class MagpieTTSModel(ModelPT):
                             unfinished_items=unifinished_items,
                             finished_items=finished_items,
                             use_cfg=use_cfg,
-                            cfg_scale=cfg_scale
+                            cfg_scale=cfg_scale,
+                            n_steps=maskgit_n_steps
                         )
                     all_codes_next_argmax = audio_codes_next
                 else:
