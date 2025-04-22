@@ -234,4 +234,10 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     recipe.trainer.strategy.expert_model_parallel_size = 1
     recipe.trainer.strategy.tensor_model_parallel_size = 8
     recipe.trainer.strategy.sequence_parallel = True
+
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+
+    if recipe.trainer.plugins.__fn_or_cls__ == "bf16_mixed":
+        recipe.optim.config.use_precision_aware_optimizer = True
+
     return recipe
