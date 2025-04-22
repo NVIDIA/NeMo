@@ -272,9 +272,10 @@ def main():
         '--packed-sequence-size',
         type=int,
         default=-1,
-        help='If a positive integer, this arg'
-        'enables training with sequence packing in case of HFDatasetDataModule class and specifies the pack size.'
-        'If less than or equal to 0, sequence packing is disabled.',
+        help='If a positive integer, this arg enables training with sequence packing in case of HFDatasetDataModule'
+        'class and specifies the pack size. If less than or equal to 0, sequence packing is disabled. Packed sequences'
+        'are currently supported only with position_ids and not attention_mask. Hence packed sequences needs to be'
+        'run with --attn-implementation=flash_attention_2',
     )
 
     args = parser.parse_args()
@@ -363,6 +364,9 @@ def main():
             pad_seq_len_divisible=16 if args.fp8 else None,
         )
     else:
+        if args.packed_sequence_size > 0:
+            assert args.attn_implementation == 'flash_attention_2', "Packed sequences is currently supported only " \
+            "with flash_attention_2. Please set --attn_implementation flash_attention_2"
         dataset = make_squad_hf_dataset(
             tokenizer=model.tokenizer,
             micro_batch_size=args.micro_batch_size,
