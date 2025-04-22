@@ -20,11 +20,15 @@ jobs:
       - name: Merge main back to weekly-bump
         run: |
           git fetch --unshallow
-          git checkout weekly-bump 2>/dev/null || git checkout -b weekly-bump main
-          git branch --set-upstream-to origin/weekly-bump
-          git pull
-          git merge --no-ff main -m "chore: Auto-merge main back to dev"
-          git push
+          # Try to checkout and pull existing branch, create new one if it doesn't exist
+          if git ls-remote --exit-code origin weekly-bump; then
+            git checkout weekly-bump
+            git pull origin weekly-bump
+            git merge --no-ff main -m "chore: Auto-merge main back to dev"
+          else
+            git checkout -b weekly-bump main
+          fi
+          git push -u origin weekly-bump
 
   mcore:
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_bump_yamlfile.yml@v0.21.5
