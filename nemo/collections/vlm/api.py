@@ -111,9 +111,7 @@ def finetune(
     Finetunes a VLM model using the specified data and trainer.
     (Reuses llm.finetune functionality)
     """
-    return _llm_finetune(
-        model=model, data=data, trainer=trainer, log=log, resume=resume, optim=optim, peft=peft
-    )
+    return _llm_finetune(model=model, data=data, trainer=trainer, log=log, resume=resume, optim=optim, peft=peft)
 
 
 @run.cli.entrypoint(namespace="vlm")
