@@ -150,7 +150,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         speaker_inds = list(range(self._cfg.max_num_of_spks))
         self.speaker_permutations = torch.tensor(list(itertools.permutations(speaker_inds)))  # Get all permutations
 
-        self.divide_and_conquer_feature_max_sec = self._cfg.get("divide_and_conquer_feature_max_sec", 20000)
+        self.max_batch_dur = self._cfg.get("max_batch_dur", 20000)
         self.concat_and_pad_script = torch.jit.script(concat_and_pad)
 
     def _init_loss_weights(self):
@@ -418,9 +418,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         temporary_datalayer = self.__setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def div_and_conq_feat(self, input_signal, input_signal_length):
+    def oom_safe_feature_extraction(self, input_signal, input_signal_length):
         """
-        This function divides the input signal into smaller chunks and processes each chunk separately
+        This function divides the input signal into smaller sub-batches and processes them sequentially
         to prevent out-of-memory errors during feature extraction.
 
         Args:
@@ -435,7 +435,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         processed_signal_list, processed_signal_length_list = [], []
         max_batch_sec = input_signal.shape[1]/self.preprocessor._cfg.sample_rate
         org_batch_size = input_signal.shape[0]
-        div_batch_count = min(int(max_batch_sec * org_batch_size//self.divide_and_conquer_feature_max_sec + 1), org_batch_size)
+        div_batch_count = min(int(max_batch_sec * org_batch_size//self.max_batch_dur + 1), org_batch_size)
         div_size = math.ceil(org_batch_size / div_batch_count)
 
         for div_count in range(div_batch_count):
@@ -489,8 +489,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             audio_signal = (1 / (audio_signal.max() + self.eps)) * audio_signal
 
         batch_total_dur = audio_signal.shape[0] * audio_signal.shape[1] / self.preprocessor._cfg.sample_rate
-        if self.divide_and_conquer_feature_max_sec > 0 and self.divide_and_conquer_feature_max_sec < batch_total_dur:
-            processed_signal, processed_signal_length = self.div_and_conq_feat(
+        if self.max_batch_dur > 0 and self.max_batch_dur < batch_total_dur:
+            processed_signal, processed_signal_length = self.oom_safe_feature_extraction(
                 input_signal=audio_signal, input_signal_length=audio_signal_length
             )
         else:
