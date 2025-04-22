@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-use_tensorrt = True
+# WAR for trtllm and lightning conflict
 try:
-    from nemo.export.tensorrt_lazy_compiler import trt_compile
-except Exception as e:
-    use_tensorrt = False
+    from nemo.lightning import io
+
+    __all__ = ["io"]
+except (ImportError, ModuleNotFoundError):
+    pass
