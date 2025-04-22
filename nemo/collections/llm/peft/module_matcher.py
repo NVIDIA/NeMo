@@ -14,7 +14,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Union, Set
+from typing import Dict, List, Set, Union
 
 from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 from torch import nn
