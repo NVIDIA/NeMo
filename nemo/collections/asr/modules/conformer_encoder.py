@@ -50,9 +50,9 @@ from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     ChannelType,
     LengthsType,
+    LogitsType,
     NeuralType,
     SpectrogramType,
-    LogitsType,
 )
 from nemo.utils import logging
 
@@ -551,13 +551,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         cache_last_channel=None,
         cache_last_time=None,
         cache_last_channel_len=None,
-        pre_encode_input=False
+        pre_encode_input=False,
     ):
         # pylint: disable=missing-function-docstring
         if pre_encode_input:
             self.update_max_seq_length(
-                seq_length=audio_signal.size(2) * self.subsampling_factor,
-                device=audio_signal.device
+                seq_length=audio_signal.size(2) * self.subsampling_factor, device=audio_signal.device
             )
         else:
             self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
