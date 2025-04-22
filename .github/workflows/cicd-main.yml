@@ -42,6 +42,7 @@ jobs:
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
       build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
+      cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -102,6 +103,28 @@ jobs:
           echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Get last merged PR
+        id: cache_from
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST_PRS=$(gh api graphql -f query='
+            query {
+              repository(owner: "NVIDIA", name: "NeMo") {
+                pullRequests(states: MERGED, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  nodes {
+                    number
+                  }
+                }
+              }
+            }' | jq -r '.data.repository.pullRequests.nodes[].number' | while read -r number; do
+              echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
+            done)
+
+          echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
+          echo "$LAST_PRS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
   code-linting:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     needs: [pre-flight]
@@ -109,7 +132,7 @@ jobs:
 
   cicd-test-container-build:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.14.0
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
     needs: [pre-flight, code-linting]
     with:
       image-name: nemo_container
@@ -121,20 +144,42 @@ jobs:
         NEMO_REPO=https://github.com/NVIDIA/NeMo
         ${{ needs.pre-flight.outputs.BUILD_ARGS }}
       prune-filter-timerange: 24h
+      use-inline-cache: false
+      cache-from: |
+        nemoci.azurecr.io/$IMAGE_NAME-buildcache:main
+        ${{ needs.pre-flight.outputs.cache-from }}
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     needs: [cicd-test-container-build, pre-flight]
     runs-on: self-hosted-azure-gpus-1
     steps:
+      - name: Create UUID
+        id: uuid
+        run: |
+          echo "id=$(uuidgen)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout NeMo
+        uses: actions/checkout@v2
+        with:
+          repository: NVIDIA/NeMo
+          path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo
+
       - name: Run some checks
         run: |
-          docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
+          docker run \
+              --rm \
+            --device=/dev/nvidia0 \
+            --gpus all \
+            --shm-size=8g \
+            --volume $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo:/workspace \
+            --env TRANSFORMERS_OFFLINE=0 \
+            --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
             # PyTorch Lightning version
             python -c "import lightning.pytorch; print(lightning.pytorch.__version__)"
 
             # PyTorch Lightning DDP Checks
-            CUDA_VISIBLE_DEVICES="0,1" Gotchapython "tests/core_ptl/check_for_ranks.py"
+            CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
 
             # Basic Import Checks
             python tests/core_ptl/check_imports.py --domain asr
@@ -646,8 +691,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest
-      AFTER_SCRIPT: |
-        rm -rf preds.json
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -786,8 +829,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_VLM_HF_Transformer_PEFT
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_VLM_HF_Transformer_PEFT_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -796,8 +837,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_VLM_HF_Transformer_PEFT_FSDP2
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_VLM_HF_Transformer_PEFT_4bit:
     needs: [pre-flight, cicd-test-container-build]
@@ -806,8 +845,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_VLM_HF_Transformer_PEFT_4bit
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_VLM_HF_Transformer_SFT_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -816,8 +853,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_VLM_HF_Transformer_SFT_FSDP2
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT_notebook:
     needs: [pre-flight, cicd-test-container-build]
@@ -826,8 +861,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_PEFT_notebook
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT:
     needs: [pre-flight, cicd-test-container-build]
@@ -836,8 +869,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_PEFT
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -846,8 +877,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_PEFT_nemorun
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT_2gpu:
     needs: [pre-flight, cicd-test-container-build]
@@ -856,8 +885,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_PEFT_2gpu
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2_liger:
     needs: [pre-flight, cicd-test-container-build]
@@ -884,9 +911,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2
 
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
   L2_HF_Transformer_PEFT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -894,8 +918,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_PEFT_2gpu_nemorun
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_2gpu:
     needs: [pre-flight, cicd-test-container-build]
@@ -904,8 +926,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_SFT_2gpu
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_2gpu_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -914,8 +934,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_SFT_2gpu_FSDP2
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_2gpu_FSDP2_fp8:
     needs: [pre-flight, cicd-test-container-build]
@@ -933,8 +951,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_SFT_2gpu_nemorun
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
     needs: [pre-flight, cicd-test-container-build]
@@ -943,8 +959,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_FSDP2_2gpu:
     needs: [pre-flight, cicd-test-container-build]
@@ -954,9 +968,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_SFT_FSDP2_2gpu
 
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
   L2_HF_Transformer_PT_2gpu:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -964,8 +975,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_PT_2gpu
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -974,8 +983,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_PT_2gpu_nemorun
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PT:
     needs: [pre-flight, cicd-test-container-build]
@@ -984,8 +991,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_PT
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_PT_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -994,8 +999,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_PT_nemorun
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_notebook:
     needs: [pre-flight, cicd-test-container-build]
@@ -1004,8 +1007,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_SFT_notebook
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT:
     needs: [pre-flight, cicd-test-container-build]
@@ -1014,8 +1015,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_SFT
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -1024,8 +1023,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_SFT_nemorun
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   L2_HF_Transformer_SFT_TE_Acceleration:
     needs: [pre-flight, cicd-test-container-build]
@@ -1034,8 +1031,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_SFT_TE_Acceleration
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
       IS_OPTIONAL: true
 
   L2_HF_Transformer_PT_TE_Acceleration:
@@ -1045,8 +1040,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_PT_TE_Acceleration
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   # L2: SpeechLM tests
   L2_HF_Transformer_SpeechLM_SFT_2gpu:
@@ -1056,8 +1049,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_HF_Transformer_SpeechLM_SFT_2gpu
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
 
   # L2: TTS Fast dev runs 1
   L2_TTS_Fast_dev_runs_1_Tacotron_2:
@@ -1159,7 +1150,6 @@ jobs:
   #           model.prompt="a DSLR photo of a delicious hamburger" \
   #           exp_manager.exp_dir=examples/multimodal/text_to_image/nerf/dreamfusion_results
   #
-  #           rm -rf examples/multimodal/text_to_image/nerf/dreamfusion_results
   #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
   #         if: "failure()"
 
@@ -1189,9 +1179,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_GPT_Pretraining_no_transformer_engine
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/gpt_pretrain_results
-        rm -rf tests/collections/llm/gpt_index_mappings
 
   L2_NeMo_2_llama3_pretraining_recipe:
     needs: [pre-flight, cicd-test-container-build]
@@ -1225,10 +1212,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_GPT_DDP_Param_Parity_check
 
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/gpt_pretrain_results
-        rm -rf tests/collections/llm/gpt_index_mappings
-
   L2_NeMo_2_Hyena_Conversion_from_HF:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -1237,9 +1220,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Hyena_Conversion_from_HF
 
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/hyena_conversion_results/${{ github.run_id }}
-
   L2_NeMo_2_Hyena_DDP_Pretraining_Test:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -1247,9 +1227,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure # Assume runner has 2 GPUs
       SCRIPT: L2_NeMo_2_Hyena_DDP_Pretraining_Test
-
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/hyena_pretrain_results/${{ github.run_id }}
 
   Optional_L2_NeMo_2_SSM_Pretraining:
     needs: [pre-flight, cicd-test-container-build]
@@ -1292,9 +1269,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_T5_Pretraining
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
-        rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
 
   L2_NeMo_2_T5_MockData_Pretraining:
     needs: [pre-flight, cicd-test-container-build]
@@ -1303,8 +1277,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_T5_MockData_Pretraining
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_pretrain_mockdata_results/${{ github.run_id }}
 
   L2_NeMo_2_T5_Finetuning:
     needs: [pre-flight, cicd-test-container-build]
@@ -1313,8 +1285,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_T5_Finetuning
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
 
   L2_NeMo_2_T5_Squad:
     needs: [pre-flight, cicd-test-container-build]
@@ -1323,9 +1293,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_T5_Squad
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/squad_download
-        rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
 
   L2_NeMo_2_T5_LoRA:
     needs: [pre-flight, cicd-test-container-build]
@@ -1334,8 +1301,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_T5_LoRA
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_peft_results/${{ github.run_id }}
 
   L2_NeMo_2_BERT_Pretraining_Megatron:
     needs: [pre-flight, cicd-test-container-build]
@@ -1740,6 +1705,14 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_PTQ_Llama2_FP8_nemo
 
+  L2_NeMo_2_PTQ_Unified_Export:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Unified_Export')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_PTQ_Unified_Export
+
   L2_NeMo_2_Distill_Llama3_TP1PP2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -1860,8 +1833,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_NeMo_2_Auto_Configurator_t5_TP1_PP1_MBS124
-      AFTER_SCRIPT: |
-        rm -rf examples/llm/auto_configurator/auto_conf_logs_t5
 
   L2_SpeechLM_LoRA_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -2187,6 +2158,7 @@ jobs:
       - L2_NeMo_2_Automodel_PTQ_hf
       - L2_NeMo_2_PTQ_Llama2_FP8_trtllm
       - L2_NeMo_2_PTQ_Llama2_FP8_nemo
+      - L2_NeMo_2_PTQ_Unified_Export
       - L2_NeMo_2_Distill_Llama3_TP1PP2
       - L2_NeMo_2_Prune_Llama_TP1PP2
       - L2_NeMo_2_Export_In_Framework
