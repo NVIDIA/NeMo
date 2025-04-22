@@ -24,6 +24,7 @@ import torch
 
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
+from nemo.lightning.pytorch.callbacks.pytorch_profiler import PytorchProfilerCallback
 from tests.collections.llm.common import (
     AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays,
     MCoreModelAttributeValidator,
@@ -69,6 +70,11 @@ def get_args():
         '--precision', type=str, choices=['bf16', 'fp16', 'fp32'], default='bf16', help="Override recipe precision"
     )
     parser.add_argument('--fp8', action='store_true', help="Enable FP8")
+    parser.add_argument(
+        '--profiler',
+        action='store_true',
+        help="Attach PytorchProfilerCallback and verify trace files after training",
+    )
 
     return parser.parse_args()
 
@@ -139,6 +145,19 @@ def main():
         {"max_steps": args.max_steps, "stop_on_step": args.early_stop or args.max_steps}
     )
     pretrain_recipe.trainer.callbacks.append(misc_checker)
+
+    if args.profiler:
+        exp_path = os.path.join(args.experiment_dir, exp_name)
+        trace_dir = os.path.join(exp_path, "traces")
+        os.makedirs(trace_dir, exist_ok=True)
+        profiler_cb = PytorchProfilerCallback(
+            start_step=0,
+            end_step=args.max_steps,
+            warmup_steps=0,
+            active_steps=args.max_steps,
+            trace_dir=trace_dir,
+        )
+        pretrain_recipe.trainer.callbacks.append(profiler_cb)
 
     run.run(pretrain_recipe, direct=True)
 

@@ -18,6 +18,7 @@ from pathlib import Path
 import torch
 from lightning.pytorch.callbacks import Callback
 
+from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 from nemo.utils.get_rank import get_rank
 
@@ -36,7 +37,7 @@ def trace_handler(prof, chakra_device_trace_path):
     logging.info(f"Kineto trace saved: {trace_file}")
 
 
-class PytorchProfilerCallback(Callback):
+class PytorchProfilerCallback(Callback, IOMixin):
     """
     A PyTorch Lightning callback for profiling with PyTorch's built-in Profiler and ExecutionTraceObserver.
 
