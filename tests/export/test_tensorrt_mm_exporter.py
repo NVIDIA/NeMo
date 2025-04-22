@@ -12,6 +12,7 @@ from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
 def model_dir(tmp_path):
     return str(tmp_path / "model_dir")
 
+
 @pytest.fixture
 def mock_runner():
     runner = Mock()
@@ -19,6 +20,7 @@ def mock_runner():
     runner.load_test_media = Mock(return_value=np.zeros((1, 224, 224, 3)))
     runner.run = Mock(return_value="Test response")
     return runner
+
 
 class TestTensorRTMMExporter:
     def test_init(self, model_dir):
@@ -37,10 +39,7 @@ class TestTensorRTMMExporter:
     def test_export_mllama(self, mock_build, model_dir):
         exporter = TensorRTMMExporter(model_dir, load_model=False)
         exporter.export(
-            visual_checkpoint_path="dummy/path",
-            model_type="mllama",
-            tensor_parallel_size=1,
-            load_model=False
+            visual_checkpoint_path="dummy/path", model_type="mllama", tensor_parallel_size=1, load_model=False
         )
         mock_build.assert_called_once()
 
@@ -49,10 +48,7 @@ class TestTensorRTMMExporter:
     def test_export_neva(self, mock_visual, mock_trtllm, model_dir):
         exporter = TensorRTMMExporter(model_dir, load_model=False)
         exporter.export(
-            visual_checkpoint_path="dummy/path",
-            model_type="neva",
-            tensor_parallel_size=1,
-            load_model=False
+            visual_checkpoint_path="dummy/path", model_type="neva", tensor_parallel_size=1, load_model=False
         )
         mock_trtllm.assert_called_once()
         mock_visual.assert_called_once()
@@ -68,12 +64,9 @@ class TestTensorRTMMExporter:
         exporter.runner = mock_runner
 
         result = exporter.forward(
-            input_text="What's in this image?",
-            input_media="test_image.jpg",
-            batch_size=1,
-            max_output_len=30
+            input_text="What's in this image?", input_media="test_image.jpg", batch_size=1, max_output_len=30
         )
-        
+
         assert result == "Test response"
         mock_runner.load_test_media.assert_called_once()
         mock_runner.run.assert_called_once()
@@ -81,10 +74,10 @@ class TestTensorRTMMExporter:
     def test_get_triton_input(self, model_dir):
         exporter = TensorRTMMExporter(model_dir, load_model=False)
         inputs = exporter.get_triton_input
-        
+
         # Verify we have the expected number of inputs
         assert len(inputs) == 10  # 1 text input + 1 media input + 8 optional parameters
-        
+
         # Verify the first input is for text
         assert inputs[0].name == "input_text"
         assert inputs[0].dtype == bytes
@@ -92,7 +85,7 @@ class TestTensorRTMMExporter:
     def test_get_triton_output(self, model_dir):
         exporter = TensorRTMMExporter(model_dir, load_model=False)
         outputs = exporter.get_triton_output
-        
+
         assert len(outputs) == 1
         assert outputs[0].name == "outputs"
-        assert outputs[0].dtype == bytes 
+        assert outputs[0].dtype == bytes
