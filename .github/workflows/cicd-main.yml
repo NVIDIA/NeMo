@@ -212,7 +212,7 @@ jobs:
       - cicd-main-unit-tests
       - cicd-main-e2e-tests
 
-    if: always() && github.event != 'push'
+    if: always() && (github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
