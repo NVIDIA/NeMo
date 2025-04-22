@@ -15,12 +15,12 @@ name: CICD NeMo
 on:
   schedule:
     - cron: 0 0 * * *
-  pull_request:
-    branches:
-      - main
-      - r**
-      - weekly-bump
-    types: [labeled]
+  # pull_request:
+  #   branches:
+  #     - main
+  #     - r**
+  #     - weekly-bump
+  #   types: [labeled]
   push:
     branches:
       - main
