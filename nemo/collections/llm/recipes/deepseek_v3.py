@@ -131,14 +131,12 @@ def pretrain_recipe(
         gc_interval_train=1,
         gc_interval_val=1,
     )
-    # token_drop_callback = run.Config(MegatronTokenDropCallback)
     comm_overlap_callback = run.Config(
         MegatronCommOverlapCallback,
         tp_comm_overlap=False,
     )
 
     recipe.trainer.callbacks.append(garbage_collection_callback)
-    # recipe.trainer.callbacks.append(token_drop_callback)
     recipe.trainer.callbacks.append(comm_overlap_callback)
 
     return recipe
