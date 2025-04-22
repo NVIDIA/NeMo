@@ -21,7 +21,7 @@ jobs:
         run: |
           git fetch --unshallow
           git checkout weekly-bump 2>/dev/null || git checkout -b weekly-bump main
-          git pull
+          git pull -u origin weekly-bump
           git merge --no-ff main -m "chore: Auto-merge main back to dev"
           git push -u origin weekly-bump
 
