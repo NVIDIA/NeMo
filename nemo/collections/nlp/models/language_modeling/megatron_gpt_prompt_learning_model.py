@@ -460,7 +460,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if not self.validation_step_outputs:
             return
 
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack([i['loss'] for i in self.validation_step_outputs]).mean()
         else:

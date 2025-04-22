@@ -1184,7 +1184,7 @@ class MegatronCLIPModel(MegatronBaseModel):
                 captions = batch["captions"].cuda(non_blocking=True)
             else:
                 # GPT3 uses only causal mask, which doesn't need attention mask
-                if parallel_state.is_pipeline_first_stage():
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
                     # Fist pipeline stage needs only the tokens and position_ids
                     images = batch["images"].cuda(non_blocking=True)
                     captions = batch["captions"].cuda(non_blocking=True)
@@ -1298,7 +1298,7 @@ class MegatronCLIPModel(MegatronBaseModel):
             self.log('imagenet_top1', imagenet_metric[0], prog_bar=True, rank_zero_only=True, batch_size=1)
             self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True, batch_size=1)
 
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             averaged_metrics = torch.tensor(
                 [torch.stack(self.validation_step_outputs).mean()], dtype=torch.float32, device='cuda'
             )

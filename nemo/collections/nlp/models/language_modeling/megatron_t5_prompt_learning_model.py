@@ -348,7 +348,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         outputs = self.validation_step_outputs if prefix == 'val' else self.test_step_outputs
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if parallel_state.is_pipeline_last_stage():
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
                 # only the last pipeline parallel stages return loss
                 averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
             else:
