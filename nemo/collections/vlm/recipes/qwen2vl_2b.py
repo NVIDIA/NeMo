@@ -159,7 +159,6 @@ def finetune_recipe(
         nl.AutoResume,
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
-        restore_config=run.Config(nl.RestoreConfig, path=f"nemo://{HF_MODEL_NAME}"),
     )
 
     opt_config = run.Config(
