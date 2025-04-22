@@ -1180,27 +1180,3 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Conversion_Test_T5
-
-  L2_NeMo_2_Export_HF_TRT_LLM:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_NeMo_2_Export_HF_TRT_LLM
-
-  L2_NeMo_2_Export_Deploy_Query_In_Framework:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_NeMo_2_Export_Deploy_Query_In_Framework
-
-  L2_ONNX_TRT_LLM_Embedding_Export:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_ONNX_TRT_LLM_Embedding_Export
-
-  L2_NeMo_2_Export_TRT_LLM:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_NeMo_2_Export_TRT_LLM

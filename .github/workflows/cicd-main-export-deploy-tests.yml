@@ -1,0 +1,26 @@
+name: NeMo E2E Export Deploy Tests
+on:
+  workflow_call:
+    inputs:
+      test_to_run:
+        required: true
+        type: string
+
+jobs:
+  e2e-export-deploy-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - script: L2_NeMo_2_Export_HF_TRT_LLM
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Export_Deploy_Query_In_Framework
+            runner: self-hosted-azure
+          - script: L2_ONNX_TRT_LLM_Embedding_Export
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Export_TRT_LLM
+            runner: self-hosted-azure
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: ${{ matrix.runner }}
+      SCRIPT: ${{ matrix.script }}
