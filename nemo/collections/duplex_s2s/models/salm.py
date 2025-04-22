@@ -160,7 +160,8 @@ class SALM(LightningModule):
             input_signal=batch["audios"], input_signal_length=batch["audio_lens"]
         )
         audio_embs = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
-        text_embs = self.embed_tokens(batch["input_ids"].where(batch["input_ids"] > self.text_vocab_size, 0))
+        input_ids_to_embed = torch.where(batch["input_ids"] == self.audio_locator_tag_id, 0, batch["input_ids"])
+        text_embs = self.embed_tokens(input_ids_to_embed)
         input_embs, target_ids, attention_mask = replace_placeholders_and_build_targets(
             input_ids=batch["input_ids"],
             embeds=text_embs,
@@ -187,6 +188,8 @@ class SALM(LightningModule):
                 target_ids = target_ids[:, :-remainder]
 
         return {
+            "audio_embeds": audio_embs,
+            "text_embeds": text_embs,
             "input_embeds": input_embs,
             "attention_mask": attention_mask,
             "target_ids": target_ids,
@@ -223,7 +226,7 @@ class SALM(LightningModule):
             "sequence_length": T,
             "num_frames": num_frames.to(torch.float32),  # avoid warning
             "target_to_input_ratio": num_frames / (B * T),
-            "padding_ratio": batch["loss_mask"].long().sum() / batch["input_ids"].numel(),
+            "padding_ratio": (batch["input_ids"] != self.text_pad_id).long().sum() / batch["input_ids"].numel(),
         }
         self.log_dict(ans, on_step=True)
         return ans

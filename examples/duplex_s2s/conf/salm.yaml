@@ -95,12 +95,12 @@ trainer:
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
-    _target_: lightning.pytorch.strategies.ModelParallelStrategy
-    tensor_parallel_size: 1
-    data_parallel_size: 2
-#    _target_: lightning.pytorch.strategies.DDPStrategy
-#    gradient_as_bucket_view: true
-#    find_unused_parameters: true
+#    _target_: lightning.pytorch.strategies.ModelParallelStrategy
+#    tensor_parallel_size: 1
+#    data_parallel_size: 2
+    _target_: lightning.pytorch.strategies.DDPStrategy
+    gradient_as_bucket_view: true
+    find_unused_parameters: true
 
 data:
   train_ds:
@@ -112,7 +112,7 @@ data:
         cuts_path: /home/pzelasko/data/mini-libri/cuts_dev-clean-2-lower.jsonl.gz
         audio_locator_tag: ${model.audio_locator_tag}
         tags:
-          system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
+          system_prompt: "detailed thinking off"
           context: "Repeat after me, typing in lowercase."
 #      - type: lhotse_as_conversation
 #        shar_path: /home/pzelasko/data/mini-libri/train-clean-5-shar
@@ -125,7 +125,7 @@ data:
     shard_seed: "randomized"
     num_workers: 1
 
-    batch_size: 2
+    batch_size: 3
 #    batch_duration: 100
 #    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
 #    use_bucketing: true
@@ -145,7 +145,7 @@ data:
             cuts_path: /home/pzelasko/data/mini-libri/cuts_dev-clean-2-lower.jsonl.gz
             audio_locator_tag: ${model.audio_locator_tag}
             tags:
-              system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
+              system_prompt: "detailed thinking off"
               context: "Repeat after me, typing in lowercase."
 #      train-clean-5:
 #        input_cfg:
