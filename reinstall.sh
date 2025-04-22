@@ -96,7 +96,7 @@ te() {
   fi &&
     pushd $TE_DIR &&
     git checkout -f $TE_TAG &&
-    patch -p1 < /tmp/NeMo/external/patches/nemo_2.3.0_te.patch &&
+    patch -p1 </tmp/NeMo/external/patches/nemo_2.3.0_te.patch &&
     popd
 
   if [[ "$mode" == "build" ]]; then
@@ -133,7 +133,7 @@ mcore() {
     popd
 
   export MAMBA_FORCE_BUILD=TRUE
-  export MAMBA_TAG=v2.2.0
+  export MAMBA_TAG=2e16fc3062cdcd4ebef27a9aa4442676e1c7edf4
   MAMBA_DIR="$INSTALL_DIR/mamba" &&
     if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
