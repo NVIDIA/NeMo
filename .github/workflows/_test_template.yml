@@ -133,6 +133,10 @@ jobs:
           echo "$cmd" | tee "$DIR/retry_job.sh"
           bash $DIR/retry_job.sh
 
+      - name: Install Mcore
+        run: |
+          docker exec -t nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c 'pip install /workspace/Megatron-LM'
+
       - name: Create run-script
         id: create
         run: |
@@ -227,5 +231,6 @@ jobs:
       - name: Container shutdown
         if: always()
         run: |
-          rm -rf $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }} || true
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c 'rm -rf /workspace/'
           docker container rm -f nemo_container_${{ github.run_id }}_${{ runner.name }} || true
+          rm -rf $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }} || true
