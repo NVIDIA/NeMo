@@ -14,9 +14,8 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Set
+from typing import Dict, List, Union, Set
 
-import torch.nn as nn
 from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 from torch import nn
 
@@ -45,7 +44,8 @@ class ModuleMatcher:
     This class facilitates the application of LoRA to specific modules within the model architecture.
 
     Args:
-        target_modules (List[str], optional): A list of module names to apply LoRA to.
+        target_modules (List[Union[str, 'nn.Module']], optional): A list of module names or types
+            to apply LoRA to.
             Defaults to all linear layers ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'].
                 - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
                                 in self-attention.
@@ -57,7 +57,7 @@ class ModuleMatcher:
                 on the first two layers.
     """
 
-    target_modules: List[str] = field(
+    target_modules: List[Union[str, 'nn.Module']] = field(
         default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
     )
     exclude_modules: List[str] = field(default_factory=list)
@@ -109,8 +109,11 @@ class ModuleMatcher:
         elif len(self.target_modules or []) > 0:
             assert len(self.exclude_modules) == 0
             for pattern in self.target_modules:
-                if name == pattern or wildcard_match(pattern, full_name):
-                    return (pattern, full_name)
+                if isinstance(pattern, str):
+                    if name == pattern or wildcard_match(pattern, full_name):
+                        return (pattern, full_name)
+                elif isinstance(m, pattern):
+                    return (name, full_name)
         else:
             linear_types = [ColumnParallelLinear, RowParallelLinear, nn.Linear]
             if HAVE_TE_COL_LINEAR:
