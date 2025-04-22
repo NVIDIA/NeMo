@@ -72,7 +72,6 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
         attn_backend: str = 'TRTLLM',
         enable_overlap_scheduler: bool = False,
         torch_compile_enabled: bool = False,
-        enable_attention_dp: bool = False,
         enable_chunked_prefill: bool = False,
         use_cuda_graph: bool = False,
         **kwargs,
@@ -95,7 +94,6 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
             max_num_tokens=max_num_tokens,
             dtype=dtype,
             pytorch_backend_config=pytorch_config,
-            # enable_attention_dp=enable_attention_dp,
             enable_chunked_prefill=enable_chunked_prefill,
             **kwargs,
         )
