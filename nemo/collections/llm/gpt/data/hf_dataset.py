@@ -24,8 +24,6 @@ import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
 
@@ -168,7 +166,7 @@ def extract_key_from_dicts(batch, key):
     return list(map(lambda x: x[key], batch))
 
 
-def pad_within_micro(batch, pad_token_id):
+def pad_within_micro(batch, pad_token_id, pad_seq_len_divisible=None):
     """Pads each list in a batch of lists to the same length with a specified token.
 
     Parameters
@@ -177,7 +175,8 @@ def pad_within_micro(batch, pad_token_id):
         A batch of sequences (e.g., token IDs), where each sequence is a list of integers.
     pad_token_id : int
         The token ID to use for padding shorter sequences.
-
+    pad_seq_len_divisible : int
+        The value to use for padding sequence length so that it is divisible by pad_seq_len_divisible.
     Returns
     -------
     List[List[int]]
@@ -185,6 +184,8 @@ def pad_within_micro(batch, pad_token_id):
         to match the length of the longest sequence in the batch.
     """
     max_len = max(map(len, batch))
+    if pad_seq_len_divisible:
+        max_len = (pad_seq_len_divisible - max_len % pad_seq_len_divisible) + max_len
     return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
 
 
@@ -254,6 +255,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
+        pad_seq_len_divisible=None,
+        num_replicas=None,
+        rank=None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -282,7 +286,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=pad_seq_len_divisible
+            )
         else:
             self._collate_fn = collate_fn
 
@@ -295,6 +301,11 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.pad_token_id = pad_token_id
 
         self.use_dist_sampler = use_dist_sampler
+        self.pad_seq_len_divisible = pad_seq_len_divisible
+
+        # TODO: refractor this
+        self.num_replicas = num_replicas
+        self.rank = rank
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
@@ -303,14 +314,15 @@ class HFDatasetDataModule(pl.LightningDataModule):
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
     @staticmethod
-    def collate_fn(batch, pad_token_id=0):
+    def collate_fn(batch, pad_token_id=0, pad_seq_len_divisible=None):
         """Default batch collator"""
         return {
             key: batchify(
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id if key != "loss_mask" else 0,
+                        pad_token_id if key != 'loss_mask' else 0,
+                        pad_seq_len_divisible,
                     )
                 )
             )
@@ -327,7 +339,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
     def get_data_sampler(self, dataset):
         """returns the data sampler"""
         if self.use_dist_sampler:
-            return DistributedSampler(dataset)
+            return DistributedSampler(dataset, num_replicas=self.num_replicas, rank=self.rank)
         else:
             return None
 
@@ -336,7 +348,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible
+            )
 
         return DataLoader(
             dataset,
@@ -399,6 +413,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         tokenizer.pad_token = tokenizer.eos_token
         self.pad_token_id = tokenizer.eos_id
         dataset = load_dataset(dataset_name)
+        kwargs['split'] = 'train'
         super().__init__(HellaSwagHFDataModule.preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
 
     @staticmethod
@@ -434,21 +449,18 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         print("Preprocessing dataset...")
         dataset = dataset.map(HellaSwagHFDataModule.process_doc)
 
-        def preprocess_batch(batch, tokenizer, max_length):
-            ans = tokenizer(
-                batch["text"],
-                max_length=max_length,
-                truncation=True,
-            )
-            ans["labels"] = [x[1:] + [-100] for x in ans["input_ids"]]
-            return ans
+        def preprocess(example, tokenizer, max_length):
+            input_ids = tokenizer.text_to_ids(example["text"])
+            if max_length > 0:
+                input_ids = input_ids[:max_length]
+            return dict(input_ids=input_ids, labels=input_ids[1:] + [-100])
 
-        # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
-        _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+        # Apply preprocessing to each example of the dataset & and remove "conversations" and "text" fields.
+        _preprocessing_function = partial(preprocess, max_length=max_length, tokenizer=tokenizer)
         dataset = dataset.map(
             _preprocessing_function,
-            batched=True,
-        ).select_columns(["input_ids", "attention_mask", "labels"])
+            batched=False,
+        ).select_columns(["input_ids", "labels"])
 
         # Shuffle dataset.
         dataset = dataset.shuffle(seed=seed)
@@ -540,7 +552,7 @@ class HFMockDataModule(pl.LightningDataModule):
     def __init__(
         self,
         seq_length: int = 2048,
-        tokenizer=None,
+        vocab_size: int = 1024,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size=None,
@@ -553,6 +565,7 @@ class HFMockDataModule(pl.LightningDataModule):
         create_attention_mask: bool = False,
         vocab_file=None,
         merges_file=None,
+        pad_seq_len_divisible=None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -566,35 +579,28 @@ class HFMockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.create_attention_mask = create_attention_mask
         self.collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=0)
-
-        if tokenizer is None:
-            self.tokenizer = get_nmt_tokenizer(
-                "megatron",
-                "GPT2BPETokenizer",
-                vocab_file=vocab_file,
-                merges_file=merges_file,
-            )
-        else:
-            self.tokenizer = tokenizer
+        self.vocab_size = vocab_size
+        if pad_seq_len_divisible is not None:
+            self.seq_length = (seq_length + pad_seq_len_divisible - 1) // pad_seq_len_divisible * pad_seq_len_divisible
 
     def setup(self, stage: str = None) -> None:
         """setup"""
         self._train_ds = _MockGPTDataset(
-            self.tokenizer,
+            self.vocab_size,
             "train",
             self.num_train_samples,
             self.seq_length,
             self.create_attention_mask,
         )
         self._val_ds = _MockGPTDataset(
-            self.tokenizer,
+            self.vocab_size,
             "valid",
             self.num_val_samples,
             self.seq_length,
             self.create_attention_mask,
         )
         self._test_ds = _MockGPTDataset(
-            self.tokenizer,
+            self.vocab_size,
             "test",
             self.num_test_samples,
             self.seq_length,
@@ -630,7 +636,7 @@ class _MockGPTDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        tokenizer: "TokenizerSpec",
+        vocab_size: int,
         name: str,
         num_samples: int,
         seq_length: int,
@@ -640,8 +646,7 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         super().__init__()
         self.name = name
         self.seq_length = seq_length
-        self.tokenizer = tokenizer
-        self.vocab_size = self.tokenizer.vocab_size
+        self.vocab_size = vocab_size
         self.length = num_samples
         self.seed = seed
         self.create_attention_mask = create_attention_mask

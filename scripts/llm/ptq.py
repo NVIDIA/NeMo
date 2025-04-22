@@ -16,10 +16,12 @@ import argparse
 
 from nemo.collections import llm
 from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
+from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
 
 
 def get_args():
     """Parses PTQ arguments."""
+    QUANT_CFG_CHOICES_LIST = ["no_quant", *get_quant_cfg_choices()]
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="NeMo PTQ argument parser"
     )
@@ -69,7 +71,7 @@ def get_args():
         "--algorithm",
         type=str,
         default="fp8",
-        choices=["no_quant", "int8", "int8_sq", "fp8", "int4_awq", "w4a8_awq", "int4", "nvfp4"],
+        choices=QUANT_CFG_CHOICES_LIST,
         help="TensorRT-Model-Optimizer quantization algorithm",
     )
     parser.add_argument(
@@ -101,6 +103,9 @@ def get_args():
         "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
     )
     parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
+    parser.add_argument(
+        "--kv_cache_qformat", type=str, default="fp8", choices=["fp8", "nvfp4"], help="KV-cache quantization format"
+    )
 
     args = parser.parse_args()
 
@@ -127,6 +132,7 @@ def main():
         awq_block_size=args.awq_block_size,
         sq_alpha=args.sq_alpha,
         enable_kv_cache=args.enable_kv_cache,
+        kv_cache_qformat=args.kv_cache_qformat,
         calibration_dataset=args.calibration_dataset,
         calibration_dataset_size=args.calibration_dataset_size,
         calibration_batch_size=args.batch_size,
