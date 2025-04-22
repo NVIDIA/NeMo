@@ -59,10 +59,10 @@ def make_squad_hf_dataset(
         # Do not perform padding for packed sequences
         if packed_sequence_size > 0:
             return dict(
-            labels=(context_ids + answer_ids)[1:],
-            input_ids=(context_ids + answer_ids)[:-1],
-            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
-        )
+                labels=(context_ids + answer_ids)[1:],
+                input_ids=(context_ids + answer_ids)[:-1],
+                loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+            )
         else:
             # Set input and labels, and pad to sequence length.
             combined_query_answer = context_ids + answer_ids
@@ -365,8 +365,10 @@ def main():
         )
     else:
         if args.packed_sequence_size > 0:
-            assert args.attn_implementation == 'flash_attention_2', "Packed sequences is currently supported only " \
-            "with flash_attention_2. Please set --attn_implementation flash_attention_2"
+            assert args.attn_implementation == 'flash_attention_2', (
+                "Packed sequences is currently supported only "
+                "with flash_attention_2. Please set --attn_implementation flash_attention_2"
+            )
         dataset = make_squad_hf_dataset(
             tokenizer=model.tokenizer,
             micro_batch_size=args.micro_batch_size,

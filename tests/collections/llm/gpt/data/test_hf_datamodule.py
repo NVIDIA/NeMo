@@ -322,6 +322,7 @@ def test_collate_fn():
     assert result["token_ids"].shape[0] == 2
     assert result["token_ids"].shape[1] == 3
 
+
 def test_batchify():
     batch = torch.Tensor(128)
     output = batchify(batch)
