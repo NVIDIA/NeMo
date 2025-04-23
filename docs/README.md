@@ -80,6 +80,6 @@ def my_func(a: str, b: Optional[bool] = False):
             This was changed to a str from a int.
       b: Another param
          .. versionadded:: 0.1.0
-            This was added as an optional param.  
+            This was added as an optional param.
    """
 ```

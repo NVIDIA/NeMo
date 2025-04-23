@@ -108,13 +108,17 @@ jobs:
           PYLINT: ${{ steps.pylint.outputs.exit-code == 0 }}
           FLAKE8: ${{ steps.flake8.outputs.exit-code == 0 }}
         run: |
-
           if [[ "$PYLINT" != "true" ]]; then
             echo "Pylint output:" | tee -a $GITHUB_STEP_SUMMARY
 
             echo '```' | tee -a $GITHUB_STEP_SUMMARY
             cat pylintrc.$DOMAIN.txt | tee -a $GITHUB_STEP_SUMMARY
             echo '```' | tee -a $GITHUB_STEP_SUMMARY
+
+            # Check if there are any docstring-related issues
+            if grep -q "differing-param-doc\|differing-type-doc\|missing-docstring\|missing-param-doc\|missing-type-doc\|missing-any-param-doc\|missing-return-doc\|missing-raises-doc" pylintrc.$DOMAIN.txt; then
+              echo "**Note:** Docstring issues were found. Please review the Docstring section in [docs/README.md](https://github.com/NVIDIA/NeMo/blob/main/docs/README.md) for guidelines." | tee -a $GITHUB_STEP_SUMMARY
+            fi
           fi
 
           if [[ "$FLAKE8" != "true" ]]; then
