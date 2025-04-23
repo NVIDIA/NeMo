@@ -19,7 +19,6 @@ from einops import rearrange
 from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
 
 from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
-from nemo.collections.vlm.data.utils import _find_pattern_indices
 from nemo.utils import logging
 
 
@@ -274,6 +273,9 @@ class VQASampleEncoder(BaseSampleEncoder):
         Returns:
         torch.Tensor: A tensor containing the labels for the tokenized prompt.
         """
+        # Import moved here to break circular dependency
+        from nemo.collections.vlm.data.utils import _find_pattern_indices
+
         # Initialize labels with ignore index
         labels = torch.ones_like(tokens) * self.ignore_place_holder
         search_start_index = 0  # Initialize search index to start labeling answers sequentially
