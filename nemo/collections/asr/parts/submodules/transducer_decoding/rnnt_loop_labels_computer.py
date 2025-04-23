@@ -573,10 +573,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             self.decoder.batch_replace_states_all(
                 src_states=prev_batched_state.predictor_state,
                 dst_states=self.state.decoder_state,
+                batch_size=current_batch_size,
             )
             # initial state - lm
             if self.ngram_lm_batch is not None:
-                self.state.batch_lm_states.copy_(prev_batched_state.lm_state)
+                self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_state[:current_batch_size])
             # labels
             self.state.labels[:current_batch_size].copy_(
                 prev_batched_state.labels[:current_batch_size], non_blocking=True
@@ -605,7 +606,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
         if prev_batched_state is not None:
-            self.state.batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
+            self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length.unsqueeze(1)
             # TODO: alignments
         decoding_state = rnnt_utils.BatchedGreedyDecodingState(
             predictor_state=copy.deepcopy(self.state.last_decoder_state),
