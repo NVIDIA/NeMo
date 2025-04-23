@@ -337,17 +337,15 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_state: Optional[Any] = None,
-        prev_labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
         """
         Pure PyTorch implementation
 
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
-            prev_state: previous decoder state for the batch
-            prev_labels: batch of previously decoded labels
+            prev_batched_state: previous batched decoding state
         """
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
@@ -623,17 +621,15 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_state: Optional[Any] = None,
-        prev_labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
         """
         Implementation with CUDA graphs.
 
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
-            prev_state: previous decoder state for the batch
-            prev_labels: batch of previously decoded labels
+            prev_batched_state: previous batched decoding state
         """
         assert self.cuda_graphs_mode is not None
 
@@ -1187,44 +1183,26 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-        prev_state: Optional[Any] = None,
-        prev_labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
-            # disable CUDA graphs if DDP and Mixed Precision are used
-            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
-            with ctx:
-                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
-                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
-
-        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
-
-    def __call__(
-        self,
-        x: torch.Tensor,
-        out_len: torch.Tensor,
-        prev_state: Optional[Any] = None,
-        prev_labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
         """
         Entry point for the decoding algorithm
 
         Args:
             x: encoder output
             out_len: encoder output length
-            prev_state: previous decoder state for the batch
-            prev_labels: batch of previously decoded labels
+            prev_batched_state: previous batched decoding state
         """
-        # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
-        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            if not is_ddp:
+            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
+            # disable CUDA graphs if DDP and Mixed Precision are used
+            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
+            with ctx:
+                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
                 return self.loop_labels_cuda_graphs(
-                    encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+                    encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
                 )
-            else:
-                logging.warning("CUDA graphs are temporary disabled in distributed environment", mode=LogMode.ONCE)
+
         return self.loop_labels_torch(
-            encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+            encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
         )

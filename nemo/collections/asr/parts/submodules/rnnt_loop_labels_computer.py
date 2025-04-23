@@ -315,7 +315,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
         prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
         """
         Pure PyTorch implementation
 
@@ -360,7 +360,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         state = (
             self.decoder.initialize_state(encoder_output_projected)
             if prev_batched_state is None
-            else prev_batched_state.prev_state
+            else prev_batched_state.predictor_state
         )
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
@@ -368,7 +368,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         labels = (
             torch.full_like(batch_indices, fill_value=self._SOS)
             if prev_batched_state is None
-            else prev_batched_state.prev_labels.clone()
+            else prev_batched_state.predictor_state.clone()
         )
 
         # time indices
@@ -553,7 +553,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
         prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
         """
         Implementation with CUDA graphs.
 
@@ -590,7 +590,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
         else:
             self.decoder.batch_replace_states_all(
-                src_states=prev_batched_state.prev_state,
+                src_states=prev_batched_state.predictor_state,
                 dst_states=self.state.decoder_state,
                 batch_size=current_batch_size,
             )
@@ -1060,26 +1060,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
-            # disable CUDA graphs if DDP and Mixed Precision are used
-            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
-            with ctx:
-                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
-                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
-
-        # new_decoding_state = rnnt_utils.BatchedGreedyDecodingState(
-        #     batched_hyps=batched_hyps, decoder_state=last_decoder_state, last_timestamps=last_timestamps, lm_state=...
-        # )
-        new_decoding_state = None
-
-        return batched_hyps, batched_ali, new_decoding_state
-
-    def __call__(
-        self,
-        x: torch.Tensor,
-        out_len: torch.Tensor,
         prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
         """
@@ -1090,33 +1070,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             out_len: encoder output length
             prev_batched_state: previous batched decoding state
         """
-        # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
-        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            if not is_ddp:
-                batched_hyps, batched_ali, last_decoder_state = self.loop_labels_cuda_graphs(
-                    encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
-                )
-            else:
-                logging.warning("CUDA graphs are temporary disabled in distributed environment", mode=LogMode.ONCE)
-                batched_hyps, batched_ali, last_decoder_state = self.loop_labels_torch(
-                    encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
-                )
-        else:
-            batched_hyps, batched_ali, last_decoder_state = self.loop_labels_torch(
-                encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
-            )
-        last_timestamps = out_len - 1
-        # correct timestamps if it is not the first chunk
-        if prev_batched_state is not None:
-            last_timestamps += prev_batched_state.last_timestamps
-            batched_hyps.timestamps += prev_batched_state.prev_last_timestamps.unsqueeze(-1)
-            if batched_ali is not None:
-                batched_ali.timestamps += prev_batched_state.prev_last_timestamps.unsqueeze(-1)
+            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
+            # disable CUDA graphs if DDP and Mixed Precision are used
+            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
+            with ctx:
+                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
+                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
 
-        # new_decoding_state = rnnt_utils.BatchedGreedyDecodingState(
-        #     batched_hyps=batched_hyps, decoder_state=last_decoder_state, last_timestamps=last_timestamps, lm_state=...
-        # )
-        new_decoding_state = None
-
-        return batched_hyps, batched_ali, new_decoding_state
+        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
