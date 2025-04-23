@@ -1,15 +1,15 @@
 import os
-from pathlib import Path
 from functools import partial
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import torch
-import torch.distributed as dist
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
 import lightning.pytorch as pl
 import numpy as np
+import torch
+import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 
 from nemo.utils import logging
 
@@ -345,9 +345,21 @@ class HFDatasetBuilder:
         self.prepare_data()
 
         # Build and return datasets
-        train_ds = self._create_dataloader(self.dataset_splits["train"], self._collate_fn) if self.dataset_splits["train"] is not None else None
-        valid_ds = self._create_dataloader(self.dataset_splits["val"], self._collate_fn) if self.do_validation and self.dataset_splits["val"] is not None else None
-        test_ds = self._create_dataloader(self.dataset_splits["test"], self._collate_fn) if self.do_test and self.dataset_splits["test"] is not None else None
+        train_ds = (
+            self._create_dataloader(self.dataset_splits["train"], self._collate_fn)
+            if self.dataset_splits["train"] is not None
+            else None
+        )
+        valid_ds = (
+            self._create_dataloader(self.dataset_splits["val"], self._collate_fn)
+            if self.do_validation and self.dataset_splits["val"] is not None
+            else None
+        )
+        test_ds = (
+            self._create_dataloader(self.dataset_splits["test"], self._collate_fn)
+            if self.do_test and self.dataset_splits["test"] is not None
+            else None
+        )
 
         return [train_ds, valid_ds, test_ds]
 
