@@ -5,7 +5,7 @@ from torch import nn
 from nemo.core.classes.module import NeuralModule
 from nemo.collections.tts.modules import t5tts_transformer
 
-class SpeechDecoder(NeuralModule):
+class TransformerARSpeechDecoder(NeuralModule):
     def __init__(self, speech_decoder_parms: DictConfig, lantent_dim: int, num_audio_codebooks: int, num_audio_tokens_per_codebook: int):
         super().__init__()
         self.use_input_cache = False
@@ -16,7 +16,7 @@ class SpeechDecoder(NeuralModule):
         # optional configs
         self.cfg_unconditional_prob = self.speech_decoder_parms.pop("cfg_unconditional_prob", None)
         self.cfg_scale = self.speech_decoder_parms.pop("cfg_scale", 2.5)
-        self.cond_on_prev_audio_tokens = self.speech_decoder_parms.pop("cond_on_prev_audio_tokens", False)
+        self.cond_on_prev_audio_tokens = self.speech_decoder_parms.pop("cond_on_prev_audio_tokens", True)
         self.detach_input = self.speech_decoder_parms.pop("detach_input", False)
 
         # projection to adapt llm embeddings into the same shape of speech decoder expected input

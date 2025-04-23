@@ -1,2 +1,2 @@
 from .perception import AudioPerceptionModule
-from .speech_decoder import SpeechDecoder
+from .speech_generation import TransformerARSpeechDecoder
