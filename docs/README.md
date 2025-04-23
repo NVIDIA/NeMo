@@ -61,3 +61,25 @@ this label before the section being linked to:
 ```
 .. _asr-api-modules:
 ```
+
+## Docstrings
+
+Ensure that public classes and methods are appropriately documented using the
+[Google style guide](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html).
+When appropriate, use the
+[Sphinx version directives](https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#describing-changes-between-versions) to call out parameter changes to users.
+
+Here is an example:
+```
+def my_func(a: str, b: Optional[bool] = False):
+   """My docstring
+
+   Args:
+      a: Some param
+         .. versionchanged:: 0.2.0
+            This was changed to a str from a int.
+      b: Another param
+         .. versionadded:: 0.1.0
+            This was added as an optional param.  
+   """
+```
