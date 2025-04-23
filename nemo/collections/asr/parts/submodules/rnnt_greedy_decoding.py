@@ -35,7 +35,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.transducer import (
+from nemo.collections.asr.parts.submodules.transducer_decoding import (
     GreedyBatchedRNNTLoopLabelsComputer,
     GreedyBatchedTDTLoopLabelsComputer,
 )
