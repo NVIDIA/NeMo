@@ -87,18 +87,16 @@ class SortformerModules(NeuralModule, Exportable):
         fc_d_model: int = 512,
         tf_d_model: int = 192,
         subsampling_factor: int = 8,
-        mem_len: int = 188,
+        spkcache_len: int = 188,
         fifo_len: int = 0,
-        step_len: int = 376,
-        mem_refresh_rate: int = 1,
-        step_left_context: int = 0,
-        step_right_context: int = 0,
-        mem_sil_frames_per_spk: int = 5,
+        chunk_len: int = 376,
+        spkcache_refresh_rate: int = 1,
+        chunk_left_context: int = 1,
+        chunk_right_context: int = 1,
+        spkcache_sil_frames_per_spk: int = 3,
         causal_attn_rate: float = 0,
         causal_attn_rc: int = 7,
-        use_causal_eval: bool = False,
         scores_add_rnd: float = 0,
-        init_step_len: int = 999,
         pred_score_threshold: float = 0.25,
         max_index: int = 99999,
         scores_boost_latest: float = 0.05,
@@ -108,14 +106,8 @@ class SortformerModules(NeuralModule, Exportable):
         min_pos_scores_rate: float = 0.5,
     ):
         super().__init__()
-        self.spkcache_sil_frames_per_spk = mem_sil_frames_per_spk
-        self.step_left_context = step_left_context
-        self.step_right_context = step_right_context
+        # General params
         self.subsampling_factor = subsampling_factor
-        self.spkcache_len = mem_len
-        self.fifo_len = fifo_len
-        self.step_len = step_len
-        self.spkcache_refresh_rate = mem_refresh_rate
         self.fc_d_model = fc_d_model
         self.tf_d_model = tf_d_model
         self.hidden_size = tf_d_model
@@ -126,9 +118,17 @@ class SortformerModules(NeuralModule, Exportable):
         self.dropout = nn.Dropout(dropout_rate)
         self.encoder_proj = nn.Linear(self.fc_d_model, self.tf_d_model)
         self.log = False
+
+        # Streaming-related params
+        self.spkcache_len = spkcache_len
+        self.fifo_len = fifo_len
+        self.chunk_len = chunk_len
+        self.chunk_left_context = chunk_left_context
+        self.chunk_right_context = chunk_right_context
+        self.spkcache_sil_frames_per_spk = spkcache_sil_frames_per_spk
+        self.spkcache_refresh_rate = spkcache_refresh_rate
         self.causal_attn_rate = causal_attn_rate
         self.causal_attn_rc = causal_attn_rc
-        self.use_causal_eval = use_causal_eval
         self.scores_add_rnd = scores_add_rnd
         self.max_index = max_index
         self.pred_score_threshold = pred_score_threshold
@@ -137,7 +137,6 @@ class SortformerModules(NeuralModule, Exportable):
         self.strong_boost_rate = strong_boost_rate
         self.weak_boost_rate = weak_boost_rate
         self.min_pos_scores_rate = min_pos_scores_rate
-        self.visualization = False
 
     def length_to_mask(self, lengths, max_length: int):
         """
@@ -174,25 +173,25 @@ class SortformerModules(NeuralModule, Exportable):
                 Dimension: (batch_size,)
 
         Returns:
-            step_idx (int): Index of the current step
+            chunk_idx (int): Index of the current chunk
             chunk_feat_seq (torch.Tensor): Tensor containing the chunk of feature sequence
                 Dimension: (batch_size, diar frame count, feat_dim)
             feat_lengths (torch.Tensor): Tensor containing lengths of the chunk of feature sequence
                 Dimension: (batch_size,)
         """
         feat_len = feat_seq.shape[2]
-        num_chunks = math.ceil(feat_len / (self.step_len * self.subsampling_factor))
+        num_chunks = math.ceil(feat_len / (self.chunk_len * self.subsampling_factor))
         if self.log:
             logging.info(
                 f"feat_len={feat_len}, num_chunks={num_chunks}, "
                 f"feat_seq_length={feat_seq_length}, feat_seq_offset={feat_seq_offset}"
             )
 
-        stt_feat, end_feat, step_idx = 0, 0, 0
+        stt_feat, end_feat, chunk_idx = 0, 0, 0
         while end_feat < feat_len:
-            left_offset = min(self.step_left_context * self.subsampling_factor, stt_feat)
-            end_feat = min(stt_feat + self.step_len * self.subsampling_factor, feat_len)
-            right_offset = min(self.step_right_context * self.subsampling_factor, feat_len - end_feat)
+            left_offset = min(self.chunk_left_context * self.subsampling_factor, stt_feat)
+            end_feat = min(stt_feat + self.chunk_len * self.subsampling_factor, feat_len)
+            right_offset = min(self.chunk_right_context * self.subsampling_factor, feat_len - end_feat)
             chunk_feat_seq = feat_seq[:, :, stt_feat - left_offset:end_feat + right_offset]
             feat_lengths = (
                 (feat_seq_length + feat_seq_offset - stt_feat + left_offset)
@@ -203,12 +202,12 @@ class SortformerModules(NeuralModule, Exportable):
             chunk_feat_seq_t = torch.transpose(chunk_feat_seq, 1, 2)
             if self.log:
                 logging.info(
-                    f"step_idx: {step_idx}, "
+                    f"chunk_idx: {chunk_idx}, "
                     f"chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}, "
                     f"chunk_feat_lengths: {feat_lengths}"
                 )
-            yield step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset
-            step_idx += 1
+            yield chunk_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset
+            chunk_idx += 1
 
     def forward_speaker_sigmoids(self, hidden_out):
         """

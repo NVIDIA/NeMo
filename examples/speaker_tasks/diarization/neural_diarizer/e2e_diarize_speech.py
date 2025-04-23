@@ -100,14 +100,13 @@ class DiarizationConfig:
     ignore_overlap: bool = False  # If True, DER will be calculated only for non-overlapping segments
 
     # Streaming diarization configs
-    streaming_mode: bool = True # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
-    mem_len: int = 188
-    mem_refresh_rate: int = 24
+    streaming_mode: bool = True # If True, streaming diarization will be used.
+    spkcache_len: int = 188
+    spkcache_refresh_rate: int = 24
     fifo_len: int = 188
-    init_step_len: int = 999
-    step_len: int = 6
-    step_left_context: int = 1
-    step_right_context: int = 7
+    chunk_len: int = 6
+    chunk_left_context: int = 1
+    chunk_right_context: int = 7
 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
@@ -383,14 +382,13 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
 
     # Steaming mode setup
     diar_model.streaming_mode = cfg.streaming_mode
-    diar_model.sortformer_modules.init_step_len = cfg.init_step_len
-    diar_model.sortformer_modules.step_len = cfg.step_len
-    diar_model.sortformer_modules.spkcache_len = cfg.mem_len
-    diar_model.sortformer_modules.step_left_context = cfg.step_left_context
-    diar_model.sortformer_modules.step_right_context = cfg.step_right_context
+    diar_model.sortformer_modules.chunk_len = cfg.chunk_len
+    diar_model.sortformer_modules.spkcache_len = cfg.spkcache_len
+    diar_model.sortformer_modules.chunk_left_context = cfg.chunk_left_context
+    diar_model.sortformer_modules.chunk_right_context = cfg.chunk_right_context
     diar_model.sortformer_modules.fifo_len = cfg.fifo_len
     diar_model.sortformer_modules.log = cfg.log
-    diar_model.sortformer_modules.spkcache_refresh_rate = cfg.mem_refresh_rate
+    diar_model.sortformer_modules.spkcache_refresh_rate = cfg.spkcache_refresh_rate
 
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
     tensor_path, model_id, tensor_filename = get_tensor_path(cfg)

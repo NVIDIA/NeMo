@@ -141,8 +141,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.eps = 1e-3
         self.loss = instantiate(self._cfg.loss)
 
-        self.pad_front = self._cfg.get("pad_front", False)
-        self.async_streaming = self._cfg.get("async_streaming", False)
+        self.pad_front = self._cfg.get("pad_front", True)
+        self.async_streaming = self._cfg.get("async_streaming", True)
 
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
@@ -644,7 +644,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         B, C, T = processed_signal.shape
         if self.pad_front:
-            deltas = (T - processed_signal_length) % (self.sortformer_modules.step_len*self.sortformer_modules.subsampling_factor)
+            deltas = (T - processed_signal_length) % (self.sortformer_modules.chunk_len*self.sortformer_modules.subsampling_factor)
             shifts = processed_signal_length + deltas
             processed_signal = self.shift_signal(processed_signal, shifts)
             processed_signal_offset = T - shifts
@@ -671,16 +671,12 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
                 self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
                 att_mod = True
-        elif self.sortformer_modules.use_causal_eval:
-            self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
-            self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
-            att_mod = True
 
         total_preds = torch.zeros((B, 0, self.sortformer_modules.n_spk), device=self.device)
 
         feat_len = processed_signal.shape[2]
-        num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
-        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, 
+        num_chunks = math.ceil(feat_len / (self.sortformer_modules.chunk_len * self.sortformer_modules.subsampling_factor))
+        for (chunk_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, 
                                                                                                                                         feat_seq_length=processed_signal_length, 
                                                                                                                                         feat_seq_offset=processed_signal_offset), 
                                                                                           total=num_chunks, 
