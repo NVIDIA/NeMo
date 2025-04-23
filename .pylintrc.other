@@ -5,8 +5,22 @@ max-line-length=119
 [MESSAGES CONTROL]
 disable=all
 
-enable=C0115,C0116,W0611,C0301
+enable=C0115,C0116,W0611,C0301,W9017,W9018,W9005,W9015,W9016,W9006,W9019,W9020,W9021,W9011,W9012,W9013,W9014,W9008,W9010
 # C0115: missing-class-docstring
 # C0116: missing-function-docstring
 # W0611: unused-import
 # C0301: line-too-long
+# W9017: differing-param-doc
+# W9018: differing-type-doc
+# W9005: multiple-constructor-doc
+# W9015: missing-param-doc
+# W9016: missing-type-doc
+# W9006: missing-raises-doc
+# W9019: useless-param-doc
+# W9020: missing-any-param-doc
+# W9011: missing-return-doc
+# W9012: missing-return-type-doc
+# W9013: missing-yield-doc
+# W9014: missing-yield-type-doc
+# W9008: redundant-returns-doc
+# W9010: redundant-yields-doc
