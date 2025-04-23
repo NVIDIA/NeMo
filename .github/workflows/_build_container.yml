@@ -10,7 +10,8 @@ on:
         required: true
         type: string
       runner:
-        required: true
+        required: false
+        default: self-hosted-azure-builder
         type: string
         description: "The runner to use for the build"
 
