@@ -324,7 +324,10 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         became_inactive_mask = torch.empty_like(active_mask)
 
         if self.ngram_lm_batch is not None:
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+            if prev_batched_state is None:
+                batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+            else:
+                batch_lm_states = prev_batched_state.lm_state
         else:
             batch_lm_states = None
 
