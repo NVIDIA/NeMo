@@ -70,6 +70,11 @@ parser.add_argument(
     help="Special tokens to add to tokenizer",
     default=SPECIAL_TOKENS,
 )
+parser.add_argument(
+    "--extract_only",
+    action="store_true",
+    help="Extract tokenizer without adding special tokens",
+)
 
 
 def extract_nemo_tokenizer(nemo_filepath, output_dir):
@@ -84,7 +89,10 @@ def extract_nemo_tokenizer(nemo_filepath, output_dir):
     return str(tokenizer.absolute())
 
 
-def edit_spt_model(input_file, output_dir, tokens, is_userdefined):
+def edit_spt_model(input_file, output_dir, tokens, is_userdefined, extract_only=False):
+    if extract_only:
+        logging.info("Extracting tokenizer only, no special tokens will be added.")
+
     output_dir = Path(output_dir)
 
     if output_dir.exists():
@@ -101,23 +109,28 @@ def edit_spt_model(input_file, output_dir, tokens, is_userdefined):
     model = spt.ModelProto()
     model.ParseFromString(open(input_file, 'rb').read())
 
-    for token in tokens:
-        piece = model.SentencePiece(piece=token, score=0.0, type=token_type)
-        if piece in model.pieces:
-            logging.error(f"Special Token '{token}' already exists in the input model!")
-            sys.exit(1)
-        model.pieces.append(piece)
+    if not extract_only:
+        for token in tokens:
+            piece = model.SentencePiece(piece=token, score=0.0, type=token_type)
+            if piece in model.pieces:
+                logging.error(f"Special Token '{token}' already exists in the input model!")
+                sys.exit(1)
+            model.pieces.append(piece)
 
     sp = spm.SentencePieceProcessor()
     sp.LoadFromSerializedProto(model.SerializeToString())
-    try:
-        for token in tokens:
-            id = sp.piece_to_id(token)
-            logging.info(f"Created token '{token}' at ID {id}")
-        logging.info(f"New tokenizer vocab size: {sp.get_piece_size()}")
-    except:
-        logging.error("Could not appropriately configure new tokenizer. Verify if the special tokens already exist.")
-        sys.exit(1)
+
+    if not extract_only:
+        try:
+            for token in tokens:
+                id = sp.piece_to_id(token)
+                logging.info(f"Created token '{token}' at ID {id}")
+            logging.info(f"New tokenizer vocab size: {sp.get_piece_size()}")
+        except:
+            logging.error(
+                "Could not appropriately configure new tokenizer. Verify if the special tokens already exist."
+            )
+            sys.exit(1)
 
     with open(output_file, 'wb') as outf:
         outf.write(model.SerializeToString())
@@ -148,7 +161,7 @@ def edit_spt_model(input_file, output_dir, tokens, is_userdefined):
     logging.info(f"Created new tokenizer vocab at: {vocab_txt_file}")
 
 
-def inject_special_tokens(input_file, output_dir, tokens, is_userdefined=True):
+def inject_special_tokens(input_file, output_dir, tokens, is_userdefined=True, extract_only=False):
     """
     NOTE: is_userdefined should be set to True in order for ASR model to work
     with the new special tokens properly.
@@ -165,10 +178,10 @@ def inject_special_tokens(input_file, output_dir, tokens, is_userdefined=True):
             input_file = os.path.abspath(input_file)
             logging.info(f"Using input file: {input_file}")
 
-        edit_spt_model(input_file, output_dir, tokens, is_userdefined)
+        edit_spt_model(input_file, output_dir, tokens, is_userdefined, extract_only=extract_only)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = parser.parse_args()
-    inject_special_tokens(args.input_file, args.output_dir, args.tokens)
+    inject_special_tokens(args.input_file, args.output_dir, args.tokens, extract_only=args.extract_only)

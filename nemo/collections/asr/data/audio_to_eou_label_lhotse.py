@@ -218,7 +218,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         if not self.return_eou_labels:
             return audio_signals, audio_lengths, text_tokens, text_token_lens
-        return audio_signals, audio_lengths, eou_targets, eou_target_lens, text_tokens, text_token_lens
+        return audio_signals, audio_lengths, text_tokens, text_token_lens, eou_targets, eou_target_lens
 
     def _audio_len_to_frame_len(self, num_samples: int):
         """

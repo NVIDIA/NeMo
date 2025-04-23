@@ -138,7 +138,7 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         # TODO: add EOU metrics
-        signal, signal_len, transcript, transcript_len, eou_targets, eou_len = batch
+        signal, signal_len, transcript, transcript_len, eou_target, eou_len = batch
 
         # forward() only performs encoder forward
         encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
@@ -152,7 +152,7 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
         # TODO: add EOU metrics
-        signal, signal_len, transcript, transcript_len = batch
+        signal, signal_len, transcript, transcript_len, eou_target, eou_len = batch
 
         # forward() only performs encoder forward
         encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)

@@ -123,6 +123,7 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
 
     # Load encoder state dict into the model
     model.encoder.load_state_dict(pretrained_model.encoder.state_dict(), strict=True)
+    logging.info(f"Encoder weights loaded from {pretrained_model_path}.")
 
     # Load decoder state dict into the model
     decoder = model.decoder  # type: RNNTDecoder
@@ -146,6 +147,7 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     decoder_embed_states[:-3, :] = pretrained_decoder_embed_states[:-1, :]  # everything except EOU, EOB and blank
     decoder_embed_states[-1, :] = pretrained_decoder_embed_states[-1, :]  # blank class
     decoder.prediction["embed"].load_state_dict({"weight": decoder_embed_states}, strict=True)
+    logging.info(f"Decoder weights loaded from {pretrained_model_path}.")
 
     # Load joint network weights if new model's joint network has two more classes than the pretrained model
     joint_network = model.joint  # type: RNNTJoint
@@ -158,10 +160,9 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     joint_network.enc.load_state_dict(pretrained_joint_network.enc.state_dict(), strict=True)
 
     if joint_network.num_classes_with_blank != pretrained_joint_network.num_classes_with_blank + 2:
-        logging.info(
+        raise ValueError(
             f"Size mismatched between pretrained ({pretrained_joint_network.num_classes_with_blank}+2) and current model ({joint_network.num_classes_with_blank}), skip loading joint network."
         )
-        return
 
     # Load the joint network weights
     pretrained_joint_state = pretrained_joint_network.joint_net.state_dict()
@@ -173,9 +174,13 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     # shape: [num_classes+2, hid_dim]
     joint_state['2.weight'][:-3, :] = pretrained_joint_clf_weight[:-1, :]  # everything except EOU, EOB and blank
     joint_state['2.weight'][-1, :] = pretrained_joint_clf_weight[-1, :]  # blank class
+    joint_state['2.weight'][-2, :] = 0.0001  # EOB class
+    joint_state['2.weight'][-3, :] = 0.0001  # EOU class
     if pretrained_joint_clf_bias is not None and '2.bias' in joint_state:
         joint_state['2.bias'][:-3] = pretrained_joint_clf_bias[:-1]  # everything except EOU, EOB and blank
         joint_state['2.bias'][-1] = pretrained_joint_clf_bias[-1]  # blank class
+        joint_state['2.bias'][-2] = -1000.0  # EOB class
+        joint_state['2.bias'][-3] = -1000.0  # EOU class
 
     # Load the joint network weights
     joint_network.joint_net.load_state_dict(joint_state, strict=True)
