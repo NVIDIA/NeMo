@@ -339,7 +339,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         )
 
         # time indices
-        last_timesteps = encoder_output_length - 1
+        last_timesteps = torch.maximum(encoder_output_length - 1, torch.zeros_like(encoder_output_length))
         time_indices = torch.zeros_like(batch_indices) if prev_batched_state is None else prev_batched_state.time_jumps.clone()
         safe_time_indices = torch.minimum(time_indices, last_timesteps)  # time indices, guaranteed to be < out_len
         time_indices_current_labels = torch.zeros_like(time_indices)
