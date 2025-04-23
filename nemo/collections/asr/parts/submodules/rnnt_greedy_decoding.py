@@ -784,11 +784,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 raise NotImplementedError
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(
-            x=x, out_len=out_len, prev_labels=prev_labels, prev_state=prev_state
+            x=x, out_len=out_len, prev_batched_state=None,
         )
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
-        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
-            hyp.dec_state = state
+        # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
+        #     hyp.dec_state = state
 
         if partial_hypotheses:
             for prev_hyp, hyp in zip(partial_hypotheses, hyps):
@@ -2692,10 +2692,12 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
 
             if self.preserve_alignments:
                 # convert Ti-th logits into a torch array
-                hypothesis.alignments.append([])  # blank buffer for next timestep
+                for tt in range(skip):
+                    hypothesis.alignments.append([])  # blank buffer for next timestep
 
             if self.preserve_frame_confidence:
-                hypothesis.frame_confidence.append([])  # blank buffer for next timestep
+                for tt in range(skip):
+                    hypothesis.frame_confidence.append([])  # blank buffer for next timestep
 
             if symbols_added == self.max_symbols:
                 time_idx += 1

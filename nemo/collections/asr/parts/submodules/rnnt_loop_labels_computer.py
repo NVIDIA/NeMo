@@ -1068,8 +1068,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             if batched_ali is not None:
                 batched_ali.timestamps += prev_batched_state.prev_last_timestamps.unsqueeze(-1)
 
-        new_decoding_state = rnnt_utils.BatchedGreedyDecodingState(
-            batched_hyps=batched_hyps, decoder_state=last_decoder_state, last_timestamps=last_timestamps, lm_state=...
-        )
+        # new_decoding_state = rnnt_utils.BatchedGreedyDecodingState(
+        #     batched_hyps=batched_hyps, decoder_state=last_decoder_state, last_timestamps=last_timestamps, lm_state=...
+        # )
+        new_decoding_state = None
 
         return batched_hyps, batched_ali, new_decoding_state
