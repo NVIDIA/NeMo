@@ -344,8 +344,6 @@ class SALM(LightningModule):
         tokens = collate_vectors(
             [formatter.encode_dialog(turns=prompt)["input_ids"] for prompt in prompts], padding_value=self.text_pad_id
         ).to(self.device)
-        # tokens = self.tokenizer.tokenizer.apply_chat_template(prompts)
-        tokens = collate_vectors(tokens, padding_value=self.text_pad_id).to(self.device)
         if audios is not None:
             # Audio + text input for generation.
             # Prepare token embeddings and audio embeddings.
