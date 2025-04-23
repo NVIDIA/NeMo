@@ -17,8 +17,8 @@ import torch.nn.functional as F
 from nemo.collections.llm.gpt.model.llama_nemotron import (
     Llama31Nemotron70BConfig,
     Llama31NemotronNano8BConfig,
-    Llama33NemotronSuper49BConfig,
     Llama31NemotronUltra253BConfig,
+    Llama33NemotronSuper49BConfig,
 )
 
 
