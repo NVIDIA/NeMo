@@ -117,7 +117,7 @@ jobs:
 
             # Check if there are any docstring-related issues
             if grep -q "missing-function-docstring\|differing-param-doc\|differing-type-doc\|missing-docstring\|missing-param-doc\|missing-type-doc\|missing-any-param-doc\|missing-return-doc\|missing-raises-doc" pylintrc.$DOMAIN.txt; then
-              echo "**Note:** Docstring issues were found. Please review the Docstring section in [docs/README.md](https://github.com/NVIDIA/NeMo/blob/main/docs/README.md) for guidelines.\n\n" | tee -a $GITHUB_STEP_SUMMARY
+              echo "**Note:** Docstring issues were found. Please review the Docstring section in [docs/README.md](https://github.com/NVIDIA/NeMo/blob/main/docs/README.md) for guidelines." | tee -a $GITHUB_STEP_SUMMARY
             fi
           fi
 
