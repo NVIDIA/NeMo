@@ -83,7 +83,7 @@ def override_recipe_configs(
     recipe.model.config.cross_entropy_loss_fusion = True
     recipe.model.config.moe_permute_fusion = True
     recipe.model.config.moe_shared_expert_overlap = True
-    recipe.model.config.apply_rope_fusion = False
+    recipe.model.config.apply_rope_fusion = True
     recipe.model.config.bias_activation_fusion = True
     recipe.model.config.bias_dropout_fusion = True
     # recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
