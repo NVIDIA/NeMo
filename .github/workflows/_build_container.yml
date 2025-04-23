@@ -21,6 +21,9 @@ jobs:
       build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
       cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Parse manifest.json
         id: manifest
         run: |
