@@ -788,12 +788,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             batched_state = rnnt_utils.BatchedGreedyDecodingState(
                 predictor_state=prev_state,
                 labels=prev_labels,
-                decoded_length=torch.tensor(
-                    [hyp.decoded_length for hyp in partial_hypotheses]
-                ).to(device=x.device),
-                lm_state=torch.tensor(
-                    [hyp.lm_state for hyp in partial_hypotheses]
-                ).to(device=x.device) if all(hyp.lm_state is not None for hyp in partial_hypotheses) else None,
+                decoded_length=torch.tensor([hyp.decoded_length for hyp in partial_hypotheses]).to(device=x.device),
+                lm_state=(
+                    torch.tensor([hyp.lm_state for hyp in partial_hypotheses]).to(device=x.device)
+                    if all(hyp.lm_state is not None for hyp in partial_hypotheses)
+                    else None
+                ),
                 time_jumps=None,
             )
 
