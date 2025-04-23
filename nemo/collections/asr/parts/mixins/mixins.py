@@ -977,6 +977,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         logging.warning(f"[current_context_lengths]  : {canary_data.current_context_lengths}")
                         logging.warning(f"[predicted tokens]         : {text_token}")
                         logging.warning(f"[predicted tokens id]: {next_tokens}")
+                        import pdb; pdb.set_trace()
 
                     # increase speech chunk if no active samples in the inner loop
                     if not torch.any(canary_data.active_samples_inner_loop):
@@ -1027,6 +1028,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                         canary_data.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
 
                     # zero out decoder_mems_list for non active samples
+                    # TODO it does not work if first token was EOS
                     if torch.any(torch.logical_not(canary_data.active_samples_inner_loop)):
                         for j in range(len(decoder_mems_list)):
                             decoder_mems_list[j][:, -1] *= canary_data.active_samples_inner_loop.unsqueeze(-1)
@@ -1042,6 +1044,20 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     disable_samples_mask *= torch.logical_not(canary_data.is_last_speech_chunk)
                     canary_data.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
                 
+                    if cfg.debug_mode:
+                        logging.warning(f"-------------"*5)
+                        logging.warning(f"canary_data.decoding_step  : {canary_data.decoding_step}")
+                        logging.warning(f"decoding step i: {i}")
+                        logging.warning(f"[encoded_speech.shape]     : {canary_data.encoded_speech.shape}")
+                        logging.warning(f"[positional_indexes]     : {positional_indexes}")
+                        logging.warning(f"[most_attended_idxs]       : {most_attended_idxs}")
+                        logging.warning(f"[is_last_speech_chunk]     : {canary_data.is_last_speech_chunk}")
+                        logging.warning(f"[active_samples]           : {canary_data.active_samples}")
+                        logging.warning(f"[active_samples_inner_loop]: {canary_data.active_samples_inner_loop}")
+                        logging.warning(f"[current_context_lengths]  : {canary_data.current_context_lengths}")
+                        logging.warning(f"[predicted tokens]         : {text_token}")
+                        logging.warning(f"[predicted tokens id]: {next_tokens}")
+                    
                     if cfg.debug_mode:
                         import pdb; pdb.set_trace()
 
