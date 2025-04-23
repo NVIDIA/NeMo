@@ -231,7 +231,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     )
     mcomm_overlap_callback = run.Config(
         MegatronCommOverlapCallback,
-        tp_comm_overlap=False,
+        tp_comm_overlap=True,
         # defer_embedding_wgrad_compute=True,
         # wgrad_deferral_limit=10,
     )
