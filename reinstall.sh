@@ -143,6 +143,7 @@ mcore() {
     pushd $MAMBA_DIR &&
     git checkout -f $MAMBA_TAG &&
     perl -ni -e 'print unless /triton/' setup.py &&
+    perl -ni -e 'print unless /triton/' pyproject.toml &&
     popd
 
   MLM_REPO=${MLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."megatron-lm".repo')}
