@@ -14,9 +14,9 @@
 
 """Reuses API endpoints from nemo.collections.llm.api under the 'vlm' namespace."""
 
+from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
-from functools import wraps
 
 import lightning.pytorch as pl
 import nemo_run as run
