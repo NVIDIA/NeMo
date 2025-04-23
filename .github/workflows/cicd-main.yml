@@ -143,6 +143,7 @@ jobs:
       use-inline-cache: false
       cache-from: |
         nemoci.azurecr.io/$IMAGE_NAME-buildcache:main
+        nemoci.azurecr.io/$IMAGE_NAME-buildcache:${{ github.event.pull_request.number || 0 }}
         ${{ needs.pre-flight.outputs.cache-from }}
 
   cicd-import-tests:
