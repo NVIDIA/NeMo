@@ -13,49 +13,69 @@
 # limitations under the License.
 
 
-from typing import Callable, Optional
+from typing import Optional, Callable
 
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
+from lightning.pytorch.callbacks.callback import Callback
+
 
 from nemo import lightning as nl
-from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.model.llama import Llama4Experts128Config, LlamaModel
-from nemo.collections.llm.peft import PEFT_STR2CLS
-from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
+from nemo.collections import llm, vlm
+from nemo.collections.llm.recipes.finetune_default import nemo_resume
+from nemo.collections.llm.api import pretrain
+from nemo.collections.common.tokenizers import AutoTokenizer
+
+from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.collections.llm.recipes.log.default import default_log, default_resume
+from nemo.collections.vlm.llama4.data.mock import MockDataModule as Llama4MockDataModule
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 
-NAME = "llama4_e128"
+
+
+NAME = "llama4_omni_e128"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama4 128-Experts (Maverick) model configuration.
+    Factory function to create a Llama4 128-Experts (Maverick) VLM model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama4 128-Experts (Maverick) model.
+        run.Config[pl.LightningModule]: Configuration for the Llama4 128-Experts
+        (Maverick) VLM model model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama4_e128 ...
+            $ nemo llm pretrain model=llama4_omni_e128 ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(LlamaModel, config=run.Config(Llama4Experts128Config))
+    return run.Config(vlm.Llama4OmniModel,
+                      config=run.Config(
+                          vlm.Llama4MaverickExperts128Config,
+                          language_transformer_config=run.Config(llm.Llama4Experts16Config),
+                          vision_transformer_config=run.Config(vlm.Llama4VisionConfig),
+                          vision_projection_config=run.Config(
+                              vlm.MultimodalProjectorConfig,
+                              projector_type="mcore_affine",
+                              input_size=4096,
+                              hidden_size=5120,
+                              ffn_hidden_size=5120,
+                              bias=False,
+                              bias_activation_fusion=False,
+                          ),
+                      ),
+                      )
 
 
 def trainer(
@@ -71,7 +91,7 @@ def trainer(
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama4 128-Experts (Maverick) model.
+    Configure the NeMo Lightning Trainer for Llama4 128-Experts (Maverick) VLM model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -144,7 +164,6 @@ def trainer(
 
     return trainer
 
-
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
@@ -192,10 +211,11 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(Llama4MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
+
     )
 
     if performance_mode:
@@ -233,6 +253,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         MegatronCommOverlapCallback,
         tp_comm_overlap=True,
     )
+    print("Gao - add token drop callback")
     token_drop_callback = run.Config(
         MegatronTokenDropCallback,
     )
@@ -249,19 +270,17 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     return recipe
 
 
-@run.cli.factory(target=finetune, name=NAME)
+
+@run.cli.factory(target=llm.finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
-    seq_length: Optional[int] = None,
-    packed_sequence: Optional[bool] = None,
-    performance_mode: bool = False,
+    peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Llama4 128-Experts (Maverick) model.
+    Create a fine-tuning recipe for Llava1.5 7B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -272,22 +291,16 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
-            Allowed values: 'lora'/'dora'/'none'/None.
-        seq_length (int): Maximum number of tokens per microbatch.
-        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
-            maximum seq_length for better efficiency. By default, this value equals performance_mode.
-        performance_mode (bool): If true, enables optimizations for maximum performance.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama4_e128
+            $ nemo llm finetune --factory llama4_omni_e128
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama4_e128_finetune", num_nodes=2)
+            >>> recipe = finetune_recipe(name="llama4_omni_e128_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
@@ -295,101 +308,78 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
-    # Default to unpacked data in normal mode and packed data in performance mode
-    # once packing recipe is well tested, change this default to true
-    if packed_sequence is None:
-        packed_sequence = performance_mode
 
-    # For unpacked sequence, most samples in SQuAD dataset are shorter than 2K
-    if seq_length is None:
-        seq_length = 4096 if packed_sequence else 2048
-
-    recipe = default_finetune_recipe(
-        model(), 'meta-llama/Llama-4-Maverick-17B-16E-Instruct', dir, name, num_nodes, num_gpus_per_node, packed_sequence
-    )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 2
-        recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
-        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
-        recipe.peft.dim = 8
-        recipe.peft.alpha = 16
-        recipe.optim.config.use_distributed_optimizer = False
-
-        # some settings currently do not function correctly with LoRA
-        recipe.model.config.cross_entropy_loss_fusion = False
-
-        recipe.optim.config.lr = 1e-4
-    else:
-        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
-
-    # Sequence length settings in the model and dataset must agree
-    recipe.model.config.seq_length = seq_length
-    recipe.data.seq_length = seq_length
-    if packed_sequence:
-        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
-        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
-
-    if performance_mode:
-        recipe = finetune_performance_optimizations(recipe, peft_scheme)
-
-    return recipe
-
-
-def finetune_performance_optimizations(
-    recipe: run.Partial,
-    peft_scheme: str,
-) -> run.Partial:
-    """
-    Modify the given recipe to optimize settings for performance.
-
-    This method enables performance optimizations that may not be suitable for all use cases.
-    Intended to build upon the standard fine-tuning recipe.
-
-    Args:
-        recipe (run.Partial): Base fine-tuning recipe to which performance optimizations will be added
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
-            Allowed values: 'lora'/'dora'/'none'/None.
-
-    Returns:
-        run.Partial: Partial configuration for performance-optimized fine-tuning.
-
-    Note:
-        Use this method with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
-    """
-    recipe.trainer.strategy.tensor_model_parallel_size = 1
-
-    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
-        recipe.trainer.callbacks = []
-
-    if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.ddp = run.Config(
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        tensor_model_parallel_size=1,
+        pipeline_model_parallel_size=1,
+        encoder_pipeline_model_parallel_size=0,
+        sequence_parallel=True,
+        pipeline_dtype=torch.bfloat16,
+        ddp=run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
-            grad_reduce_in_fp32=False,
+            grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
             average_in_collective=True,
+        ),
+    )
+
+    trainer = run.Config(
+        nl.Trainer,
+        accelerator="gpu",
+        accumulate_grad_batches=1,
+        devices=num_gpus_per_node,
+        limit_val_batches=10,
+        log_every_n_steps=1,
+        max_steps=5190,
+        num_nodes=num_nodes,
+        plugins=bf16_mixed(),
+        strategy=strategy,
+        val_check_interval=1000,
+        callbacks=[
+            run.Config(TimingCallback),
+            run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True),
+        ],
+    )
+
+    recipe = run.Partial(
+        llm.finetune,
+        model=model(),
+        trainer=trainer,
+        data=run.Config(
+            Llama4MockDataModule,
+            seq_length=8192,
+            global_batch_size=128,
+            micro_batch_size=1,
+            tokenizer= run.Config(AutoTokenizer, pretrained_model_name='meta-llama/Llama-4-Scout-17B-16E-Instruct'),
+            image_processor=None,
+            num_workers=4,
+        ),
+        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=2.0e-05, min_lr=2.0e-07, warmup_steps=150),
+        resume=nemo_resume("meta-llama/Llama-4-Scout-17B-16E-Instruct"),
+    )
+
+    if peft_scheme is None or peft_scheme.lower() == 'none':
+        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.optim.config.lr = 2e-05
+    elif peft_scheme.lower() == 'lora':
+        recipe.peft = run.Config(
+            vlm.LoRA,
+            freeze_vision_model=False,
+            target_modules=[
+                "*.language_model.*.linear_qkv",
+                "*.language_model.*.linear_q",
+                "*.language_model.*.linear_kv",
+                "*.language_model.*.linear_proj",
+                "*.language_model.*.linear_fc1",
+                "*.language_model.*.linear_fc2",
+            ],
         )
+        recipe.optim.config.lr = 1e-4
     else:
-        recipe.peft.target_modules = ['linear_qkv']
-
-    recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
-    )
-    recipe.trainer.callbacks.append(run.Config(TimingCallback))
-    recipe.trainer.callbacks.append(
-        run.Config(
-            GarbageCollectionCallback,
-            100,
-            100,
-        )
-    )
+        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
 
     return recipe

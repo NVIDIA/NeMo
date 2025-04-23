@@ -254,7 +254,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
             output, bias = self.linear_proj(context_layer)
             return output, bias
 
-        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+        query, key, value, rotary_pos_emb, attn_mask_type, _ = self._adjust_key_value_for_inference(
             inference_context,
             query,
             key,

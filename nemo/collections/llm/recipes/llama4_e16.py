@@ -34,6 +34,8 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+
 
 NAME = "llama4_e16"
 
@@ -234,10 +236,14 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         # defer_embedding_wgrad_compute=True,
         # wgrad_deferral_limit=10,
     )
+    token_drop_callback = run.Config(
+        MegatronTokenDropCallback,
+    )
     recipe.trainer.callbacks.extend(
         [
             garbage_collection_callback,
             mcomm_overlap_callback,
+            token_drop_callback,
         ]
     )
 

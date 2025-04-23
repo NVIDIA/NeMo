@@ -13,22 +13,32 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Optional, Callable
 
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
+from lightning.pytorch.callbacks.callback import Callback
+
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.llm.recipes.finetune_default import nemo_resume
+from nemo.collections.llm.api import pretrain
+from nemo.collections.common.tokenizers import AutoTokenizer
+
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.vlm.llama4.data.mock import MockDataModule as Llama4MockDataModule
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+
+
 
 NAME = "llama4_omni_e16"
 
@@ -50,7 +60,215 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(vlm.Llama4OmniModel, config=run.Config(vlm.Llama4ScoutExperts16Config))
+    return run.Config(vlm.Llama4OmniModel,
+                      config=run.Config(
+                          vlm.Llama4ScoutExperts16Config,
+                          language_transformer_config=run.Config(llm.Llama4Experts16Config),
+                          vision_transformer_config=run.Config(vlm.Llama4VisionConfig),
+                          vision_projection_config=run.Config(
+                              vlm.MultimodalProjectorConfig,
+                              projector_type="mcore_affine",
+                              input_size=4096,
+                              hidden_size=5120,
+                              ffn_hidden_size=5120,
+                              bias=False,
+                              bias_activation_fusion=False,
+                          ),
+                      ),
+                      )
+
+
+def trainer(
+    tensor_parallelism: int = 1,
+    pipeline_parallelism: int = 1,
+    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    virtual_pipeline_parallelism: Optional[int] = None,
+    context_parallelism: int = 2,
+    sequence_parallelism: bool = False,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    max_steps: int = 1168251,
+    callbacks: Optional[list[run.Config[Callback]]] = None,
+) -> run.Config[nl.Trainer]:
+    """
+    Configure the NeMo Lightning Trainer for Llama4 16-Experts (Scout) VLM model.
+
+    This function sets up the distributed training strategy and other training parameters.
+
+    Args:
+        tensor_parallelism (int): Degree of tensor model parallelism.
+        pipeline_parallelism (int): Degree of pipeline model parallelism.
+        pipeline_parallelism_type (Optional[torch.dtype]): Data type for pipeline parallelism.
+        virtual_pipeline_parallelism (Optional[int]): Size of virtual pipeline parallelism.
+        context_parallelism (int): Degree of context parallelism.
+        sequence_parallelism (bool): Whether to use sequence parallelism.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        max_steps (int): Maximum number of training steps.
+        callbacks (Optional[list[run.Config[Callback]]]): List of callback configurations.
+
+    Returns:
+        run.Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain trainer=llama4_e128 ...
+
+        Python API usage:
+            >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
+            >>> print(trainer_config)
+
+    Note:
+        For more information on distributed training strategies, refer to the
+        NeMo documentation on multi-GPU and multi-node training.
+    """
+    strategy = run.Config(
+        nl.MegatronStrategy,
+        tensor_model_parallel_size=tensor_parallelism,
+        pipeline_model_parallel_size=pipeline_parallelism,
+        pipeline_dtype=pipeline_parallelism_type,
+        virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
+        context_parallel_size=context_parallelism,
+        sequence_parallel=sequence_parallelism,
+        gradient_as_bucket_view=True,
+        ckpt_async_save=True,
+        ckpt_parallel_load=True,
+        ddp=run.Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            average_in_collective=True,  # Not supported for custom FSDP for now, need to be set to False if using FSDP
+            data_parallel_sharding_strategy="optim_grads_params",  # For custom FSDP only
+        ),
+        fsdp=None,  # Set to 'megatron' to use Megatron FSDP, 'pytorch' to use PyTorch FSDP 2 (WIP)
+    )
+
+    trainer = run.Config(
+        nl.Trainer,
+        accelerator="gpu",
+        accumulate_grad_batches=1,
+        callbacks=callbacks,
+        devices=num_gpus_per_node,
+        limit_test_batches=50,
+        limit_val_batches=32,
+        log_every_n_steps=10,
+        max_steps=max_steps,
+        num_nodes=num_nodes,
+        plugins=bf16_mixed(),
+        strategy=strategy,
+        use_distributed_sampler=False,
+        val_check_interval=2000,
+    )
+
+    return trainer
+
+@run.cli.factory(target=pretrain, name=NAME)
+def pretrain_recipe(
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    performance_mode: bool = False,
+    fn: Callable = pretrain,
+) -> run.Partial:
+    """
+    Create a pre-training recipe for Llama4 128-Experts (Maverick) model.
+
+    This function sets up a complete configuration for pre-training, including
+    model, trainer, data, logging, optimization, and resumption settings.
+
+    Args:
+        dir (Optional[str]): Directory for saving logs and checkpoints.
+        name (str): Name of the pre-training run.
+        num_nodes (int): Number of compute nodes to use.
+        num_gpus_per_node (int): Number of GPUs per node.
+        performance_mode (bool): If true, enables optimizations for maximum performance.
+        fn (Callable): The pre-training function to use.
+
+    Returns:
+        run.Partial: Partial configuration for pre-training.
+
+    Examples:
+        CLI usage:
+            $ nemo llm pretrain --factory llama4_e128 ...
+            $ nemo llm pretrain --factory "llama4_e128(num_nodes=2, name='my_pretrain')"
+
+        Python API usage:
+            >>> recipe = pretrain_recipe(name="llama4_e128_pretrain", num_nodes=2)
+            >>> print(recipe)
+
+    Note:
+        For more details on pre-training LLMs with NeMo, see the pre-training
+        guide in the `examples/llm/pretrain/` directory.
+    """
+    recipe = run.Partial(
+        fn,
+        model=model(),
+        trainer=trainer(
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            callbacks=[run.Config(TimingCallback)],
+        ),
+        data=run.Config(Llama4MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
+        resume=default_resume(),
+
+    )
+
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
+
+    return recipe
+
+
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
+    """
+    Create a performance-optimized pre-training recipe for Llama4 128-Experts (Maverick) model.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    if not recipe.trainer.callbacks:
+        recipe.trainer.callbacks = []
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=100,
+        gc_interval_val=100,
+    )
+    mcomm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=True,
+    )
+    print("Gao - add token drop callback")
+    token_drop_callback = run.Config(
+        MegatronTokenDropCallback,
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            mcomm_overlap_callback,
+            token_drop_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    return recipe
+
 
 
 @run.cli.factory(target=llm.finetune, name=NAME)
@@ -135,7 +353,7 @@ def finetune_recipe(
             seq_length=8192,
             global_batch_size=128,
             micro_batch_size=1,
-            tokenizer=None,
+            tokenizer= run.Config(AutoTokenizer, pretrained_model_name='meta-llama/Llama-4-Scout-17B-16E-Instruct'),
             image_processor=None,
             num_workers=4,
         ),
