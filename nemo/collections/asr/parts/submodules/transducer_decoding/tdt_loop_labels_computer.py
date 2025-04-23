@@ -702,7 +702,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 else encoder_output_length + prev_batched_state.decoded_length
             ),
             lm_state=self.state.batch_lm_states,
-            time_jumps=None,
+            time_jumps=self.state.time_indices - self.state.encoder_output_length,
         )
 
         return (
