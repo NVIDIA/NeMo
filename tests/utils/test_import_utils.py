@@ -21,6 +21,137 @@ import pytest
 from nemo.utils.import_utils import UnavailableError, UnavailableMeta, is_unavailable, safe_import, safe_import_from
 
 
+class TestUnavailableMeta:
+    """Test suite for the UnavailableMeta metaclass."""
+
+    def test_metaclass_creation(self):
+        """Test that UnavailableMeta creates a class with the expected properties."""
+        # Create a class using UnavailableMeta
+        TestClass = UnavailableMeta("TestClass", (), {})
+
+        # The class name should be prefixed with "MISSING"
+        assert TestClass.__name__ == "MISSINGTestClass"
+
+        # The default error message should be set
+        assert TestClass._msg == "TestClass could not be imported"
+
+    def test_custom_error_message(self):
+        """Test that a custom error message can be provided."""
+        custom_msg = "Custom error message"
+        TestClass = UnavailableMeta("TestClass", (), {"_msg": custom_msg})
+
+        assert TestClass._msg == custom_msg
+
+        # Verify the message is used in exceptions
+        with pytest.raises(UnavailableError, match=custom_msg):
+            TestClass()
+
+    def test_call_raises_error(self):
+        """Test that attempting to instantiate the class raises UnavailableError."""
+        TestClass = UnavailableMeta("TestClass", (), {})
+
+        with pytest.raises(UnavailableError):
+            TestClass()
+
+        with pytest.raises(UnavailableError):
+            TestClass(1, 2, 3, key="value")
+
+    def test_attribute_access_raises_error(self):
+        """Test that accessing any attribute raises UnavailableError."""
+        TestClass = UnavailableMeta("TestClass", (), {})
+
+        with pytest.raises(UnavailableError):
+            TestClass.some_attribute
+
+        with pytest.raises(UnavailableError):
+            TestClass.__dict__
+
+    def test_arithmetic_operations_raise_error(self):
+        """Test that arithmetic operations raise UnavailableError."""
+        TestClass = UnavailableMeta("TestClass", (), {})
+
+        operations = [
+            lambda c: c + 1,
+            lambda c: 1 + c,  # __radd__
+            lambda c: c - 1,
+            lambda c: 1 - c,  # __rsub__
+            lambda c: c * 2,
+            lambda c: 2 * c,  # __rmul__
+            lambda c: c / 2,
+            lambda c: 2 / c,  # __rtruediv__
+            lambda c: c // 2,
+            lambda c: 2 // c,  # __rfloordiv__
+            lambda c: c**2,
+            lambda c: 2**c,  # __rpow__
+            lambda c: -c,  # __neg__
+            lambda c: abs(c),  # __abs__
+        ]
+
+        for op in operations:
+            with pytest.raises(UnavailableError):
+                op(TestClass)
+
+    def test_comparison_operations_raise_error(self):
+        """Test that comparison operations raise UnavailableError."""
+        TestClass = UnavailableMeta("TestClass", (), {})
+        another_class = UnavailableMeta("AnotherClass", (), {})
+
+        comparisons = [
+            lambda c: c == another_class,
+            lambda c: c != another_class,
+            lambda c: c < another_class,
+            lambda c: c <= another_class,
+            lambda c: c > another_class,
+            lambda c: c >= another_class,
+        ]
+
+        for comp in comparisons:
+            with pytest.raises(UnavailableError):
+                comp(TestClass)
+
+    def test_container_operations_raise_error(self):
+        """Test that container operations raise UnavailableError."""
+        TestClass = UnavailableMeta("TestClass", (), {})
+
+        with pytest.raises(UnavailableError):
+            len(TestClass)
+
+        with pytest.raises(UnavailableError):
+            TestClass[0]
+
+        with pytest.raises(UnavailableError):
+            TestClass[0] = 1
+
+        with pytest.raises(UnavailableError):
+            del TestClass[0]
+
+        with pytest.raises(UnavailableError):
+            iter(TestClass)
+
+    def test_context_manager_operations_raise_error(self):
+        """Test that context manager operations raise UnavailableError."""
+        TestClass = UnavailableMeta("TestClass", (), {})
+
+        with pytest.raises(UnavailableError):
+            with TestClass:
+                pass
+
+    def test_descriptor_operations_raise_error(self):
+        """Test that descriptor operations raise UnavailableError."""
+        TestClass = UnavailableMeta("TestClass", (), {})
+
+        class DummyClass:
+            prop = TestClass
+
+        dummy = DummyClass()
+
+        with pytest.raises(UnavailableError):
+            TestClass.__get__(None, None)
+
+        with pytest.raises(UnavailableError):
+            TestClass.__delete__(None)
+
+
 class TestSafeImport:
     def test_successful_import(self):
         """Test safe_import with a module that exists."""
