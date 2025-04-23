@@ -84,6 +84,8 @@ jobs:
 
   cicd-test-container-build:
     uses: ./.github/workflows/_build_container.yml
+    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
+    needs: [pre-flight, code-linting]
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
