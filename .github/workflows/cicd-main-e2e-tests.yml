@@ -1054,12 +1054,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_CLIP_INFER
 
-  L2_NeMo_2_VLLM_EXPORT:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_NeMo_2_VLLM_EXPORT
-
   Optional_L2_NeMo_2_EVAL:
     uses: ./.github/workflows/_test_template.yml
     with:

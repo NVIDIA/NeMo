@@ -47,6 +47,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_Export_TRT_LLM
             runner: self-hosted-azure
+          - script: L2_NeMo_2_VLLM_EXPORT
+            runner: self-hosted-azure
     uses: ./.github/workflows/_test_template.yml
     needs: [export-deploy-unit-tests]
     with:
