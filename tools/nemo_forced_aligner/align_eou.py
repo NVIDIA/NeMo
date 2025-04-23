@@ -353,20 +353,23 @@ def main(cfg: AlignmentConfig):
 
     # adding eou processing here
     input_manifest_lines = [json.loads(line) for line in open(cfg.manifest_filepath)]
+    output_manifest_lines = []
     with open(tgt_manifest_filepath, 'r') as f:
         for i, line in enumerate(f.readlines()):
             item = json.loads(line)
             assert os.path.basename(input_manifest_lines[i]['audio_filepath']) == os.path.basename(item['audio_filepath'])
 
             # get sou/eou time
-            lines = [line.split() for line in open(item['segments_level_ctm_filepath'])]
-            start_time = min([float(line[2]) for line in lines])
-            end_time = max([float(line[2]) + float(line[3]) for line in lines])
-            input_manifest_lines[i]['sou_time'] = start_time
-            input_manifest_lines[i]['eou_time'] = end_time
+            if 'segments_level_ctm_filepath' in item:
+                lines = [line.split() for line in open(item['segments_level_ctm_filepath'])]
+                start_time = min([float(line[2]) for line in lines])
+                end_time = max([float(line[2]) + float(line[3]) for line in lines])
+                input_manifest_lines[i]['sou_time'] = start_time
+                input_manifest_lines[i]['eou_time'] = end_time
+                output_manifest_lines.append(input_manifest_lines[i])
 
     with open(cfg.output_manifest_filepath, 'w') as f:
-        for item in input_manifest_lines:
+        for item in output_manifest_lines:
             f.write(json.dumps(item) + '\n')
                 
     if cfg.remove_tmp_dir: # savely removing tmp dir after alignment
