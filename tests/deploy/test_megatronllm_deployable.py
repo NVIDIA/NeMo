@@ -66,7 +66,7 @@ def test_generate(deployable):
     with patch('nemo.collections.llm.inference.generate') as mock_generate:
         mock_generate.return_value = [MagicMock(generated_text="Generated text")]
         results = deployable.generate(prompts, max_batch_size, random_seed=random_seed)
-        
+
         assert len(results) == 1
         mock_generate.assert_called_once()
 
@@ -98,16 +98,16 @@ def test_triton_input_output(deployable):
     """Test Triton input and output tensor definitions."""
     inputs = deployable.get_triton_input
     outputs = deployable.get_triton_output
-    
+
     assert len(inputs) == 10  # Number of input tensors
     assert len(outputs) == 2  # Number of output tensors
-    
+
     # Check input tensor names
     input_names = [tensor.name for tensor in inputs]
     assert "prompts" in input_names
     assert "max_length" in input_names
     assert "max_batch_size" in input_names
-    
+
     # Check output tensor names
     output_names = [tensor.name for tensor in outputs]
     assert "sentences" in output_names
