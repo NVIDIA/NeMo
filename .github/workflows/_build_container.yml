@@ -81,7 +81,7 @@ jobs:
       prune-filter-timerange: 24h
       use-inline-cache: false
       cache-from: |
-        nemoci.azurecr.io/${{ inputs.image-name }}_buildcache:main
-        nemoci.azurecr.io/${{ inputs.image-name }}_buildcache:${{ github.event.pull_request.number || 0 }}
+        nemoci.azurecr.io/${{ inputs.image-name }}-buildcache:main
+        nemoci.azurecr.io/${{ inputs.image-name }}-buildcache:${{ github.event.pull_request.number || 0 }}
         ${{ needs.pre-flight.outputs.cache-from }}
       runner: ${{ inputs.runner }}
