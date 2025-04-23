@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.submodules.transducer.rnnt_loop_labels_computer import (
+from nemo.collections.asr.parts.submodules.transducer_decoding.rnnt_loop_labels_computer import (
     GreedyBatchedRNNTLoopLabelsComputer,
 )
-from nemo.collections.asr.parts.submodules.transducer.tdt_loop_labels_computer import (
+from nemo.collections.asr.parts.submodules.transducer_decoding.tdt_loop_labels_computer import (
     GreedyBatchedTDTLoopLabelsComputer,
 )
 
