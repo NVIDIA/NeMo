@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import copy
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -490,6 +491,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
 
         if prev_batched_state is not None:
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
+            # TODO: alignments
         decoding_state = rnnt_utils.BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
             labels=batched_hyps.get_last_labels(pad_id=self._blank_index),
@@ -553,10 +555,32 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             )
 
         if prev_batched_state is None:
+            # initial state
+            self.decoder.batch_replace_states_all(
+                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
+                dst_states=self.state.decoder_state,
+            )
+            # initial state - lm
+            if self.ngram_lm_batch is not None:
+                self.state.batch_lm_states.copy_(
+                    self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
+                )
+
             # last found labels - initially <SOS> (<blank>) symbol
             self.state.labels.fill_(self._SOS)
         else:
-            self.state.labels[:current_batch_size].copy_(prev_batched_state[:current_batch_size], non_blocking=True)
+            # initial state
+            self.decoder.batch_replace_states_all(
+                src_states=prev_batched_state.predictor_state,
+                dst_states=self.state.decoder_state,
+            )
+            # initial state - lm
+            if self.ngram_lm_batch is not None:
+                self.state.batch_lm_states.copy_(prev_batched_state.lm_state)
+            # labels
+            self.state.labels[:current_batch_size].copy_(
+                prev_batched_state.labels[:current_batch_size], non_blocking=True
+            )
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.full_graph.replay()
@@ -580,13 +604,25 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
-        # TODO: state
-        raise NotImplementedError
+        if prev_batched_state is not None:
+            self.state.batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
+            # TODO: alignments
+        decoding_state = rnnt_utils.BatchedGreedyDecodingState(
+            predictor_state=copy.deepcopy(self.state.last_decoder_state),
+            labels=self.state.batched_hyps.get_last_labels(pad_id=self._blank_index),
+            decoded_length=(
+                encoder_output_length
+                if prev_batched_state is None
+                else encoder_output_length + prev_batched_state.decoded_length
+            ),
+            lm_state=self.state.batch_lm_states,
+            time_jumps=None,
+        )
 
         return (
             self.state.batched_hyps,
             self.state.alignments,
-            self.state.last_decoder_state,
+            decoding_state,
         )
 
     @classmethod
@@ -802,19 +838,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         if self.state.alignments is not None:
             self.state.alignments.clear_()
 
-        # initial state
-        # self.decoder.batch_replace_states_all(
-        #     src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
-        #     dst_states=self.state.decoder_state,
-        # )
-        # initial state - lm
-        if self.ngram_lm_batch is not None:
-            self.state.batch_lm_states.copy_(
-                self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
-            )
-
-        # last found labels - initially <SOS> (<blank>) symbol
-        self.state.labels.fill_(self._SOS)
         self.state.scores.fill_(0.0)
 
         # time indices
