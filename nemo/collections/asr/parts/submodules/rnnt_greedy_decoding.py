@@ -35,8 +35,10 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import GreedyBatchedRNNTLoopLabelsComputer
-from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import GreedyBatchedTDTLoopLabelsComputer
+from nemo.collections.asr.parts.submodules.transducer import (
+    GreedyBatchedRNNTLoopLabelsComputer,
+    GreedyBatchedTDTLoopLabelsComputer,
+)
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -784,7 +786,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 raise NotImplementedError
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(
-            x=x, out_len=out_len, prev_batched_state=None,
+            x=x,
+            out_len=out_len,
+            prev_batched_state=None,
         )
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
         # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
