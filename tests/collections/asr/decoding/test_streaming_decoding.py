@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import pytest
 import torch
 from tqdm.auto import tqdm
@@ -21,7 +23,7 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
     GreedyBatchedLoopLabelsComputerBase,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.rnnt_utils import BatchedAlignments, BatchedHyps, batched_hyps_to_hypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import BatchedGreedyDecodingState, batched_hyps_to_hypotheses
 
 DEVICES = [torch.device("cpu")]
 if torch.cuda.is_available():
@@ -82,6 +84,7 @@ def test_loop_labels_decoding_streaming(
     batch_size: int,
 ):
     model = stt_en_fastconformer_tdt_large if is_tdt else stt_en_fastconformer_transducer_large
+    model.eval()
     model.to(device=device)
     transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
 
@@ -90,6 +93,8 @@ def test_loop_labels_decoding_streaming(
     print(ref_transcripts)
 
     streaming_transcripts = []
+    decoding_computer: GreedyBatchedLoopLabelsComputerBase = model.decoding.decoding._decoding_computer
+    decoding_computer.disable_cuda_graphs()
     with torch.no_grad(), torch.inference_mode():
         for i in range(0, len(manifest), batch_size):
             records = manifest[i : i + batch_size]
@@ -98,9 +103,7 @@ def test_loop_labels_decoding_streaming(
             encoder_output, encoder_output_len = get_model_encoder_output(
                 test_audio_filenames=filenames, model=model, num_samples=local_batch_size, device=device
             )
-            decoding_computer: GreedyBatchedLoopLabelsComputerBase = model.decoding.decoding._decoding_computer
-            decoding_computer.disable_cuda_graphs()
-            state = None
+            state: Optional[BatchedGreedyDecodingState] = None
             hyps = None
             encoder_output = encoder_output.transpose(1, 2)
             for t in range(0, encoder_output.shape[1], chunk_size):

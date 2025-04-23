@@ -570,9 +570,14 @@ class GreedyBatchedTDTLoopLabelsComputer(
         if prev_batched_state is not None:
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
             # TODO: alignments
+        last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = rnnt_utils.BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
-            labels=batched_hyps.get_last_labels(pad_id=self._blank_index),
+            labels=(
+                torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
+                if prev_batched_state is not None
+                else last_labels
+            ),
             decoded_length=(
                 encoder_output_length
                 if prev_batched_state is None
