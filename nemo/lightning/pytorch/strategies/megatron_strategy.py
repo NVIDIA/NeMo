@@ -132,6 +132,7 @@ class ParallelismConfig:
     use_te_rng_tracker: bool = False
     expert_tensor_parallel_size: int = None
     use_tp_pp_dp_mapping: bool = False
+    num_distributed_optimizer_instances: int = 1
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):

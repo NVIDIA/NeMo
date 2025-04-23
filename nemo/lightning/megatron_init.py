@@ -107,6 +107,7 @@ def initialize_model_parallel_for_nemo(
     seed=1234,
     apex_transformer_log_level=30,
     use_tp_pp_dp_mapping=False,
+    num_distributed_optimizer_instances=1,
     use_te_rng_tracker=False,
 ):
     """Initialize model parallel groups in NeMo."""
@@ -152,6 +153,7 @@ def initialize_model_parallel_for_nemo(
         encoder_tensor_model_parallel_size_=encoder_tensor_model_parallel_size,
         encoder_pipeline_model_parallel_size_=encoder_pipeline_model_parallel_size,
         use_tp_pp_dp_mapping=use_tp_pp_dp_mapping,
+        num_distributed_optimizer_instances=num_distributed_optimizer_instances,
     )
 
     # update apex.transformer globals

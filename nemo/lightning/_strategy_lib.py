@@ -100,6 +100,7 @@ def init_parallel_ranks(
         and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
         use_te_rng_tracker=getattr(parallel_config, "use_te_rng_tracker", False),
         use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
+        num_distributed_optimizer_instances=getattr(parallel_config, "num_distributed_optimizer_instances", False),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
