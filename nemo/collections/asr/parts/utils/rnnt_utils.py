@@ -441,6 +441,11 @@ class BatchedHyps:
         # increase lengths
         self.current_lengths += active_mask
 
+    def get_last_labels(self, pad_id=-1):
+        return torch.where(
+            self.current_lengths > 0, self.transcript[self._batch_indices, self.current_lengths - 1], pad_id
+        )
+
 
 class BatchedAlignments:
     """
@@ -701,6 +706,6 @@ def batched_hyps_to_hypotheses(
 class BatchedGreedyDecodingState:
     predictor_state: Any
     labels: torch.Tensor
-    last_timestamps: torch.Tensor
+    decoded_length: torch.Tensor
     lm_state: Optional[torch.Tensor] = None
     time_jumps: Optional[torch.Tensor] = None

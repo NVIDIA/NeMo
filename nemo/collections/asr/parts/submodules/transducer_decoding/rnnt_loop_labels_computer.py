@@ -170,7 +170,9 @@ class LoopLabelsState:
         )
 
 
-class GreedyBatchedRNNTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin):
+class GreedyBatchedRNNTLoopLabelsComputer(
+    GreedyBatchedLoopLabelsComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin
+):
     """
     Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220 for optimized batched greedy decoding.
     Iterates over labels, on each step finding the next non-blank label
@@ -323,6 +325,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, W
 
         if self.ngram_lm_batch is not None:
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+        else:
+            batch_lm_states = None
 
         # loop while there are active utterances
         while active_mask.any():
@@ -480,9 +484,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, W
                     batch_lm_states,
                     out=batch_lm_states,
                 )
+
+        if prev_batched_state is not None:
+            batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
+        decoding_state = rnnt_utils.BatchedGreedyDecodingState(
+            predictor_state=last_decoder_state,
+            labels=batched_hyps.get_last_labels(pad_id=self._blank_index),
+            decoded_length=encoder_output_length if prev_batched_state is None else encoder_output_length + prev_batched_state.decoded_length,
+            lm_state=batch_lm_states,
+            time_jumps=None,
+        )
         if use_alignments:
-            return batched_hyps, alignments, last_decoder_state
-        return batched_hyps, None, last_decoder_state
+            return batched_hyps, alignments, decoding_state
+        return batched_hyps, None, decoding_state
 
     def loop_labels_cuda_graphs(
         self,
@@ -558,6 +572,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, W
                 self._after_inner_loop()
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
+
+        # TODO: state
+        raise NotImplementedError
 
         return (
             self.state.batched_hyps,
