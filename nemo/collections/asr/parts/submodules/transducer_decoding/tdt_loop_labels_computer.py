@@ -335,7 +335,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         labels = (
             torch.full_like(batch_indices, fill_value=self._SOS)
             if prev_batched_state is None
-            else prev_batched_state.predictor_state.clone()
+            else prev_batched_state.labels.clone()
         )
 
         # time indices

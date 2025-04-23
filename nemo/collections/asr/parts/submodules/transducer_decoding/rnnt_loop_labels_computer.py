@@ -311,6 +311,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         )
 
         # time indices
+        # TODO: fix time indices
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
         time_indices_current_labels = torch.zeros_like(time_indices)

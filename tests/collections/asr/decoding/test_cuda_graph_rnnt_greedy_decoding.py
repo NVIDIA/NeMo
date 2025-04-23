@@ -38,18 +38,6 @@ def stt_en_fastconformer_transducer_xxlarge():
     return ASRModel.from_pretrained(model_name, map_location="cpu").eval()
 
 
-@pytest.fixture(scope="module")
-def stt_en_fastconformer_transducer_large():
-    model_name = "stt_en_fastconformer_transducer_large"
-    return ASRModel.from_pretrained(model_name, map_location="cpu").eval()
-
-
-@pytest.fixture(scope="module")
-def stt_en_fastconformer_tdt_large():
-    model_name = "nvidia/stt_en_fastconformer_tdt_large"
-    return ASRModel.from_pretrained(model_name=model_name, map_location="cpu").eval()
-
-
 @pytest.mark.with_downloads
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
 @pytest.mark.parametrize(
