@@ -36,9 +36,7 @@ def is_dataset_built_on_rank() -> bool:
     Returns:
         True if the dataset should be built on the current rank, False otherwise.
     """
-    return (
-        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
-    ) and mpu.get_tensor_model_parallel_rank() == 0
+    return (mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()) and mpu.get_tensor_model_parallel_rank() == 0
 
 
 def pretrain_train_valid_test_datasets_provider(

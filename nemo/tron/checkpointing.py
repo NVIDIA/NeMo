@@ -270,19 +270,26 @@ def read_train_state(train_state_filename: str) -> Optional[dict[str, Any]]:
     Returns:
         A dictionary containing the train state, or None if reading fails.
     """
-    train_state = None
+    state_obj = [None]
     if get_rank_safe() == 0:
         try:
-            with open(train_state_filename, "r") as f:
-                train_state = yaml.safe_load(f)
+            state_dict = torch.load(train_state_filename, map_location="cpu")
+            ts = TrainState()
+            ts.load_state_dict(state_dict)
+            state_obj[0] = ts
         except Exception as e:
-            print_rank_0(f"Unable to load train state file {train_state_filename}: {e}")
-            train_state = None
+            error_msg = f"ERROR: Unable to load train state file {train_state_filename}: {e}"
+            sys.stderr.write(error_msg + "\n")
+            state_obj[0] = {"error": True, "msg": error_msg}
 
     if torch.distributed.is_initialized():
-        torch.distributed.broadcast_object_list([train_state], src=0)
+        print_rank_0(f"Broadcasting TrainState from rank 0 to all {get_world_size_safe()} ranks")
+        torch.distributed.broadcast_object_list(state_obj, src=0)
 
-    return train_state
+    if isinstance(state_obj[0], dict) and state_obj[0].get("error", False):
+        raise RuntimeError(state_obj[0]["msg"])
+
+    return state_obj[0]
 
 
 @lru_cache()
@@ -1221,11 +1228,18 @@ def load_checkpoint(
 
 
 def fix_fp8_params_lose_precision_when_loading_dist_ckpt(state_dict: dict[str, Any]) -> None:
-    """
-    When fp8-param-gather and use-dist-ckpt are both enabled, the state dict read from
-    dist-checkpoint loses precision (the weights read from checkpoint go through the process of
-    bf16/fp16 -> fp8 -> bf16/fp16). This function is implemented to solve this problem.
-    When "fp8-param-gather" is disabled, this function doesn't modify anything.
+    """Workaround for FP8 parameters losing precision during distributed checkpoint loading.
+
+    When loading a distributed checkpoint, FP8 tensors within the model's state_dict
+    can sometimes lose precision. This function iterates through the model state
+    dictionary entries (keys starting with "model") and converts any ShardedTensors
+    containing FP8 data back to a higher precision format (via `.from_float8()`)
+    and moves them to the CPU before they are loaded into the model.
+
+    Args:
+        state_dict: The state dictionary loaded from the checkpoint, potentially
+                    containing FP8 tensors within model states. This dictionary
+                    is modified in-place.
     """
     for key in state_dict.keys():
         if key.startswith("model"):

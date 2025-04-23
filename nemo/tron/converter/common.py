@@ -16,8 +16,9 @@ import logging
 import os
 import socket
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generator, Optional, Union
+from typing import TYPE_CHECKING, Any, Generator, Optional
 
 import torch
 import torch.distributed as dist
@@ -44,6 +45,7 @@ logger = logging.getLogger(__name__)
 HF_ASSETS_DIR = "hf_assets"
 
 
+@contextmanager
 def megatron_cpu_init_context(config: Any) -> Generator[None, None, None]:
     """Context manager to temporarily force CPU initialization for Megatron models.
 
@@ -66,6 +68,7 @@ def megatron_cpu_init_context(config: Any) -> Generator[None, None, None]:
     config.use_cpu_initialization = _orig_use_cpu_initialization
 
 
+@contextmanager
 def temporary_distributed_context() -> Generator[None, None, None]:
     """Context manager to temporarily initialize a minimal distributed environment.
 
@@ -193,7 +196,7 @@ def dtype_from_hf(config: Any) -> torch.dtype:
 
 
 class _ModelState:
-    """Helper class for used for to modify state dict of a source model during model conversion."""
+    """Helper class for used to modify state dict of a source model during model conversion."""
 
     def __init__(self, state_dict: dict[str, torch.Tensor]) -> None:
         """Initializes the _ModelState object.
@@ -238,7 +241,7 @@ class BaseImporter(ABC):
         output_path: Path to the directory where the NeMo checkpoint will be saved.
     """
 
-    def __init__(self, input_path: Union[str, Path], output_path: Union[str, Path]) -> None:
+    def __init__(self, input_path: str | Path, output_path: str | Path) -> None:
         self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
         self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
         (self.output_path / HF_ASSETS_DIR).mkdir(parents=True, exist_ok=True)
@@ -259,7 +262,7 @@ class BaseImporter(ABC):
             save_hf_tokenizer_assets(str(self.input_path), str(self.output_path / HF_ASSETS_DIR))
         )
 
-    def init_tron_model(self, cfg: Union[GPTConfig, T5Config]) -> list[MegatronModule]:
+    def init_tron_model(self, cfg: GPTConfig | T5Config) -> list[MegatronModule]:
         """Initialize the target NeMo Tron model on CPU.
 
         Args:
@@ -309,7 +312,7 @@ class BaseImporter(ABC):
 
     @property
     @abstractmethod
-    def tron_config(self) -> Union[GPTConfig, T5Config]:
+    def tron_config(self) -> GPTConfig | T5Config:
         """Get the NeMo Tron configuration object derived from the HF config.
 
         Must be implemented by subclasses.
@@ -399,7 +402,7 @@ class BaseExporter(ABC):
         raise NotImplementedError
 
     @property
-    def tron_config(self) -> Union[GPTConfig, T5Config]:
+    def tron_config(self) -> GPTConfig | T5Config:
         """Get the NeMo Tron configuration loaded from the checkpoint.
 
         Returns:
@@ -458,7 +461,7 @@ class BaseExporter(ABC):
         with no_init_weights(True):
             return AutoModelForCausalLM.from_config(self.hf_config, torch_dtype=dtype)
 
-    def init_tron_model(self) -> tuple[dict[str, torch.Tensor], Union[GPTConfig, T5Config]]:
+    def init_tron_model(self) -> tuple[dict[str, torch.Tensor], GPTConfig | T5Config]:
         """Load the NeMo Tron model state dict and config from a distributed checkpoint.
 
         Loads the full state dict directly without initializing the full NeMo model

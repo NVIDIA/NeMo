@@ -17,14 +17,11 @@ This module provides a singleton instance of AsyncCallsQueue which manages
 the async checkpoint save calls.
 """
 
-import logging
-
 from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
 
 from nemo.tron.config import CheckpointConfig
 from nemo.tron.utils.common_utils import print_rank_0
 
-logger = logging.getLogger(__name__)
 
 # Singleton manager of async calls
 # The default is `TemporalAsyncCaller`
@@ -41,7 +38,6 @@ def init_persistent_async_worker() -> None:
     # Recreate the async_calls_queue for persistent worker
     # This duplicate step is for backward compatiblity
     _async_calls_queue = AsyncCallsQueue(persistent=True)
-    logger.critical("Initialized persistent async worker")
 
 
 def schedule_async_save(async_request: AsyncRequest) -> None:
@@ -70,9 +66,7 @@ def maybe_finalize_async_save(ckpt_cfg: CheckpointConfig, blocking: bool = False
     if blocking and not is_empty_async_queue():
         print_rank_0("Unfinalized async checkpoint saves. Finalizing them synchronously now.")
 
-    logger.critical(f"Finalizing async calls: {blocking}")
     _async_calls_queue.maybe_finalize_async_calls(blocking)
-    logger.critical(f"Finalized async calls: {blocking}")
 
     if terminate:
         _async_calls_queue.close()

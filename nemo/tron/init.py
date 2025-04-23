@@ -265,7 +265,7 @@ def _initialize_tp_communicators(model_config: GPTConfig | T5Config, micro_batch
     communication overlap"""
 
     try:
-        import transformer_engine
+        import transformer_engine  # noqa: F401
         import yaml
         from transformer_engine.pytorch import module as te_module
 

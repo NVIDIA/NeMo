@@ -49,6 +49,7 @@ import json
 import os
 import random
 import signal
+import sys
 import threading
 import time
 from typing import List
@@ -253,81 +254,139 @@ def maybe_setup_simulated_fault(config: FaultToleranceConfig) -> None:
     """
     if not config.simulate_fault:
         return
+    fault_type = config.simulated_fault_type
+    rank_to_fail = config.simulated_fault_rank
+    base_delay = config.simulated_fault_base_delay
 
-    if config.simulated_fault_type == "random":
-        fault_type = random.choice(["rank_hung", "rank_killed"])
+    rng = random.Random()
+
+    print_rank_0(
+        f"FT: Initializing simulated fault: {fault_type}," + f"rank to fail: {rank_to_fail}, base delay: {base_delay}"
+    )
+
+    # rank that simulates a fault can be explicitly specified in the `rank_to_fail` field
+    # if not specified, it just picks a random rank
+    rank = torch.distributed.get_rank()
+    rand_rank = rng.randint(0, torch.distributed.get_world_size() - 1)
+    rank_to_fail = rank_to_fail if rank_to_fail is not None else rand_rank
+    rank_to_fail = torch.tensor([rank_to_fail], device=torch.cuda.current_device())
+    torch.distributed.broadcast(rank_to_fail, 0)
+    rank_to_fail = int(rank_to_fail.item())
+
+    if rank != rank_to_fail:
+        # this rank is not going to simulate a fault, nothing more to do
+        return
+
+    if fault_type == "random":
+        fault_type = rng.choice(["rank_killed", "rank_hung"])
+
+    if fault_type == "rank_killed":
+        target_pid = os.getpid()
+    elif fault_type == "rank_hung":
+        target_pid = os.getpid()
     else:
-        fault_type = config.simulated_fault_type
+        raise Exception(f"Unknown fault type {fault_type} expected one of: rank_killed, rank_hung.")
 
-    if config.simulated_fault_rank is None:
-        fault_rank = random.randint(0, torch.distributed.get_world_size() - 1)
-    else:
-        fault_rank = config.simulated_fault_rank
+    # add some randomness to the delay
+    delay = base_delay + 0.2 * rng.random() * base_delay
 
-    print_rank_0(f"Setting up simulated fault: type={fault_type}, rank={fault_rank}")
+    print_rank_0(f"FT: Selected fault={fault_type}; target rank={rank_to_fail}; delay={delay}")
 
     def __fault_thread():
-        # Add a small random delay to avoid all ranks failing at exactly the same time
-        time.sleep(config.simulated_fault_base_delay + random.random())
-        if get_rank_safe() == fault_rank:
-            if fault_type == "rank_hung":
-                print_rank_0(f"Simulating rank {fault_rank} hang by sleeping forever")
-                while True:
-                    time.sleep(1)
-            elif fault_type == "rank_killed":
-                print_rank_0(f"Simulating rank {fault_rank} killed by sending SIGKILL")
-                os.kill(os.getpid(), signal.SIGKILL)
+        time.sleep(delay)
+        for of in [sys.stdout, sys.stderr]:
+            print(
+                f"\n####\nFT: Simulating fault: {fault_type}; rank to fail: {rank_to_fail}\n####\n",
+                file=of,
+                flush=True,
+            )
+        if fault_type == "rank_hung":
+            os.kill(target_pid, signal.SIGSTOP)
+        else:
+            os.kill(target_pid, signal.SIGKILL)
 
-    threading.Thread(target=__fault_thread, daemon=True).start()
+    fault_sim_thread = threading.Thread(target=__fault_thread)
+    fault_sim_thread.daemon = True
+    fault_sim_thread.start()
 
 
-# Private functions below
 def _load_state_if_exists(global_state: GlobalState) -> None:
     """Load fault tolerance state from file if it exists."""
     rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
-    if get_rank_safe() == 0 and os.path.exists(ft_state.ft_state_path):
+    if os.path.exists(ft_state.ft_state_path):
         with open(ft_state.ft_state_path, "r") as f:
-            state = json.load(f)
-            rmon_cli.section_timeouts = state["section_timeouts"]
-            rmon_cli.out_of_section_timeout = state["out_of_section_timeout"]
+            rmon_state = json.load(f)
+        rmon_cli.load_state_dict(rmon_state)
+        print_rank_0(f"FT: loaded timeouts from {ft_state.ft_state_path}. {rmon_cli.section_timeouts}")
 
 
 def _update_timeouts(selected_sections: List[str], calc_out_of_section: bool, global_state: GlobalState) -> None:
     """Update fault tolerance timeouts based on observed intervals."""
+    print_rank_0(
+        f"FT: updating timeouts for: {selected_sections} " + f"update out-of-section: {calc_out_of_section} ..."
+    )
     rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
+    rmon_cli.calculate_and_set_section_timeouts(
+        selected_sections=selected_sections, calc_out_of_section=calc_out_of_section
+    )
     if get_rank_safe() == 0:
-        state = {
-            "section_timeouts": rmon_cli.section_timeouts,
-            "out_of_section_timeout": rmon_cli.out_of_section_timeout,
-        }
+        rmon_state = rmon_cli.state_dict()
         with open(ft_state.ft_state_path, "w") as f:
-            json.dump(state, f)
+            json.dump(rmon_state, f)
+        print_rank_0(f"FT: updated timeouts saved to {ft_state.ft_state_path}. {rmon_cli.section_timeouts}")
 
 
 def _maybe_update_timeouts(global_state: GlobalState, is_closing_ft: bool = False) -> None:
     """Update timeouts if conditions are met."""
+    rmon_cli = global_state.rank_monitor_client
     ft_state = global_state.fault_tolerance_state
+    if rmon_cli is None:
+        return
     if not ft_state.is_calculating_timeouts:
         return
 
-    # we need to see enough iterations to estimate the step timeout
-    if ft_state.seen_tr_iters_cnt < _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE:
-        return
+    # Decide which section timeouts can be updated
+    sections_to_update = []
 
-    # we need to see at least one checkpoint to estimate the checkpointing timeout
-    if ft_state.seen_checkpoints_cnt == 0:
-        return
+    if ft_state.is_persistent_chkpt_loaded:
+        sections_to_update.append("setup")
+    else:
+        print_rank_0("FT: can't update the setup section timeout until persistent checkpoint is loaded")
 
-    # we need to see at least one persistent checkpoint load to estimate the setup timeout
-    if not ft_state.is_persistent_chkpt_loaded:
-        return
+    if ft_state.seen_tr_iters_cnt >= _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE:
+        sections_to_update.append("step")
+    else:
+        print_rank_0("FT: need to see more training iterations to update the step section timeout")
 
-    # we need to see at least one async checkpoint finalization to estimate the checkpointing timeout
-    if ft_state.is_async_chkpt_enabled and not is_closing_ft:
-        return
+    if ft_state.seen_checkpoints_cnt > 0:
+        if not ft_state.is_async_chkpt_enabled:
+            sections_to_update.append("checkpointing")
+        else:
+            # There can be too much checkpointing section time variability
+            # across runs with the async checkpointing, e.g. in some runs all checkpointing
+            # work can be parallelized (=short checkpointing sections) while in others we can
+            # hit a costly finalization.
+            print_rank_0("FT: can't update the checkpointing section timeout with async checkpointing")
+    else:
+        print_rank_0("FT: checkpointing section is not updated until a checkpoint was saved")
 
-    selected_sections = ["setup", "step", "checkpointing"]
-    calc_out_of_section = True
-    _update_timeouts(selected_sections, calc_out_of_section, global_state)
+    update_out_of_section = False
+    if is_closing_ft:
+        # with async checkpointing, "checkpointing" section is not updated,
+        # but still we want to see some checkpointing to ensure that is was a complete run
+        if {"setup", "step"}.issubset(sections_to_update) and ft_state.seen_checkpoints_cnt > 0:
+            update_out_of_section = True
+        else:
+            print_rank_0("FT: the out-of-section timeout won't be updated until all FT sections were seen")
+
+    else:
+        print_rank_0("FT: the out-of-section timeout won't be updated as the FT is not closing yet")
+
+    if sections_to_update or update_out_of_section:
+        _update_timeouts(
+            selected_sections=sections_to_update,
+            calc_out_of_section=update_out_of_section,
+            global_state=global_state,
+        )

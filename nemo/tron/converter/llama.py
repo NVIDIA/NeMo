@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from nemo.collections.llm.gpt.model.llama import HFLlamaExporter as _NeMo2HFLlamaExporter
 from nemo.collections.llm.gpt.model.llama import HFLlamaImporter as _NeMo2HFLlamaImporter
@@ -79,7 +79,7 @@ class HFLlamaExporter(BaseExporter):
 class HFLlamaImporter(BaseImporter):
     """Importer for converting Hugging Face Llama models to NeMo Tron format."""
 
-    def init_hf_model(self) -> Any:
+    def init_hf_model(self) -> "LlamaForCausalLM":
         """Initialize the source Hugging Face Llama model.
 
         Returns:
