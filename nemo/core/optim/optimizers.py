@@ -203,7 +203,6 @@ def get_optimizer(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optimizer:
 
 
 def init_optimizer_states(optimizer: Optimizer, new_param: Optional[bool] = False):
-    """My doc string"""
     adam_nondist_optims = (optim.Adam, optim.AdamW)
     if HAVE_APEX:
         adam_nondist_optims += (FusedAdam,)
