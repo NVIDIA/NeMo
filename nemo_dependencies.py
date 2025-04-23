@@ -41,7 +41,7 @@ def find_python_files(directory: str) -> List[str]:
     return python_files
 
 
-def analyze_imports(file_path: str) -> Set[str]:
+def analyze_imports(nemo_root: str, file_path: str) -> Set[str]:
     """Analyze a Python file and return its NeMo package dependencies using AST parsing."""
     imports = set()
 
@@ -50,17 +50,26 @@ def analyze_imports(file_path: str) -> Set[str]:
             tree = ast.parse(f.read(), filename=file_path)
 
         # Walk through the AST to find import statements
+
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith('nemo.'):
                 # Split the module path
                 parts = node.module.split('.')
+
+                if len(parts) == 1:
+                    continue
+
                 if len(parts) >= 2:
                     module_type = parts[1]  # collections, core, utils, or automodel
 
-                    if module_type == 'collections' and len(parts) >= 3:
-                        imported_package = f"nemo.collections.{parts[2]}"
-                        imports.add(imported_package)
-                    elif module_type in ('core', 'utils', 'export', 'deploy', 'lightning', 'automodel'):
+                    if module_type == 'collections':
+                        if len(parts) >= 3:
+                            # Handle both collection-level imports and specific module imports
+                            collection = parts[2]
+                            imported_package = f"nemo.collections.{collection}"
+                            imports.add(imported_package)
+
+                    elif module_type in find_top_level_packages(nemo_root):
                         imported_package = f"nemo.{module_type}"
                         imports.add(imported_package)
 
@@ -99,92 +108,38 @@ def find_collection_modules(nemo_root: str) -> Dict[str, List[str]]:
     for collection in os.listdir(collections_dir):
         collection_path = os.path.join(collections_dir, collection)
         if os.path.isdir(collection_path) and not collection.startswith('__'):
-            modules = []
-            for root, _, files in os.walk(collection_path):
-                for file in files:
-                    if file.endswith('.py') and not file.startswith('__'):
-                        rel_path = os.path.relpath(os.path.join(root, file), collections_dir)
-                        module = rel_path.replace(os.sep, '.').replace('.py', '')
-                        if module:
-                            modules.append(f"nemo.collections.{collection}.{module}")
-            collection_modules[f"nemo.collections.{collection}"] = sorted(modules)
+            collection_modules[f"nemo.collections.{collection}"] = []
 
     return collection_modules
 
 
-def build_dependency_graph(nemo_root: str) -> Dict[str, Union[List[str], Dict[str, List[str]]]]:
+def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     """Build a dependency graph by analyzing all Python files."""
     # Find all top-level packages
     top_level_packages = find_top_level_packages(nemo_root)
     print(f"Found top-level packages: {top_level_packages}")
 
-    # Initialize reverse dependency sets for each package
-    reverse_deps: Dict[str, Set[str]] = {}
+    dependencies: Dict[str, List[str]] = {f"nemo.{top_level_package}": [] for top_level_package in top_level_packages}
 
-    # Find all Python files
-    python_files = find_python_files(nemo_root)
-
-    # First pass: collect all packages
-    for file_path in python_files:
-        relative_path = os.path.relpath(file_path, nemo_root)
-        parts = relative_path.split(os.sep)
-
-        if len(parts) < 2:
-            continue
-
-        # Determine which package this file belongs to
-        if parts[0] == 'nemo':
-            if parts[1] == 'collections' and len(parts) >= 3:
-                current_package = f"nemo.collections.{parts[2]}"
-            elif parts[1] in top_level_packages:
-                current_package = f"nemo.{parts[1]}"
-            else:
-                continue
-
-            # Initialize reverse dependency set for this package if not exists
-            if current_package not in reverse_deps:
-                reverse_deps[current_package] = set()
+    # Merge collection modules with top-level packages
+    collection_modules = find_collection_modules(nemo_root)
+    dependencies.update(collection_modules)
 
     # Second pass: analyze imports and build reverse dependencies
-    for file_path in python_files:
+    for file_path in find_python_files(nemo_root):
         relative_path = os.path.relpath(file_path, nemo_root)
         parts = relative_path.split(os.sep)
 
-        if len(parts) < 2:
+        if len(parts) == 1 or parts[-1] == "__init__.py" or parts[0] != "nemo":
             continue
 
-        # Determine which package this file belongs to
-        if parts[0] == 'nemo':
-            if parts[1] == 'collections' and len(parts) >= 3:
-                current_package = f"nemo.collections.{parts[2]}"
-            elif parts[1] in top_level_packages:
-                current_package = f"nemo.{parts[1]}"
-            else:
-                continue
+        if len(parts) == 2 and parts[1] in top_level_packages:
+            dependencies[f"nemo.{parts[1]}"].extend(set(analyze_imports(nemo_root, file_path)))
+            dependencies[f"nemo.{parts[1]}"] = list(set(dependencies[f"nemo.{parts[1]}"]))
 
-            # Analyze imports in this file
-            imports = analyze_imports(file_path)
-            # Add current package as a reverse dependency to each imported package
-            for imported_pkg in imports:
-                if imported_pkg in reverse_deps and imported_pkg != current_package:
-                    reverse_deps[imported_pkg].add(current_package)
-
-    # Convert sets to sorted lists and group collections
-    dependencies: Dict[str, Union[List[str], Dict[str, List[str]]]] = {}
-
-    # Add collections group
-    collections = {}
-    for pkg, deps in reverse_deps.items():
-        if pkg.startswith('nemo.collections.') and not pkg.endswith('__init__.py'):
-            collections[pkg] = sorted(list(deps))
-    if collections:
-        dependencies['nemo.collections'] = collections
-
-    # Add other packages
-    for pkg, deps in reverse_deps.items():
-        if not pkg.startswith('nemo.collections.'):
-            dependencies[pkg] = sorted(list(deps))
-
+        elif len(parts) >= 3 and parts[1] == 'collections':
+            dependencies[f"nemo.collections.{parts[2]}"].extend(analyze_imports(nemo_root, file_path))
+            dependencies[f"nemo.collections.{parts[2]}"] = list(set(dependencies[f"nemo.collections.{parts[2]}"]))
     return dependencies
 
 
