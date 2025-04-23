@@ -104,11 +104,11 @@ def test_loop_labels_decoding_streaming(
             hyps = None
             encoder_output = encoder_output.transpose(1, 2)
             for t in range(0, encoder_output.shape[1], chunk_size):
+                last_part_len = encoder_output_len - t * chunk_size
+                last_part_len = torch.where(last_part_len < 0, torch.zeros_like(last_part_len), last_part_len)
                 batched_hyps, _, state = decoding_computer(
                     x=encoder_output[:, t : t + chunk_size],
-                    out_len=torch.minimum(
-                        torch.full_like(encoder_output_len, fill_value=chunk_size), encoder_output_len - t * chunk_size
-                    ),
+                    out_len=torch.minimum(last_part_len, torch.full_like(last_part_len, fill_value=chunk_size)),
                     prev_batched_state=state,
                 )
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size)
