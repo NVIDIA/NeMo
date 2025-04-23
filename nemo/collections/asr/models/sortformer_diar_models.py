@@ -141,9 +141,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.eps = 1e-3
         self.loss = instantiate(self._cfg.loss)
 
-        self.pad_front = self._cfg.get("pad_front", True)
-        self.async_streaming = self._cfg.get("async_streaming", True)
-
+        self.async_streaming = self._cfg.get("async_streaming", False)
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
         self._init_eval_metrics()
@@ -502,24 +500,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             torch.cuda.empty_cache()
         return processed_signal, processed_signal_length
 
-    def shift_signal(
-        self,
-        processed_signal,
-        offsets,
-    ):
-        B, C, T = processed_signal.shape
-        shifted_signal = torch.stack([torch.cat([processed_signal[b, :, offsets[b].item():], processed_signal[b, :, :offsets[b].item()]], dim=1) for b in range(B)])
-        return shifted_signal
-
-    def shift_emb(
-        self,
-        emb_seq,
-        offsets,
-    ):
-        B, T, C = emb_seq.shape
-        shifted_emb = torch.stack([torch.cat([emb_seq[b, offsets[b].item():, :], emb_seq[b, :offsets[b].item(), :]], dim=0) for b in range(B)])
-        return shifted_emb
-
     def forward(
         self,
         audio_signal,
@@ -643,13 +623,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         )
 
         B, C, T = processed_signal.shape
-        if self.pad_front:
-            deltas = (T - processed_signal_length) % (self.sortformer_modules.chunk_len*self.sortformer_modules.subsampling_factor)
-            shifts = processed_signal_length + deltas
-            processed_signal = self.shift_signal(processed_signal, shifts)
-            processed_signal_offset = T - shifts
-        else:
-            processed_signal_offset = torch.zeros((B,), dtype=torch.long, device=self.device)
+        processed_signal_offset = torch.zeros((B,), dtype=torch.long, device=self.device)
 
         if dist.is_available() and dist.is_initialized():
             local_tensor = torch.tensor([T], device=processed_signal.device)
@@ -697,10 +671,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             self.transformer_encoder.diag = None
 
         del processed_signal, processed_signal_length
-
-        if self.pad_front:
-            total_offset = processed_signal_offset // self.sortformer_modules.subsampling_factor
-            total_preds = self.shift_emb(total_preds, total_offset)
 
         if T < max_T: #discard preds corresponding to padding
             n_frames = math.ceil(T / self.encoder.subsampling_factor)
