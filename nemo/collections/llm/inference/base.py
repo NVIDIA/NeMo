@@ -215,19 +215,18 @@ def setup_model_and_tokenizer(
             A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
     """
     model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
-    _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
-    enable_flash_decode = True
     if enable_flash_decode:
         logging.info("Enabling Flash Decode for in-framework inference")
         model.config.flash_decode = True
         model.config.attention_backend = AttnBackend.flash
-    enable_cuda_graphs = True
+
     if enable_cuda_graphs:
         logging.info("Enabling CUDA Graphs for in-framework inference")
         model.config.enable_cuda_graph = True
         model.config.use_te_rng_tracker = True
         model.config.inference_rng_tracker = True
+    _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(
         params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length

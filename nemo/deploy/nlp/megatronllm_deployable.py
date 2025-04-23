@@ -150,8 +150,8 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         inference_max_seq_length: int = 4096,
         max_batch_size: int = 32,
         random_seed: Optional[int] = None,
-        enable_flash_decode: bool = False,
-        enable_cuda_graphs: bool = False,
+        enable_flash_decode: bool = True,
+        enable_cuda_graphs: bool = True
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
