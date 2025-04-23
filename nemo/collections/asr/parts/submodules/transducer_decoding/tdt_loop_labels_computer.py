@@ -183,7 +183,9 @@ class LoopLabelsState:
         )
 
 
-class GreedyBatchedTDTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin):
+class GreedyBatchedTDTLoopLabelsComputer(
+    GreedyBatchedLoopLabelsComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin
+):
     """
     Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220 for optimized batched greedy decoding.
     Iterates over labels, on each step finding the next non-blank label
@@ -565,7 +567,11 @@ class GreedyBatchedTDTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, Wi
         decoding_state = rnnt_utils.BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
             labels=batched_hyps.get_last_labels(pad_id=self._blank_index),
-            decoded_length=encoder_output_length if prev_batched_state is None else encoder_output_length + prev_batched_state.decoded_length,
+            decoded_length=(
+                encoder_output_length
+                if prev_batched_state is None
+                else encoder_output_length + prev_batched_state.decoded_length
+            ),
             lm_state=batch_lm_states,
             time_jumps=encoder_output_length - time_indices,  # TODO: fix time_indices
         )

@@ -34,6 +34,7 @@ class SeparateGraphsLoopLabels:
     inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
 
+
 class GreedyBatchedLoopLabelsComputerBase(ABC):
     """
     Base class for Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220
@@ -156,6 +157,10 @@ class GreedyBatchedLoopLabelsComputerBase(ABC):
             ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
             with ctx:
                 # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
-                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
+                return self.loop_labels_cuda_graphs(
+                    encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
+                )
 
-        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
+        return self.loop_labels_torch(
+            encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
+        )

@@ -493,7 +493,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         decoding_state = rnnt_utils.BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
             labels=batched_hyps.get_last_labels(pad_id=self._blank_index),
-            decoded_length=encoder_output_length if prev_batched_state is None else encoder_output_length + prev_batched_state.decoded_length,
+            decoded_length=(
+                encoder_output_length
+                if prev_batched_state is None
+                else encoder_output_length + prev_batched_state.decoded_length
+            ),
             lm_state=batch_lm_states,
             time_jumps=None,
         )
