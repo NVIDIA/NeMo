@@ -1,5 +1,19 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import json
-import os
 import shutil
 from io import BytesIO
 from pathlib import Path
@@ -8,12 +22,10 @@ from unittest.mock import MagicMock, mock_open, patch
 import numpy as np
 import pytest
 import torch
-from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
 
 from nemo.export.utils.model_loader import (
     TarFileSystemReader,
     load_model_weights,
-    load_sharded_metadata_torch_dist,
     load_sharded_metadata_zarr,
     nemo_to_path,
     nemo_weights_directory,
@@ -93,7 +105,7 @@ def test_nemo_weights_directory(mock_checkpoint_dir):
 @patch("nemo.export.utils.model_loader.load_sharded_metadata_torch_dist")
 def test_load_model_weights(mock_torch_dist, mock_zarr, mock_checkpoint_dir):
     # Test torch_dist backend
-    state_dict = load_model_weights(mock_checkpoint_dir)
+    load_model_weights(mock_checkpoint_dir)
     mock_torch_dist.assert_called_once()
     mock_zarr.assert_not_called()
 
@@ -103,7 +115,7 @@ def test_load_model_weights(mock_torch_dist, mock_zarr, mock_checkpoint_dir):
     with open(mock_checkpoint_dir / "model_weights" / "metadata.json", "w") as f:
         json.dump(metadata, f)
 
-    state_dict = load_model_weights(mock_checkpoint_dir)
+    load_model_weights(mock_checkpoint_dir)
     mock_zarr.assert_called_once()
     mock_torch_dist.assert_not_called()
 
@@ -113,4 +125,4 @@ def test_load_model_weights(mock_torch_dist, mock_zarr, mock_checkpoint_dir):
         json.dump(metadata, f)
 
     with pytest.raises(NotImplementedError):
-        state_dict = load_model_weights(mock_checkpoint_dir)
+        load_model_weights(mock_checkpoint_dir)
