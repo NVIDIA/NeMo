@@ -22,6 +22,8 @@ export TRTLLM_DIR="$INSTALL_DIR/TensorRT-LLM"
 
 trt() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/trt/
+  mkdir -p $WHEELS_DIR
 
   curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
     apt-get install git-lfs &&
@@ -53,6 +55,8 @@ trt() {
 
 trtllm() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/trtllm/
+  mkdir -p $WHEELS_DIR
 
   curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash &&
     apt-get install git-lfs &&
@@ -85,6 +89,8 @@ trtllm() {
 
 te() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/te/
+  mkdir -p $WHEELS_DIR
 
   TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
   TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
