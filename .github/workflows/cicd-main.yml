@@ -89,7 +89,6 @@ jobs:
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
-      runner: myVm
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}

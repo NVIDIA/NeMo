@@ -16,7 +16,6 @@ jobs:
     with:
       image-name: ${{ inputs.image-name }}
       dockerfile: Dockerfile.ci.export_deploy
-      runner: myVm
 
   export-deploy-unit-tests:
     strategy:
