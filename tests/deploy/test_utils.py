@@ -67,7 +67,7 @@ class TestTypedict2Tensor:
 
     def test_typedict2tensor_list_types(self):
         tensors = typedict2tensor(self.SampleTypedict)
-        
+
         # Check int list
         int_list_tensor = next(t for t in tensors if t.name == "int_list")
         assert int_list_tensor.dtype == np.int32
@@ -110,11 +110,11 @@ class TestNemoCheckpointVersion:
                 context_info = tarfile.TarInfo("context")
                 context_info.type = tarfile.DIRTYPE
                 tar.addfile(context_info)
-                
+
                 weights_info = tarfile.TarInfo("weights")
                 weights_info.type = tarfile.DIRTYPE
                 tar.addfile(weights_info)
-            
+
             assert nemo_checkpoint_version(tar_path) == NEMO2
 
     def test_nemo1_checkpoint_tar(self):
@@ -123,7 +123,7 @@ class TestNemoCheckpointVersion:
             with tarfile.open(tar_path, "w") as tar:
                 # Create empty tar (NEMO 1.0)
                 pass
-            
+
             assert nemo_checkpoint_version(tar_path) == NEMO1
 
 
@@ -153,7 +153,7 @@ class TestImageConversions:
         # Create a test image array
         img_array = np.random.randint(0, 255, size=(2, 100, 100, 3), dtype=np.uint8)
         result = ndarray2img(img_array)
-        
+
         assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(img, Image.Image) for img in result)
@@ -197,13 +197,13 @@ class TestBroadcastList:
         # Mock distributed environment
         monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
         monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
-        
+
         # Mock broadcast_object_list
         def mock_broadcast_object_list(object_list, src, group=None):
             if src == 0:
                 object_list[0] = ["test"]
-        
+
         monkeypatch.setattr(torch.distributed, "broadcast_object_list", mock_broadcast_object_list)
-        
+
         result = broadcast_list(["test"])
-        assert result == ["test"] 
+        assert result == ["test"]
