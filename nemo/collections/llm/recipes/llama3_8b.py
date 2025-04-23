@@ -239,7 +239,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
 
-    if recipe.trainer.plugins.__fn_or_cls__ == "bf16_mixed":
+    if recipe.trainer.plugins.fp8 is None:
         recipe.optim.config.use_precision_aware_optimizer = True
 
     return recipe
@@ -388,7 +388,7 @@ def finetune_performance_optimizations(
 
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
 
-    if recipe.trainer.plugins.__fn_or_cls__ == "bf16_mixed":
+    if recipe.trainer.plugins.fp8 is None:
         recipe.optim.config.use_precision_aware_optimizer = True
 
     return recipe
