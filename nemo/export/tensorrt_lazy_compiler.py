@@ -285,20 +285,17 @@ def unroll_input(input_names, input_example):
 
     def unroll_one(name, val):
         res = {}
-        try:
-            if val is not None:
-                if isinstance(val, dict):
-                    for key, data in val.items():
-                        subname = f"{name}_{key}"
-                        vals = unroll_one(subname, data)
-                        res.update(vals)
-                elif isinstance(val, list) or isinstance(val, tuple):
-                    for i in range(len(val)):
-                        res.update(unroll_one(f"{name}_{i}", val[i]))
-                else:
-                    res[name] = make_tensor(val)
-        except Exception:
-            pass
+        if val is not None:
+            if isinstance(val, dict):
+                for key, data in val.items():
+                    subname = f"{name}_{key}"
+                    vals = unroll_one(subname, data)
+                    res.update(vals)
+            elif isinstance(val, list) or isinstance(val, tuple):
+                for i in range(len(val)):
+                    res.update(unroll_one(f"{name}_{i}", val[i]))
+            else:
+                res[name] = make_tensor(val)
         return res
 
     unrolled_input = {}
