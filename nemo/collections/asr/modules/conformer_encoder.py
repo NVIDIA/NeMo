@@ -46,7 +46,14 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType, LogitsType
+from nemo.core.neural_types import (
+    AcousticEncodedRepresentation,
+    ChannelType,
+    LengthsType,
+    LogitsType,
+    NeuralType,
+    SpectrogramType,
+)
 from nemo.utils import logging
 
 __all__ = ['ConformerEncoder']
@@ -519,10 +526,18 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     @typecheck()
     def forward(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None, pre_encode_input=False
+        self,
+        audio_signal,
+        length,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
+        pre_encode_input=False,
     ):
         if pre_encode_input:
-            self.update_max_seq_length(seq_length=audio_signal.size(2)*self.subsampling_factor, device=audio_signal.device)
+            self.update_max_seq_length(
+                seq_length=audio_signal.size(2) * self.subsampling_factor, device=audio_signal.device
+            )
         else:
             self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_internal(
@@ -535,7 +550,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         )
 
     def forward_internal(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None, pre_encode_input=False,
+        self,
+        audio_signal,
+        length,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
+        pre_encode_input=False,
     ):
         if length is None:
             length = audio_signal.new_full(
@@ -548,7 +569,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cur_att_context_size = random.choices(self.att_context_size_all, weights=self.att_context_probs)[0]
         else:
             cur_att_context_size = self.att_context_size
-            
+
         if not pre_encode_input:
             audio_signal = torch.transpose(audio_signal, 1, 2)
 
