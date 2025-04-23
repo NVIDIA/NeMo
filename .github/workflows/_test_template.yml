@@ -53,7 +53,7 @@ on:
         value: ${{ jobs.main.outputs.potential_infra_failure }}
 jobs:
   main:
-    runs-on: myVm # ${{ inputs.RUNNER }}
+    runs-on: ubuntu-latest # ${{ inputs.RUNNER }}
     name: ${{ inputs.SCRIPT }}
     if: contains(fromJSON(inputs.TESTS_TO_RUN), inputs.SCRIPT) || contains(fromJSON(inputs.TESTS_TO_RUN), 'all')
     outputs:
