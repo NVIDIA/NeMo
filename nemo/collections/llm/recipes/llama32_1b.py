@@ -116,9 +116,9 @@ def trainer(
             overlap_grad_reduce=True,
             overlap_param_gather=True,
             average_in_collective=True,  # Not supported for custom FSDP for now, need to be set to False if using FSDP
-            data_parallel_sharding_strategy="optim_grads_params",  # For custom FSDP only
+            # data_parallel_sharding_strategy="optim_grads_params",  # For custom FSDP only
         ),
-        fsdp="megatron",  # Set to 'megatron' to use Megatron FSDP, 'pytorch' to use PyTorch FSDP 2
+        fsdp="pytorch",  # Set to 'megatron' to use Megatron FSDP, 'pytorch' to use PyTorch FSDP 2
     )
 
     trainer = run.Config(
