@@ -311,14 +311,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         )
 
         # time indices
-        # TODO: fix time indices
-        time_indices = torch.zeros_like(batch_indices)
-        safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
-        time_indices_current_labels = torch.zeros_like(time_indices)
         last_timesteps = encoder_output_length - 1
+        time_indices = torch.zeros_like(batch_indices)
+        safe_time_indices = torch.minimum(time_indices, last_timesteps)  # time indices, guaranteed to be < out_len
+        time_indices_current_labels = torch.zeros_like(time_indices)
 
         # masks for utterances in batch
-        active_mask: torch.Tensor = encoder_output_length > 0
+        active_mask: torch.Tensor = time_indices < encoder_output_length
         advance_mask = torch.empty_like(active_mask)
 
         # for storing the last state we need to know what elements became "inactive" on this step
@@ -464,6 +463,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
 
             # stage 4: to avoid looping, go to next frame after max_symbols emission
             if self.max_symbols is not None:
+                # TODO: is it correct for last decoder state?
                 # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
                 # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
                 force_blank_mask = torch.logical_and(
