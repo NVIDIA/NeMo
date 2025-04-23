@@ -241,29 +241,24 @@ def zigzag_get_overlapping_patches(data, seq_dim, overlap_size):
     """
     assert seq_dim >= 0, "Negative indexes not supported."
 
-    data_shape = list(data.shape)  # [B, D, L]
+    data_shape = list(data.shape)
     modified_shape = list(data.shape)
-    modified_shape[seq_dim : seq_dim + 1] = [2, data_shape[seq_dim] // 2]  # [B, D, 2, L/2]
+    modified_shape[seq_dim : seq_dim + 1] = [2, data_shape[seq_dim] // 2]
 
-    reshaped_data = torch.reshape(data, modified_shape)  # [B, D, 2, L/2]
+    reshaped_data = torch.reshape(data, modified_shape)
 
     # Move the dimension of the chunks to the first position
     # Create a permutation where seq_dim is moved to position 0
     permute_order = list(range(len(reshaped_data.shape)))
     permute_order.insert(0, permute_order.pop(seq_dim))  # Move seq_dim to index 0
 
-    reshaped_data = reshaped_data.permute(dims=permute_order)  # [2, B, D, L/2]
+    reshaped_data = reshaped_data.permute(dims=permute_order)
 
-    chunk_a = reshaped_data[0]
-    chunk_b = reshaped_data[1]
-
-    # Get last `overlap_size` from chunk_a
-    overlap_a = chunk_a.narrow(dim=-1, start=chunk_a.shape[-1] - overlap_size, length=overlap_size)
-
-    # Get first `overlap_size` from chunk_b
-    overlap_b = chunk_b.narrow(dim=-1, start=0, length=overlap_size)
-
-    return overlap_a, overlap_b
+    seq_len = reshaped_data.shape[seq_dim + 1]  # Remember that a new dimension was added.
+    overlapping_patches = reshaped_data.narrow(
+        dim=seq_dim + 1, start=seq_len - overlap_size, length=overlap_size
+    )  # Last n elements.
+    return overlapping_patches[0], overlapping_patches[1]
 
 
 class ExchangeOverlappingRegionsCausal(Function):
@@ -290,7 +285,6 @@ class ExchangeOverlappingRegionsCausal(Function):
         ctx.group_rank = group_rank
         ctx.group_world_size = group_world_size
         ctx.group_ranks = group_ranks
-        ctx.overlap_size = chunk_a.shape[-1]
 
         # Initialize requests
         reqs = []
@@ -333,7 +327,7 @@ class ExchangeOverlappingRegionsCausal(Function):
         if recv_prev_a is None:
             recv_prev_a = torch.zeros_like(chunk_a, dtype=chunk_a.dtype, device=chunk_a.device)
         if recv_next_b is None:
-            recv_next_b = torch.zeros_like(chunk_b, dtype=chunk_b.dtype, device=chunk_b.device)
+            recv_next_b = chunk_a.clone().contiguous()  # Got to receive from the same rank, but previous split.
 
         return recv_prev_a, recv_next_b
 
@@ -385,23 +379,17 @@ class ExchangeOverlappingRegionsCausal(Function):
         for req in reqs:
             req.wait()
 
-        # Define start and end indices of overlapping region
-        overlap_size = ctx.overlap_size
-
-        # Corrected lines for applying overlap in the sequence dimension
+        # Add received gradients
         if group_rank < group_world_size - 1:
-            _grad_chunk_a[:, -overlap_size:, :] = grad_chunk_a_recv[:, -overlap_size:, :]
-            _grad_chunk_a[:, :-overlap_size, :] = grad_chunk_a[:, :-overlap_size, :]
-        else:
-            _grad_chunk_a = grad_chunk_a
+            _grad_chunk_a = grad_chunk_a_recv
 
         if group_rank > 0:
-            _grad_chunk_b[:, :overlap_size, :] = grad_chunk_b_recv[:, :overlap_size, :]
-            _grad_chunk_b[:, overlap_size:, :] = grad_chunk_b[:, overlap_size:, :]
-        else:
-            _grad_chunk_b = grad_chunk_b
+            _grad_chunk_b = grad_chunk_b_recv
 
-        return _grad_chunk_a, _grad_chunk_b, None, None
+        if group_rank == group_world_size - 1:
+            _grad_chunk_a = grad_chunk_b  # In the last split, the chunks are exchanged locally.
+
+        return _grad_chunk_a, _grad_chunk_b, None, None, None
 
 
 # End of CP related functions
