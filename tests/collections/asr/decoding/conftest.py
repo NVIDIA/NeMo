@@ -53,6 +53,7 @@ def an4_train_manifest_corrected(tmp_path_factory, test_data_dir):
     write_manifest(an4_train_manifest_corrected_path, an4_train_records)
     return an4_train_manifest_corrected_path
 
+
 @pytest.fixture(scope="module")
 def stt_en_fastconformer_transducer_large():
     model_name = "stt_en_fastconformer_transducer_large"
