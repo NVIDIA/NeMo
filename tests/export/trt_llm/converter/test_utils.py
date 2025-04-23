@@ -1,14 +1,16 @@
-import pytest
 import numpy as np
+import pytest
 import torch
+
 from nemo.export.trt_llm.converter.utils import (
     any_word_in_key,
+    generate_int8,
+    get_scaling_factor_keys,
     get_trt_llm_keyname,
     is_scaling_factor,
-    get_scaling_factor_keys,
     split,
-    generate_int8
 )
+
 
 def test_any_word_in_key():
     # Test positive cases
