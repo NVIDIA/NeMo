@@ -168,15 +168,23 @@ class AsyncFinalizerCallback(Callback):
 
     Tries to perform non-blocking finalization on train_batch_end and train_epoch_end.
     On train_end performs a blocking finalization of all pending checkpoints.
+
+    Args:
+        max_num_unfinalized_calls (Optional[int]): Threshold that triggers finalization of pending checkpoints
     """
+
+    def __init__(self, max_num_unfinalized_calls: int | None = None) -> None:
+        self.max_num_unfinalized_calls = max_num_unfinalized_calls
 
     def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         """Override hook to finalize pending checkpoint(s) if they exist."""
-        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
+        blocking = self._should_block(trainer)
+        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=blocking)
 
     def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         """Override hook to finalize pending checkpoint(s) if they exist."""
-        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
+        blocking = self._should_block(trainer)
+        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=blocking)
 
     def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         """Override hook to finalize pending checkpoint(s) if they exist."""
@@ -185,13 +193,22 @@ class AsyncFinalizerCallback(Callback):
             logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=True)
 
-    def _get_checkpoint_io(self, trainer) -> AsyncFinalizableCheckpointIO:
+    def _get_checkpoint_io(self, trainer: "pl.Trainer") -> AsyncFinalizableCheckpointIO:
         checkpoint_io = trainer.strategy.checkpoint_io
         if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
             raise ValueError(
                 f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io.__class__}'
             )
         return checkpoint_io
+
+    def _should_block(self, trainer: "pl.Trainer") -> bool:
+        if self.max_num_unfinalized_calls is None:
+            return False
+        num_unfinalized_calls = self._get_checkpoint_io(trainer).async_calls_queue.get_num_unfinalized_calls()
+        if num_unfinalized_calls < self.max_num_unfinalized_calls:
+            return False
+        logging.info(f"Async queue has {num_unfinalized_calls} unfinalized calls, blocking until all are complete")
+        return True
 
 
 class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
