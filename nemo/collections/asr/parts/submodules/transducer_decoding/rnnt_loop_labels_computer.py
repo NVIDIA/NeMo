@@ -13,10 +13,8 @@
 # limitations under the License.
 
 
-from contextlib import nullcontext
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import torch
@@ -24,17 +22,14 @@ import torch.nn.functional as F
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
+    GreedyBatchedLoopLabelsComputerBase,
+    SeparateGraphsLoopLabels,
+)
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
-from nemo.core.utils.cuda_python_utils import (
-    check_cuda_python_cuda_graphs_conditional_nodes_supported,
-    cu_call,
-    run_nvrtc,
-    with_conditional_node,
-)
-from nemo.utils import logging
-from nemo.utils.enum import PrettyStrEnum
+from nemo.core.utils.cuda_python_utils import cu_call, run_nvrtc, with_conditional_node
 
 try:
     from cuda import cudart
@@ -175,19 +170,9 @@ class LoopLabelsState:
         )
 
 
-@dataclass
-class SeparateGraphsLoopLabels:
-    """Class to store Cuda graphs for decoding when separate graphs are used"""
-
-    before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    before_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-
-
-class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
+class GreedyBatchedRNNTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin):
     """
-    Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
+    Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220 for optimized batched greedy decoding.
     Iterates over labels, on each step finding the next non-blank label
     (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
     to prediction network (with maximum possible batch size),
@@ -198,14 +183,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
     CUDA_PROGRAM_NAME = b"while_loop_labels_conditional_rnnt.cu"
 
-    class CudaGraphsMode(PrettyStrEnum):
-        FULL_GRAPH = "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
-        NO_WHILE_LOOPS = "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
-        NO_GRAPHS = "no_graphs"  # decoding without graphs, stateful implementation, only for testing purposes
-
     separate_graphs: Optional[SeparateGraphsLoopLabels]
     full_graph: Optional[torch.cuda.CUDAGraph]
-    cuda_graphs_mode: Optional[CudaGraphsMode]
     state: Optional[LoopLabelsState]
     ngram_lm_batch: Optional[NGramGPULanguageModel]
 
@@ -260,49 +239,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
-
-    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
-        """
-        Method to set graphs mode. Use only for testing purposes.
-        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
-        """
-        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
-        self.state = None
-
-    def maybe_enable_cuda_graphs(self):
-        """Enable CUDA graphs if conditions met"""
-        if self.cuda_graphs_mode is not None:
-            # CUDA graphs are already enabled
-            return
-
-        if not self.allow_cuda_graphs:
-            self.cuda_graphs_mode = None
-        else:
-            # cuda graphs are allowed
-            # check basic requirements for cuda graphs
-            if self.max_symbols is None:
-                logging.warning("Max symbols per step is None, which is not allowed with Cuda graphs. Setting to `10`")
-                self.max_symbols = 10
-            # basic requirements met, need to check while loops
-            try:
-                check_cuda_python_cuda_graphs_conditional_nodes_supported()
-                self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
-            except (ImportError, ModuleNotFoundError, EnvironmentError) as e:
-                logging.warning(
-                    "No conditional node support for Cuda.\n"
-                    "Cuda graphs with while loops are disabled, decoding speed will be slower\n"
-                    f"Reason: {e}"
-                )
-                self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
-        self.reset_cuda_graphs_state()
-
-    def disable_cuda_graphs(self):
-        """Disable CUDA graphs, can be used to disable graphs temporary, e.g., in training process"""
-        if self.cuda_graphs_mode is None:
-            # nothing to disable
-            return
-        self.cuda_graphs_mode = None
-        self.reset_cuda_graphs_state()
 
     def reset_cuda_graphs_state(self):
         """Reset state to release memory (for CUDA graphs implementations)"""
@@ -1055,27 +991,3 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # same as: active_mask = time_indices < encoder_output_length
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
-
-    def __call__(
-        self,
-        x: torch.Tensor,
-        out_len: torch.Tensor,
-        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
-        """
-        Entry point for the decoding algorithm
-
-        Args:
-            x: encoder output
-            out_len: encoder output length
-            prev_batched_state: previous batched decoding state
-        """
-        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
-            # disable CUDA graphs if DDP and Mixed Precision are used
-            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
-            with ctx:
-                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
-                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
-
-        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
