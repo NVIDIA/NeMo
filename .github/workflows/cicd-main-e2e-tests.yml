@@ -1204,3 +1204,33 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Export_TRT_LLM
+
+  L2_NeMo_2_Flux_Training_Test:
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_Flux_Training_Test
+      AFTER_SCRIPT: |
+        rm -rf /tmp/flux_controlnet_training
+
+  L2_NeMo_2_Flux_Inference_Test:
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_Flux_Inference_Test
+      AFTER_SCRIPT: |
+        rm -rf /tmp/
+
+  L2_NeMo_2_Diffusion_Taskencoder_Test:
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_Diffusion_Taskencoder_Test
+
+  L2_NeMo_2_Flux_Import_Test:
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_Flux_Import_Test
+      AFTER_SCRIPT: |
+        rm -rf /tmp/
