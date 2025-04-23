@@ -13,32 +13,27 @@
 # limitations under the License.
 
 
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 from lightning.pytorch.callbacks.callback import Callback
-
+from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.llm.recipes.finetune_default import nemo_resume
-from nemo.collections.llm.api import pretrain
 from nemo.collections.common.tokenizers import AutoTokenizer
-
-from nemo.collections.llm.recipes.log.default import tensorboard_logger
+from nemo.collections.llm.api import pretrain
+from nemo.collections.llm.recipes.finetune_default import nemo_resume
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.vlm.llama4.data.mock import MockDataModule as Llama4MockDataModule
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.utils.exp_manager import TimingCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
-
-
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama4_omni_e128"
 
@@ -60,22 +55,23 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(vlm.Llama4OmniModel,
-                      config=run.Config(
-                          vlm.Llama4MaverickExperts128Config,
-                          language_transformer_config=run.Config(llm.Llama4Experts16Config),
-                          vision_transformer_config=run.Config(vlm.Llama4VisionConfig),
-                          vision_projection_config=run.Config(
-                              vlm.MultimodalProjectorConfig,
-                              projector_type="mcore_affine",
-                              input_size=4096,
-                              hidden_size=5120,
-                              ffn_hidden_size=5120,
-                              bias=False,
-                              bias_activation_fusion=False,
-                          ),
-                      ),
-                      )
+    return run.Config(
+        vlm.Llama4OmniModel,
+        config=run.Config(
+            vlm.Llama4MaverickExperts128Config,
+            language_transformer_config=run.Config(llm.Llama4Experts16Config),
+            vision_transformer_config=run.Config(vlm.Llama4VisionConfig),
+            vision_projection_config=run.Config(
+                vlm.MultimodalProjectorConfig,
+                projector_type="mcore_affine",
+                input_size=4096,
+                hidden_size=5120,
+                ffn_hidden_size=5120,
+                bias=False,
+                bias_activation_fusion=False,
+            ),
+        ),
+    )
 
 
 def trainer(
@@ -164,6 +160,7 @@ def trainer(
 
     return trainer
 
+
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
@@ -215,7 +212,6 @@ def pretrain_recipe(
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
-
     )
 
     if performance_mode:
@@ -268,7 +264,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
-
 
 
 @run.cli.factory(target=llm.finetune, name=NAME)
@@ -353,7 +348,7 @@ def finetune_recipe(
             seq_length=8192,
             global_batch_size=128,
             micro_batch_size=1,
-            tokenizer= run.Config(AutoTokenizer, pretrained_model_name='meta-llama/Llama-4-Scout-17B-16E-Instruct'),
+            tokenizer=run.Config(AutoTokenizer, pretrained_model_name='meta-llama/Llama-4-Scout-17B-16E-Instruct'),
             image_processor=None,
             num_workers=4,
         ),

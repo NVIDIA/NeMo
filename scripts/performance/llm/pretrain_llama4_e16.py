@@ -89,7 +89,6 @@ def override_recipe_configs(
     # recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     # recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
 
-
     return recipe
 
 
@@ -104,7 +103,9 @@ if __name__ == "__main__":
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = (
+        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+    )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
@@ -116,14 +117,12 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={
-            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"
-        },
+        custom_env_vars={"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
-    
+
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -133,7 +132,6 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
-
 
     with run.Experiment(exp_name) as exp:
         exp.add(

@@ -16,11 +16,10 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
+from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.vlm.recipes.llama4_omni_e128 import pretrain_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.collections.common.tokenizers import AutoTokenizer
-
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -51,7 +50,9 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     recipe = pretrain_recipe(performance_mode=True)
-    recipe.data.tokenizer = run.Config(AutoTokenizer, pretrained_model_name='meta-llama/Llama-4-Scout-17B-16E-Instruct')
+    recipe.data.tokenizer = run.Config(
+        AutoTokenizer, pretrained_model_name='meta-llama/Llama-4-Scout-17B-16E-Instruct'
+    )
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -84,7 +85,7 @@ def override_recipe_configs(
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
-    
+
     # (TODO: add more perf args here)
     recipe.model.config.language_transformer_config.cross_entropy_fusion_impl = "te"
     recipe.model.config.language_transformer_config.cross_entropy_loss_fusion = True
@@ -119,9 +120,10 @@ if __name__ == "__main__":
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = (
+        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+    )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-
 
     executor = slurm_executor(
         args.account,
@@ -138,7 +140,6 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
-
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -148,7 +149,7 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
-    
+
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,
