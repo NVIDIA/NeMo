@@ -123,7 +123,6 @@ def trainer(
             overlap_grad_reduce=True,
             overlap_param_gather=True,
             average_in_collective=True,
-            num_distributed_optimizer_instances=num_distributed_optimizer_instances,
         ),
     )
 
