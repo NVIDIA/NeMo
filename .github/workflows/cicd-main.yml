@@ -153,6 +153,7 @@ jobs:
         nemoci.azurecr.io/${{ matrix.image-name }}_buildcache:main
         nemoci.azurecr.io/${{ matrix.image-name }}_buildcache:${{ github.event.pull_request.number || 0 }}
         ${{ needs.pre-flight.outputs.cache-from }}
+      runner: myVm
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
