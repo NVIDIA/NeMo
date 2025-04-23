@@ -17,7 +17,30 @@ on:
 jobs:
   pre-flight:
     runs-on: ubuntu-latest
+    outputs:
+      build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
+      cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
     steps:
+      - name: Parse manifest.json
+        id: manifest
+        run: |
+          BUILD_ARGS=$(cat << EOF
+          BASE_IMAGE=$(cat requirements/manifest.json | jq -r '."ngc-pytorch"')
+          TRTLLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".repo')
+          TRTLLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".ref')
+          MLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".repo')
+          MLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
+          TE_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.repo')
+          TE_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.ref')
+          APEX_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.repo')
+          APEX_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.ref')
+          EOF
+          )
+
+          echo "BUILD_ARGS<<EOF" >> $GITHUB_OUTPUT
+          echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Get last merged PR
         id: cache_from
         env:
@@ -51,7 +74,7 @@ jobs:
         IMAGE_LABEL=nemo-core
         NEMO_TAG=${{ github.sha }}
         NEMO_REPO=https://github.com/NVIDIA/NeMo
-        ${{ needs.pre-flight.outputs.BUILD_ARGS }}
+        ${{ needs.pre-flight.outputs.build_args }}
       prune-filter-timerange: 24h
       use-inline-cache: false
       cache-from: |

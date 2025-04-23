@@ -41,8 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
-      build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
-      cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -78,48 +76,6 @@ jobs:
 
           parsed_string=$(echo "$TESTS_TO_RUN" | jq -c --raw-input 'split(",")')
           echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
-
-      - name: Parse manifest.json
-        id: manifest
-        run: |
-          BUILD_ARGS=$(cat << EOF
-          BASE_IMAGE=$(cat requirements/manifest.json | jq -r '."ngc-pytorch"')
-          TRTLLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".repo')
-          TRTLLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".ref')
-          MLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".repo')
-          MLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
-          TE_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.repo')
-          TE_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.ref')
-          APEX_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.repo')
-          APEX_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.ref')
-          EOF
-          )
-
-          echo "BUILD_ARGS<<EOF" >> $GITHUB_OUTPUT
-          echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Get last merged PR
-        id: cache_from
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          LAST_PRS=$(gh api graphql -f query='
-            query {
-              repository(owner: "NVIDIA", name: "NeMo") {
-                pullRequests(states: MERGED, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
-                  nodes {
-                    number
-                  }
-                }
-              }
-            }' | jq -r '.data.repository.pullRequests.nodes[].number' | while read -r number; do
-              echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
-            done)
-
-          echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
-          echo "$LAST_PRS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
   code-linting:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
