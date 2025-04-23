@@ -396,7 +396,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             raise ValueError("split_names must None/str/list")
 
         for split_name in split_names:
-            if not self.dataset_splits[split_name] is None:
+            if self.dataset_splits[split_name] is not None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
 
 
