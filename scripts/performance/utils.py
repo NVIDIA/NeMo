@@ -343,6 +343,8 @@ def set_primary_perf_configs(
             logging.warning("Currently FSDP does not support FP8 param gather. Disabling fp8 param gather.")
             recipe.trainer.plugins.fp8_param_gather = False
 
+        recipe.optim.config.use_precision_aware_optimizer = False
+
     return recipe
 
 
