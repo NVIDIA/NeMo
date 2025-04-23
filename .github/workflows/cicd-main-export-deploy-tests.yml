@@ -9,11 +9,14 @@ on:
         required: true
         type: string
 
+env:
+  IMAGE: nemo_container_export_deploy
+
 jobs:
   export-deploy-build:
     uses: ./.github/workflows/_build_container.yml
     with:
-      image-name: nemo_container_export_deploy
+      image-name: ${{ env.IMAGE }}
       dockerfile: Dockerfile.ci.export_deploy
       runner: myVm
 
@@ -55,4 +58,4 @@ jobs:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
-      IMAGE: ${{ inputs.image-name }}
+      IMAGE: ${{ env.IMAGE }}
