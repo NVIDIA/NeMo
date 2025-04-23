@@ -793,7 +793,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 ).to(device=x.device),
                 lm_state=torch.tensor(
                     [hyp.lm_state for hyp in partial_hypotheses]
-                ).to(device=x.device),
+                ).to(device=x.device) if all(hyp.lm_state is not None for hyp in partial_hypotheses) else None,
                 time_jumps=None,
             )
 
@@ -806,7 +806,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         for i, (hyp, state) in enumerate(zip(hyps, self.decoder.batch_split_states(batched_state.predictor_state))):
             hyp.dec_state = state
             hyp.decoded_length = batched_state.decoded_length[i]
-            hyp.ngram_lm_state = batched_state.lm_state[i]
+            hyp.ngram_lm_state = batched_state.lm_state[i] if batched_state.lm_state is not None else None
 
         if partial_hypotheses:
             for prev_hyp, hyp in zip(partial_hypotheses, hyps):
