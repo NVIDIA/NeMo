@@ -303,7 +303,7 @@ def wds_lhotse_url_opener(
         assert "url" in sample
         url = sample["url"]
         try:
-            stream = open_best(url)
+            stream = open_best(url, mode="rb")
             sample.update(stream=stream)
             yield sample
         except Exception as exn:
