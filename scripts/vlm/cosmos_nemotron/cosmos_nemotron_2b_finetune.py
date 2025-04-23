@@ -60,7 +60,7 @@ def main(args):
     max_steps = args.max_steps
 
     decoder_seq_length = 16384
-    recompute_num_layers = 0
+    recompute_num_layers = 6
 
     # Submodules configurations
     # NEVA model configuration
@@ -73,6 +73,7 @@ def main(args):
     neva_config.language_transformer_config.recompute_granularity = "full"
     neva_config.language_transformer_config.recompute_method = "block"
     neva_config.language_transformer_config.recompute_num_layers = recompute_num_layers
+    neva_config.language_transformer_config.seq_length = decoder_seq_length
     vision_transformer_config = neva_config.vision_transformer_config
 
     num_image_embeddings_per_tile = (
