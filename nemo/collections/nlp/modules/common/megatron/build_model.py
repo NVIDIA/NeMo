@@ -41,6 +41,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
+
 # Apex's `build model' refactored to call Megatron-Core classes
 def build_model(
     model_provider_func: Callable[[Any, Dict[str, Any]], torch.nn.Module],

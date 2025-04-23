@@ -217,9 +217,8 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         def forward_step(dataloader_iter, model):
             images, labels = next(dataloader_iter)
 
-            if (
-                parallel_state.get_pipeline_model_parallel_world_size() == 1
-                or parallel_state.is_pipeline_first_stage(ignore_virtual=False)
+            if parallel_state.get_pipeline_model_parallel_world_size() == 1 or parallel_state.is_pipeline_first_stage(
+                ignore_virtual=False
             ):
                 images = images.cuda(non_blocking=True)
                 labels = labels.cuda(non_blocking=True)

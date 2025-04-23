@@ -321,7 +321,9 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
 
 
 def get_computeprob_response(tokenizer, response, inputs):
-    if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+    if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(
+        ignore_virtual=True
+    ):
         # we only have a response on the first and last pipeline stages
         compute_prob_response = {}
         new_token_ids = []
