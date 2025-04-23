@@ -541,7 +541,7 @@ class SortformerModules(NeuralModule, Exportable):
         _, topk_indices = torch.topk(scores, n_boost_per_spk, dim=1, largest=True, sorted=False)
         batch_indices = torch.arange(batch_size).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1)
         speaker_indices = torch.arange(n_spk).unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, n_spk)
-        # Boost scores corresponding to topk_indices; but scores for disabled frames will remain -inf
+        # Boost scores corresponding to topk_indices; but scores for disabled frames will remain '-inf'
         scores[batch_indices, topk_indices, speaker_indices] -= scale_factor * math.log(offset)
         return scores
 
@@ -590,7 +590,7 @@ class SortformerModules(NeuralModule, Exportable):
     def _get_topk_indices(self, scores):
         """
         Get indices corresponding to spkcache_len highest scores, and binary mask for frames in topk to be disabled.
-        Disabled frames correspond to either -inf score or spkcache_sil_frames_per_spk frames of extra silence
+        Disabled frames correspond to either '-inf' score or spkcache_sil_frames_per_spk frames of extra silence
         Mean silence embedding will be used for these frames.
 
         Args:
@@ -606,7 +606,7 @@ class SortformerModules(NeuralModule, Exportable):
         batch_size, n_frames, _ = scores.shape
         n_frames_no_sil = n_frames - self.spkcache_sil_frames_per_spk
         # Concatenate scores for all speakers and get spkcache_len frames with highest scores.
-        # Replace topk_indices corresponding to -inf score with a placeholder index self.max_index.
+        # Replace topk_indices corresponding to '-inf' score with a placeholder index self.max_index.
         scores_flatten = scores.permute(0, 2, 1).reshape(batch_size, -1)
         topk_values, topk_indices = torch.topk(scores_flatten, self.spkcache_len, dim=1, sorted=False)
         valid_topk_mask = (topk_values != float('-inf'))
@@ -682,8 +682,8 @@ class SortformerModules(NeuralModule, Exportable):
 
     def _disable_low_scores(self, preds, scores, min_pos_scores_per_spk: int):
         """
-        Sets scores for non-speech to -inf.
-        Also sets non-positive scores to -inf, if there are at least min_pos_scores_per_spk positive scores.
+        Sets scores for non-speech to '-inf'.
+        Also sets non-positive scores to '-inf', if there are at least min_pos_scores_per_spk positive scores.
 
         Args:
             preds (torch.Tensor): Tensor containing speaker activity probabilities.
@@ -691,17 +691,17 @@ class SortformerModules(NeuralModule, Exportable):
             scores (torch.Tensor): Tensor containing speaker importance scores.
                 Shape: (batch_size, n_frames, n_spk)
             min_pos_scores_per_spk (int): if number of positive scores for a speaker is greater than this,
-                then all non-positive scores for this speaker will be disabled, i.e. set to -inf.
+                then all non-positive scores for this speaker will be disabled, i.e. set to '-inf'.
 
         Returns:
             scores (torch.Tensor): Tensor containing speaker scores.
                 Shape: (batch_size, n_frames, n_spk)
         """
-        # Replace scores for non-speech with -inf
+        # Replace scores for non-speech with '-inf'.
         is_speech = preds > 0.5
         scores = torch.where(is_speech, scores, torch.tensor(float('-inf')))
 
-        # Replace non-positive scores (usually overlapped speech) with -inf
+        # Replace non-positive scores (usually overlapped speech) with '-inf'
         # This will be applied only if a speaker has at least min_pos_scores_per_spk positive-scored frames
         is_pos = scores > 0  # positive score usually means that only current speaker is speaking
         is_nonpos_replace = (~is_pos) * is_speech * (is_pos.sum(dim=1).unsqueeze(1) >= min_pos_scores_per_spk)
