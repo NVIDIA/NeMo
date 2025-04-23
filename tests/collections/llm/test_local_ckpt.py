@@ -17,7 +17,7 @@ import socket
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import torch
 import torch.distributed as dist
