@@ -75,7 +75,7 @@ jobs:
             ADDITIONAL_PYLINT_ARGS="--exit-zero"
           fi
 
-          pip install pylint
+          pip install "pylint>=3.0.0"
           set +e
           pylint $ADDITIONAL_PYLINT_ARGS --output "pylintrc.$DOMAIN.txt" --rcfile ".pylintrc.$DOMAIN" ${CHANGED_FILES[@]}
           echo "exit-code=$?" | tee -a "$GITHUB_OUTPUT"

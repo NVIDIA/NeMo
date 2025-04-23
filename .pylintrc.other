@@ -1,6 +1,7 @@
 [MAIN]
 ignore-paths=tests
 max-line-length=119
+load-plugins=pylint.extensions.docparams
 
 [MESSAGES CONTROL]
 disable=all
@@ -24,3 +25,9 @@ enable=C0115,C0116,W0611,C0301,W9017,W9018,W9005,W9015,W9016,W9006,W9019,W9020,W
 # W9014: missing-yield-type-doc
 # W9008: redundant-returns-doc
 # W9010: redundant-yields-doc
+
+[PARAMETER_DOCUMENTATION]
+accept-no-param-doc=no
+accept-no-raise-doc=no
+accept-no-return-doc=no
+accept-no-yields-doc=no
