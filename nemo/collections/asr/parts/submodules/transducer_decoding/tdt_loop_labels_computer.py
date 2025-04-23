@@ -321,11 +321,19 @@ class GreedyBatchedTDTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, Wi
         num_durations = all_durations.shape[0]
 
         # initial state, needed for torch.jit to compile (cannot handle None)
-        state = self.decoder.initialize_state(encoder_output_projected) if prev_state is None else prev_state
+        state = (
+            self.decoder.initialize_state(encoder_output_projected)
+            if prev_batched_state is None
+            else prev_batched_state.predictor_state
+        )
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol
-        labels = torch.full_like(batch_indices, fill_value=self._SOS) if prev_labels is None else prev_labels
+        labels = (
+            torch.full_like(batch_indices, fill_value=self._SOS)
+            if prev_batched_state is None
+            else prev_batched_state.predictor_state.clone()
+        )
 
         # time indices
         time_indices = torch.zeros_like(batch_indices)
@@ -343,6 +351,8 @@ class GreedyBatchedTDTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, Wi
 
         if self.ngram_lm_batch is not None:
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+        else:
+            batch_lm_states = None
 
         # loop while there are active utterances
         while active_mask.any():
@@ -549,9 +559,19 @@ class GreedyBatchedTDTLoopLabelsComputer(GreedyBatchedLoopLabelsComputerBase, Wi
                     batch_lm_states,
                     out=batch_lm_states,
                 )
+
+        if prev_batched_state is not None:
+            batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
+        decoding_state = rnnt_utils.BatchedGreedyDecodingState(
+            predictor_state=last_decoder_state,
+            labels=batched_hyps.get_last_labels(pad_id=self._blank_index),
+            decoded_length=encoder_output_length if prev_batched_state is None else encoder_output_length + prev_batched_state.decoded_length,
+            lm_state=batch_lm_states,
+            time_jumps=encoder_output_length - time_indices,  # TODO: fix time_indices
+        )
         if use_alignments:
-            return batched_hyps, alignments, last_decoder_state
-        return batched_hyps, None, last_decoder_state
+            return batched_hyps, alignments, decoding_state
+        return batched_hyps, None, decoding_state
 
     def loop_labels_cuda_graphs(
         self,
