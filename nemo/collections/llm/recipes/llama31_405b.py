@@ -252,8 +252,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-
     if recipe.trainer.plugins.fp8 is None:
         recipe.optim.config.use_precision_aware_optimizer = True
 
@@ -427,8 +425,6 @@ def finetune_performance_optimizations(
             100,
         )
     )
-
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
 
     if recipe.trainer.plugins.fp8 is None:
         recipe.optim.config.use_precision_aware_optimizer = True
