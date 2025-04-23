@@ -17,7 +17,6 @@ from os.path import basename, splitext
 import nemo_run as run
 
 from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -63,6 +62,8 @@ def override_recipe_configs(
         vp_size,
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
+        compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -73,11 +74,6 @@ def override_recipe_configs(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
 
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
     return recipe
 
 
@@ -86,7 +82,7 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "nemotron3", "8b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs, _, _, _ = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
 
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs

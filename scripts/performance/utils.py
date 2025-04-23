@@ -28,6 +28,11 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
+from nemo.collections.llm.recipes.precision.mixed_precision import (
+    bf16_with_fp8_current_scaling_mixed,
+    bf16_with_fp8_mixed,
+    bf16_with_mxfp8_mixed,
+)
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.utils import logging
@@ -209,12 +214,21 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     )
     activation_offload_layers = 0 if activation_offload_layers is None else int(activation_offload_layers)
 
+    if args.recompute_modules is not None:
+        recompute_modules = args.recompute_modules
+        assert isinstance(recompute_modules, list), "recompute_modules must be a list"
+    elif config.get("recompute_modules") is not None:
+        recompute_modules = config.get("recompute_modules").split('/')
+    else:
+        recompute_modules = None
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
     kwargs = [int(arg) if arg is not None and not isinstance(arg, list) else arg for arg in kwargs] + [
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
+        recompute_modules,
     ]
 
     return kwargs
@@ -238,6 +252,9 @@ def set_primary_perf_configs(
     use_mcore_fsdp: bool = False,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
+    compute_dtype: str = None,
+    fp8_recipe: str = None,
+    recompute_modules: Optional[List[str]] = None,
     num_distributed_optimizer_instances: Optional[int] = 1,
     cu_global_batch_splits: Optional[List[int]] = None,
 ):
@@ -324,6 +341,33 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading = True
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+
+    # low precision training configs
+    if compute_dtype is not None and compute_dtype.lower() == "fp8":
+        if fp8_recipe is None:
+            fp8_recipe = "ds"
+        if fp8_recipe.lower() == "ds":
+            recipe.trainer.plugins = bf16_with_fp8_mixed()
+        elif fp8_recipe.lower() == "cs":
+            recipe.trainer.plugins = bf16_with_fp8_current_scaling_mixed()
+            # disable first/last layer bf16 for benchmarking
+            recipe.trainer.plugins.first_last_layers_bf16 = False
+        elif fp8_recipe.lower() == "mxfp8":
+            recipe.trainer.plugins = bf16_with_mxfp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+        if use_mcore_fsdp:
+            logging.warning("Currently FSDP does not support FP8 param gather. Disabling fp8 param gather.")
+            recipe.trainer.plugins.fp8_param_gather = False
+
+    # Activation recompute configs
+    if recompute_modules is not None:
+        recipe.model.config.recompute_modules = recompute_modules
+        assert (
+            recipe.model.config.recompute_granularity == "selective"
+        ), "recompute_granularity must be selective when recompute_modules is provided"
+        assert (
+            recipe.model.config.recompute_num_layers is None
+        ), "recompute_num_layers must be None when recompute_modules is provided"
 
     return recipe
 

@@ -77,6 +77,18 @@ def parse_cli_args():
         required=False,
         default="bf16",
     )
+    fp8_recipe_msg = (
+        "FP8 recipe. Options- ds (per-tensor delayed scaling), cs (per-tensor current scaling), mxfp8. Defaults to ds"
+    )
+    parser.add_argument(
+        "-fr",
+        "--fp8_recipe",
+        type=str,
+        choices=["ds", "cs", "mxfp8"],
+        help=fp8_recipe_msg,
+        required=False,
+        default="ds",
+    )
     parser.add_argument(
         "-en",
         "--enable_nsys",
@@ -285,6 +297,15 @@ def parse_cli_args():
 
     def list_of_strings(arg):
         return arg.split(',')
+
+    parser.add_argument(
+        "-rm",
+        "--recompute_modules",
+        type=list_of_strings,
+        help="Comma-separated string of modules to recompute. Defaults to None",
+        required=False,
+        default=None,
+    )
 
     parser.add_argument(
         "-cm",

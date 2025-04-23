@@ -18,7 +18,6 @@ from typing import Optional
 import nemo_run as run
 
 from nemo.collections.llm.recipes.mixtral_8x7b import pretrain_recipe
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
@@ -66,6 +65,8 @@ def override_recipe_configs(
         ep_size,
         etp_size,
         enable_cuda_graphs,
+        compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "mixtral", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -73,11 +74,6 @@ def override_recipe_configs(
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x7B-v0.1")
-
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
@@ -87,7 +83,7 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "mixtral", "8x7b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs = kwargs[:10]
 
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs

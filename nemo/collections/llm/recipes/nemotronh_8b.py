@@ -18,6 +18,7 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
+import torch._dynamo
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
@@ -27,67 +28,81 @@ from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed_current_scaling
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "nemotron5_hybrid_47b"
+torch._dynamo.config.suppress_errors = True
+
+NAME = "nemotronh_8b"
 
 
 @run.cli.factory(name=NAME)
 def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a tokenizer configuration for Nemotron5 Hybrid model.
+    Factory function to create a tokenizer configuration for NemotronH Hybrid model.
     """
-    return run.Config(
-        get_nmt_tokenizer,
-        library='tiktoken',
-        model_name="TiktokenTokenizer",
-        vocab_file=vocab_file,
-        use_fast=True,
-    )
+    if vocab_file:
+        return run.Config(
+            get_nmt_tokenizer,
+            library='tiktoken',
+            model_name="TiktokenTokenizer",
+            vocab_file=vocab_file,
+            use_fast=True,
+        )
+    else:
+        return run.Config(
+            get_nmt_tokenizer,
+            library='huggingface',
+            model_name="nvidia/Nemotron-H-8B-Base-8K",
+            use_fast=True,
+        )
 
 
 @run.cli.factory(name=NAME)
 def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Nemotron5 Hybrid 47B model configuration.
+    Factory function to create a NemotronH Hybrid 8B model configuration.
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Nemotron5 Hybrid 47B model.
+        run.Config[pl.LightningModule]: Configuration for the NemotronH Hybrid 8B model.
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=nemotron5_hybrid_47b ...
+            $ nemo llm pretrain model=nemotronh_8b ...
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
     return run.Config(
         llm.MambaModel,
-        config=run.Config(llm.Nemotron5HybridConfig47B),
+        config=run.Config(llm.NemotronHConfig8B),
         tokenizer=tokenizer(vocab_file=vocab_file),
     )
 
 
 @run.cli.factory(target=finetune, name=NAME)
 def trainer(
-    tensor_parallelism: int = 8,
+    dir: str = None,
+    tensor_parallelism: int = 2,
     pipeline_parallelism: int = 1,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
+    pipeline_parallelism_type: torch.dtype = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = True,
-    num_nodes: int = 32,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
-    max_steps: int = 100,
-    val_check_interval: int = 100,
+    max_steps: int = 10,
+    val_check_interval: int = 10,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
+    save_top_k: int = 5,
+    ckpt_async_save: bool = False,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Nemotron5 Hybrid 47B model.
+    Configure the NeMo Lightning Trainer for NemotronH Hybrid 8B model.
     This function sets up the distributed training strategy and other training parameters.
     Args:
         tensor_parallelism (int): Degree of tensor model parallelism.
@@ -104,9 +119,9 @@ def trainer(
         run.Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=nemotron5_hybrid_47b ...
+            $ nemo llm pretrain trainer=nemotronh_8b ...
         Python API usage:
-            >>> trainer_config = trainer(num_nodes=32, num_gpus_per_node=1)
+            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=1)
             >>> print(trainer_config)
     Note:
         For more information on distributed training strategies, refer to the
@@ -116,39 +131,57 @@ def trainer(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
         pipeline_model_parallel_size=pipeline_parallelism,
-        pipeline_dtype=pipeline_parallelism_type,
-        virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
+        pipeline_dtype=pipeline_parallelism_type,
         sequence_parallel=sequence_parallelism,
-        gradient_as_bucket_view=True,
-        ckpt_async_save=False,
-        ckpt_parallel_load=True,
+        ckpt_load_optimizer=True,
+        ckpt_save_optimizer=True,
+        ckpt_async_save=ckpt_async_save,
+        save_ckpt_format="torch_dist",
+        ckpt_load_strictness="log_all",
         ddp=run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
-            grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
-            overlap_param_gather=True,
+            overlap_param_gather=False,  # Verify that this works
+            grad_reduce_in_fp32=True,
         ),
     )
 
+    callbacks = [
+        run.Config(TimingCallback),
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_bootstrap_backend="nccl",
+            tp_comm_overlap=True,
+        ),
+        run.Config(
+            ModelCheckpoint,
+            every_n_train_steps=val_check_interval,
+            dirpath=dir,
+            save_top_k=save_top_k,
+            always_save_context=True,
+            save_optim_on_train_end=True,
+            save_context_on_train_end=True,
+        ),
+    ]
     trainer = run.Config(
         nl.Trainer,
-        accelerator="gpu",
-        accumulate_grad_batches=1,
-        callbacks=callbacks,
         devices=num_gpus_per_node,
-        max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=bf16_with_fp8_mixed_current_scaling(),
+        max_steps=max_steps,
+        accelerator="gpu",
         strategy=strategy,
-        use_distributed_sampler=False,
-        val_check_interval=val_check_interval,
-        limit_test_batches=limit_test_batches,
-        limit_val_batches=limit_val_batches,
+        logger=[],
+        callbacks=callbacks,
         log_every_n_steps=log_every_n_steps,
+        limit_val_batches=limit_val_batches,
+        num_sanity_val_steps=0,
+        use_distributed_sampler=False,
+        plugins=[bf16_mixed()],
+        val_check_interval=val_check_interval,
+        enable_checkpointing=True,
     )
-
     return trainer
 
 
@@ -157,24 +190,25 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     vocab_file: str = None,
-    num_nodes: int = 32,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
-    tensor_parallelism: int = 8,
+    tensor_parallelism: int = 2,
     sequence_parallelism: bool = True,
     pipeline_parallelism: int = 1,
-    max_steps: int = 100,
-    val_check_interval: int = 100,
+    max_steps: int = 10,
+    val_check_interval: int = 10,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
+    save_top_k: int = 5,
+    ckpt_async_save: bool = False,
     seq_length: int = 8192,
-    gbs: int = 32,
+    gbs: int = 768,
     mbs: int = 1,
-    performance_mode: bool = False,
     fn=pretrain,
 ) -> run.Partial:
     """
-    Create a pre-training recipe for Nemotron5 Hybrid 47B model.
+    Create a pre-training recipe for NemotronH Hybrid 8B model.
     This function sets up a complete configuration for pre-training, including
     model, trainer, data, logging, optimization, and resumption settings.
     Args:
@@ -187,20 +221,18 @@ def pretrain_recipe(
         run.Partial: Partial configuration for pre-training.
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory nemotron5_hybrid_47b
-            $ nemo llm pretrain --factory "nemotron5_hybrid_47b(num_nodes=32, name='my_pretrain')"
+            $ nemo llm pretrain --factory nemotronh_8b
+            $ nemo llm pretrain --factory "nemotronh_8b(num_nodes=32, name='my_pretrain')"
         Python API usage:
-            >>> recipe = pretrain_recipe(name="nemotron5_hybrid_47b_pretrain", num_nodes=32)
+            >>> recipe = pretrain_recipe(name="nemotronh_8b_pretrain", num_nodes=32)
             >>> print(recipe)
-    Note:
-        For more details on pre-training LLMs with NeMo, see the pre-training
-        guide in the `examples/llm/pretrain/` directory.
     """
 
     recipe = run.Partial(
         fn,
         model=model(vocab_file=vocab_file),
         trainer=trainer(
+            dir=dir,
             max_steps=max_steps,
             num_nodes=num_nodes,
             tensor_parallelism=tensor_parallelism,
@@ -211,7 +243,8 @@ def pretrain_recipe(
             limit_test_batches=limit_test_batches,
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
-            callbacks=[run.Config(TimingCallback)],
+            save_top_k=save_top_k,
+            ckpt_async_save=ckpt_async_save,
         ),
         data=run.Config(
             MockDataModule,
@@ -224,35 +257,34 @@ def pretrain_recipe(
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
-    if performance_mode:
-        recipe = performance_optimizations(recipe)
     return recipe
 
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
-    resume_path,
-    vocab_file,
+    resume_path: str = "nemotronh-8b-pretrain",
+    vocab_file: str = None,
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 32,
+    num_nodes: int = 8,
     num_gpus_per_node: int = 8,
-    tensor_parallelism: int = 8,
+    tensor_parallelism: int = 2,
     sequence_parallelism: bool = True,
     pipeline_parallelism: int = 1,
     seq_length: int = 8192,
-    max_steps: int = 100,
-    val_check_interval: int = 100,
+    max_steps: int = 10,
+    val_check_interval: int = 10,
     limit_test_batches: int = 50,
     limit_val_batches: int = 32,
     log_every_n_steps: int = 10,
-    gbs: int = 32,
+    save_top_k: int = 5,
+    ckpt_async_save: bool = False,
+    gbs: int = 768,
     mbs: int = 1,
-    performance_mode: bool = False,
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Nemotron5 Hybrid 47B model.
+    Create a fine-tuning recipe for NemotronH Hybrid 8B model.
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
     Args:
@@ -267,18 +299,16 @@ def finetune_recipe(
         run.Partial: Partial configuration for fine-tuning.
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory nemotron5_hybrid_47b
+            $ nemo llm finetune --factory nemotronh_8b
         Python API usage:
-            >>> recipe = finetune_recipe(name="nemotron5_hybrid_47b_finetune", num_nodes=32)
+            >>> recipe = finetune_recipe(name="nemotronh_8b_finetune", num_nodes=32)
             >>> print(recipe)
     Note:
-        This recipe uses the SQuAD dataset for fine-tuning. For more information
-        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
-        `examples/llm/finetune/` directory.
+        This recipe uses the SQuAD dataset for fine-tuning.
         For converting an SSM pytorch checkpoint, use the following line of python code:
-        llm.MambaModel(llm.Nemotron5HybridConfig47B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
+        llm.MambaModel(llm.NemotronHConfig8B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
             path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
-            model_config=llm.Nemotron5HybridConfig47B())
+            model_config=llm.NemotronHConfig8B())
         This line will cache the nemo checkpoint to following directory:
             /root/.cache/nemo/models/your_pytorch_state_dict_file
     """
@@ -300,7 +330,8 @@ def finetune_recipe(
             limit_test_batches=limit_test_batches,
             limit_val_batches=limit_val_batches,
             log_every_n_steps=log_every_n_steps,
-            callbacks=[run.Config(TimingCallback)],
+            save_top_k=save_top_k,
+            ckpt_async_save=ckpt_async_save,
         ),
         data=run.Config(
             MockDataModule,
@@ -318,28 +349,4 @@ def finetune_recipe(
         recipe.optim.config.lr = 5e-6
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
-    if performance_mode:
-        recipe = performance_optimizations(recipe)
-    return recipe
-
-
-def performance_optimizations(recipe: run.Partial) -> run.Partial:
-    """
-    Create a performance-optimized pre-training recipe for Nemotron5 Hybrid 47B model.
-    This method enables performance optimizations that may not be suitable for all use cases.
-    It builds upon the standard pre-training recipe and adds additional performance enhancements.
-    Args:
-        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
-    Returns:
-        run.Partial: Partial configuration for performance-optimized pre-training.
-    Note:
-        Use this method with caution and only when you need maximum performance.
-        It may not be suitable for all hardware configurations or use cases.
-    """
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-        )
-    )
     return recipe
