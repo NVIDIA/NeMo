@@ -28,7 +28,6 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.import_utils import safe_import
 
 
 @dataclass
