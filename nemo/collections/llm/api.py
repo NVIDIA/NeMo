@@ -752,9 +752,7 @@ def deploy(
         logging.info("Model serving will be stopped.")
         nm.stop()
     else:
-        raise ValueError(
-            f"Invalid backend '{backend}'. Supported backends are 'in-framework' and 'trtllm'."
-        )
+        raise ValueError(f"Invalid backend '{backend}'. Supported backends are 'in-framework' and 'trtllm'.")
 
 
 @run.cli.entrypoint(namespace="llm")

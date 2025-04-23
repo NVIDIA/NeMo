@@ -83,7 +83,11 @@ def get_args():
     parser.add_argument("--disable_kv_cache", dest="enable_kv_cache", action="store_false")
     parser.set_defaults(enable_kv_cache=None)
     parser.add_argument(
-        "--kv_cache_qformat", type=str, default="fp8", choices=KV_QUANT_CFG_CHOICES, help="KV-cache quantization format"
+        "--kv_cache_qformat",
+        type=str,
+        default="fp8",
+        choices=KV_QUANT_CFG_CHOICES,
+        help="KV-cache quantization format",
     )
     parser.add_argument(
         "-dt", "--dtype", default="bf16", choices=["16", "bf16"], help="Default precision for non-quantized layers"
