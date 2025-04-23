@@ -405,7 +405,9 @@ def _extract_pos_args(input_args: Any, kwargs: Any) -> tuple[Any, Any]:
         if len(input_args) > 0:
             output_args = input_args
     else:
-        raise InstantiationException(f"Unsupported _args_ type: '{type(config_args).__name__}'. value: '{config_args}'")
+        raise InstantiationException(
+            f"Unsupported _args_ type: '{type(config_args).__name__}'. value: '{config_args}'"
+        )
 
     return output_args, kwargs
 

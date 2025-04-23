@@ -79,7 +79,9 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose: bool =
             f"Number of parameters in transformer layers in billions: "
             f"{num_parameters_in_transformer_layers / 10**9: .2f}"
         )
-        print(f"Number of parameters in embedding layers in billions: {num_parameters_in_embedding_layers / 10**9:.2f}")
+        print(
+            f"Number of parameters in embedding layers in billions: {num_parameters_in_embedding_layers / 10**9:.2f}"
+        )
         print(f"Total number of parameters in billions: {num_total_parameters / 10**9:.2f}")
 
     # Most loaded model shard has (1/pp_size transformer layers + 1 embedding layer) / tp_size.
@@ -112,7 +114,9 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose: bool =
     return weight_and_optimizer_memory
 
 
-def compute_activation_memory(config: ConfigContainer, num_microbatches: Optional[int], verbose: bool = False) -> float:
+def compute_activation_memory(
+    config: ConfigContainer, num_microbatches: Optional[int], verbose: bool = False
+) -> float:
     """Compute theoretical memory footprint for activations.
 
     Estimates activation memory based on the formula from the Megatron-LM paper
