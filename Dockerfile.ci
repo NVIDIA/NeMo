@@ -43,8 +43,9 @@ RUN \
   --mount=type=bind,source=nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
     
-    bash /tmp/NeMo/reinstall.sh --library all --mode install
-    rm -rf $NEMO_DIR || true
+  bash /tmp/NeMo/reinstall.sh --library mcore --mode install
+  bash /tmp/NeMo/reinstall.sh --library nemo --mode install
+  rm -rf $NEMO_DIR || true
 EOF
 
 
