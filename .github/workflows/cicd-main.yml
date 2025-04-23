@@ -127,32 +127,10 @@ jobs:
     uses: ./.github/workflows/code-linting.yml
 
   cicd-test-container-build:
-    strategy:
-      matrix:
-        include:
-          - dockerfile: Dockerfile.ci
-            image-name: nemo_container
-          - dockerfile: Dockerfile.ci.export_deploy
-            image-name: nemo_container_export_deploy
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
-    needs: [pre-flight, code-linting]
-    name: build_${{ matrix.image-name }}
+    uses: ./.github/workflows/_build_container.yml
     with:
-      image-name: ${{ matrix.image-name }}
-      dockerfile: ${{ matrix.dockerfile }}
-      image-label: nemo-core
-      build-args: |
-        IMAGE_LABEL=nemo-core
-        NEMO_TAG=${{ github.sha }}
-        NEMO_REPO=https://github.com/NVIDIA/NeMo
-        ${{ needs.pre-flight.outputs.BUILD_ARGS }}
-      prune-filter-timerange: 24h
-      use-inline-cache: false
-      cache-from: |
-        nemoci.azurecr.io/${{ matrix.image-name }}_buildcache:main
-        nemoci.azurecr.io/${{ matrix.image-name }}_buildcache:${{ github.event.pull_request.number || 0 }}
-        ${{ needs.pre-flight.outputs.cache-from }}
+      image-name: nemo_container
+      dockerfile: Dockerfile.ci
       runner: myVm
 
   cicd-import-tests:

@@ -1,0 +1,61 @@
+name: ~Build container template
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        required: true
+        type: string
+        description: "The name of the image to build"
+      dockerfile:
+        required: true
+        type: string
+      runner:
+        required: true
+        type: string
+        description: "The runner to use for the build"
+
+jobs:
+  pre-flight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get last merged PR
+        id: cache_from
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST_PRS=$(gh api graphql -f query='
+            query {
+              repository(owner: "NVIDIA", name: "NeMo") {
+                pullRequests(states: MERGED, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  nodes {
+                    number
+                  }
+                }
+              }
+            }' | jq -r '.data.repository.pullRequests.nodes[].number' | while read -r number; do
+              echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
+            done)
+
+          echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
+          echo "$LAST_PRS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  build:
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
+    needs: [pre-flight]
+    with:
+      image-name: ${{ inputs.image-name }}
+      dockerfile: ${{ inputs.dockerfile }}
+      image-label: nemo-core
+      build-args: |
+        IMAGE_LABEL=nemo-core
+        NEMO_TAG=${{ github.sha }}
+        NEMO_REPO=https://github.com/NVIDIA/NeMo
+        ${{ needs.pre-flight.outputs.BUILD_ARGS }}
+      prune-filter-timerange: 24h
+      use-inline-cache: false
+      cache-from: |
+        nemoci.azurecr.io/${{ inputs.image-name }}_buildcache:main
+        nemoci.azurecr.io/${{ inputs.image-name }}_buildcache:${{ github.event.pull_request.number || 0 }}
+        ${{ needs.pre-flight.outputs.cache-from }}
+      runner: ${{ inputs.runner }}
