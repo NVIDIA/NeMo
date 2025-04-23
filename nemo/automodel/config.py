@@ -18,11 +18,11 @@ from typing import Any, Literal, Optional, Type
 
 import torch
 
+from nemo.automodel.data.config import HFDatasetConfig
 from nemo.automodel.llm.causal_lm import AutoModelForCausalLMConfig
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE
 from nemo.tron.config import (
     DistributedInitConfig,
-    FinetuningDatasetConfig,
     LoggerConfig,
     ProfilingConfig,
     RNGConfig,
@@ -109,7 +109,7 @@ class ConfigContainer(Container):
     train_config: TrainingConfig
     optimizer_config: OptimizerConfig
     scheduler_config: SchedulerConfig
-    dataset_config: FinetuningDatasetConfig
+    dataset_config: HFDatasetConfig
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig

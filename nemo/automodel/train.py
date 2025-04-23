@@ -193,9 +193,9 @@ def train(
     if train_config.manual_gc:
         # Disable the default garbage collector and perform the collection manually.
         # This is to align the timing of garbage collection across ranks.
-        assert (
-            train_config.manual_gc_interval >= 0
-        ), "Manual garbage collection interval should be larger than or equal to 0"
+        assert train_config.manual_gc_interval >= 0, (
+            "Manual garbage collection interval should be larger than or equal to 0"
+        )
         gc.disable()
         gc.collect()
 
@@ -268,7 +268,6 @@ def train(
         #     global_state.train_state.consumed_train_samples += batch_size
         #     global_state.train_state.skipped_train_samples += batch_size
         #     continue
-
         # Run training step.
         # fault_tolerance.on_training_step_start(global_state)
         loss_dict, skipped_iter, grad_norm = train_step(

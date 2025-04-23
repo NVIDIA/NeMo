@@ -21,7 +21,7 @@ from nemo.automodel.config import ConfigContainer
 from nemo.automodel.eval import evaluate_and_print_results
 from nemo.automodel.setup import setup
 from nemo.automodel.train import finish_train, train
-from nemo.tron.data.utils import get_dataset_provider
+from nemo.automodel.data.utils import get_dataset_provider
 from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
 
 
