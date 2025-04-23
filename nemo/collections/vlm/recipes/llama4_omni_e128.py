@@ -59,7 +59,7 @@ def model() -> run.Config[pl.LightningModule]:
         vlm.Llama4OmniModel,
         config=run.Config(
             vlm.Llama4MaverickExperts128Config,
-            language_transformer_config=run.Config(llm.Llama4Experts16Config),
+            language_transformer_config=run.Config(llm.Llama4Experts128Config),
             vision_transformer_config=run.Config(vlm.Llama4VisionConfig),
             vision_projection_config=run.Config(
                 vlm.MultimodalProjectorConfig,
@@ -249,7 +249,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         MegatronCommOverlapCallback,
         tp_comm_overlap=True,
     )
-    print("Gao - add token drop callback")
     token_drop_callback = run.Config(
         MegatronTokenDropCallback,
     )

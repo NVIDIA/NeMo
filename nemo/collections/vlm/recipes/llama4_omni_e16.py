@@ -249,7 +249,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         MegatronCommOverlapCallback,
         tp_comm_overlap=True,
     )
-    print("Gao - add token drop callback")
     token_drop_callback = run.Config(
         MegatronTokenDropCallback,
     )
