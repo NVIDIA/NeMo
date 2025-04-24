@@ -394,4 +394,4 @@ class PlaceholderFilter:
             return True
 
         custom = getattr(example, "custom", None)
-        return custom is None or not custom.pop("_skipme", False)
+        return custom is None or not custom.get("_skipme", False)

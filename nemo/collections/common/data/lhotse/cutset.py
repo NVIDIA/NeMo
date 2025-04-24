@@ -50,15 +50,16 @@ def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bo
     if not isinstance(config, DictConfig):
         config = DictConfig(config)
     if config.get("input_cfg") is not None:
-        return read_dataset_config(config)
-    # Now, we'll figure out if we should read Lhotse manifest or NeMo manifest.
-    use_nemo_manifest = all(config.get(opt) is None for opt in ("cuts_path", "shar_path"))
-    if use_nemo_manifest:
-        if config.get("manifest_filepath") is None:
-            raise IncompleteConfigError("You must specify either: manifest_filepath, cuts_path, or shar_path")
-        cuts, is_tarred = read_nemo_manifest(config)
+        cuts, is_tarred = read_dataset_config(config)
     else:
-        cuts, is_tarred = read_lhotse_manifest(config)
+        # Now, we'll figure out if we should read Lhotse manifest or NeMo manifest.
+        use_nemo_manifest = all(config.get(opt) is None for opt in ("cuts_path", "shar_path"))
+        if use_nemo_manifest:
+            if config.get("manifest_filepath") is None:
+                raise IncompleteConfigError("You must specify either: manifest_filepath, cuts_path, or shar_path")
+            cuts, is_tarred = read_nemo_manifest(config)
+        else:
+            cuts, is_tarred = read_lhotse_manifest(config)
 
     # After reading cuts we filter cutsets to exclude cuts with valid "_skipme" values.
     # This filtration is done before mixing cutsets as well. Here it is being done for non-mixed cutsets.
@@ -351,7 +352,11 @@ def parse_and_combine_datasets(
     assert len(weights) == 0 or len(cuts) == len(
         weights
     ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
+
     if len(cuts) > 1:
+        # Before we mix the datasets in the config, we filter cutsets to exclude cuts 
+        # with valid "_skipme" values to mix the data correctly.
+        cuts = [cut.filter(PlaceholderFilter()) for cut in cuts]
         cuts = mux(
             *cuts,
             weights=weights if weights else None,
