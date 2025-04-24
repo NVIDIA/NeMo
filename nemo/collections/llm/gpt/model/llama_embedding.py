@@ -35,10 +35,11 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
+from megatron.core.tokenizers import MegatronTokenizerBase
+
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
 
 _, HAVE_TE = safe_import("transformer_engine")
@@ -148,7 +149,7 @@ class LlamaEmbeddingModel(LlamaModel):
         self,
         config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
@@ -365,7 +366,7 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
         )
 
     @property
-    def tokenizer(self) -> "TokenizerSpec":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """Get NeMo Tokenizer"""
         return io.load_context(str(self), subpath="model").tokenizer
 

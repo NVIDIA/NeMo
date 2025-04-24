@@ -23,12 +23,12 @@ from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from nemo.automodel.loss import masked_cross_entropy
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
+from megatron.core.tokenizers import MegatronTokenizerBase, MegatronTokenizer
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
@@ -61,7 +61,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Args:
             model_name (str, optional): The model name or path. Defaults to 'gpt2'.
             load_pretrained_weights (bool, optional): Whether to load pretrained weights. Defaults to True.
-            tokenizer (AutoTokenizer, optional): A pre-configured tokenizer. Defaults to None.
+            tokenizer (MegatronTokenizerBase, optional): A pre-configured tokenizer. Defaults to None.
             loss_fn (callable, optional): Loss function to use. Defaults to masked_cross_entropy.
             model_transform (callable, optional): Function to transform the model after creation. Defaults to None.
             model_accelerator (callable, optional): Function to accelerate or optimize the model. Defaults to None.
@@ -114,7 +114,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         `configure_tokenizer` static method.
 
         Returns:
-            AutoTokenizer: The tokenizer associated with the model.
+            MegatronTokenizerBase: The tokenizer associated with the model.
         """
         if self._tokenizer is None:
             self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(
@@ -128,7 +128,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Set the tokenizer for the model.
 
         Args:
-            value (AutoTokenizer): The tokenizer to be used.
+            value (MegatronTokenizerBase): The tokenizer to be used.
         """
         assert self._tokenizer is None
         self._tokenizer = value
@@ -136,7 +136,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @staticmethod
     def configure_tokenizer(model_name, use_fast=True, trust_remote_code=False):
         """
-        Configure and return a Hugging Face AutoTokenizer for the given model.
+        Configure and return a Hugging Face MegatronTokenizerBase for the given model.
 
         Args:
             model_name (str): The name or path of the model.
@@ -145,12 +145,22 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 Defaults to False.
 
         Returns:
-            AutoTokenizer: The instantiated tokenizer.
+            MegatronTokenizerBase: The instantiated tokenizer.
         """
         try:
-            return AutoTokenizer(model_name, use_fast=use_fast, trust_remote_code=trust_remote_code)
+            return MegatronTokenizer.from_pretrained(
+                tokenizer_path=model_name,
+                metadata_path={"library": "huggingace", "model_type": "llama"},
+                use_fast=use_fast,
+                trust_remote_code=trust_remote_code,
+            )
         except:
-            return AutoTokenizer(model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code)
+            return MegatronTokenizer.from_pretrained(
+                tokenizer_path=model_name,
+                metadata_path={"library": "huggingace", "model_type": "llama"},
+                use_fast=not use_fast,
+                trust_remote_code=trust_remote_code,
+            )
 
     def _configure_model(self, attn_implementation):
         """helper method; see also configure_model."""

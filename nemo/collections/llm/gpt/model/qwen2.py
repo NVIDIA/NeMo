@@ -26,12 +26,11 @@ from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
+from megatron.core.tokenizers import MegatronTokenizerBase
+
 if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
     from transformers import Qwen2Config as HFQwen2Config
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -188,7 +187,7 @@ class Qwen2Model(GPTModel):
         self,
         config: Annotated[Optional[Qwen2Config], Config[Qwen2Config]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or Qwen2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
@@ -255,10 +254,14 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    def tokenizer(self) -> "MegatronTokenizerBase":
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "qwen2"},
+            trust_remote_code=True,
+        )
 
     @property
     def config(self) -> Qwen2Config:

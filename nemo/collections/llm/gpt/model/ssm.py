@@ -20,9 +20,8 @@ from typing import Annotated, Callable, Literal, Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, get_vocab_size, io, teardown
@@ -36,6 +35,7 @@ try:
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+    from megatron.core.tokenizers import MegatronTokenizerBase
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -236,7 +236,7 @@ class MambaModel(GPTModel):
     Attributes:
         config (SSMConfig): The configuration for the Mamba model.
         optim (OptimizerModule): The optimizer module for training.
-        tokenizer (TokenizerSpec): The tokenizer used for text processing.
+        tokenizer (MegatronTokenizerBase): The tokenizer used for text processing.
         model_transform (Callable): A function to transform the model.
     """
 
@@ -244,7 +244,7 @@ class MambaModel(GPTModel):
         self,
         config: Annotated[Optional[SSMConfig], Config[SSMConfig]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         """
@@ -422,15 +422,14 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         """
         Loads the tokenizer from the specified path.
         Returns:
-            TokenizerSpec: The tokenizer object.
+            MegatronTokenizerBase: The tokenizer object.
         """
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        tokenizer = get_nmt_tokenizer(
-            library=self.model_config.tokenizer_library,
-            model_name=self.model_config.tokenizer_name,
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": self.model_config.tokenizer_library, "model_type": "ssm"},
             vocab_file=self.model_config.vocab_file,
-            tokenizer_model=self.model_config.tokenizer_model_path,
             use_fast=True,
         )
 
@@ -526,15 +525,20 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """
-        Loads the tokenizer from the specified path.
-        Returns:
-            AutoTokenizer: The tokenizer object.
-        """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        Get the tokenizer for the HF model.
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        Returns:
+            MegatronTokenizerBase: Tokenizer instance initialized from the HF model's tokenizer
+        """
+        from megatron.core.tokenizers import MegatronTokenizer
+
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "starcoder"},
+            trust_remote_code=True,
+        )
 
     @property
     def config(self) -> SSMConfig:
@@ -656,10 +660,14 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         """
         Loads the tokenizer from the specified path.
         Returns:
-            AutoTokenizer: The tokenizer object.
+            MegatronTokenizerBase: The tokenizer object.
         """
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path="nvidia/Nemotron-H-8B-Base-8K",
+            metadata_path={"library": "huggingface", "model_type": "ssm"}
+            trust_remote_code=True)
 
     @property
     def config(self):

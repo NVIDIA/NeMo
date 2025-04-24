@@ -25,13 +25,11 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from transformers import Starcoder2Config as HFStarcoder2Config
     from transformers import Starcoder2ForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -117,7 +115,7 @@ class Starcoder2Model(GPTModel):
         self,
         config: Annotated[Optional[Starcoder2Config], Config[Starcoder2Config]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
@@ -223,16 +221,19 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """
         Get the tokenizer for the HF model.
 
         Returns:
-            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+            MegatronTokenizerBase: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "starcoder2"},
+        )
 
     @property
     def config(self) -> Starcoder2Config:
@@ -383,7 +384,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
         Get the tokenizer from the NeMo model.
 
         Returns:
-            TokenizerSpec: Tokenizer from the NeMo model
+            MegatronTokenizerBase: Tokenizer from the NeMo model
         """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 

@@ -21,11 +21,12 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 import torch
 from torch import nn
 
-from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.utils import logging
+
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from transformers import BertConfig as HFBertConfig
@@ -108,7 +109,7 @@ class HuggingFaceBertModel(BertModel):
         self,
         config: Annotated[Optional[BertConfig], Config[BertConfig]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or BertConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
@@ -220,11 +221,16 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """Retrieve Tokenizer from HF"""
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        bos_token = "<pad>"
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "t5"},
+            bos_token=bos_token,
+        )
 
     @property
     def config(self) -> BertConfig:

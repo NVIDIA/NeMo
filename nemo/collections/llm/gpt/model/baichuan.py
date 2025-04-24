@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+    from nemo.collections.common.tokenizers.tokenizer_spec import MegatronTokenizerBase
 
 
 @dataclass
@@ -77,7 +77,7 @@ class Baichuan2Model(GPTModel):
         self,
         config: Annotated[Optional[Baichuan2Config], Config[Baichuan2Config]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
@@ -164,16 +164,20 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """
         Get the tokenizer for the HF model.
 
         Returns:
-            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+            MegatronTokenizerBase: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "baichuan"},
+            trust_remote_code=True,
+        )
 
     @property
     def config(self) -> Baichuan2Config:
@@ -300,7 +304,7 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
         Get the tokenizer from the NeMo model.
 
         Returns:
-            TokenizerSpec: Tokenizer from the NeMo model
+            MegatronTokenizerBase: Tokenizer from the NeMo model
         """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 

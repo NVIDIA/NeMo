@@ -24,6 +24,7 @@ import yaml
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
+from megatron.core.tokenizers import MegatronTokenizerBase
 from safetensors.torch import load_file
 from torch import nn
 
@@ -44,9 +45,6 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
     from transformers import AutoModelForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -202,7 +200,7 @@ class DeepSeekModel(GPTModel):
         self,
         config: Optional[DeepSeekConfig] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
@@ -378,10 +376,14 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         )
 
     @cached_property
-    def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    def tokenizer(self) -> "MegatronTokenizerBase":
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), use_fast=True)
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "deepseek"},
+            use_fast=True,
+        )
 
     @cached_property
     def config(self) -> DeepSeekConfig:

@@ -25,11 +25,10 @@ from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.optim import OptimizerModule
 
+from megatron.core.tokenizers import MegatronTokenizerBase
+
 if TYPE_CHECKING:
     from transformers import MixtralForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -129,7 +128,7 @@ class MixtralModel(GPTModel):
         self,
         config: Optional[Union[MixtralConfig8x7B, MixtralConfig8x22B]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         """Mcore-based MixtralModel ctor"""
@@ -198,11 +197,19 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
-        """Configures tokenizer"""
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    def tokenizer(self) -> "MegatronTokenizerBase":
+        """
+        Get the tokenizer for the HF model.
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        Returns:
+            MegatronTokenizerBase: Tokenizer instance initialized from the HF model's tokenizer
+        """
+        from megatron.core.tokenizers import MegatronTokenizer
+
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "mixtral"},
+        )
 
     @property
     def config(self) -> MixtralConfig8x7B | MixtralConfig8x22B:

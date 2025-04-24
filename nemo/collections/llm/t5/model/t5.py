@@ -27,6 +27,7 @@ from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 from transformers import T5Config as HFT5Config
 from transformers import T5ForConditionalGeneration
@@ -38,10 +39,6 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 from nemo.utils.import_utils import safe_import
 
 _, HAVE_TE = safe_import("transformer_engine")
-
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -278,7 +275,7 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         config: T5Config,
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
@@ -441,14 +438,17 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
         )
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """Retrieve Tokenizer from HF"""
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
+        from megatron.core.tokenizers import MegatronTokenizer
         # Set special tokens to match HF
         bos_token = "<pad>"
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), bos_token=bos_token)
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "t5"},
+            bos_token=bos_token,
+        )
 
     @property
     def config(self) -> T5Config:
