@@ -71,6 +71,7 @@ EOF
 
 WORKDIR /workspace
 RUN \
+  --mount=type=bind,source=external/patches,target=/tmp/NeMo/external/patches \
   --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
   --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te \
   --mount=type=bind,source=requirements,target=/tmp/NeMo/requirements \
