@@ -117,9 +117,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={
-            # "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"
-        },
+        custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,

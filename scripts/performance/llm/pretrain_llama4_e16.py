@@ -108,6 +108,12 @@ if __name__ == "__main__":
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
+    # Workaround for CUDA graph illegal memory access error
+    if not enable_cuda_graphs:
+        custom_env_vars = {"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
+    else:
+        custom_env_vars = {}
+
     executor = slurm_executor(
         args.account,
         args.partition,
@@ -117,7 +123,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"},
+        custom_env_vars=custom_env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
