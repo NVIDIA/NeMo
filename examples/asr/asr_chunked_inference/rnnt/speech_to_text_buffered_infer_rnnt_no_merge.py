@@ -88,6 +88,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from tqdm.auto import tqdm
 
 
 def load_audio(file_path, target_sr=16000):
@@ -297,15 +298,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     chunk_ctx_encoder_frames = sec_to_spec_frames(cfg.chunk_len_in_secs) // cfg.model_stride
     logging.info(f"Encoder ctx: {left_ctx_encoder_frames=}, {chunk_ctx_encoder_frames=}, {right_ctx_encoder_frames=}")
 
-    left_ctx_audio_frames = int(left_ctx_encoder_frames * cfg.model_stride * feature_stride) * audio_sample_rate
-    right_ctx_audio_frames = int(right_ctx_encoder_frames * cfg.model_stride * feature_stride) * audio_sample_rate
-    chunk_ctx_audio_frames = int(chunk_ctx_encoder_frames * cfg.model_stride * feature_stride) * audio_sample_rate
+    left_ctx_audio_frames = int(left_ctx_encoder_frames * cfg.model_stride * feature_stride * audio_sample_rate)
+    right_ctx_audio_frames = int(right_ctx_encoder_frames * cfg.model_stride * feature_stride * audio_sample_rate)
+    chunk_ctx_audio_frames = int(chunk_ctx_encoder_frames * cfg.model_stride * feature_stride * audio_sample_rate)
     logging.info(f"Audio ctx: {left_ctx_audio_frames=}, {chunk_ctx_audio_frames=}, {right_ctx_audio_frames=}")
+    logging.info(f"Computed latency: {chunk_ctx_encoder_frames+right_ctx_encoder_frames} encoder frames |" f"...")
 
     with torch.no_grad(), torch.inference_mode():
         streaming_transcripts = []
         all_hyps = []
-        for i in range(0, len(records), cfg.batch_size):
+        for i in tqdm(range(0, len(records), cfg.batch_size)):
             audio_batch, audio_batch_lengths = get_audio_batch(
                 [record["audio_filepath"] for record in records[i : i + cfg.batch_size]], device=map_location
             )
