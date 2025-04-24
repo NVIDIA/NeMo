@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-mkdir -p /tmp/llm_tests/llama_local_ckpt_results \
+mkdir -p /tmp/llm_tests/llama_local_ckpt_results
+
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/test_local_ckpt.py \
     --devices=2 \
     --log-dir=/tmp/llm_tests/llama_local_ckpt_results \
