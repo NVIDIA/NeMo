@@ -106,7 +106,6 @@ def test_loop_labels_decoding_streaming(
 
     streaming_transcripts = []
     decoding_computer: GreedyBatchedLoopLabelsComputerBase = model.decoding.decoding._decoding_computer
-    decoding_computer.disable_cuda_graphs()
     with torch.no_grad(), torch.inference_mode():
         for i in range(0, len(manifest), batch_size):
             records = manifest[i : i + batch_size]
