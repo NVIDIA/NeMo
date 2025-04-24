@@ -19,7 +19,7 @@ on:
     branches:
       - main
       - r**
-      - weekly-bump
+      - weekly-bump*
     types: [labeled]
   push:
     branches:
@@ -1807,21 +1807,21 @@ jobs:
       SCRIPT: L2_NeMo_2_Export_In_Framework
 
   L2_NeMo_2_Export_Deploy_Query_In_Framework:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Export_Deploy_Query_In_Framework')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Export_Deploy_Query_In_Framework
-  
+
   L2_ONNX_TRT_LLM_Embedding_Export:
-    needs: [ pre-flight, cicd-test-container-build ]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ONNX_TRT_LLM_Embedding_Export')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_ONNX_TRT_LLM_Embedding_Export
-  
+
   L2_NeMo_2_Export_TRT_LLM:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
