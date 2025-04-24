@@ -75,11 +75,7 @@ def get_adapter_attributes_from_linear(m: nn.Module):
     disable_sequence_parallel_comm = not m.config.sequence_parallel
 
     # check if open overlap for share expert
-    moe_shared_expert_overlap = (
-        True
-        if is_share_expert_linear(m) and m.config.moe_shared_expert_overlap
-        else False
-    )
+    moe_shared_expert_overlap = True if is_share_expert_linear(m) and m.config.moe_shared_expert_overlap else False
 
     if HAVE_TE and any(isinstance(m, te_column_parallel) for te_column_parallel in TECL):
         input_is_parallel = False
