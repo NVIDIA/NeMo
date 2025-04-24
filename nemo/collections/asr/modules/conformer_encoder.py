@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# pylint: disable=E1101,R0902,R0912,R0913,R0914,R0901,C0302,R0915,C0114
+
 import math
 import random
 from collections import OrderedDict
@@ -48,6 +48,7 @@ from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
+    BoolType,
     ChannelType,
     LengthsType,
     LogitsType,
@@ -164,6 +165,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         use_pytorch_sdpa_backends (list[str]): list of backend names to use in sdpa.
             None or empty list means all backends. e.g. ["MATH"]
             Defaults to None.
+        bypass_pre_encode: if True, skip the pre-encoder module and the `audio_signal` should be pre-encoded
+            embeddings. The `audio_signal` input supports two formats depending on the `bypass_pre_encode`
+            boolean flag. This determines the required format of the input variable `audio_signal`.
+            Defaults to `bypass_pre_encode=False`. `bypass_pre_encode=True` is used for the cases
+            where frame-level, context-independent embeddings are needed to be saved or reused.
+            (e.g., speaker cache in streaming speaker diarization)
         sync_max_audio_length (bool): when true, performs NCCL all_reduce to allocate the same amount of memory for
             positional encoding buffers on all GPUs. Disabling this setting may help with deadlocks in certain
             scenarios such as model parallelism, or generally when this module is not being ran on some GPUs
@@ -222,7 +229,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
-                "pre_encode_input": NeuralType(tuple(), LogitsType(), optional=True),
+                "bypass_pre_encode": NeuralType(tuple(), BoolType(), optional=True),
             }
         )
 
@@ -236,7 +243,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
-                "pre_encode_input": NeuralType(tuple(), LogitsType(), optional=True),
+                "bypass_pre_encode": NeuralType(tuple(), BoolType(), optional=True),
             }
         )
 
@@ -547,29 +554,31 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         cache_last_channel=None,
         cache_last_time=None,
         cache_last_channel_len=None,
-        pre_encode_input=False,
+        bypass_pre_encode=False,
     ):
         """
-        Forward function for the ConformerEncoder accepting an audio signal and its length.
-        Note that audio_signal format can be two different types.
-        `pre_encode_input` is a boolean indicating whether the input audio_signal should be pre-encoded.
-            (1) pre_encode_input = False (default):
-                audio_signal is a tensor of shape (batch, time, self._feat_in)
-            (2) pre_encode_input = True:
-                audio_signal is a tensor of shape (batch, time, self.d_model)
+        Forward function for the ConformerEncoder accepting an audio signal and its corresponding length.
+        The `audio_signal` input supports two formats depending on the `bypass_pre_encode` boolean flag.
+        This determines the required format of the input variable `audio_signal`:
+        (1) bypass_pre_encode = False (default):
+            `audio_signal` must be a tensor containing audio features.
+            Shape: (batch, self._feat_in, n_frames)
+        (2) bypass_pre_encode = True:
+            `audio_signal` must be a tensor containing pre-encoded embeddings.
+            Shape: (batch, n_frame, self.d_model)
         """
-        if pre_encode_input and audio_signal.shape[-1] != self.d_model:
+        if not bypass_pre_encode and audio_signal.shape[-2] != self._feat_in:
             raise ValueError(
-                f"If pre_encode_input is True, audio_signal should have shape "
-                f"(batch, time, {self.d_model}) but got last dimension {audio_signal.shape[-1]}."
+                f"If bypass_pre_encode is False, audio_signal should have shape "
+                f"(batch, {self._feat_in}, n_frame) but got last dimension {audio_signal.shape[-2]}."
             )
-        elif not pre_encode_input and audio_signal.shape[-1] != self._feat_in:
+        if bypass_pre_encode and audio_signal.shape[-1] != self.d_model:
             raise ValueError(
-                f"If pre_encode_input is False, audio_signal should have shape "
-                f"(batch, time, {self._feat_in}) but got last dimension {audio_signal.shape[-1]}."
+                f"If bypass_pre_encode is True, audio_signal should have shape "
+                f"(batch, n_frame, {self.d_model}) but got last dimension {audio_signal.shape[-1]}."
             )
 
-        if pre_encode_input:
+        if bypass_pre_encode:
             self.update_max_seq_length(
                 seq_length=audio_signal.size(2) * self.subsampling_factor, device=audio_signal.device
             )
@@ -581,7 +590,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             cache_last_channel_len=cache_last_channel_len,
-            pre_encode_input=pre_encode_input,
+            bypass_pre_encode=bypass_pre_encode,
         )
 
     def forward_internal(
@@ -591,19 +600,20 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         cache_last_channel=None,
         cache_last_time=None,
         cache_last_channel_len=None,
-        pre_encode_input=False,
+        bypass_pre_encode=False,
     ):
         """
-        Forward function for the ConformerEncoder accepting an audio signal and its length.
-        Note that audio_signal format can be two different types.
-        `pre_encode_input` is a boolean indicating whether the input audio_signal should be pre-encoded.
-            (1) pre_encode_input = False (default):
-                audio_signal is a tensor of shape (batch, time, self._feat_in)
-            (2) pre_encode_input = True:
-                audio_signal is a tensor of shape (batch, time, self.d_model)
+        The `audio_signal` input supports two formats depending on the `bypass_pre_encode` boolean flag.
+        This determines the required format of the input variable `audio_signal`:
+        (1) bypass_pre_encode = False (default):
+            `audio_signal` must be a tensor containing audio features.
+            Shape: (batch, self._feat_in, n_frames)
+        (2) bypass_pre_encode = True:
+            `audio_signal` must be a tensor containing pre-encoded embeddings.
+            Shape: (batch, n_frame, self.d_model)
 
-        `pre_encode_input=True` is used for cases where attention-free embeddings are needed to be
-        saved or reused. (e.g., speaker cache in streaming speaker diarization)
+        `bypass_pre_encode=True` is used in cases where frame-level, context-independent embeddings are
+        needed to be saved or reused (e.g., speaker cache in streaming speaker diarization).
         """
         if length is None:
             length = audio_signal.new_full(
@@ -617,7 +627,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         else:
             cur_att_context_size = self.att_context_size
 
-        if not pre_encode_input:
+        if not bypass_pre_encode:
             audio_signal = torch.transpose(audio_signal, 1, 2)
 
             if isinstance(self.pre_encode, nn.Linear):
@@ -625,7 +635,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             else:
                 audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
                 length = length.to(torch.int64)
-                # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
+                # `self.streaming_cfg` is set by setup_streaming_cfg(), called in the init
                 if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
                     audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
                     length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
