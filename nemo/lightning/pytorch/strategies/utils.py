@@ -36,6 +36,7 @@ from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, 
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
+from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
@@ -454,6 +455,7 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
+    use_hf_tp_plan: bool = False,
     tp_shard_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
     offload_policy: 'CPUOffloadPolicy' = None,
 ):
@@ -474,34 +476,7 @@ def fsdp2_strategy_parallelize(
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
     NOTE: Currently, the user should make sure that custom_tp_plan is compatible with the model architecture.
     """
-    print(model._tp_plan)
-    if model._tp_plan is not None:
-        tp_shard_plan = model._tp_plan
-        module_to_tp = model.get_submodule(param_name)
-        current_module_plan = None
-        rank = int(rank)
-        generic_param_name = re.sub(r"\d+", "*", parameter_name)
-        if generic_param_name in tp_plan:
-            current_module_plan = tp_plan[generic_param_name]
-        elif "." in generic_param_name and generic_param_name.rsplit(".", 1)[0] in tp_plan:
-            current_module_plan = tp_plan[generic_param_name.rsplit(".", 1)[0]]
 
-        # Add hooks to the module if not done yet
-        # add_tensor_parallel_hooks_to_module(model, module_to_tp, tp_plan, param_name, current_module_plan, device_mesh)
-        if not getattr(module_to_tp, "_is_hooked", False):
-            add_tensor_parallel_hooks_to_module(model, module_to_tp, tp_plan, param_name, current_module_plan, device_mesh)
-            module_to_tp._is_hooked = True
-
-        if current_module_plan is not None:
-            try:
-                tp_layer = translate_to_torch_parallel_style(current_module_plan)
-                param = tp_layer.partition_tensor(
-                    param, empty_param, param_type, param_casting_dtype, is_contiguous, rank, device_mesh
-                )
-            except NotImplementedError as e:
-                print(
-                    f"Trying to prepare {parameter_name}, but it's not supported. Corresponding module: {module_to_tp} Fix it's TP plan, current layer: {tp_layer} : {e}"
-                )
     if not mp_policy:
         assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
         mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
@@ -535,6 +510,8 @@ def fsdp2_strategy_parallelize(
 
     # TP sharding
     if tp_mesh.size() > 1:
+        if tp_shard_plan is None and use_hf_tp_plan:
+            tp_shard_plan = get_hf_tp_shard_plan(model)
         parallelize_module(model, tp_mesh, tp_shard_plan)
 
     # FSDP sharding
@@ -551,6 +528,20 @@ def fsdp2_strategy_parallelize(
     )
 
     return model
+
+
+def get_hf_tp_shard_plan(model):
+    """
+    Get the tensor parallel sharding plan from the model.
+    """
+    hf_tp_shard_plan = {}
+    if hasattr(model, '_tp_plan') and model._tp_plan is not None:
+        hf_tp_shard_plan.update(model._tp_plan)
+    if hasattr(model.model, '_tp_plan') and model.model._tp_plan is not None:
+        hf_tp_shard_plan.update({f"model.{k}": v for k, v in model.model._tp_plan.items()})
+
+    hf_tp_shard_plan = {k: translate_to_torch_parallel_style(v) for k, v in hf_tp_shard_plan.items()}
+    return hf_tp_shard_plan
 
 
 @lru_cache
@@ -571,16 +562,6 @@ def translate_to_torch_parallel_style(style: str):
         return ColwiseParallel(output_layouts=Replicate())
     elif style == "rowwise_rep":
         return RowwiseParallel(input_layouts=Replicate())
-    # elif style == "local_colwise":
-    #     return ColwiseParallel(use_dtensor=False)
-    # elif style == "local_rowwise":
-    #     return RowwiseParallel(use_dtensor=False)
-    # elif style == "local":
-    #     return IsolatedParallel()
-    # elif style == "gather":
-    #     return GatherParallel()
-    # elif style == "local_packed_rowwise":
-    #     return PackedRowwiseParallel(use_dtensor=False)
     elif style == "sequence_parallel":
         return SequenceParallel()
     else:
