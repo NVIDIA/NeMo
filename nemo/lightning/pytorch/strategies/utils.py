@@ -16,6 +16,7 @@ import contextlib
 import io
 import signal
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Tuple, Union, cast
 
@@ -473,7 +474,34 @@ def fsdp2_strategy_parallelize(
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
     NOTE: Currently, the user should make sure that custom_tp_plan is compatible with the model architecture.
     """
+    print(model._tp_plan)
+    if model._tp_plan is not None:
+        tp_shard_plan = model._tp_plan
+        module_to_tp = model.get_submodule(param_name)
+        current_module_plan = None
+        rank = int(rank)
+        generic_param_name = re.sub(r"\d+", "*", parameter_name)
+        if generic_param_name in tp_plan:
+            current_module_plan = tp_plan[generic_param_name]
+        elif "." in generic_param_name and generic_param_name.rsplit(".", 1)[0] in tp_plan:
+            current_module_plan = tp_plan[generic_param_name.rsplit(".", 1)[0]]
 
+        # Add hooks to the module if not done yet
+        # add_tensor_parallel_hooks_to_module(model, module_to_tp, tp_plan, param_name, current_module_plan, device_mesh)
+        if not getattr(module_to_tp, "_is_hooked", False):
+            add_tensor_parallel_hooks_to_module(model, module_to_tp, tp_plan, param_name, current_module_plan, device_mesh)
+            module_to_tp._is_hooked = True
+
+        if current_module_plan is not None:
+            try:
+                tp_layer = translate_to_torch_parallel_style(current_module_plan)
+                param = tp_layer.partition_tensor(
+                    param, empty_param, param_type, param_casting_dtype, is_contiguous, rank, device_mesh
+                )
+            except NotImplementedError as e:
+                print(
+                    f"Trying to prepare {parameter_name}, but it's not supported. Corresponding module: {module_to_tp} Fix it's TP plan, current layer: {tp_layer} : {e}"
+                )
     if not mp_policy:
         assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
         mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
@@ -501,6 +529,7 @@ def fsdp2_strategy_parallelize(
     # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
     dp_mesh = device_mesh["context_parallel" if device_mesh["context_parallel"].size() > 1 else "data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
+
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
@@ -523,6 +552,39 @@ def fsdp2_strategy_parallelize(
 
     return model
 
+
+@lru_cache
+def translate_to_torch_parallel_style(style: str):
+    """
+    In model configurations, we use a neutral type (string) to specify parallel
+    styles, here we translate them into torch.distributed tensor-parallel
+    types.
+    """
+    if not isinstance(style, str):
+        raise ValueError(f"Unsupported parallel style type {type(style)}, expected str")
+
+    if style == "colwise":
+        return ColwiseParallel()
+    elif style == "rowwise":
+        return RowwiseParallel()
+    elif style == "colwise_rep":
+        return ColwiseParallel(output_layouts=Replicate())
+    elif style == "rowwise_rep":
+        return RowwiseParallel(input_layouts=Replicate())
+    # elif style == "local_colwise":
+    #     return ColwiseParallel(use_dtensor=False)
+    # elif style == "local_rowwise":
+    #     return RowwiseParallel(use_dtensor=False)
+    # elif style == "local":
+    #     return IsolatedParallel()
+    # elif style == "gather":
+    #     return GatherParallel()
+    # elif style == "local_packed_rowwise":
+    #     return PackedRowwiseParallel(use_dtensor=False)
+    elif style == "sequence_parallel":
+        return SequenceParallel()
+    else:
+        raise ValueError(f"Unsupported parallel style value: {style}")
 
 def to_cpu(v):
     """

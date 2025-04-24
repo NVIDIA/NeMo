@@ -142,25 +142,10 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-        if cp_size is None:
-            cp_size = 1
-            if dp_size is None:
-                dp_size = devices * num_nodes
-            else:
-                assert (
-                    dp_size == devices * num_nodes
-                ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
-        else:
-            if dp_size is None:
-                dp_size = 1
-                assert (
-                    cp_size == devices * num_nodes
-                ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
-            else:
-                assert (
-                    dp_size * cp_size == devices * num_nodes
-                ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
-        print(f"Using FSDP2 with DP={dp_size}, TP={1}, CP={cp_size}")
+            assert (
+                dp_size * tp_size * cp_size == devices * num_nodes
+            ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+        print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
@@ -197,7 +182,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B', help='Hugging Face model-id to use')
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-0.5B', help='Hugging Face model-id to use')
     parser.add_argument(
         '--strategy',
         type=str,
@@ -207,8 +192,8 @@ def main():
     )
     parser.add_argument('--devices', type=int, default=2, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
-    parser.add_argument('--dp-size', type=int, default=2, help='Data Parallel size; to be used with fsdp2')
-    parser.add_argument('--tp-size', type=int, default=1, help='Tensor Parallel size; to be used with fsdp2')
+    parser.add_argument('--dp-size', type=int, default=1, help='Data Parallel size; to be used with fsdp2')
+    parser.add_argument('--tp-size', type=int, default=2, help='Tensor Parallel size; to be used with fsdp2')
     parser.add_argument('--cp-size', type=int, default=1, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument(
         '--sequence-parallel',
@@ -227,7 +212,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
-    parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
+    parser.add_argument('--wandb-project', type=str, default="automodel-tp", help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
