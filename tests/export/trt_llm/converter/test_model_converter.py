@@ -13,11 +13,13 @@
 # limitations under the License.
 
 
+import pytest
 import torch
 
 from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, prompt_convert
 
 
+@pytest.mark.run_only_on('GPU')
 def test_determine_quantization_settings():
     # Test with default NeMo config (no fp8)
     nemo_config = {'fp8': False}
@@ -37,6 +39,7 @@ def test_determine_quantization_settings():
     assert fp8_kv
 
 
+@pytest.mark.run_only_on('GPU')
 def test_prompt_convert_task_templates():
     # Test with task templates
     prompt_config = {
@@ -59,6 +62,7 @@ def test_prompt_convert_task_templates():
     assert result.shape == (2, 3, 4)  # (num_tasks, max_length, embedding_dim)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_prompt_convert_direct_embeddings():
     # Test with direct embeddings
     prompt_config = {}

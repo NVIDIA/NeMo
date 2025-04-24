@@ -26,6 +26,7 @@ from nemo.export.trt_llm.converter.utils import (
 )
 
 
+@pytest.mark.run_only_on('GPU')
 def test_any_word_in_key():
     # Test positive cases
     assert any_word_in_key("model.layer1.attention.dense.weight", ["attention", "mlp"]) == True
@@ -36,6 +37,7 @@ def test_any_word_in_key():
     assert any_word_in_key("", ["attention", "mlp"]) == False
 
 
+@pytest.mark.run_only_on('GPU')
 def test_get_trt_llm_keyname():
     # Test final layernorm case
     assert get_trt_llm_keyname("final_layernorm.weight") == "transformer.ln_f.weight"
@@ -45,12 +47,14 @@ def test_get_trt_llm_keyname():
     assert get_trt_llm_keyname("layers.2.mlp.linear_fc2.weight") == "transformer.layers.2.mlp.proj.weight"
 
 
+@pytest.mark.run_only_on('GPU')
 def test_is_scaling_factor():
     assert is_scaling_factor("model.layer1.scale_fwd.weight") == True
     assert is_scaling_factor("model.layer1.weight") == False
     assert is_scaling_factor("") == False
 
 
+@pytest.mark.run_only_on('GPU')
 def test_get_scaling_factor_keys():
     key = "layers.1.mlp.dense_h_to_4h.scale_fwd"
     keys, gate_keys = get_scaling_factor_keys(key)
@@ -64,6 +68,7 @@ def test_get_scaling_factor_keys():
     assert gate_keys[1].endswith(".weights_scaling_factor")
 
 
+@pytest.mark.run_only_on('GPU')
 def test_split():
     # Test numpy array splitting
     arr = np.array([1, 2, 3, 4])
@@ -79,6 +84,7 @@ def test_split():
     assert np.array_equal(split(arr, tp_size=1, idx=0), arr)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_generate_int8():
     # Create test weights and activation ranges
     weights = np.random.randn(4, 4).astype(np.float32)

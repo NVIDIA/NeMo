@@ -25,6 +25,7 @@ from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
 )
 
 
+@pytest.mark.run_only_on('GPU')
 def test_rename_key():
     # Test basic self_attention replacement
     assert rename_key("self_attention.weight") == "attention.weight"
@@ -39,6 +40,7 @@ def test_rename_key():
     assert rename_key("some_other_key") == "some_other_key"
 
 
+@pytest.mark.run_only_on('GPU')
 def test_rename_key_dist_ckpt():
     # Test key with layers
     assert rename_key_dist_ckpt("layers.linear_qkv.weight", 0) == "layers.0.linear_qkv.weight"
@@ -48,6 +50,7 @@ def test_rename_key_dist_ckpt():
     assert rename_key_dist_ckpt("embedding.weight", 0) == "embedding.weight"
 
 
+@pytest.mark.run_only_on('GPU')
 def test_get_layer_prefix():
     # Test for mcore model
     layer_names_mcore = [
@@ -70,6 +73,7 @@ def test_get_layer_prefix():
     assert transformer_prefix == "model.encoder."
 
 
+@pytest.mark.run_only_on('GPU')
 def test_rename_layer_num():
     # Test basic layer number replacement
     assert rename_layer_num("model.layers.0.attention.weight", 1) == "model.layers.1.attention.weight"
@@ -79,6 +83,7 @@ def test_rename_layer_num():
     assert rename_layer_num("model.layers.0.attention.head.8.weight", 3) == "model.layers.3.attention.head.8.weight"
 
 
+@pytest.mark.run_only_on('GPU')
 def test_get_layer_num():
     assert get_layer_num("model.layers.0.attention.weight") == 0
     assert get_layer_num("decoder.layers.5.mlp.weight") == 5
@@ -87,12 +92,14 @@ def test_get_layer_num():
         get_layer_num("model.attention.weight")  # No layers component
 
 
+@pytest.mark.run_only_on('GPU')
 def test_is_scaling_factor():
     assert is_scaling_factor("layer.extra_state.weight") == True
     assert is_scaling_factor("layer.weight") == False
     assert is_scaling_factor("extra_state") == True
 
 
+@pytest.mark.run_only_on('GPU')
 def test_create_export_dir(tmp_path):
     from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import create_export_dir
 
