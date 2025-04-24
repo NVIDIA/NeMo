@@ -83,6 +83,40 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
+    GreedyBatchedLoopLabelsComputerBase,
+)
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.asr.parts.utils.rnnt_utils import BatchedGreedyDecodingState, batched_hyps_to_hypotheses
+
+
+def load_audio(file_path, target_sr=16000):
+    import librosa
+
+    audio, sr = librosa.load(file_path, sr=target_sr)
+    return torch.tensor(audio, dtype=torch.float32), sr
+
+
+def get_audio_batch(
+    test_audio_filenames,
+    device: torch.device = torch.device("cpu"),
+    dtype: torch.dtype = torch.float32,
+):
+    audio_filepaths = test_audio_filenames
+
+    with torch.no_grad():
+        all_inputs, all_lengths = [], []
+        for audio_file in audio_filepaths:
+            audio_tensor, _ = load_audio(audio_file)
+            all_inputs.append(audio_tensor)
+            all_lengths.append(torch.tensor(audio_tensor.shape[0], dtype=torch.int64))
+
+        input_batch = torch.nn.utils.rnn.pad_sequence(all_inputs, batch_first=True).to(device=device, dtype=dtype)
+        length_batch = torch.tensor(all_lengths, dtype=torch.int64).to(device)
+
+    return input_batch, length_batch
 
 
 @dataclass
@@ -113,7 +147,9 @@ class TranscriptionConfig:
 
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
+    left_context_secs: float = 10.0
+    right_context_secs: float = 1.6
+    # total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
     model_stride: int = (
         8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
     )
@@ -224,7 +260,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     with open_dict(cfg.decoding):
         cfg.decoding.strategy = "greedy_batch"
         cfg.decoding.greedy.use_cuda_graph_decoder = False  # TODO: fix CUDA graph decoding
-        cfg.decoding.preserve_alignments = True  # required to compute the middle token for transducers.
+        cfg.decoding.preserve_alignments = False
         cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
         cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
 
@@ -242,50 +278,126 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.change_decoding_strategy(cfg.decoding, decoder_type='rnnt')
 
     feature_stride = model_cfg.preprocessor['window_stride']
-    model_stride_in_secs = feature_stride * cfg.model_stride
-    total_buffer = cfg.total_buffer_in_secs
-    chunk_len = float(cfg.chunk_len_in_secs)
+    assert manifest is not None
+    records = read_manifest(manifest)
+    asr_model.preprocessor.featurizer.dither = 0.0
+    asr_model.preprocessor.featurizer.pad_to = 0
+    asr_model.eval()
+    decoding_computer: GreedyBatchedLoopLabelsComputerBase = asr_model.decoding.decoding._decoding_computer
+    decoding_computer.disable_cuda_graphs()  # TODO: fix
 
-    tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
-    mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
-    logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
+    audio_sample_rate = 16000
 
-    if cfg.merge_algo == 'middle':
-        frame_asr = BatchedFrameASRRNNT(
-            asr_model=asr_model,
-            frame_len=chunk_len,
-            total_buffer=cfg.total_buffer_in_secs,
-            batch_size=cfg.batch_size,
-            max_steps_per_timestep=cfg.max_steps_per_timestep,
-            stateful_decoding=cfg.stateful_decoding,
-        )
+    def make_divisible_by(x, factor=8):
+        return (x // factor) * factor
 
-    elif cfg.merge_algo == 'lcs':
-        frame_asr = LongestCommonSubsequenceBatchedFrameASRRNNT(
-            asr_model=asr_model,
-            frame_len=chunk_len,
-            total_buffer=cfg.total_buffer_in_secs,
-            batch_size=cfg.batch_size,
-            max_steps_per_timestep=cfg.max_steps_per_timestep,
-            stateful_decoding=cfg.stateful_decoding,
-            alignment_basepath=cfg.lcs_alignment_dir,
-        )
-        # Set the LCS algorithm delay.
-        frame_asr.lcs_delay = math.floor(((total_buffer - chunk_len)) / model_stride_in_secs)
+    def sec_to_spec_frames(seconds: float, sample_rate=audio_sample_rate):
+        return make_divisible_by(int(seconds / feature_stride), factor=cfg.model_stride)
 
-    else:
-        raise ValueError("Invalid choice of merge algorithm for transducer buffered inference.")
+    left_ctx_encoder_frames = sec_to_spec_frames(cfg.left_context_secs) // cfg.model_stride
+    right_ctx_encoder_frames = sec_to_spec_frames(cfg.right_context_secs) // cfg.model_stride
+    chunk_ctx_encoder_frames = sec_to_spec_frames(cfg.chunk_len_in_secs) // cfg.model_stride
+    logging.info(f"Encoder ctx: {left_ctx_encoder_frames=}, {chunk_ctx_encoder_frames=}, {right_ctx_encoder_frames=}")
 
-    hyps = get_buffered_pred_feat_rnnt(
-        asr=frame_asr,
-        tokens_per_chunk=tokens_per_chunk,
-        delay=mid_delay,
-        model_stride_in_secs=model_stride_in_secs,
-        batch_size=cfg.batch_size,
-        manifest=manifest,
-        filepaths=filepaths,
-        accelerator=accelerator,
-    )
+    left_ctx_audio_frames = int(left_ctx_encoder_frames * cfg.model_stride * feature_stride) * audio_sample_rate
+    right_ctx_audio_frames = int(right_ctx_encoder_frames * cfg.model_stride * feature_stride) * audio_sample_rate
+    chunk_ctx_audio_frames = int(chunk_ctx_encoder_frames * cfg.model_stride * feature_stride) * audio_sample_rate
+    logging.info(f"Audio ctx: {left_ctx_audio_frames=}, {chunk_ctx_audio_frames=}, {right_ctx_audio_frames=}")
+
+    with torch.no_grad(), torch.inference_mode():
+        streaming_transcripts = []
+        all_hyps = []
+        for i in range(0, len(records), cfg.batch_size):
+            audio_batch, audio_batch_lengths = get_audio_batch(
+                [record["audio_filepath"] for record in records[i : i + cfg.batch_size]], device=map_location
+            )
+            logging.warning(f"{audio_batch.shape=}")
+            hyps = None
+            state: Optional[BatchedGreedyDecodingState] = None
+            for t in range(
+                0,
+                audio_batch.shape[1] + (left_ctx_audio_frames + chunk_ctx_audio_frames - 1),
+                (left_ctx_audio_frames + chunk_ctx_audio_frames),
+            ):
+                left = max(t - left_ctx_audio_frames, 0)
+                right = min(t + (chunk_ctx_audio_frames + right_ctx_audio_frames), audio_batch.shape[1])
+                current_audio_chunk_len = torch.where(
+                    right < audio_batch_lengths,
+                    torch.full_like(audio_batch_lengths, fill_value=right - left),
+                    torch.maximum(audio_batch_lengths - left, torch.zeros_like(audio_batch_lengths)),
+                )
+                print(f"Audio of {current_audio_chunk_len}")
+                encoder_output, encoder_ouptut_len = asr_model(
+                    input_signal=audio_batch[:, left:right],
+                    input_signal_length=current_audio_chunk_len,
+                )
+                # TODO: fix shapes
+                crop_left = int((t - left) // audio_sample_rate // cfg.model_stride / feature_stride)
+                encoder_output = encoder_output.transpose(1, 2)
+                encoder_chunk = encoder_output[:, crop_left : crop_left + chunk_ctx_encoder_frames]
+                batched_hyps, _, state = decoding_computer(
+                    x=encoder_chunk,
+                    out_len=torch.full_like(encoder_ouptut_len, fill_value=encoder_chunk.shape[1]),  # TODO: fix
+                    prev_batched_state=state,
+                )
+                new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
+                if hyps is not None:
+                    for hyp, new_hyp in zip(hyps, new_hyps):
+                        hyp.y_sequence.extend(new_hyp.y_sequence.tolist())
+                else:
+                    hyps = new_hyps
+                    for hyp in hyps:
+                        hyp.y_sequence = hyp.y_sequence.tolist()
+            all_hyps.extend(hyps)
+    for hyp in all_hyps:
+        text = asr_model.tokenizer.ids_to_text(hyp.y_sequence)
+        hyp.text = text
+        streaming_transcripts.append(text)
+    print(streaming_transcripts)
+    # model_stride_in_secs = feature_stride * cfg.model_stride
+    # total_buffer = cfg.total_buffer_in_secs
+    # chunk_len = float(cfg.chunk_len_in_secs)
+    #
+    # tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
+    # mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
+    # logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
+
+    # if cfg.merge_algo == 'middle':
+    #     frame_asr = BatchedFrameASRRNNT(
+    #         asr_model=asr_model,
+    #         frame_len=chunk_len,
+    #         total_buffer=cfg.total_buffer_in_secs,
+    #         batch_size=cfg.batch_size,
+    #         max_steps_per_timestep=cfg.max_steps_per_timestep,
+    #         stateful_decoding=cfg.stateful_decoding,
+    #     )
+    #
+    # elif cfg.merge_algo == 'lcs':
+    #     frame_asr = LongestCommonSubsequenceBatchedFrameASRRNNT(
+    #         asr_model=asr_model,
+    #         frame_len=chunk_len,
+    #         total_buffer=cfg.total_buffer_in_secs,
+    #         batch_size=cfg.batch_size,
+    #         max_steps_per_timestep=cfg.max_steps_per_timestep,
+    #         stateful_decoding=cfg.stateful_decoding,
+    #         alignment_basepath=cfg.lcs_alignment_dir,
+    #     )
+    #     # Set the LCS algorithm delay.
+    #     frame_asr.lcs_delay = math.floor(((total_buffer - chunk_len)) / model_stride_in_secs)
+    #
+    # else:
+    #     raise ValueError("Invalid choice of merge algorithm for transducer buffered inference.")
+    #
+    # hyps = get_buffered_pred_feat_rnnt(
+    #     asr=frame_asr,
+    #     tokens_per_chunk=tokens_per_chunk,
+    #     delay=mid_delay,
+    #     model_stride_in_secs=model_stride_in_secs,
+    #     batch_size=cfg.batch_size,
+    #     manifest=manifest,
+    #     filepaths=filepaths,
+    #     accelerator=accelerator,
+    # )
 
     output_filename, pred_text_attr_name = write_transcription(
         hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
