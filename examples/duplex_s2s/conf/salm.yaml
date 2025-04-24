@@ -10,6 +10,8 @@ model:
   pretrained_llm: nvidia/Llama-3.1-Nemotron-Nano-8B-v1
   pretrained_asr: nvidia/canary-1b-flash
 
+  pretrained_weights: True  # When False, we use pretrained_name to load the architecture, but with random init
+
   freeze_llm: true
   freeze_asr: true
 

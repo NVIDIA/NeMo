@@ -11,24 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import builtins
-import os
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from itertools import chain
-from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import hydra
 import sacrebleu
 import torch
-from huggingface_hub import CONFIG_NAME, PyTorchModelHubMixin
 from lightning import LightningModule
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from torch import Tensor
-from torch.distributed import init_device_mesh
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 from torch.distributed.tensor import Replicate, Shard
 from torch.distributed.tensor.parallel import (
@@ -39,26 +33,21 @@ from torch.distributed.tensor.parallel import (
     loss_parallel,
     parallelize_module,
 )
-from transformers import AutoModel, AutoModelForCausalLM, DynamicCache
-from transformers.utils import cached_file
+from transformers import DynamicCache
 from whisper_normalizer.english import EnglishTextNormalizer
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
+from nemo.collections.duplex_s2s.parts.hf_hub import HFHubMixin
+from nemo.collections.duplex_s2s.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
-class DuplexS2SModel(
-    LightningModule,
-    PyTorchModelHubMixin,
-    library_name="NeMo",
-    repo_url="https://github.com/NVIDIA/NeMo",
-    docs_url="https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit",
-):
+class DuplexS2SModel(LightningModule, HFHubMixin):
     def __init__(self, cfg: dict) -> None:
         assert isinstance(cfg, dict), (
             "You must pass the config to DuplexS2SModel as a Python dict to support hyperparameter serialization "
@@ -68,7 +57,13 @@ class DuplexS2SModel(
         self.save_hyperparameters()
         self.cfg = DictConfig(cfg)
 
-        self.audio_codec = _load_pretrained(AudioCodecModel, self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
+        self.audio_codec = (
+            load_pretrained_nemo(
+                AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
+            )
+            .to(torch.bfloat16)
+            .eval()
+        )
         del self.audio_codec.discriminator  # free up some memory
         self._codebook_size = self.audio_codec.vector_quantizer.codebook_size_per_group
         self._num_codebooks = self.audio_codec.vector_quantizer.num_groups
@@ -78,7 +73,11 @@ class DuplexS2SModel(
         # However, for S2S we need to access the activations before LM head directly
         # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
-        llm = AutoModelForCausalLM.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
+        llm = (
+            load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)
+            .to(torch.bfloat16)
+            .train()
+        )
         self.llm = llm.model  # fetch PretrainedBaseModel from model "ForCausalLM"
         self.lm_head = llm.lm_head
         # Note: we have to "move out" the token embedding outside of LLM to avoid
@@ -87,7 +86,9 @@ class DuplexS2SModel(
         del self.llm.embed_tokens
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        asr = _load_pretrained(ASRModel, self.cfg.pretrained_asr).eval()
+        asr = load_pretrained_nemo(
+            ASRModel, self.cfg.pretrained_asr, pretrained_weights=self.cfg.pretrained_weights
+        ).eval()
         with open_dict(self.cfg):
             self.cfg.perception.preprocessor = asr.cfg.preprocessor
             self.cfg.perception.encoder = asr.cfg.encoder
@@ -665,64 +666,6 @@ class DuplexS2SModel(
             #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
             # self.perception = checkpoint_wrapper(self.perception)
             self.perception = fully_shard(self.perception, **fsdp_config)
-
-    @classmethod
-    def _from_pretrained(
-        cls,
-        *,
-        model_id: str,
-        revision: Optional[str],
-        cache_dir: Optional[Union[str, Path]],
-        force_download: bool,
-        proxies: Optional[dict],
-        resume_download: Optional[bool],
-        local_files_only: bool,
-        token: Union[str, bool, None],
-        map_location: str = "cpu",
-        strict: bool = False,
-        **model_kwargs,
-    ):
-        """
-        Load Pytorch pretrained weights and return the loaded model.
-        Wrapper over PyTorchModelHubMixin that auto-handles config in **model_kwargs.
-        """
-        resolved_config_file = cached_file(
-            model_id,
-            CONFIG_NAME,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            resume_download=resume_download,
-            proxies=proxies,
-            local_files_only=local_files_only,
-            token=token,
-            revision=revision,
-            _raise_exceptions_for_gated_repo=False,
-            _raise_exceptions_for_missing_entries=False,
-            _raise_exceptions_for_connection_errors=False,
-        )
-        if resolved_config_file is None:
-            raise RuntimeError(f"Missing {CONFIG_NAME} file for {model_id=}")
-        model_kwargs['cfg'] = OmegaConf.to_container(OmegaConf.load(resolved_config_file))
-        return super()._from_pretrained(
-            model_id=model_id,
-            revision=revision,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            proxies=proxies,
-            resume_download=resume_download,
-            local_files_only=local_files_only,
-            token=token,
-            map_location=map_location,
-            strict=strict,
-            **model_kwargs,
-        )
-
-
-def _load_pretrained(cls, model_path_or_name: str):
-    if Path(model_path_or_name).exists() and model_path_or_name.endswith(".nemo"):
-        return cls.restore_from(model_path_or_name)
-    else:
-        return cls.from_pretrained(model_path_or_name)
 
 
 @contextmanager

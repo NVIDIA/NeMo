@@ -15,18 +15,15 @@ import re
 import warnings
 from collections import defaultdict
 from itertools import repeat
-from pathlib import Path
 from typing import Any, Generator, Iterable, Optional
 
 import hydra
 import torch
 from lhotse.dataset.collation import collate_vectors
 from lightning import LightningModule
-from omegaconf import open_dict
+from omegaconf import DictConfig, open_dict
 from torch import Tensor
-from torch.distributed import init_device_mesh
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
-from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+from torch.distributed.fsdp import fully_shard
 from torch.distributed.tensor import Replicate, Shard
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
@@ -36,20 +33,26 @@ from torch.distributed.tensor.parallel import (
     loss_parallel,
     parallelize_module,
 )
-from transformers import AutoModelForCausalLM, GenerationConfig
+from transformers import GenerationConfig
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
+from nemo.collections.duplex_s2s.parts.hf_hub import HFHubMixin
+from nemo.collections.duplex_s2s.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
 from nemo.utils import logging
 
 
-# TODO: PyTorchHFHubMixin
-class SALM(LightningModule):
+class SALM(LightningModule, HFHubMixin):
     def __init__(self, cfg) -> None:
+        assert isinstance(cfg, dict), (
+            "You must pass the config to DuplexS2SModel as a Python dict to support hyperparameter serialization "
+            f"in PTL checkpoints (we got: '{type(cfg)=}')."
+        )
         super().__init__()
-        self.cfg = cfg
+        self.save_hyperparameters()
+        self.cfg = DictConfig(cfg)
         self.audio_locator_tag = self.cfg.audio_locator_tag
 
         # We load the pretrained HF LLM using "ForCausalLM" variant so that we can obtain the
@@ -58,14 +61,22 @@ class SALM(LightningModule):
         # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
         self.tokenizer.add_special_tokens({"additional_special_tokens": [self.audio_locator_tag]})
-        self.llm = AutoModelForCausalLM.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
+        self.llm = (
+            load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)
+            .to(torch.bfloat16)
+            .train()
+        )
         # Note: we have to "move out" the token embedding outside of LLM to avoid
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.model.embed_tokens
         del self.llm.model.embed_tokens
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        asr = _load_pretrained(ASRModel, self.cfg.pretrained_asr).to(torch.bfloat16).eval()
+        asr = (
+            load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr, pretrained_weights=self.cfg.pretrained_weights)
+            .to(torch.bfloat16)
+            .eval()
+        )
         with open_dict(self.cfg):
             self.cfg.perception.preprocessor = asr.cfg.preprocessor
             self.cfg.perception.encoder = asr.cfg.encoder
@@ -487,13 +498,6 @@ class SALM(LightningModule):
             self.llm.lm_head = fully_shard(self.llm.lm_head, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
-
-
-def _load_pretrained(cls, model_path_or_name: str):
-    if Path(model_path_or_name).exists() and model_path_or_name.endswith(".nemo"):
-        return cls.restore_from(model_path_or_name)
-    else:
-        return cls.from_pretrained(model_path_or_name)
 
 
 def replace_placeholders_and_build_targets(

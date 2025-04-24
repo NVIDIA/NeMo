@@ -11,6 +11,8 @@ model:
   pretrained_asr: stt_en_fastconformer_hybrid_large_streaming_80ms
   scoring_asr: stt_en_fastconformer_transducer_large  # used only in validation/evaluation
 
+  pretrained_weights: True  # When False, we use pretrained_name to load the architecture, but with random init
+
   audio_loss_weight: 1
   text_loss_weight: 3
 

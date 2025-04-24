@@ -1,60 +1,20 @@
-import importlib
 from dataclasses import dataclass
-from pathlib import Path
 from time import perf_counter
 from typing import Optional
 
 import lhotse.dataset
 import torch
 from lhotse import CutSet
-from lhotse.cut import Cut
 from lhotse.serialization import SequentialJsonlWriter
 from omegaconf import OmegaConf
-from torch.distributed.checkpoint import load as tdc_load
 from transformers import GenerationConfig
 from whisper_normalizer.english import EnglishTextNormalizer
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset
-from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, NeMoMultimodalConversation, TextTurn
 from nemo.collections.duplex_s2s.models.salm import SALM
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
-
-def load_checkpoint(model: torch.nn.Module, checkpoint_dir_or_file: str) -> None:
-    # Load non-distributed checkpoint
-    if Path(checkpoint_dir_or_file).is_file():
-        model.load_state_dict(torch.load(checkpoint_dir_or_file, map_location=model.device)['state_dict'])
-        return
-
-    # Load distributed checkpoint
-    state_dict = {"state_dict": model.state_dict()}
-    tdc_load(state_dict, checkpoint_id=checkpoint_dir_or_file)
-    model.load_state_dict(state_dict["state_dict"])
-
-
-def cut_to_conversation(cut: Cut, audio_locator_tag: str) -> NeMoMultimodalConversation:
-    turns = [
-        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag),
-        TextTurn(value=cut.supervisions[0].text, role="assistant"),
-    ]
-    if hasattr(cut, "context"):
-        turns = [TextTurn(value=cut.context, role="user")] + turns
-    return NeMoMultimodalConversation(
-        id=cut.id,
-        turns=turns,
-        token_equivalent_duration=0.08,
-        custom=cut.custom,
-    )
-
-
-def add_system_prompt(
-    example, system_prompt: str = "detailed thinking off", context: str = "Repeat after me, typing in lowercase."
-):
-    example.system_prompt = system_prompt
-    example.context = context
-    return example
 
 
 class ToAudio(torch.utils.data.Dataset):
@@ -65,8 +25,8 @@ class ToAudio(torch.utils.data.Dataset):
 
 @dataclass
 class SalmEvalConfig:
-    # inputs: str = "/ws2/datasets/ast/covost_v2_full/test/covost_v2.es_en.test.es.json"
-    inputs: str = "/home/pzelasko/data/librispeech/dev-other-wav.json"
+    pretrained_name: str
+    inputs: str
     batch_size: int = 64
     max_new_tokens: int = 128
     output_manifest: Optional[str] = "generations.jsonl"
@@ -78,12 +38,7 @@ class SalmEvalConfig:
 def main(cfg: SalmEvalConfig):
     logging.info(f'Hydra config:\n{OmegaConf.to_yaml(cfg)}')
 
-    # TODO: load from pretrained HF should involve all of the below
-    model_cfg = OmegaConf.load("/home/pzelasko/code/NeMo/examples/duplex_s2s/conf/salm.yaml")
-    ckpt = "oci-salm/step=5000.ckpt/"
-    model = SALM(model_cfg.model).eval().to(torch.bfloat16).cuda()
-    load_checkpoint(model, ckpt)
-    model.configure_model()
+    model = SALM.from_pretrained(cfg.pretrained_name).eval().to(torch.bfloat16).cuda()
 
     cuts = guess_parse_cutset(cfg.inputs).sort_by_duration()
     dloader = torch.utils.data.DataLoader(
