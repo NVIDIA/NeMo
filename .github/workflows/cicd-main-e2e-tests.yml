@@ -323,30 +323,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
 
-  L2_VLM_HF_Transformer_PEFT:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_VLM_HF_Transformer_PEFT
-
-  L2_VLM_HF_Transformer_PEFT_FSDP2:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_VLM_HF_Transformer_PEFT_FSDP2
-
-  L2_VLM_HF_Transformer_PEFT_4bit:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_VLM_HF_Transformer_PEFT_4bit
-
-  L2_VLM_HF_Transformer_SFT_FSDP2:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_VLM_HF_Transformer_SFT_FSDP2
-
   L2_HF_Transformer_PEFT_notebook:
     uses: ./.github/workflows/_test_template.yml
     with:

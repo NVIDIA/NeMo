@@ -49,6 +49,15 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_VLLM_EXPORT
             runner: self-hosted-azure
+          - script: L2_VLM_HF_Transformer_PEFT
+            runner: self-hosted-azure-gpus-1
+          - runner: self-hosted-azure
+            script: L2_VLM_HF_Transformer_PEFT_FSDP2
+          - runner: self-hosted-azure-gpus-1
+            script: L2_VLM_HF_Transformer_PEFT_4bit
+          - runner: self-hosted-azure
+            script: L2_VLM_HF_Transformer_SFT_FSDP2
+
     uses: ./.github/workflows/_test_template.yml
     needs: [export-deploy-unit-tests]
     with:
