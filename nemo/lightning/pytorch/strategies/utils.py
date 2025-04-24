@@ -569,6 +569,7 @@ def translate_to_torch_parallel_style(style: str):
     else:
         raise ValueError(f"Unsupported parallel style value: {style}")
 
+
 def to_cpu(v):
     """
     Move a tensor or distributed tensor to the CPU.

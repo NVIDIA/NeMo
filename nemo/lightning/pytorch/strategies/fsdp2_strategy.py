@@ -130,7 +130,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.offload_policy = offload_policy
         self.sequence_parallel = sequence_parallel
         self.use_hf_tp_plan = use_hf_tp_plan
-        
+
         self.tp_shard_plan = None
         if custom_tp_plan is not None:
             self.tp_shard_plan = custom_tp_plan
