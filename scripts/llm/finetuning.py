@@ -57,6 +57,12 @@ def get_parser():
         required=True,
     )
     parser.add_argument(
+        "--hf-tokenizer",
+        type=str,
+        help="Name of HF model to use for tokenizer.",
+        required=False,
+    )
+    parser.add_argument(
         "--chat-template",
         type=str,
         help="Path to the custom chat template to replace the HF tokenizer default chat template.",
@@ -224,19 +230,15 @@ def main():
     ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequence_length> or other special settings)"
     finetune_recipe = getattr(llm, args.recipe).finetune_recipe
     finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme)
-    hf_model = finetune.resume_path
+    if not args.hf_tokenizer:
+        # Use base model tokenizer if not specified
+        args.hf_tokenizer = finetune.resume.restore_config.path.removeprefix("nemo://")
     if args.resume_path:
         finetune.resume_path = args.resume_path
 
-    # Overwrite the dataloader in the recipe to use your custom dataloader.
-    # TODO:OVERWRITE THE DATA IN THE RECIPE TO CHAT DATASET, SFT blend (might be shareGPT format)
-    tokenizer = partial(get_nmt_tokenizer)(library='huggingface', model_name=hf_model)
-    # TODO remove this later
-    CHAT_TEMPLATE = "{{- bos_token }}\n{%- if messages[0]['role'] == 'system' %}\n{%- set system_message = messages[0]['content']|trim %}\n{%- set messages = messages[1:] %}\n{%- else %}\n{%- set system_message = \"\" %}\n{%- endif %}\n{{- \"<|start_header_id|>system<|end_header_id|>\" }}\n{{- system_message }}\n{{- \"<|eot_id|>\" }}\n{%- for message in messages %}\n{%- if message.role == 'assistant' %}\n{% generation %}\n{{- '<|start_header_id|>assistant<|end_header_id|>' + message['content'] | trim + '<|eot_id|>'}}\n{% endgeneration %}\n{%- else %}\n{{- '<|start_header_id|>' + message['role'] + '<|end_header_id|>' + message['content'] | trim + '<|eot_id|>' }}\n{%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n{{- '<|start_header_id|>assistant<|end_header_id|>' }}\n{%- endif %}"
-    tokenizer.tokenizer.chat_template = CHAT_TEMPLATE
-
-    if args.chat_template:
-        tokenizer.tokenizer.chat_template = args.chat_template
+    tokenizer = run.Config(
+        get_nmt_tokenizer, library='huggingface', model_name=args.hf_tokenizer, chat_template=args.chat_template
+    )
 
     finetune.trainer.val_check_interval = args.val_check_interval
     finetune.log.ckpt.save_top_k = args.save_top_k
