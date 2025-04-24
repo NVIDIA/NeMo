@@ -295,6 +295,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     deallocate_pipeline_outputs: bool = True
     scatter_embedding_sequence_parallel: bool = True
     tp_only_amax_red: bool = False
+    tp_comm_overlap_cfg: Optional[str] = None
+    """Config file when tp_comm_overlap is enabled."""
 
     use_transformer_engine_full_layer_spec: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
@@ -353,11 +355,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         # Initialize model as meta data instead of allocating data on a device
         model_init_device_context = contextlib.nullcontext
         if self.init_model_with_meta_device:
-            model_init_device_context = partial(torch.device, device='meta')
+            model_init_device_context = partial(torch.device, device="meta")
 
         import inspect
 
-        if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
+        if "mtp_block_spec" in inspect.signature(MCoreGPTModel.__init__).parameters:
             kwargs = {"mtp_block_spec": mtp_block_spec(self)}
         else:
             kwargs = {}
