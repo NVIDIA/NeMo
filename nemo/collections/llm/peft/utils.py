@@ -74,13 +74,20 @@ def get_adapter_attributes_from_linear(m: nn.Module):
     """
     disable_sequence_parallel_comm = not m.config.sequence_parallel
 
+    # check if open overlap for share expert
+    moe_shared_expert_overlap = (
+        True
+        if is_share_expert_linear(m) and m.config.moe_shared_expert_overlap
+        else False
+    )
+
     if HAVE_TE and any(isinstance(m, te_column_parallel) for te_column_parallel in TECL):
         input_is_parallel = False
         # m.in_features and m.out_features are divided by tp_size already,
         # but in_features and out_features passed to ParallelLinearAdapter are not.
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         in_features = m.in_features
-        out_features = m.out_features * tp_size
+        out_features = (m.out_features * tp_size) if not moe_shared_expert_overlap else m.out_features
 
         if isinstance(m, TELayerNormColumnParallelLinear):
             # LoRA is applied after layernorm, so layernorm output must be returned
@@ -106,7 +113,7 @@ def get_adapter_attributes_from_linear(m: nn.Module):
     elif HAVE_TE and any(isinstance(m, te_row_parallel) for te_row_parallel in TERL):
         input_is_parallel = True
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        in_features = m.in_features * tp_size
+        in_features = (m.in_features * tp_size) if not moe_shared_expert_overlap else m.in_features
         out_features = m.out_features
     elif HAVE_TE and isinstance(m, TELinear):  # parallel_mode="duplicated"
         input_is_parallel = False
@@ -132,6 +139,13 @@ def is_expert_linear(fqn):
     See ParallelLinearAdapter.is_expert for usage details.
     """
     return re.match(r'.*mlp\..*experts.*\.linear_fc[1-2]$', fqn) is not None
+
+
+def is_share_expert_linear(fqn):
+    """
+    Return whether the current base module is an share expert linear module.
+    """
+    return re.match(r'.*mlp\.shared_experts\.linear_fc[1-2]$', fqn) is not None
 
 
 def wildcard_match(pattern, key):
