@@ -115,9 +115,7 @@ def override_recipe_configs(
         recipe.data.force_redownload = True
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-    assert (
-        comm_overlap_callback_idx is not None
-    ), "MegatronCommOverlapCallback missing. Required for performance."
+    assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
     if (
         finetuning_scheme == "lora"
