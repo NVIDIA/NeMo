@@ -52,7 +52,8 @@ FROM trt-base AS te
 
 ARG TRTLLM_REPO
 ARG TRTLLM_TAG
-RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+RUN --mount=type=bind,source=external/patches,target=/tmp/NeMo/external/patches \
+  --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
   
   bash /tmp/NeMo/reinstall.sh --library te --mode build
 EOF
@@ -76,7 +77,6 @@ RUN \
   --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=/tmp/NeMo/tools/ctc_segmentation/requirements.txt \
   --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh \
   --mount=type=bind,source=setup.py,target=/tmp/NeMo/setup.py \
-  --mount=type=bind,source=external/patches,target=/tmp/NeMo/external/patches \
   --mount=type=bind,source=README.md,target=/tmp/NeMo/README.md \
   --mount=type=bind,source=nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
