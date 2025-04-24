@@ -17,6 +17,7 @@ import logging as _logging
 import os
 import re
 import shutil
+import types
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -30,11 +31,12 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
+from megatron.core.distributed.custom_fsdp import FSDP
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
 from typing_extensions import override
 
 from nemo.lightning import io
-from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.lightning.pytorch.strategies.utils import (
     _destroy_dist_connection,
     ckpt_to_dir,
@@ -80,6 +82,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         checkpoint_io=None,
         cfsdp2: bool = False,
         cfsdp2_unit_modules: Optional[List[str]] = None,
+        init_cfsdp2_model_with_meta_device: bool = False,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
         mp_policy=None,
         use_hf_tp_plan: bool = True,
@@ -122,7 +125,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.checkpoint = None
         self.parallelized = False
         self.cfsdp2 = cfsdp2
-        self.cfsdp2_unit_modules = cfsdp2_unit_modules
+        self.cfsdp2_unit_modules = cfsdp2_unit_modules if cfsdp2_unit_modules is not None else []
+        self.init_cfsdp2_model_with_meta_device = init_cfsdp2_model_with_meta_device
         self.ddp_config = ddp_config
         self.mp_policy = mp_policy
         if self.mp_policy is None:
@@ -259,8 +263,13 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             mesh_dim_names=mesh_dim_names,
         )
 
-        # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
-        self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
+        # Construct sharding and reduction meshes for specific configurations.
+        # Replace existing mesh strategies if a custom mesh design is provided.
+        # WARNING: ADDING MESHES INCREASES MEMORY USAGE. Use device meshes for
+        # multiple dimensions of parallelism if possible.
+        if self._device_mesh["context_parallel"].size() > 1:
+            # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
+            self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
 
         self.lightning_module._device_mesh = self._device_mesh
 
@@ -278,24 +287,74 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if getattr(self, '_init_model_parallel', True):
             self.parallelize()
         # Corner case, as FSDP2 expected to be used multi-device.
-        if self._data_parallel_size == 1:
+        # However, we are not allowed to use `.to` once the model is wrapped by Megatron custom FSDP2.
+        # This is so cFSDP2 can micromanage the location of model and gradient shards.
+        if self._data_parallel_size == 1 and not self.cfsdp2:
             self._lightning_module = self._lightning_module.to(self.root_device)
         # setup optim
         if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
             super().setup_optimizers(trainer)
+
+        # Add custom FSDP hooks to the LightningModule.
+        if self.cfsdp2:
+            # Save a reference to the original hook.
+            base_on_before_optimizer_step = self.lightning_module.on_before_optimizer_step
+
+            def _on_before_optimizer_step_with_async_grad_reduce(lightning_module, optimizer):
+                """
+                Modified optimizer pre-step hook to wait for all sharded gradients to be reduced and unsharded.
+                """
+                if isinstance(lightning_module.model, FSDP):
+                    # If the model uses custom FSDP2, wait for all sharded gradients to be reduced and unsharded.
+                    # Necessary because the post-backward reduce-scatter is asynchronous, so gradients and backward
+                    # computations are concurrent, but the gradients of the final layer may not be available yet.
+                    lightning_module.model.finish_grad_sync()
+
+                # Call the pre-optimizer hook.
+                base_on_before_optimizer_step(optimizer)
+
+            # Replace the hook with a modified version that waits for all sharded gradients to be reduced and unsharded.
+            self.lightning_module.on_before_optimizer_step = types.MethodType(_on_before_optimizer_step_with_async_grad_reduce, self.lightning_module)
+
+            # Save a reference to the original optimizer step.
+            base_optimizer_step = self.lightning_module.optimizer_step
+
+            def _on_after_optimizer_step_with_model_weight_update(
+                lightning_module,
+                epoch,
+                batch_idx,
+                optimizer,
+                optimizer_closure,
+            ):
+                """
+                Modified optimizer post-step hook to update the model weights.
+                """
+                # Apply the optimizer step to the model weights.
+                base_optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
+
+                if isinstance(lightning_module.model, FSDP):
+                    # If custom FSDP2 is configured with "optim" (optimizer state / high-precision model weight sharding),
+                    # then the optimizer step will be applied to the main high-precision model weights. Update the model
+                    # weights after the optimizer step.
+                    lightning_module.model.param_and_grad_buffer.copy_main_weights_to_model_weights()
+
+            # Replace the hook with a modified version that updates the model weights after taking an optimizer step.
+            self.lightning_module.optimizer_step = types.MethodType(_on_after_optimizer_step_with_model_weight_update, self.lightning_module)
 
     def parallelize(self):
         """Applies fully_shard on model"""
         if not self.parallelized:
             # Mark model parallelized.
             self.parallelized = True
-            if self.cfsdp2 and self.cfsdp2_unit_modules:  # ... cfsdp2_unit_modules is not None and not an empty list
+            if self.cfsdp2:
                 # Use custom FSDP2.
                 self.lightning_module.model = custom_fsdp2_strategy_parallelize(
                     self.lightning_module.model,
                     device_mesh=self._device_mesh,
                     ddp_config=self.ddp_config,
                     cfsdp2_unit_modules=self.cfsdp2_unit_modules,
+                    init_cfsdp2_model_with_meta_device=self.init_cfsdp2_model_with_meta_device,
+                    use_hf_tp_plan=False,
                     tp_shard_plan=self.tp_shard_plan,
                 )
             else:
@@ -412,6 +471,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
 
         if self.cfsdp2:
+            # If custom FSDP2 is enabled, zero out the gradient buffer before the next forward-backward step.
             self.lightning_module.model.zero_grad_buffer()
 
         if self.context_parallel_size > 1:
@@ -419,9 +479,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             loss = self.lightning_module.training_step(batch, batch_idx, context_parallel=True)
         else:
             loss = self.lightning_module.training_step(batch, batch_idx)
-
-        if self.cfsdp2:
-            self.lightning_module.model.param_and_grad_buffer.copy_main_weights_to_model_weights()
 
         self.lightning_module.log(
             'global_step',

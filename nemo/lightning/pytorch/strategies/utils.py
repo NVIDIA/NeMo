@@ -28,7 +28,6 @@ from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
-from megatron.core.distributed.custom_fsdp import FSDP
 from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
@@ -40,6 +39,7 @@ from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, 
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
+from megatron.core.distributed.custom_fsdp import FSDP
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
@@ -456,7 +456,7 @@ def pyt_to_mcore_state_dict(
 # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py
 def fsdp2_strategy_parallelize(
     model,
-    device_mesh: DeviceMesh = None,
+    device_mesh: DeviceMesh,
     mp_policy: MixedPrecisionPolicy = None,
     use_hf_tp_plan: bool = False,
     tp_shard_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
@@ -571,7 +571,10 @@ def translate_to_torch_parallel_style(style: str):
         return SequenceParallel()
     else:
         raise ValueError(f"Unsupported parallel style value: {style}")
-def import_classes_from_paths(class_paths):
+
+
+def import_classes_from_paths(class_paths: List[str]):
+    """Helper function to import classes from string paths."""
     classes = []
     for path in class_paths:
         module_path, class_name = path.rsplit('.', 1)
@@ -583,9 +586,11 @@ def import_classes_from_paths(class_paths):
 
 def custom_fsdp2_strategy_parallelize(
     model,
-    device_mesh: DeviceMesh = None,
+    device_mesh: DeviceMesh,
     ddp_config: Optional[DistributedDataParallelConfig] = None,
     cfsdp2_unit_modules: Optional[List[str]] = None,
+    init_cfsdp2_model_with_meta_device: bool = False,
+    use_hf_tp_plan: bool = False,
     tp_shard_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
@@ -611,13 +616,13 @@ def custom_fsdp2_strategy_parallelize(
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
-    # TP sharding
+    # TP sharding.
+    # TODO(@cspades): NOT TESTED. Remove this when this is tested.
     if tp_mesh.size() > 1:
         if tp_shard_plan is None and use_hf_tp_plan:
             tp_shard_plan = get_hf_tp_shard_plan(model)
         parallelize_module(model, tp_mesh, tp_shard_plan)
 
-    # TODO(@cspades): Missing TransformerConfig parameters in HF model config.
     if ddp_config is None:
         # Default DDP config for custom FSDP2.
         ddp_config = DistributedDataParallelConfig(
@@ -628,17 +633,18 @@ def custom_fsdp2_strategy_parallelize(
             overlap_param_gather=True,
             average_in_collective=False,
         )
-    # Import custom FSDP2 unit modules.
+
+    # Import custom FSDP2 unit modules specified by the user.
     cfsdp2_unit_modules = import_classes_from_paths(cfsdp2_unit_modules)
 
-    # Custom FSDP2
+    # Wrap model with custom FSDP2.
     model = FSDP(
         ddp_config=ddp_config,
         module=model,
         fsdp_unit_modules=cfsdp2_unit_modules,
-        device_mesh=dp_mesh,
+        dp_cp_group=dp_mesh.get_group(),
         calculate_per_token_loss=False,
-        init_model_with_meta_device=False,
+        init_model_with_meta_device=init_cfsdp2_model_with_meta_device,
     )
 
     return model

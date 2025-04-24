@@ -438,13 +438,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         tps = self.n_tok / time_delta
         self.n_tok = 0
 
-        try:
-            self.model.finish_grad_sync()
-            # if torch.distributed.get_rank() == 0:
-            #     print("Finished grad sync")
-        except:
-            pass
-
         # reduce across ranks
         is_ddp = isinstance(self.trainer.strategy, pl.strategies.DDPStrategy)
         device_mesh = getattr(self, '_device_mesh', None)
@@ -453,7 +446,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = dist.group.WORLD  # Default DDP process group
             else:
                 # Use the flattened DP / CP device mesh for loss reduction
-                # if it exists (CP > 1), else default to the data parallel mesh.
+                # if it exists, else default to the data parallel mesh.
                 group = device_mesh[
                     ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping[device_mesh] else "data_parallel")
                 ].get_group()
