@@ -278,6 +278,26 @@ class SortformerModules(NeuralModule, Exportable):
             streaming_state.fifo = torch.zeros((batch_size, 0, self.fc_d_model), device = device)
         return streaming_state
 
+    def apply_mask_to_preds(self, spkcache_fifo_chunk_preds, spkcache_fifo_chunk_fc_encoder_lengths):
+        """
+        Applies mask to speaker cache and FIFO queue to ensure that only valid frames are
+        considered for predictions from the model.
+
+        Args:
+            spkcache_fifo_chunk_preds (torch.Tensor): Speaker predictions of the chunk
+            spkcache_fifo_chunk_fc_encoder_lengths (torch.Tensor): lengths of current chunk in
+                                                                   the Fast-Conformer encoder
+
+        Returns:
+            spkcache_fifo_chunk_preds (torch.Tensor): speaker predictions of the chunk with valid frames only
+        """
+        batch_size, n_frames, n_spk = spkcache_fifo_chunk_preds.shape
+        preds_mask = torch.arange(n_frames, device=spkcache_fifo_chunk_preds.device).view(1, -1, 1)
+        preds_mask = preds_mask.expand(batch_size, -1, n_spk) < spkcache_fifo_chunk_fc_encoder_lengths.view(-1, 1, 1)
+        preds_mask = preds_mask.expand(-1, n_frames, n_spk)
+        spkcache_fifo_chunk_preds = torch.where(preds_mask, spkcache_fifo_chunk_preds, torch.tensor(0.0))
+        return spkcache_fifo_chunk_preds
+
     def streaming_update_async(
         self,
         streaming_state,
