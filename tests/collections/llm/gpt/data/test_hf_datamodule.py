@@ -538,8 +538,4 @@ def test_no_alias_match_raises(sample_hf_dataset_dict, split_aliases):
     # Make a dataset dict with a split name not in our alias map
     wrong_dataset_dict = DatasetDict({"custom_split": sample_hf_dataset_dict["train"]})
     with pytest.raises(KeyError):
-        make_dataset_splits(
-            dataset=wrong_dataset_dict,
-            split=None,
-            split_aliases=split_aliases
-        )
+        make_dataset_splits(dataset=wrong_dataset_dict, split=None, split_aliases=split_aliases)
