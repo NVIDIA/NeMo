@@ -138,7 +138,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would ",
                 "not raise errors if the custom TP plan is not compatible. SP option will also be ignored.",
             )
-        elif not self.use_hf_tp_plan:
+        elif self.use_hf_tp_plan:
+            logging.warning(
+                "You are using a huggingface TP plan. Make sure your model is a huggingface model. Certain ",
+                "parallelizations might not be supported. SP option will also be ignored.",
+            )
+        else:
             # Parallelize the first embedding and the last linear out projection
             base_model_tp_plan = {
                 "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
