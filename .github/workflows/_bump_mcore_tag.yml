@@ -35,7 +35,7 @@ jobs:
             git pull origin weekly-bump-${{ inputs.nemo-target-branch }}
             git merge --no-ff weekly-bump-${{ inputs.nemo-target-branch }} -m "chore: Auto-merge main back to weekly-bump-${{ inputs.nemo-target-branch }}"
           else
-            git checkout -b weekly-bump-${{ inputs.nemo-target-branch }} main
+            git checkout -b weekly-bump-${{ inputs.nemo-target-branch }} ${{ inputs.nemo-target-branch }}
           fi
           git push -u origin weekly-bump-${{ inputs.nemo-target-branch }}
 
