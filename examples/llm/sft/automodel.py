@@ -121,6 +121,7 @@ def make_strategy(
     tp_size=None,
     cp_size=None,
     sequence_parallel=False,
+    use_hf_tp_plan=False,
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -153,6 +154,7 @@ def make_strategy(
             sequence_parallel=sequence_parallel,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
+            use_hf_tp_plan=use_hf_tp_plan,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -182,7 +184,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-0.5B', help='Hugging Face model-id to use')
+    parser.add_argument('--model', type=str, default='Qwen/Qwen2.5-3B', help='Hugging Face model-id to use')
     parser.add_argument(
         '--strategy',
         type=str,
@@ -200,6 +202,7 @@ def main():
         action='store_true',
         help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
     )
+    parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
@@ -209,7 +212,7 @@ def main():
         default=1,
         help='Number of batches to accumulate gradient over.',
     )
-    parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
+    parser.add_argument('--max-steps', type=int, default=50, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
     parser.add_argument('--wandb-project', type=str, default="automodel-tp", help='Wandb project to use')
@@ -308,7 +311,7 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=args.lr))  # foreach need to be False for TP
+        optimizer = fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=args.lr, foreach=False))  # foreach need to be False for TP
 
     if args.fp8:
         from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
@@ -342,6 +345,7 @@ def main():
         tp_size=args.tp_size,
         cp_size=args.cp_size,
         sequence_parallel=args.sequence_parallel,
+        use_hf_tp_plan=args.use_hf_tp_plan,
     )
 
     resume = (
@@ -378,6 +382,8 @@ def main():
             packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
+            num_replicas=args.dp_size,
+            rank=0,
         )
 
     llm.api.finetune(

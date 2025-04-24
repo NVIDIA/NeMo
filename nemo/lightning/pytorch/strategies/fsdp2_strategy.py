@@ -134,12 +134,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.tp_shard_plan = None
         if custom_tp_plan is not None:
             self.tp_shard_plan = custom_tp_plan
-            logging.warning(
+            logging.info(
                 "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would ",
                 "not raise errors if the custom TP plan is not compatible. SP option will also be ignored.",
             )
         elif self.use_hf_tp_plan:
-            logging.warning(
+            logging.info(
                 "You are using a huggingface TP plan. Make sure your model is a huggingface model. Certain ",
                 "parallelizations might not be supported. SP option will also be ignored.",
             )
@@ -236,12 +236,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
 
-        # No TP currently
         mesh_shape = []
         mesh_dim_names = []
+        # TP needs to be the last dimension as innermost dimension, DP-CP-TP
         for dim, name in zip(
-            [self._data_parallel_size, self._tensor_parallel_size, self.context_parallel_size],
-            ["data_parallel", "tensor_parallel", "context_parallel"],
+            [self._data_parallel_size, self.context_parallel_size, self._tensor_parallel_size],
+            ["data_parallel", "context_parallel", "tensor_parallel"],
         ):
             mesh_shape.append(dim)
             mesh_dim_names.append(name)
