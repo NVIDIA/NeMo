@@ -563,7 +563,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 f"If pre_encode_input is True, audio_signal should have shape "
                 f"(batch, time, {self.d_model}) but got last dimension {audio_signal.shape[-1]}."
             )
-        elif not pre_encode_input and audio_signal.shape[-1] !=  self._feat_in:
+        elif not pre_encode_input and audio_signal.shape[-1] != self._feat_in:
             raise ValueError(
                 f"If pre_encode_input is False, audio_signal should have shape "
                 f"(batch, time, {self._feat_in}) but got last dimension {audio_signal.shape[-1]}."
