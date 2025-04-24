@@ -59,13 +59,15 @@ def model() -> run.Config[pl.LightningModule]:
 
 
 def trainer(
-    tensor_parallelism: int = 1,
+    tensor_parallelism: int = 4,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
-    context_parallelism: int = 2,
-    sequence_parallelism: bool = False,
-    num_nodes: int = 1,
+    context_parallelism: int = 1,
+    sequence_parallelism: bool = True,
+    expert_tensor_parallelism: int = 4,
+    expert_model_parallelism: int = 128,
+    num_nodes: int = 64,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
@@ -110,6 +112,8 @@ def trainer(
         virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
+        expert_tensor_parallel_size=expert_tensor_parallelism,
+        expert_model_parallel_size=expert_model_parallelism,
         gradient_as_bucket_view=True,
         ckpt_async_save=True,
         ckpt_parallel_load=True,
@@ -149,7 +153,7 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 64,
     num_gpus_per_node: int = 8,
     performance_mode: bool = False,
     fn: Callable = pretrain,

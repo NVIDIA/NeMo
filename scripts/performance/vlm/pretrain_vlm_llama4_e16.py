@@ -86,18 +86,12 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    # (TODO: add more perf args here)
     recipe.model.config.language_transformer_config.cross_entropy_fusion_impl = "te"
     recipe.model.config.language_transformer_config.cross_entropy_loss_fusion = True
-    recipe.model.config.language_transformer_config.moe_permute_fusion = True
-    recipe.model.config.language_transformer_config.moe_shared_expert_overlap = True
     recipe.model.config.language_transformer_config.apply_rope_fusion = True
-    recipe.model.config.language_transformer_config.bias_activation_fusion = True
-    recipe.model.config.language_transformer_config.bias_dropout_fusion = True
+
 
     recipe.model.config.vision_transformer_config.apply_rope_fusion = True
-    recipe.model.config.vision_transformer_config.bias_activation_fusion = True
-    recipe.model.config.vision_transformer_config.bias_dropout_fusion = True
     recipe.model.config.vision_transformer_config.gradient_accumulation_fusion = True
 
     # enable cudagraph
