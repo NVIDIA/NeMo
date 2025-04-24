@@ -120,6 +120,7 @@ def initialize_model_parallel_for_nemo(
     app_state.world_size = world_size
     app_state.local_rank = local_rank
     app_state.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
+    app_state.num_distributed_optimizer_instances = num_distributed_optimizer_instances
     app_state.expert_model_parallel_size = expert_model_parallel_size
     app_state.tensor_model_parallel_size = tensor_model_parallel_size
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
@@ -153,7 +154,6 @@ def initialize_model_parallel_for_nemo(
         encoder_tensor_model_parallel_size_=encoder_tensor_model_parallel_size,
         encoder_pipeline_model_parallel_size_=encoder_pipeline_model_parallel_size,
         use_tp_pp_dp_mapping=use_tp_pp_dp_mapping,
-        num_distributed_optimizer_instances=num_distributed_optimizer_instances,
     )
 
     # update apex.transformer globals
