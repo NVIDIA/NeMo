@@ -271,7 +271,11 @@ def main():
             partition="batch",
             nodes=finetune.trainer.num_nodes,
             devices=finetune.trainer.devices,
-            custom_mounts=[],
+            custom_mounts=[
+                "/lustre/fsw:/lustre/fsw",
+                "/lustre/fsw/portfolios/coreai/users/jennifchen/code/NeMo:/opt/NeMo",
+                "/lustre/fsw/portfolios/coreai/users/jennifchen/code/internal_megatron/megatron-lm:/opt/megatron-lm",
+            ],
         )
     else:
         executor = local_executor_torchrun(nodes=finetune.trainer.num_nodes, devices=finetune.trainer.devices)
