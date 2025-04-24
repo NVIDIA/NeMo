@@ -83,7 +83,6 @@ def override_recipe_configs(
     recipe.model.config.cross_entropy_loss_fusion = True
     recipe.model.config.apply_rope_fusion = True
 
-
     return recipe
 
 
