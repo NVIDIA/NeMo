@@ -68,9 +68,14 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
+    GreedyBatchedLoopLabelsComputerBase,
+)
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.asr.parts.utils.rnnt_utils import BatchedGreedyDecodingState, batched_hyps_to_hypotheses
 from nemo.collections.asr.parts.utils.streaming_utils import (
     BatchedFrameASRRNNT,
     LongestCommonSubsequenceBatchedFrameASRRNNT,
@@ -83,13 +88,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    GreedyBatchedLoopLabelsComputerBase,
-)
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.rnnt_utils import BatchedGreedyDecodingState, batched_hyps_to_hypotheses
 
 
 def load_audio(file_path, target_sr=16000):
