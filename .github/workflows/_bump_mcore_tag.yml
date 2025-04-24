@@ -28,7 +28,8 @@ jobs:
           git config --local user.name "Github Actions"
       - name: Merge weekly-bump-${{ inputs.nemo-target-branch }} back to base branch
         run: |
-          git fetch --unshallow
+          git fetch origin ${{ inputs.nemo-target-branch }}
+
           # Try to checkout and pull existing branch, create new one if it doesn't exist
           if git ls-remote --exit-code origin weekly-bump-${{ inputs.nemo-target-branch }}; then
             git checkout weekly-bump-${{ inputs.nemo-target-branch }}
