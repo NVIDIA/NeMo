@@ -31,9 +31,9 @@ jobs:
           git fetch --unshallow
           # Try to checkout and pull existing branch, create new one if it doesn't exist
           if git ls-remote --exit-code origin weekly-bump-${{ inputs.nemo-target-branch }}; then
-            git checkout ${{ inputs.nemo-target-branch }}
-            git pull origin ${{ inputs.nemo-target-branch }}
-            git merge --no-ff weekly-bump-${{ inputs.nemo-target-branch }} -m "chore: Auto-merge main back to weekly-bump-${{ inputs.nemo-target-branch }}"
+            git checkout weekly-bump-${{ inputs.nemo-target-branch }}
+            git pull origin weekly-bump-${{ inputs.nemo-target-branch }}
+            git merge --no-ff ${{ inputs.nemo-target-branch }} -m "chore: Auto-merge ${{ inputs.nemo-target-branch }} into weekly-bump-${{ inputs.nemo-target-branch }}"
           else
             git checkout -b weekly-bump-${{ inputs.nemo-target-branch }} ${{ inputs.nemo-target-branch }}
           fi
