@@ -15,17 +15,12 @@ from functools import reduce
 from typing import Any, List, Optional, Tuple, Union
 
 import torch
-from torch.distributed import (
-    _coalescing_manager,
-    DeviceMesh,
-    ProcessGroup,
-)
-from torch.distributed.tensor import DTensor
-
 from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from megatron.core.fp8_utils import is_float8tensor, modify_underlying_storage, quantize_param_shard
 from megatron.core.tensor_parallel import get_cuda_rng_tracker
 from megatron.core.utils import is_submodule, is_te_min_version
+from torch.distributed import DeviceMesh, ProcessGroup, _coalescing_manager
+from torch.distributed.tensor import DTensor
 
 try:
     from transformer_engine.pytorch import fp8_model_init

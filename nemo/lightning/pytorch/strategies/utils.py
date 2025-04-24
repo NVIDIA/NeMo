@@ -25,10 +25,10 @@ import torch
 from lightning.fabric.plugins import ClusterEnvironment
 from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
-from megatron.core.distributed.custom_fsdp import FSDP
-from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
+from megatron.core.distributed.custom_fsdp import FSDP
+from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
@@ -582,7 +582,7 @@ def custom_fsdp2_strategy_parallelize(
         )
     # Import custom FSDP2 unit modules.
     cfsdp2_unit_modules = import_classes_from_paths(cfsdp2_unit_modules)
-    
+
     # Custom FSDP2
     model = FSDP(
         ddp_config=ddp_config,

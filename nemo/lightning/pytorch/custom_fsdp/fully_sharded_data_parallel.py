@@ -8,15 +8,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from torch.distributed import DeviceMesh
-from torch.utils._pytree import tree_flatten, tree_unflatten
-
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
 from megatron.core.distributed.data_parallel_base import _BaseDataParallel
 from megatron.core.fp8_utils import is_float8tensor
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import is_submodule, log_single_rank
+from torch.distributed import DeviceMesh
+from torch.utils._pytree import tree_flatten, tree_unflatten
 
 from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.lightning.pytorch.custom_fsdp.param_and_grad_buffer import (

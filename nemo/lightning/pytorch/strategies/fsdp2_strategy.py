@@ -34,14 +34,14 @@ from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, 
 from typing_extensions import override
 
 from nemo.lightning import io
+from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.lightning.pytorch.strategies.utils import (
     _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
-    fsdp2_strategy_parallelize,
     custom_fsdp2_strategy_parallelize,
+    fsdp2_strategy_parallelize,
 )
-from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
@@ -278,7 +278,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if not self.parallelized:
             # Mark model parallelized.
             self.parallelized = True
-            if self.cfsdp2 and self.cfsdp2_unit_modules:    # ... cfsdp2_unit_modules is not None and not an empty list
+            if self.cfsdp2 and self.cfsdp2_unit_modules:  # ... cfsdp2_unit_modules is not None and not an empty list
                 # Use custom FSDP2.
                 self.lightning_module.model = custom_fsdp2_strategy_parallelize(
                     self.lightning_module.model,
