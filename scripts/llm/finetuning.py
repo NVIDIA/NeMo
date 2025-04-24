@@ -17,7 +17,12 @@
 # It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and
 # NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
-"""Fine-tuning script for chat datasets. Uses the HuggingFace tokenizer chat template by default."""
+"""
+Fine-tuning script for chat datasets. Uses the HuggingFace tokenizer chat template by default.
+
+To finetune from a HuggingFace checkpoint, use nemo.collections.llm.import_ckpt to convert the checkpoint to a NeMo checkpoint.
+When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
+"""
 import argparse
 from functools import partial
 from typing import Any, Optional
@@ -40,10 +45,10 @@ def get_parser():
         help="Choose NeMo 2.0 recipe. Recipes are named in the format of <model_name>_<model_size>(_<long_sequenth_length> or other special settings)",
     )
     parser.add_argument(
-        "--hf_model",
+        "--resume_path",
         type=str,
-        help="Path to HuggingFace model to load for tokenizer",
-        required=True,
+        help="Path to the checkpoint to resume training from. If not provided, the model will be initialized from the HF model.",
+        required=False,
     )
     parser.add_argument(
         "--data-path",
@@ -219,10 +224,17 @@ def main():
     ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequence_length> or other special settings)"
     finetune_recipe = getattr(llm, args.recipe).finetune_recipe
     finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme)
+    hf_model = finetune.resume_path
+    if args.resume_path:
+        finetune.resume_path = args.resume_path
 
     # Overwrite the dataloader in the recipe to use your custom dataloader.
     # TODO:OVERWRITE THE DATA IN THE RECIPE TO CHAT DATASET, SFT blend (might be shareGPT format)
-    tokenizer = get_nmt_tokenizer(library='huggingface', model_name=args.hf_model)
+    tokenizer = partial(get_nmt_tokenizer)(library='huggingface', model_name=hf_model)
+    # TODO remove this later
+    CHAT_TEMPLATE = "{{- bos_token }}\n{%- if messages[0]['role'] == 'system' %}\n{%- set system_message = messages[0]['content']|trim %}\n{%- set messages = messages[1:] %}\n{%- else %}\n{%- set system_message = \"\" %}\n{%- endif %}\n{{- \"<|start_header_id|>system<|end_header_id|>\" }}\n{{- system_message }}\n{{- \"<|eot_id|>\" }}\n{%- for message in messages %}\n{%- if message.role == 'assistant' %}\n{% generation %}\n{{- '<|start_header_id|>assistant<|end_header_id|>' + message['content'] | trim + '<|eot_id|>'}}\n{% endgeneration %}\n{%- else %}\n{{- '<|start_header_id|>' + message['role'] + '<|end_header_id|>' + message['content'] | trim + '<|eot_id|>' }}\n{%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n{{- '<|start_header_id|>assistant<|end_header_id|>' }}\n{%- endif %}"
+    tokenizer.tokenizer.chat_template = CHAT_TEMPLATE
+
     if args.chat_template:
         tokenizer.tokenizer.chat_template = args.chat_template
 
