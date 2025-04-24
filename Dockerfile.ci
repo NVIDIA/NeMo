@@ -17,8 +17,6 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
 
 FROM ${BASE_IMAGE} AS trt-base
-ARG IMAGE_LABEL
-LABEL "nemo.library"=${IMAGE_LABEL}
 
 ENV TRANSFORMERS_OFFLINE=0
 ENV HYDRA_FULL_ERROR=1
@@ -50,7 +48,8 @@ EOF
 
 
 FROM trt-base as final
-
+ARG PR_NUMBER
+LABEL "nemo.pr_number"=${PR_NUMBER}
 ARG MLM_REPO
 ARG MLM_TAG
 RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
