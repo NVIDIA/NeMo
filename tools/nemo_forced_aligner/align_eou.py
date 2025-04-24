@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -129,8 +129,8 @@ class AlignmentConfig:
     pretrained_name: Optional[str] = None
     model_path: Optional[str] = None
     manifest_filepath: Optional[str] = None
-    output_dir: Optional[str] = '.tmp' # set it to .tmp and will be removed after alignment
-    output_manifest_filepath: Optional[str] = None # only need this file to save sou and eou time
+    output_dir: Optional[str] = '.tmp'  # set it to .tmp and will be removed after alignment
+    output_manifest_filepath: Optional[str] = None  # only need this file to save sou and eou time
 
     # General configs
     align_using_pred_text: bool = False
@@ -321,7 +321,14 @@ def main(cfg: AlignmentConfig):
     for start, end in zip(starts, ends):
         manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
-        (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
+        (
+            log_probs_batch,
+            y_batch,
+            T_batch,
+            U_batch,
+            utt_obj_batch,
+            output_timestep_duration,
+        ) = get_batch_variables(
             manifest_lines_batch,
             model,
             cfg.additional_segment_grouping_separator,
@@ -340,15 +347,20 @@ def main(cfg: AlignmentConfig):
             utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
             if "ctm" in cfg.save_output_file_formats:
-                utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
+                utt_obj = make_ctm_files(
+                    utt_obj,
+                    cfg.output_dir,
+                    cfg.ctm_file_config,
+                )
 
             if "ass" in cfg.save_output_file_formats:
                 utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
 
             write_manifest_out_line(
-                f_manifest_out, utt_obj,
+                f_manifest_out,
+                utt_obj,
             )
-    
+
     f_manifest_out.close()
 
     # adding eou processing here
@@ -356,7 +368,15 @@ def main(cfg: AlignmentConfig):
     with open(tgt_manifest_filepath, 'r') as f:
         for i, line in enumerate(f.readlines()):
             item = json.loads(line)
-            assert os.path.basename(input_manifest_lines[i]['audio_filepath']) == os.path.basename(item['audio_filepath'])
+            assert os.path.basename(input_manifest_lines[i]['audio_filepath']) == os.path.basename(
+                item['audio_filepath']
+            )
+
+            if 'segments_level_ctm_filepath' not in item:
+                print(
+                    f"`segments_level_ctm_filepath` not found for {input_manifest_lines[i]['audio_filepath']}, skipping"
+                )
+                continue
 
             # get sou/eou time
             lines = [line.split() for line in open(item['segments_level_ctm_filepath'])]
@@ -368,9 +388,13 @@ def main(cfg: AlignmentConfig):
     with open(cfg.output_manifest_filepath, 'w') as f:
         for item in input_manifest_lines:
             f.write(json.dumps(item) + '\n')
-                
-    if cfg.remove_tmp_dir: # savely removing tmp dir after alignment
-        for file_or_folder in [tgt_manifest_filepath, os.path.join(cfg.output_dir, 'ctm'), os.path.join(cfg.output_dir, 'ass')]:
+
+    if cfg.remove_tmp_dir:  # savely removing tmp dir after alignment
+        for file_or_folder in [
+            tgt_manifest_filepath,
+            os.path.join(cfg.output_dir, 'ctm'),
+            os.path.join(cfg.output_dir, 'ass'),
+        ]:
             if os.path.exists(file_or_folder):
                 if os.path.isfile(file_or_folder):
                     os.remove(file_or_folder)

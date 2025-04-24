@@ -22,6 +22,7 @@ import torch
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging
 
 
@@ -85,6 +86,7 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
         for line_i, line in enumerate(f):
             if line_i >= start and line_i <= end:
                 data = json.loads(line)
+                data["audio_filepath"] = get_full_path(data["audio_filepath"], manifest_filepath)
                 if "text" in data:
                     # remove any BOM, any duplicated spaces, convert any
                     # newline chars to spaces
@@ -231,7 +233,12 @@ class Utterance:
 
 
 def get_utt_obj(
-    text, model, separator, T, audio_filepath, utt_id,
+    text,
+    model,
+    separator,
+    T,
+    audio_filepath,
+    utt_id,
 ):
     """
     Function to create an Utterance object and add all necessary information to it except
@@ -258,7 +265,11 @@ def get_utt_obj(
     # remove any empty segments
     segments = [seg for seg in segments if len(seg) > 0]
 
-    utt = Utterance(text=text, audio_filepath=audio_filepath, utt_id=utt_id,)
+    utt = Utterance(
+        text=text,
+        audio_filepath=audio_filepath,
+        utt_id=utt_id,
+    )
 
     # build up lists: token_ids_with_blanks, segments_and_tokens.
     # The code for these is different depending on whether we use char-based tokens or not
@@ -289,7 +300,14 @@ def get_utt_obj(
             return utt
 
         # build up data structures containing segments/words/tokens
-        utt.segments_and_tokens.append(Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,))
+        utt.segments_and_tokens.append(
+            Token(
+                text=BLANK_TOKEN,
+                text_cased=BLANK_TOKEN,
+                s_start=0,
+                s_end=0,
+            )
+        )
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
         word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
@@ -422,7 +440,14 @@ def get_utt_obj(
             return utt
 
         # build up data structures containing segments/words/tokens
-        utt.segments_and_tokens.append(Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,))
+        utt.segments_and_tokens.append(
+            Token(
+                text=BLANK_TOKEN,
+                text_cased=BLANK_TOKEN,
+                s_start=0,
+                s_end=0,
+            )
+        )
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
         word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
@@ -589,9 +614,9 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
     """
     Function to add t_start and t_end (representing time in seconds) to the Utterance object utt_obj.
     Args:
-        utt_obj: Utterance object to which we will add t_start and t_end for its 
+        utt_obj: Utterance object to which we will add t_start and t_end for its
             constituent segments/words/tokens.
-        alignment_utt: a list of ints indicating which token does the alignment pass through at each 
+        alignment_utt: a list of ints indicating which token does the alignment pass through at each
             timestep (will take the form [0, 0, 1, 1, ..., <num of tokens including blanks in uterance>]).
         output_timestep_duration: a float indicating the duration of a single output timestep from
             the ASR Model.
