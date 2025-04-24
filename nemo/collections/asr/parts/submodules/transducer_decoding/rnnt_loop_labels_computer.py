@@ -280,8 +280,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             device=device,
             float_dtype=float_dtype,
         )
-        # sample state, will be replaced further when the decoding for hypothesis is done
-        last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         # init alignments if necessary
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
         # always use alignments variable - for torch.jit adaptation, but keep it as minimal as possible
@@ -301,6 +299,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             if prev_batched_state is None
             else prev_batched_state.predictor_state
         )
+        # sample state, will be replaced further when the decoding for hypothesis is done
+        last_decoder_state = (
+            self.decoder.initialize_state(encoder_output_projected)
+            if prev_batched_state is None
+            else prev_batched_state.predictor_state
+        )
+
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol

@@ -303,8 +303,6 @@ class GreedyBatchedTDTLoopLabelsComputer(
             device=device,
             float_dtype=float_dtype,
         )
-        # sample state, will be replaced further when the decoding for hypothesis is done
-        last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         # init alignments if necessary
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
         # always use alignments variable - for torch.jit adaptation, but keep it as minimal as possible
@@ -329,6 +327,13 @@ class GreedyBatchedTDTLoopLabelsComputer(
             if prev_batched_state is None
             else prev_batched_state.predictor_state
         )
+        # sample state, will be replaced further when the decoding for hypothesis is done
+        last_decoder_state = (
+            self.decoder.initialize_state(encoder_output_projected)
+            if prev_batched_state is None
+            else prev_batched_state.predictor_state
+        )
+
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol
@@ -436,7 +441,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
 
             # advance_mask is a mask for current batch for searching non-blank labels;
             # each element is True if non-blank symbol is not yet found AND we can increase the time index
-            time_indices += durations
+            time_indices += durations * active_mask
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             torch.less(time_indices, encoder_output_length, out=active_mask)
             torch.logical_and(active_mask, blank_mask, out=advance_mask)
@@ -519,9 +524,14 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 dst_states=last_decoder_state,
                 mask=became_inactive_mask,
             )
+            labels_mask = torch.logical_and(active_mask_prev, labels != self._blank_index)
+            self.decoder.batch_replace_states_mask(
+                src_states=state,
+                dst_states=last_decoder_state,
+                mask=became_inactive_mask & labels_mask,
+            )
 
             # store hypotheses
-            labels_mask = torch.logical_and(active_mask_prev, labels != self._blank_index)
             # TODO: fix cuda graphs version?
             if self.max_symbols is not None:
                 # pre-allocated memory, no need for checks

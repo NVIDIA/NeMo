@@ -94,8 +94,10 @@ def test_loop_labels_decoding_streaming(
     model.to(device=device)
 
     decoding_cfg = copy.deepcopy(model.cfg.decoding)
+    decoding_cfg.strategy = "greedy_batch"
     with open_dict(decoding_cfg):
         decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
+        decoding_cfg.greedy.max_symbols = 10
     model.change_decoding_strategy(decoding_cfg)
 
     manifest = read_manifest(an4_val_manifest_corrected)
