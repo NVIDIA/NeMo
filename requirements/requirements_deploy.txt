@@ -1,6 +1,7 @@
 accelerate
 fastapi
-nvidia-pytriton; platform_system != 'Darwin'
+# Versions less than 0.5.3 causes installation error due to pyzmq
+nvidia-pytriton>=0.5.3; platform_system != 'Darwin'
 pydantic-settings
 tensorstore<0.1.72; platform_system != 'Darwin'
 uvicorn
