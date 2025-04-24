@@ -192,7 +192,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
     A MegatronModule that wraps the AutocastTransformerLayer.
     """
 
-    def __init__(self, config, layer_number=1, hidden_dropout=None):
+    def __init__(self, config, layer_number=1, hidden_dropout=None, **kwargs):
         assert (
             HAVE_MEGATRON_CORE and HAVE_TE
         ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
