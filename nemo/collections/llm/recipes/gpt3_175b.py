@@ -242,11 +242,9 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     )
 
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
+    recipe.optim.config.use_precision_aware_optimizer = True
 
     # TODO: Remove after functional error with this enabled is fixed
     recipe.model.config.use_transformer_engine_full_layer_spec = False
-
-    if recipe.trainer.plugins.fp8 is None:
-        recipe.optim.config.use_precision_aware_optimizer = True
 
     return recipe
