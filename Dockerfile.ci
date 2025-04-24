@@ -48,6 +48,15 @@ RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" 
   bash /tmp/NeMo/reinstall.sh --library trtllm --mode build
 EOF
 
+FROM trt-base AS te
+
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library te --mode build
+EOF
+
 
 FROM trt-base as final
 
