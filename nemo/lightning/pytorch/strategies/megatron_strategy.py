@@ -1134,7 +1134,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             pipeline_dtype=self.pipeline_dtype,
             use_te_rng_tracker=self.use_te_rng_tracker,
             use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
-            self.num_distributed_optimizer_instances = num_distributed_optimizer_instances,
+            num_distributed_optimizer_instances = self.num_distributed_optimizer_instances,
         )
 
     @contextmanager
