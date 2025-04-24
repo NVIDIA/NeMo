@@ -5,7 +5,7 @@ This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints usi
 <https://pypi.org/project/nvidia-lm-eval/>`__ within the NeMo Framework. Supported benchmarks include:
     * GPQA
     * GSM8K
-    * IFEval
+    * IFEvalf
     * MGSM
     * MMLU
     * MMLU-Pro
@@ -82,8 +82,7 @@ the processes from being killed and aborting the runs.
     if __name__ == "__main__":
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 
-.. note::
-Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
+.. note:: Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
 options as these are just sample commands and don't share all arguments and their default settings. For more details
 on arguments in the ApiEndpoint and ConfigParams classes for evaluation, refer to `nemo/collections/llm/evaluation/api.py
 <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/evaluation/api.py>`__.
@@ -113,8 +112,7 @@ To run evaluations on your local workstation, use the following command:
 
     python scripts/llm/evaluation.py --nemo_checkpoint '/workspace/hf_llama3_8b_nemo2/' --eval_task 'gsm8k' --devices 2
 
-.. note::
-When running locally with NeMo-Run, you will need to manually terminate the deploy process once evaluations are complete.
+.. note:: When running locally with NeMo-Run, you will need to manually terminate the deploy process once evaluations are complete.
 
 Run on Slurm-based Clusters
 ##########################
