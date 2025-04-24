@@ -95,7 +95,7 @@ def main(args):
     # Training strategy setup
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
-        expert_tensor_parallel_size=1,
+        expert_tensor_parallel_size=args.tp_size,
         expert_model_parallel_size=args.ep_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
