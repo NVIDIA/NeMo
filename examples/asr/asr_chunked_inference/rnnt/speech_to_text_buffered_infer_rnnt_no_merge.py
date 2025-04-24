@@ -67,6 +67,7 @@ from typing import Optional
 import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
+from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
@@ -88,7 +89,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from tqdm.auto import tqdm
 
 
 def load_audio(file_path, target_sr=16000):
