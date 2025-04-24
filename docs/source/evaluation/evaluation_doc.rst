@@ -82,9 +82,7 @@ the processes from being killed and aborting the runs.
     if __name__ == "__main__":
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 
-.. note:: Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
-options as these are just sample commands and don't share all arguments and their default settings. For more details
-on arguments in the ApiEndpoint and ConfigParams classes for evaluation, refer to `nemo/collections/llm/evaluation/api.py
+.. note:: Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument options as these are just sample commands and don't share all arguments and their default settings. For more details on arguments in the ApiEndpoint and ConfigParams classes for evaluation, refer to `nemo/collections/llm/evaluation/api.py
 <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/evaluation/api.py>`__.
 
 Run Evaluations with NeMo-Run
