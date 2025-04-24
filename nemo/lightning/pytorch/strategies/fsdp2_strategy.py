@@ -34,14 +34,14 @@ from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, 
 from typing_extensions import override
 
 from nemo.lightning import io
+from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.lightning.pytorch.strategies.utils import (
     _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
-    fsdp2_strategy_parallelize,
     custom_fsdp2_strategy_parallelize,
+    fsdp2_strategy_parallelize,
 )
-from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
@@ -289,9 +289,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if not self.parallelized:
             # Mark model parallelized.
             self.parallelized = True
-            if self.cfsdp2 and self.cfsdp2_unit_modules:    # ... cfsdp2_unit_modules is not None and not an empty list
+            if self.cfsdp2 and self.cfsdp2_unit_modules:  # ... cfsdp2_unit_modules is not None and not an empty list
                 # Use custom FSDP2.
-                custom_fsdp2_strategy_parallelize(
+                self.lightning_module.model = custom_fsdp2_strategy_parallelize(
                     self.lightning_module.model,
                     device_mesh=self._device_mesh,
                     ddp_config=self.ddp_config,
@@ -411,11 +411,17 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert self.model is not None
 
+        if self.cfsdp2:
+            self.lightning_module.model.zero_grad_buffer()
+
         if self.context_parallel_size > 1:
             # Only pass context_parallel=True if AutoModel supports and has non-trivial CP.
             loss = self.lightning_module.training_step(batch, batch_idx, context_parallel=True)
         else:
             loss = self.lightning_module.training_step(batch, batch_idx)
+
+        if self.cfsdp2:
+            self.lightning_module.model.param_and_grad_buffer.copy_main_weights_to_model_weights()
 
         self.lightning_module.log(
             'global_step',

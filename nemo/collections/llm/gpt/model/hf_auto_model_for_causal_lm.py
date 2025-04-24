@@ -438,6 +438,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         tps = self.n_tok / time_delta
         self.n_tok = 0
 
+        try:
+            self.model.finish_grad_sync()
+            # if torch.distributed.get_rank() == 0:
+            #     print("Finished grad sync")
+        except:
+            pass
+
         # reduce across ranks
         is_ddp = isinstance(self.trainer.strategy, pl.strategies.DDPStrategy)
         device_mesh = getattr(self, '_device_mesh', None)

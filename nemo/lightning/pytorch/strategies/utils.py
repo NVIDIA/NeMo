@@ -28,6 +28,8 @@ from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
+from megatron.core.distributed.custom_fsdp import FSDP
+from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
@@ -38,8 +40,6 @@ from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, 
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
-from nemo.lightning.pytorch.custom_fsdp.fully_sharded_data_parallel import FullyShardedDataParallel
-from nemo.lightning.pytorch.custom_fsdp.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
@@ -618,8 +618,6 @@ def custom_fsdp2_strategy_parallelize(
         parallelize_module(model, tp_mesh, tp_shard_plan)
 
     # TODO(@cspades): Missing TransformerConfig parameters in HF model config.
-    model.config.calculate_per_token_loss = False
-    model.config.init_model_with_meta_device = False
     if ddp_config is None:
         # Default DDP config for custom FSDP2.
         ddp_config = DistributedDataParallelConfig(
@@ -632,14 +630,15 @@ def custom_fsdp2_strategy_parallelize(
         )
     # Import custom FSDP2 unit modules.
     cfsdp2_unit_modules = import_classes_from_paths(cfsdp2_unit_modules)
-    
+
     # Custom FSDP2
-    model = FullyShardedDataParallel(
-        config=model.config,
+    model = FSDP(
         ddp_config=ddp_config,
         module=model,
         fsdp_unit_modules=cfsdp2_unit_modules,
         device_mesh=dp_mesh,
+        calculate_per_token_loss=False,
+        init_model_with_meta_device=False,
     )
 
     return model
