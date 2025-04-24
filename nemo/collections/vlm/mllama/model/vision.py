@@ -14,7 +14,6 @@
 
 import collections
 import copy
-import math
 import types
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
@@ -54,7 +53,6 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
-from PIL import Image as PIL_Image
 from torch import Tensor, nn
 
 if TYPE_CHECKING:
@@ -79,42 +77,6 @@ def to_2tuple(x):
     if isinstance(x, collections.abc.Iterable):
         return x
     return (x, x)
-
-
-def _stack_images(
-    images: List[List[PIL_Image.Image]],
-    max_num_chunks: int,
-    image_res: int,
-    max_num_images: int,
-) -> Tuple[torch.Tensor, List[int]]:
-    """
-    Stack a list of image lists into a tensor while accounting for varying resolutions and aspect ratios.
-
-    Args:
-        images (List[List[PIL_Image.Image]]): List of image lists for stacking.
-        max_num_chunks (int): Maximum number of chunks per image.
-        image_res (int): Target resolution for each image.
-        max_num_images (int): Maximum number of images to stack.
-
-    Returns:
-        Tuple[torch.Tensor, List[int]]: Tensor of stacked images and a list of chunk counts for each image.
-    """
-    out_images, out_num_chunks = [], []
-    for imgs_sample in images:
-        out_images_i = torch.zeros(
-            max_num_images,
-            max_num_chunks,
-            3,
-            image_res,
-            image_res,
-        )
-        _num_chunks = []
-        for j, chunks_image in enumerate(imgs_sample):
-            out_images_i[j, : chunks_image.shape[0]] = chunks_image
-            _num_chunks.append(chunks_image.shape[0])
-        out_images.append(out_images_i)
-        out_num_chunks.append(_num_chunks)
-    return torch.stack(out_images), out_num_chunks
 
 
 def build_encoder_attention_mask(
@@ -145,32 +107,6 @@ def build_encoder_attention_mask(
         masks.append(mask_i)
     masks = torch.stack(masks).to(dtype) * torch.finfo(dtype).min
     return masks
-
-
-def apply_scaling(freqs: torch.Tensor):
-    """
-    Scale frequency values based on predefined thresholds and a smoothing factor.
-    """
-    # Values obtained from grid search
-    scale_factor = 8
-    low_freq_factor = 1
-    high_freq_factor = 4
-    old_context_len = 8192  # original llama3 length
-
-    low_freq_wavelen = old_context_len / low_freq_factor
-    high_freq_wavelen = old_context_len / high_freq_factor
-    new_freqs = []
-    for freq in freqs:
-        wavelen = 2 * math.pi / freq
-        if wavelen < high_freq_wavelen:
-            new_freqs.append(freq)
-        elif wavelen > low_freq_wavelen:
-            new_freqs.append(freq / scale_factor)
-        else:
-            assert low_freq_wavelen != high_freq_wavelen
-            smooth = (old_context_len / wavelen - low_freq_factor) / (high_freq_factor - low_freq_factor)
-            new_freqs.append((1 - smooth) * freq / scale_factor + smooth * freq)
-    return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
 
 
 # Use this spec for an implementation using modules in TE
@@ -279,30 +215,18 @@ def forward_with_return_intermediate(
                     intermediate_hidden_states.append(hidden_states)
 
                 with self.offload_context:
-                    if (len(self.cuda_graphs) == 0) or (not self.training):
-                        hidden_states, context = layer(
-                            hidden_states=hidden_states,
-                            attention_mask=attention_mask,
-                            context=context,
-                            context_mask=context_mask,
-                            rotary_pos_emb=rotary_pos_emb,
-                            attention_bias=attention_bias,
-                            inference_params=inference_params,
-                            packed_seq_params=packed_seq_params,
-                        )
-                        # CUDA graph doesn't output context and is expected to be None
-                        assert (context is None) or (not self.config.enable_cuda_graph) or (not self.training)
-                    else:
-                        # CUDA graph replay for layer `l_no` and microbatch `self.current_microbatch`
-                        # CUDA graph requires positional arguments with the exception of is_first_microbatch.
-                        # Also CUDA graph accepts only Tensor inputs and outputs. Hence, the arg list and
-                        # returned list is limited to `hidden_states`.
-                        assert (len(self.cuda_graphs) > l_no) and (
-                            self.current_microbatch < len(self.cuda_graphs[l_no])
-                        )
-                        hidden_states = self.cuda_graphs[l_no][self.current_microbatch](
-                            hidden_states, is_first_microbatch=(self.current_microbatch == 0)
-                        )
+                    hidden_states, context = layer(
+                        hidden_states=hidden_states,
+                        attention_mask=attention_mask,
+                        context=context,
+                        context_mask=context_mask,
+                        rotary_pos_emb=rotary_pos_emb,
+                        attention_bias=attention_bias,
+                        inference_params=inference_params,
+                        packed_seq_params=packed_seq_params,
+                    )
+                    # CUDA graph doesn't output context and is expected to be None
+                    assert (context is None) or (not self.config.enable_cuda_graph) or (not self.training)
 
                 if (
                     torch.is_grad_enabled()
@@ -431,12 +355,14 @@ class SelfAttentionNoBias(SelfAttention):
         submodules: SelfAttentionSubmodules,
         layer_number: int,
         attn_mask_type=AttnMaskType.padding,
+        **kwargs,
     ):
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             attn_mask_type=attn_mask_type,
+            **kwargs,
         )
 
         # Override to remove bias since we don't have a good config for this.
@@ -484,12 +410,14 @@ class ImageTransformerLayer(TransformerLayer):
         submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
         hidden_dropout: float = None,
+        **kwargs,
     ):
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             hidden_dropout=hidden_dropout,
+            **kwargs,
         )
         self.gated = self.config.gated
         if self.gated:
@@ -501,14 +429,11 @@ class ImageTransformerLayer(TransformerLayer):
         hidden_states,
         attention_mask=None,
         context=None,
-        context_mask=None,
         rotary_pos_emb=None,
-        rotary_pos_cos=None,
-        rotary_pos_sin=None,
         attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
-        sequence_len_offset=None,
+        **kwargs,
     ):
         """Forward."""
         # hidden_states: [s, b, h]

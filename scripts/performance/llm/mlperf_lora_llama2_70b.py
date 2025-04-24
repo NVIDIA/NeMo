@@ -27,7 +27,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import import_ckpt_experiment, slurm_executor
+from ..utils import args_sanity_check, import_ckpt_experiment, slurm_executor
 
 NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8
@@ -104,7 +104,7 @@ def mlperf_lora_llama2_70b_recipe(
         lr_scheduler=scheduler,
     )
     peft = run.Config(
-        llm.peft.lora.LoRA,
+        llm.peft.LoRA,
         dim=16,
         alpha=32,
         dropout=0.1,
@@ -161,7 +161,7 @@ def mlperf_lora_llama2_70b_recipe(
         fp8="hybrid",
         fp8_amax_history_len=32,
         fp8_amax_compute_algo='max',
-        fp8_params=True,
+        fp8_param_gather=True,
         fp8_dot_product_attention=1,
     )
 
@@ -235,8 +235,6 @@ def mlperf_lora_llama2_70b_recipe(
         callbacks=[overlap_callback, gc_callback, timing_callback],
     )
 
-    from nemo.collections.llm.recipes.log.default import tensorboard_logger
-
     recipe = run.Partial(
         llm.finetune,
         model=model,
@@ -252,14 +250,18 @@ def mlperf_lora_llama2_70b_recipe(
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
+    args_sanity_check(args)
 
     if args.finetuning.lower() != "lora" or args.compute_dtype != "fp8":
         raise ValueError(
-            f"This example assumes LoRA and fp8; instead got --finetuning={args.finetuning} --compute_dtype={args.compute_dtype}"
+            "This example assumes LoRA and fp8; instead got "
+            f"--finetuning={args.finetuning} --compute_dtype={args.compute_dtype}"
         )
     if args.virtual_pipeline_parallel_size or args.expert_parallel_size:
         raise ValueError(
-            f"This example does not support virtual pipeline parallel or expert parallel; got --virtual_pipeline_parallel_size={args.virtual_pipeline_parallel_size} --expert_parallel_size={args.expert_parallel_size}"
+            "This example does not support virtual pipeline parallel or expert parallel; "
+            f"got --virtual_pipeline_parallel_size={args.virtual_pipeline_parallel_size} "
+            f"--expert_parallel_size={args.expert_parallel_size}"
         )
 
     num_gpus_per_node = NUM_GPUS_PER_NODE if args.gpus_per_node is None else args.gpus_per_node
@@ -284,10 +286,15 @@ if __name__ == "__main__":
     )
 
     env_vars = {
-        "CUDA_DEVICE_MAX_CONNECTIONS": "1",  # Limit GPUs to one compute stream so that kernels will be executed in consistent order, for best performance with communication overlap configs
+        # pylint: disable=C0301
+        "CUDA_DEVICE_MAX_CONNECTIONS": (
+            "32" if args.gpu.lower() in ['b200', 'gb200'] else "1"
+        ),  # Limit GPUs to one compute stream so that kernels will be executed in consistent order, for best performance with communication overlap configs
+        # pylint: disable=C0301
         "CUBLAS_FORCE_XMMA_KERNEL_INIT": "DEVICE",  # Use a device kernel instead of memset for matrix multiply initialization, which can help reduce CPU-side overhead
         "CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT": "0",  # Reduce memory used by cuDNN attention
         "NVTE_FP8_DPA_BWD": "1",  # Enable TransformerEngine FP8 attention for bprop
+        # pylint: disable=C0301
         "NVTE_RS_STRIDED_ATOMIC": "2",  # Reduce-scatter communication will be done as a single kernel (with userbuffer TP communication overlap)
         "NCCL_MIN_CTAS": "32",  # Increase CTA resources available to NCCL to improve communication perf
         "NCCL_MIN_P2P_NCHANNELS": "32",  # Likewise, increase P2P channels availabe to NCCL
@@ -304,10 +311,11 @@ if __name__ == "__main__":
         num_gpus_per_node,
         args.time_limit,
         args.container_image,
-        custom_mounts=[],
+        custom_mounts=args.custom_mounts,
         custom_env_vars=env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
+        wandb_key=args.wandb_key,
     )
 
     recipe = mlperf_lora_llama2_70b_recipe(
@@ -326,13 +334,26 @@ if __name__ == "__main__":
         recipe.trainer.logger = False
     else:
         recipe.log.log_dir = "/nemo_run/lightning_logs"
+    if args.wandb:
+        assert args.wandb_prj_name is not None
+        assert args.wandb_job_name is not None
+        from nemo.collections.llm.recipes.log.default import wandb_logger
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None)]
+        recipe.log.wandb = wandb_logger(project=args.wandb_prj_name, name=args.wandb_job_name)
+
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
+            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(
                 *import_ckpt_experiment(
                     executor, run.Config(LlamaModel, config=run.Config(Llama2Config70B)), source=f"hf://{HF_MODEL_URI}"

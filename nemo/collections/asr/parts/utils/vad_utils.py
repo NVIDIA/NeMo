@@ -59,8 +59,8 @@ class PostProcessingParams:
     offset: float = 0.5  # Offset threshold for detecting the end of a speech
     pad_onset: float = 0.0  # Adding durations before each speech segment
     pad_offset: float = 0.0  # Adding durations after each speech segment
-    min_duration_on: float = 0.0  # Threshold for small non-speech deletion
-    min_duration_off: float = 0.0  # Threshold for short speech segment deletion
+    min_duration_on: float = 0.0  # Threshold for short speech segment deletion
+    min_duration_off: float = 0.0  # Threshold for small non-speech deletion
 
 
 def load_postprocessing_from_yaml(postprocessing_yaml: str = None) -> PostProcessingParams:
@@ -625,9 +625,9 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
             torch.Tensor([[start1, end1], [start2, end2]]).
         per_args:
             min_duration_on (float):
-                Threshold for small non-speech deletion.
-            min_duration_off (float):
                 Threshold for short speech segment deletion.
+            min_duration_off (float):
+                Threshold for small non-speech deletion.
             filter_speech_first (float):
                 Whether to perform short speech segment deletion first. Use 1.0 to represent True.
 
@@ -1146,7 +1146,7 @@ def extract_labels(path2ground_truth_label: str, time: list) -> list:
     time (list) : a list of array representing time period.
     """
 
-    data = pd.read_csv(path2ground_truth_label, sep="\s+", delimiter=None, header=None)
+    data = pd.read_csv(path2ground_truth_label, sep=r"\s+", delimiter=None, header=None)
     data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
     labels = []
     for pos in time:
@@ -1369,7 +1369,7 @@ def load_rttm_file(filepath: str) -> pd.DataFrame:
     """
     if not Path(filepath).exists():
         raise ValueError(f"File not found: {filepath}")
-    data = pd.read_csv(filepath, sep="\s+", delimiter=None, header=None)
+    data = pd.read_csv(filepath, sep=r"\s+", delimiter=None, header=None)
     data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
 
     data['start'] = data['start'].astype(float)
@@ -1610,7 +1610,7 @@ def read_rttm_as_pyannote_object(rttm_file: str, speaker_override: Optional[str]
         annotation(pyannote.Annotation): annotation object
     """
     annotation = Annotation()
-    data = pd.read_csv(rttm_file, sep="\s+", delimiter=None, header=None)
+    data = pd.read_csv(rttm_file, sep=r"\s+", delimiter=None, header=None)
     data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
     for index, row in data.iterrows():
         if speaker_override is not None:

@@ -6,7 +6,10 @@ For general information about how to set up and run experiments that is common t
 The model section of the NeMo audio configuration files generally requires information about the dataset(s) being used, parameters for any augmentation being performed, as well as the model architecture specification.
 
 Example configuration files for all of the NeMo audio models can be found in the
-`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/audio/conf>`_.
+`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/main/examples/audio/conf>`_.
+
+
+.. _audio-configs-nemo-dataset-configuration:
 
 NeMo Dataset Configuration
 --------------------------
@@ -55,8 +58,10 @@ An example train, validation and test datasets can be configured as follows:
       num_workers: 4
       pin_memory: true
 
-More information about online augmentation can found in the `example configuration <https://github.com/NVIDIA/NeMo/blob/main/examples/audio/conf/masking.yaml>`_
+More information about online augmentation can found in the `masking example configuration <https://github.com/NVIDIA/NeMo/blob/main/examples/audio/conf/masking.yaml>`_
 
+
+.. _audio-configs-lhotse-dataset-configuration:
 
 Lhotse Dataset Configuration
 ----------------------------
@@ -98,7 +103,7 @@ An example train dataset in Lhotse CutSet format using online augmentation with 
     rir_path: ??? # path to Lhotse recordings manifest with room impulse response signals
     noise_path: ??? # path to Lhotse cuts manifest with noise signals
 
-A configuration file with Lhotse online augmentation can found in the `example configuration <https://github.com/NVIDIA/NeMo/blob/main/examples/audio/conf/masking_with_online_augmentation.yaml>`_.
+A configuration file with Lhotse online augmentation can found in the `online augmentation example configuration <https://github.com/NVIDIA/NeMo/blob/main/examples/audio/conf/masking_with_online_augmentation.yaml>`_.
 More information about the online augmentation can be found in the `tutorial notebook <https://github.com/NVIDIA/NeMo/blob/main/tutorials/audio/speech_enhancement/Speech_Enhancement_with_Online_Augmentation.ipynb>`_.
 
 
@@ -120,13 +125,13 @@ An example train dataset in Lhotse shar format can be configured as follows:
     pin_memory: true
 
 
-A configuration file with Lhotse shar format can found in the `example configuration <https://github.com/NVIDIA/NeMo/blob/main/examples/audio/conf/flow_matching_generative_ssl_pretraining.yaml>`_.
+A configuration file with Lhotse shar format can found in the `SSL pretraining example configuration <https://github.com/NVIDIA/NeMo/blob/main/examples/audio/conf/flow_matching_generative_ssl_pretraining.yaml>`_.
 
 
 Model Architecture Configuration
 --------------------------------
 Each configuration file should describe the model architecture being used for the experiment.
-An example of a simple predictible model configuration is shown below:
+An example of a simple predictive model configuration is shown below:
 
 .. code-block:: yaml
 
