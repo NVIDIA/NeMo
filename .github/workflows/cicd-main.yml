@@ -133,7 +133,7 @@ jobs:
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
-      image-label: ${{ github.event.pull_request.number || 0 }}
+      image-label: nemo-core
       build-args: |
         IMAGE_LABEL=nemo-core
         NEMO_TAG=${{ github.sha }}
