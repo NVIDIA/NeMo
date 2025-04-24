@@ -45,7 +45,9 @@ from nemo.utils import logging
 
 """
 Align the utterances in manifest_filepath. 
-Results are saved in ctm files in output_dir.
+Results are saved in ctm files in output_dir as well as json manifest in output_manifest_filepath.
+If no output_manifest_filepath is specified, it will save the results in the same parent directory as 
+the input manifest_filepath.
 
 Arguments:
     pretrained_name: string specifying the name of a CTC NeMo ASR model which will be automatically downloaded
@@ -58,6 +60,9 @@ Arguments:
     manifest_filepath: filepath to the manifest of the data you want to align,
         containing 'audio_filepath' and 'text' fields.
     output_dir: the folder where output CTM files and new JSON manifest will be saved.
+    output_manifest_filepath: Optional[str] = None  # output of manfiest with sou_time and eou_time
+    manifest_pattern: Optional[str] = None  # pattern used in Path.glob() for finding manifests
+
     align_using_pred_text: if True, will transcribe the audio using the specified model and then use that transcription 
         as the reference text for the forced alignment. 
     transcribe_device: None, or a string specifying the device that will be used for generating log-probs (i.e. "transcribing").
@@ -128,9 +133,10 @@ class AlignmentConfig:
     # Required configs
     pretrained_name: Optional[str] = None
     model_path: Optional[str] = None
-    manifest_filepath: Optional[str] = None
+    manifest_filepath: Optional[str] = None  # path to manifest file or directory
     output_dir: Optional[str] = '.tmp'  # set it to .tmp and will be removed after alignment
-    output_manifest_filepath: Optional[str] = None  # only need this file to save sou and eou time
+    output_manifest_filepath: Optional[str] = None  # output of manfiest with sou_time and eou_time
+    manifest_pattern: Optional[str] = None  # pattern used in Path.glob() for finding manifests
 
     # General configs
     align_using_pred_text: bool = False
@@ -203,27 +209,6 @@ def main(cfg: AlignmentConfig):
                 " cfg.ass_file_config.text_being_spoken_rgb,"
                 " and cfg.ass_file_config.text_already_spoken_rgb all need to contain"
                 " exactly 3 elements."
-            )
-
-    # Validate manifest contents
-    if not is_entry_in_all_lines(cfg.manifest_filepath, "audio_filepath"):
-        raise RuntimeError(
-            "At least one line in cfg.manifest_filepath does not contain an 'audio_filepath' entry. "
-            "All lines must contain an 'audio_filepath' entry."
-        )
-
-    if cfg.align_using_pred_text:
-        if is_entry_in_any_lines(cfg.manifest_filepath, "pred_text"):
-            raise RuntimeError(
-                "Cannot specify cfg.align_using_pred_text=True when the manifest at cfg.manifest_filepath "
-                "contains 'pred_text' entries. This is because the audio will be transcribed and may produce "
-                "a different 'pred_text'. This may cause confusion."
-            )
-    else:
-        if not is_entry_in_all_lines(cfg.manifest_filepath, "text"):
-            raise RuntimeError(
-                "At least one line in cfg.manifest_filepath does not contain a 'text' entry. "
-                "NFA requires all lines to contain a 'text' entry when cfg.align_using_pred_text=False."
             )
 
     # init devices
@@ -305,6 +290,69 @@ def main(cfg: AlignmentConfig):
             "model_stride_in_secs": model_stride_in_secs,
             "tokens_per_chunk": tokens_per_chunk,
         }
+
+    if Path(cfg.manifest_filepath).is_file():
+        manifest_list = [cfg.manifest_filepath]
+    elif Path(cfg.manifest_filepath).is_dir():
+        if cfg.manifest_pattern is not None:
+            manifest_list = list(Path(cfg.manifest_filepath).glob(cfg.manifest_pattern))
+        else:
+            manifest_list = list(Path(cfg.manifest_filepath).glob("*.json"))
+    else:
+        raise ValueError(
+            f"cfg.manifest_filepath is not a valid file or directory. "
+            f"Please check the path: {cfg.manifest_filepath}"
+        )
+
+    origin_output_manifest_filepath = cfg.output_manifest_filepath
+    logging.info(f"Found {len(manifest_list)} manifest files to process.")
+    # process each manifest file
+    for manifest_filepath in manifest_list:
+        logging.info(f"Processing manifest file: {manifest_filepath}")
+        cfg.manifest_filepath = str(manifest_filepath)
+
+        if origin_output_manifest_filepath is None:
+            cfg.output_manifest_filepath = str(
+                Path(manifest_filepath).parent / f"{Path(manifest_filepath).stem}-aligned.json"
+            )
+        elif len(manifest_list) > 1 and origin_output_manifest_filepath is not None:
+            raise ValueError(
+                "cfg.output_manifest_filepath must be None when processing multiple manifest files. "
+                "Please set it to None."
+            )
+
+        if not cfg.remove_tmp_dir and len(manifest_list) > 1:
+            # if keep alignment files, then we need to set output_dir to be different for each manifest
+            cfg.output_dir = str(Path(manifest_filepath).parent / f"{Path(manifest_filepath).stem}_alignment")
+
+        process_single_manifest(cfg, model, buffered_chunk_params, viterbi_device)
+        logging.info(f"Output manifest saved to: {cfg.output_manifest_filepath}")
+
+    logging.info("All manifest files processed successfully.")
+
+
+def process_single_manifest(cfg, model, buffered_chunk_params, viterbi_device):
+    # Validate manifest contents
+    if not is_entry_in_all_lines(cfg.manifest_filepath, "audio_filepath"):
+        raise RuntimeError(
+            "At least one line in cfg.manifest_filepath does not contain an 'audio_filepath' entry. "
+            "All lines must contain an 'audio_filepath' entry."
+        )
+
+    if cfg.align_using_pred_text:
+        if is_entry_in_any_lines(cfg.manifest_filepath, "pred_text"):
+            raise RuntimeError(
+                "Cannot specify cfg.align_using_pred_text=True when the manifest at cfg.manifest_filepath "
+                "contains 'pred_text' entries. This is because the audio will be transcribed and may produce "
+                "a different 'pred_text'. This may cause confusion."
+            )
+    else:
+        if not is_entry_in_all_lines(cfg.manifest_filepath, "text"):
+            raise RuntimeError(
+                "At least one line in cfg.manifest_filepath does not contain a 'text' entry. "
+                "NFA requires all lines to contain a 'text' entry when cfg.align_using_pred_text=False."
+            )
+
     # get start and end line IDs of batches
     starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
 
@@ -380,13 +428,12 @@ def main(cfg: AlignmentConfig):
                 continue
 
             # get sou/eou time
-            if 'segments_level_ctm_filepath' in item:
-                lines = [line.split() for line in open(item['segments_level_ctm_filepath'])]
-                start_time = min([float(line[2]) for line in lines])
-                end_time = max([float(line[2]) + float(line[3]) for line in lines])
-                input_manifest_lines[i]['sou_time'] = start_time
-                input_manifest_lines[i]['eou_time'] = end_time
-                output_manifest_lines.append(input_manifest_lines[i])
+            lines = [line.split() for line in open(item['segments_level_ctm_filepath'])]
+            start_time = min([float(line[2]) for line in lines])
+            end_time = max([float(line[2]) + float(line[3]) for line in lines])
+            input_manifest_lines[i]['sou_time'] = start_time
+            input_manifest_lines[i]['eou_time'] = end_time
+            output_manifest_lines.append(input_manifest_lines[i])
 
     with open(cfg.output_manifest_filepath, 'w') as f:
         for item in output_manifest_lines:
