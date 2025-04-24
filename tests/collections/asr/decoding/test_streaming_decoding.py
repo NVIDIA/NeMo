@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from typing import Optional
 
 import pytest
 import torch
+from omegaconf import open_dict
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import ASRModel
@@ -73,6 +75,7 @@ def get_model_encoder_output(
 @pytest.mark.parametrize("is_tdt", [False, True])
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
+@pytest.mark.parametrize("use_cuda_graph_decoder", [True, False])
 def test_loop_labels_decoding_streaming(
     tmp_path_factory,
     an4_val_manifest_corrected,
@@ -82,14 +85,22 @@ def test_loop_labels_decoding_streaming(
     is_tdt: bool,
     chunk_size: int,
     batch_size: int,
+    use_cuda_graph_decoder: bool,
 ):
+    if use_cuda_graph_decoder and not torch.cuda.is_available():
+        pytest.skip("CUDA is not available, skipping test with CUDA graph decoding")
     model = stt_en_fastconformer_tdt_large if is_tdt else stt_en_fastconformer_transducer_large
     model.eval()
     model.to(device=device)
-    transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
 
-    ref_transcripts = [hyp.text for hyp in transcriptions]
+    decoding_cfg = copy.deepcopy(model.cfg.decoding)
+    with open_dict(decoding_cfg):
+        decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
+    model.change_decoding_strategy(decoding_cfg)
+
     manifest = read_manifest(an4_val_manifest_corrected)
+    transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
+    ref_transcripts = [hyp.text for hyp in transcriptions]
 
     streaming_transcripts = []
     decoding_computer: GreedyBatchedLoopLabelsComputerBase = model.decoding.decoding._decoding_computer

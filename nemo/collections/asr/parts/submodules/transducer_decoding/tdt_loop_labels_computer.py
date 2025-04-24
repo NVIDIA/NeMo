@@ -521,10 +521,12 @@ class GreedyBatchedTDTLoopLabelsComputer(
             )
 
             # store hypotheses
+            labels_mask = torch.logical_and(active_mask_prev, labels != self._blank_index)
+            # TODO: fix cuda graphs version?
             if self.max_symbols is not None:
                 # pre-allocated memory, no need for checks
                 batched_hyps.add_results_masked_no_checks_(
-                    active_mask,
+                    labels_mask,
                     labels,
                     time_indices_current_labels,
                     scores,
@@ -533,7 +535,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
             else:
                 # auto-adjusted storage
                 batched_hyps.add_results_masked_(
-                    active_mask,
+                    labels_mask,
                     labels,
                     time_indices_current_labels,
                     scores,
