@@ -50,8 +50,8 @@ EOF
 
 FROM trt-base AS te-wheel
 
-ARG TRTLLM_REPO
-ARG TRTLLM_TAG
+ARG TE_REPO
+ARG TE_TAG
 RUN --mount=type=bind,source=external/patches,target=/tmp/NeMo/external/patches \
   --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
   
