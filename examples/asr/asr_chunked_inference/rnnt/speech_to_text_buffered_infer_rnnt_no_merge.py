@@ -311,28 +311,29 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             audio_batch, audio_batch_lengths = get_audio_batch(
                 [record["audio_filepath"] for record in records[i : i + cfg.batch_size]], device=map_location
             )
-            logging.warning(f"{audio_batch.shape=}")
             hyps = None
             state: Optional[BatchedGreedyDecodingState] = None
-            for t in range(
-                0,
-                audio_batch.shape[1] + (left_ctx_audio_frames + chunk_ctx_audio_frames - 1),
-                (left_ctx_audio_frames + chunk_ctx_audio_frames),
+            for right in range(
+                chunk_ctx_audio_frames + right_ctx_audio_frames,
+                audio_batch.shape[1] + chunk_ctx_audio_frames + right_ctx_audio_frames - 1,
+                chunk_ctx_audio_frames,
             ):
-                left = max(t - left_ctx_audio_frames, 0)
-                right = min(t + (chunk_ctx_audio_frames + right_ctx_audio_frames), audio_batch.shape[1])
+                left = max(right - (left_ctx_audio_frames + chunk_ctx_audio_frames + right_ctx_audio_frames), 0)
+                ctx_start = max(right - (chunk_ctx_audio_frames + right_ctx_audio_frames), 0)
+                ctx_end = right - right_ctx_audio_frames
+                assert ctx_end > 0
                 current_audio_chunk_len = torch.where(
                     right < audio_batch_lengths,
                     torch.full_like(audio_batch_lengths, fill_value=right - left),
                     torch.maximum(audio_batch_lengths - left, torch.zeros_like(audio_batch_lengths)),
                 )
-                print(f"Audio of {current_audio_chunk_len}")
                 encoder_output, encoder_ouptut_len = asr_model(
                     input_signal=audio_batch[:, left:right],
                     input_signal_length=current_audio_chunk_len,
                 )
                 # TODO: fix shapes
-                crop_left = int((t - left) // audio_sample_rate // cfg.model_stride / feature_stride)
+                crop_left = int((ctx_start - left) / feature_stride) // audio_sample_rate // cfg.model_stride
+                crop_right = int(right_ctx_audio_frames // audio_sample_rate // cfg.model_stride / feature_stride)
                 encoder_output = encoder_output.transpose(1, 2)
                 encoder_chunk = encoder_output[:, crop_left : crop_left + chunk_ctx_encoder_frames]
                 batched_hyps, _, state = decoding_computer(
