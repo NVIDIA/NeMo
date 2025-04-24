@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+# pylint: disable=E1101,R0902,R0912,R0913,R0914,R0901,C0302,R0915,C0114
 import math
 import random
 from collections import OrderedDict
@@ -20,8 +20,8 @@ from typing import List, Optional, Set, Tuple
 
 import torch
 import torch.distributed
-import torch.nn as nn
 from omegaconf import DictConfig, ListConfig, open_dict
+from torch import nn
 
 from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
@@ -46,7 +46,14 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType, LogitsType
+from nemo.core.neural_types import (
+    AcousticEncodedRepresentation,
+    ChannelType,
+    LengthsType,
+    LogitsType,
+    NeuralType,
+    SpectrogramType,
+)
 from nemo.utils import logging
 
 __all__ = ['ConformerEncoder']
@@ -65,7 +72,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         d_model (int): the hidden size of the model
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
-        subsampling (str): the method of subsampling, choices=['vggnet', 'striding', 'dw-striding', 'stacking', 'stacking_norm']
+        subsampling (str): the method of subsampling:
+            choices = ['vggnet', 'striding', 'dw-striding', 'stacking', 'stacking_norm']
             Defaults to striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
@@ -81,15 +89,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to 1.
         ff_expansion_factor (int): the expansion factor in feed forward layers
             Defaults to 4.
-        self_attention_model (str): type of the attention layer and positional encoding
+        self_attention_model (str): the type of the attention layer and positional encoding.
 
             'rel_pos':
                 relative positional embedding and Transformer-XL
-
             'rel_pos_local_attn':
                 relative positional embedding and Transformer-XL with local attention using
                 overlapping chunks. Attention context is determined by att_context_size parameter.
-
             'abs_pos':
                 absolute positional embedding and Transformer
 
@@ -98,14 +104,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to 5000
         n_heads (int): number of heads in multi-headed attention layers
             Defaults to 4.
-        att_context_size (List[Union[List[int],int]]): specifies the context sizes on each side. Each context size should be a list of two integers like [100,100].
-            A list of context sizes like [[100,100],[100,50]] can also be passed. -1 means unlimited context.
-            Defaults to [-1,-1]
-        att_context_probs (List[float]): a list of probabilities of each one of the att_context_size when a list of them is passed. If not specified, uniform distribution is being used.
+        att_context_size (List[Union[List[int],int]]): specifies the context sizes on each side.
+            Each context size should be a list of two integers like `[100, 100]`.
+            A list of context sizes like `[[100,100]`, `[100,50]]` can also be passed. -1 means unlimited context.
+            Defaults to `[-1, -1]`
+        att_context_probs (List[float]): a list of probabilities of each one of the att_context_size
+            when a list of them is passed. If not specified, uniform distribution is being used.
             Defaults to None
         att_context_style (str): 'regular' or 'chunked_limited'.
             Defaults to 'regular'
-        xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
+        xscaling (bool): enables scaling the inputs to the multi-headed attention layers by `sqrt(d_model)`.
             Defaults to True.
         untie_biases (bool): whether to not share (untie) the bias weights between layers of Transformer-XL
             Defaults to True.
@@ -113,12 +121,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to 31.
         conv_norm_type (str): the type of the normalization in the convolutional modules
             Defaults to 'batch_norm'.
-        conv_context_size (list): it can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size.
-            None means [(conv_kernel_size-1)//2, (conv_kernel_size-1)//2], and 'causal' means [(conv_kernel_size-1), 0].
+        conv_context_size (list): it can be"causal" or a list of two integers
+            while `conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size`.
+            `None` means `[(conv_kernel_size-1)//2`, `(conv_kernel_size-1)//2]`, and 'causal' means
+            `[(conv_kernel_size-1), 0]`.
             Defaults to None.
-        conv_dual_mode (bool): specifies if convolution should be dual mode when dual_offline mode is being used. When enables, the left half of the convolution kernel would get masked in streaming cases.
-            Defaults to False
-        use_bias (bool): Use bias in all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
+        conv_dual_mode (bool): specifies if convolution should be dual mode when dual_offline mode is being used.
+            When enables, the left half of the convolution kernel would get masked in streaming cases.
+            Defaults to False.
+        use_bias (bool): Use bias in all Linear and Conv1d layers from each ConformerLayer to improve
+            activation flow and stabilize training of huge models.
             Defaults to True.
         dropout (float): the dropout rate used in all layers except the attention layers
             Defaults to 0.1.
@@ -149,13 +161,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to False.
         use_pytorch_sdpa (bool): use torch sdpa instead of manual attention.
             Defaults to False.
-        use_pytorch_sdpa_backends (list[str]): list of backend names to use in sdpa. None or empty list means all backends. e.g. ["MATH"]
-            Defaults to None
+        use_pytorch_sdpa_backends (list[str]): list of backend names to use in sdpa.
+            None or empty list means all backends. e.g. ["MATH"]
+            Defaults to None.
         sync_max_audio_length (bool): when true, performs NCCL all_reduce to allocate the same amount of memory for
             positional encoding buffers on all GPUs. Disabling this setting may help with deadlocks in certain
             scenarios such as model parallelism, or generally when this module is not being ran on some GPUs
             as a part of the training step.
-
     """
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -210,7 +222,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
-                "pre_encode_input": NeuralType(tuple(), LogitsType(), optional=True),  # Boolean-style input
+                "pre_encode_input": NeuralType(tuple(), LogitsType(), optional=True),
             }
         )
 
@@ -224,7 +236,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
                 "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
-                # "pre_encode_input": bool, optional=True),
+                "pre_encode_input": NeuralType(tuple(), LogitsType(), optional=True),
             }
         )
 
@@ -474,6 +486,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
     def forward_for_export(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
+        """
+        Forward function for model export. Please see `forward()` for more details.
+        """
         if cache_last_channel is not None:
             cache_last_channel = cache_last_channel.transpose(0, 1)
             cache_last_time = cache_last_time.transpose(0, 1)
@@ -500,6 +515,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
 
     def streaming_post_process(self, rets, keep_all_outputs=True):
+        """
+        Post-process the output of the forward function for streaming.
+
+        Args:
+            rets: The output of the forward function.
+            keep_all_outputs: Whether to keep all outputs.
+        """
         if len(rets) == 2:
             return rets[0], rets[1], None, None, None
 
@@ -519,10 +541,38 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     @typecheck()
     def forward(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None, pre_encode_input=False
+        self,
+        audio_signal,
+        length,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
+        pre_encode_input=False,
     ):
+        """
+        Forward function for the ConformerEncoder accepting an audio signal and its length.
+        Note that audio_signal format can be two different types.
+        `pre_encode_input` is a boolean indicating whether the input audio_signal should be pre-encoded.
+            (1) pre_encode_input = False (default):
+                audio_signal is a tensor of shape (batch, time, self._feat_in)
+            (2) pre_encode_input = True:
+                audio_signal is a tensor of shape (batch, time, self.d_model)
+        """
+        if pre_encode_input and audio_signal.shape[-1] != self.d_model:
+            raise ValueError(
+                f"If pre_encode_input is True, audio_signal should have shape "
+                f"(batch, time, {self.d_model}) but got last dimension {audio_signal.shape[-1]}."
+            )
+        elif not pre_encode_input and audio_signal.shape[-1] !=  self._feat_in:
+            raise ValueError(
+                f"If pre_encode_input is False, audio_signal should have shape "
+                f"(batch, time, {self._feat_in}) but got last dimension {audio_signal.shape[-1]}."
+            )
+
         if pre_encode_input:
-            self.update_max_seq_length(seq_length=audio_signal.size(2)*self.subsampling_factor, device=audio_signal.device)
+            self.update_max_seq_length(
+                seq_length=audio_signal.size(2) * self.subsampling_factor, device=audio_signal.device
+            )
         else:
             self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_internal(
@@ -535,8 +585,26 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         )
 
     def forward_internal(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None, pre_encode_input=False,
+        self,
+        audio_signal,
+        length,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
+        pre_encode_input=False,
     ):
+        """
+        Forward function for the ConformerEncoder accepting an audio signal and its length.
+        Note that audio_signal format can be two different types.
+        `pre_encode_input` is a boolean indicating whether the input audio_signal should be pre-encoded.
+            (1) pre_encode_input = False (default):
+                audio_signal is a tensor of shape (batch, time, self._feat_in)
+            (2) pre_encode_input = True:
+                audio_signal is a tensor of shape (batch, time, self.d_model)
+
+        `pre_encode_input=True` is used for cases where attention-free embeddings are needed to be
+        saved or reused. (e.g., speaker cache in streaming speaker diarization)
+        """
         if length is None:
             length = audio_signal.new_full(
                 (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
@@ -548,7 +616,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cur_att_context_size = random.choices(self.att_context_size_all, weights=self.att_context_probs)[0]
         else:
             cur_att_context_size = self.att_context_size
-            
+
         if not pre_encode_input:
             audio_signal = torch.transpose(audio_signal, 1, 2)
 
@@ -684,6 +752,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             return audio_signal, length
 
     def update_max_seq_length(self, seq_length: int, device):
+        """
+        Updates the maximum sequence length for the model.
+
+        Args:
+            seq_length (int): New maximum sequence length.
+            device (torch.device): Device to use for computations.
+        """
         # Find global max audio length across all nodes
         if self.sync_max_audio_length and torch.distributed.is_initialized():
             global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
@@ -700,6 +775,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
         Sets maximum input length.
         Pre-calculates internal seq_range mask.
+
+        Args:
+            max_audio_length (int): New maximum sequence length.
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
@@ -763,6 +841,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         return pad_mask, att_mask
 
     def enable_pad_mask(self, on=True):
+        """
+        Enables or disables the pad mask and assign the boolean state `on`.
+
+        Returns:
+            mask (bool): The current state of the pad mask.
+        """
         # On inference, user may choose to disable pad mask
         mask = self.use_pad_mask
         self.use_pad_mask = on
@@ -805,7 +889,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 conv_context_size = list(conv_context_size)
             if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str):
                 raise ValueError(
-                    f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
+                    "Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
                 )
             if conv_context_size == "causal":
                 conv_context_size = [conv_kernel_size - 1, 0]
@@ -817,9 +901,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         return att_context_size_all, att_context_size_all[0], att_context_probs, conv_context_size
 
     def set_default_att_context_size(self, att_context_size):
+        """
+        Sets the default attention context size from `att_context_size` argument.
+
+        Args:
+            att_context_size (list): The attention context size to be set.
+        """
         if att_context_size not in self.att_context_size_all:
             logging.warning(
-                f"att_context_size={att_context_size} is not among the list of the supported look-aheads: {self.att_context_size_all}"
+                f"att_context_size={att_context_size} is not among the list of the supported "
+                f"look-aheads: {self.att_context_size_all}"
             )
         if att_context_size is not None:
             self.att_context_size = att_context_size
@@ -835,15 +926,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         max_context: int = 10000,
     ):
         """
-        This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
+        This function sets the needed values and parameters to perform streaming.
+        The configuration would be stored in self.streaming_cfg.
         The streaming configuration is needed to simulate streaming inference.
 
         Args:
             chunk_size (int): overrides the chunk size
             shift_size (int): overrides the shift size for chunks
             left_chunks (int): overrides the number of left chunks visible to each chunk
-            max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
-                Defaults to -1 (means feat_out is d_model)
+            max_context (int): the value used for the cache size of last_channel layers
+                               if left context is set to infinity (-1)
+                               Defaults to -1 (means feat_out is d_model)
         """
         streaming_cfg = CacheAwareStreamingConfig()
 
@@ -870,8 +963,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             streaming_cfg.last_channel_cache_size = att_context_size[0] if att_context_size[0] >= 0 else max_context
         else:
             if left_chunks is None:
-                raise ValueError("left_chunks can not be None when chunk_size is set.")
-            streaming_cfg.last_channel_cache_size = left_chunks * chunk_size
+                streaming_cfg.last_channel_cache_size = (
+                    att_context_size[0] if att_context_size[0] >= 0 else max_context
+                )
+                logging.warning(
+                    f"left_chunks is not set. Setting it to default: {streaming_cfg.last_channel_cache_size}."
+                )
+            else:
+                streaming_cfg.last_channel_cache_size = left_chunks * chunk_size
 
         if hasattr(self.pre_encode, "get_sampling_frames"):
             sampling_frames = self.pre_encode.get_sampling_frames()
@@ -1043,7 +1142,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.att_context_size = att_context_size
         self.set_max_audio_length(self.pos_emb_max_len)
 
-        for name, m in self.named_modules():
+        for _, m in self.named_modules():
             if type(m) == ConformerLayer:
                 if self_attention_model == 'rel_pos':
                     new_attn = RelPositionMultiHeadAttention(
@@ -1115,6 +1214,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
+    """This class inherits from ConformerEncoder and wraps the adapter mixin class."""
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
@@ -1163,7 +1263,8 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
     A wrapper module that extracts features from multiple layers of a ConformerEncoder,
     by reusing existing mechanisim for interctc loss.
     To use it, set `layer_idx_list` to  specify the indices of layers to extract from.
-    Also, you can specify an `aggretator` module to aggregate the features from different layers, default not aggregating.
+    Also, you can specify an `aggretator` module to aggregate the features from different layers,
+    default not aggregating.
     """
 
     def __init__(
@@ -1176,7 +1277,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
     ):
         super().__init__()
         self.encoder = encoder
-        self.layer_idx_list = [int(l) for l in layer_idx_list]
+        self.layer_idx_list = [int(lyr_idx) for lyr_idx in layer_idx_list]
         for x in self.layer_idx_list:
             if x < 0 or x >= len(encoder.layers):
                 raise ValueError(f"layer index {x} out of range [0, {len(encoder.layers)})")
@@ -1192,6 +1293,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # pylint: disable=missing-function-docstring
         old_access_flag = self.is_access_enabled(guid=getattr(self, "model_guid", None))
         self.update_access_cfg(self.enc_access_cfg, guid=getattr(self, "model_guid", None))
         self.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
@@ -1204,7 +1306,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
             cache_last_channel_len=cache_last_channel_len,
         )
 
-        ### chunk of code adapted from ConformerEncoder.forward_internal()
+        # Chunk of code adapted from ConformerEncoder.forward_internal()
         total_registry = {}
         for module_registry in self.get_module_registry(self.encoder).values():
             for key in module_registry:
@@ -1220,7 +1322,8 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
                 layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
             except KeyError:
                 raise RuntimeError(
-                    f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of ConformerEncoder layers."
+                    f"Intermediate layer {layer_idx} was not captured! "
+                    "Check the layer index and the number of ConformerEncoder layers."
                 )
             if len(layer_outputs) > 1 or len(layer_lengths) > 1:
                 raise RuntimeError("Make sure encoder.forward is called exactly one time")
@@ -1229,7 +1332,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
 
         self.encoder.reset_registry()
         self.set_access_enabled(access_enabled=old_access_flag, guid=getattr(self, "model_guid", None))
-        ### end of adapted chunk
+        # End of the adapted chunk
 
         if self.aggregator is not None:
             return self.aggregator(encoded_list, encoded_len_list)  # Tensor[B,D*L,T], Tensor[B]
@@ -1237,21 +1340,23 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
             return encoded_list, encoded_len_list  # List[Tensor[B,D,T]], List[Tensor[B]]
 
 
-"""
-Register any additional information
-"""
+# Register any additional information
 if adapter_mixins.get_registered_adapter(ConformerEncoder) is None:
     adapter_mixins.register_adapter(base_class=ConformerEncoder, adapter_class=ConformerEncoderAdapter)
 
 
 @dataclass
 class ConformerChangeConfig:
-    # Change self_attention_model for Conformer
-    # Options:
-    #  'rel_pos': relative positional embedding and Transformer-XL
-    #  'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
-    #   overlapping chunks. Attention context is determined by att_context_size parameter.
-    #  'abs_pos': absolute positional embedding and Transformer
+    """
+    Change self_attention_model for Conformer.
+
+    Options:
+     'rel_pos': relative positional embedding and Transformer-XL
+     'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+      overlapping chunks. Attention context is determined by att_context_size parameter.
+     'abs_pos': absolute positional embedding and Transformer
+    """
+
     # If None is provided, self_attention_model is not changed.
     self_attention_model: Optional[str] = None
 
