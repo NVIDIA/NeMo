@@ -20,8 +20,8 @@ from typing import List, Optional, Set, Tuple
 
 import torch
 import torch.distributed
-from torch import nn
 from omegaconf import DictConfig, ListConfig, open_dict
+from torch import nn
 
 from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
@@ -169,6 +169,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             scenarios such as model parallelism, or generally when this module is not being ran on some GPUs
             as a part of the training step.
     """
+
     def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
@@ -483,12 +484,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.interctc_capture_at_layers = None
 
     def forward_for_export(
-        self,
-        audio_signal,
-        length,
-        cache_last_channel=None,
-        cache_last_time=None,
-        cache_last_channel_len=None
+        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ):
         """
         Forward function for model export. Please see `forward()` for more details.
@@ -553,7 +549,26 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         cache_last_channel_len=None,
         pre_encode_input=False,
     ):
-        # pylint: disable=missing-function-docstring
+        """
+        Forward function for the ConformerEncoder accepting an audio signal and its length.
+        Note that audio_signal format can be two different types.
+        `pre_encode_input` is a boolean indicating whether the input audio_signal should be pre-encoded.
+            (1) pre_encode_input = False (default):
+                audio_signal is a tensor of shape (batch, time, self._feat_in)
+            (2) pre_encode_input = True:
+                audio_signal is a tensor of shape (batch, time, self.d_model)
+        """
+        if pre_encode_input and audio_signal.shape[-1] != self.d_model:
+            raise ValueError(
+                f"If pre_encode_input is True, audio_signal should have shape "
+                f"(batch, time, {self.d_model}) but got last dimension {audio_signal.shape[-1]}."
+            )
+        elif not pre_encode_input and audio_signal.shape[-1] !=  self._feat_in:
+            raise ValueError(
+                f"If pre_encode_input is False, audio_signal should have shape "
+                f"(batch, time, {self._feat_in}) but got last dimension {audio_signal.shape[-1]}."
+            )
+
         if pre_encode_input:
             self.update_max_seq_length(
                 seq_length=audio_signal.size(2) * self.subsampling_factor, device=audio_signal.device
@@ -578,7 +593,18 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         cache_last_channel_len=None,
         pre_encode_input=False,
     ):
-        # pylint: disable=missing-function-docstring
+        """
+        Forward function for the ConformerEncoder accepting an audio signal and its length.
+        Note that audio_signal format can be two different types.
+        `pre_encode_input` is a boolean indicating whether the input audio_signal should be pre-encoded.
+            (1) pre_encode_input = False (default):
+                audio_signal is a tensor of shape (batch, time, self._feat_in)
+            (2) pre_encode_input = True:
+                audio_signal is a tensor of shape (batch, time, self.d_model)
+
+        `pre_encode_input=True` is used for cases where attention-free embeddings are needed to be
+        saved or reused. (e.g., speaker cache in streaming speaker diarization)
+        """
         if length is None:
             length = audio_signal.new_full(
                 (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
@@ -1189,6 +1215,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
     """This class inherits from ConformerEncoder and wraps the adapter mixin class."""
+
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
         cfg = self._update_adapter_cfg_input_dim(cfg)
@@ -1264,12 +1291,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         self.aggregator = aggregator
 
     def forward(
-        self,
-        audio_signal,
-        length,
-        cache_last_channel=None,
-        cache_last_time=None,
-        cache_last_channel_len=None
+        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # pylint: disable=missing-function-docstring
         old_access_flag = self.is_access_enabled(guid=getattr(self, "model_guid", None))
@@ -1334,6 +1356,7 @@ class ConformerChangeConfig:
       overlapping chunks. Attention context is determined by att_context_size parameter.
      'abs_pos': absolute positional embedding and Transformer
     """
+
     # If None is provided, self_attention_model is not changed.
     self_attention_model: Optional[str] = None
 
