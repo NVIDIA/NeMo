@@ -441,7 +441,8 @@ class BatchedHyps:
         # increase lengths
         self.current_lengths += active_mask
 
-    def get_last_labels(self, pad_id=-1):
+    def get_last_labels(self, pad_id: int = -1):
+        """Get last labels. For elements without labels use pad_id"""
         return torch.where(
             self.current_lengths > 0, self.transcript[self._batch_indices, self.current_lengths - 1], pad_id
         )
