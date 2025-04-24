@@ -739,6 +739,16 @@ class ResidualVectorQuantizer(VectorQuantizerBase):
             ]
         )
 
+    @property
+    def num_codebooks(self):
+        """Returns the number of codebooks."""
+        return len(self.codebooks)
+
+    @property
+    def codebook_size(self):
+        """Returns the size of the codebook for each group."""
+        return self.codebooks[0].codebook_size
+
     # Override output types, since this quantizer returns commit_loss
     @property
     def output_types(self):
@@ -837,7 +847,6 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
     def __init__(self, num_codebooks: int, num_groups: int, codebook_dim: int, **kwargs):
         super().__init__()
 
-        self.num_codebooks = num_codebooks
         self.num_groups = num_groups
         self.codebook_dim = codebook_dim
 
@@ -857,6 +866,16 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
         logging.debug('\tcodebook_dim:            %d', self.codebook_dim)
         logging.debug('\tnum_codebooks_per_group: %d', self.num_codebooks_per_group)
         logging.debug('\tcodebook_dim_per_group:  %d', self.codebook_dim_per_group)
+
+    @property
+    def num_codebooks(self):
+        """Returns the number of codebooks."""
+        return self.num_groups
+
+    @property
+    def codebook_size(self):
+        """Returns the size of the codebook for each group."""
+        return self.rvqs[0].codebook_size
 
     @property
     def num_codebooks_per_group(self):

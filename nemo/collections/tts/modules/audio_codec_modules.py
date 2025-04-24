@@ -1118,6 +1118,16 @@ class Discriminator(NeuralModule):
 
 class VectorQuantizerBase(NeuralModule, ABC):
     @property
+    @abstractmethod
+    def num_codebooks(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def codebook_size(self) -> int:
+        pass
+
+    @property
     def input_types(self):
         return {
             "inputs": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
@@ -1195,6 +1205,11 @@ class FiniteScalarQuantizer(VectorQuantizerBase):
         logging.debug('\tnum_levels:    %s', self.num_levels)
         logging.debug('\tcodebook_size: %s', self.codebook_size)
         logging.debug('\teps:           %s', self.eps)
+
+    @property
+    def num_codebooks(self):
+        """Returns the number of codebooks."""
+        return 1
 
     @property
     def codebook_size(self):
@@ -1392,19 +1407,24 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
         logging.debug('\tcodebook_dim_per_group:  %d', self.codebook_dim_per_group)
 
     @property
-    def codebook_dim(self):
-        """Input vector dimension."""
-        return self.codebook_dim_per_group * self.num_groups
-
-    @property
-    def codebook_size_per_group(self):
-        """Returns the size of the implicit codebook for each group."""
-        return self.fsqs[0].codebook_size
+    def num_codebooks(self):
+        """Returns the number of codebooks."""
+        return self.num_groups
 
     @property
     def codebook_size(self):
-        """Returns the size of the implicit codebook."""
-        return self.codebook_size_per_group**self.num_groups
+        """Returns the size of the codebook for each group."""
+        return self.fsqs[0].codebook_size
+
+    #@property
+    #def codebook_size(self):
+    #    """Returns the size of the implicit codebook."""
+    #    return self.codebook_size_per_group**self.num_groups
+
+    @property
+    def codebook_dim(self):
+        """Input vector dimension."""
+        return self.codebook_dim_per_group * self.num_groups
 
     @typecheck()
     def forward(self, inputs, input_len):

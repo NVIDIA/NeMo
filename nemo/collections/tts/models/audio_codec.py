@@ -195,6 +195,20 @@ class AudioCodecModel(ModelPT):
     def dtype(self):
         return next(self.parameters()).dtype
 
+    @property
+    def num_codebooks(self):
+        if self.vector_quantizer is None:
+            raise ValueError("This AudioCodecModel does not have a vector quantizer.")
+
+        return self.vector_quantizer.num_codebooks
+
+    @property
+    def codebook_size(self):
+        if self.vector_quantizer is None:
+            raise ValueError("This AudioCodecModel does not have a vector quantizer.")
+
+        return self.vector_quantizer.codebook_size
+
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         if hasattr(self, '_no_state_dict') and self._no_state_dict:
             return {}
