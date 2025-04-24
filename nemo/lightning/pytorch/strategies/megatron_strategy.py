@@ -275,7 +275,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         restore_config: Optional[RestoreConfig] = None,
         megatron_log_level: int = 0,
         use_tp_pp_dp_mapping: bool = False,
-        num_distributed_optimizer_instances: int =1,
+        num_distributed_optimizer_instances: int = 1,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -1134,7 +1134,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             pipeline_dtype=self.pipeline_dtype,
             use_te_rng_tracker=self.use_te_rng_tracker,
             use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
-            num_distributed_optimizer_instances = self.num_distributed_optimizer_instances,
+            num_distributed_optimizer_instances=self.num_distributed_optimizer_instances,
         )
 
     @contextmanager
