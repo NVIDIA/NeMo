@@ -393,23 +393,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
-            build_model_context = nullcontext
-            if HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
-                if te_version() >= (2, 0):
-                    recipe = transformer_engine.common.recipe.DelayedScaling()
-                    build_model_context = partial(
-                        transformer_engine.pytorch.fp8_model_init,
-                        recipe=recipe,
-                    )
-                else:
-                    build_model_context = transformer_engine.pytorch.fp8_model_init
-            with build_model_context():
-                self.model = build_model(
-                    model_provider_func=self.model_provider_func,
-                    wrap_with_ddp=False,
-                    virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-                    on_cpu=cfg.get('use_cpu_initialization', False),
-                )
+            self.model = build_model(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                on_cpu=cfg.get('use_cpu_initialization', False),
+            )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None and (not self.use_mcore_dist_optim):
@@ -2258,6 +2247,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fp8 = 'hybrid'
         else:
             raise ValueError("fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
+        fp8_recipe = self.cfg.get('fp8_recipe', 'delayed')
+        fp8_param = self.cfg.get('fp8_params', False)
 
         if self.cfg.get('enable_cuda_graph', False):
             assert HAVE_TE, "Transformer Engine is required for cudagraphs."
@@ -2271,6 +2262,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
             'fp8': fp8,
+            'fp8_recipe': fp8_recipe,
+            'fp8_param': fp8_param,
             'tp_comm_overlap': ub_tp_comm_overlap,
             # MoE related
             'num_moe_experts': self.cfg.get('num_moe_experts', None),
