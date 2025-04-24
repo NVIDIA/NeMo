@@ -71,11 +71,13 @@ def get_model_encoder_output(
 
 
 @pytest.mark.with_downloads
-@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize(
+    "device,use_cuda_graph_decoder",
+    [(device, False) for device in DEVICES] + [(device, True) for device in DEVICES if device.type == "cuda"],
+)
 @pytest.mark.parametrize("is_tdt", [False, True])
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
-@pytest.mark.parametrize("use_cuda_graph_decoder", [True, False])
 def test_loop_labels_decoding_streaming(
     tmp_path_factory,
     an4_val_manifest_corrected,
@@ -87,8 +89,6 @@ def test_loop_labels_decoding_streaming(
     batch_size: int,
     use_cuda_graph_decoder: bool,
 ):
-    if use_cuda_graph_decoder and not torch.cuda.is_available():
-        pytest.skip("CUDA is not available, skipping test with CUDA graph decoding")
     model = stt_en_fastconformer_tdt_large if is_tdt else stt_en_fastconformer_transducer_large
     model.eval()
     model.to(device=device)
