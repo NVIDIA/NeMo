@@ -89,12 +89,11 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from tqdm.auto import tqdm
+import librosa
 
 
-def load_audio(file_path, target_sr=16000):
-    import librosa
-
-    audio, sr = librosa.load(file_path, sr=target_sr)
+def load_audio(file_path, sample_rate=16000):
+    audio, sr = librosa.load(file_path, sr=sample_rate)
     return torch.tensor(audio, dtype=torch.float32), sr
 
 
@@ -102,13 +101,14 @@ def get_audio_batch(
     test_audio_filenames,
     device: torch.device = torch.device("cpu"),
     dtype: torch.dtype = torch.float32,
+    sample_rate=16000,
 ):
     audio_filepaths = test_audio_filenames
 
     with torch.no_grad():
         all_inputs, all_lengths = [], []
         for audio_file in audio_filepaths:
-            audio_tensor, _ = load_audio(audio_file)
+            audio_tensor, _ = load_audio(audio_file, sample_rate=sample_rate)
             all_inputs.append(audio_tensor)
             all_lengths.append(torch.tensor(audio_tensor.shape[0], dtype=torch.int64))
 
@@ -116,6 +116,10 @@ def get_audio_batch(
         length_batch = torch.tensor(all_lengths, dtype=torch.int64).to(device)
 
     return input_batch, length_batch
+
+
+def make_divisible_by(x, factor: int = 8):
+    return (x // factor) * factor
 
 
 @dataclass
@@ -276,7 +280,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             if hasattr(asr_model, 'cur_decoder'):
                 asr_model.change_decoding_strategy(cfg.decoding, decoder_type='rnnt')
 
-    feature_stride = model_cfg.preprocessor['window_stride']
+    feature_stride_sec = model_cfg.preprocessor['window_stride']
+    features_per_sec = 1.0 / feature_stride_sec
     assert manifest is not None
     records = read_manifest(manifest)
     asr_model.preprocessor.featurizer.dither = 0.0
@@ -285,60 +290,71 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     decoding_computer: GreedyBatchedLoopLabelsComputerBase = asr_model.decoding.decoding._decoding_computer
     decoding_computer.disable_cuda_graphs()  # TODO: fix
 
-    audio_sample_rate = 16000
+    audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
-    def make_divisible_by(x, factor=8):
-        return (x // factor) * factor
+    # def sec_to_spec_frames(seconds: float):
+    #     return make_divisible_by(int(seconds / feature_stride_sec), factor=cfg.model_stride)
 
-    def sec_to_spec_frames(seconds: float, sample_rate=audio_sample_rate):
-        return make_divisible_by(int(seconds / feature_stride), factor=cfg.model_stride)
-
-    left_ctx_encoder_frames = sec_to_spec_frames(cfg.left_context_secs) // cfg.model_stride
-    right_ctx_encoder_frames = sec_to_spec_frames(cfg.right_context_secs) // cfg.model_stride
-    chunk_ctx_encoder_frames = sec_to_spec_frames(cfg.chunk_len_in_secs) // cfg.model_stride
-    logging.info(f"Encoder ctx: {left_ctx_encoder_frames=}, {chunk_ctx_encoder_frames=}, {right_ctx_encoder_frames=}")
-
-    left_ctx_audio_frames = int(left_ctx_encoder_frames * cfg.model_stride * feature_stride * audio_sample_rate)
-    right_ctx_audio_frames = int(right_ctx_encoder_frames * cfg.model_stride * feature_stride * audio_sample_rate)
-    chunk_ctx_audio_frames = int(chunk_ctx_encoder_frames * cfg.model_stride * feature_stride * audio_sample_rate)
-    logging.info(f"Audio ctx: {left_ctx_audio_frames=}, {chunk_ctx_audio_frames=}, {right_ctx_audio_frames=}")
-    logging.info(f"Computed latency: {chunk_ctx_encoder_frames+right_ctx_encoder_frames} encoder frames |" f"...")
+    frame2audio_samples = make_divisible_by(int(audio_sample_rate * feature_stride_sec), factor=cfg.model_stride)
+    left_ctx_audio_samples = int(cfg.left_context_secs * features_per_sec) * frame2audio_samples
+    right_ctx_audio_samples = int(cfg.right_context_secs * features_per_sec) * frame2audio_samples
+    chunk_ctx_audio_samples = int(cfg.chunk_ctx_secs * features_per_sec) * frame2audio_samples
+    full_ctx_audio_samples = left_ctx_audio_samples + chunk_ctx_audio_samples + right_ctx_audio_samples
+    logging.info(
+        f"Corrected contexts (sec): Left {left_ctx_audio_samples / audio_sample_rate:.2f}, "
+        f"Mid {chunk_ctx_audio_samples / audio_sample_rate:.2f}, Right {right_ctx_audio_samples / audio_sample_rate:.2f}"
+    )
+    latency_secs = (chunk_ctx_audio_samples + right_ctx_audio_samples) / audio_sample_rate
+    logging.info(f"Theoretical latency: {latency_secs:.2f} seconds")
 
     with torch.no_grad(), torch.inference_mode():
         streaming_transcripts = []
         all_hyps = []
         for i in tqdm(range(0, len(records), cfg.batch_size)):
             audio_batch, audio_batch_lengths = get_audio_batch(
-                [record["audio_filepath"] for record in records[i : i + cfg.batch_size]], device=map_location
+                [record["audio_filepath"] for record in records[i : i + cfg.batch_size]],
+                device=map_location,
+                sample_rate=audio_sample_rate,
             )
             hyps = None
             state: Optional[BatchedGreedyDecodingState] = None
-            for right in range(
-                chunk_ctx_audio_frames + right_ctx_audio_frames,
-                audio_batch.shape[1] + chunk_ctx_audio_frames + right_ctx_audio_frames - 1,
-                chunk_ctx_audio_frames,
-            ):
-                left = max(right - (left_ctx_audio_frames + chunk_ctx_audio_frames + right_ctx_audio_frames), 0)
-                ctx_start = max(right - (chunk_ctx_audio_frames + right_ctx_audio_frames), 0)
-                ctx_end = right - right_ctx_audio_frames
-                assert ctx_end > 0
-                current_audio_chunk_len = torch.where(
-                    right < audio_batch_lengths,
-                    torch.full_like(audio_batch_lengths, fill_value=right - left),
-                    torch.maximum(audio_batch_lengths - left, torch.zeros_like(audio_batch_lengths)),
+
+            left_sample = 0
+            # right_sample = initial latency in audio samples
+            right_sample = chunk_ctx_audio_samples + right_ctx_audio_samples
+            # start with empty buffer
+            buffer = torch.zeros([audio_batch.shape[0], 0], dtype=audio_batch.dtype, device=audio_batch.device)
+            buffer_size = torch.zeros_like(audio_batch_lengths)
+            rest_audio_lengths = audio_batch_lengths.clone()
+            while left_sample < audio_batch.shape[1]:
+                buffer = torch.cat((buffer, audio_batch[:, left_sample:right_sample]), dim=1)
+                added_chunk_length = min(right_sample, audio_batch.shape[1]) - left_sample
+                current_audio_chunk_len = torch.minimum(
+                    rest_audio_lengths, torch.full_like(rest_audio_lengths, fill_value=added_chunk_length)
                 )
-                encoder_output, encoder_ouptut_len = asr_model(
-                    input_signal=audio_batch[:, left:right],
-                    input_signal_length=current_audio_chunk_len,
+                buffer_size += current_audio_chunk_len
+
+                # leave only full_ctx_audio_samples in buffer
+                if full_ctx_audio_samples > buffer.shape[1]:
+                    buffer = buffer[:, -full_ctx_audio_samples:]
+                    buffer_size -= full_ctx_audio_samples
+
+                encoder_output, encoder_output_len = asr_model(
+                    input_signal=buffer,
+                    input_signal_length=buffer_size,
                 )
-                # TODO: fix shapes
-                crop_left = int((ctx_start - left) / feature_stride) // audio_sample_rate // cfg.model_stride
-                crop_right = int(right_ctx_audio_frames // audio_sample_rate // cfg.model_stride / feature_stride)
                 encoder_output = encoder_output.transpose(1, 2)
-                encoder_chunk = encoder_output[:, crop_left : crop_left + chunk_ctx_encoder_frames]
+
+                # remove extra context from encoder_output
+                # TODO: fix
+                # crop_left = int((ctx_start - left) / feature_stride) // audio_sample_rate // cfg.model_stride
+                # crop_right = int(right_ctx_audio_frames // audio_sample_rate // cfg.model_stride / feature_stride)
+                # encoder_output = encoder_output[:, crop_left : crop_left + chunk_ctx_encoder_frames]
+                # encoder_output_len = ...
+
                 batched_hyps, _, state = decoding_computer(
-                    x=encoder_chunk,
-                    out_len=torch.full_like(encoder_ouptut_len, fill_value=encoder_chunk.shape[1]),  # TODO: fix
+                    x=encoder_output,
+                    out_len=encoder_output_len,
                     prev_batched_state=state,
                 )
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
@@ -349,6 +365,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     hyps = new_hyps
                     for hyp in hyps:
                         hyp.y_sequence = hyp.y_sequence.tolist()
+
+                # move to next sample
+                rest_audio_lengths -= right_sample
+                rest_audio_lengths = torch.where(rest_audio_lengths >= 0, rest_audio_lengths, 0)
+                left_sample = right_sample
+                right_sample += right_ctx_audio_samples  # add next chunk of `right_ctx_audio_samples`
+
             all_hyps.extend(hyps)
     for hyp in all_hyps:
         text = asr_model.tokenizer.ids_to_text(hyp.y_sequence)
