@@ -13,7 +13,7 @@
 # limitations under the License.
 
 TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HOME=/home/TestData/diffusion coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  /opt/NeMo/scripts/flux/flux_controlnet_infer.py \
+  /workspace/scripts/flux/flux_controlnet_infer.py \
   --t5_version google/t5-v1_1-xxl \
   --clip_version openai/clip-vit-large-patch14 \
   --vae_ckpt null \
@@ -25,7 +25,7 @@ TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HO
   --flux_num_single_layers 1
 
 TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HOME=/home/TestData/diffusion coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  /opt/NeMo/scripts/flux/flux_infer.py \
+  /workspace/scripts/flux/flux_infer.py \
   --t5_version google/t5-v1_1-xxl \
   --clip_version openai/clip-vit-large-patch14 \
   --vae_ckpt /home/TestData/diffusion/ckpt/ae.safetensors \
