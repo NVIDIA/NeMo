@@ -267,7 +267,7 @@ vllm() {
       ${PIP} install --no-cache-dir virtualenv
       virtualenv $INSTALL_DIR/venv
       $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage
-      $INSTALL_DIR/venv/bin/pip wheel --no-cache-dir \
+      $INSTALL_DIR/venv/bin/pip wheel --no-cache-dir --no-build-isolation \
         --wheel-dir $WHEELS_DIR/ \
         -r $NEMO_DIR/requirements/requirements_vllm.txt \
         -r $NEMO_DIR/requirements/requirements_deploy.txt
