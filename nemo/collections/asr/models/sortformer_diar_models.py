@@ -14,8 +14,7 @@
 
 # pylint: disable=E1101
 import itertools
-import math
-import os
+import os, math
 import random
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -48,7 +47,6 @@ from nemo.utils import logging
 
 __all__ = ['SortformerEncLabelModel']
 
-
 def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
     """
     Concatenates lengths[i] first embeddings of embs[i], and pads the rest elements with zeros.
@@ -71,7 +69,7 @@ def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
     batch_size, emb_dim = embs[0].shape[0], embs[0].shape[2]
 
     total_lengths = torch.sum(torch.stack(lengths), dim=0)
-    sig_length = total_lengths.max().item()
+    sig_length  = total_lengths.max().item()
 
     output = torch.zeros(batch_size, sig_length, emb_dim, device=device, dtype=dtype)
     start_indices = torch.zeros(batch_size, dtype=torch.int64, device=device)
@@ -79,11 +77,11 @@ def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
     for emb, length in zip(embs, lengths):
         end_indices = start_indices + length
         for batch_idx in range(batch_size):
-            output[batch_idx, start_indices[batch_idx] : end_indices[batch_idx]] = emb[batch_idx, : length[batch_idx]]
+            output[batch_idx, start_indices[batch_idx]:end_indices[batch_idx]] = \
+                emb[batch_idx, :length[batch_idx]]
         start_indices = end_indices
 
     return output, total_lengths
-
 
 class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixin):
     """
@@ -280,7 +278,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             }
         )
 
-    def frontend_encoder(self, processed_signal, processed_signal_length, pre_encode_input: bool = False):
+    def frontend_encoder(self, processed_signal, processed_signal_length, bypass_pre_encode: bool=False):
         """
         Generate encoder outputs from frontend encoder.
 
@@ -298,7 +296,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         emb_seq, emb_seq_length = self.encoder(
             audio_signal=processed_signal,
             length=processed_signal_length,
-            pre_encode_input=pre_encode_input,
+            bypass_pre_encode=bypass_pre_encode,
         )
         emb_seq = emb_seq.transpose(1, 2)
         if self.sortformer_modules.encoder_proj is not None:
@@ -446,9 +444,9 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         """
         input_signal = input_signal.cpu()
         processed_signal_list, processed_signal_length_list = [], []
-        max_batch_sec = input_signal.shape[1] / self.preprocessor._cfg.sample_rate
+        max_batch_sec = input_signal.shape[1]/self.preprocessor._cfg.sample_rate
         org_batch_size = input_signal.shape[0]
-        div_batch_count = min(int(max_batch_sec * org_batch_size // self.max_batch_dur + 1), org_batch_size)
+        div_batch_count = min(int(max_batch_sec * org_batch_size//self.max_batch_dur + 1), org_batch_size)
         div_size = math.ceil(org_batch_size / div_batch_count)
 
         for div_count in range(div_batch_count):
@@ -459,8 +457,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             input_signal_div = input_signal[start_idx:end_idx, :].to(self.device)
             input_signal_length_div = input_signal_length[start_idx:end_idx]
             processed_signal_div, processed_signal_length_div = self.preprocessor(
-                input_signal=input_signal_div, length=input_signal_length_div
-            )
+                    input_signal=input_signal_div, length=input_signal_length_div
+                )
             processed_signal_div = processed_signal_div.detach().cpu()
             processed_signal_length_div = processed_signal_length_div.detach().cpu()
             processed_signal_list.append(processed_signal_div)
@@ -536,12 +534,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         processed_signal, processed_signal_length = self.process_signal(
             audio_signal=audio_signal, audio_signal_length=audio_signal_length
         )
-        processed_signal = processed_signal[:, :, : processed_signal_length.max()]
+        processed_signal = processed_signal[:, :, :processed_signal_length.max()]
         if self.streaming_mode:
             preds = self.forward_streaming(processed_signal, processed_signal_length)
         else:
             emb_seq, emb_seq_length = self.frontend_encoder(
-                processed_signal=processed_signal, processed_signal_length=processed_signal_length
+                processed_signal=processed_signal,
+                processed_signal_length=processed_signal_length
             )
             preds = self.forward_infer(emb_seq, emb_seq_length)
         return preds
@@ -607,14 +606,15 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         # concat the embeddings from speaker cache, FIFO queue and the chunk
         spkcache_fifo_chunk_pre_encode_embs, spkcache_fifo_chunk_pre_encode_lengths = self.concat_and_pad_script(
-            [spkcache, fifo, chunk_pre_encode_embs], [spkcache_lengths, fifo_lengths, chunk_pre_encode_lengths]
+            [spkcache, fifo, chunk_pre_encode_embs],
+            [spkcache_lengths, fifo_lengths, chunk_pre_encode_lengths]
         )
 
         # encode the concatenated embeddings
         spkcache_fifo_chunk_fc_encoder_embs, spkcache_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(
             processed_signal=spkcache_fifo_chunk_pre_encode_embs,
             processed_signal_length=spkcache_fifo_chunk_pre_encode_lengths,
-            pre_encode_input=True,
+            bypass_pre_encode=True,
         )
 
         # forward pass for inference
@@ -643,24 +643,24 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Dimension: (batch_size, pred_len, num_speakers)
         """
         streaming_state = self.sortformer_modules.init_streaming_state(
-            batch_size=processed_signal.shape[0], async_streaming=self.async_streaming, device=self.device
+            batch_size = processed_signal.shape[0],
+            async_streaming = self.async_streaming,
+            device = self.device
         )
 
-        batch_size, ch, sig_length = processed_signal.shape
+        batch_size, ch, sig_length  = processed_signal.shape
         processed_signal_offset = torch.zeros((batch_size,), dtype=torch.long, device=self.device)
 
         if dist.is_available() and dist.is_initialized():
-            local_tensor = torch.tensor([sig_length], device=processed_signal.device)
-            dist.all_reduce(
-                local_tensor, op=dist.ReduceOp.MAX, async_op=False
-            )  # get max feature length across all GPUs
+            local_tensor = torch.tensor([sig_length ], device=processed_signal.device)
+            dist.all_reduce(local_tensor, op=dist.ReduceOp.MAX, async_op=False) # get max feature length across all GPUs
             max_n_frames = local_tensor.item()
             if dist.get_rank() == 0:
                 logging.info(f"Maximum feature length across all GPUs: {max_n_frames}")
         else:
             max_n_frames = sig_length
 
-        if sig_length < max_n_frames:  # need padding to have the same feature length for all GPUs
+        if sig_length  < max_n_frames: # need padding to have the same feature length for all GPUs
             pad_tensor = torch.full(
                 (batch_size, ch, max_n_frames - sig_length),
                 self.negative_init_val,
@@ -673,7 +673,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         if self.training:
             r = random.random()
             if r < self.sortformer_modules.causal_attn_rate:
-                self.encoder.att_context_size = [-1, self.sortformer_modules.causal_attn_rc]
+                self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
                 self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
                 att_mod = True
 
@@ -695,23 +695,23 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             disable=self.training,
         ):
             streaming_state, total_preds = self.forward_streaming_step(
-                processed_signal=chunk_feat_seq_t,
-                processed_signal_length=feat_lengths,
-                streaming_state=streaming_state,
-                total_preds=total_preds,
-                left_offset=left_offset,
-                right_offset=right_offset,
+            processed_signal=chunk_feat_seq_t,
+            processed_signal_length=feat_lengths,
+            streaming_state=streaming_state,
+            total_preds=total_preds,
+            left_offset=left_offset,
+            right_offset=right_offset,
             )
 
         if att_mod:
-            self.encoder.att_context_size = [-1, -1]
+            self.encoder.att_context_size=[-1, -1]
             self.transformer_encoder.diag = None
 
         del processed_signal, processed_signal_length
 
-        if sig_length < max_n_frames:  # Discard preds corresponding to padding
-            n_frames = math.ceil(sig_length / self.encoder.subsampling_factor)
-            total_preds = total_preds[:, :n_frames, :]
+        if sig_length  < max_n_frames: # Discard preds corresponding to padding
+            n_frames = math.ceil(sig_length  / self.encoder.subsampling_factor)
+            total_preds = total_preds[:,:n_frames,:]
         return total_preds
 
     def forward_streaming_step(
@@ -755,29 +755,33 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Dimension: (batch_size, total_pred_len, num_speakers)
         """
         chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(
-            x=processed_signal, lengths=processed_signal_length
+            x=processed_signal,
+            lengths=processed_signal_length
         )
 
         if self.async_streaming:
             spkcache_fifo_chunk_pre_encode_embs, spkcache_fifo_chunk_pre_encode_lengths = concat_and_pad(
                 [streaming_state.spkcache, streaming_state.fifo, chunk_pre_encode_embs],
-                [streaming_state.spkcache_lengths, streaming_state.fifo_lengths, chunk_pre_encode_lengths],
+                [streaming_state.spkcache_lengths, streaming_state.fifo_lengths, chunk_pre_encode_lengths]
             )
         else:
             spkcache_fifo_chunk_pre_encode_embs = self.sortformer_modules.concat_embs(
                 [streaming_state.spkcache, streaming_state.fifo, chunk_pre_encode_embs], dim=1, device=self.device
             )
             spkcache_fifo_chunk_pre_encode_lengths = (
-                streaming_state.spkcache.shape[1] + streaming_state.fifo.shape[1] + chunk_pre_encode_lengths
+                streaming_state.spkcache.shape[1] +
+                streaming_state.fifo.shape[1] +
+                chunk_pre_encode_lengths
             )
 
         spkcache_fifo_chunk_fc_encoder_embs, spkcache_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(
-            processed_signal=spkcache_fifo_chunk_pre_encode_embs,
-            processed_signal_length=spkcache_fifo_chunk_pre_encode_lengths,
-            pre_encode_input=True,
+             processed_signal=spkcache_fifo_chunk_pre_encode_embs,
+             processed_signal_length=spkcache_fifo_chunk_pre_encode_lengths,
+             bypass_pre_encode=True
         )
         spkcache_fifo_chunk_preds = self.forward_infer(
-            emb_seq=spkcache_fifo_chunk_fc_encoder_embs, emb_seq_length=spkcache_fifo_chunk_fc_encoder_lengths
+             emb_seq=spkcache_fifo_chunk_fc_encoder_embs,
+             emb_seq_length=spkcache_fifo_chunk_fc_encoder_lengths
         )
 
         spkcache_fifo_chunk_preds = self.sortformer_modules.apply_mask_to_preds(
