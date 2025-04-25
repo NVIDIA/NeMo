@@ -334,7 +334,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 # TODO: this is not correct
                 crop_left = int(left_ctx_audio_samples // frame2audio_samples // model_stride)
                 crop_right = int(right_ctx_audio_samples // frame2audio_samples // model_stride)
-                encoder_output_len -= (crop_left - crop_right)
+                encoder_output_len -= crop_left - crop_right
 
                 batched_hyps, _, state = decoding_computer(
                     x=encoder_output,
