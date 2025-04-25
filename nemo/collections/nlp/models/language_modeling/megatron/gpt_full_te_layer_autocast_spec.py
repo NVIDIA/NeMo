@@ -350,7 +350,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
     def __call__(self, *args, **kwargs):
         if hasattr(self, 'cudagraph_manager'):
             return self.cudagraph_manager(self, args, kwargs)
-        return super(MegatronModule, self).__call__(*args, **kwargs)
+        return super().__call__(*args, **kwargs)
 
 
 # Use this spec to use the full Transformer layer from Transformer Engine
