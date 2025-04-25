@@ -187,8 +187,8 @@ def finetune(
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
-    tokenizer: Optional[TokenizerType] = None,
     peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
+    tokenizer: Optional[TokenizerType] = "model",
 ) -> Path:
     """
     Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
@@ -204,6 +204,8 @@ def finetune(
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default
             optimizer from the model will be used.
         peft (Optional[PEFT]): A PEFT (Parameter-Efficient Fine-Tuning) configuration to be applied.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
 
     Returns:
         Path: The directory path where finetuning artifacts are saved.
