@@ -334,7 +334,7 @@ class GPTSFTDataset(Dataset):
         if self.samples_mapping is not None:
             assert idx < len(self.samples_mapping)
             idx, _, _ = self.samples_mapping[idx]
-            if isinstance(idx, np.uint32):
+            if isinstance(idx, np.uint32) or isinstance(idx, np.int64):
                 idx = idx.item()
 
         assert idx < len(self.indexed_dataset)
