@@ -124,13 +124,13 @@ def find_collection_modules(nemo_root: str) -> Dict[str, List[str]]:
     return collection_modules
 
 
-def build_dependency_graph(nemo_root: str) -> Dict[str, Union[List[str], Dict[str, List[str]]]]:
+def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     """Build a dependency graph by analyzing all Python files."""
     # Find all top-level packages
     top_level_packages = find_top_level_packages(nemo_root)
     print(f"Found top-level packages: {top_level_packages}")
 
-    dependencies: Dict[str, Union[List[str], Dict[str, List[str]]]] = {}
+    dependencies: Dict[str, List[str]] = {}
 
     # Second pass: analyze imports and build reverse dependencies
     for file_path in find_python_files(nemo_root):
@@ -148,105 +148,102 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, Union[List[str], Dict[st
 
     # Flip the dependency graph to show reverse dependencies
     reverse_dependencies: Dict[str, List[str]] = {}
-
     # Handle top-level package dependencies
     for package, deps in dependencies.items():
-        if isinstance(deps, list):
-            for dep in deps:
-                if dep not in reverse_dependencies:
-                    reverse_dependencies[dep] = []
-                reverse_dependencies[dep].append(package)
-        elif isinstance(deps, dict):
-            # Handle collection dependencies
-            for collection, collection_deps in deps.items():
-                for dep in collection_deps:
-                    if dep not in reverse_dependencies:
-                        reverse_dependencies[dep] = []
-                    reverse_dependencies[dep].append(collection)
-
+        for dep in deps:
+            if dep not in reverse_dependencies:
+                reverse_dependencies[dep] = []
+            reverse_dependencies[dep].append(package)
     dependencies = reverse_dependencies
 
-    # Follow and extend records with transitive dependencies
-    transitive_dependencies = dependencies.copy()
-
-    # Keep iterating until no new dependencies are added
-    while True:
-        changes_made = False
-        new_dependencies = transitive_dependencies.copy()
-
-        # For each package and its direct dependencies
-        for package, deps in transitive_dependencies.items():
-            # For each direct dependency
-            for dep in deps:
-                # If the dependency has its own dependencies
-                if dep in transitive_dependencies:
-                    # Add those transitive dependencies to the original package
-                    for transitive_dep in transitive_dependencies[dep]:
-                        if transitive_dep not in new_dependencies[package]:
-                            new_dependencies[package].append(transitive_dep)
-                            changes_made = True
-
-        # Update dependencies with new transitive ones
-        transitive_dependencies = new_dependencies
-
-        # If no new dependencies were added, we're done
-        if not changes_made:
-            break
-
-    dependencies = transitive_dependencies
-
-    # Finally, we decrease resolution of values again to reduce noise
-    # Simplify resolution by categorizing dependencies
+    # Simplify values: Either top-level package or collection module
+    simplified_dependencies: Dict[str, List[str]] = {}
     for package, deps in dependencies.items():
         simplified_deps = []
         for dep in deps:
             dep_parts = dep.split('.')
-            if len(dep_parts) >= 3 and f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}" in find_collection_modules(
+
+            if package not in simplified_dependencies:
+                simplified_dependencies[package] = []
+
+            if len(parts) == 2 and (simplified_name := f"{dep_parts[0]}.{dep_parts[1]}") in find_top_level_packages(
                 nemo_root
             ):
-                simplified_deps.append(f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}")
-            elif len(dep_parts) >= 2 and f"{dep_parts[0]}.{dep_parts[1]}" in find_top_level_packages(nemo_root):
-                simplified_deps.append(f"{dep_parts[0]}.{dep_parts[1]}")
+                simplified_dependencies[package].append(simplified_name)
 
-        dependencies[package] = list(set(simplified_deps))
+            elif len(parts) >= 3 and (
+                simplified_name := f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}"
+            ) in find_collection_modules(nemo_root):
+                simplified_dependencies[package].append(simplified_name)
 
-    # Clean up package names to match file paths
-    cleaned_dependencies = {}
-    for package, deps in dependencies.items():
-        # Convert package path to filesystem path for checking
-        parent_package = ".".join(package.split(".")[:-1])
-        parent_package_path = os.path.join(f"{parent_package.replace('.', '/')}/__init__.py")
-        parent_module_path = os.path.join(f"{parent_package.replace('.', '/')}.py")
+            simplified_dependencies[package] = list(set(simplified_dependencies[package]))
 
-        if parent_package == "nemo.collections.common.tokenizers":
-            print(parent_package_path)
-            print(parent_module_path)
-            print(parent_package)
+    # # Clean up package names to match file paths
+    # cleaned_dependencies = {}
+    # for package, deps in dependencies.items():
+    #     # Convert package path to filesystem path for checking
+    #     parent_package = ".".join(package.split(".")[:-1])
+    #     parent_package_path = os.path.join(f"{parent_package.replace('.', '/')}/__init__.py")
+    #     parent_module_path = os.path.join(f"{parent_package.replace('.', '/')}.py")
 
-        if os.path.isfile(parent_package_path):
-            if parent_package_path in cleaned_dependencies:
-                cleaned_dependencies[parent_package_path].extend(deps)
-            else:
-                cleaned_dependencies[parent_package_path] = deps
+    #     if parent_package == "nemo.collections.common.tokenizers":
+    #         print(parent_package_path)
+    #         print(parent_module_path)
+    #         print(parent_package)
 
-        elif os.path.isfile(parent_module_path):
-            if parent_module_path in cleaned_dependencies:
-                cleaned_dependencies[parent_module_path].extend(deps)
-            else:
-                cleaned_dependencies[parent_module_path] = deps
-        else:
-            if package in cleaned_dependencies:
-                cleaned_dependencies[package].extend(deps)
-            else:
-                cleaned_dependencies[package] = deps
+    #     if os.path.isfile(parent_package_path):
+    #         if parent_package_path in cleaned_dependencies:
+    #             cleaned_dependencies[parent_package_path].extend(deps)
+    #         else:
+    #             cleaned_dependencies[parent_package_path] = deps
 
-    for package, deps in cleaned_dependencies.items():
-        cleaned_dependencies[package] = list(set(cleaned_dependencies[package]))
+    #     elif os.path.isfile(parent_module_path):
+    #         if parent_module_path in cleaned_dependencies:
+    #             cleaned_dependencies[parent_module_path].extend(deps)
+    #         else:
+    #             cleaned_dependencies[parent_module_path] = deps
+    #     else:
+    #         if package in cleaned_dependencies:
+    #             cleaned_dependencies[package].extend(deps)
+    #         else:
+    #             cleaned_dependencies[package] = deps
 
-    dependencies = cleaned_dependencies
+    # for package, deps in cleaned_dependencies.items():
+    #     cleaned_dependencies[package] = list(set(cleaned_dependencies[package]))
 
-    # Sort dependencies by length of values (number of dependencies)
-    dependencies = dict(sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True))
+    # dependencies = cleaned_dependencies
+
+    # # Follow and extend records with transitive dependencies
+    # transitive_dependencies = dependencies.copy()
+
+    # # Keep iterating until no new dependencies are added
+    # while True:
+    #     changes_made = False
+    #     new_dependencies = transitive_dependencies.copy()
+
+    #     # For each package and its direct dependencies
+    #     for package, deps in transitive_dependencies.items():
+    #         # For each direct dependency
+    #         for dep in deps:
+    #             # If the dependency has its own dependencies
+    #             if dep in transitive_dependencies:
+    #                 # Add those transitive dependencies to the original package
+    #                 for transitive_dep in transitive_dependencies[dep]:
+    #                     if transitive_dep not in new_dependencies[package]:
+    #                         new_dependencies[package].append(transitive_dep)
+    #                         changes_made = True
+
+    #     # Update dependencies with new transitive ones
+    #     transitive_dependencies = new_dependencies
+
+    #     # If no new dependencies were added, we're done
+    #     if not changes_made:
+    #         break
+
+    # dependencies = transitive_dependencies
+
+    # # Sort dependencies by length of values (number of dependencies)
+    # dependencies = dict(sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True))
 
     return dependencies
 
