@@ -441,7 +441,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            if self.context_parallel_lm > 1 and packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
+            if (
+                self.context_parallel_lm > 1
+                and packed_seq_params is not None
+                and packed_seq_params.qkv_format == "thd"
+            ):
                 # _process_embedding_token_parallel expects input in shape bshd for cp + thd
                 combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
