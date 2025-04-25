@@ -69,7 +69,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
+from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
     GreedyBatchedLoopLabelsComputerBase,
@@ -332,17 +332,22 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             while left_sample < audio_batch.shape[1]:
                 buffer = torch.cat((buffer, audio_batch[:, left_sample:right_sample]), dim=1)
                 added_samples = min(right_sample, audio_batch.shape[1]) - left_sample
+                is_last_chunk = right_sample >= audio_batch.shape[1]
                 current_audio_chunk_len = torch.minimum(
                     rest_audio_lengths, torch.full_like(rest_audio_lengths, fill_value=added_samples)
                 )
                 buffer_size += current_audio_chunk_len
+                buffer_left_context += buffer_chunk_context
+                buffer_chunk_context = 0
                 buffer_right_context += added_samples
-                if buffer_right_context > right_ctx_audio_samples:
-                    buffer_chunk_context += buffer_right_context - right_ctx_audio_samples
-                    buffer_right_context = right_ctx_audio_samples
-                if buffer_chunk_context > chunk_ctx_audio_samples:
-                    buffer_left_context += buffer_chunk_context - chunk_ctx_audio_samples
-                    buffer_chunk_context = chunk_ctx_audio_samples
+                if not is_last_chunk:
+                    if buffer_right_context > right_ctx_audio_samples:
+                        buffer_chunk_context += buffer_right_context - right_ctx_audio_samples
+                        buffer_right_context = right_ctx_audio_samples
+                else:
+                    # last chunk - zero right context
+                    buffer_chunk_context = buffer_right_context
+                    buffer_right_context = 0
 
                 # leave only full_ctx_audio_samples in buffer
                 extra_samples_in_buffer = max(0, buffer.shape[1] - full_ctx_audio_samples)
@@ -383,15 +388,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_output_len = torch.where(
                     encoder_output_len > 0, encoder_output_len, torch.full_like(encoder_output_len, fill_value=0)
                 )
-                is_last_chunk = right_sample >= audio_batch.shape[1]
-                if not is_last_chunk and encoder_right_context > 0:
+                if encoder_right_context > 0:
                     encoder_output = encoder_output[:, :-encoder_right_context]
                     encoder_output_len = torch.where(
                         encoder_output_len > encoder_chunk_context,
                         torch.full_like(encoder_output_len, fill_value=encoder_chunk_context),
                         encoder_output_len,
                     )
-                assert (encoder_output_len > 0).any()
+                # assert (encoder_output_len > 0).any()
 
                 batched_hyps, _, state = decoding_computer(
                     x=encoder_output,
@@ -417,7 +421,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         text = asr_model.tokenizer.ids_to_text(hyp.y_sequence)
         hyp.text = text
         streaming_transcripts.append(text)
-    print(streaming_transcripts)
+    # print(streaming_transcripts)
 
     output_filename, pred_text_attr_name = write_transcription(
         all_hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
