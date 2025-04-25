@@ -222,7 +222,7 @@ def setup_model_and_tokenizer(
         logging.info("Enabling Flash Decode for in-framework inference")
         model.config.flash_decode = True
         model.config.attention_backend = AttnBackend.flash
-        
+
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(
