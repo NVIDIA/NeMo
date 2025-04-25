@@ -19,7 +19,7 @@ on:
     branches:
       - main
       - r**
-      - weekly-bump
+      - weekly-bump*
     types: [labeled]
   push:
     branches:
@@ -138,6 +138,7 @@ jobs:
         IMAGE_LABEL=nemo-core
         NEMO_TAG=${{ github.sha }}
         NEMO_REPO=https://github.com/NVIDIA/NeMo
+        PR_NUMBER=${{ github.event.pull_request.number || 0 }}
         ${{ needs.pre-flight.outputs.BUILD_ARGS }}
       prune-filter-timerange: 24h
       use-inline-cache: false
