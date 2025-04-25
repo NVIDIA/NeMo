@@ -1,2 +1,0 @@
-num2words
-numpy<2.0.0
