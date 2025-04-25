@@ -45,6 +45,7 @@ def test_get_trt_llm_keyname():
 @pytest.mark.run_only_on('GPU')
 def test_is_scaling_factor():
     from nemo.export.trt_llm.converter.utils import is_scaling_factor
+
     assert is_scaling_factor("model.layer1.scale_fwd.weight") == True
     assert is_scaling_factor("model.layer1.weight") == False
     assert is_scaling_factor("") == False
