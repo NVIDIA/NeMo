@@ -24,13 +24,13 @@ from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
 from megatron.core.models.bert.pooler import Pooler
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
 from megatron.core.utils import make_viewless_tensor
-from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import Tensor, nn
 
 from nemo.collections.llm import fn
@@ -199,7 +199,12 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     """
 
     def __init__(
-        self, bert_type='megatron', add_pooler=True, tokenizer: Optional["MegatronTokenizerBase"] = None, *args, **kwargs
+        self,
+        bert_type='megatron',
+        add_pooler=True,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
+        *args,
+        **kwargs,
     ):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)

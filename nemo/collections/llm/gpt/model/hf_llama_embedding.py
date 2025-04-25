@@ -17,6 +17,7 @@ from typing import List, Literal, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizer
 from torch import Tensor
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 from transformers import AutoModel
@@ -26,8 +27,6 @@ from transformers.modeling_outputs import SequenceClassifierOutputWithPast
 from transformers.models.llama.configuration_llama import LlamaConfig
 from transformers.models.llama.modeling_llama import LlamaForSequenceClassification, LlamaModel
 from transformers.utils import logging
-
-from megatron.core.tokenizers import MegatronTokenizer
 
 logger = logging.get_logger(__name__)
 

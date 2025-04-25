@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 from typing_extensions import Annotated
 
@@ -27,8 +28,6 @@ from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.optim import OptimizerModule
 from nemo.lightning.pytorch.utils import dtype_from_hf
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM

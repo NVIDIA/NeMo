@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, List, Optional, Union
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
@@ -30,8 +31,6 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel

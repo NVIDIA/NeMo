@@ -19,14 +19,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.utils import logging
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from transformers import BertConfig as HFBertConfig

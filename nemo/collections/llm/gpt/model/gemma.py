@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from megatron.core import parallel_state
-from megatron.core.transformer.enums import AttnBackend
 from megatron.core.tokenizers import MegatronTokenizerBase
+from megatron.core.transformer.enums import AttnBackend
 from torch import nn
 
 from nemo.collections.llm.fn.activation import openai_gelu

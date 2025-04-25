@@ -18,13 +18,12 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from transformers import Phi3Config as HFPhi3Config

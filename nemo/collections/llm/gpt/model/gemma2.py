@@ -23,6 +23,7 @@ from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import ColumnParallelLinear
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer import (
     MegatronModule,
     ModuleSpec,
@@ -35,7 +36,6 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.utils import attention_mask_func
 from megatron.core.utils import divide
-from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import Tensor, nn
 
 from nemo.collections.llm.fn.activation import openai_gelu

@@ -18,14 +18,13 @@ from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.optim import OptimizerModule
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from transformers import MixtralForCausalLM

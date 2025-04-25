@@ -20,6 +20,7 @@ import lightning.pytorch as L
 import torch
 import torch.nn.functional as F
 from megatron.core import parallel_state
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec
 from torch import Tensor, nn
@@ -34,8 +35,6 @@ from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel

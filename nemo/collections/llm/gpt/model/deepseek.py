@@ -22,9 +22,9 @@ import torch
 import torch.nn.functional as F
 import yaml
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
-from megatron.core.tokenizers import MegatronTokenizerBase
 from safetensors.torch import load_file
 from torch import nn
 

@@ -25,9 +25,9 @@ import torch.nn.functional as F
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 from transformers import T5Config as HFT5Config
 from transformers import T5ForConditionalGeneration
@@ -441,6 +441,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
     def tokenizer(self) -> "MegatronTokenizerBase":
         """Retrieve Tokenizer from HF"""
         from megatron.core.tokenizers import MegatronTokenizer
+
         # Set special tokens to match HF
         bos_token = "<pad>"
 

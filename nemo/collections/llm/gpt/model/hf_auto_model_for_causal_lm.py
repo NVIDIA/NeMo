@@ -19,6 +19,7 @@ import _io
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from nemo.automodel.loss import masked_cross_entropy
@@ -28,7 +29,6 @@ from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
-from megatron.core.tokenizers import MegatronTokenizerBase, MegatronTokenizer
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
