@@ -71,7 +71,7 @@ def normalize_batch(x, seq_len, normalize_type):
             and not torch.cuda.is_current_stream_capturing()
             and torch.any(seq_len == 1).item()
         ):
-            raise ValueError(
+            logging.warning(
                 "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
                 "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
                 "feature (ex. at least `hop_length` for Mel Spectrograms)."

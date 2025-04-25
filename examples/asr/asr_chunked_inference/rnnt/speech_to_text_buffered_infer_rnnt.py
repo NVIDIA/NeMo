@@ -154,6 +154,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
+    torch.set_float32_matmul_precision("high")  # TODO: param
 
     cfg = OmegaConf.structured(cfg)
 

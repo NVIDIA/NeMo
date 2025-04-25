@@ -175,6 +175,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
+    torch.set_float32_matmul_precision("high")  # TODO: param
 
     cfg = OmegaConf.structured(cfg)
 
@@ -354,6 +355,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 if extra_samples_in_buffer > 0:
                     buffer = buffer[:, extra_samples_in_buffer:]
                     buffer_size -= extra_samples_in_buffer
+                    buffer_size = torch.where(buffer_size < 0, torch.zeros_like(buffer_size), buffer_size)
                     if not is_last_chunk:
                         assert buffer_left_context - left_ctx_audio_samples == extra_samples_in_buffer
                     # NB: left ctx can contain extra samples if it is a last batch
