@@ -229,7 +229,9 @@ def main():
         llm, args.recipe
     ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequence_length> or other special settings)"
     finetune_recipe = getattr(llm, args.recipe).finetune_recipe
-    finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme)
+    finetune = partial(finetune_recipe)(
+        name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme, tokenizer='data'
+    )  # by default use dataset's tokenizer (HF tokenizer)
     if not args.hf_tokenizer:
         # Use base model tokenizer if not specified
         args.hf_tokenizer = finetune.resume.restore_config.path.removeprefix("nemo://")
