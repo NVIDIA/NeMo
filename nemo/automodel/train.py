@@ -284,11 +284,11 @@ def train(
         else:
             assert num_skipped_samples_in_batch == 0
         global_state.train_state.skipped_train_samples += num_skipped_samples_in_batch
-        num_floating_point_operations_in_batch = flop_utils.num_floating_point_operations(
-            config, config.model_config.hf_config, batch_size
-        )
-        global_state.train_state.floating_point_operations_so_far += num_floating_point_operations_in_batch
-        num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
+        # num_floating_point_operations_in_batch = flop_utils.num_floating_point_operations(
+        #     config, config.model_config.hf_config, batch_size
+        # )
+        # global_state.train_state.floating_point_operations_so_far += num_floating_point_operations_in_batch
+        # num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
 
         # Logging.
         # TODO: Add support for loss scaling and mixed precision training.

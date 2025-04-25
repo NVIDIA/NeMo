@@ -26,11 +26,9 @@ def get_batch_from_iterator(data_iterator: Iterable) -> Dict[str, torch.Tensor]:
     data = next(data_iterator)
 
     batch = {
-        "tokens": data["tokens"].cuda(non_blocking=True),
+        "input_ids": data["input_ids"].cuda(non_blocking=True),
         "labels": data["labels"].cuda(non_blocking=True),
-        "loss_mask": data["loss_mask"].cuda(non_blocking=True),
         "attention_mask": None if "attention_mask" not in data else data["attention_mask"].cuda(non_blocking=True),
-        "position_ids": data["position_ids"].cuda(non_blocking=True),
     }
 
     return batch

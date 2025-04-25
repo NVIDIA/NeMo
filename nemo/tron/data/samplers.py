@@ -57,7 +57,7 @@ def build_pretraining_data_loader(
         raise Exception("{} dataloader type is not supported.".format(dataloader_type))
 
     # Torch dataloader.
-    return torch.utils.data.DataLoader(
+    dl = torch.utils.data.DataLoader(
         dataset,
         batch_sampler=batch_sampler,
         num_workers=num_workers,
@@ -66,6 +66,8 @@ def build_pretraining_data_loader(
         persistent_workers=persistent_workers,
         worker_init_fn=worker_init_fn,
     )
+
+    return dl
 
 
 class MegatronPretrainingSampler:

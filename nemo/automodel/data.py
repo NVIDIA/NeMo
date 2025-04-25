@@ -15,6 +15,7 @@
 from typing import Callable
 
 import torch
+from datasets import load_dataset
 
 from nemo.automodel.config import ConfigContainer
 from nemo.tron.data.loaders import build_train_valid_test_datasets, cyclic_iter
@@ -38,15 +39,48 @@ def build_train_valid_test_data_loaders(
 
     # Construct the data pipeline
     # Build datasets.
-    train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
-        cfg=cfg, build_train_valid_test_datasets_provider=build_train_valid_test_datasets_provider
-    )
+
+    train_ds = load_dataset(cfg.dataset_config.dataset_name, split="train")
+    valid_ds = load_dataset(cfg.dataset_config.dataset_name, split="test")
+    test_ds = load_dataset(cfg.dataset_config.dataset_name, split="test")
+
+    tokenizer = cfg.dataset_config.tokenizer
+
+    def tokenize(example: str):
+        return tokenizer._tokenizer(
+            example,
+            padding="max_length",
+            truncation=True,
+            max_length=cfg.dataset_config.seq_length,
+            add_special_tokens=True,  # Adds [CLS] and [SEP] automatically
+        )
+
+    def collate_fn(batch):
+
+        batch_dict = {"input_ids": [], "attention_mask": [], "labels": []}
+
+        # Collect all values for each key
+        for example in batch:
+            tokenized_dict = tokenize(example["text"])
+            batch_dict["input_ids"].append(tokenized_dict["input_ids"])
+            batch_dict["attention_mask"].append(tokenized_dict["attention_mask"])
+            batch_dict["labels"].append(example["label"])
+
+        # Convert lists to tensors
+        return {key: torch.LongTensor(value) for key, value in batch_dict.items()}
+
+    train_ds.collate_fn = collate_fn
+    valid_ds.collate_fn = collate_fn
+    test_ds.collate_fn = collate_fn
 
     def worker_init_fn(_):
         DistributedSignalHandler().__enter__()
 
     maybe_worker_init_fn = worker_init_fn if cfg.train_config.exit_signal_handler_for_dataloader else None
 
+    train_ds.collate_fn = collate_fn
+    valid_ds.collate_fn = collate_fn
+    test_ds.collate_fn = collate_fn
     # Build dataloders.
     train_dataloader = build_pretraining_data_loader(
         train_ds,

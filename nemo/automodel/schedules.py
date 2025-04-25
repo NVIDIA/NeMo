@@ -70,21 +70,18 @@ def forward_backward_no_pipelining(
         no_sync_func = contextlib.nullcontext
 
     forward_data_store = []
-    total_num_tokens = torch.zeros([], dtype=torch.int, device="cuda")
+    total_num_tokens = torch.tensor([1], dtype=torch.int, device="cuda")
     with no_sync_func():
         for i in range(num_microbatches - 1):
-            loss, num_tokens = forward_step_func(data_iterator=data_iterator, model=model, config=config)
-            num_tokens = num_tokens.clone().detach().to(torch.int)
-            total_num_tokens += num_tokens.item()
+            loss = forward_step_func(data_iterator=data_iterator, model=model, config=config)
+
             forward_data_store.append(loss)
             if not forward_only:
                 loss.backward()
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
-    loss, num_tokens = forward_step_func(data_iterator=data_iterator, model=model, config=config)
-    num_tokens = num_tokens.clone().detach().to(torch.int)
-    total_num_tokens += num_tokens.item()
+    loss = forward_step_func(data_iterator=data_iterator, model=model, config=config)
     forward_data_store.append(loss)
 
     if not forward_only:

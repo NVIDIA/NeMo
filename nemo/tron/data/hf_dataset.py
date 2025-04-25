@@ -71,7 +71,7 @@ def preprocess_and_split_data(
     val_proportion: Optional[float] = None,
     train_aliases: tuple[str] = ("train", "training"),
     test_aliases: tuple[str] = ("test", "testing"),
-    val_aliases: tuple[str] = ("val", "validation", "valid", "eval"),
+    val_aliases: tuple[str] = ("test", "validation", "valid", "eval"),
     delete_raw: bool = False,
     seed: int = 1234,
     rewrite: bool = False,
