@@ -81,7 +81,7 @@ class MegatronLLMDeploy:
         context_parallel_size: int = 1,
         max_batch_size: int = 32,
         random_seed: Optional[int] = None,
-        enable_flash_decode: bool = False
+        enable_flash_decode: bool = False,
     ):
         """
         Returns the appropriate deployable instance for the given NeMo checkpoint.
@@ -108,7 +108,7 @@ class MegatronLLMDeploy:
                 context_parallel_size=context_parallel_size,
                 max_batch_size=max_batch_size,
                 random_seed=random_seed,
-                enable_flash_decode=enable_flash_decode
+                enable_flash_decode=enable_flash_decode,
             )
         else:
             raise Exception("Only NeMo 2.0 checkpoint is supported.")
