@@ -28,6 +28,8 @@ export CONDA_PREFIX=${CONDA_PREFIX:-""}
 
 trt() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/trt/
+  mkdir -p $WHEELS_DIR
 
   if ! command -v sudo &>/dev/null; then
     echo "sudo is not available, skipping TRT installation"
@@ -83,6 +85,8 @@ trt() {
 
 trtllm() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/trtllm/
+  mkdir -p $WHEELS_DIR
 
   if ! command -v sudo &>/dev/null; then
     echo "sudo is not available, skipping TRT installation"
@@ -135,6 +139,8 @@ trtllm() {
 
 te() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/te/
+  mkdir -p $WHEELS_DIR
 
   TE_DIR="$INSTALL_DIR/TransformerEngine"
   if [ ! -d "$TE_DIR/.git" ]; then
@@ -187,7 +193,7 @@ mcore() {
   popd
 
   export MAMBA_FORCE_BUILD=TRUE
-  export MAMBA_TAG=v2.2.0
+  export MAMBA_TAG=2e16fc3062cdcd4ebef27a9aa4442676e1c7edf4
   MAMBA_DIR="$INSTALL_DIR/mamba"
   if [ ! -d "$MAMBA_DIR/.git" ]; then
     rm -rf "$MAMBA_DIR"
