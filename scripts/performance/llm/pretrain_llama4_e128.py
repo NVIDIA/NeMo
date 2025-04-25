@@ -16,7 +16,7 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm.recipes.llama4_e16 import pretrain_recipe
+from nemo.collections.llm.recipes.llama4_e128 import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -45,7 +45,7 @@ def override_recipe_configs(
     enable_cuda_graphs: bool,
 ):
     """
-    llama4 e16 pre-train recipe aimed at achieving best possible performance and faster
+    llama4 e128 pre-train recipe aimed at achieving best possible performance and faster
     overall runtime.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e16", args)
+    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e128", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs
 
     recipe = override_recipe_configs(
@@ -102,12 +102,6 @@ if __name__ == "__main__":
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    # Workaround for CUDA graph illegal memory access error
-    if not enable_cuda_graphs:
-        custom_env_vars = {"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
-    else:
-        custom_env_vars = {}
-
     executor = slurm_executor(
         args.account,
         args.partition,
@@ -117,7 +111,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars=custom_env_vars,
+        custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,

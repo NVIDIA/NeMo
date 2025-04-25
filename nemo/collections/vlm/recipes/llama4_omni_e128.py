@@ -35,21 +35,21 @@ from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommO
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "llama4_omni_e16"
+NAME = "llama4_omni_e128"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Llama4 16-Experts (Scout) VLM model configuration.
+    Factory function to create a Llama4 128-Experts (Maverick) VLM model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Llama4 16-Experts
-        (Scout) VLM model model.
+        run.Config[pl.LightningModule]: Configuration for the Llama4 128-Experts
+        (Maverick) VLM model model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=llama4_omni_e16 ...
+            $ nemo llm pretrain model=llama4_omni_e128 ...
 
         Python API usage:
             >>> model_config = model()
@@ -58,8 +58,8 @@ def model() -> run.Config[pl.LightningModule]:
     return run.Config(
         vlm.Llama4OmniModel,
         config=run.Config(
-            vlm.Llama4ScoutExperts16Config,
-            language_transformer_config=run.Config(llm.Llama4Experts16Config),
+            vlm.Llama4MaverickExperts128Config,
+            language_transformer_config=run.Config(llm.Llama4Experts128Config),
             vision_transformer_config=run.Config(vlm.Llama4VisionConfig),
             vision_projection_config=run.Config(
                 vlm.MultimodalProjectorConfig,
@@ -80,16 +80,16 @@ def trainer(
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
-    sequence_parallelism: bool = True,
     expert_tensor_parallelism: int = 4,
-    expert_model_parallelism: int = 16,
-    num_nodes: int = 32,
+    expert_model_parallelism: int = 128,
+    sequence_parallelism: bool = True,
+    num_nodes: int = 64,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
     callbacks: Optional[list[run.Config[Callback]]] = None,
 ) -> run.Config[nl.Trainer]:
     """
-    Configure the NeMo Lightning Trainer for Llama4 16-Experts (Scout) VLM model.
+    Configure the NeMo Lightning Trainer for Llama4 128-Experts (Maverick) VLM model.
 
     This function sets up the distributed training strategy and other training parameters.
 
@@ -169,7 +169,7 @@ def trainer(
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 32,
+    num_nodes: int = 64,
     num_gpus_per_node: int = 8,
     performance_mode: bool = False,
     fn: Callable = pretrain,
@@ -295,10 +295,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory llama4_omni_e16
+            $ nemo llm finetune --factory llama4_omni_e128
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="llama4_omni_e16_finetune", num_nodes=1)
+            >>> recipe = finetune_recipe(name="llama4_omni_e128_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
