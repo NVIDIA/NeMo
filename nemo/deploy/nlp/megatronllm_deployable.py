@@ -132,7 +132,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         max_batch_size (int): max batch size for inference. Defaults to 32.
         random_seed (Optional[int]): random seed for inference. Defaults to None.
         enable_flash_decode (bool): enable flash decode for inference. Defaults to False.
-        enable_cuda_graphs (bool): enable cuda graphs for inference. Defaults to False.
     """
 
     def __init__(
