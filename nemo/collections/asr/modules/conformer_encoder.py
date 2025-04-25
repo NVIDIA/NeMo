@@ -51,7 +51,6 @@ from nemo.core.neural_types import (
     BoolType,
     ChannelType,
     LengthsType,
-    LogitsType,
     NeuralType,
     SpectrogramType,
 )

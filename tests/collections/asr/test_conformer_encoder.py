@@ -184,7 +184,6 @@ class TestBypassPreEncode():
             conv_kernel_size=3,
         )
         sub_sampled_n_frames = np.ceil(n_frames/model.subsampling_factor)
-        model.train()
 
         # Test with bypass_pre_encode = True, should be pre_encode_input but given feat_input.
         model.train()
