@@ -221,7 +221,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             from liger_kernel.transformers import _apply_liger_kernel_to_instance
             try:
                 _apply_liger_kernel_to_instance(model=self.model)
-            except:
+            except Exception as e:
+                logging.warning("Liger failed with: {}. Switching to non-liger path.".format(e))
                 self.use_liger_kernel = False
                 del self.model
                 return self.configure_model()
