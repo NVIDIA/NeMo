@@ -87,11 +87,15 @@ trtllm() {
   git lfs pull
   popd
 
-  if [[ "$mode" == "build" ]]; then
+  build() {
     if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       cd $TRTLLM_DIR
       python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
     fi
+  }
+
+  if [[ "$mode" == "build" ]]; then
+    build
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
       build
@@ -115,13 +119,17 @@ te() {
   patch -p1 </tmp/NeMo/external/patches/nemo_2.3.0_te.patch
   popd
 
-  if [[ "$mode" == "build" ]]; then
+  build() {
     if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       cd $TE_DIR
       git submodule init
       git submodule update
       pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
     fi
+  }
+
+  if [[ "$mode" == "build" ]]; then
+    build
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
       build
