@@ -57,7 +57,7 @@ def get_parser():
     parser.add_argument(
         "--data-path",
         type=str,
-        help="Path to the finetuning dataset. must be OAI compatible",
+        help="Path to the finetuning chat dataset. Can be either ShareGPT or HuggingFace/OpenAI chat format",
         required=True,
     )
     parser.add_argument(
