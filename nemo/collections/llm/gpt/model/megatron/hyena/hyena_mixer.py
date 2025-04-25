@@ -347,7 +347,7 @@ class HyenaMixer(MegatronModule):
             x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
                 dim=2
             )
-            z = self.mixer(x1, x2, v)
+            z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp)
 
         z = rearrange(z, "b d l -> l b d").contiguous()
         y, bias = self.dense(z)
