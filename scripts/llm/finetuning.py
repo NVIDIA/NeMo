@@ -46,7 +46,7 @@ def get_parser():
         "--recipe",
         type=str,
         default="llama3_8b",
-        help="Choose NeMo 2.0 recipe. Recipes are named in the format of <model_name>_<model_size>(_<long_sequenth_length> or other special settings)",
+        help="Choose NeMo 2.0 recipe. Recipes are named in the format of <model_name>_<model_size>(_<long_sequence_length> or other special settings)",
     )
     parser.add_argument(
         "--resume_path",

@@ -18,7 +18,6 @@ from pathlib import Path, PosixPath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
 import lightning.pytorch as pl
-import torch
 from filelock import FileLock, Timeout
 from lightning.pytorch.trainer.states import TrainerFn
 
@@ -275,6 +274,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             _trainer.strategy.load_model_state_dict(adapter_state, strict=False)
         else:
             _trainer.strategy.load_checkpoint(path)
+
         return model, _trainer
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
