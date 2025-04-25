@@ -150,7 +150,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         inference_max_seq_length: int = 4096,
         max_batch_size: int = 32,
         random_seed: Optional[int] = None,
-        enable_flash_decode: bool = True
+        enable_flash_decode: bool = True,
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
@@ -187,7 +187,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             inference_max_seq_length=inference_max_seq_length,
             max_batch_size=max_batch_size,
             random_seed=random_seed,
-            enable_flash_decode=enable_flash_decode
+            enable_flash_decode=enable_flash_decode,
         )
 
     def generate(

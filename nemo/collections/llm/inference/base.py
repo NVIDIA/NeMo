@@ -191,7 +191,7 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 4096,
-    enable_flash_decode: bool = True
+    enable_flash_decode: bool = True,
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -321,7 +321,7 @@ def setup_mcore_engine(
         params_dtype,
         inference_batch_times_seqlen_threshold,
         inference_max_seq_length,
-        enable_flash_decode
+        enable_flash_decode,
     )
     text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(

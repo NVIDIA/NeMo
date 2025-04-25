@@ -582,7 +582,7 @@ def deploy(
     max_batch_size: int = 8,
     output_context_logits: bool = True,
     output_generation_logits: bool = True,
-    enable_flash_decode: bool = True
+    enable_flash_decode: bool = True,
 ):
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
@@ -994,7 +994,7 @@ def generate(
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
     output_path: Optional[AnyPath] = None,
-    enable_flash_decode: bool = True
+    enable_flash_decode: bool = True,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -1084,7 +1084,7 @@ def generate(
         trainer=trainer,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-        enable_flash_decode=enable_flash_decode
+        enable_flash_decode=enable_flash_decode,
     )
 
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']

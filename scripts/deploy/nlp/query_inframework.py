@@ -21,6 +21,7 @@ from nemo.deploy.nlp import NemoQueryLLMPyTorch
 
 LOGGER = logging.getLogger("NeMo")
 
+
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
