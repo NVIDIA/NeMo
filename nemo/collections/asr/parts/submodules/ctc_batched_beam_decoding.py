@@ -384,7 +384,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             self.ngram_lm_batch.to(decoder_outputs.device)
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
         
-        # step=0
+        step=0
         for t in range(max_time):
             active_mask = decoder_output_lengths.unsqueeze(1) > t
             log_probs = decoder_outputs[:, t, :].unsqueeze(1) * np.log10(np.e)
@@ -445,18 +445,18 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             
             batched_beam_hyps.self_recombine_hyps_()
             
-            # print("Step: ", step)
-            # print("scores: ", batched_beam_hyps.scores)
-            # print("labels: ", batched_beam_hyps.transcript_wb[..., step])
-            # print("ptrs: ", batched_beam_hyps.transcript_wb_prev_ptr[..., step])
-            # step+=1
+            print("Step: ", step)
+            print("scores: ", batched_beam_hyps.scores)
+            print("labels: ", batched_beam_hyps.transcript_wb[..., step])
+            print("ptrs: ", batched_beam_hyps.transcript_wb_prev_ptr[..., step])
+            step+=1
 
         if self.ngram_lm_batch is not None:
             batched_beam_hyps.scores += self.ngram_lm_batch.get_final(batch_lm_states).view(batch_size, self.beam_size) * np.log10(np.e) * self.beam_alpha
 
-        # for hyp in batched_beam_hyps.to_hyps_list():
-        #     print("score", hyp.score)
-        #     print("y_sequence", hyp.y_sequence)
+        for hyp in batched_beam_hyps.to_hyps_list():
+            print("score", hyp.score)
+            print("y_sequence", hyp.y_sequence)
             
         nbest_hypotheses = []
         for decoder_outputs in batched_beam_hyps.to_hyps_list():
