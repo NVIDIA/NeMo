@@ -307,7 +307,6 @@ def setup_mcore_engine(
         inference_batch_times_seqlen_threshold (int): Batch size * sequence length threshold. Defaults to 1000
         inference_max_seq_length (int): Maximum sequence length for inference. Defaults to 4096
         enable_flash_decode (bool): Whether to enable flash attention decoding. Defaults to False
-        enable_cuda_graphs (bool): Whether to enable CUDA graphs. Defaults to False
         max_batch_size (int): Maximum batch size for inference. Defaults to 32
         random_seed (Optional[int]): Random seed for reproducibility. Defaults to None
 
