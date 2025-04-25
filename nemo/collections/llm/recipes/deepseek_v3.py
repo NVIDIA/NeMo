@@ -116,12 +116,12 @@ def pretrain_recipe(
 
     recipe.log.ckpt.save_top_k = 2
     from datetime import timedelta
-    recipe.log.ckpt.train_time_interval = run.Config(timedelta, minutes=60)
 
+    recipe.log.ckpt.train_time_interval = run.Config(timedelta, minutes=60)
 
     # recompute
     recipe.model.config.recompute_granularity = "selective"
-    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"] #, "moe", "mlp"]
+    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"]  # , "moe", "mlp"]
     # recipe.model.config.recompute_granularity = "full"
     # recipe.model.config.recompute_method = "uniform"
     # recipe.model.config.recompute_num_layers = 1
