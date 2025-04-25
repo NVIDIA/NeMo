@@ -757,7 +757,7 @@ def _preprocess(
     ids = []
     tokenized_lens = []
     if not torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens)):
-        logging.warning(
+        logger.warning(
             "First few tokens of the conversation are not the same as the header tokens. "
             f"{target[:header_len]=}\n {header_tokens=}"
         )
