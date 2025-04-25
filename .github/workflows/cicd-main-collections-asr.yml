@@ -28,7 +28,7 @@ jobs:
             runner: self-hosted-azure-cpu
 
     uses: ./.github/workflows/_test_template.yml
-    needs: [export-deploy-build]
+    needs: [asr-build]
     with:
       runner: ${{ matrix.runner }}
       script: ${{ matrix.script }}
@@ -71,7 +71,7 @@ jobs:
           - runner: self-hosted-azure-gpus-1
             script: ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
     uses: ./.github/workflows/_test_template.yml
-    needs: [export-deploy-unit-tests]
+    needs: [asr-unit-tests]
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
