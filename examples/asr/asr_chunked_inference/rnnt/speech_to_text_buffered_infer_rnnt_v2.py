@@ -376,7 +376,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_full_context = encoder_left_context + encoder_chunk_context + encoder_right_context
                 encoder_extra_added_frames = encoder_output.shape[1] - encoder_full_context
                 assert encoder_extra_added_frames >= 0
-                if encoder_extra_added_frames > 1:
+                if encoder_extra_added_frames > 2:
                     logging.warning("Maybe incorrect length")
                     logging.warning(
                         f"{buffer_left_context} + {buffer_chunk_context} + {buffer_right_context} :: {buffer_size}"
