@@ -29,6 +29,11 @@ export CONDA_PREFIX=${CONDA_PREFIX:-""}
 trt() {
   local mode="$1"
 
+  if ! command -v sudo &>/dev/null; then
+    echo "sudo is not available, skipping TRT installation"
+    return
+  fi
+
   curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
   apt-get install git-lfs
   git lfs install
@@ -69,6 +74,11 @@ trt() {
 
 trtllm() {
   local mode="$1"
+
+  if ! command -v sudo &>/dev/null; then
+    echo "sudo is not available, skipping TRT installation"
+    return
+  fi
 
   curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
   apt-get install git-lfs
