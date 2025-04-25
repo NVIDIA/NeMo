@@ -34,10 +34,19 @@ trt() {
     return
   fi
 
-  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
-  apt-get install git-lfs
-  git lfs install
-  apt-get clean
+  if [ "$(id -u)" -eq 0 ]; then
+    # Already root, run directly
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
+    apt-get install git-lfs
+    git lfs install
+    apt-get clean
+  else
+    # Need to gain sudo
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+    sudo apt-get install git-lfs
+    git lfs install
+    sudo apt-get clean
+  fi
 
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR"
@@ -80,10 +89,19 @@ trtllm() {
     return
   fi
 
-  curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
-  apt-get install git-lfs
-  git lfs install
-  apt-get clean
+  if [ "$(id -u)" -eq 0 ]; then
+    # Already root, run directly
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
+    apt-get install git-lfs
+    git lfs install
+    apt-get clean
+  else
+    # Need to gain sudo
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+    sudo apt-get install git-lfs
+    git lfs install
+    sudo apt-get clean
+  fi
 
   if [ ! -d "$TRTLLM_DIR/.git" ]; then
     rm -rf "$TRTLLM_DIR"
