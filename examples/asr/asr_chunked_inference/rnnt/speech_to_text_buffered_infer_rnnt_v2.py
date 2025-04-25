@@ -151,7 +151,7 @@ class TranscriptionConfig:
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
-    allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
+    allow_mps: bool = True  # allow to select MPS device (Apple Silicon M-series GPU)
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -159,10 +159,6 @@ class TranscriptionConfig:
 
     # Decoding strategy for RNNT models
     decoding: RNNTDecodingConfig = field(default_factory=RNNTDecodingConfig)
-
-    # Merge algorithm for transducers
-    merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs'], choice of algorithm to apply during inference.
-    lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
 
     # Config for word / character error rate calculation
     calculate_wer: bool = True
@@ -279,14 +275,31 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
-    frame2audio_samples = make_divisible_by(int(audio_sample_rate * feature_stride_sec), factor=cfg.model_stride)
-    left_ctx_audio_samples = int(cfg.left_context_secs * features_per_sec) * frame2audio_samples
-    right_ctx_audio_samples = int(cfg.right_context_secs * features_per_sec) * frame2audio_samples
-    chunk_ctx_audio_samples = int(cfg.chunk_len_in_secs * features_per_sec) * frame2audio_samples
+    features_frame2audio_samples = make_divisible_by(int(audio_sample_rate * feature_stride_sec), factor=model_stride)
+    encoder_frame2audio_samples = features_frame2audio_samples * model_stride
+
+    left_ctx_encoder_frames = int(cfg.left_context_secs * features_per_sec / model_stride)
+    chunk_ctx_encoder_frames = int(cfg.chunk_len_in_secs * features_per_sec / model_stride)
+    right_ctx_encoder_frames = int(cfg.right_context_secs * features_per_sec / model_stride)
+
+    left_ctx_audio_samples = left_ctx_encoder_frames * model_stride * features_frame2audio_samples
+    chunk_ctx_audio_samples = chunk_ctx_encoder_frames * model_stride * features_frame2audio_samples
+    right_ctx_audio_samples = right_ctx_encoder_frames * model_stride * features_frame2audio_samples
     full_ctx_audio_samples = left_ctx_audio_samples + chunk_ctx_audio_samples + right_ctx_audio_samples
     logging.info(
         f"Corrected contexts (sec): Left {left_ctx_audio_samples / audio_sample_rate:.2f}, "
-        f"Mid {chunk_ctx_audio_samples / audio_sample_rate:.2f}, Right {right_ctx_audio_samples / audio_sample_rate:.2f}"
+        f"Mid {chunk_ctx_audio_samples / audio_sample_rate:.2f}, "
+        f"Right {right_ctx_audio_samples / audio_sample_rate:.2f}"
+    )
+    logging.info(
+        f"Corrected contexts (subsampled encoder frames): Left {left_ctx_encoder_frames}, "
+        f"Mid {chunk_ctx_encoder_frames}, "
+        f"Right {right_ctx_encoder_frames}"
+    )
+    logging.info(
+        f"Corrected contexts (audio samples): Left {left_ctx_audio_samples}, "
+        f"Mid {chunk_ctx_audio_samples}, "
+        f"Right {right_ctx_audio_samples}"
     )
     latency_secs = (chunk_ctx_audio_samples + right_ctx_audio_samples) / audio_sample_rate
     logging.info(f"Theoretical latency: {latency_secs:.2f} seconds")
@@ -295,19 +308,25 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         streaming_transcripts = []
         all_hyps = []
         for i in tqdm(range(0, len(records), cfg.batch_size)):
+            # get audio
             audio_batch, audio_batch_lengths = get_audio_batch(
                 [record["audio_filepath"] for record in records[i : i + cfg.batch_size]],
                 device=map_location,
                 sample_rate=audio_sample_rate,
             )
-            hyps = None
-            state: Optional[BatchedGreedyDecodingState] = None
 
+            # decode audio by chunks
+
+            current_hyps = None
+            state: Optional[BatchedGreedyDecodingState] = None
             left_sample = 0
             # right_sample = initial latency in audio samples
-            right_sample = chunk_ctx_audio_samples + right_ctx_audio_samples
+            right_sample = min(chunk_ctx_audio_samples + right_ctx_audio_samples, audio_batch.shape[1])
             # start with empty buffer
             buffer = torch.zeros([audio_batch.shape[0], 0], dtype=audio_batch.dtype, device=audio_batch.device)
+            buffer_left_context = 0
+            buffer_chunk_context = 0
+            buffer_right_context = 0
             buffer_size = torch.zeros_like(audio_batch_lengths)
             rest_audio_lengths = audio_batch_lengths.clone()
             while left_sample < audio_batch.shape[1]:
@@ -317,12 +336,22 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     rest_audio_lengths, torch.full_like(rest_audio_lengths, fill_value=added_samples)
                 )
                 buffer_size += current_audio_chunk_len
+                buffer_right_context += added_samples
+                if buffer_right_context > right_ctx_audio_samples:
+                    buffer_chunk_context += buffer_right_context - right_ctx_audio_samples
+                    buffer_right_context = right_ctx_audio_samples
+                if buffer_chunk_context > chunk_ctx_audio_samples:
+                    buffer_left_context += buffer_chunk_context - chunk_ctx_audio_samples
+                    buffer_chunk_context = chunk_ctx_audio_samples
 
                 # leave only full_ctx_audio_samples in buffer
                 extra_samples_in_buffer = max(0, buffer.shape[1] - full_ctx_audio_samples)
                 if extra_samples_in_buffer > 0:
                     buffer = buffer[:, extra_samples_in_buffer:]
                     buffer_size -= extra_samples_in_buffer
+                    assert buffer_left_context - left_ctx_audio_samples == extra_samples_in_buffer
+                    buffer_left_context = left_ctx_audio_samples
+                assert buffer_left_context + buffer_chunk_context + buffer_right_context == buffer.shape[1]
 
                 encoder_output, encoder_output_len = asr_model(
                     input_signal=buffer,
@@ -331,10 +360,31 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_output = encoder_output.transpose(1, 2)
 
                 # remove extra context from encoder_output
-                # TODO: this is not correct
-                crop_left = int(left_ctx_audio_samples // frame2audio_samples // model_stride)
-                crop_right = int(right_ctx_audio_samples // frame2audio_samples // model_stride)
-                encoder_output_len -= (crop_left - crop_right)
+                encoder_left_context = buffer_left_context // encoder_frame2audio_samples
+                encoder_chunk_context = buffer_chunk_context // encoder_frame2audio_samples
+                encoder_right_context = buffer_right_context // encoder_frame2audio_samples
+                if encoder_left_context + encoder_chunk_context + encoder_right_context != encoder_output.shape[1]:
+                    logging.warning(
+                        f"{buffer_left_context} + {buffer_chunk_context} + {buffer_right_context} :: {buffer_size}"
+                    )
+                    logging.warning(
+                        f"{encoder_left_context} + {encoder_chunk_context} + {encoder_right_context} != {encoder_output.shape[1]} || {encoder_output_len}"
+                    )
+                encoder_output = encoder_output[:, encoder_left_context:]
+                encoder_output_len -= encoder_left_context
+                # fix negative lengths
+                encoder_output_len = torch.where(
+                    encoder_output_len > 0, encoder_output_len, torch.full_like(encoder_output_len, fill_value=0)
+                )
+                is_last_chunk = right_sample >= audio_batch.shape[1]
+                if not is_last_chunk and encoder_right_context > 0:
+                    encoder_output = encoder_output[:, :-encoder_right_context]
+                    encoder_output_len = torch.where(
+                        encoder_output_len > encoder_chunk_context,
+                        torch.full_like(encoder_output_len, fill_value=encoder_chunk_context),
+                        encoder_output_len,
+                    )
+                assert (encoder_output_len > 0).any()
 
                 batched_hyps, _, state = decoding_computer(
                     x=encoder_output,
@@ -342,72 +392,28 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     prev_batched_state=state,
                 )
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
-                if hyps is not None:
-                    for hyp, new_hyp in zip(hyps, new_hyps):
+                if current_hyps is not None:
+                    for hyp, new_hyp in zip(current_hyps, new_hyps):
                         hyp.y_sequence.extend(new_hyp.y_sequence.tolist())
                 else:
-                    hyps = new_hyps
-                    for hyp in hyps:
+                    current_hyps = new_hyps
+                    for hyp in current_hyps:
                         hyp.y_sequence = hyp.y_sequence.tolist()
 
                 # move to next sample
                 rest_audio_lengths -= current_audio_chunk_len
                 left_sample = right_sample
-                right_sample += chunk_ctx_audio_samples  # add next chunk
+                right_sample = min(right_sample + chunk_ctx_audio_samples, audio_batch.shape[1])  # add next chunk
 
-            all_hyps.extend(hyps)
+            all_hyps.extend(current_hyps)
     for hyp in all_hyps:
         text = asr_model.tokenizer.ids_to_text(hyp.y_sequence)
         hyp.text = text
         streaming_transcripts.append(text)
     print(streaming_transcripts)
-    # model_stride_in_secs = feature_stride * cfg.model_stride
-    # total_buffer = cfg.total_buffer_in_secs
-    # chunk_len = float(cfg.chunk_len_in_secs)
-    #
-    # tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
-    # mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
-    # logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
-
-    # if cfg.merge_algo == 'middle':
-    #     frame_asr = BatchedFrameASRRNNT(
-    #         asr_model=asr_model,
-    #         frame_len=chunk_len,
-    #         total_buffer=cfg.total_buffer_in_secs,
-    #         batch_size=cfg.batch_size,
-    #         max_steps_per_timestep=cfg.max_steps_per_timestep,
-    #         stateful_decoding=cfg.stateful_decoding,
-    #     )
-    #
-    # elif cfg.merge_algo == 'lcs':
-    #     frame_asr = LongestCommonSubsequenceBatchedFrameASRRNNT(
-    #         asr_model=asr_model,
-    #         frame_len=chunk_len,
-    #         total_buffer=cfg.total_buffer_in_secs,
-    #         batch_size=cfg.batch_size,
-    #         max_steps_per_timestep=cfg.max_steps_per_timestep,
-    #         stateful_decoding=cfg.stateful_decoding,
-    #         alignment_basepath=cfg.lcs_alignment_dir,
-    #     )
-    #     # Set the LCS algorithm delay.
-    #     frame_asr.lcs_delay = math.floor(((total_buffer - chunk_len)) / model_stride_in_secs)
-    #
-    # else:
-    #     raise ValueError("Invalid choice of merge algorithm for transducer buffered inference.")
-    #
-    # hyps = get_buffered_pred_feat_rnnt(
-    #     asr=frame_asr,
-    #     tokens_per_chunk=tokens_per_chunk,
-    #     delay=mid_delay,
-    #     model_stride_in_secs=model_stride_in_secs,
-    #     batch_size=cfg.batch_size,
-    #     manifest=manifest,
-    #     filepaths=filepaths,
-    #     accelerator=accelerator,
-    # )
 
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+        all_hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
