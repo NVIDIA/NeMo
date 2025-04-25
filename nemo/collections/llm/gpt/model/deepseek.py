@@ -40,6 +40,7 @@ from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.lightning.pytorch.optim import OptimizerModule
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
+from transformers import AutoConfig
 
 if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
@@ -224,6 +225,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         from transformers import AutoModelForCausalLM
 
         self.convert_mtp = convert_mtp
+        self._verify_source()
         source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -236,6 +238,14 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         del trainer, target
 
         return output_path
+
+    def _verify_source(self):
+        source_config = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        assert 'quantization_config' not in source_config, \
+            ("HuggingFace cannot load DeepSeek V3's FP8 checkpoint directly. You must convert the checkpoint "
+             "to BF16. See NeMo documentation for more details: "
+             "https://nemo-framework-tme.gitlab-master-pages.nvidia.com/documentation/user-guide/latest/llms/"
+             "deepseek_v3.html#nemo-2-0-finetuning-recipes ")
 
     def _modify_source_state(self, source: nn.Module) -> _ModelState:
         """
