@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import numpy as np
 import pytest
 import torch
-import numpy as np
 
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 
@@ -122,8 +122,10 @@ class TestStochasticDepth:
                 num_diff += 1
         assert num_diff == 0
 
-class TestBypassPreEncode():
+
+class TestBypassPreEncode:
     """Testing bypass pre-encode functionality."""
+
     def test_bypass_pre_encode_forward(self):
         """Testing that forward works with "bypass pre-encode" mode."""
         # For pre-encoded embeddings, the shape is (batch_size, n_frames, emb_dim)
