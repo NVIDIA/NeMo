@@ -511,8 +511,6 @@ def fsdp2_strategy_parallelize(
     if tp_mesh.size() > 1:
         if tp_shard_plan is None and use_hf_tp_plan:
             tp_shard_plan = get_hf_tp_shard_plan(model)
-            print("here")
-        print(tp_shard_plan, use_hf_tp_plan)
         parallelize_module(model, tp_mesh, tp_shard_plan)
 
     # FSDP sharding
