@@ -3,37 +3,44 @@
 # ln -s /lustre/fsw/coreai_dlalgo_genai/yuya/checkpoints /opt/checkpoints
 # python scripts/vlm/llama4/llama4_tron_generate.py --model_name=Qwen/Qwen2.5-1.5B
 
+import argparse
 import os
 import time
-import argparse
 import warnings
 from contextlib import nullcontext
 
 import torch
-from transformers import AutoTokenizer # Keep for initial check/loading if needed, but primarily use build_tokenizer
-
-from nemo.collections.llm import GPTConfig
-# NeMo/Megatron Imports
-from nemo.tron.init import initialize_megatron, set_jit_fusion_options
-from nemo.tron.config import (
-    ConfigContainer, TrainingConfig, LoggerConfig, OptimizerConfig,
-    SchedulerConfig, CheckpointConfig, DistributedDataParallelConfig,
-    TokenizerConfig,
-)
-from nemo.collections.llm import GPTModel as ModelConfig
-from nemo.tron.model import get_model_from_config
-from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
-from nemo.tron.setup import _init_checkpointing_context
-from nemo.tron.state import GlobalState
-from nemo.tron.tokenizers.tokenizer import build_tokenizer
-from nemo.tron.utils.common_utils import get_rank_safe # For rank checks
 
 # Megatron-Core Inference Imports
-from megatron.core import parallel_state # Needed for distributed checks
+from megatron.core import parallel_state  # Needed for distributed checks
+from megatron.core.inference.engines import StaticInferenceEngine
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.inference.text_generation.mcore_engine_server import ModelInferenceWrapperServer, run_mcore_engine
-from megatron.core.inference.engines import StaticInferenceEngine
+from transformers import AutoTokenizer  # Keep for initial check/loading if needed, but primarily use build_tokenizer
+
+from nemo.collections.llm import GPTConfig
+from nemo.collections.llm import GPTModel as ModelConfig
+from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
+from nemo.tron.config import (
+    CheckpointConfig,
+    ConfigContainer,
+    DistributedDataParallelConfig,
+    LoggerConfig,
+    OptimizerConfig,
+    SchedulerConfig,
+    TokenizerConfig,
+    TrainingConfig,
+)
+
+# NeMo/Megatron Imports
+from nemo.tron.init import initialize_megatron, set_jit_fusion_options
+from nemo.tron.model import get_model_from_config
+from nemo.tron.setup import _init_checkpointing_context
+from nemo.tron.state import GlobalState
+from nemo.tron.tokenizers.tokenizer import build_tokenizer
+from nemo.tron.utils.common_utils import get_rank_safe  # For rank checks
+
 # from megatron.core.inference.sampling_params import SamplingParams # Optional for more control
 
 
@@ -49,11 +56,10 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     device = f'cuda:{local_rank}'
     torch.cuda.set_device(device)
 
-
     # --- Checkpoint Conversion (Placeholder - Run Separately Beforehand) ---
     # This section should ideally be run *once* before launching the main script,
     # typically on a single node/rank.
-    output_path = f"/opt/checkpoints/tron/{hf_model_name}" # Example path - ADJUST AS NEEDED
+    output_path = f"/opt/checkpoints/tron/{hf_model_name}"  # Example path - ADJUST AS NEEDED
     if rank == 0:
         if not (os.path.exists(output_path) and os.path.exists(os.path.join(output_path, "iter_0000000"))):
             print(f"INFO: Converted checkpoint not found at {output_path}.")
@@ -83,55 +89,60 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
             #     # raise RuntimeError("Checkpoint conversion failed.") from e
             warnings.warn(f"Checkpoint not found at {output_path}. Proceeding assumes it exists or conversion failed.")
         else:
-             print(f"INFO: Found converted checkpoint at {output_path}.")
+            print(f"INFO: Found converted checkpoint at {output_path}.")
 
     # Barrier to ensure rank 0 finishes check/conversion before others proceed
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
     # --- Configuration ---
-    pretrained_ckpt = output_path # Use the output path of the conversion
+    pretrained_ckpt = output_path  # Use the output path of the conversion
     # Try loading the run_config.yaml generated during conversion
     # Fallback to potentially manually creating a basic config if needed.
     base_config_path = os.path.join(pretrained_ckpt, "iter_0000000/run_config.yaml")
 
     if os.path.exists(base_config_path):
-         print(f"Loading base config from: {base_config_path}")
-         cfg_container = ConfigContainer.from_yaml(base_config_path)
-         model_cfg = cfg_container.model_config
+        print(f"Loading base config from: {base_config_path}")
+        cfg_container = ConfigContainer.from_yaml(base_config_path)
+        model_cfg = cfg_container.model_config
     else:
         print(f"WARNING: Base config not found at {base_config_path}. Creating a minimal default ModelConfig.")
         # Attempt to load minimal config from HF model if possible, otherwise use defaults
         try:
             from transformers import AutoConfig
+
             hf_config = AutoConfig.from_pretrained(hf_model_name)
             model_cfg = ModelConfig(
-                 hidden_size=hf_config.hidden_size,
-                 num_layers=hf_config.num_hidden_layers,
-                 num_attention_heads=hf_config.num_attention_heads,
-                 # seq_length might need adjustment based on model/task
-                 seq_length=getattr(hf_config, 'max_position_embeddings', 2048),
-                 max_position_embeddings=getattr(hf_config, 'max_position_embeddings', 2048),
-                 # These might need model-specific logic (e.g. for GQA in Llama)
-                 # kv_channels=...
-                 # num_query_groups=...
-                 ffn_hidden_size=hf_config.intermediate_size,
-                 init_method_std=getattr(hf_config, 'initializer_range', 0.02),
-                 hidden_dropout=getattr(hf_config, 'hidden_dropout_prob', 0.0),
-                 attention_dropout=getattr(hf_config, 'attention_dropout_prob', 0.0),
-                 # activation="gelu", # Or model specific like 'swiglu'
-                 # bias_activation_fusion=True, # Example default
-                 # layernorm_epsilon=hf_config.layer_norm_eps,
-                 make_vocab_size_divisible_by=128, # Common practice
-                 # Pad vocab size needs to be set later by tokenizer
+                hidden_size=hf_config.hidden_size,
+                num_layers=hf_config.num_hidden_layers,
+                num_attention_heads=hf_config.num_attention_heads,
+                # seq_length might need adjustment based on model/task
+                seq_length=getattr(hf_config, 'max_position_embeddings', 2048),
+                max_position_embeddings=getattr(hf_config, 'max_position_embeddings', 2048),
+                # These might need model-specific logic (e.g. for GQA in Llama)
+                # kv_channels=...
+                # num_query_groups=...
+                ffn_hidden_size=hf_config.intermediate_size,
+                init_method_std=getattr(hf_config, 'initializer_range', 0.02),
+                hidden_dropout=getattr(hf_config, 'hidden_dropout_prob', 0.0),
+                attention_dropout=getattr(hf_config, 'attention_dropout_prob', 0.0),
+                # activation="gelu", # Or model specific like 'swiglu'
+                # bias_activation_fusion=True, # Example default
+                # layernorm_epsilon=hf_config.layer_norm_eps,
+                make_vocab_size_divisible_by=128,  # Common practice
+                # Pad vocab size needs to be set later by tokenizer
             )
             print("Created ModelConfig from HuggingFace config.")
         except Exception as e:
             print(f"ERROR: Could not load HF config for defaults: {e}. Using hardcoded minimal defaults.")
             # VERY Minimal defaults if HF config fails - likely needs adjustment
             model_cfg = ModelConfig(
-                hidden_size=4096, num_layers=32, num_attention_heads=32, seq_length=2048,
-                max_position_embeddings=2048, ffn_hidden_size=11008,
+                hidden_size=4096,
+                num_layers=32,
+                num_attention_heads=32,
+                seq_length=2048,
+                max_position_embeddings=2048,
+                ffn_hidden_size=11008,
                 make_vocab_size_divisible_by=128,
             )
             print("Using hardcoded minimal ModelConfig - VERIFY THESE VALUES.")
@@ -140,12 +151,12 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     model_cfg.tensor_model_parallel_size = tp_size
     model_cfg.pipeline_model_parallel_size = pp_size
     model_cfg.context_parallel_size = cp_size
-    model_cfg.expert_model_parallel_size = 1 # Assuming no MoE for now
-    model_cfg.sequence_parallel = False # Assuming standard TP/PP
+    model_cfg.expert_model_parallel_size = 1  # Assuming no MoE for now
+    model_cfg.sequence_parallel = False  # Assuming standard TP/PP
 
     model_cfg.bf16 = dtype == torch.bfloat16
     model_cfg.fp16 = dtype == torch.float16
-    model_cfg.fp32_residual_connection = False # Common optimization
+    model_cfg.fp32_residual_connection = False  # Common optimization
     # params_dtype is important for AMP/storage
     if model_cfg.bf16:
         model_cfg.params_dtype = torch.bfloat16
@@ -154,12 +165,12 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     else:
         model_cfg.params_dtype = torch.float32
 
-    model_cfg.parallel_output = True # Important for logprobs/generation across TP ranks
+    model_cfg.parallel_output = True  # Important for logprobs/generation across TP ranks
     model_cfg.flash_decode = True
 
     checkpoint_config = CheckpointConfig(
         # load=pretrained_ckpt, # Use pretrained_checkpoint instead for NeMo Tron convention
-        pretrained_checkpoint=pretrained_ckpt, # Path to the *converted* NeMo checkpoint directory
+        pretrained_checkpoint=pretrained_ckpt,  # Path to the *converted* NeMo checkpoint directory
         fully_parallel_load=True,
         # save="/tmp/dummy_save", # Dummy save path might be needed by some checks
     )
@@ -168,21 +179,21 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     megatron_cfg = ConfigContainer(
         model_config=model_cfg,
         checkpoint_config=checkpoint_config,
-        logger_config=LoggerConfig(logging_level=30), # Warn level
+        logger_config=LoggerConfig(logging_level=30),  # Warn level
         # Training config needed for some internal setups, even for inference
         train_config=TrainingConfig(
-             micro_batch_size=1,
-             global_batch_size=tp_size * pp_size * cp_size, # Example logic
-             train_iters=1, # Dummy value
-             rampup_batch_size=None, # Disable rampup
-             # Might need seq_length_ramping if model uses it
-             ),
-        optimizer_config=OptimizerConfig(), # Dummy, not used for inference load
-        ddp_config=DistributedDataParallelConfig(), # Defaults should be ok
-        scheduler_config=SchedulerConfig(), # Dummy
+            micro_batch_size=1,
+            global_batch_size=tp_size * pp_size * cp_size,  # Example logic
+            train_iters=1,  # Dummy value
+            rampup_batch_size=None,  # Disable rampup
+            # Might need seq_length_ramping if model uses it
+        ),
+        optimizer_config=OptimizerConfig(),  # Dummy, not used for inference load
+        ddp_config=DistributedDataParallelConfig(),  # Defaults should be ok
+        scheduler_config=SchedulerConfig(),  # Dummy
         tokenizer_config=TokenizerConfig(
             tokenizer_type="HuggingFaceTokenizer",
-            tokenizer_model=hf_model_name, # Use original HF name here for loading tokenizer
+            tokenizer_model=hf_model_name,  # Use original HF name here for loading tokenizer
         ),
         dataset_config=None,
     )
@@ -201,13 +212,11 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     # Validate config *after* GlobalState is populated by initialize_megatron
     megatron_cfg.validate()
 
-
     # JIT options (optional but good practice)
-    if megatron_cfg.train_config.micro_batch_size: # Check if set
+    if megatron_cfg.train_config.micro_batch_size:  # Check if set
         set_jit_fusion_options(megatron_cfg.model_config, megatron_cfg.train_config.micro_batch_size)
     else:
         print("Warning: micro_batch_size not in config, skipping JIT fusion options.")
-
 
     # Checkpointing context
     checkpointing_context = _init_checkpointing_context(megatron_cfg.checkpoint_config)
@@ -222,12 +231,13 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     )
     # Update model config with the final padded vocab size from the tokenizer build process
     if megatron_tokenizer.vocab_size != megatron_cfg.model_config.vocab_size:
-         print(f"Updating model_cfg vocab_size from {megatron_cfg.model_config.vocab_size} to {megatron_tokenizer.vocab_size}")
-         megatron_cfg.model_config.vocab_size = megatron_tokenizer.vocab_size
+        print(
+            f"Updating model_cfg vocab_size from {megatron_cfg.model_config.vocab_size} to {megatron_tokenizer.vocab_size}"
+        )
+        megatron_cfg.model_config.vocab_size = megatron_tokenizer.vocab_size
     # Store the final padded vocab size for inference engine
     final_padded_vocab_size = megatron_cfg.model_config.vocab_size
     print(f"Final padded vocab size: {final_padded_vocab_size}")
-
 
     # Model Instantiation
     print("Building Model...")
@@ -243,47 +253,54 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     # Pass dummy providers or adjust setup_model_and_optimizer if possible.
     # Let's try calling get_model_from_config directly as in the original code:
     model_list = get_model_from_config(
-                     megatron_cfg.model_config,
-                     megatron_cfg.ddp_config,
-                 )
+        megatron_cfg.model_config,
+        megatron_cfg.ddp_config,
+    )
 
     # Load Checkpoint
-    if megatron_cfg.checkpoint_config.pretrained_checkpoint and \
-       checkpoint_exists(megatron_cfg.checkpoint_config.pretrained_checkpoint):
+    if megatron_cfg.checkpoint_config.pretrained_checkpoint and checkpoint_exists(
+        megatron_cfg.checkpoint_config.pretrained_checkpoint
+    ):
         print(f"Loading checkpoint from: {megatron_cfg.checkpoint_config.pretrained_checkpoint}")
         load_checkpoint(
-             state, # Pass GlobalState
-             model_list, # Pass the list
-             None, # No optimizer
-             None, # No scheduler
-             checkpointing_context=checkpointing_context,
-             # Add skip_load_to_model_and_opt if using FSDP2
+            state,  # Pass GlobalState
+            model_list,  # Pass the list
+            None,  # No optimizer
+            None,  # No scheduler
+            checkpointing_context=checkpointing_context,
+            # Add skip_load_to_model_and_opt if using FSDP2
         )
         print("Checkpoint loaded successfully.")
     else:
-        print(f"Warning: Pretrained checkpoint not found or not specified ({megatron_cfg.checkpoint_config.pretrained_checkpoint}). Model weights are initialized randomly.")
+        print(
+            f"Warning: Pretrained checkpoint not found or not specified ({megatron_cfg.checkpoint_config.pretrained_checkpoint}). Model weights are initialized randomly."
+        )
 
     if torch.distributed.is_initialized():
-        torch.distributed.barrier() # Ensure model is loaded everywhere
+        torch.distributed.barrier()  # Ensure model is loaded everywhere
 
-    model = model_list[0].module # Get the actual model instance
-    model.eval() # Set to evaluation mode
+    model = model_list[0].module  # Get the actual model instance
+    model.eval()  # Set to evaluation mode
 
     print("Megatron Setup Complete.")
     return model, megatron_tokenizer, megatron_cfg, final_padded_vocab_size
 
 
 # --- Generation Function ---
-def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_size,
-                       input_ids: torch.Tensor, # Right-padded input_ids [batch, seq_len]
-                       input_lengths: torch.Tensor, # Length of each prompt [batch]
-                       max_new_tokens: int,
-                       generation_batch_size: int, # Micro-batch size for inference engine
-                       greedy: bool = True # Add greedy option
-                       ):
+def megatron_generate(
+    model,
+    megatron_tokenizer,
+    mtron_cfg,
+    final_padded_vocab_size,
+    input_ids: torch.Tensor,  # Right-padded input_ids [batch, seq_len]
+    input_lengths: torch.Tensor,  # Length of each prompt [batch]
+    max_new_tokens: int,
+    generation_batch_size: int,  # Micro-batch size for inference engine
+    greedy: bool = True,  # Add greedy option
+):
     """Generates text using the initialized Megatron model and inference engine."""
 
-    model.eval() # Ensure model is in eval mode
+    model.eval()  # Ensure model is in eval mode
     model_cfg = mtron_cfg.model_config
     rank = get_rank_safe()
 
@@ -297,30 +314,28 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
         inference_batch_times_seqlen_threshold=model_cfg.seq_length * generation_batch_size * 2,
         fp32_residual_connection=model_cfg.fp32_residual_connection,
         params_dtype=model_cfg.params_dtype,
-        padded_vocab_size=final_padded_vocab_size, # Use the final padded size
+        padded_vocab_size=final_padded_vocab_size,  # Use the final padded size
         # Max length for the *entire* sequence (prompt + new) engine might handle
         # Let's set it large enough based on model seq length and max new tokens
         inference_max_seq_length=model_cfg.seq_length,
-        inference_max_requests=generation_batch_size, # Max concurrent requests in engine
+        inference_max_requests=generation_batch_size,  # Max concurrent requests in engine
         # Add other relevant flags from ModelConfig if needed by wrapper
         # e.g., model_cfg.gated_linear_unit, model_cfg.layernorm_style etc.
     )
 
     # Wrap the model for inference server logic
-    inference_wrapped_model = ModelInferenceWrapperServer(
-        model, inference_wrapper_config
-    )
+    inference_wrapped_model = ModelInferenceWrapperServer(model, inference_wrapper_config)
 
     # Controller handles tokenization details and generation loop logic internally (via engine)
     text_generation_controller = TextGenerationController(
         inference_wrapped_model=inference_wrapped_model,
-        tokenizer=megatron_tokenizer, # Megatron tokenizer instance from setup
+        tokenizer=megatron_tokenizer,  # Megatron tokenizer instance from setup
     )
 
     # Static engine is simpler for batch processing
     inference_engine = StaticInferenceEngine(
         text_generation_controller=text_generation_controller,
-        max_batch_size=generation_batch_size, # Should match inference_max_requests
+        max_batch_size=generation_batch_size,  # Should match inference_max_requests
     )
 
     # Ensure inputs are on the correct device (GPU for computation)
@@ -344,7 +359,7 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
     if rank == 0:
         print("Running MCore Inference Engine...")
     start_time = time.time()
-    with torch.no_grad(), nullcontext(): # Use nullcontext if autocast not needed/handled internally
+    with torch.no_grad(), nullcontext():  # Use nullcontext if autocast not needed/handled internally
         # Note: input_ids should be right-padded for this engine function.
         engine_output = run_mcore_engine(
             engine=inference_engine,
@@ -358,7 +373,6 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
     if rank == 0:
         print(f"Engine execution time: {end_time - start_time:.3f} seconds")
 
-
     # --- Post-process the output ---
     # engine_output is a dict with 'tokens' (list of lists), 'logprobs' (list of lists)
 
@@ -366,15 +380,15 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
     # engine_output['tokens'] contains the full sequences (prompt + generated)
     # Need to handle potential empty outputs if generation fails
     if not engine_output or not engine_output["tokens"]:
-         print("Warning: MCore engine returned empty output.")
-         # Return empty/dummy tensors matching expected structure
-         max_seq_len = input_ids.size(1) # Use input length as fallback
-         output_ids_padded = torch.full(
-             (batch_size, max_seq_len), megatron_tokenizer._tokenizer.pad_token_id, dtype=torch.long, device="cpu"
-         )
-         logprobs_padded = torch.zeros((batch_size, max_seq_len), dtype=torch.float, device="cpu")
-         generation_lengths_list = [0] * batch_size
-         unpadded_lengths_list = input_lengths.cpu().tolist() # Fallback to input lengths
+        print("Warning: MCore engine returned empty output.")
+        # Return empty/dummy tensors matching expected structure
+        max_seq_len = input_ids.size(1)  # Use input length as fallback
+        output_ids_padded = torch.full(
+            (batch_size, max_seq_len), megatron_tokenizer._tokenizer.pad_token_id, dtype=torch.long, device="cpu"
+        )
+        logprobs_padded = torch.zeros((batch_size, max_seq_len), dtype=torch.float, device="cpu")
+        generation_lengths_list = [0] * batch_size
+        unpadded_lengths_list = input_lengths.cpu().tolist()  # Fallback to input lengths
     else:
         # Determine max length from the *generated* sequences
         max_seq_len = max(len(tokens) for tokens in engine_output["tokens"])
@@ -382,16 +396,16 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
         # Create padded tensors for tokens and logprobs
         output_ids_padded = torch.full(
             (batch_size, max_seq_len),
-            megatron_tokenizer._tokenizer.pad_token_id, # Use tokenizer's pad ID
+            megatron_tokenizer._tokenizer.pad_token_id,  # Use tokenizer's pad ID
             dtype=torch.long,
-            device="cpu", # Move results to CPU
+            device="cpu",  # Move results to CPU
         )
         # Initialize logprobs with a suitable value (e.g., 0 or NaN)
         logprobs_padded = torch.full(
             (batch_size, max_seq_len),
-            0.0, # Or float('nan')
+            0.0,  # Or float('nan')
             dtype=torch.float,
-            device="cpu", # Move results to CPU
+            device="cpu",  # Move results to CPU
         )
 
         generation_lengths_list = []
@@ -402,9 +416,7 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
             # Tokens includes the prompt + generation
             seq_len = len(engine_output["tokens"][i])
             unpadded_lengths_list.append(seq_len)
-            output_ids_padded[i, :seq_len] = torch.tensor(
-                engine_output["tokens"][i], dtype=torch.long, device="cpu"
-            )
+            output_ids_padded[i, :seq_len] = torch.tensor(engine_output["tokens"][i], dtype=torch.long, device="cpu")
 
             # Logprobs usually correspond to predicting tokens[1:] based on tokens[0:t-1]
             # Check if 'logprobs' exists and handle its length
@@ -414,26 +426,25 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
                 # Ensure logprob_len doesn't exceed available space
                 effective_len = min(logprob_len, max_seq_len - 1)
                 if effective_len > 0:
-                     logprobs_padded[i, 1 : effective_len + 1] = torch.tensor(
-                         engine_output["logprobs"][i][:effective_len], dtype=torch.float, device="cpu"
-                     )
+                    logprobs_padded[i, 1 : effective_len + 1] = torch.tensor(
+                        engine_output["logprobs"][i][:effective_len], dtype=torch.float, device="cpu"
+                    )
             else:
                 # Handle cases where logprobs are missing or empty
-                if rank == 0: print(f"Warning: Logprobs missing or empty for sample {i}.")
-
+                if rank == 0:
+                    print(f"Warning: Logprobs missing or empty for sample {i}.")
 
             # Generation length is total length minus prompt length
             # Ensure input_lengths is on CPU for item() call
             prompt_len = input_lengths[i].cpu().item()
             generation_lengths_list.append(max(0, seq_len - prompt_len))
 
-
     # Prepare final output dictionary
     output_dict = {
-        "output_ids": output_ids_padded, # [batch, max_output_len]
-        "logprobs": logprobs_padded,     # [batch, max_output_len] (logprob[t] is for token[t])
-        "generation_lengths": torch.tensor(generation_lengths_list, dtype=torch.long), # [batch]
-        "unpadded_sequence_lengths": torch.tensor(unpadded_lengths_list, dtype=torch.long), # [batch]
+        "output_ids": output_ids_padded,  # [batch, max_output_len]
+        "logprobs": logprobs_padded,  # [batch, max_output_len] (logprob[t] is for token[t])
+        "generation_lengths": torch.tensor(generation_lengths_list, dtype=torch.long),  # [batch]
+        "unpadded_sequence_lengths": torch.tensor(unpadded_lengths_list, dtype=torch.long),  # [batch]
     }
 
     return output_dict
@@ -442,18 +453,26 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
 # --- Main Execution Block ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Megatron-Core Initialization and Generation Test")
-    parser.add_argument("--model_name", type=str, required=True, help="HuggingFace model identifier (e.g., meta-llama/Llama-2-7b-hf)")
+    parser.add_argument(
+        "--model_name", type=str, required=True, help="HuggingFace model identifier (e.g., meta-llama/Llama-2-7b-hf)"
+    )
     # Checkpoint path override - conversion still uses /opt/checkpoints/tron/{model_name} convention
-    parser.add_argument("--checkpoint_path", type=str, default=None, help="Explicit path to the *converted* NeMo checkpoint directory (overrides default convention if provided)")
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        default=None,
+        help="Explicit path to the *converted* NeMo checkpoint directory (overrides default convention if provided)",
+    )
     parser.add_argument("--tp", type=int, default=1, help="Tensor Parallel size")
     parser.add_argument("--pp", type=int, default=1, help="Pipeline Parallel size")
     parser.add_argument("--cp", type=int, default=1, help="Context Parallel size")
-    parser.add_argument("--precision", type=str, default="bf16", choices=["bf16", "fp16", "fp32"], help="Computation precision")
+    parser.add_argument(
+        "--precision", type=str, default="bf16", choices=["bf16", "fp16", "fp32"], help="Computation precision"
+    )
     parser.add_argument("--prompt", type=str, default="The capital of France is", help="Input prompt for generation")
     parser.add_argument("--max_new_tokens", type=int, default=50, help="Maximum number of new tokens to generate")
     parser.add_argument("--gen_batch_size", type=int, default=1, help="Micro batch size for the generation engine")
     parser.add_argument("--max_prompt_len", type=int, default=512, help="Maximum length for input prompt tokenization")
-
 
     args = parser.parse_args()
 
@@ -497,14 +516,13 @@ if __name__ == "__main__":
         # Currently, it derives the path from model_name. Add modification if needed.
         pass
 
-
     # --- Run Setup ---
     model, megatron_tokenizer, megatron_cfg, final_padded_vocab_size = minimal_megatron_setup(
         hf_model_name=args.model_name,
         tp_size=args.tp,
         pp_size=args.pp,
         cp_size=args.cp,
-        dtype=dtype
+        dtype=dtype,
         # Pass checkpoint override here if modified: checkpoint_override=args.checkpoint_path
     )
 
@@ -512,7 +530,7 @@ if __name__ == "__main__":
     # Use the Megatron tokenizer returned by the setup function
     # Important: Tokenizer might need specific padding side (left/right). MCore Engine expects right padding.
     # Check tokenizer defaults or explicitly set padding_side='right'.
-    megatron_tokenizer.padding_side = "right" # Explicitly set for MCore Engine
+    megatron_tokenizer.padding_side = "right"  # Explicitly set for MCore Engine
     # megatron_tokenizer.pad_token = megatron_tokenizer.eos_token # Common practice if pad_token is None
 
     if rank == 0:
@@ -522,7 +540,7 @@ if __name__ == "__main__":
     prompts = ["tell me a story,", "I like you because"]
     encoded = megatron_tokenizer(
         prompts,
-        padding="max_length", # Pad to max_prompt_len
+        padding="max_length",  # Pad to max_prompt_len
         truncation=True,
         return_tensors="pt",
         max_length=args.max_prompt_len,
@@ -533,13 +551,14 @@ if __name__ == "__main__":
     # Calculate lengths based on non-padding tokens
     # Attention mask might not be reliable if max_length padding used without truncation awareness
     # Safer: find first pad token or use length before padding
-    input_lengths = torch.tensor([ (ids != megatron_tokenizer._tokenizer.pad_token_id).sum().item() for ids in input_ids ], dtype=torch.long)
+    input_lengths = torch.tensor(
+        [(ids != megatron_tokenizer._tokenizer.pad_token_id).sum().item() for ids in input_ids], dtype=torch.long
+    )
 
     if rank == 0:
         print(f"Input IDs shape: {input_ids.shape}")
         print(f"Calculated Input Lengths: {input_lengths}")
         # print(f"Input IDs (rank 0): {input_ids[0, :input_lengths[0]]}") # Print non-padded part
-
 
     # --- Run Generation ---
     generation_output = megatron_generate(
@@ -551,7 +570,7 @@ if __name__ == "__main__":
         input_lengths=input_lengths,
         max_new_tokens=args.max_new_tokens,
         generation_batch_size=args.gen_batch_size,
-        greedy=True # Keep it simple for now
+        greedy=True,  # Keep it simple for now
     )
 
     # --- Decode and Print Output (Rank 0) ---
@@ -566,10 +585,8 @@ if __name__ == "__main__":
         # Decode the full generated sequence (including prompt)
         # Use the same Megatron tokenizer
         decoded_texts = megatron_tokenizer._tokenizer.batch_decode(
-            generation_output['output_ids'],
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=True
-            )
+            generation_output['output_ids'], skip_special_tokens=True, clean_up_tokenization_spaces=True
+        )
 
         for i, text in enumerate(decoded_texts):
             print(f"\n--- Sample {i+1} ---")
@@ -589,10 +606,9 @@ if __name__ == "__main__":
             #         token_str = megatron_tokenizer.decode(tok_id)
             #         print(f"  '{token_str}' (ID: {tok_id.item()}): {lp.item():.4f}")
 
-
     # --- Cleanup ---
     if torch.distributed.is_initialized():
-        torch.distributed.barrier() # Sync before exit
+        torch.distributed.barrier()  # Sync before exit
         # Optional: Explicitly destroy process group, though often handled by launcher exit
         # torch.distributed.destroy_process_group()
     print(f"Rank {rank} finished.")

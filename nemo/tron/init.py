@@ -112,7 +112,7 @@ def torch_dist_init(
             num_distributed_optimizer_instances=num_distributed_optimizer_instances,
             get_embedding_ranks=get_embedding_ranks,
             get_position_embedding_ranks=get_position_embedding_ranks,
-            gpu_visibility_externally_set=gpu_visibility_externally_set
+            gpu_visibility_externally_set=gpu_visibility_externally_set,
         )
 
         # Random seeds for reproducibility.

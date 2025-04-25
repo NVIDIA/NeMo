@@ -1085,6 +1085,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
         return state_dict, config_obj
 
+
 def _modify_llama4_source_state(state_dict, source_config):
     """
     For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
