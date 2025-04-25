@@ -354,8 +354,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 if extra_samples_in_buffer > 0:
                     buffer = buffer[:, extra_samples_in_buffer:]
                     buffer_size -= extra_samples_in_buffer
-                    assert buffer_left_context - left_ctx_audio_samples == extra_samples_in_buffer
-                    buffer_left_context = left_ctx_audio_samples
+                    if not is_last_chunk:
+                        assert buffer_left_context - left_ctx_audio_samples == extra_samples_in_buffer
+                    # NB: left ctx can contain extra samples if it is a last batch
+                    buffer_left_context -= extra_samples_in_buffer
+                    assert buffer_left_context >= 0
                 assert buffer_left_context + buffer_chunk_context + buffer_right_context == buffer.shape[1]
 
                 encoder_output, encoder_output_len = asr_model(
