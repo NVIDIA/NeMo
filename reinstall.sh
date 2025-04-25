@@ -31,6 +31,12 @@ trt() {
   local WHEELS_DIR=$WHEELS_DIR/trt/
   mkdir -p $WHEELS_DIR
 
+  # Skip TRT installation on macOS ARM
+  if [[ "$(uname)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then
+    echo "Skipping TRT installation on macOS ARM"
+    return
+  fi
+
   if ! command -v sudo &>/dev/null; then
     echo "sudo is not available, skipping TRT installation"
     return
@@ -87,6 +93,12 @@ trtllm() {
   local mode="$1"
   local WHEELS_DIR=$WHEELS_DIR/trtllm/
   mkdir -p $WHEELS_DIR
+
+  # Skip TRT installation on macOS ARM
+  if [[ "$(uname)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then
+    echo "Skipping TRT installation on macOS ARM"
+    return
+  fi
 
   if ! command -v sudo &>/dev/null; then
     echo "sudo is not available, skipping TRT installation"
