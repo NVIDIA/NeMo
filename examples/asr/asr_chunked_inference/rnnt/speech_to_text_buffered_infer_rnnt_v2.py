@@ -160,10 +160,6 @@ class TranscriptionConfig:
     # Decoding strategy for RNNT models
     decoding: RNNTDecodingConfig = field(default_factory=RNNTDecodingConfig)
 
-    # Decoding configs
-    max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
-    stateful_decoding: bool = False  # Whether to perform stateful decoding
-
     # Merge algorithm for transducers
     merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs'], choice of algorithm to apply during inference.
     lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
@@ -272,6 +268,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     feature_stride_sec = model_cfg.preprocessor['window_stride']
     features_per_sec = 1.0 / feature_stride_sec
+    model_stride = cfg.model_stride
     assert manifest is not None
     records = read_manifest(manifest)
     asr_model.preprocessor.featurizer.dither = 0.0
@@ -282,13 +279,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
-    # def sec_to_spec_frames(seconds: float):
-    #     return make_divisible_by(int(seconds / feature_stride_sec), factor=cfg.model_stride)
-
     frame2audio_samples = make_divisible_by(int(audio_sample_rate * feature_stride_sec), factor=cfg.model_stride)
     left_ctx_audio_samples = int(cfg.left_context_secs * features_per_sec) * frame2audio_samples
     right_ctx_audio_samples = int(cfg.right_context_secs * features_per_sec) * frame2audio_samples
-    chunk_ctx_audio_samples = int(cfg.chunk_ctx_secs * features_per_sec) * frame2audio_samples
+    chunk_ctx_audio_samples = int(cfg.chunk_len_in_secs * features_per_sec) * frame2audio_samples
     full_ctx_audio_samples = left_ctx_audio_samples + chunk_ctx_audio_samples + right_ctx_audio_samples
     logging.info(
         f"Corrected contexts (sec): Left {left_ctx_audio_samples / audio_sample_rate:.2f}, "
@@ -318,16 +312,17 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             rest_audio_lengths = audio_batch_lengths.clone()
             while left_sample < audio_batch.shape[1]:
                 buffer = torch.cat((buffer, audio_batch[:, left_sample:right_sample]), dim=1)
-                added_chunk_length = min(right_sample, audio_batch.shape[1]) - left_sample
+                added_samples = min(right_sample, audio_batch.shape[1]) - left_sample
                 current_audio_chunk_len = torch.minimum(
-                    rest_audio_lengths, torch.full_like(rest_audio_lengths, fill_value=added_chunk_length)
+                    rest_audio_lengths, torch.full_like(rest_audio_lengths, fill_value=added_samples)
                 )
                 buffer_size += current_audio_chunk_len
 
                 # leave only full_ctx_audio_samples in buffer
-                if full_ctx_audio_samples > buffer.shape[1]:
-                    buffer = buffer[:, -full_ctx_audio_samples:]
-                    buffer_size -= full_ctx_audio_samples
+                extra_samples_in_buffer = max(0, buffer.shape[1] - full_ctx_audio_samples)
+                if extra_samples_in_buffer > 0:
+                    buffer = buffer[:, extra_samples_in_buffer:]
+                    buffer_size -= extra_samples_in_buffer
 
                 encoder_output, encoder_output_len = asr_model(
                     input_signal=buffer,
@@ -336,11 +331,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_output = encoder_output.transpose(1, 2)
 
                 # remove extra context from encoder_output
-                # TODO: fix
-                # crop_left = int((ctx_start - left) / feature_stride) // audio_sample_rate // cfg.model_stride
-                # crop_right = int(right_ctx_audio_frames // audio_sample_rate // cfg.model_stride / feature_stride)
-                # encoder_output = encoder_output[:, crop_left : crop_left + chunk_ctx_encoder_frames]
-                # encoder_output_len = ...
+                # TODO: this is not correct
+                crop_left = int(left_ctx_audio_samples // frame2audio_samples // model_stride)
+                crop_right = int(right_ctx_audio_samples // frame2audio_samples // model_stride)
+                encoder_output_len -= (crop_left - crop_right)
 
                 batched_hyps, _, state = decoding_computer(
                     x=encoder_output,
@@ -357,10 +351,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         hyp.y_sequence = hyp.y_sequence.tolist()
 
                 # move to next sample
-                rest_audio_lengths -= right_sample
-                rest_audio_lengths = torch.where(rest_audio_lengths >= 0, rest_audio_lengths, 0)
+                rest_audio_lengths -= current_audio_chunk_len
                 left_sample = right_sample
-                right_sample += right_ctx_audio_samples  # add next chunk of `right_ctx_audio_samples`
+                right_sample += chunk_ctx_audio_samples  # add next chunk
 
             all_hyps.extend(hyps)
     for hyp in all_hyps:
