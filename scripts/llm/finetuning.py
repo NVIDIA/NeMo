@@ -21,7 +21,11 @@
 Fine-tuning script for chat datasets. Uses the HuggingFace tokenizer chat template by default.
 
 To finetune from a HuggingFace checkpoint, use nemo.collections.llm.import_ckpt to convert the checkpoint to a NeMo checkpoint.
-When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).
+When converting the checkpoint, the NeMo checkpoint will be saved in NEMO_HOME (set to ~/.cache/nemo by default).  If doing multi-node training, 
+use `import_ckpt` with `output_path` set to a persistent directory, then use the same directory for `resume_path`.
+
+If using a custom tokenizer, provide the HF tokenizer name in `--hf-tokenizer` and optionally a chat template in `--chat-template`, which will
+override the default chat template. For example, this is useful when finetuning a base model to following instructions using the instruct model's tokenizer.
 """
 import argparse
 from functools import partial
@@ -229,14 +233,13 @@ def main():
         llm, args.recipe
     ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequence_length> or other special settings)"
     finetune_recipe = getattr(llm, args.recipe).finetune_recipe
-    finetune = partial(finetune_recipe)(
-        name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme, tokenizer='data'
-    )  # by default use dataset's tokenizer (HF tokenizer)
+    finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme)
+    finetune.tokenizer = 'data'  # by default use dataset's HF tokenizer
     if not args.hf_tokenizer:
         # Use base model tokenizer if not specified
         args.hf_tokenizer = finetune.resume.restore_config.path.removeprefix("nemo://")
     if args.resume_path:
-        finetune.resume_path = args.resume_path
+        finetune.resume.restore_config.path = args.resume_path
 
     tokenizer = run.Config(
         get_nmt_tokenizer, library='huggingface', model_name=args.hf_tokenizer, chat_template=args.chat_template
