@@ -666,7 +666,7 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path="nvidia/Nemotron-H-8B-Base-8K",
-            metadata_path={"library": "huggingface", "model_type": "ssm"}
+            metadata_path={"library": "huggingface", "model_type": "ssm"},
             trust_remote_code=True)
 
     @property
