@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import argparse
+import logging
 import sys
 import time
 
 from nemo.deploy.nlp import NemoQueryLLMPyTorch
 
+LOGGER = logging.getLogger("NeMo")
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
@@ -63,7 +65,7 @@ def query_llm(
         init_timeout=init_timeout,
     )
     end_time = time.time()
-    print(f"Query execution time: {end_time - start_time:.2f} seconds")
+    LOGGER.info(f"Query execution time: {end_time - start_time:.2f} seconds")
     return result
 
 

@@ -191,8 +191,7 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 4096,
-    enable_flash_decode: bool = True,
-    enable_cuda_graphs: bool = True,
+    enable_flash_decode: bool = True
 ) -> tuple[MegatronModule, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -209,7 +208,7 @@ def setup_model_and_tokenizer(
            than this threshold then we will not use pipelining, otherwise we will.
         inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
         Necessary for CUDA graphs. Defaults to 4096.
-
+        enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
     Returns:
         tuple[MegatronModule, MCoreTokenizerWrappper]:
             A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
@@ -221,11 +220,6 @@ def setup_model_and_tokenizer(
         model.config.flash_decode = True
         model.config.attention_backend = AttnBackend.flash
 
-    if enable_cuda_graphs:
-        logging.info("Enabling CUDA Graphs for in-framework inference")
-        model.config.enable_cuda_graph = True
-        model.config.use_te_rng_tracker = True
-        model.config.inference_rng_tracker = True
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(
@@ -297,7 +291,6 @@ def setup_mcore_engine(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 4096,
     enable_flash_decode: bool = True,
-    enable_cuda_graphs: bool = True,
     max_batch_size: int = 32,
     random_seed: Optional[int] = None,
 ) -> MCoreEngine:
@@ -328,8 +321,7 @@ def setup_mcore_engine(
         params_dtype,
         inference_batch_times_seqlen_threshold,
         inference_max_seq_length,
-        enable_flash_decode,
-        enable_cuda_graphs,
+        enable_flash_decode
     )
     text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(

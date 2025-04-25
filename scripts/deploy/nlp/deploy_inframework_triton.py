@@ -64,13 +64,6 @@ def get_args(argv):
         action='store_true',
         help='Enable flash decoding',
     )
-    parser.add_argument(
-        "-cg",
-        '--enable_cuda_graphs',
-        default=False,
-        action='store_true',
-        help='Enable cuda graphs',
-    )
     args = parser.parse_args(argv)
     return args
 
@@ -102,8 +95,7 @@ def nemo_deploy(argv):
         context_parallel_size=args.context_parallel_size,
         expert_model_parallel_size=args.expert_model_parallel_size,
         max_batch_size=args.max_batch_size,
-        enable_flash_decode=args.enable_flash_decode,
-        enable_cuda_graphs=args.enable_cuda_graphs,
+        enable_flash_decode=args.enable_flash_decode
     )
 
     if torch.distributed.is_initialized():

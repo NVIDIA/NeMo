@@ -150,8 +150,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         inference_max_seq_length: int = 4096,
         max_batch_size: int = 32,
         random_seed: Optional[int] = None,
-        enable_flash_decode: bool = True,
-        enable_cuda_graphs: bool = True,
+        enable_flash_decode: bool = True
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
@@ -188,8 +187,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             inference_max_seq_length=inference_max_seq_length,
             max_batch_size=max_batch_size,
             random_seed=random_seed,
-            enable_flash_decode=enable_flash_decode,
-            enable_cuda_graphs=enable_cuda_graphs,
+            enable_flash_decode=enable_flash_decode
         )
 
     def generate(
@@ -205,7 +203,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             List[InferenceRequest]: A list containing the generated results.
         """
 
-        inference_params = inference_params or CommonInferenceParams(num_tokens_to_generate=512, top_k=1)
+        inference_params = inference_params or CommonInferenceParams()
         results = self.mcore_engine.generate(
             prompts=prompts,
             add_BOS=False,
