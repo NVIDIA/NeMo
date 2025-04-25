@@ -31,6 +31,11 @@ on:
         description: Upload coverage as unit test
         required: false
         default: false
+      TESTS_TO_RUN:
+        type: string
+        description: Tests to run
+        required: false
+        default: '["all"]'
     outputs:
       conclusion:
         description: Conclusion of main test step
@@ -44,6 +49,8 @@ on:
 jobs:
   main:
     runs-on: ${{ inputs.RUNNER }}
+    name: ${{ inputs.SCRIPT }}
+    if: contains(fromJSON(inputs.TESTS_TO_RUN), inputs.SCRIPT) || contains(fromJSON(inputs.TESTS_TO_RUN), 'all')
     outputs:
       conclusion: ${{ steps.check.conclusion }}
       log: ${{ steps.check.outputs.log }}
@@ -62,26 +69,56 @@ jobs:
         run: |
           docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
+      - name: Clean repos
+        run: |
+
+      - name: Install jq
+        run: |
+          curl -sS https://webi.sh/jq | sh
+
+      - name: Create UUID
+        id: uuid
+        run: |
+          echo "id=$(uuidgen)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout NeMo
+        uses: actions/checkout@v2
+        with:
+          repository: NVIDIA/NeMo
+          path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo
+
       - name: Start container
         run: |
           mkdir -p $DIR
 
+          # Map of runner names to GPU device configurations
+          declare -A GPU_CONFIGS=(
+            ["myVm-01"]="0,1"
+            ["myVm-02"]="2,3" 
+            ["myVm-03"]="4,5"
+            ["myVm-04"]="6,7"
+          )
+
           ARG=("")
-          if [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
+          if [[ -n "${GPU_CONFIGS[${{ runner.name }}]}" ]]; then
+            ARG=("--runtime=nvidia --cpus="40" --memory="400g" --gpus '\"device=${GPU_CONFIGS[${{ runner.name }}]}\"'")
+          elif [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
             ARG=("--runtime=nvidia --gpus all")
           fi
 
           cmd=$(cat <<RUN_TEST_EOF
           #!/bin/bash
-          docker container rm -f nemo_container_${{ github.run_id }} || true
+          docker container rm -f nemo_container_${{ github.run_id }}_${{ runner.name }} || true
           docker run \
             --rm \
             -d \
-            --name nemo_container_${{ github.run_id }} ${ARG[@]} \
+            --name nemo_container_${{ github.run_id }}_${{ runner.name }} ${ARG[@]} \
             --shm-size=64g \
             --env TRANSFORMERS_OFFLINE=0 \
             --env HYDRA_FULL_ERROR=1 \
             --env HF_HOME=/home/TestData/HF_HOME \
+            --env RUN_ID=${{ github.run_id }} \
+            --volume $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo:/workspace \
             --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
             bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
           RUN_TEST_EOF
@@ -107,7 +144,10 @@ jobs:
           (
             set -e
 
-            docker exec -t nemo_container_${{ github.run_id }} bash -c 'RUN_ID=${{ github.run_id }} bash tests/functional_tests/$SCRIPT.sh && echo "Finished successfully." || echo "Did not finish."'
+            docker exec -t nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c '\
+              cp -r /opt/Megatron-LM/ /workspace/ && \
+              bash tests/functional_tests/$SCRIPT.sh && \
+              echo "Finished successfully." || echo "Did not finish."'
           ) 2>&1 | tee $DIR/err.log
 
           RUN_TEST_EOF
@@ -137,10 +177,10 @@ jobs:
           potential_infra_failure=$(cat $DIR/err.log | grep -Eqiw "device" && echo true || echo false)
           echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
 
-          docker exec nemo_container_${{ github.run_id }} coverage combine
-          docker exec nemo_container_${{ github.run_id }} coverage xml
-          docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage $DIR/.coverage 
-          docker cp nemo_container_${{ github.run_id }}:/workspace/coverage.xml $DIR/coverage.xml
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} coverage combine
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} coverage xml
+          docker cp nemo_container_${{ github.run_id }}_${{ runner.name }}:/workspace/.coverage $DIR/.coverage 
+          docker cp nemo_container_${{ github.run_id }}_${{ runner.name }}:/workspace/coverage.xml $DIR/coverage.xml
 
           coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
           echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
@@ -162,7 +202,7 @@ jobs:
       - name: Test coverage
         shell: bash -x -e -u -o pipefail {0}
         run: |
-          docker exec -t nemo_container_${{ github.run_id }} coverage report -i
+          docker exec -t nemo_container_${{ github.run_id }}_${{ runner.name }} coverage report -i
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -174,14 +214,9 @@ jobs:
             ${{ github.run_id }}/.coverage
           include-hidden-files: true
 
-      - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-        if: failure() && inputs.IS_OPTIONAL == false && github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-fail-fast')
-      - name: after_script
-        if: always() && inputs.AFTER_SCRIPT != ':'
-        run: |
-          docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
-
       - name: Container shutdown
         if: always()
         run: |
-          docker container rm -f nemo_container_${{ github.run_id }} || true
+          docker exec nemo_container_${{ github.run_id }}_${{ runner.name }} bash -c "chown -R $(id -u):$(id -g) /workspace"
+          rm -rf $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }} || true
+          docker container rm -f nemo_container_${{ github.run_id }}_${{ runner.name }} || true
