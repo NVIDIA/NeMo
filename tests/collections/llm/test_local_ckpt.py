@@ -2,10 +2,39 @@
 # ... (License header remains the same)
 
 """
-Test NeMo 2.0 with local checkpointing from NVRx,
-including crash simulation and resumption verification.
+Test NeMo 2.0 local checkpointing functionality with NVRx resiliency extensions.
 
-This test requires a shared filesystem for --log-dir if used on multiple nodes.
+This test verifies the ability to save local checkpoints during training, simulate
+a crash, and then successfully resume training from the latest available local
+checkpoint, ensuring the trainer state (specifically global_step) is correctly restored.
+
+The test proceeds in two main runs:
+
+Run 1:
+  - Initializes a LlamaModel and trains it using a MockDataModule.
+  - Uses `LocalCheckpointCallback` from NVRx to save checkpoints locally at a
+    specified interval (`--local-checkpoint-interval`).
+  - Uses `CrashCallback` to simulate a crash by raising an exception at a
+    predefined step (`--crash-step`).
+  - After the simulated crash, the test verifies that the latest local checkpoint
+    found on the node corresponds to the expected step based on the crash step
+    and the local checkpoint interval.
+
+Run 2:
+  - Re-initializes the model, optimizer, and trainer.
+  - Uses `nl.AutoResume` to automatically detect and load the latest checkpoint
+    (which should be the local checkpoint saved just before the crash in Run 1).
+  - Includes `CheckResumeStepCallback` which asserts, at the `on_train_start`
+    hook, that `trainer.global_step` matches the step number of the local
+    checkpoint from which it resumed. This confirms state restoration.
+  - Continues training until `--max-steps`.
+  - Finally, verifies that the latest local checkpoint after Run 2 completes
+    corresponds to the expected final step based on `max_steps` and the local
+    checkpoint interval.
+
+Requirements:
+  - nvidia_resiliency_ext (`res_module`) must be installed.
+  - A shared filesystem for `--log-dir` if running on multiple nodes.
 """
 
 import argparse
@@ -58,35 +87,47 @@ class CrashException(Exception):
 
 class CrashCallback(Callback):
     """
-    Callback to simulate a crash at a specific step.
-    Uses trainer.global_step for accurate step counting.
+    Callback to simulate a crash at a specific step based on trainer.global_step.
     """
 
-    def __init__(self, crash_step: Optional[int]):
-        if crash_step is not None and crash_step <= 0:
+    def __init__(self, crash_step: int):
+        if crash_step <= 0:
             raise ValueError("crash_step must be a positive integer or None")
         self.crash_step = crash_step
-        # No internal step counter needed - rely on trainer.global_step
         if self.crash_step:
-            # Use logger - assumes logger is configured before instantiation
-            logger.info(f"CrashCallback initialized. Will simulate crash if global_step reaches {self.crash_step}")
+            logger.debug(f"CrashCallback initialized. Will simulate crash if global_step reaches {self.crash_step}")
         else:
-            logger.info("CrashCallback initialized. Crash simulation is disabled (crash_step is None).")
+            logger.debug("CrashCallback initialized. Crash simulation is disabled (crash_step is None).")
 
-    def on_train_batch_end(self, trainer: "pl.Trainer", *args) -> None:
-        # Check if crash simulation is enabled for this run
-        if not self.crash_step:
-            return
-
-        # Get reliable global step and rank from the trainer
+    def on_train_batch_end(self, trainer, *args) -> None:
         current_global_step = trainer.global_step
-
-        # Crash condition: Check step number and ensure only rank 0 crashes
-        # Crash occurs *after* batch 'crash_step' finishes forward/backward
         if current_global_step == self.crash_step:
             msg = f"Simulating crash via CrashCallback at global_step {current_global_step}!"
             logger.error(msg)
             raise CrashException(msg)
+
+
+class CheckResumeStepCallback(Callback):
+    """
+    Callback to verify the trainer's global_step at the start of training.
+    Used to ensure resumption from a checkpoint happened correctly.
+    """
+
+    def __init__(self, expected_resume_step: int):
+        self.expected_resume_step = expected_resume_step
+
+    def on_train_start(self, trainer, *args) -> None:
+        # We expect global_step to be the same as the step of the checkpoint
+        # because training resumes from the saved step state.
+        expected_step_at_start = self.expected_resume_step
+        current_global_step = trainer.global_step
+
+        assert (
+            current_global_step == expected_step_at_start
+        ), f"""Resumption check failed!
+            Expected trainer.global_step to be {expected_step_at_start} after resuming, 
+            but found {current_global_step}.
+            """
 
 
 def get_trainer(args, callbacks, plugins, strategy) -> nl.Trainer:
@@ -145,14 +186,16 @@ def get_my_local_ckpt_node_dir(log_dir: str, rank: int) -> Path:
 
 
 def find_latest_local_ckpt_step(local_ckpt_node_dir: Path, global_rank: int) -> Optional[int]:
-    """Finds the step number of the latest local checkpoint ON THIS NODE."""
+    """Finds the step number of the latest local checkpoint based on the input path."""
     latest_step = -1
 
     if not local_ckpt_node_dir.is_dir():
         logger.warning(f"Local checkpoint node directory not found: {local_ckpt_node_dir}")
         return None
 
+    # Pattern to match the local checkpoint file name
     pattern = re.compile(fr"iter_(\d+)_{global_rank}_local")
+
     for item in local_ckpt_node_dir.iterdir():
         match = pattern.match(item.name)
         if match:
@@ -161,10 +204,6 @@ def find_latest_local_ckpt_step(local_ckpt_node_dir: Path, global_rank: int) -> 
                 latest_step = step
 
     result = latest_step if latest_step != -1 else None
-    if result is not None:
-        logger.info(f"[Rank {global_rank}] Found latest local checkpoint step {result} in {local_ckpt_node_dir}")
-    else:
-        logger.info(f"[Rank {global_rank}] No local checkpoints found matching pattern in {local_ckpt_node_dir}")
     return result
 
 
@@ -195,10 +234,7 @@ def get_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = get_parser().parse_args()
 
-    # --- Configure Logging ---
     log_level_numeric = getattr(logging, args.log_level.upper(), logging.INFO)
-    # Basic config - logs to stderr by default. Log to stdout for potentially cleaner capture.
-    # Include timestamp and level name. Rank will be added manually in messages.
     logging.basicConfig(
         level=log_level_numeric,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -207,7 +243,6 @@ def main() -> None:
 
     assert HAVE_RES, "nvidia_resiliency_ext is required for this test."
 
-    # Validate args
     assert (
         args.crash_step > args.local_checkpoint_interval
     ), "Crash step must be after the first local checkpoint interval"
@@ -218,12 +253,11 @@ def main() -> None:
     world_size = int(os.environ.get("WORLD_SIZE", 1))
 
     if global_rank == 0:
-        # Use logger
-        logger.info(f"Test started. World size: {world_size}")
-        logger.info(f"Using shared log directory: {args.log_dir}")
-        logger.info(f"Logging level set to: {args.log_level.upper()}")
+        logger.debug(f"Test started. World size: {world_size}")
+        logger.debug(f"Using shared log directory: {args.log_dir}")
+        logger.debug(f"Logging level set to: {args.log_level.upper()}")
         if args.crash_step > 0:
-            logger.info(f"Crash simulation enabled at step {args.crash_step}.")
+            logger.debug(f"Crash simulation enabled at step {args.crash_step}.")
         assert (
             Path(args.log_dir).exists() or args.cleanup_log_dir
         ), f"Log directory {args.log_dir} does not exist and cleanup was not requested."
@@ -233,17 +267,15 @@ def main() -> None:
     if args.cleanup_log_dir and global_rank == 0:
         if log_dir_path.exists():
             # Use logger
-            logger.info(f"[Rank 0] Cleaning up log directory: {log_dir_path}")
             shutil.rmtree(log_dir_path)
-        # Use logger
-        logger.info(f"[Rank 0] Creating log directory: {log_dir_path}")
+        logger.debug(f"Creating log directory: {log_dir_path}")
         log_dir_path.mkdir(parents=True, exist_ok=True)
 
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         dist.barrier()
 
     my_local_ckpt_node_dir = get_my_local_ckpt_node_dir(args.log_dir, global_rank)
-    logger.info(f"Expecting local checkpoints for this node in: {my_local_ckpt_node_dir}")
+    logger.debug(f"Expecting local checkpoints for this node in: {my_local_ckpt_node_dir}")
 
     mbs = 1
     gbs = mbs * world_size
@@ -292,7 +324,7 @@ def main() -> None:
     )
     assert hasattr(trainer_run1, 'global_rank'), "Trainer needs global_rank populated."
 
-    logger.info(f"[Rank {global_rank}] Initializing Run 1 Trainer complete. Patching for local I/O.")
+    logger.debug(f"Initializing Run 1 Trainer complete. Patching for local I/O.")
     update_trainer_local_checkpoint_io(
         trainer_run1,
         args.log_dir,
@@ -316,14 +348,8 @@ def main() -> None:
             resume=resume_logic,
             tokenizer="data",
         )
-
-        # If crash_step was 0 or None, training should complete Run 1 successfully
-        if not args.crash_step or args.crash_step <= 0:
-            logger.info(f"[Rank {global_rank}] Run 1 completed successfully (no crash simulated).")
-
-    # Catch the specific exception from the callback
     except CrashException as e:
-        logger.info(f"\nSuccessfully caught expected crash: {e}")
+        logger.debug(f"\nSuccessfully caught expected crash: {e}")
         crashed = True
 
     if torch.distributed.is_initialized():
@@ -331,20 +357,20 @@ def main() -> None:
 
     latest_local_step_run1 = -1
 
-    logger.info("\nVerifying checkpoints after Run 1...")
+    logger.debug("\nVerifying checkpoints after Run 1...")
     assert crashed, "Training did not crash as expected!"
-    logger.info(f"Run 1 finished (crashed at step {args.crash_step}).")
+    logger.debug(f"Run 1 finished (crashed at step {args.crash_step}).")
 
     latest_local_step_run1 = find_latest_local_ckpt_step(my_local_ckpt_node_dir, global_rank)
     assert latest_local_step_run1 is not None, f"No local checkpoints found in {my_local_ckpt_node_dir} after crash!"
 
     expected_latest_step = (args.crash_step // args.local_checkpoint_interval) * args.local_checkpoint_interval
-    logger.info(f"Expected latest local checkpoint step: {expected_latest_step}")
+    logger.debug(f"Expected latest local checkpoint step: {expected_latest_step}")
     assert (
         latest_local_step_run1 == expected_latest_step
     ), f"Latest local step {latest_local_step_run1} is not equal to the expected {expected_latest_step}"
 
-    logger.info(f"Latest local checkpoint found at step: {latest_local_step_run1}")
+    logger.debug(f"Latest local checkpoint found at step: {latest_local_step_run1}")
 
     # --- Run 2: Resume Training ---
     if global_rank == 0:
@@ -376,7 +402,9 @@ def main() -> None:
     local_checkpoint_callback_run2 = res_module.local_checkpoint_callback.LocalCheckpointCallback(
         every_n_train_steps=args.local_checkpoint_interval
     )
-    callbacks_run2 = [local_checkpoint_callback_run2]
+    # Instantiate the check callback with the expected resume step
+    check_resume_step_callback = CheckResumeStepCallback(expected_resume_step=latest_local_step_run1)
+    callbacks_run2 = [local_checkpoint_callback_run2, check_resume_step_callback]
 
     nemo_logger_plugin_run2 = nl.NeMoLogger(
         log_dir=args.log_dir,
@@ -405,7 +433,7 @@ def main() -> None:
         resume_if_exists=True,
         resume_ignore_no_checkpoint=False,
     )
-    logger.info(f"[Rank {global_rank}] Starting Run 2 training loop (resuming).")
+    logger.debug(f"[Rank {global_rank}] Starting Run 2 training loop (resuming).")
     llm.train(
         model=model_run2,
         data=data,
@@ -415,7 +443,7 @@ def main() -> None:
         resume=resume_logic_run2,
         tokenizer="data",
     )
-    logger.info(f"Run 2 resumed from step {latest_local_step_run1}.")
+    logger.debug(f"Run 2 resumed from step {latest_local_step_run1}.")
     latest_local_step_run2 = find_latest_local_ckpt_step(my_local_ckpt_node_dir, global_rank)
 
     assert (
@@ -423,11 +451,11 @@ def main() -> None:
     ), f"No local checkpoints found in {my_local_ckpt_node_dir} after resuming!"
 
     expected_latest_step = (args.max_steps // args.local_checkpoint_interval) * args.local_checkpoint_interval
-    logger.info(f"Expected latest local checkpoint step: {expected_latest_step}")
+    logger.debug(f"Expected latest local checkpoint step: {expected_latest_step}")
     assert (
         latest_local_step_run2 == expected_latest_step
     ), f"Latest local step {latest_local_step_run2} is not equal to the expected {expected_latest_step}"
-    logger.info(f"Latest local checkpoint found at step: {latest_local_step_run2}")
+    logger.debug(f"Latest local checkpoint found at step: {latest_local_step_run2}")
 
     if torch.distributed.is_initialized():
         dist.barrier()

@@ -116,8 +116,8 @@ def get_global_step_from_global_checkpoint_path(path: Union[str, Path]) -> int:
     if "=" in step_part:
         # Handle "step=value" format (if metric name is auto-inserted)
         step_value = step_part.split("=")
-        assert len(step_value) == 2, f"Expected 'step=<integer>' but found value '{step_value}'. Full path: {path}"
         step_value = step_value[1]
+        assert len(step_value) == 2, f"Expected 'step=<integer>' but found '{step_value}'. Full path: {path}"        
         if not step_value.isdigit():
             raise ValueError(
                 f"Could not parse the step number from '{step_part}'. "
