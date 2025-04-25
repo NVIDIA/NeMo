@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import copy
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Union
 
 import lightning.pytorch as L
 import torch
@@ -58,8 +59,8 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     # work for both mcore's T5 pre-train dataset object, and NeMo's T5SFTDataset dataset
-    enc_mask = _batch['enc_mask'] < 0.5
-    dec_mask = _batch['dec_mask'] < 0.5
+    enc_mask = _batch["enc_mask"] < 0.5
+    dec_mask = _batch["dec_mask"] < 0.5
     # process for Flash/Fused
     enc_mask = enc_mask.unsqueeze(1).unsqueeze(1)
     dec_mask = dec_mask.unsqueeze(1).unsqueeze(1)
@@ -69,9 +70,9 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     )
     # set dec_mask to None because decoder uses AttnMaskType.causal
     dec_mask = None
-    _batch['enc_mask'] = enc_mask
-    _batch['dec_mask'] = dec_mask
-    _batch['enc_dec_mask'] = enc_dec_mask
+    _batch["enc_mask"] = enc_mask
+    _batch["dec_mask"] = dec_mask
+    _batch["enc_dec_mask"] = enc_dec_mask
 
     # bring to device
     for key in _batch.keys():
@@ -169,7 +170,7 @@ class T5Config(TransformerConfig, io.IOMixin):
     bias_dropout_fusion: bool = True
     deallocate_pipeline_outputs: bool = True
     pipeline_model_parallel_split_rank: int = 0
-    num_moe_experts: int = 1
+    num_moe_experts: Optional[int] = None
     recompute_num_layers: int = 1
     distribute_saved_activations: bool = False
     enable_autocast: bool = False
@@ -177,6 +178,9 @@ class T5Config(TransformerConfig, io.IOMixin):
     transformer_layer_spec: Union[ModuleSpec, Callable[["T5Config"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = t5_forward_step
     data_step_fn: Callable = t5_data_step
+
+    vocab_size: Optional[int] = None
+    tp_comm_overlap_cfg: Optional[Union[str, dict[str, Any]]] = None
 
     def configure_model(self, tokenizer) -> "MCoreT5Model":
         """Setup the T5 Model based on config definition."""
@@ -200,12 +204,22 @@ class T5Config(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(encoder_config=encoder_config, decoder_config=self)
 
+        if self.vocab_size is not None:
+            vocab_size = self.vocab_size
+            if tokenizer is not None:
+                logging.info(
+                    f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                    f" {vocab_size - tokenizer.vocab_size}."
+                )
+        else:
+            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+
         model = MCoreT5Model(
             config=self,
             encoder_config=encoder_config,
             transformer_encoder_layer_spec=transformer_layer_spec[0],
             transformer_decoder_layer_spec=transformer_layer_spec[1],
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            vocab_size=vocab_size,
             max_sequence_length=self.max_position_embeddings,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
             parallel_output=self.parallel_output,
@@ -366,7 +380,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
     def apply(self, output_path: Path) -> Path:
         from transformers import T5ForConditionalGeneration
 
-        source = T5ForConditionalGeneration.from_pretrained(str(self), torch_dtype='auto')
+        source = T5ForConditionalGeneration.from_pretrained(str(self), torch_dtype="auto")
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -423,12 +437,13 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
                 _import_decoder_kv,
                 _import_decoder_linear_fc1,
             ],
-            state_dict_ignored_entries=['output_layer.weight'],
+            state_dict_ignored_entries=["output_layer.weight"],
         )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
         """Retrieve Tokenizer from HF"""
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         # Set special tokens to match HF
         bos_token = "<pad>"
@@ -655,7 +670,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
                 _export_decoder_kv,
                 _export_decoder_linear_fc1,
             ],
-            state_dict_ignored_entries=['encoder.embed_tokens.weight', 'decoder.embed_tokens.weight'],
+            state_dict_ignored_entries=["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"],
         )
 
     @property
