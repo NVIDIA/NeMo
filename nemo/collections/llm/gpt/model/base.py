@@ -296,6 +296,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     scatter_embedding_sequence_parallel: bool = True
     tp_only_amax_red: bool = False
     tp_comm_overlap_cfg: Optional[str] = None
+    moe_apply_probs_on_input: bool = False
     """Config file when tp_comm_overlap is enabled."""
 
     use_transformer_engine_full_layer_spec: bool = False

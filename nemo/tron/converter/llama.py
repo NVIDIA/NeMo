@@ -80,9 +80,21 @@ class HFLlamaImporter(BaseImporter):
     """Importer for converting Hugging Face Llama models to NeMo Tron format."""
 
     def init_hf_model(self):
-        from transformers import LlamaForCausalLM
+        # from transformers import LlamaForCausalLM
+        #
+        # return LlamaForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto")
 
-        return LlamaForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto")
+        from transformers import AutoConfig, AutoModelForCausalLM
+
+        hf_config = AutoConfig.from_pretrained(str(self.input_path))
+        if getattr(hf_config, 'model_type') == 'llama4':
+            # Llama4 is a VL model, only init the language part here
+            from transformers import Llama4ForConditionalGeneration
+
+            source = Llama4ForConditionalGeneration.from_pretrained(str(self.input_path), torch_dtype='auto')
+            return source.language_model
+        else:
+            return AutoModelForCausalLM.from_pretrained(str(self.input_path), torch_dtype='auto')
 
     convert_state = _NeMo2HFLlamaImporter.convert_state
 

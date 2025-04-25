@@ -1,5 +1,8 @@
 # Combined Megatron Initialization and Generation Script
 
+# ln -s /lustre/fsw/coreai_dlalgo_genai/yuya/checkpoints /opt/checkpoints
+# python scripts/vlm/llama4/llama4_tron_generate.py --model_name=Qwen/Qwen2.5-1.5B
+
 import os
 import time
 import argparse
@@ -9,13 +12,15 @@ from contextlib import nullcontext
 import torch
 from transformers import AutoTokenizer # Keep for initial check/loading if needed, but primarily use build_tokenizer
 
+from nemo.collections.llm import GPTConfig
 # NeMo/Megatron Imports
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.config import (
     ConfigContainer, TrainingConfig, LoggerConfig, OptimizerConfig,
     SchedulerConfig, CheckpointConfig, DistributedDataParallelConfig,
-    TokenizerConfig, ModelConfig # Import ModelConfig for clarity
+    TokenizerConfig,
 )
+from nemo.collections.llm import GPTModel as ModelConfig
 from nemo.tron.model import get_model_from_config
 from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.tron.setup import _init_checkpointing_context
@@ -150,7 +155,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         model_cfg.params_dtype = torch.float32
 
     model_cfg.parallel_output = True # Important for logprobs/generation across TP ranks
-
+    model_cfg.flash_decode = True
 
     checkpoint_config = CheckpointConfig(
         # load=pretrained_ckpt, # Use pretrained_checkpoint instead for NeMo Tron convention
@@ -179,17 +184,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
             tokenizer_type="HuggingFaceTokenizer",
             tokenizer_model=hf_model_name, # Use original HF name here for loading tokenizer
         ),
-        # dist_config needs ranks and sizes
-        dist_config={
-             "tensor_model_parallel_size": tp_size,
-             "pipeline_model_parallel_size": pp_size,
-             "context_parallel_size": cp_size,
-             "data_parallel_size": world_size // (tp_size * pp_size * cp_size), # Calculate DP size
-             "expert_model_parallel_size": 1,
-             "pipeline_model_parallel_split_rank": None, # Default split
-             "virtual_pipeline_model_parallel_size": None, # No virtual pipeline
-        },
-        # Add other necessary configs if your model requires them (e.g., MoEConfig)
+        dataset_config=None,
     )
 
     # --- Initialization ---
@@ -197,7 +192,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     print("Initializing Megatron...")
     initialize_megatron(
         cfg=megatron_cfg,
-        gpu_visibility_externally_set=True # Assume CUDA_VISIBLE_DEVICES is set
+        # gpu_visibility_externally_set=True # Assume CUDA_VISIBLE_DEVICES is set
     )
 
     # Assign cfg to GlobalState *after* initialize_megatron which sets up parallelism
@@ -236,14 +231,14 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
 
     # Model Instantiation
     print("Building Model...")
-    # Note: get_model_from_config returns a list (for virtual pipeline parallelism), usually take [0]
-    model_provider = partial(get_model_from_config,
-                             megatron_cfg.model_config,
-                             megatron_cfg.ddp_config,
-                             # Add other args from setup_megatron_model if needed (e.g., use_torch_fsdp2)
-                             )
+    # # Note: get_model_from_config returns a list (for virtual pipeline parallelism), usually take [0]
+    # model_provider = partial(get_model_from_config,
+    #                          megatron_cfg.model_config,
+    #                          megatron_cfg.ddp_config,
+    #                          # Add other args from setup_megatron_model if needed (e.g., use_torch_fsdp2)
+    #                          )
     # This setup function handles model building within the correct parallel context
-    from nemo.tron.setup import setup_model_and_optimizer
+    # from nemo.tron.setup import setup_model_and_optimizer
     # We don't need optimizer/scheduler for inference, but setup func might expect args
     # Pass dummy providers or adjust setup_model_and_optimizer if possible.
     # Let's try calling get_model_from_config directly as in the original code:
@@ -271,7 +266,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     if torch.distributed.is_initialized():
         torch.distributed.barrier() # Ensure model is loaded everywhere
 
-    model = model_list[0] # Get the actual model instance
+    model = model_list[0].module # Get the actual model instance
     model.eval() # Set to evaluation mode
 
     print("Megatron Setup Complete.")
@@ -375,7 +370,7 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
          # Return empty/dummy tensors matching expected structure
          max_seq_len = input_ids.size(1) # Use input length as fallback
          output_ids_padded = torch.full(
-             (batch_size, max_seq_len), megatron_tokenizer.pad_token_id, dtype=torch.long, device="cpu"
+             (batch_size, max_seq_len), megatron_tokenizer._tokenizer.pad_token_id, dtype=torch.long, device="cpu"
          )
          logprobs_padded = torch.zeros((batch_size, max_seq_len), dtype=torch.float, device="cpu")
          generation_lengths_list = [0] * batch_size
@@ -387,7 +382,7 @@ def megatron_generate(model, megatron_tokenizer, mtron_cfg, final_padded_vocab_s
         # Create padded tensors for tokens and logprobs
         output_ids_padded = torch.full(
             (batch_size, max_seq_len),
-            megatron_tokenizer.pad_token_id, # Use tokenizer's pad ID
+            megatron_tokenizer._tokenizer.pad_token_id, # Use tokenizer's pad ID
             dtype=torch.long,
             device="cpu", # Move results to CPU
         )
@@ -469,7 +464,7 @@ if __name__ == "__main__":
         print("Initializing torch distributed...")
         # Basic initialization, requires environment variables to be set
         # Timeout might need adjustment for large model loading
-        torch.distributed.init_process_group(backend='nccl', init_method='env://', timeout=timedelta(minutes=30))
+        torch.distributed.init_process_group(backend='nccl', init_method='env://')
     else:
         print("Torch distributed already initialized.")
 
@@ -518,13 +513,13 @@ if __name__ == "__main__":
     # Important: Tokenizer might need specific padding side (left/right). MCore Engine expects right padding.
     # Check tokenizer defaults or explicitly set padding_side='right'.
     megatron_tokenizer.padding_side = "right" # Explicitly set for MCore Engine
-    megatron_tokenizer.pad_token = megatron_tokenizer.eos_token # Common practice if pad_token is None
+    # megatron_tokenizer.pad_token = megatron_tokenizer.eos_token # Common practice if pad_token is None
 
     if rank == 0:
         print(f"Tokenizing prompt: '{args.prompt}' with padding side: {megatron_tokenizer.padding_side}")
 
     # Handle potential list of prompts later if needed
-    prompts = [args.prompt]
+    prompts = ["tell me a story,", "I like you because"]
     encoded = megatron_tokenizer(
         prompts,
         padding="max_length", # Pad to max_prompt_len
@@ -534,11 +529,11 @@ if __name__ == "__main__":
         # add_special_tokens=False # Check if needed for your model
     )
 
-    input_ids = encoded["input_ids"]
+    input_ids = encoded
     # Calculate lengths based on non-padding tokens
     # Attention mask might not be reliable if max_length padding used without truncation awareness
     # Safer: find first pad token or use length before padding
-    input_lengths = torch.tensor([ (ids != megatron_tokenizer.pad_token_id).sum().item() for ids in input_ids ], dtype=torch.long)
+    input_lengths = torch.tensor([ (ids != megatron_tokenizer._tokenizer.pad_token_id).sum().item() for ids in input_ids ], dtype=torch.long)
 
     if rank == 0:
         print(f"Input IDs shape: {input_ids.shape}")
@@ -570,7 +565,7 @@ if __name__ == "__main__":
         print("\n--- Decoded Outputs ---")
         # Decode the full generated sequence (including prompt)
         # Use the same Megatron tokenizer
-        decoded_texts = megatron_tokenizer.batch_decode(
+        decoded_texts = megatron_tokenizer._tokenizer.batch_decode(
             generation_output['output_ids'],
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True

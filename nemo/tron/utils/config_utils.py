@@ -102,7 +102,7 @@ class ConfigContainer:
         # Convert to OmegaConf first for better compatibility with instantiate
         conf = OmegaConf.create(config_dict)
 
-        return cls.from_dict(OmegaConf.to_container(conf, resolve=True), mode=mode)
+        return cls.from_dict(OmegaConf.to_container(conf, resolve=True), mode=InstantiationMode.STRICT)
 
     def to_dict(self) -> dict[str, Any]:
         """

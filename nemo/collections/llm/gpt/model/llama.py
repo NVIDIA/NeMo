@@ -570,7 +570,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             )
         ]
         if 'llama4' in getattr(source.config, "model_type"):
-            source = self._modify_llama4_source_state(source)
+            source = _modify_llama4_source_state(source, source.config)
             # Update mapping for Llama4 model
             llama4_mapping = {
                 # Post Attention LayerNorm
@@ -1085,37 +1085,37 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
         return state_dict, config_obj
 
-    def _modify_llama4_source_state(self, state_dict, source_config):
-        """
-        For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
-        For dense layer, we change the name for the post attention layer norm to
-        avoid the many-to-one mapping in the conversion confi.
-        """
-        for layer_i in range(source_config.num_layers):
-            is_moe_layer = True
-            if isinstance(source_config.moe_layer_freq, list):
-                assert len(source_config.moe_layer_freq) == source_config.num_layers
-                is_moe_layer = source_config.moe_layer_freq[layer_i]
-            if is_moe_layer:
-                # gate_up_proj
-                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight")
-                state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
-                    0, 2, 1
-                ).contiguous()
+def _modify_llama4_source_state(state_dict, source_config):
+    """
+    For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
+    For dense layer, we change the name for the post attention layer norm to
+    avoid the many-to-one mapping in the conversion confi.
+    """
+    for layer_i in range(source_config.num_layers):
+        is_moe_layer = True
+        if isinstance(source_config.moe_layer_freq, list):
+            assert len(source_config.moe_layer_freq) == source_config.num_layers
+            is_moe_layer = source_config.moe_layer_freq[layer_i]
+        if is_moe_layer:
+            # gate_up_proj
+            weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight")
+            state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
+                0, 2, 1
+            ).contiguous()
 
-                # down_proj
-                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight")
-                state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(
-                    0, 2, 1
-                ).contiguous()
+            # down_proj
+            weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight")
+            state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(
+                0, 2, 1
+            ).contiguous()
 
-            else:
-                assert f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
-                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
-                state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
+        else:
+            assert f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
+            weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+            state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
 
-        source = _ModelState(state_dict, source_config)
-        return source
+    source = _ModelState(state_dict, source_config)
+    return source
 
 
 @io.model_exporter(LlamaModel, "hf-peft")
