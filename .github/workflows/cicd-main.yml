@@ -131,6 +131,7 @@ jobs:
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
     needs: [pre-flight, code-linting]
     with:
+      runner: myVM
       image-name: nemo_container
       dockerfile: Dockerfile.ci
       image-label: nemo-core
