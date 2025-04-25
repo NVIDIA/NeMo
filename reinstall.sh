@@ -127,7 +127,7 @@ te() {
       build
     fi
 
-    pip install --no-cache-dir $WHEELS_DIR/te/*.whl || true
+    pip install --no-cache-dir $WHEELS_DIR/te/transformer_engine*.whl || true
   fi
 }
 
