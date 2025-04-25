@@ -35,9 +35,9 @@ DATA_PATH = ''
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument('--model', default='Qwen/Qwen2.5-0.5B')
-    parser.add_argument('--nodes', type=int, default=1)
-    parser.add_argument('--devices', type=int, default=2)
+    parser.add_argument('--model', default='nvidia/Llama-3_3-Nemotron-Super-49B-v1')
+    parser.add_argument('--nodes', type=int, default=4)
+    parser.add_argument('--devices', type=int, default=8)
     parser.add_argument('--max-steps', type=int, default=200)
     parser.add_argument(
         "--tag",
@@ -79,7 +79,7 @@ def slurm_executor(
     time: str = "04:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "nvcr.io/nvidia/nemo:25.04.rc3",
+    container_image: str = "nvcr.io/nvidia/nemo:25.02",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
@@ -213,7 +213,7 @@ def main():
             custom_env_vars=custom_env_vars,
         )
     else:
-        executor = local_executor_torchrun(nodes=1, devices=2)
+        executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
 
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         for i in range(1):
