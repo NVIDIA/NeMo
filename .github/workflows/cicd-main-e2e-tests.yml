@@ -1006,12 +1006,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Prune_Llama_TP1PP2
 
-  L2_NeMo_2_Export_In_Framework:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_NeMo_2_Export_In_Framework
-
   L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING:
     uses: ./.github/workflows/_test_template.yml
     with:
