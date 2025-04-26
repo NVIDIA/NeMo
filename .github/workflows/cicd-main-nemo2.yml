@@ -223,3 +223,4 @@ jobs:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}

@@ -36,6 +36,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
 
   tts-unit-tests:
     strategy:
@@ -56,6 +57,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
 
   audio-unit-tests:
     strategy:
@@ -75,6 +77,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
 
   asr-e2e-tests:
     strategy:
@@ -178,6 +181,7 @@ jobs:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
 
   speechlm-e2e-tests:
     strategy:
@@ -197,6 +201,7 @@ jobs:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
 
   tts-e2e-tests:
     strategy:
@@ -224,3 +229,4 @@ jobs:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
