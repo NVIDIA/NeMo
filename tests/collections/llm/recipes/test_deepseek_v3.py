@@ -89,7 +89,7 @@ class TestDeepSeekV3:
 
     def test_finetune_recipe_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
-        assert recipe.trainer.strategy.sequence_parallel is True
+        assert recipe.trainer.strategy.sequence_parallel is False
         assert recipe.trainer.strategy.expert_model_parallel_size == 64
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 8
