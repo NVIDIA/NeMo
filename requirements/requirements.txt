@@ -15,3 +15,4 @@ torch
 tqdm>=4.41.0
 wget
 wrapt
+fsspec==2024.12.0
