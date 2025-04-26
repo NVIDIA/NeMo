@@ -29,6 +29,7 @@ jobs:
 
     uses: ./.github/actions/_test_template.yml
     needs: [asr-build]
+    name: ${{ matrix.script }}
     with:
       runner: ${{ matrix.runner }}
       script: ${{ matrix.script }}
@@ -59,6 +60,7 @@ jobs:
             script: ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
     uses: ./.github/actions/_test_template.yml
     needs: [asr-unit-tests]
+    name: ${{ matrix.script }}
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}

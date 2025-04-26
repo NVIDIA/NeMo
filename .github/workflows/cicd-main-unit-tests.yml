@@ -17,6 +17,7 @@ jobs:
           - script: L0_Unit_Tests_CPU_Common
             runner: self-hosted-azure-cpu
     runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.script }}
     steps:
       - name: main
         uses: ./.github/actions/test-template/action.yml
@@ -36,6 +37,7 @@ jobs:
           - script: L0_Unit_Tests_CPU_LLM
             runner: self-hosted-azure-cpu
     runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.script }}
     steps:
       - name: main
         uses: ./.github/actions/test-template/action.yml
@@ -55,6 +57,7 @@ jobs:
           - script: L0_Unit_Tests_CPU_Multimodal
             runner: self-hosted-azure-cpu
     runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.script }}
     steps:
       - name: main
         uses: ./.github/actions/test-template/action.yml
@@ -74,6 +77,7 @@ jobs:
           - script: L0_Unit_Tests_CPU_VLM
             runner: self-hosted-azure-cpu
     runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.script }}
     steps:
       - name: main
         uses: ./.github/actions/test-template/action.yml
@@ -97,6 +101,7 @@ jobs:
           - script: L0_Unit_Tests_CPU_Hydra
             runner: self-hosted-azure-cpu
     runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.script }}
     steps:
       - name: main
         uses: ./.github/actions/test-template/action.yml
@@ -116,6 +121,7 @@ jobs:
           - script: L0_Unit_Tests_CPU_Lightning
             runner: self-hosted-azure-cpu
     runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.script }}
     steps:
       - name: main
         uses: ./.github/actions/test-template/action.yml
@@ -135,6 +141,7 @@ jobs:
           - script: L0_Unit_Tests_CPU_Others
             runner: self-hosted-azure-cpu
     runs-on: ${{ matrix.runner }}
+    name: ${{ matrix.script }}
     steps:
       - name: main
         uses: ./.github/actions/test-template/action.yml

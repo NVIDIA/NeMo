@@ -30,6 +30,7 @@ jobs:
             runner: self-hosted-azure
     uses: ./.github/actions/_test_template.yml
     needs: [export-deploy-build]
+    name: ${{ matrix.script }}
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
@@ -59,6 +60,7 @@ jobs:
             runner: self-hosted-azure
     uses: ./.github/actions/_test_template.yml
     needs: [export-deploy-unit-tests]
+    name: ${{ matrix.script }}
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
