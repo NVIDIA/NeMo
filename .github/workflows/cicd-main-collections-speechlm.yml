@@ -17,7 +17,7 @@ jobs:
       image-name: ${{ inputs.image-name }}
       dockerfile: Dockerfile.ci
 
-  e2e-tests-speechlm-tests:
+  speechlm-e2e-tests:
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +28,7 @@ jobs:
             runner: self-hosted-azure
 
     uses: ./.github/workflows/_test_template.yml
+    needs: [speechlm-build]
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}

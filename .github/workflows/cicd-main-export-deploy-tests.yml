@@ -36,7 +36,7 @@ jobs:
       IS_UNIT_TEST: true
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
 
-  e2e-tests-export-deploy-tests:
+  export-deploy-e2e-tests:
     strategy:
       fail-fast: false
       matrix:
