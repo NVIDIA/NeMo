@@ -130,11 +130,14 @@ jobs:
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L0_Setup_Test_Data_And_Models
-      TESTS_TO_RUN: '["L0_Setup_Test_Data_And_Models"]'
+    runs-on: self-hosted-azure
+    steps:
+      - name: main
+        uses: ./.github/actions/test-template/action.yml
+        with:
+          runner: ${{ runner.name }}
+          script: L0_Setup_Test_Data_And_Models
+          tests_to_run: '["L0_Setup_Test_Data_And_Models"]'
 
   cicd-main-unit-tests:
     needs: [pre-flight, cicd-test-container-build]
