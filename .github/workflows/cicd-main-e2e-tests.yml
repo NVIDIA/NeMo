@@ -14,55 +14,6 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_Community_vita_Checkpoints_tests_Llama3
 
-  # L2: Speaker dev run
-  L2_Speaker_dev_run_Speaker_Recognition:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_Speaker_dev_run_Speaker_Recognition
-
-  L2_Speaker_dev_run_Speaker_Diarization:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_Speaker_dev_run_Speaker_Diarization
-
-  L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
-
-  L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
-
-  L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
-
-  L2_Speaker_dev_run_Clustering_Diarizer_Inference:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speaker_dev_run_Clustering_Diarizer_Inference
-
-  L2_Speaker_dev_run_Neural_Diarizer_Inference:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speaker_dev_run_Neural_Diarizer_Inference
-
-  L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
-
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
     uses: ./.github/workflows/_test_template.yml
