@@ -28,7 +28,7 @@ jobs:
             runner: self-hosted-azure-cpu
           - script: L0_Unit_Tests_Eval
             runner: self-hosted-azure
-    uses: ./.github/actions/_test_template.yml
+    uses: ./.github/test-template/action.yml
     needs: [export-deploy-build]
     name: ${{ matrix.script }}
     with:
@@ -58,7 +58,7 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_VLLM_VISION
             runner: self-hosted-azure
-    uses: ./.github/actions/_test_template.yml
+    uses: ./.github/test-template/action.yml
     needs: [export-deploy-unit-tests]
     name: ${{ matrix.script }}
     with:
