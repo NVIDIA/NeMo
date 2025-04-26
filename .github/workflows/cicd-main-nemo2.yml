@@ -14,32 +14,6 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_Community_vita_Checkpoints_tests_Llama3
 
-  # L2: Segmentation Tool
-  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
-
-  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
-
-  # L2: G2P Models
-  L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
-
-  L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
-
   L2_Stable_Diffusion_Training:
     uses: ./.github/workflows/_test_template.yml
     with:

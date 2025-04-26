@@ -142,9 +142,9 @@ jobs:
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  cicd-main-e2e-tests:
+  cicd-main-nemo2:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-    uses: ./.github/workflows/cicd-main-e2e-tests.yml
+    uses: ./.github/workflows/cicd-main-nemo2.yml
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -154,15 +154,15 @@ jobs:
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  cicd-main-collections-speech:
+  cicd-main-speech:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-    uses: ./.github/workflows/cicd-main-collections-speech.yml
+    uses: ./.github/workflows/cicd-main-speech.yml
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-automodel:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-    uses: ./.github/workflows/cicd-main-collections-speech.yml
+    uses: ./.github/workflows/cicd-main-automodel.yml
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -173,10 +173,10 @@ jobs:
       - cicd-import-tests
       - L0_Setup_Test_Data_And_Models
       - cicd-main-unit-tests
-      - cicd-main-e2e-tests
+      - cicd-main-nemo2
       - cicd-main-export-deploy
       - cicd-main-automodel
-      - cicd-main-collections-speech
+      - cicd-main-speech
     if: always() && (github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions: write-all

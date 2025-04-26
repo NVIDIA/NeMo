@@ -140,7 +140,10 @@ jobs:
             script: L2_Speaker_dev_run_Neural_Diarizer_Inference
           - runner: self-hosted-azure
             script: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
-
+          - runner: self-hosted-azure
+            script: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
+          - runner: self-hosted-azure
+            script: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
     uses: ./.github/workflows/_test_template.yml
     needs: [asr-unit-tests]
     with:
@@ -182,7 +185,10 @@ jobs:
             script: L2_TTS_Fast_dev_runs_1_FastPitch
           - runner: self-hosted-azure
             script: L2_TTS_Fast_dev_runs_1_Hifigan
-
+          - runner: self-hosted-azure
+            script: L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
+          - runner: self-hosted-azure
+            script: L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
     uses: ./.github/workflows/_test_template.yml
     needs: [tts-unit-tests]
     with:
