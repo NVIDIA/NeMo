@@ -17,89 +17,89 @@ jobs:
       image-name: ${{ inputs.image-name }}
       dockerfile: Dockerfile.ci
 
-  # unit-tests:
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - script: L0_Unit_Tests_GPU_ASR
-  #           runner: self-hosted-azure-gpus-1
-  #         - script: L0_Unit_Tests_CPU_Automodel
-  #           runner: self-hosted-azure-cpu
-  #   uses: ./.github/workflows/_test_template.yml
-  #   needs: [build]
-  #   with:
-  #     runner: ${{ matrix.runner }}
-  #     script: ${{ matrix.script }}
-  #     IS_UNIT_TEST: true
-  #     TESTS_TO_RUN: ${{ inputs.test_to_run }}
+  unit-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - script: L0_Unit_Tests_GPU_ASR
+            runner: self-hosted-azure-gpus-1
+          - script: L0_Unit_Tests_CPU_Automodel
+            runner: self-hosted-azure-cpu
+    uses: ./.github/workflows/_test_template.yml
+    needs: [build]
+    with:
+      runner: ${{ matrix.runner }}
+      script: ${{ matrix.script }}
+      IS_UNIT_TEST: true
+      TESTS_TO_RUN: ${{ inputs.test_to_run }}
 
-  # e2e-tests:
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_VLM_HF_Transformer_PEFT
-  #         - runner: self-hosted-azure
-  #           script: L2_VLM_HF_Transformer_PEFT_FSDP2
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_VLM_HF_Transformer_PEFT_4bit
-  #         - runner: self-hosted-azure
-  #           script: L2_VLM_HF_Transformer_SFT_FSDP2
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_PEFT_notebook
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_PEFT
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_PEFT_nemorun
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_PEFT_2gpu
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_PEFT_2gpu_FSDP2_liger
-  #         - runner: azure-gpu-vm-runner1-h100
-  #           script: L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8
-  #           is_optional: true
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_PEFT_2gpu_FSDP2
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_PEFT_2gpu_nemorun
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_SFT_2gpu
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_SFT_2gpu_FSDP2
-  #         - runner: azure-gpu-vm-runner1-h100
-  #           script: L2_HF_Transformer_SFT_2gpu_FSDP2_fp8
-  #           is_optional: true
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_SFT_2gpu_nemorun
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_SFT_FSDP2_2gpu
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_PT_2gpu
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_PT_2gpu_nemorun
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_PT
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_PT_nemorun
-  #         - runner: self-hosted-azure
-  #           script: L2_HF_Transformer_SFT_notebook
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_SFT
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_SFT_nemorun
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_SFT_TE_Acceleration
-  #           is_optional: true
-  #         - runner: self-hosted-azure-gpus-1
-  #           script: L2_HF_Transformer_PT_TE_Acceleration
-  #   uses: ./.github/workflows/_test_template.yml
-  #   needs: [unit-tests]
-  #   with:
-  #     RUNNER: ${{ matrix.runner }}
-  #     SCRIPT: ${{ matrix.script }}
-  #     TESTS_TO_RUN: ${{ inputs.test_to_run }}
-  #     IMAGE: ${{ inputs.image-name }}
+  e2e-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: self-hosted-azure-gpus-1
+            script: L2_VLM_HF_Transformer_PEFT
+          - runner: self-hosted-azure
+            script: L2_VLM_HF_Transformer_PEFT_FSDP2
+          - runner: self-hosted-azure-gpus-1
+            script: L2_VLM_HF_Transformer_PEFT_4bit
+          - runner: self-hosted-azure
+            script: L2_VLM_HF_Transformer_SFT_FSDP2
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_PEFT_notebook
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_PEFT
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_PEFT_nemorun
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_PEFT_2gpu
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_PEFT_2gpu_FSDP2_liger
+          - runner: azure-gpu-vm-runner1-h100
+            script: L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8
+            is_optional: true
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_PEFT_2gpu_FSDP2
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_PEFT_2gpu_nemorun
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_SFT_2gpu
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_SFT_2gpu_FSDP2
+          - runner: azure-gpu-vm-runner1-h100
+            script: L2_HF_Transformer_SFT_2gpu_FSDP2_fp8
+            is_optional: true
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_SFT_2gpu_nemorun
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_SFT_FSDP2_2gpu
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_PT_2gpu
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_PT_2gpu_nemorun
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_PT
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_PT_nemorun
+          - runner: self-hosted-azure
+            script: L2_HF_Transformer_SFT_notebook
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_SFT
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_SFT_nemorun
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_SFT_TE_Acceleration
+            is_optional: true
+          - runner: self-hosted-azure-gpus-1
+            script: L2_HF_Transformer_PT_TE_Acceleration
+    uses: ./.github/workflows/_test_template.yml
+    needs: [unit-tests]
+    with:
+      RUNNER: ${{ matrix.runner }}
+      SCRIPT: ${{ matrix.script }}
+      TESTS_TO_RUN: ${{ inputs.test_to_run }}
+      IMAGE: ${{ inputs.image-name }}
