@@ -740,8 +740,8 @@ class _MockGPTDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx) -> Dict[str, list]:
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
         input_ids = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
 
         batch = {
             "input_ids": input_ids,
