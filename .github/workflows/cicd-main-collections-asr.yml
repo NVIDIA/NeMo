@@ -26,16 +26,18 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_ASR
             runner: self-hosted-azure-cpu
-
-    uses: ./.github/test-template/action.yml
     needs: [asr-build]
+    runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
-    with:
-      runner: ${{ matrix.runner }}
-      script: ${{ matrix.script }}
-      IS_UNIT_TEST: true
-      TESTS_TO_RUN: ${{ inputs.test_to_run }}
-      IMAGE: ${{ inputs.image-name }}
+    steps:
+      - name: main
+        uses: ./.github/actions/test-template/action.yml
+        with:
+          runner: ${{ runner.name }}
+          script: ${{ matrix.script }}
+          tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
+          is_unit_test: true
 
   e2e-tests-asr-tests:
     strategy:
@@ -58,12 +60,13 @@ jobs:
             script: ASR_dev_run_Speech_to_Text_WPE_-_Conformer
           - runner: self-hosted-azure-gpus-1
             script: ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
-    uses: ./.github/test-template/action.yml
-    needs: [asr-unit-tests]
+    runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
-    with:
-      RUNNER: ${{ matrix.runner }}
-      SCRIPT: ${{ matrix.script }}
-      TESTS_TO_RUN: ${{ inputs.test_to_run }}
-      IMAGE: ${{ inputs.image-name }}
-      IS_OPTIONAL: ${{ matrix.is_optional || false }}
+    steps:
+      - name: main
+        uses: ./.github/actions/test-template/action.yml
+        with:
+          runner: ${{ runner.name }}
+          script: ${{ matrix.script }}
+          tests_to_run: ${{ inputs.test_to_run }}
+          image: ${{ inputs.image-name }}
