@@ -57,6 +57,25 @@ jobs:
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
 
+  audio-unit-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - script: L0_Unit_Tests_GPU_Audio
+            runner: self-hosted-azure-gpus-1
+          - script: L0_Unit_Tests_CPU_Audio
+            runner: self-hosted-azure-cpu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: main
+        uses: ./.github/actions/test-template/action.yml
+        with:
+          runner: ${{ runner.name }}
+          script: ${{ matrix.script }}
+          is_unit_test: true
+          tests_to_run: ${{ inputs.test_to_run }}
+
   asr-e2e-tests:
     strategy:
       fail-fast: false
