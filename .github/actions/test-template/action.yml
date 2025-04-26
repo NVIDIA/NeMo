@@ -33,17 +33,6 @@ inputs:
     required: false
     default: "nemo_container"
 
-outputs:
-  conclusion:
-    description: "Conclusion of main test step"
-    value: ${{ steps.check.outputs.conclusion }}
-  log:
-    description: "Last 2000 characters of the test step's log"
-    value: ${{ steps.check.outputs.log }}
-  potential_infra_failure:
-    description: "Boolean flag when infra-related keyword spotted in logs"
-    value: ${{ steps.check.outputs.potential_infra_failure }}
-
 runs:
   using: "composite"
   steps:

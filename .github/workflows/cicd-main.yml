@@ -133,7 +133,7 @@ jobs:
     runs-on: self-hosted-azure
     steps:
       - name: main
-        uses: ./.github/actions/test-template/action.yml
+        uses: ./.github/actions/test-template
         with:
           runner: ${{ runner.name }}
           script: L0_Setup_Test_Data_And_Models
