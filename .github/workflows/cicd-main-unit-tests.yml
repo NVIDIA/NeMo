@@ -19,6 +19,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: main
         uses: ./.github/actions/test-template/action.yml
         with:
@@ -39,6 +41,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: main
         uses: ./.github/actions/test-template/action.yml
         with:
@@ -59,6 +63,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: main
         uses: ./.github/actions/test-template/action.yml
         with:
@@ -79,6 +85,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: main
         uses: ./.github/actions/test-template/action.yml
         with:
@@ -103,6 +111,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: main
         uses: ./.github/actions/test-template/action.yml
         with:
@@ -123,6 +133,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: main
         uses: ./.github/actions/test-template/action.yml
         with:
@@ -143,6 +155,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: main
         uses: ./.github/actions/test-template/action.yml
         with:
