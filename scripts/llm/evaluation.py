@@ -102,7 +102,7 @@ def get_parser():
         choices=EVAL_TASKS,
     )
     parser.add_argument(
-        "--limit", type=int, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
+        "--limit", type=float, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
     )
     parser.add_argument(
         "--parallel_requests",
@@ -113,7 +113,7 @@ def get_parser():
     parser.add_argument(
         "--request_timeout",
         type=int,
-        default=None,
+        default=1000,
         help="Request timeout for querying the server. Default: use default for the task.",
     )
     parser.add_argument(
@@ -135,7 +135,7 @@ def get_parser():
         help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
-    parser.add_argument('--nodes', type=int, default=2, help="Num nodes for the executor")
+    parser.add_argument('--nodes', type=int, default=1, help="Num nodes for the executor")
     parser.add_argument('--devices', type=int, default=8, help="Num devices per node for the executor")
     parser.add_argument(
         '--container_image',
@@ -173,7 +173,8 @@ def slurm_executor(
 
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
-        "HF_DATASETS_TRUST_REMOTE_CODE": "1"
+        "HF_DATASETS_TRUST_REMOTE_CODE": "1",
+        "HF_TOKEN": "xxxxxx"
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -187,9 +188,10 @@ def slurm_executor(
             job_dir=remote_job_dir,
         ),
         nodes=nodes,
-        ntasks_per_node=1,
+        ntasks_per_node=devices,
         exclusive=True,
-        packager=run.GitArchivePackager(),
+        #packager=run.GitArchivePackager(),
+        packager=run.Packager()
     )
 
     executor.container_image = container_image
@@ -204,7 +206,8 @@ def slurm_executor(
 def local_executor_torchrun() -> run.LocalExecutor:
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
-        "HF_DATASETS_TRUST_REMOTE_CODE": "1"
+        "HF_DATASETS_TRUST_REMOTE_CODE": "1",
+        "HF_TOKEN": "xxxxxx"
     }
 
     executor = run.LocalExecutor(env_vars=env_vars)
@@ -227,6 +230,8 @@ def main():
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         max_batch_size=args.batch_size,
+        num_gpus=args.devices,
+        num_nodes=args.nodes
     )
 
     api_endpoint = run.Config(
@@ -250,15 +255,16 @@ def main():
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
-            user="",
-            host="",
-            remote_job_dir="",
-            account="",
-            partition="",
+            user="athittenaman",
+            host="login-eos",
+            remote_job_dir="/lustre/fsw/coreai_dlalgo_llm/athittenaman/nemo-experiments",
+            account="coreai_dlalgo_llm",
+            partition="batch",
             nodes=args.nodes,
             devices=args.devices,
             container_image=args.container_image,
-            custom_mounts=[],
+            custom_mounts=["/lustre/fsw/coreai_dlalgo_llm/nemo_home/models:/lustre/fsw/coreai_dlalgo_llm/nemo_home/models,"
+            "/lustre/fsw/coreai_dlalgo_llm/athittenaman/NeMo:/opt/NeMo"],
         )
         executor.srun_args = ["--mpi=pmix", "--overlap", "--ntasks-per-node=1"]
         executor_eval = executor.clone()

@@ -776,7 +776,6 @@ def evaluate(
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
-
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
         _legacy_evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
         return
