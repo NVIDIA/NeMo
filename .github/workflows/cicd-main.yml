@@ -148,7 +148,7 @@ jobs:
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  cicd-main-export-deploy-tests:
+  cicd-main-export-deploy:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-export-deploy.yml
     with:
