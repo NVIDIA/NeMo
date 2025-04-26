@@ -7,7 +7,7 @@ on:
         type: string
       image-name:
         required: false
-        default: nemo_container_asr
+        default: nemo_container_speechlm
         type: string
 
 jobs:

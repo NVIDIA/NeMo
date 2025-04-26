@@ -34,32 +34,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
 
-    # TODO: pleasefixme @redoctopus
-    # - name: ByT5G2P training, evaluation and inference
-    #   run: |
-    #     cd examples/tts/g2p && \
-    #         TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_T5=output_byt5_${TIME} && \
-    #         python g2p_train_and_evaluate.py \
-    #             train_manifest=/home/TestData/g2p/g2p.json \
-    #             validation_manifest=/home/TestData/g2p/g2p.json \
-    #             model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
-    #             trainer.max_epochs=1 \
-    #             model.max_source_len=64 \
-    #             trainer.devices=1 \
-    #             do_training=True \
-    #             do_testing=True \
-    #             exp_manager.exp_dir=${OUTPUT_DIR_T5} \
-    #             +exp_manager.use_datetime_version=False\
-    #             +exp_manager.version=test && \
-    #         python g2p_inference.py \
-    #             pretrained_model=${OUTPUT_DIR_T5}/T5G2P/test/checkpoints/T5G2P.nemo \
-    #             manifest_filepath=/home/TestData/g2p/g2p.json \
-    #             phoneme_field=text
-    #   }
-    # }
-    # - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-    # if: "failure()"
-
   L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference:
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -278,73 +252,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_PT_TE_Acceleration
-
-  # L2: TTS Fast dev runs 1
-  L2_TTS_Fast_dev_runs_1_Tacotron_2:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_TTS_Fast_dev_runs_1_Tacotron_2
-
-  L2_TTS_Fast_dev_runs_1_WaveGlow:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_TTS_Fast_dev_runs_1_WaveGlow
-
-  L2_TTS_Fast_dev_runs_1_FastPitch:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_TTS_Fast_dev_runs_1_FastPitch
-
-  # OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS:
-  #
-  #   runs-on: self-hosted-azure
-  #   timeout-minutes: 10
-  #   container:
-  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-  #     options:
-  #       # --user 0:128
-  #       --device=/dev/nvidia0
-  #       --gpus all
-  #       --shm-size=8g
-  #       --env TRANSFORMERS_OFFLINE=0
-  #       --env HYDRA_FULL_ERROR=1
-  #       --volume /mnt/datadrive/TestData:/home/TestData
-  #   steps:
-  #       - name: Checkout repository
-  #         uses: actions/checkout@v4
-  #       - run: |
-  #           python examples/tts/radtts.py \
-  #           train_dataset=/home/TestData/an4_dataset/an4_train.json \
-  #           validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-  #           sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
-  #           trainer.devices="[0]" \
-  #           +trainer.limit_train_batches=1 \
-  #           +trainer.limit_val_batches=1 \
-  #           trainer.max_epochs=1 \
-  #           trainer.strategy=auto \
-  #           model.pitch_mean=212.35873413085938 \
-  #           model.pitch_std=68.52806091308594 \
-  #           model.train_ds.dataloader_params.batch_size=4 \
-  #           model.train_ds.dataloader_params.num_workers=0 \
-  #           model.validation_ds.dataloader_params.batch_size=4 \
-  #           model.validation_ds.dataloader_params.num_workers=0 \
-  #           export_dir=/home/TestData/radtts_test \
-  #           model.optim.lr=0.0001 \
-  #           model.modelConfig.decoder_use_partial_padding=True \
-  #           ~trainer.check_val_every_n_epoch \
-  #           ~model.text_normalizer \
-  #           ~model.text_normalizer_call_kwargs
-  #       #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-  #       #  if: "failure()"
-
-  L2_TTS_Fast_dev_runs_1_Hifigan:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_TTS_Fast_dev_runs_1_Hifigan
 
   # L2: NeRF
   # L2_NeRF_DreamFusion:
