@@ -356,12 +356,15 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_Conversion_Test_T5
             runner: self-hosted-azure
-    uses: ./.github/workflows/_test_template.yml
     needs: [cicd-main-unit-tests]
-    with:
-      RUNNER: ${{ matrix.runner }}
-      SCRIPT: ${{ matrix.script }}
-      IS_OPTIONAL: ${{ matrix.is_optional || false }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: main
+        uses: ./.github/actions/test-template/action.yml
+        with:
+          runner: ${{ runner.name }}
+          script: ${{ matrix.script }}
+          tests_to_run: ${{ inputs.test_to_run }}
 
   Nemo_CICD_Test:
     needs:

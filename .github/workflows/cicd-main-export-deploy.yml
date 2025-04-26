@@ -28,13 +28,16 @@ jobs:
             runner: self-hosted-azure-cpu
           - script: L0_Unit_Tests_Eval
             runner: self-hosted-azure
-    uses: ./.github/workflows/_test_template.yml
     needs: [build]
-    with:
-      RUNNER: ${{ matrix.runner }}
-      SCRIPT: ${{ matrix.script }}
-      IS_UNIT_TEST: true
-      TESTS_TO_RUN: ${{ inputs.test_to_run }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: main
+        uses: ./.github/actions/test-template/action.yml
+        with:
+          runner: ${{ runner.name }}
+          script: ${{ matrix.script }}
+          is_unit_test: true
+          tests_to_run: ${{ inputs.test_to_run }}
 
   e2e-tests:
     strategy:
@@ -56,10 +59,12 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_VLLM_VISION
             runner: self-hosted-azure
-    uses: ./.github/workflows/_test_template.yml
     needs: [unit-tests]
-    with:
-      RUNNER: ${{ matrix.runner }}
-      SCRIPT: ${{ matrix.script }}
-      TESTS_TO_RUN: ${{ inputs.test_to_run }}
-      IMAGE: ${{ inputs.image-name }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: main
+        uses: ./.github/actions/test-template/action.yml
+        with:
+          runner: ${{ runner.name }}
+          script: ${{ matrix.script }}
+          tests_to_run: ${{ inputs.test_to_run }}
