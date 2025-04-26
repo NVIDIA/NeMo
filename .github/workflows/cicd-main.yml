@@ -357,7 +357,7 @@ jobs:
           - script: L2_NeMo_2_Conversion_Test_T5
             runner: self-hosted-azure
     uses: ./.github/workflows/_test_template.yml
-    needs: [build]
+    needs: [cicd-main-unit-tests]
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
