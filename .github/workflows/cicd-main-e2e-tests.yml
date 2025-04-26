@@ -14,18 +14,6 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_Community_vita_Checkpoints_tests_Llama3
 
-  L2_Speech_to_Text_EMA:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_to_Text_EMA
-
-  L2_Speech_to_Text_AED:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_Speech_to_Text_AED
-
   # L2: Speaker dev run
   L2_Speaker_dev_run_Speaker_Recognition:
     uses: ./.github/workflows/_test_template.yml
@@ -51,12 +39,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
 
-  L2_Speaker_dev_run_Speech_to_Label:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_Speaker_dev_run_Speech_to_Label
-
   L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
     uses: ./.github/workflows/_test_template.yml
     with:
@@ -80,102 +62,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
-
-  # L2: ASR Multi-dataloader dev run
-  L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
-
-  L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
-
-  # L2: ASR Adapters
-  L2_ASR_Adapters_Linear_Adapters:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_ASR_Adapters_Linear_Adapters
-
-  L2_ASR_Adapters_RelPos_MHA_Adapters:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: L2_ASR_Adapters_RelPos_MHA_Adapters
-
-  # L2: OOMptimizer
-  L2_Speech_Estimate_Duration_Bins:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_Estimate_Duration_Bins
-
-  # L2: OOMptimizer
-  L2_Speech_Batch_Size_OOMptimizer:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_Batch_Size_OOMptimizer
-
-  # L2: OOMptimizer Canary (has a different batch schema)
-  Optional_L2_Speech_Batch_Size_OOMptimizer_Canary:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
-      IS_OPTIONAL: true
-
-  # L2: Speech Transcription
-  L2_Speech_Transcription_Speech_to_Text_Transcribe:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_Transcription_Speech_to_Text_Transcribe
-
-  # L2: Speech Transcription
-  L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-
-  L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-
-  L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
-      IS_OPTIONAL: true
-
-  # L2: Longform without TimeStamps from Audio Dir
-  L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir
-
-  # L2: Longform with TimeStamps from Audio Dir
-  L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir
-
-  # L2: Longform with TimeStamps from manifest
-  L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -442,13 +328,6 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_HF_Transformer_PT_TE_Acceleration
 
-  # L2: SpeechLM tests
-  L2_HF_Transformer_SpeechLM_SFT_2gpu:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_HF_Transformer_SpeechLM_SFT_2gpu
-
   # L2: TTS Fast dev runs 1
   L2_TTS_Fast_dev_runs_1_Tacotron_2:
     uses: ./.github/workflows/_test_template.yml
@@ -543,15 +422,6 @@ jobs:
   #
   #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
   #         if: "failure()"
-
-  Speech_Checkpoints_tests:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      TIMEOUT: 20
-      SCRIPT: Speech_Checkpoints_tests
-      AFTER_SCRIPT: |
-        rm -f examples/asr/evaluation_transcripts.json
 
   L2_Stable_Diffusion_Training:
     uses: ./.github/workflows/_test_template.yml
@@ -1020,12 +890,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: L2_NeMo_2_Auto_Configurator_t5_TP1_PP1_MBS124
-
-  L2_SpeechLM_LoRA_TP1PP1_MBS2:
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L2_SpeechLM_LoRA_TP1PP1_MBS2
 
   L2_NeMo_2_Conversion_Test_Baichuan2:
     uses: ./.github/workflows/_test_template.yml

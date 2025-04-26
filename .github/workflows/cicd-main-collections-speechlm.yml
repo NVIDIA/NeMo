@@ -1,0 +1,36 @@
+name: NeMo E2E SpeechLM Tests
+on:
+  workflow_call:
+    inputs:
+      test_to_run:
+        required: true
+        type: string
+      image-name:
+        required: false
+        default: nemo_container_asr
+        type: string
+
+jobs:
+  speechlm-build:
+    uses: ./.github/workflows/_build_container.yml
+    with:
+      image-name: ${{ inputs.image-name }}
+      dockerfile: Dockerfile.ci
+
+  e2e-tests-speechlm-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - script: L2_HF_Transformer_SpeechLM_SFT_2gpu
+            runner: self-hosted-azure
+          - script: L2_SpeechLM_LoRA_TP1PP1_MBS2
+            runner: self-hosted-azure
+
+    uses: ./.github/workflows/_test_template.yml
+    with:
+      RUNNER: ${{ matrix.runner }}
+      SCRIPT: ${{ matrix.script }}
+      TESTS_TO_RUN: ${{ inputs.test_to_run }}
+      IMAGE: ${{ inputs.image-name }}
+      IS_OPTIONAL: ${{ matrix.is_optional || false }}

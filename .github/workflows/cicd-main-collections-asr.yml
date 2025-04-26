@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/_build_container.yml
     with:
       image-name: ${{ inputs.image-name }}
-      dockerfile: Dockerfile.ci]
+      dockerfile: Dockerfile.ci
 
   asr-unit-tests:
     strategy:
@@ -70,6 +70,45 @@ jobs:
             script: ASR_dev_run_Speech_to_Text_WPE_-_Conformer
           - runner: self-hosted-azure-gpus-1
             script: ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
+          - runner: self-hosted-azure-gpus-1
+            script: L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
+          - runner: self-hosted-azure-gpus-1
+            script: L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
+          - runner: self-hosted-azure-gpus-1
+            script: L2_ASR_Adapters_Linear_Adapters
+          - runner: self-hosted-azure-gpus-1
+            script: L2_ASR_Adapters_RelPos_MHA_Adapters
+          - runner: self-hosted-azure
+            script: L2_Speech_to_Text_EMA
+          - runner: self-hosted-azure-gpus-1
+            script: L2_Speech_to_Text_AED
+          - runner: self-hosted-azure-gpus-1
+            script: L2_Speaker_dev_run_Speech_to_Label
+          - runner: self-hosted-azure
+            script: L2_Speech_Estimate_Duration_Bins
+          - runner: self-hosted-azure
+            script: L2_Speech_Batch_Size_OOMptimizer
+          - runner: self-hosted-azure
+            script: Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
+            is_optional: true
+          - runner: self-hosted-azure
+            script: L2_Speech_Transcription_Speech_to_Text_Transcribe
+          - runner: self-hosted-azure
+            script: L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+          - runner: self-hosted-azure
+            script: L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+          - runner: self-hosted-azure
+            script: L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
+            IS_OPTIONAL: true
+          - runner: self-hosted-azure
+            script: L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir
+          - runner: self-hosted-azure
+            script: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Audio_Dir
+          - runner: self-hosted-azure
+            script: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest
+          - runner: self-hosted-azure-gpus-1
+            script: Speech_Checkpoints_tests
+
     uses: ./.github/workflows/_test_template.yml
     needs: [asr-unit-tests]
     with:
