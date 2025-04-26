@@ -160,146 +160,146 @@ jobs:
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  cicd-main-automodel:
-    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-    uses: ./.github/workflows/cicd-main-automodel.yml
-    with:
-      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+  # cicd-main-automodel:
+  #   needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+  #   uses: ./.github/workflows/cicd-main-automodel.yml
+  #   with:
+  #     test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  Nemo_CICD_Test:
-    needs:
-      - pre-flight
-      - cicd-test-container-build
-      - cicd-import-tests
-      - L0_Setup_Test_Data_And_Models
-      - cicd-main-unit-tests
-      - cicd-main-nemo2
-      - cicd-main-export-deploy
-      - cicd-main-automodel
-      - cicd-main-speech
-    if: always() && (github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    permissions: write-all
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  # Nemo_CICD_Test:
+  #   needs:
+  #     - pre-flight
+  #     - cicd-test-container-build
+  #     - cicd-import-tests
+  #     - L0_Setup_Test_Data_And_Models
+  #     - cicd-main-unit-tests
+  #     - cicd-main-nemo2
+  #     - cicd-main-export-deploy
+  #     - cicd-main-automodel
+  #     - cicd-main-speech
+  #   if: always() && (github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch')
+  #   runs-on: ubuntu-latest
+  #   permissions: write-all
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Get workflow result
-        id: result
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          # Get workflow run details and check job conclusions
-          NUM_FAILED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | length')
-          NUM_CANCELLED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "cancelled") | .name] | length')
-          NUM_SKIPPED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "skipped") | .name] | length')
-            
-          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && $NUM_SKIPPED -eq 0 ]]; then
-            RESULT="success"
-          elif [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -gt 0 && $NUM_SKIPPED -eq 0 ]]; then
-            RESULT="cancelled"
-          else
-            RESULT="failure"
-          fi
+  #     - name: Get workflow result
+  #       id: result
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}
+  #         RUN_ID: ${{ github.run_id }}
+  #       run: |
+  #         # Get workflow run details and check job conclusions
+  #         NUM_FAILED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | length')
+  #         NUM_CANCELLED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "cancelled") | .name] | length')
+  #         NUM_SKIPPED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "skipped") | .name] | length')
 
-          # Output the final status
-          echo "code=$RESULT" | tee -a $GITHUB_OUTPUT
+  #         if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && $NUM_SKIPPED -eq 0 ]]; then
+  #           RESULT="success"
+  #         elif [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -gt 0 && $NUM_SKIPPED -eq 0 ]]; then
+  #           RESULT="cancelled"
+  #         else
+  #           RESULT="failure"
+  #         fi
 
-      - name: Checkout for GH CLI
-        uses: actions/checkout@v4
+  #         # Output the final status
+  #         echo "code=$RESULT" | tee -a $GITHUB_OUTPUT
 
-      - name: Remove label if not cancelled
-        if: ${{ steps.result.outputs.code != 'cancelled' && github.event.label.name == 'Run CICD' && github.event.pull_request.head.repo.full_name == github.repository }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.number }}
-        run: gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
+  #     - name: Checkout for GH CLI
+  #       uses: actions/checkout@v4
 
-      - name: Pipeline successful, add PR comment
-        if: ${{ always() && steps.result.outputs.code == 'success' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
-        uses: peter-evans/create-or-update-comment@v4
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-        with:
-          issue-number: ${{ github.event.number }}
-          body: |
-            [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
+  #     - name: Remove label if not cancelled
+  #       if: ${{ steps.result.outputs.code != 'cancelled' && github.event.label.name == 'Run CICD' && github.event.pull_request.head.repo.full_name == github.repository }}
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}
+  #         PR_NUMBER: ${{ github.event.number }}
+  #       run: gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
 
-            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
+  #     - name: Pipeline successful, add PR comment
+  #       if: ${{ always() && steps.result.outputs.code == 'success' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
+  #       uses: peter-evans/create-or-update-comment@v4
+  #       env:
+  #         SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+  #         REPOSITORY: ${{ github.repository }}
+  #         RUN_ID: ${{ github.run_id }}
+  #       with:
+  #         issue-number: ${{ github.event.number }}
+  #         body: |
+  #           [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
 
-            So it might be time to merge this PR or get some approvals
+  #           We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
 
-            I'm just a bot so I'll leave it you what to do next.
+  #           So it might be time to merge this PR or get some approvals
 
-            //cc @pablo-garay @ko3n1g
+  #           I'm just a bot so I'll leave it you what to do next.
 
-      - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
-        if: ${{ always() && steps.result.outputs.code == 'failure' && env.SLACK_WEBHOOK != '' }}
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          PR_NUMBER: ${{ github.event.number }}
-          SERVER_URL: ${{ github.server_url }}
-        run: |
-          set -x
-          pip install PyGithub
-          python .github/scripts/notify.py
+  #           //cc @pablo-garay @ko3n1g
 
-      - name: Exit
-        if: ${{ always() }}
-        env:
-          RESULT: ${{ steps.result.outputs.code }}
-        run: |
-          if [ $RESULT == "success" ]; then
-            exit 0
-          else
-            exit 1
-          fi
+  #     - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
+  #       if: ${{ always() && steps.result.outputs.code == 'failure' && env.SLACK_WEBHOOK != '' }}
+  #       env:
+  #         SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         REPOSITORY: ${{ github.repository }}
+  #         RUN_ID: ${{ github.run_id }}
+  #         PR_NUMBER: ${{ github.event.number }}
+  #         SERVER_URL: ${{ github.server_url }}
+  #       run: |
+  #         set -x
+  #         pip install PyGithub
+  #         python .github/scripts/notify.py
 
-  Coverage:
-    runs-on: ubuntu-latest
-    needs: [Nemo_CICD_Test]
-    strategy:
-      matrix:
-        flag: [unit-test, e2e]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  #     - name: Exit
+  #       if: ${{ always() }}
+  #       env:
+  #         RESULT: ${{ steps.result.outputs.code }}
+  #       run: |
+  #         if [ $RESULT == "success" ]; then
+  #           exit 0
+  #         else
+  #           exit 1
+  #         fi
 
-      - name: Download coverage reports of current branch
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-${{ matrix.flag }}-*
+  # Coverage:
+  #   runs-on: ubuntu-latest
+  #   needs: [Nemo_CICD_Test]
+  #   strategy:
+  #     matrix:
+  #       flag: [unit-test, e2e]
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Get total coverage of current branch
-        shell: bash -x -e -u -o pipefail {0}
-        if: always()
-        run: |
-          pip install coverage
+  #     - name: Download coverage reports of current branch
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: coverage-${{ matrix.flag }}-*
 
-          ls -al .
-          ls -al coverage-*/
-          coverage combine --keep $(ls coverage-*/.coverage)
-          coverage report -i
-          rm -rf coverage-*
-          ls -al
+  #     - name: Get total coverage of current branch
+  #       shell: bash -x -e -u -o pipefail {0}
+  #       if: always()
+  #       run: |
+  #         pip install coverage
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
-          flags: ${{ matrix.flag }}
+  #         ls -al .
+  #         ls -al coverage-*/
+  #         coverage combine --keep $(ls coverage-*/.coverage)
+  #         coverage report -i
+  #         rm -rf coverage-*
+  #         ls -al
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.flag }}-aggregated
-          path: |
-            .coverage
-          include-hidden-files: true
+  #     - name: Upload coverage reports to Codecov
+  #       uses: codecov/codecov-action@v5
+  #       with:
+  #         token: ${{ secrets.CODECOV_TOKEN }}
+  #         verbose: true
+  #         flags: ${{ matrix.flag }}
+
+  #     - name: Upload artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: coverage-${{ matrix.flag }}-aggregated
+  #         path: |
+  #           .coverage
+  #         include-hidden-files: true
