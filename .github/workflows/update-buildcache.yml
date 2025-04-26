@@ -81,9 +81,16 @@ jobs:
   cicd-test-container-build:
     needs: [pre-flight]
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
+    strategy:
+      matrix:
+        include:
+          - dockerfile: Dockerfile.ci
+            image-name: nemo_container
+          - dockerfile: Dockerfile.ci.export_deploy
+            image-name: nemo_container_export_deploy
     with:
-      image-name: nemo_container
-      dockerfile: Dockerfile.ci
+      image-name: ${{ matrix.image-name }}
+      dockerfile: ${{ matrix.dockerfile }}
       image-label: nemo-core
       build-args: |
         IMAGE_LABEL=nemo-core
