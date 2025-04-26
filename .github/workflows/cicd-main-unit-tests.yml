@@ -24,7 +24,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
@@ -48,7 +48,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
@@ -72,7 +72,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
@@ -96,7 +96,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
@@ -124,7 +124,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
@@ -148,7 +148,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
@@ -172,7 +172,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}

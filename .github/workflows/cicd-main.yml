@@ -133,7 +133,7 @@ jobs:
     runs-on: self-hosted-azure
     steps:
       - name: main
-        uses: ${{ github.run_id }}/.github/actions/test-template
+        uses: ./.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
         with:
           runner: ${{ runner.name }}
           script: L0_Setup_Test_Data_And_Models
