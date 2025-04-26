@@ -2260,9 +2260,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
             'fp8': fp8,
-            'fp8_recipe': self.cfg.get('fp8_recipe', 'delayed'),
-            'fp8_param': self.cfg.get('fp8_param', False),
-            'first_last_layers_bf16': self.cfg.get('first_last_layers_bf16', False),
             'tp_comm_overlap': ub_tp_comm_overlap,
             # MoE related
             'num_moe_experts': self.cfg.get('num_moe_experts', None),
