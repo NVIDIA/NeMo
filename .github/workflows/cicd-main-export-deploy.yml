@@ -11,13 +11,13 @@ on:
         type: string
 
 jobs:
-  export-deploy-build:
+  build:
     uses: ./.github/workflows/_build_container.yml
     with:
       image-name: ${{ inputs.image-name }}
       dockerfile: Dockerfile.ci.export_deploy
 
-  export-deploy-unit-tests:
+  unit-tests:
     strategy:
       fail-fast: false
       matrix:
@@ -29,14 +29,14 @@ jobs:
           - script: L0_Unit_Tests_Eval
             runner: self-hosted-azure
     uses: ./.github/workflows/_test_template.yml
-    needs: [export-deploy-build]
+    needs: [build]
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
       IS_UNIT_TEST: true
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
 
-  export-deploy-e2e-tests:
+  e2e-tests:
     strategy:
       fail-fast: false
       matrix:
@@ -57,7 +57,7 @@ jobs:
           - script: L2_NeMo_2_VLLM_VISION
             runner: self-hosted-azure
     uses: ./.github/workflows/_test_template.yml
-    needs: [export-deploy-unit-tests]
+    needs: [unit-tests]
     with:
       RUNNER: ${{ matrix.runner }}
       SCRIPT: ${{ matrix.script }}
