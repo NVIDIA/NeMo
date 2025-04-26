@@ -2549,7 +2549,7 @@ def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_w
 
     assert len(batches) == 8
     assert not any(skipme_s)
-
+    
 
 def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(cutset_shar_path, nemo_tarred_manifest_with_skipme_path):
     config = OmegaConf.create(
@@ -2591,4 +2591,8 @@ def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(cutset_shar_path, 
     batches = [batch for batch in dl]
     skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
 
+<<<<<<< HEAD
     assert not any(skipme_s)
+=======
+    assert not any(skipme_s)
+>>>>>>> a4005f743 (change skipme implementation)
