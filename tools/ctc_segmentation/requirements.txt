@@ -1,2 +1,3 @@
+fsspec==2024.12.0
 num2words
 numpy<2.0.0
