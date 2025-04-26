@@ -2591,8 +2591,4 @@ def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(cutset_shar_path, 
     batches = [batch for batch in dl]
     skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
 
-<<<<<<< HEAD
     assert not any(skipme_s)
-=======
-    assert not any(skipme_s)
->>>>>>> a4005f743 (change skipme implementation)

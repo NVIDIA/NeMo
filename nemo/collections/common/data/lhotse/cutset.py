@@ -350,9 +350,6 @@ def parse_and_combine_datasets(
     ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
 
     if len(cuts) > 1:
-        # Before we mix the datasets in the config, we filter cutsets to exclude cuts
-        # with valid "_skipme" values to mix the data correctly.
-        cuts = [cut.filter(PlaceholderFilter()) for cut in cuts]
         cuts = mux(
             *cuts,
             weights=weights if weights else None,
