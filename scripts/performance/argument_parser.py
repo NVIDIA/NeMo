@@ -261,11 +261,20 @@ def parse_cli_args():
         required=False,
         default=100,
     )
+
+    def bool_arg(arg):
+        if arg.lower() in ['true', '1', 't', 'yes', 'y']:
+            return True
+        elif arg.lower() in ['false', '0', 'f', 'no', 'n']:
+            return False
+        else:
+            raise ValueError(f"Invalid value for boolean argument: {arg}")
+
     parser.add_argument(
         "-cg",
         "--cuda_graphs",
         help="Enable CUDA graphs. Disabled by default",
-        action="store_true",
+        type=bool_arg,
         required=False,
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
     )
@@ -273,7 +282,7 @@ def parse_cli_args():
         "-fsdp",
         "--use_mcore_fsdp",
         help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
-        action="store_true",
+        type=bool_arg,
         required=False,
         default=None,
     )
