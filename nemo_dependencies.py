@@ -159,26 +159,42 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     # Simplify values: Either top-level package or collection module
     simplified_dependencies: Dict[str, List[str]] = {}
     for package, deps in dependencies.items():
+        package_parts = package.split('.')
+
+        if (
+            len(package_parts) >= 2
+            and package_parts[1] in find_top_level_packages(nemo_root)
+            and package_parts[1] != 'collections'
+        ):
+            simplified_package = f"{package_parts[0]}.{package_parts[1]}"
+
+        elif len(package_parts) >= 3 and (
+            simplified_package := f"{package_parts[0]}.{package_parts[1]}.{package_parts[2]}"
+        ) in find_collection_modules(nemo_root):
+            pass
+
         for dep in deps:
             dep_parts = dep.split('.')
 
-            if package not in simplified_dependencies:
-                simplified_dependencies[package] = []
+            if simplified_package not in simplified_dependencies:
+                simplified_dependencies[simplified_package] = []
 
             if (
-                len(parts) >= 2
+                len(dep_parts) >= 2
                 and dep_parts[1] in find_top_level_packages(nemo_root)
                 and dep_parts[1] != 'collections'
             ):
-                simplified_dependencies[package].append(f"{dep_parts[0]}.{dep_parts[1]}")
+                simplified_dependencies[simplified_package].append(f"{dep_parts[0]}.{dep_parts[1]}")
 
-            elif len(parts) >= 3 and (
+            elif len(dep_parts) >= 3 and (
                 simplified_name := f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}"
             ) in find_collection_modules(nemo_root):
-                simplified_dependencies[package].append(simplified_name)
+                simplified_dependencies[simplified_package].append(simplified_name)
 
-            simplified_dependencies[package] = list(set(simplified_dependencies[package]))
-    # dependencies = simplified_dependencies
+            simplified_dependencies[simplified_package] = sorted(
+                list(set(simplified_dependencies[simplified_package]))
+            )
+    dependencies = simplified_dependencies
 
     # # Clean up package names to match file paths
     # cleaned_dependencies = {}
