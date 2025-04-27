@@ -680,6 +680,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                         rank_zero_only=False,
                     )
 
+                cp_size = self.cfg.get('context_parallel_size', 1)
                 if self.cfg.data.get("return_output_tensors", False):
                     loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
@@ -687,7 +688,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                     neg_cs = average_losses_across_data_parallel_group([neg_cs])
                     diff_cs = average_losses_across_data_parallel_group([diff_cs])
                     return (
-                        loss_for_ub,
+                        loss_for_ub * cp_size,
                         {
                             'avg': reduced_loss,
                             'query_hs': q_hs,
@@ -715,10 +716,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                     torch.distributed.all_reduce(
                         loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub, {'avg': reduced_loss}
+                    return loss_for_ub * cp_size, {'avg': reduced_loss}
 
             return multimodal_output, loss_func
 
