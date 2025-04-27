@@ -1793,9 +1793,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             loss_sum = torch.zeros_like(num_valid_tokens)
 
         num_valid_tokens = num_valid_tokens.clone().detach().to(torch.int)
-        loss_sum_and_ub_size = torch.cat(
-            [loss_sum.clone().detach().view(1), num_valid_tokens.view(1)]
-        )
+        loss_sum_and_ub_size = torch.cat([loss_sum.clone().detach().view(1), num_valid_tokens.view(1)])
         return loss_sum, num_valid_tokens, {"loss_sum_and_ub_size": loss_sum_and_ub_size}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
@@ -1810,9 +1808,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             from megatron.core import parallel_state
 
             loss_sum_and_ub_size = [
-                x["loss_sum_and_ub_size"]
-                for x in losses_reduced_per_micro_batch
-                if x["loss_sum_and_ub_size"][1] > 0
+                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
             ]
             loss = (
                 torch.vstack(loss_sum_and_ub_size).sum(dim=0)
