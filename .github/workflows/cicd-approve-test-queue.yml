@@ -17,6 +17,9 @@ name: Approve Test Queue
 on:
   schedule:
     - cron: '*/5 * * * *'  # Runs every 5 minutes
+  push:
+    branches:
+      - chtruong/test-approval # Temp for testing only
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
