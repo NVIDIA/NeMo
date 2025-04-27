@@ -136,29 +136,29 @@ jobs:
       SCRIPT: L0_Setup_Test_Data_And_Models
       TESTS_TO_RUN: '["L0_Setup_Test_Data_And_Models"]'
 
-  # cicd-main-unit-tests:
-  #   needs: [pre-flight, cicd-test-container-build]
-  #   uses: ./.github/workflows/cicd-main-unit-tests.yml
-  #   with:
-  #     test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+  cicd-main-unit-tests:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/cicd-main-unit-tests.yml
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  # cicd-main-e2e-tests:
-  #   needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-  #   uses: ./.github/workflows/cicd-main-e2e-tests.yml
-  #   with:
-  #     test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+  cicd-main-e2e-tests:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-e2e-tests.yml
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-export-deploy-tests:
-    needs: [pre-flight, cicd-test-container-build]
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-export-deploy-tests.yml
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  # cicd-main-collections-asr:
-  #   needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-  #   uses: ./.github/workflows/cicd-main-collections-asr.yml
-  #   with:
-  #     test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+  cicd-main-collections-asr:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-collections-asr.yml
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   Nemo_CICD_Test:
     needs:
@@ -166,8 +166,8 @@ jobs:
       - cicd-test-container-build
       - cicd-import-tests
       - L0_Setup_Test_Data_And_Models
-      # - cicd-main-unit-tests
-      # - cicd-main-e2e-tests
+      - cicd-main-unit-tests
+      - cicd-main-e2e-tests
       - cicd-main-export-deploy-tests
     if: always() && (github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
