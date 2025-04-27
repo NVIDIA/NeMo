@@ -230,3 +230,4 @@ jobs:
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
+          is_optional: ${{ matrix.is_optional || false }}

@@ -193,6 +193,7 @@ jobs:
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
           timeout: ${{ matrix.timeout || 10}}
+          is_optional: ${{ matrix.is_optional || false }}
 
   speechlm-e2e-tests:
     strategy:
@@ -217,6 +218,7 @@ jobs:
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
+          is_optional: ${{ matrix.is_optional || false }}
 
   tts-e2e-tests:
     strategy:
@@ -250,3 +252,4 @@ jobs:
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
+          is_optional: ${{ matrix.is_optional || false }}
