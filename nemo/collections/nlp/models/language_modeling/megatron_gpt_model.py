@@ -1399,7 +1399,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                cp_size = parallel_state.get_context_parallel_world_size()
                 if isinstance(loss_for_ub, dict):
                     # TODO: need a better way to check if loss_func is returning
                     # more stuff than just loss... (@adithyare)
@@ -1413,7 +1412,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         neg_cs = average_losses_across_data_parallel_group([loss_for_ub['neg_cs']])
                         diff_cs = average_losses_across_data_parallel_group([loss_for_ub['diff_cs']])
                         return (
-                            loss * cp_size,
+                            loss,
                             {
                                 'avg': reduced_loss,
                                 'query_hs': loss_for_ub['query_hs'],
@@ -1431,7 +1430,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         reduced_loss = average_losses_across_data_parallel_group([loss])
                         logit_diff = average_losses_across_data_parallel_group([loss_for_ub['logit_diff']])
                         return (
-                            loss * cp_size,
+                            loss,
                             {
                                 'avg': reduced_loss,
                                 'query_pos_doc_logit': loss_for_ub['query_pos_doc_logit'],
@@ -1464,10 +1463,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     torch.distributed.all_reduce(
                         loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub * cp_size, {'avg': reduced_loss}
+                    return loss_for_ub, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 

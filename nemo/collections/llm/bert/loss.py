@@ -68,7 +68,7 @@ class BERTLossReduction(MegatronLossReduction):
 
         loss_for_ub = sop_loss_for_ub + lm_loss_for_ub
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-        return loss_for_ub * cp_size, {"avg": reduced_loss}
+        return loss_for_ub, {"avg": reduced_loss}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main
