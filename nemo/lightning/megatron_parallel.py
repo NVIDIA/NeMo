@@ -1823,9 +1823,8 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                 loss,
                 group=parallel_state.get_data_parallel_group(with_context_parallel=True),
             )
-            if not self.validation_step or self.val_drop_last:
-                # average over the total number of tokens across the global batch.
-                loss = loss[0] / loss[1]
+            # average over the total number of tokens across the global batch.
+            loss = loss[0] / loss[1]
             return loss
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
