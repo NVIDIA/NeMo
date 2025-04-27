@@ -42,6 +42,7 @@ def initialize_megatron(
     skip_mpu_initialization: bool = False,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
+    gpu_visibility_externally_set: bool = False,
 ):
     """Initialize megatron global vars, logging, and distributed state."""
 
@@ -88,6 +89,7 @@ def initialize_megatron(
         get_embedding_ranks=get_embedding_ranks,
         get_position_embedding_ranks=get_position_embedding_ranks,
         skip_mpu_initialization=skip_mpu_initialization,
+        gpu_visibility_externally_set=gpu_visibility_externally_set,
     )
 
 
@@ -100,6 +102,7 @@ def torch_dist_init(
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     skip_mpu_initialization: bool,
+    gpu_visibility_externally_set: bool,
 ):
     def finish_mpu_init():
         # Pytorch distributed.
@@ -109,6 +112,7 @@ def torch_dist_init(
             num_distributed_optimizer_instances=num_distributed_optimizer_instances,
             get_embedding_ranks=get_embedding_ranks,
             get_position_embedding_ranks=get_position_embedding_ranks,
+            gpu_visibility_externally_set=gpu_visibility_externally_set
         )
 
         # Random seeds for reproducibility.
@@ -199,6 +203,7 @@ def _initialize_distributed(
     num_distributed_optimizer_instances: int,
     get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
     get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]],
+    gpu_visibility_externally_set: bool = False,
 ):
     """Initialize torch.distributed and core model parallel."""
 
@@ -216,7 +221,10 @@ def _initialize_distributed(
 
         # Manually set the device ids.
         if device_count > 0:
-            torch.cuda.set_device(get_local_rank_preinit())
+            if gpu_visibility_externally_set:
+                torch.cuda.set_device(0)
+            else:
+                torch.cuda.set_device(get_local_rank_preinit())
 
         # Call the init process
         init_process_group_kwargs = {
@@ -227,7 +235,10 @@ def _initialize_distributed(
         }
 
         torch.distributed.init_process_group(**init_process_group_kwargs)
-        torch.distributed.barrier(device_ids=[get_local_rank_preinit()])
+        if gpu_visibility_externally_set:
+            torch.distributed.barrier(device_ids=[0])
+        else:
+            torch.distributed.barrier(device_ids=[get_local_rank_preinit()])
 
     # Set the tensor model-parallel, pipeline model-parallel, and
     # data-parallel communicators.
