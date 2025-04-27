@@ -67,12 +67,16 @@ runs:
 
     - name: Checkout NeMo
       uses: actions/checkout@v2
+      env:
+        DIR: ${{ github.run_id }}
       with:
         repository: NVIDIA/NeMo
         path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo
 
     - name: Start container
       shell: bash
+      env:
+        DIR: ${{ github.run_id }}
       run: |
         mkdir -p $DIR
 
@@ -114,6 +118,8 @@ runs:
 
     - name: Create run-script
       id: create
+      env:
+        DIR: ${{ github.run_id }}
       shell: bash
       run: |
         COVERAGE_PREFIX=$([[ "${{ inputs.is_unit_test }}" == "true" ]] && echo "unit-test" || echo "e2e")
@@ -154,6 +160,8 @@ runs:
     - name: Check result
       id: check
       shell: bash
+      env:
+        DIR: ${{ github.run_id }}
       run: |
         cat $DIR/err.log
 
