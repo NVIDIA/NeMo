@@ -1,0 +1,113 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Approve Test Queue
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Runs every 5 minutes
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  approve-queue:
+    runs-on: ubuntu-latest
+    environment: main
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Approve waiting deployments
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+          MAX_CONCURRENCY: ${{ vars.MAX_CONCURRENCY || 1 }}
+        run: |
+          # Function to make GitHub API calls
+          gh_api() {
+            curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                 -H "Accept: application/vnd.github.v3+json" \
+                 "https://api.github.com/repos/$GITHUB_REPOSITORY/$1"
+          }
+
+          # Get current running workflows
+          running_workflows=0
+          queued_workflows=0
+
+          # Get all workflow runs
+          workflow_runs=$(gh_api "actions/runs?status=in_progress,queued")
+
+          # Count running and queued workflows
+          running_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="in_progress" and .name=="CICD NeMo") | .id' | wc -l)
+          queued_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="queued" and .name=="CICD NeMo") | .id' | wc -l)
+
+          total_workflows=$((running_workflows + queued_workflows))
+          max_concurrency=$MAX_CONCURRENCY
+
+          echo "Current running workflows: $running_workflows"
+          echo "Current queued workflows: $queued_workflows"
+          echo "Total workflows: $total_workflows"
+          echo "Max concurrency: $max_concurrency"
+
+          if [ $total_workflows -ge $max_concurrency ]; then
+            echo "Maximum concurrency reached, no new approvals will be made"
+            exit 0
+          fi
+
+          # Get waiting deployments for test environment
+          deployments=$(gh_api "deployments?environment=test&status=waiting")
+
+          # Sort deployments by creation date (oldest first)
+          sorted_deployments=$(echo "$deployments" | jq -r '. | sort_by(.created_at) | .[]')
+
+          # Process each deployment
+          echo "$sorted_deployments" | while read -r deployment; do
+            if [ -z "$deployment" ]; then
+              continue
+            fi
+
+            deployment_id=$(echo "$deployment" | jq -r '.id')
+            deployment_sha=$(echo "$deployment" | jq -r '.sha')
+            created_at=$(echo "$deployment" | jq -r '.created_at')
+
+            # Get PR information
+            pr_info="No PR found"
+            prs=$(gh_api "pulls?state=open")
+            pr_number=$(echo "$prs" | jq -r ".[] | select(.head.sha == \"$deployment_sha\") | .number")
+
+            if [ ! -z "$pr_number" ]; then
+              pr_title=$(echo "$prs" | jq -r ".[] | select(.number == $pr_number) | .title")
+              pr_info="PR #$pr_number: $pr_title"
+            fi
+
+            echo "Approving deployment $deployment_id (created at $created_at) - $pr_info"
+
+            # Approve the deployment
+            curl -s -X POST \
+                 -H "Authorization: token $GITHUB_TOKEN" \
+                 -H "Accept: application/vnd.github.v3+json" \
+                 -d "{\"state\":\"success\",\"description\":\"Automatically approved by queue manager\"}" \
+                 "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses"
+
+            total_workflows=$((total_workflows + 1))
+
+            if [ $total_workflows -ge $max_concurrency ]; then
+              echo "Maximum concurrency reached, stopping approvals"
+              break
+            fi
+          done
+
