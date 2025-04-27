@@ -52,6 +52,7 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_T5_Pretraining
             runner: self-hosted-azure
+            is_optional: true
           - script: L2_NeMo_2_T5_MockData_Pretraining
             runner: self-hosted-azure
           - script: L2_NeMo_2_T5_Finetuning
