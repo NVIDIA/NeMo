@@ -1,142 +1,72 @@
 {
-    "nemo.lightning": [
-        "nemo.collections.diffusion",
-        "nemo.collections.llm",
-        "nemo.collections.multimodal",
-        "nemo.collections.speechlm",
-        "nemo.collections.vlm",
-        "nemo.export",
-        "nemo.lightning"
-    ],
     "nemo.utils": [
-        "nemo.automodel",
-        "nemo.collections.asr",
-        "nemo.collections.audio",
-        "nemo.collections.common",
-        "nemo.collections.diffusion",
-        "nemo.collections.llm",
-        "nemo.collections.multimodal",
-        "nemo.collections.nlp",
-        "nemo.collections.speechlm",
-        "nemo.collections.tts",
-        "nemo.collections.vision",
-        "nemo.collections.vlm",
-        "nemo.core",
-        "nemo.deploy",
-        "nemo.export",
-        "nemo.lightning",
-        "nemo.utils"
+        "NeMo2",
+        "export-deploy",
+        "speech"
     ],
-    "nemo.collections.common": [
-        "nemo.collections.asr",
-        "nemo.collections.audio",
-        "nemo.collections.common",
-        "nemo.collections.diffusion",
-        "nemo.collections.llm",
-        "nemo.collections.multimodal",
-        "nemo.collections.multimodal_autoregressive",
-        "nemo.collections.nlp",
-        "nemo.collections.speechlm",
-        "nemo.collections.tts",
-        "nemo.collections.vlm",
-        "nemo.lightning",
-        "nemo.utils"
+    "nemo.lightning": [
+        "NeMo2",
+        "export-deploy",
+        "speech"
     ],
     "nemo.core": [
-        "nemo.collections.asr",
-        "nemo.collections.audio",
-        "nemo.collections.common",
-        "nemo.collections.llm",
-        "nemo.collections.multimodal",
-        "nemo.collections.nlp",
-        "nemo.collections.speechlm",
-        "nemo.collections.tts",
-        "nemo.collections.vision",
-        "nemo.core",
-        "nemo.deploy",
-        "nemo.export",
-        "nemo.lightning",
-        "nemo.utils"
+        "NeMo2",
+        "export-deploy",
+        "speech"
     ],
     "nemo.collections.nlp": [
-        "nemo.collections.asr",
-        "nemo.collections.llm",
-        "nemo.collections.multimodal",
-        "nemo.collections.multimodal_autoregressive",
-        "nemo.collections.nlp",
-        "nemo.collections.speechlm",
-        "nemo.collections.tts",
-        "nemo.collections.vision",
-        "nemo.collections.vlm",
-        "nemo.export",
-        "nemo.lightning",
-        "nemo.utils"
+        "NeMo2",
+        "export-deploy",
+        "speech"
     ],
     "nemo.collections.llm": [
-        "nemo.collections.diffusion",
-        "nemo.collections.llm",
-        "nemo.collections.speechlm",
-        "nemo.collections.vlm",
-        "nemo.deploy",
-        "nemo.lightning",
-        "nemo.utils"
-    ],
-    "nemo.deploy": [
-        "nemo.collections.llm",
-        "nemo.deploy",
-        "nemo.export"
-    ],
-    "nemo.export": [
-        "nemo.collections.common",
-        "nemo.collections.llm",
-        "nemo.deploy",
-        "nemo.export"
-    ],
-    "nemo.collections.tts": [
-        "nemo.collections.asr",
-        "nemo.collections.common",
-        "nemo.collections.tts",
-        "nemo.utils"
+        "NeMo2",
+        "export-deploy",
+        "speech"
     ],
     "nemo.collections.multimodal": [
-        "nemo.collections.diffusion",
-        "nemo.collections.multimodal",
-        "nemo.collections.nlp",
-        "nemo.collections.speechlm",
-        "nemo.collections.vision",
-        "nemo.collections.vlm",
-        "nemo.export"
+        "NeMo2",
+        "export-deploy",
+        "speech"
     ],
-    "nemo.automodel": [
-        "nemo.collections.llm"
+    "nemo.collections.common": [
+        "NeMo2",
+        "speech"
     ],
-    "nemo.collections.vision": [
-        "nemo.collections.multimodal",
-        "nemo.collections.vision"
+    "nemo.deploy": [
+        "NeMo2",
+        "export-deploy"
     ],
-    "nemo.collections.diffusion": [
-        "nemo.collections.diffusion"
-    ],
-    "nemo.collections.vlm": [
-        "nemo.collections.multimodal",
-        "nemo.collections.vlm"
+    "nemo.export": [
+        "NeMo2",
+        "export-deploy"
     ],
     "nemo.collections.asr": [
-        "nemo.collections.asr",
-        "nemo.collections.audio",
-        "nemo.collections.common",
-        "nemo.collections.multimodal",
-        "nemo.collections.nlp",
-        "nemo.collections.speechlm",
-        "nemo.collections.tts"
+        "NeMo2",
+        "speech"
+    ],
+    "nemo.collections.tts": [
+        "speech"
+    ],
+    "nemo.automodel": [
+        "NeMo2"
+    ],
+    "nemo.collections.vision": [
+        "NeMo2"
+    ],
+    "nemo.collections.diffusion": [
+        "NeMo2"
+    ],
+    "nemo.collections.vlm": [
+        "NeMo2"
     ],
     "nemo.collections.audio": [
-        "nemo.collections.audio"
+        "speech"
     ],
     "nemo.collections.multimodal_autoregressive": [
-        "nemo.collections.multimodal_autoregressive"
+        "NeMo2"
     ],
     "nemo.collections.speechlm": [
-        "nemo.collections.speechlm"
+        "speech"
     ]
 }
