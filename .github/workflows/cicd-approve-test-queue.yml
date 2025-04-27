@@ -47,9 +47,8 @@ jobs:
         run: |
           python - <<EOF
           import os
-          import json
           import requests
-          from datetime import datetime
+
 
           # GitHub API configuration
           GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
@@ -60,7 +59,8 @@ jobs:
           # Headers for GitHub API
           headers = {
               "Authorization": f"token {GITHUB_TOKEN}",
-              "Accept": "application/vnd.github.v3+json"
+              "Accept": "application/vnd.github.v3+json",
+              "X-GitHub-Api-Version": "2022-11-28",
           }
 
           def make_request(endpoint, method="GET", data=None):
@@ -81,20 +81,16 @@ jobs:
 
           # Get current running and queued workflows
           print("Fetching workflow runs...")
-          workflow_runs = make_request("actions/runs?status=in_progress,queued")
-          if not workflow_runs:
-              print("Failed to fetch workflow runs")
-              exit(1)
+          queued_workflow_runs = make_request("actions/runs?status=queued").get("workflow_runs", [])
+          in_progress_workflow_runs = make_request("actions/runs?status=in_progress").get("workflow_runs", [])
 
           # Count running and queued workflows
-          running_workflows = sum(1 for run in workflow_runs.get("workflow_runs", [])
-                                if run["status"] == "in_progress" and run["name"] == "CICD NeMo")
-          queued_workflows = sum(1 for run in workflow_runs.get("workflow_runs", [])
-                               if run["status"] == "queued" and run["name"] == "CICD NeMo")
+          queued_workflows = sum(1 for run in queued_workflow_runs if run["name"] == "CICD NeMo")
+          in_progress_workflows = sum(1 for run in in_progress_workflow_runs if run["name"] == "CICD NeMo")
 
-          total_workflows = running_workflows + queued_workflows
-          print(f"Current running workflows: {running_workflows}")
+          total_workflows = queued_workflows + in_progress_workflows
           print(f"Current queued workflows: {queued_workflows}")
+          print(f"Current running workflows: {in_progress_workflows}")
           print(f"Total workflows: {total_workflows}")
           print(f"Max concurrency: {MAX_CONCURRENCY}")
 
@@ -102,50 +98,42 @@ jobs:
               print("Maximum concurrency reached, no new approvals will be made")
               exit(0)
 
-          # Get waiting deployments for test environment
+          # Get waiting CI workflows for test environment
           print("Fetching deployments...")
-          deployments = make_request("deployments?environment=test&status=waiting")
-          if not deployments:
-              print("Failed to fetch deployments")
-              exit(1)
+          pending_workflows = make_request("actions/runs?status=waiting").get("workflow_runs", [])
+          pending_workflows = [run for run in pending_workflows if run["name"] == "CICD NeMo"]
 
           # Sort deployments by creation date (oldest first)
-          print("Sorting deployments...")
-          sorted_deployments = sorted(deployments, key=lambda x: x["created_at"])
+          print("Sorting workflows...")
+          pending_workflows = sorted(pending_workflows, key=lambda x: x["created_at"])
 
           # Process each deployment
-          print("Processing deployments...")
-          for deployment in sorted_deployments:
-              if deployment["task"] != "cicd-wait-in-queue":
-                  continue
-
+          print("Processing ...")
+          for workflow in pending_workflows:
               if total_workflows >= MAX_CONCURRENCY:
                   print("Maximum concurrency reached, stopping approvals")
                   break
 
-              # Get PR information
-              print(f"Fetching PR information for deployment {deployment['id']}...")
-              prs = make_request("pulls?state=open")
-              pr_info = "No PR found"
+              workflow_id = workflow["id"]
+              workflow_name = workflow["display_title"]
+              pull_request_number = workflow["pull_requests"][0]["number"]
+              print(f"Approving workflow {workflow_name} for PR #{pull_request_number}")
 
-              if prs:
-                  for pr in prs:
-                      if pr["head"]["sha"] == deployment["sha"]:
-                          pr_info = f"PR #{pr['number']}: {pr['title']}"
-                          break
-
-              print(f"Approving deployment {deployment['id']} (created at {deployment['created_at']}) - {pr_info}")
+              deployment_url = f"actions/runs/{workflow_id}/pending_deployments"
+              deployment = make_request(deployment_url)[0]
+              environment_id = deployment["environment"]["id"]
 
               # Approve the deployment
               status_data = {
-                  "state": "success",
-                  "description": "Automatically approved by queue manager"
+                  "environment_ids": [environment_id],
+                  "state": "approved",
+                  "comment": "Automatically approved by queue manager"
               }
-              result = make_request(f"deployments/{deployment['id']}/statuses", method="POST", data=status_data)
+              result = make_request(deployment_url, method="POST", data=status_data)
 
               if result:
                   total_workflows += 1
               else:
                   print(f"Failed to approve deployment {deployment['id']}")
-          EOF
 
+          EOF
