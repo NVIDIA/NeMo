@@ -188,18 +188,13 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     simplified_dependencies: Dict[str, List[str]] = {}
     for package, deps in dependencies.items():
         package_parts = package.split('.')
-
-        if (
-            len(package_parts) >= 2
-            and package_parts[1] in find_top_level_packages(nemo_root)
-            and package_parts[1] != 'collections'
-        ):
-            simplified_package = f"{package_parts[0]}.{package_parts[1]}"
-
-        elif len(package_parts) >= 3 and (
-            simplified_package := f"{package_parts[0]}.{package_parts[1]}.{package_parts[2]}"
-        ) in find_collection_modules(nemo_root):
-            pass
+        print(f"{os.path.join(*package_parts[:-1])}.py")
+        if os.path.isfile((file_path := f"{os.path.join(*package_parts[:-1])}.py")):
+            simplified_package = file_path
+        elif os.path.isdir((file_path := f"{os.path.join(*package_parts[:-1])}")):
+            simplified_package = file_path
+        else:
+            simplified_package = package
 
         for dep in deps:
             dep_parts = dep.split('.')
@@ -224,7 +219,8 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
             )
     dependencies = simplified_dependencies
 
-    # Buckets
+    # Bucket
+    bucket_deps: Dict[str, List[str]] = {}
     for package, deps in dependencies.items():
         new_deps = []
         for dep in deps:
@@ -243,9 +239,11 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
             ):
                 new_deps.append("NeMo2")
             else:
-                continue
+                new_deps.append(dep)
 
-        dependencies[package] = sorted(list(set(new_deps)))
+        bucket_deps[package] = sorted(list(set(new_deps)))
+
+    dependencies = bucket_deps
 
     # Sort dependencies by length of values (number of dependencies)
     dependencies = dict(sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True))
