@@ -42,6 +42,7 @@ jobs:
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
+          timeout: 20
 
   tts-unit-tests:
     strategy:
@@ -153,6 +154,7 @@ jobs:
             script: L2_Longform_Speech_Transcription_with_TimeStamps_Canary_Chunked_Infer_from_Manifest
           - runner: self-hosted-azure-gpus-1
             script: Speech_Checkpoints_tests
+            timeout: 20
           - runner: self-hosted-azure-gpus-1
             script: L2_Speaker_dev_run_Speaker_Recognition
           - runner: self-hosted-azure-gpus-1
@@ -188,6 +190,7 @@ jobs:
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
+          timeout: ${{ matrix.timeout || 10}}
 
   speechlm-e2e-tests:
     strategy:
