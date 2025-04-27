@@ -29,7 +29,6 @@ from typing_extensions import Annotated
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
-from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -766,6 +765,7 @@ def evaluate(
             url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
+    from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
         _legacy_evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
@@ -1081,6 +1081,7 @@ def generate(
     max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)
     # set kv cache allocation to only num tokens in prompt + max tokens to generate
     inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
+    inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
 
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
     dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
