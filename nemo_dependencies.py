@@ -159,17 +159,18 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     # Simplify values: Either top-level package or collection module
     simplified_dependencies: Dict[str, List[str]] = {}
     for package, deps in dependencies.items():
-        simplified_deps = []
         for dep in deps:
             dep_parts = dep.split('.')
 
             if package not in simplified_dependencies:
                 simplified_dependencies[package] = []
 
-            if len(parts) == 2 and (simplified_name := f"{dep_parts[0]}.{dep_parts[1]}") in find_top_level_packages(
-                nemo_root
+            if (
+                len(parts) >= 2
+                and dep_parts[1] in find_top_level_packages(nemo_root)
+                and dep_parts[1] != 'collections'
             ):
-                simplified_dependencies[package].append(simplified_name)
+                simplified_dependencies[package].append(f"{dep_parts[0]}.{dep_parts[1]}")
 
             elif len(parts) >= 3 and (
                 simplified_name := f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}"
@@ -177,6 +178,7 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
                 simplified_dependencies[package].append(simplified_name)
 
             simplified_dependencies[package] = list(set(simplified_dependencies[package]))
+    # dependencies = simplified_dependencies
 
     # # Clean up package names to match file paths
     # cleaned_dependencies = {}
