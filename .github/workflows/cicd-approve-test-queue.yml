@@ -35,122 +35,117 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
       - name: Approve waiting deployments
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
           MAX_CONCURRENCY: ${{ vars.MAX_CONCURRENCY || 1 }}
         run: |
-          # Function to make GitHub API calls with error handling
-          gh_api() {
-            response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                           -H "Accept: application/vnd.github.v3+json" \
-                           "https://api.github.com/repos/$GITHUB_REPOSITORY/$1")
+          python - <<EOF
+          import os
+          import json
+          import requests
+          from datetime import datetime
 
-            # Check if response is empty
-            if [ -z "$response" ]; then
-              echo "Error: Empty response from API call to $1"
-              return 1
-            fi
+          # GitHub API configuration
+          GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+          REPO = os.environ["GITHUB_REPOSITORY"]
+          MAX_CONCURRENCY = int(os.environ["MAX_CONCURRENCY"])
+          API_BASE = f"https://api.github.com/repos/{REPO}"
 
-            # Check if response is valid JSON
-            if ! echo "$response" | jq . >/dev/null 2>&1; then
-              echo "Error: Invalid JSON response from API call to $1"
-              echo "Response: $response"
-              return 1
-            fi
-
-            echo "$response"
+          # Headers for GitHub API
+          headers = {
+              "Authorization": f"token {GITHUB_TOKEN}",
+              "Accept": "application/vnd.github.v3+json"
           }
 
-          # Get current running workflows
-          running_workflows=0
-          queued_workflows=0
+          def make_request(endpoint, method="GET", data=None):
+              """Make a request to the GitHub API with error handling."""
+              url = f"{API_BASE}/{endpoint}"
+              try:
+                  if method == "GET":
+                      response = requests.get(url, headers=headers)
+                  else:
+                      response = requests.post(url, headers=headers, json=data)
+                  response.raise_for_status()
+                  return response.json()
+              except requests.exceptions.RequestException as e:
+                  print(f"Error making request to {endpoint}: {str(e)}")
+                  if hasattr(e.response, 'text'):
+                      print(f"Response: {e.response.text}")
+                  return None
 
-          # Get all workflow runs with error handling
-          echo "Fetching workflow runs..."
-          workflow_runs=$(gh_api "actions/runs?status=in_progress,queued")
-          if [ $? -ne 0 ]; then
-            echo "Failed to fetch workflow runs"
-            exit 1
-          fi
+          # Get current running and queued workflows
+          print("Fetching workflow runs...")
+          workflow_runs = make_request("actions/runs?status=in_progress,queued")
+          if not workflow_runs:
+              print("Failed to fetch workflow runs")
+              exit(1)
 
-          # Count running and queued workflows with error handling
-          echo "Counting workflows..."
-          running_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="in_progress" and .name=="CICD NeMo") | .id' | wc -l || echo "0")
-          queued_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="queued" and .name=="CICD NeMo") | .id' | wc -l || echo "0")
+          # Count running and queued workflows
+          running_workflows = sum(1 for run in workflow_runs.get("workflow_runs", [])
+                                if run["status"] == "in_progress" and run["name"] == "CICD NeMo")
+          queued_workflows = sum(1 for run in workflow_runs.get("workflow_runs", [])
+                               if run["status"] == "queued" and run["name"] == "CICD NeMo")
 
-          total_workflows=$((running_workflows + queued_workflows))
-          max_concurrency=$MAX_CONCURRENCY
+          total_workflows = running_workflows + queued_workflows
+          print(f"Current running workflows: {running_workflows}")
+          print(f"Current queued workflows: {queued_workflows}")
+          print(f"Total workflows: {total_workflows}")
+          print(f"Max concurrency: {MAX_CONCURRENCY}")
 
-          echo "Current running workflows: $running_workflows"
-          echo "Current queued workflows: $queued_workflows"
-          echo "Total workflows: $total_workflows"
-          echo "Max concurrency: $max_concurrency"
+          if total_workflows >= MAX_CONCURRENCY:
+              print("Maximum concurrency reached, no new approvals will be made")
+              exit(0)
 
-          if [ $total_workflows -ge $max_concurrency ]; then
-            echo "Maximum concurrency reached, no new approvals will be made"
-            exit 0
-          fi
+          # Get waiting deployments for test environment
+          print("Fetching deployments...")
+          deployments = make_request("deployments?environment=test&status=waiting")
+          if not deployments:
+              print("Failed to fetch deployments")
+              exit(1)
 
-          # Get waiting deployments for test environment with error handling
-          echo "Fetching deployments..."
-          deployments=$(gh_api "deployments?environment=test&status=waiting")
-          if [ $? -ne 0 ]; then
-            echo "Failed to fetch deployments"
-            exit 1
-          fi
-
-          # Sort deployments by creation date (oldest first) with error handling
-          echo "Sorting deployments..."
-          sorted_deployments=$(echo "$deployments" | jq -r '. | sort_by(.created_at) | .[]' || echo "")
-          if [ -z "$sorted_deployments" ]; then
-            echo "No deployments found or error sorting deployments"
-            exit 0
-          fi
+          # Sort deployments by creation date (oldest first)
+          print("Sorting deployments...")
+          sorted_deployments = sorted(deployments, key=lambda x: x["created_at"])
 
           # Process each deployment
-          echo "Processing deployments..."
-          echo "$sorted_deployments" | while read -r deployment; do
-            if [ -z "$deployment" ]; then
-              continue
-            fi
+          print("Processing deployments...")
+          for deployment in sorted_deployments:
+              if deployment["task"] != "cicd-wait-in-queue":
+                  continue
 
-            deployment_id=$(echo "$deployment" | jq -r '.id')
-            deployment_sha=$(echo "$deployment" | jq -r '.sha')
-            created_at=$(echo "$deployment" | jq -r '.created_at')
+              if total_workflows >= MAX_CONCURRENCY:
+                  print("Maximum concurrency reached, stopping approvals")
+                  break
 
-            # Get PR information with error handling
-            echo "Fetching PR information for deployment $deployment_id..."
-            pr_info="No PR found"
-            prs=$(gh_api "pulls?state=open")
-            if [ $? -eq 0 ]; then
-              pr_number=$(echo "$prs" | jq -r ".[] | select(.head.sha == \"$deployment_sha\") | .number" || echo "")
-              if [ ! -z "$pr_number" ]; then
-                pr_title=$(echo "$prs" | jq -r ".[] | select(.number == $pr_number) | .title" || echo "")
-                pr_info="PR #$pr_number: $pr_title"
-              fi
-            fi
+              # Get PR information
+              print(f"Fetching PR information for deployment {deployment['id']}...")
+              prs = make_request("pulls?state=open")
+              pr_info = "No PR found"
 
-            echo "Approving deployment $deployment_id (created at $created_at) - $pr_info"
+              if prs:
+                  for pr in prs:
+                      if pr["head"]["sha"] == deployment["sha"]:
+                          pr_info = f"PR #{pr['number']}: {pr['title']}"
+                          break
 
-            # Approve the deployment with error handling
-            response=$(curl -s -X POST \
-                           -H "Authorization: token $GITHUB_TOKEN" \
-                           -H "Accept: application/vnd.github.v3+json" \
-                           -d "{\"state\":\"success\",\"description\":\"Automatically approved by queue manager\"}" \
-                           "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses")
+              print(f"Approving deployment {deployment['id']} (created at {deployment['created_at']}) - {pr_info}")
 
-            if ! echo "$response" | jq . >/dev/null 2>&1; then
-              echo "Error: Failed to approve deployment $deployment_id"
-              echo "Response: $response"
-              continue
-            fi
+              # Approve the deployment
+              status_data = {
+                  "state": "success",
+                  "description": "Automatically approved by queue manager"
+              }
+              result = make_request(f"deployments/{deployment['id']}/statuses", method="POST", data=status_data)
 
-            total_workflows=$((total_workflows + 1))
-
-            if [ $total_workflows -ge $max_concurrency ]; then
-              echo "Maximum concurrency reached, stopping approvals"
-              break
-            fi
-          done
+              if result:
+                  total_workflows += 1
+              else:
+                  print(f"Failed to approve deployment {deployment['id']}")
+          EOF
 
