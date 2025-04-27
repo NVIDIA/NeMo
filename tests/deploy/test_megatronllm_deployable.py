@@ -102,7 +102,7 @@ def test_triton_input_output(deployable):
     inputs = deployable.get_triton_input
     outputs = deployable.get_triton_output
 
-    assert len(inputs) == 10  # Number of input tensors
+    assert len(inputs) == 9  # Number of input tensors
     assert len(outputs) == 2  # Number of output tensors
 
     # Check input tensor names
