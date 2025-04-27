@@ -38,7 +38,9 @@ runs:
   steps:
     - name: Noop
       shell: bash
-      run: echo "noop"
+      run: |
+        chmod -R u+rwX ${{ github.run_id }}
+        echo "noop"
 
     - name: Docker system cleanup
       shell: bash
