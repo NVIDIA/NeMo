@@ -40,23 +40,44 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT }}
           MAX_CONCURRENCY: ${{ vars.MAX_CONCURRENCY || 1 }}
         run: |
-          # Function to make GitHub API calls
+          # Function to make GitHub API calls with error handling
           gh_api() {
-            curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                 -H "Accept: application/vnd.github.v3+json" \
-                 "https://api.github.com/repos/$GITHUB_REPOSITORY/$1"
+            response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           "https://api.github.com/repos/$GITHUB_REPOSITORY/$1")
+
+            # Check if response is empty
+            if [ -z "$response" ]; then
+              echo "Error: Empty response from API call to $1"
+              return 1
+            fi
+
+            # Check if response is valid JSON
+            if ! echo "$response" | jq . >/dev/null 2>&1; then
+              echo "Error: Invalid JSON response from API call to $1"
+              echo "Response: $response"
+              return 1
+            fi
+
+            echo "$response"
           }
 
           # Get current running workflows
           running_workflows=0
           queued_workflows=0
 
-          # Get all workflow runs
+          # Get all workflow runs with error handling
+          echo "Fetching workflow runs..."
           workflow_runs=$(gh_api "actions/runs?status=in_progress,queued")
+          if [ $? -ne 0 ]; then
+            echo "Failed to fetch workflow runs"
+            exit 1
+          fi
 
-          # Count running and queued workflows
-          running_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="in_progress" and .name=="CICD NeMo") | .id' | wc -l)
-          queued_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="queued" and .name=="CICD NeMo") | .id' | wc -l)
+          # Count running and queued workflows with error handling
+          echo "Counting workflows..."
+          running_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="in_progress" and .name=="CICD NeMo") | .id' | wc -l || echo "0")
+          queued_workflows=$(echo "$workflow_runs" | jq -r '.workflow_runs[] | select(.status=="queued" and .name=="CICD NeMo") | .id' | wc -l || echo "0")
 
           total_workflows=$((running_workflows + queued_workflows))
           max_concurrency=$MAX_CONCURRENCY
@@ -71,13 +92,24 @@ jobs:
             exit 0
           fi
 
-          # Get waiting deployments for test environment
+          # Get waiting deployments for test environment with error handling
+          echo "Fetching deployments..."
           deployments=$(gh_api "deployments?environment=test&status=waiting")
+          if [ $? -ne 0 ]; then
+            echo "Failed to fetch deployments"
+            exit 1
+          fi
 
-          # Sort deployments by creation date (oldest first)
-          sorted_deployments=$(echo "$deployments" | jq -r '. | sort_by(.created_at) | .[]')
+          # Sort deployments by creation date (oldest first) with error handling
+          echo "Sorting deployments..."
+          sorted_deployments=$(echo "$deployments" | jq -r '. | sort_by(.created_at) | .[]' || echo "")
+          if [ -z "$sorted_deployments" ]; then
+            echo "No deployments found or error sorting deployments"
+            exit 0
+          fi
 
           # Process each deployment
+          echo "Processing deployments..."
           echo "$sorted_deployments" | while read -r deployment; do
             if [ -z "$deployment" ]; then
               continue
@@ -87,24 +119,32 @@ jobs:
             deployment_sha=$(echo "$deployment" | jq -r '.sha')
             created_at=$(echo "$deployment" | jq -r '.created_at')
 
-            # Get PR information
+            # Get PR information with error handling
+            echo "Fetching PR information for deployment $deployment_id..."
             pr_info="No PR found"
             prs=$(gh_api "pulls?state=open")
-            pr_number=$(echo "$prs" | jq -r ".[] | select(.head.sha == \"$deployment_sha\") | .number")
-
-            if [ ! -z "$pr_number" ]; then
-              pr_title=$(echo "$prs" | jq -r ".[] | select(.number == $pr_number) | .title")
-              pr_info="PR #$pr_number: $pr_title"
+            if [ $? -eq 0 ]; then
+              pr_number=$(echo "$prs" | jq -r ".[] | select(.head.sha == \"$deployment_sha\") | .number" || echo "")
+              if [ ! -z "$pr_number" ]; then
+                pr_title=$(echo "$prs" | jq -r ".[] | select(.number == $pr_number) | .title" || echo "")
+                pr_info="PR #$pr_number: $pr_title"
+              fi
             fi
 
             echo "Approving deployment $deployment_id (created at $created_at) - $pr_info"
 
-            # Approve the deployment
-            curl -s -X POST \
-                 -H "Authorization: token $GITHUB_TOKEN" \
-                 -H "Accept: application/vnd.github.v3+json" \
-                 -d "{\"state\":\"success\",\"description\":\"Automatically approved by queue manager\"}" \
-                 "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses"
+            # Approve the deployment with error handling
+            response=$(curl -s -X POST \
+                           -H "Authorization: token $GITHUB_TOKEN" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           -d "{\"state\":\"success\",\"description\":\"Automatically approved by queue manager\"}" \
+                           "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses")
+
+            if ! echo "$response" | jq . >/dev/null 2>&1; then
+              echo "Error: Failed to approve deployment $deployment_id"
+              echo "Response: $response"
+              continue
+            fi
 
             total_workflows=$((total_workflows + 1))
 
