@@ -25,7 +25,7 @@ jobs:
           - script: L0_Unit_Tests_GPU_Export_Deploy
             runner: self-hosted-azure
           - script: L0_Unit_Tests_CPU_Export_Deploy
-            runner: self-hosted-azure
+            runner: self-hosted-azure-cpu
           - script: L0_Unit_Tests_Eval
             runner: self-hosted-azure
     needs: [build]

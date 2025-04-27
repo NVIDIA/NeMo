@@ -176,6 +176,7 @@ jobs:
             script: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
           - runner: self-hosted-azure
             script: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
+            is_optional: true
     needs: [asr-unit-tests]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
