@@ -194,7 +194,9 @@ class TrainingConfig:
     restored if training is re-started with dp_size that divides batch_size // microbatch_size."""
 
     empty_unused_memory_level: Literal[0, 1, 2] = 0
-    """Call torch.cuda.empty_cache() each iteration (training and eval), to reduce fragmentation. 0=off, 1=moderate, 2=aggressive."""
+    """Call torch.cuda.empty_cache() each iteration (training and eval), to reduce fragmentation.
+    0=off, 1=moderate, 2=aggressive.
+    """
 
     check_weight_hash_across_dp_replicas_interval: Optional[int] = None
     """Interval to check weight hashes are same across DP replicas. If not specified, weight hashes not checked."""
@@ -203,7 +205,9 @@ class TrainingConfig:
     """Training CPU-GPU synchronization interval, to ensure that CPU is not running too far ahead of GPU."""
 
     train_iters: Optional[int] = None
-    """Total number of iterations to train over all training runs. Note that either train-iters or train-samples should be provided."""
+    """Total number of iterations to train over all training runs.
+    Note that either train-iters or train-samples should be provided.
+    """
 
     exit_interval: Optional[int] = None
     """Exit the program after the iteration is divisible by this value."""
@@ -227,10 +231,13 @@ class TrainingConfig:
     collection is performed only at the start and the end of the validation routine by default."""
 
     manual_gc_interval: int = 0
-    """Training step interval to trigger manual garbage collection. When the value is set to 0, garbage collection is not triggered between training steps."""
+    """Training step interval to trigger manual garbage collection.
+    When the value is set to 0, garbage collection is not triggered between training steps.
+    """
 
     manual_gc_eval: bool = True
-    """When using manual garbage collection, disable garbage collection at the start and the end of each evaluation run."""
+    """When using manual garbage collection, disable garbage collection at the start and the end of each evaluation run.
+    """
 
     # ---------------- Validation config. ----------------
 
@@ -257,7 +264,9 @@ class DistributedInitConfig:
     """Timeout minutes for torch.distributed."""
 
     align_grad_reduce: bool = True
-    """If not set, all PP stages will launch gradient reduces simultaneously. Otherwise, each PP stage will independently launch as needed."""
+    """If not set, all PP stages will launch gradient reduces simultaneously.
+    Otherwise, each PP stage will independently launch as needed.
+    """
 
     local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
@@ -278,7 +287,9 @@ class DistributedInitConfig:
     `min_ctas`, `max_ctas`, and `cga_cluster_size`."""
 
     use_tp_pp_dp_mapping: bool = False
-    """If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp. Make sure EP and CP aren't used with this option enabled"""
+    """If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp.
+    Make sure EP and CP aren't used with this option enabled.
+    """
 
     use_gloo_process_groups: bool = True
     """If set, create Gloo process groups for communications."""
@@ -318,75 +329,6 @@ class ProfilingConfig:
     record_shapes: bool = False
     """Record shapes of tensors."""
 
-    log_throughput: bool = False
-    """If set, calculate and log throughput per GPU."""
-
-    log_progress: bool = False
-    """If set, log progress (in terms of number of processed tokens and number of
-    floating-point operations) to progress.txt file in checkpoint directory."""
-
-    timing_log_level: Literal[0, 1, 2] = 0
-    """Granularity level to measure and report timing.
-    0: report only iteration time and make sure timing does not introduce extra overhead.
-    1: report timing for operations that are executed very limited times (basically once)
-       during each iteration (such as gradient all-reduce).
-    2: report timing for operations that migh be executed numerous times during each iteration.
-       Note that setting the level to 1 or 2 might cause increase in iteration time."""
-
-    timing_log_option: Literal["max", "minmax", "all"] = "minmax"
-    """Options for logging timing:
-      max: report the max timing across all ranks
-      minmax: report min and max timings across all ranks
-      all: report timings of all ranks."""
-
-    tensorboard_dir: Optional[str] = None
-    """Write TensorBoard logs to this directory."""
-
-    tensorboard_log_interval: int = 1
-    """Report to tensorboard interval."""
-
-    tensorboard_queue_size: int = 1000
-    """Size of the tensorboard queue for pending events and summaries before one of the 'add' calls forces a flush to disk."""
-
-    log_timers_to_tensorboard: bool = False
-    """If set, write timers to tensorboard."""
-
-    log_loss_scale_to_tensorboard: bool = True
-    """Disable loss-scale logging to tensorboard."""
-
-    log_validation_ppl_to_tensorboard: bool = False
-    """If set, write validation perplexity to tensorboard."""
-
-    log_memory_to_tensorboard: bool = False
-    """Enable memory logging to tensorboard."""
-
-    log_world_size_to_tensorboard: bool = False
-    """Enable world size logging to tensorboard."""
-
-    wandb_project: Optional[str] = None
-    """The wandb project name. Ignore wandb by default."""
-
-    wandb_exp_name: Optional[str] = None
-    """The wandb experiment name."""
-
-    wandb_save_dir: Optional[str] = None
-    """Path to save the wandb results locally."""
-
-    wandb_entity: Optional[str] = None
-    """The wandb entity name."""
-
-    logging_level: int = logging.INFO
-    """Set default logging level"""
-
-    filter_warnings: bool = True
-    """Filter out warning messages"""
-
-    modules_to_filter: Optional[list[str]] = None
-    """List of modules to filter out from the logs"""
-
-    set_level_for_all_loggers: bool = False
-    """Set the logging level for all loggers. If False, only level for NeMo loggers will be set."""
-
 
 @dataclass(kw_only=True)
 class LoggerConfig:
@@ -404,13 +346,25 @@ class LoggerConfig:
     """If set, calculate and log throughput per GPU."""
 
     log_progress: bool = False
-    """If set, log progress (in terms of number of processed tokens and number of floating-point operations) to progress.txt file in checkpoint directory."""
+    """If set, log progress (in terms of number of processed tokens and number of floating-point operations)
+    to progress.txt file in checkpoint directory.
+    """
 
     timing_log_level: Literal[0, 1, 2] = 0
-    """Granularity level to measure and report timing.    0: report only iteration time and make sure timing       does not introduce extra overhead.   1: report timing for operations that are executed       very limited times (basically once) during       each iteration (such as gradient all-reduce)    2: report timing for operations that migh be       executed numerous times during each iteration. Note that setting the level to 1 or 2 might cause increase in iteration time."""
+    """Granularity level to measure and report timing.
+    0: report only iteration time and make sure timing does not introduce extra overhead.
+    1: report timing for operations that are executed very limited times (basically once) during each iteration
+        (such as gradient all-reduce)
+    2: report timing for operations that migh be executed numerous times during each iteration.
+    Note that setting the level to 1 or 2 might cause increase in iteration time.
+    """
 
     timing_log_option: Literal["max", "minmax", "all"] = "minmax"
-    """Options for logging timing:  max: report the max timing across all ranks  minmax: report min and max timings across all ranks  all: report timings of all ranks."""
+    """Options for logging timing:
+    max: report the max timing across all ranks
+    minmax: report min and max timings across all ranks
+    all: report timings of all ranks.
+    """
 
     tensorboard_dir: Optional[str] = None
     """Write TensorBoard logs to this directory."""
@@ -419,7 +373,9 @@ class LoggerConfig:
     """Report to tensorboard interval."""
 
     tensorboard_queue_size: int = 1000
-    """Size of the tensorboard queue for pending events and summaries before one of the 'add' calls forces a flush to disk."""
+    """Size of the tensorboard queue for pending events and summaries
+    before one of the 'add' calls forces a flush to disk.
+    """
 
     log_timers_to_tensorboard: bool = False
     """If set, write timers to tensorboard."""
@@ -570,7 +526,8 @@ class CheckpointConfig:
     """Algorithm for local non-persistent checkpointing."""
 
     finetune: bool = False
-    """Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0. Assumed when loading a release checkpoint."""
+    """Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0.
+    Assumed when loading a release checkpoint."""
 
     pretrained_checkpoint: Optional[str] = None
     """Directory containing a pretrained model checkpoint for finetuning."""
@@ -582,7 +539,7 @@ class CheckpointConfig:
     """Override any command line arguments with arguments from the checkpoint"""
 
     exit_on_missing_checkpoint: bool = False
-    """If '--load' is set, but checkpoint is not found (e.g., path typo), then exit instead of random initialization."""
+    """If 'load' is set, but checkpoint is not found (e.g., path typo), then exit instead of random initialization."""
 
     auto_detect_ckpt_format: bool = False
     """Determine if the checkpoint format is in legacy or distributed format. If False, expects
@@ -599,14 +556,14 @@ class CheckpointConfig:
     """Save directory for converted checkpoint."""
 
     ckpt_convert_update_legacy_dist_opt_format: bool = False
-    """When loading a checkpoint, update the legacy format for the distributed optimizer, which
-    previously used a merged param/grad buffer and a different bucket mapping. The legacy
-    format was deprecated on Feb 13, 2024."""
+    """When loading a checkpoint, update the legacy format for the distributed optimizer,
+    which previously used a merged param/grad buffer and a different bucket mapping.
+    The legacy format was deprecated on Feb 13, 2024."""
 
     fully_parallel_save: bool = True
-    """Disable applying full save parallelization across DP for distributed checkpoints. Depending
-    on ckpt format might decrease the number of files in the checkpoint. Makes
-    DistributedOptimizer checkpoint non-reshardable."""
+    """Disable applying full save parallelization across DP for distributed checkpoints.
+    Depending on ckpt format might decrease the number of files in the checkpoint.
+    Makes DistributedOptimizer checkpoint non-reshardable."""
 
     async_save: bool = False
     """Apply async checkpointing save. Currently works only with `torch_dist` distributed checkpoint format."""
@@ -615,8 +572,8 @@ class CheckpointConfig:
     """Apply full load parallelization across DP for distributed checkpoints."""
 
     ckpt_assume_constant_structure: bool = False
-    """If the model and optimizer state dict structure is constant throughout a *single training
-    job, it allows for different checkpointing performance optimizations."""
+    """If the model and optimizer state dict structure is constant throughout a *single training job,
+    it allows for different checkpointing performance optimizations."""
 
     dist_ckpt_strictness: Literal[
         "assume_ok_unexpected",
@@ -628,9 +585,8 @@ class CheckpointConfig:
         "return_all",
         "ignore_all",
     ] = "assume_ok_unexpected"
-    """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for
-    flags meaning. NOTE: This flag controls only distributed checkpoint load from storage,
-    not loading state dict into the model."""
+    """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning.
+    NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
 
     replication: bool = False
     """If set, replication of local checkpoints is enabled. Needs to be enabled on all ranks."""
@@ -652,7 +608,9 @@ class FaultToleranceConfig:
     """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
 
     calc_ft_timeouts: bool = False
-    """If set, FT package will try to automatically compute the timeouts. Note: This feature is for Nvidia internal use only."""
+    """If set, FT package will try to automatically compute the timeouts.
+    Note: This feature is for Nvidia internal use only.
+    """
 
     simulate_fault: bool = False
     """Sets a simulated fault for fault tolerance. NOTE: This if for fault tolerance testing only."""
@@ -731,7 +689,9 @@ class ConfigContainer(Container):
         total_model_size = encoder_model_size + decoder_model_size
         assert (
             world_size % total_model_size == 0
-        ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+        ), f"""
+        world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})
+        """
         self.data_parallel_size = world_size // total_model_size
 
         self.model_config.use_cpu_initialization = (

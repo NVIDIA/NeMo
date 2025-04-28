@@ -659,17 +659,22 @@ def save_checkpoint(
                 )
                 torch.save(train_state_dict, train_state_local_filename)
                 shutil.copy(train_state_local_filename, train_state_global_filename)
+                iteration = train_state_dict['step'].item()
+                tensor_rank = tensor_rank if tensor_rank is not None else mpu.get_tensor_model_parallel_rank()
+                tensor_world_size = mpu.get_tensor_model_parallel_world_size()
+                pipeline_rank = pipeline_rank if pipeline_rank is not None else mpu.get_pipeline_model_parallel_rank()
+                pipeline_world_size = mpu.get_pipeline_model_parallel_world_size()
 
                 cfg.to_yaml(config_filename)
                 print_rank_0(
-                    f"  successfully saved checkpoint from iteration {train_state_dict['step'].item():7d} to {ckpt_cfg.save} "
-                    f"[ t {(tensor_rank if tensor_rank is not None else mpu.get_tensor_model_parallel_rank()) + 1}/{mpu.get_tensor_model_parallel_world_size()}, "
-                    f"p {(pipeline_rank if pipeline_rank is not None else mpu.get_pipeline_model_parallel_rank()) + 1}/{mpu.get_pipeline_model_parallel_world_size()} ]"
+                    f"  successfully saved checkpoint from iteration {iteration:7d} to {ckpt_cfg.save} "
+                    f"[ t {tensor_rank + 1} / {tensor_world_size}, "
+                    f"p {pipeline_rank + 1} / {pipeline_world_size} ]"
                 )
                 if cfg.logger_config.log_progress and ckpt_cfg.async_save:
                     append_to_progress_log(
                         ckpt_cfg.save,
-                        f"Saved async checkpoint\tIteration: {train_state_dict['step'].item()}",
+                        f"Saved async checkpoint\tIteration: {iteration}",
                         barrier=False,
                     )
 
@@ -932,7 +937,8 @@ def load_checkpoint(
     pretrained_dir = cfg.checkpoint_config.pretrained_checkpoint
     if pretrained_dir is not None and not checkpoint_exists(load_dir):
         print_rank_0(
-            f"Checkpoint file not found in load directory {load_dir} attempting to finetune with checkpoint in {pretrained_dir}"
+            f"Checkpoint file not found in load directory {load_dir}. "
+            f"Attempting to finetune with checkpoint in {pretrained_dir}"
         )
         load_dir = pretrained_dir
         if not checkpoint_exists(load_dir):
@@ -1013,9 +1019,12 @@ def load_checkpoint(
                     # This is for backwards-compatibility. Can be removed once 'fully_sharded_bucket_space' loading is removed
                     for maybe_dist_opt_optim_state in (state_dict["optimizer"], *state_dict["optimizer"].values()):
                         if "param_state_sharding_type" in maybe_dist_opt_optim_state:
-                            if maybe_dist_opt_optim_state["param_state_sharding_type"] == "fully_sharded_bucket_space":
+                            if (
+                                maybe_dist_opt_optim_state["param_state_sharding_type"] == "fully_sharded_bucket_space"
+                            ):  # pylint: disable=C0301
                                 print_rank_0(
-                                    "Detected deprecated `fully_sharded_bucket_space` DistributedOptimizer checkpoint format"
+                                    "Detected deprecated `fully_sharded_bucket_space` "
+                                    "DistributedOptimizer checkpoint format"
                                 )
                                 optim_sd_kwargs["sharding_type"] = maybe_dist_opt_optim_state[
                                     "param_state_sharding_type"
@@ -1024,8 +1033,9 @@ def load_checkpoint(
 
                     if ckpt_tp_pp != run_tp_pp and optim_sd_kwargs["sharding_type"] != "fully_sharded_model_space":
                         raise RuntimeError(
-                            f"{mismatch_msg}: not supported for DistributedOptimizer with sharding type {optim_sd_kwargs['sharding_type']}."
-                            f" Please use `--ckpt-fully-parallel-save` flag during checkpoint saving."
+                            f"{mismatch_msg}: not supported for DistributedOptimizer "
+                            f"with sharding type {optim_sd_kwargs['sharding_type']}. "
+                            f"Please use `ckpt-fully-parallel-save` flag during checkpoint saving."
                         )
             else:
                 gen_sd_optim = None
@@ -1138,7 +1148,8 @@ def load_checkpoint(
             #     model_checkpoint_name = get_checkpoint_name(load_dir, iteration, release)
             #     optim_checkpoint_name = get_distributed_optimizer_checkpoint_name(model_checkpoint_name)
             #     optimizer.load_parameter_state(
-            #         optim_checkpoint_name, update_legacy_format=cfg.checkpoint_config.ckpt_convert_update_legacy_dist_opt_format
+            #         optim_checkpoint_name,
+            #         update_legacy_format=cfg.checkpoint_config.ckpt_convert_update_legacy_dist_opt_format,
             #     )
 
             # Load scheduler.
@@ -1302,9 +1313,10 @@ def _get_non_persistent_iteration(
     elif cfg.checkpoint_config.non_persistent_ckpt_type == "local":
         return checkpointing_context["local_checkpoint_manager"].find_latest()
     else:
-        assert (
-            False
-        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        raise ValueError(
+            "Please use local or global non-persistent checkpoints. "
+            f"Got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        )
 
 
 def _load_non_persistent_base_checkpoint(
@@ -1338,9 +1350,10 @@ def _load_non_persistent_base_checkpoint(
         )
         return state_dict, checkpoint_name, False, CheckpointType.LOCAL
     else:
-        assert (
-            False
-        ), f"Please use local or global non-persistent checkpoints(got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        raise ValueError(
+            "Please use local or global non-persistent checkpoints. "
+            f"Got: {cfg.checkpoint_config.non_persistent_ckpt_type})"
+        )
 
 
 def _load_global_dist_base_checkpoint(
@@ -1366,7 +1379,8 @@ def _load_global_dist_base_checkpoint(
             use_dist_ckpt(cfg.checkpoint_config.ckpt_format),
         )
         raise RuntimeError(
-            "Detected load from a distributed checkpoint, but neither --use-dist-ckpt nor --auto-detect-ckpt-format is set."
+            "Detected load from a distributed checkpoint, "
+            "but neither use-dist-ckpt nor auto-detect-ckpt-format is set."
         )
 
     checkpoint_name = get_checkpoint_name(load_dir, iteration, release, return_base_dir=True)
