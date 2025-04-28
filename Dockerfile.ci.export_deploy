@@ -1,0 +1,81 @@
+# syntax=docker/dockerfile:1-labs
+
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
+
+FROM ${BASE_IMAGE} AS trt-base
+ARG IMAGE_LABEL
+LABEL "nemo.library"=${IMAGE_LABEL}
+
+ENV TRANSFORMERS_OFFLINE=0
+ENV HYDRA_FULL_ERROR=1
+ENV PYTHONUNBUFFERED=1
+
+# APT packages
+RUN <<"EOF" bash -ex
+apt-get update
+apt-get install -y bc libsox-fmt-all -y
+apt-get clean
+EOF
+
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library trt --mode install
+EOF
+
+
+FROM trt-base AS trt-llm-wheel
+
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library trtllm --mode build
+EOF
+
+
+FROM trt-base as final
+
+ARG MLM_REPO
+ARG MLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library mcore --mode build
+  ls -al /tmp/Megatron-LM || true
+EOF
+
+WORKDIR /workspace
+RUN \
+  --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
+  --mount=type=bind,source=requirements,target=/tmp/NeMo/requirements \
+  --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=/tmp/NeMo/tools/ctc_segmentation/requirements.txt \
+  --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh \
+  --mount=type=bind,source=setup.py,target=/tmp/NeMo/setup.py \
+  --mount=type=bind,source=external/patches,target=/tmp/NeMo/external/patches \
+  --mount=type=bind,source=README.md,target=/tmp/NeMo/README.md \
+  --mount=type=bind,source=nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
+  --mount=type=bind,source=nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
+    
+    bash /tmp/NeMo/reinstall.sh --library all --mode install
+    rm -rf $NEMO_DIR || true
+EOF
+
+
+ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
+ENV NEMO_HOME="/home/TestData/nemo_home"
+

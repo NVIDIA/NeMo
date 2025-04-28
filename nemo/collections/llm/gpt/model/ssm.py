@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Callable, Literal, Optional
+from typing import Annotated, Callable, Literal, Optional, Union
 
 import torch
 import torch.nn.functional as F
@@ -27,7 +27,6 @@ from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_d
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, get_vocab_size, io, teardown
 from nemo.lightning.io.state import _ModelState
-from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 try:
@@ -36,7 +35,7 @@ try:
     from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
-    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec
+    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec as default_mamba_stack_spec
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -45,6 +44,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE_OR_TE = False
 
 from megatron.core.transformer.enums import AttnBackend
+from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 
@@ -208,11 +208,18 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     deallocate_pipeline_outputs: bool = True
     bias_dropout_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
+    mamba_stack_spec: Union[ModuleSpec, Callable[[], ModuleSpec]] = field(
+        default_factory=lambda: default_mamba_stack_spec
+    )
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
         """
         Configures the model for training or inference.
         """
+        mamba_stack_spec = self.mamba_stack_spec
+        if not isinstance(mamba_stack_spec, ModuleSpec):
+            mamba_stack_spec = mamba_stack_spec()
+
         return MCoreMambaModel(
             self,
             mamba_stack_spec=mamba_stack_spec,
@@ -391,7 +398,7 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
                 'decoder.final_norm.weight': 'decoder.final_norm.weight',
                 'output_layer.weight': 'output_layer.weight',
             }
-            if "nemotron5" in self.model_config.mapping_type:
+            if "nemotronh" in self.model_config.mapping_type:
                 # This style is a workaround for linting error
                 mapping.update({key: key for key in ['decoder.layers.*.mixer.in_proj.layer_norm_weight']})
             else:
@@ -448,9 +455,9 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
 
 
 @io.model_importer(MambaModel, "hf")
-class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel]):
+class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel]):
     """
-    A model importer for loading Hugging Face-based Nemotron5 models.
+    A model importer for loading Hugging Face-based NemotronH models.
 
     Attributes:
         path (str): The path to the Hugging Face model checkpoint.
@@ -465,7 +472,7 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
 
     def apply(self, output_path: Path) -> Path:
         """
-        Converts the Nemotron5 model to Nemo format and saves it to the specified path.
+        Converts the NemotronH model to Nemo format and saves it to the specified path.
         Args:
             output_path (Path): The path to save the exported model.
         Returns:
@@ -480,7 +487,7 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
 
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Nemotron5 Hybrid model to Nemo, model saved to {output_path}")
+        print(f"Converted NemotronH Hybrid model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -554,26 +561,20 @@ class HFNemotron5Importer(io.ModelConnector["AutoModelForCausalLM", MambaModel])
                 base //= 2
             return base
 
-        output = Nemotron5HybridConfig8B(
-            num_layers=source.num_hidden_layers,
-            hybrid_override_pattern=source.hybrid_override_pattern,
-            hidden_size=source.hidden_size,
-            ffn_hidden_size=source.intermediate_size,
-            num_attention_heads=source.num_attention_heads,
-            layernorm_epsilon=source.layer_norm_epsilon,
-            num_query_groups=source.num_key_value_heads,
-            mamba_num_groups=source.n_groups,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            fp16=(dtype_from_hf(source) == torch.float16),
-            bf16=(dtype_from_hf(source) == torch.bfloat16),
-            params_dtype=dtype_from_hf(source),
-        )
+        if "8B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig8B()
+        elif "47B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig47B()
+        elif "56B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig56B()
+        else:
+            raise ValueError(f"Unsupported model size: {source._name_or_path}")
 
-        return output
+        return nemotron_h_config
 
 
 @io.model_exporter(MambaModel, "hf")
-class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"]):
+class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"]):
     """
     A model exporter for converting Mamba models to Hugging Face format.
 
@@ -666,7 +667,7 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
             AutoTokenizer: The tokenizer object.
         """
 
-        return AutoTokenizer.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
+        return AutoTokenizer.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
 
     @property
     def config(self):
@@ -677,24 +678,15 @@ class HFNemotron5Exporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         """
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
-        # TODO @ataghibakhsh: Change AutoConfig to Nemotron5Config once merged to HF
-
-        hf_config = AutoConfig.from_pretrained("nvidia/nm5-8b-8k-base", trust_remote_code=True)
-        hf_config.hybrid_override_pattern = source.hybrid_override_pattern
-        hf_config.n_groups = source.mamba_num_groups
-        hf_config.num_hidden_layers = source.num_layers
-        hf_config.mamba_head_dim = source.mamba_head_dim
-        hf_config.mamba_num_heads = source.hidden_size * 2 // source.mamba_head_dim
-        hf_config.mamba_state_size = source.mamba_state_dim
-        hf_config.hidden_size = source.hidden_size
-        hf_config.intermediate_size = source.ffn_hidden_size
-        hf_config.num_attention_heads = source.num_attention_heads
-        hf_config.max_position_embeddings = source.seq_length
-        hf_config.rms_norm_eps = source.layernorm_epsilon
-        hf_config.num_key_value_heads = source.num_query_groups
-        hf_config.vocab_size = source.vocab_size
-        hf_config.mlp_hidden_act = 'relu2'
-        hf_config.mamba_hidden_act = "silu"
+        # TODO @ataghibakhsh: Change AutoConfig to NemotronHConfig once merged to HF
+        if type(source) == NemotronHConfig8B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
+        elif type(source) == NemotronHConfig47B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-47B-Base-8K", trust_remote_code=True)
+        elif type(source) == NemotronHConfig56B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-56B-Base-8K", trust_remote_code=True)
+        else:
+            raise ValueError(f"Unsupported model size: {source}")
 
         return hf_config
 
@@ -953,25 +945,18 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
 
 
 @dataclass
-class Nemotron5HybridConfig8B(SSMConfig):
-    """Nemotron5HybridConfig8B"""
+class NemotronHConfigBase(SSMConfig):
+    """Base configuration class for NemotronH models"""
 
-    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
-    num_layers: int = 52
     seq_length: int = 8192
-    hidden_size: int = 4096
     mamba_num_groups: int = 8
-    mamba_state_dim: int = 128
     mamba_head_dim: int = 64
-    mamba_nheads: int = 256
-    ffn_hidden_size: int = 21504
-    num_attention_heads: int = 32
     num_query_groups: int = 8
     make_vocab_size_divisible_by: int = 128
     activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
     tokenizer_library: str = 'tiktoken'
     tokenizer_name: str = "TiktokenTokenizer"
-    mapping_type: str = "nvidia-hybrid-nemotron5"
+    mapping_type: str = "nvidia-hybrid-nemotronh"
     masked_softmax_fusion: bool = True
     apply_query_key_layer_scaling: bool = False
     persist_layer_norm: bool = True
@@ -982,66 +967,44 @@ class Nemotron5HybridConfig8B(SSMConfig):
 
 
 @dataclass
-class Nemotron5HybridConfig47B(SSMConfig):
-    """Nemotron5HybridConfig47B"""
+class NemotronHConfig8B(NemotronHConfigBase):
+    """NemotronHConfig8B"""
+
+    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    num_layers: int = 52
+    hidden_size: int = 4096
+    mamba_state_dim: int = 128
+    ffn_hidden_size: int = 21504
+    num_attention_heads: int = 32
+
+
+@dataclass
+class NemotronHConfig47B(NemotronHConfigBase):
+    """NemotronHConfig47B"""
 
     hybrid_override_pattern: str = (
         "M-M-M-M-M-M-M-M-M*-M-M-M-M-M-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-M-M---MM---M-M*-M-M-M-M-M-"
     )
     num_layers: int = 98
-    seq_length: int = 8192
     hidden_size: int = 8192
-    mamba_num_groups: int = 8
     mamba_state_dim: int = 256
-    mamba_head_dim: int = 64
-    mamba_nheads: int = 256
     ffn_hidden_size: int = 30720
     num_attention_heads: int = 64
-    num_query_groups: int = 8
-    make_vocab_size_divisible_by: int = 128
-    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
-    tokenizer_library: str = 'tiktoken'
-    tokenizer_name: str = "TiktokenTokenizer"
-    mapping_type: str = "nvidia-hybrid-nemotron5"
-    masked_softmax_fusion: bool = True
-    apply_query_key_layer_scaling: bool = False
-    persist_layer_norm: bool = True
-    attention_softmax_in_fp32: bool = False
-    vocab_size: int = 131072
-    first_last_layers_bf16: bool = True
-    is_hybrid_model: bool = True
 
 
 @dataclass
-class Nemotron5HybridConfig56B(SSMConfig):
-    """Nemotron5HybridConfig56B"""
+class NemotronHConfig56B(NemotronHConfigBase):
+    """NemotronHConfig56B"""
 
     hybrid_override_pattern: str = (
         "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-"
         "M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
     )
     num_layers: int = 118
-    seq_length: int = 8192
     hidden_size: int = 8192
-    mamba_num_groups: int = 8
     mamba_state_dim: int = 256
-    mamba_head_dim: int = 64
-    mamba_nheads: int = 256
     ffn_hidden_size: int = 32768
     num_attention_heads: int = 64
-    num_query_groups: int = 8
-    make_vocab_size_divisible_by: int = 128
-    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
-    tokenizer_library: str = 'tiktoken'
-    tokenizer_name: str = "TiktokenTokenizer"
-    mapping_type: str = "nvidia-hybrid-nemotron5"
-    masked_softmax_fusion: bool = True
-    apply_query_key_layer_scaling: bool = False
-    persist_layer_norm: bool = True
-    attention_softmax_in_fp32: bool = False
-    vocab_size: int = 131072
-    first_last_layers_bf16: bool = True
-    is_hybrid_model: bool = True
 
 
 __all__ = [
@@ -1053,7 +1016,8 @@ __all__ = [
     "BaseMambaConfig2_7B",
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
-    "Nemotron5HybridConfig8B",
-    "Nemotron5HybridConfig47B",
-    "Nemotron5HybridConfig56B",
+    "NemotronHConfigBase",
+    "NemotronHConfig8B",
+    "NemotronHConfig47B",
+    "NemotronHConfig56B",
 ]

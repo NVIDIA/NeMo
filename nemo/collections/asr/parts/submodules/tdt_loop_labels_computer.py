@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Tuple, Union
@@ -34,7 +35,6 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
-from nemo.utils.nemo_logging import LogMode
 
 try:
     from cuda import cudart
@@ -90,6 +90,7 @@ class LoopLabelsState:
     batch_lm_states: Optional[torch.Tensor] = None
     lm_scores: Optional[torch.Tensor] = None
     batch_lm_states_candidates: Optional[torch.Tensor] = None
+    durations: Optional[torch.Tensor] = None  # storage for current predicted durations
 
     def __init__(
         self,
@@ -103,6 +104,7 @@ class LoopLabelsState:
         preserve_alignments=False,
         preserve_frame_confidence=False,
         include_duration_confidence: bool = False,
+        include_duration: bool = False,
     ):
         """
 
@@ -117,6 +119,7 @@ class LoopLabelsState:
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
             include_duration_confidence: if duration confidence is needed to be added to the frame confidence
+            include_duration: if predicted token durations are needed to be added to the Hypothesis object
         """
         self.device = device
         self.float_dtype = float_dtype
@@ -169,6 +172,11 @@ class LoopLabelsState:
             )
         else:
             self.alignments = None
+
+        if include_duration:
+            self.durations = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
+        else:
+            self.durations = None
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
         """Check if need to reinit state: larger batch_size/max_time, or new device"""
@@ -278,13 +286,10 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs if conditions met"""
         if self.cuda_graphs_mode is not None:
-            # CUDA graphs are enabled
+            # CUDA graphs are already enabled
             return
 
         if not self.allow_cuda_graphs:
-            self.cuda_graphs_mode = None
-        elif self.include_duration:
-            logging.warning("`include_duration` is not implemented for CUDA graphs")
             self.cuda_graphs_mode = None
         else:
             # cuda graphs are allowed
@@ -723,6 +728,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             preserve_alignments=self.preserve_alignments,
             preserve_frame_confidence=self.preserve_frame_confidence,
             include_duration_confidence=self.include_duration_confidence,
+            include_duration=self.include_duration,
         )
         self.state.all_durations = self.durations.to(self.state.device)
 
@@ -747,6 +753,9 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
+        # warmup before graph compilation
+        self._warmup_for_cuda_graphs()
+
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -756,6 +765,26 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             pass
         else:
             raise NotImplementedError
+
+    def _warmup_for_cuda_graphs(self):
+        """Warmup before compiling CUDA graphs"""
+        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
+        # 11 warmup steps required in DDP mode
+        # see https://pytorch.org/docs/stable/notes/cuda.html#usage-with-distributeddataparallel
+        num_runs = 11 if is_ddp else 3
+        self.state.encoder_output_projected.fill_(0.0)
+        self.state.encoder_output_length.fill_(1)
+        s = torch.cuda.Stream()
+        s.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(s):
+            for _ in range(num_runs):
+                self._before_outer_loop()
+                self._before_inner_loop_get_decoder_output()
+                self._before_inner_loop_get_joint_output()
+                self._inner_loop_code()
+                self._after_inner_loop()
+        torch.cuda.current_stream().wait_stream(s)
+        self.state.encoder_output_length.fill_(0)
 
     def _partial_graphs_compile(self):
         """Compile decoding by parts"""
@@ -818,6 +847,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
+            # capture: while self.active_mask_any:
             (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
             outer_loop_kernel = self._create_outer_while_loop_kernel()
             active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
@@ -833,6 +863,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             ):
                 self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
+                # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
@@ -844,7 +875,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
                     dtype=np.uint64,
                 )
                 # while self.advance_mask_any.item():
-
                 with with_conditional_node(
                     inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
                 ):
@@ -937,6 +967,9 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
         # for blank labels force duration >= 1
         durations.masked_fill_(torch.logical_and(durations == 0, self.state.blank_mask), 1)
+
+        if self.state.durations is not None:
+            self.state.durations.copy_(durations, non_blocking=True)
 
         if self.state.alignments is not None:
             float_dtype = self.state.float_dtype
@@ -1059,6 +1092,9 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             out=self.state.time_indices,
         )
 
+        if self.state.durations is not None:
+            torch.where(self.state.advance_mask, durations, self.state.durations, out=self.state.durations)
+
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
         torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
@@ -1081,6 +1117,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             self.state.labels,
             self.state.time_indices_current_labels,
             self.state.scores,
+            self.state.durations,
         )
 
         if self.ngram_lm_batch is not None:
@@ -1119,12 +1156,12 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         x: torch.Tensor,
         out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        # TODO(vbataev): Fix CUDA graphs in distributed environment and re-enable decoding with CUDA graphs
-        is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            if not is_ddp:
+            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
+            # disable CUDA graphs if DDP and Mixed Precision are used
+            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
+            with ctx:
+                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
                 return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
-            else:
-                logging.warning("CUDA graphs are temporary disabled in distributed environment", mode=LogMode.ONCE)
 
         return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)

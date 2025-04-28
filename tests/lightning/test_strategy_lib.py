@@ -41,7 +41,9 @@ def test_set_model_parallel_attributes() -> None:
 
     class DummyModel:
         def __init__(self):
-            self.config = TransformerConfig(hidden_size=128, num_attention_heads=2, num_layers=2, num_moe_experts=2)
+            self.config = TransformerConfig(
+                hidden_size=128, num_attention_heads=2, num_layers=2, num_moe_experts=2, add_bias_linear=False
+            )
 
         def configure_model(self):
             pass
@@ -151,6 +153,8 @@ def test_init_model_parallel(mock_mpu, *args):
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
         order="tp-cp-ep-dp-pp",
+        num_distributed_optimizer_instances=1,
+        nccl_communicator_config_path=None,
     )
 
 
@@ -190,6 +194,8 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
         order="tp-cp-ep-pp-dp",
+        num_distributed_optimizer_instances=1,
+        nccl_communicator_config_path=None,
     )
 
 

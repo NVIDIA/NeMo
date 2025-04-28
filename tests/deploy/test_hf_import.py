@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,20 @@ def test_hf_generate():
     assert len(output) == 2, "Output should have to be a list."
     assert len(output[0]) > 0, "First list in the output should have more than 0 elements."
     assert len(output[1]) > 0, "Second list in the output should have more than 0 elements."
+
+    # Test output_logits and output_scores
+    output = hf_deployable.generate(
+        text_inputs=["What is the color of a banana? ", "Tell me a joke."],
+        max_length=32,
+        do_sample=True,
+        output_logits=True,
+        output_scores=True,
+        return_dict_in_generate=True,
+    )
+    assert "logits" in output, "Output should have logits."
+    assert "scores" in output, "Output should have scores."
+    assert "sentences" in output, "Output should have sentences."
+    assert len(output["sentences"]) == 2, "Output should have 2 sentences."
 
 
 @pytest.mark.run_only_on('GPU')
