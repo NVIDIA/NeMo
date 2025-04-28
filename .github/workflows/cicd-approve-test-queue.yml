@@ -128,7 +128,7 @@ jobs:
               }
               result = make_request(deployment_url, method="POST", data=status_data)
 
-              if result:
+              if result is not None:
                   total_workflows += 1
               else:
                   print(f"Failed to approve deployment {deployment['id']}")
