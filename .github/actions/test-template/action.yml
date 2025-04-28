@@ -94,7 +94,7 @@ runs:
         )
 
         ARG=("")
-        if [[ "${{ inputs.cpu-only }}" == "true" ]]; then
+        if [[ "${{ inputs.cpu-only }}" == "false" ]]; then
           ARG=("--runtime=nvidia --gpus all")
         fi
 
