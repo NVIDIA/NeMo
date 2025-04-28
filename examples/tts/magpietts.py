@@ -18,7 +18,7 @@ from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.tts.models import (
     MagpieTTSModel,
-    MagpieTTSModelInference,
+    MagpieTTSModelOfflinePODataGen,
     MagpieTTSModelOfflinePO,
     MagpieTTSModelOnlinePO,
 )
@@ -60,9 +60,7 @@ def main(cfg):
             model_cfg.reference_model_ckpt_path = cfg.init_from_ptl_ckpt
         model = MagpieTTSModelOnlinePO(cfg=model_cfg, trainer=trainer)
     elif cfg.get('mode', 'train') == 'test':
-        model = MagpieTTSModelInference(cfg=cfg.model, trainer=trainer)
-    # elif cfg.get('mode', 'train') == 'test':
-    #     model = MagpieTTSModelPrefDataGen(cfg=cfg.model, trainer=trainer)
+        model = MagpieTTSModelOfflinePODataGen(cfg=cfg.model, trainer=trainer)
     else:
         raise NotImplementedError(f"Only train, dpo_train and test modes are supported. Got {cfg.mode}")
 
