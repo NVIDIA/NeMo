@@ -121,7 +121,8 @@ jobs:
               echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
             done)
 
-          LAST_PRS="$LAST_PRS nemoci.azurecr.io/nemo_container-buildcache:${{ github.event.pull_request.number }}"
+          LAST_PRS="$LAST_PRS
+nemoci.azurecr.io/nemo_container-buildcache:${{ github.event.pull_request.number }}"
           echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
           echo "$LAST_PRS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
