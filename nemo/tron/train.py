@@ -222,7 +222,9 @@ def train(
         #     # Dummy train_step to fast forward train_data_iterator.
         #     dummy_train_step(train_data_iterator)
         #     global_state.train_state.step += 1
-        #     batch_size = parallel_state.get_data_parallel_world_size() * args.micro_batch_size * get_num_microbatches()
+        #     batch_size = (
+        #         parallel_state.get_data_parallel_world_size() * args.micro_batch_size * get_num_microbatches()
+        #     )
         #     global_state.train_state.consumed_train_samples += batch_size
         #     global_state.train_state.skipped_train_samples += batch_size
         #     continue

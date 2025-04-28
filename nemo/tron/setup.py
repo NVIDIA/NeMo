@@ -46,7 +46,7 @@ from nemo.utils.import_utils import safe_import
 _, HAVE_RESIL = safe_import("nvidia_resiliency_ext.checkpointing")
 
 try:
-    from megatron.core.distributed import TorchFullyShardedDataParallel  # noqa: F401, W0611
+    from megatron.core.distributed import TorchFullyShardedDataParallel  # noqa: F401 pylint: disable=unused-import
 
     HAVE_FSDP2 = True
 except ImportError:

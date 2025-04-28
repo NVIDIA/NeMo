@@ -22,6 +22,7 @@ from nemo.tron.converter.common import BaseExporter, BaseImporter
 
 if TYPE_CHECKING:
     from transformers import Qwen2Config as HFQwen2Config
+    from transformers import Qwen2ForCausalLM
 
 logger = logging.getLogger(__name__)
 

@@ -125,7 +125,7 @@ def finetuning_train_valid_test_datasets_provider(
         A tuple containing the train, validation, and test datasets.
     """
     print_rank_0(
-        f"> building train, validation, and test datasets for Finetuning dataset from {dataset_config.dataset_root} ..."
+        f">building train, validation, and test datasets for Finetuning dataset from {dataset_config.dataset_root} ..."
     )
 
     train_ds, valid_ds, test_ds = FinetuningDatasetBuilder(

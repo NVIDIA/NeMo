@@ -46,7 +46,7 @@ from megatron.core.rerun_state_machine import get_rerun_state_machine
 
 from nemo.tron import fault_tolerance
 from nemo.tron.config import ConfigContainer
-from nemo.tron.state import GlobalState
+from nemo.tron.state import GlobalState, TrainState
 from nemo.tron.utils import wandb_utils
 from nemo.tron.utils.async_utils import is_empty_async_queue, schedule_async_save
 from nemo.tron.utils.common_utils import (
@@ -1016,7 +1016,8 @@ def load_checkpoint(
                         if run_config["checkpoint_config"]["fully_parallel_save"]
                         else "dp_zero_gather_scatter"
                     )
-                    # This is for backwards-compatibility. Can be removed once 'fully_sharded_bucket_space' loading is removed
+                    # This is for backwards-compatibility.
+                    # Can be removed once 'fully_sharded_bucket_space' loading is removed
                     for maybe_dist_opt_optim_state in (state_dict["optimizer"], *state_dict["optimizer"].values()):
                         if "param_state_sharding_type" in maybe_dist_opt_optim_state:
                             if (

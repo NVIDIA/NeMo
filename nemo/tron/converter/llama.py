@@ -22,6 +22,7 @@ from nemo.tron.converter.common import BaseExporter, BaseImporter
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
+    from transformers import LlamaForCausalLM
 
 logger = logging.getLogger(__name__)
 

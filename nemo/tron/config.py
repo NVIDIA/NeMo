@@ -236,7 +236,8 @@ class TrainingConfig:
     """
 
     manual_gc_eval: bool = True
-    """When using manual garbage collection, disable garbage collection at the start and the end of each evaluation run.
+    """When using manual garbage collection,
+    disable garbage collection at the start and the end of each evaluation run.
     """
 
     # ---------------- Validation config. ----------------
