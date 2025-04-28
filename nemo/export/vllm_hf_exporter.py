@@ -13,12 +13,12 @@
 # limitations under the License.
 
 
+import shutil
+import tempfile
+from pathlib import Path
 from typing import List
 
 import numpy as np
-import tempfile
-import shutil
-from pathlib import Path
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
 
@@ -73,6 +73,7 @@ class vLLMHFExporter(ITritonDeployable):
         model_path = Path(model)
         if (model_path / 'context').exists():
             from nemo.collections.llm import api
+
             self._tmp_hf_dir = tempfile.mkdtemp()
             api.export_ckpt(
                 path=model_path,
