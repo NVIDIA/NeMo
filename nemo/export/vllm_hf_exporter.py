@@ -16,10 +16,17 @@
 from typing import List
 
 import numpy as np
+import tempfile
+import shutil
+from pathlib import Path
 from pytriton.decorators import batch
 from pytriton.model_config import Tensor
-from vllm import LLM, SamplingParams
-from vllm.lora.request import LoRARequest
+
+try:
+    from vllm import LLM, SamplingParams
+    from vllm.lora.request import LoRARequest
+except ImportError:
+    print("vLLM is not installed. Please install it using `pip install vllm`.")
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
@@ -50,6 +57,11 @@ class vLLMHFExporter(ITritonDeployable):
     def __init__(self):
         self.model = None
         self.lora_models = None
+        self._tmp_hf_dir = None
+
+    def __del__(self):
+        if self._tmp_hf_dir:
+            shutil.rmtree(self._tmp_hf_dir)
 
     def export(self, model, enable_lora: bool = False):
         """
@@ -57,6 +69,19 @@ class vLLMHFExporter(ITritonDeployable):
         Args:
             model (str): model name or the path
         """
+
+        model_path = Path(model)
+        if (model_path / 'context').exists():
+            from nemo.collections.llm import api
+            self._tmp_hf_dir = tempfile.mkdtemp()
+            api.export_ckpt(
+                path=model_path,
+                target='hf',
+                output_path=self._tmp_hf_dir,
+                overwrite=True,
+            )
+            model = str(self._tmp_hf_dir)
+
         self.model = LLM(model=model, enable_lora=enable_lora)
 
     def add_lora_models(self, lora_model_name, lora_model):

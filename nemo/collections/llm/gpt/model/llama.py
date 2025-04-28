@@ -624,10 +624,20 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
-            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
-            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
+
+        if "module.decoder.layers.0.input_layernorm.weight" in source.state_dict():
+            layer_norm_attention_key = "decoder.layers.*.input_layernorm.weight"
+        else:
+            layer_norm_attention_key = "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight"
+        mapping[layer_norm_attention_key] = "model.layers.*.input_layernorm.weight"
+
+        if "module.decoder.layers.0.pre_mlp_layernorm.weight" in source.state_dict():
+            layer_norm_mlp_key = "decoder.layers.*.pre_mlp_layernorm.weight"
+        else:
+            layer_norm_mlp_key = "decoder.layers.*.mlp.linear_fc1.layer_norm_weight"
+        mapping[layer_norm_mlp_key] = "model.layers.*.post_attention_layernorm.weight"
 
         transforms = [
             io.state_transform(
