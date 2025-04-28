@@ -26,6 +26,8 @@ use `import_ckpt` with `output_path` set to a persistent directory, then use the
 
 If using a custom tokenizer, provide the HF tokenizer name in `--hf-tokenizer` and optionally a chat template in `--chat-template`, which will
 override the default chat template. For example, this is useful when finetuning a base model to following instructions using the instruct model's tokenizer.
+
+Note: to get the correct assistant mask from HF, you may need to customize the chat template to include a 'generation' keyword. See https://github.com/huggingface/transformers/pull/30650
 """
 import argparse
 from functools import partial
@@ -241,6 +243,10 @@ def main():
     if args.resume_path:
         finetune.resume.restore_config.path = args.resume_path
 
+    if args.chat_template and 'generation' not in args.chat_template:
+        raise ValueError(
+            "Please ensure the chat template includes a 'generation' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650"
+        )
     tokenizer = run.Config(
         get_nmt_tokenizer, library='huggingface', model_name=args.hf_tokenizer, chat_template=args.chat_template
     )
