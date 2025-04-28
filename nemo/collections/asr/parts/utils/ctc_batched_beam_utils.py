@@ -176,7 +176,8 @@ class BatchedBeamHypsCTC:
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
-        new_scores = torch.max(np.log(10) * scores_matrix, dim=-1, keepdim=False).values * np.log10(np.e)
+        new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
+        # new_scores = torch.max(np.log(10) * scores_matrix, dim=-1, keepdim=False).values * np.log10(np.e)
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
         
 class BlankLMScoreMode(PrettyStrEnum):
