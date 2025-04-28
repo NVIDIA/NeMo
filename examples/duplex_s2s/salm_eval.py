@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Optional
+from typing import Optional, Union
 
 import lhotse.dataset
 import torch
@@ -33,6 +33,7 @@ class SalmEvalConfig:
     verbose: bool = True
     use_normalizer: bool = True
     device: str = "cuda"
+    extra_eos_tokens: Optional[list[str]] = None
 
 
 @hydra_runner(config_name="SalmEvalConfig", schema=SalmEvalConfig)
@@ -57,6 +58,13 @@ def main(cfg: SalmEvalConfig):
     else:
         normalizer = lambda x: x
 
+    eos_tokens = [model.text_eos_id]
+    if cfg.extra_eos_tokens is not None:
+        for t in cfg.extra_eos_tokens:
+            tid = model.tokenizer.token_to_id(t)
+            assert tid is not None, f"Token '{t}' is not in the model's vocabulary."
+            eos_tokens.append(tid)
+
     refs = []
     hyps = []
     input_durations = []
@@ -77,7 +85,7 @@ def main(cfg: SalmEvalConfig):
             generation_config=GenerationConfig(
                 max_new_tokens=cfg.max_new_tokens,
                 bos_token_id=model.text_bos_id,
-                eos_token_id=model.text_eos_id,
+                eos_token_id=eos_tokens,
                 pad_token_id=model.text_pad_id,
             ),
         )
@@ -87,7 +95,7 @@ def main(cfg: SalmEvalConfig):
         batch_duration = sum(c.duration for c in batch["cuts"])
         batch_refs = [normalizer(cut.supervisions[0].text) for cut in batch["cuts"]]
         batch_hyps = [
-            normalizer(model.tokenizer.ids_to_text(ans[ans != model.text_pad_id]).strip()) for ans in answer_ids
+            normalizer(model.tokenizer.ids_to_text(parse_hyp(ans, eos_tokens)).strip()) for ans in answer_ids
         ]
         if cfg.verbose:
             batch_wer, _, nins, ndel, nsub = word_error_rate_detail(batch_hyps, batch_refs)
@@ -110,6 +118,14 @@ def main(cfg: SalmEvalConfig):
         with SequentialJsonlWriter(cfg.output_manifest) as writer:
             for cut, ref, hyp in zip(cuts, refs, hyps):
                 writer.write({"id": cut.id, "duration": cut.duration, "text": ref, "pred_text": hyp})
+
+
+def parse_hyp(answer: torch.Tensor, eos_tokens: list[int]):
+    end = (answer == torch.isin(answer, torch.tensor(eos_tokens))).nonzero(as_tuple=True)[0]
+    if end.numel() == 0:
+        return answer
+    end = end[0]
+    return answer[:end]
 
 
 if __name__ == '__main__':

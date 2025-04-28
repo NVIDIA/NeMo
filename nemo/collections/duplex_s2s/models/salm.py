@@ -360,14 +360,20 @@ class SALM(LightningModule, HFHubMixin):
             # Prepare token embeddings and audio embeddings.
             tokens_to_embed = tokens.where(tokens != self.audio_locator_tag_id, 0)
             token_embeds = self.embed_tokens(tokens_to_embed)
-            audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
+            # TODO: temporary workaround to perform batch_size=1 inference for audio encoder
+            #   due to accuracy issues at bs>1
+            # audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
+            # audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
+            audio_embeds = [
+                self.perception(a.unsqueeze(0), al.unsqueeze(0))[0][0] for a, al in zip(audios, audio_lens)
+            ]
             # Insert audio embeddings into relevant positions in text embeddings.
             input_embeds, _, attention_mask = replace_placeholders_and_build_targets(
                 input_ids=tokens,
                 embeds=token_embeds,
                 padding_id=self.text_pad_id,
                 placeholder_id=self.audio_locator_tag_id,
-                replacements=[audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)],
+                replacements=audio_embeds,
                 target_ids=None,
             )
             fake_input_ids = torch.zeros(input_embeds.shape[1], dtype=torch.long, device=input_embeds.device)
