@@ -290,11 +290,6 @@ class ExchangeOverlappingRegionsCausal(Function):
         reqs = []
 
         # Exchange overlaps for chunk_a
-        if group_rank < group_world_size - 1:
-            # Send overlap to next rank
-            req_send_a = dist.isend(chunk_a.contiguous(), dst=group_ranks[group_rank + 1])
-            reqs.append(req_send_a)
-
         if group_rank > 0:
             # Receive overlap from previous rank
             recv_shape = list(chunk_a.shape)
@@ -304,12 +299,12 @@ class ExchangeOverlappingRegionsCausal(Function):
         else:
             recv_prev_a = None
 
-        # Exchange overlaps for chunk_b
-        if group_rank > 0:
-            # Send overlap to previous rank
-            req_send_b = dist.isend(chunk_b.contiguous(), dst=group_ranks[group_rank - 1])
-            reqs.append(req_send_b)
+        if group_rank < group_world_size - 1:
+            # Send overlap to next rank
+            req_send_a = dist.isend(chunk_a.contiguous(), dst=group_ranks[group_rank + 1])
+            reqs.append(req_send_a)
 
+        # Exchange overlaps for chunk_b
         if group_rank < group_world_size - 1:
             # Receive overlap from next rank
             recv_shape = list(chunk_b.shape)
@@ -318,6 +313,11 @@ class ExchangeOverlappingRegionsCausal(Function):
             reqs.append(req_recv_b)
         else:
             recv_next_b = None
+
+        if group_rank > 0:
+            # Send overlap to previous rank
+            req_send_b = dist.isend(chunk_b.contiguous(), dst=group_ranks[group_rank - 1])
+            reqs.append(req_send_b)
 
         # Wait for all communication to finish
         for req in reqs:
