@@ -54,7 +54,7 @@ jobs:
       - name: Select tests to run
         id: test_to_run
         run: |
-          # For manual dispatch, we replace `all` with the actual job names          
+          # For manual dispatch, we replace `all` with the actual job names
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" == "all" ]]; then
             TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
@@ -62,14 +62,14 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" != "all" ]]; then
             TESTS_TO_RUN=$TESTS_TO_RUN
 
-          # For correctly labeled PR, we replace `all` with the actual job names          
+          # For correctly labeled PR, we replace `all` with the actual job names
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" == "true" ]]; then
             TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
           # For incorrectly labeled PR, run no tests
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" != "true" ]]; then
             TESTS_TO_RUN=""
-            
+
           # For push events, run all tests. This is so that we can generate coverage
           # on branch `main`.
           elif [[ "$EVENT_NAME" == "push" ]]; then
@@ -121,6 +121,8 @@ jobs:
               echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
             done)
 
+          LAST_PRS="$LAST_PRS
+nemoci.azurecr.io/nemo_container-buildcache:${{ github.event.pull_request.number }}"
           echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
           echo "$LAST_PRS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -2372,7 +2374,7 @@ jobs:
           JOBS='[]'
           PAGE=1
           while : ; do
-            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
+            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"
             RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
             JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
             if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
@@ -2394,7 +2396,7 @@ jobs:
             LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
             LOGS=$([[ $(echo $LOGS | wc -c) -gt 0 ]] && echo -E "\`\`\`\n$LOGS\n\`\`\`" || echo "")
             LOGS=$([[ $(echo $JOB | yq '.value.outputs.potential_infra_failure') == "true" ]] && echo -E "$LOGS\n\ncc: $SLACK_WEBHOOK_ADMIN" || echo -E "$LOGS")
-            
+
             SUMMARY=$(echo "$SUMMARY" | jq \
               --arg pr "<$PR_URL|$PR_TITLE>" \
               --arg job "<$JOB_URL|$JOB_NAME>" \
