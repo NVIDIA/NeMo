@@ -440,12 +440,12 @@ class LlamaModel(GPTModel):
     """
 
     def __init__(
-            self,
-            config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
-            model_context_managers: Optional[List] = [],
+        self,
+        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        model_context_managers: Optional[List] = [],
     ):
         super().__init__(
             config or LlamaConfig(),
@@ -467,11 +467,11 @@ class MLPerfLoRALlamaModel(LlamaModel):
     """
 
     def __init__(
-            self,
-            config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         # Apply context manager to reduce memory by avoiding unnecessary gradients
         model_context_managers = [torch.no_grad()]
@@ -1287,7 +1287,7 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         from nemo.collections.llm.peft import DoRA
 
         assert (
-                not self.peft_obj.dropout or self.peft_obj.dropout_position == 'pre'
+            not self.peft_obj.dropout or self.peft_obj.dropout_position == 'pre'
         ), "LoRA dropout_position must be 'pre' to convert to HF."
 
         NEMO2HF = {
@@ -1317,11 +1317,11 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
 
 
 def apply_rope_scaling(
-        inv_freq,
-        factor: float = 8.0,
-        low_freq_factor: float = 1.0,
-        high_freq_factor: float = 4.0,
-        old_context_len: int = 8192,
+    inv_freq,
+    factor: float = 8.0,
+    low_freq_factor: float = 1.0,
+    high_freq_factor: float = 4.0,
+    old_context_len: int = 8192,
 ):
     """Apply RoPE scaling for extending context length in Llama models.
 
