@@ -1,39 +1,25 @@
-name: Magpie-TTS-EN
+name: MagpieTTS-EN-Lhotse
 
-max_epochs: ???
-# Adjust batch size based on GPU memory
-batch_size: 16
-# When doing weighted sampling with multiple manifests, this defines how many training steps are in an epoch.
-# If null, then weighted sampling is disabled.
-weighted_sampling_steps_per_epoch: null
-
-# Dataset metadata for each manifest
-# https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/data/vocoder_dataset.py#L39-L41
-train_ds_meta: ???
-val_ds_meta: ???
-
-# Modify these values based on your sample rate
-sample_rate: 22050
+quadratic_duration: 20  # both training and validation datasets can apply same quadratic_duration.
+sample_rate: 22_050
 
 model:
-  model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
-  use_text_conditioning_encoder: true # If true, distilbert will be used to encode context_text if provided.
-  transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
-  context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
+  use_lhotse: true
+  model_type: "decoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
+  use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
   context_duration_min: 3.0
   context_duration_max: 5.0
+  codec_model_name: "21fpsCausalDecoder"
   load_cached_codes_if_available: true
   prior_scaling_factor: 0.5
-  prior_end_step: 12000
-  prior_scaledown_start_step: 8000 # Prior will always be on before this step.
+  prior_end_step: 12_000
+  prior_scaledown_start_step: 8_000 # Prior will always be on before this step.
   indefinite_prior_prob: 0.0 # If > 0, then prior will be applied after prior_end_step with this probability.
   alignment_loss_scale: 0.002
   embedding_dim: 768
   codecmodel_path: ???
-  max_epochs: ${max_epochs}
-  steps_per_epoch: ${weighted_sampling_steps_per_epoch}
   sample_rate: ${sample_rate}
-  cfg_unconditional_prob: 0.1
+  cfg_unconditional_prob: 0.1  # enable classifier-free guidance during traing by dropping out conditionals with this probability
 
   # Alignment encoder parameters, to binarize the prior
   # This is used for attention-constrained training and inference
@@ -41,7 +27,7 @@ model:
   # Below args are only relevant if use_alignment_encoder is true
   use_prior_for_aligner: true # Whether to use the beta-binomial prior to train the alignment encoder
   alignment_encoder_loss_scale: 1.0
-  binarize_prior_after_step: 10000 # Switch from beta-binomial prior to binarized prior after this step.
+  binarize_prior_after_step: 10_000 # Switch from beta-binomial prior to binarized prior after this step.
   binarize_attn_method: "nemo_binarize" # nemo_binarize or argmax.
   prior_future_context: 2 # Future window of the binarized prior.
   prior_past_context: 2 # Past window of the binarized prior.
@@ -49,7 +35,7 @@ model:
   prior_past_decay: 0.5 # Decay factor for past context
   binarize_repeat_audio_factor: 2 # Temporally increase audio timesteps, for nemo_binarize to work better. Increase this for low frame rate codecs
   binarized_prior_epsilon: 0.0
-  aligner_encoder_train_steps: 50000
+  aligner_encoder_train_steps: 50_000
 
   # Local transformer parameters for autoregressive codebook prediction within a frame
   use_local_transformer: false
@@ -75,39 +61,59 @@ model:
         use_stresses: true
 
   train_ds:
-    dataset:
-      _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
-      dataset_meta: ${train_ds_meta}
-      weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
-      sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
-      min_duration: 0.2
-      max_duration: 20.0
+    use_lhotse: ${model.use_lhotse}
+    volume_norm: true
 
-    dataloader_params:
-      batch_size: ${batch_size}
-      num_workers: 4
+    dataset:
+      min_duration: 0.2
+      sample_rate: ${sample_rate}  # need to override the default sample rate of 16000
+      batch_duration : ???  # in seconds. Adjust based on your GPU memory.
+      quadratic_duration: ${quadratic_duration}
+      use_bucketing: true
+      num_buckets: 10
+      bucket_buffer_size: 20_000
+      shuffle_buffer_size: 20_000
+      num_cuts_for_bins_estimate: 20_000
+      shard_seed: "trng"
       drop_last: true
+      shuffle: true
+      num_workers: 4
       pin_memory: true
+
+      input_cfg:
+      - type: lhotse_shar
+        shar_path: ???
+        weight: 1.0
+        tags:
+          tokenizer_names: ["english_phoneme"]
 
   validation_ds:
-    dataset:
-      _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
-      dataset_meta: ${val_ds_meta}
-      sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
-      min_duration: 0.2
-      max_duration: 20.0
+    use_lhotse: ${model.use_lhotse}
+    volume_norm: true
 
-    dataloader_params:
-      batch_size: ${batch_size}
+    dataset:
+      min_duration: 0.2
+      sample_rate: ${sample_rate}
+      batch_duration: ???   # recommend to use smaller batch_duration for validation dataset than training dataset.
+      quadratic_duration: ${quadratic_duration}
+      use_bucketing: false
+      force_finite: true
+      drop_last: false
+      shuffle: false
       num_workers: 4
       pin_memory: true
+
+      input_cfg:
+      - type: lhotse_shar
+        shar_path: ???
+        weight: 1.0
+        tags:
+          tokenizer_names: ["english_phoneme"]
 
   encoder:
     n_layers: 6
     d_model: 768
-    d_ffn: 3072
+    d_ffn: 3_072
     sa_n_heads: 12
     kernel_size: 3
     p_dropout: 0.1
@@ -115,27 +121,13 @@ model:
     has_xattn: false
     is_causal: true
     apply_norm_out: true
-    max_length_causal_mask: 2048
-    use_learnable_pos_emb: true
-
-  context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
-    n_layers: 3
-    d_model: 768
-    d_ffn: 3072
-    sa_n_heads: 12
-    kernel_size: 3
-    p_dropout: 0.1
-    p_dropout_out: 0.0
-    has_xattn: false
-    is_causal: false
-    apply_norm_out: true
-    max_length_causal_mask: 2048
+    max_length_causal_mask: 2_048
     use_learnable_pos_emb: true
 
   decoder:
     n_layers: 12
     d_model: 768
-    d_ffn: 3072
+    d_ffn: 3_072
     sa_n_heads: 12
     kernel_size: 1
     p_dropout: 0.1
@@ -146,7 +138,7 @@ model:
     is_causal: true
     apply_norm_to_cond: true
     apply_norm_out: true
-    max_length_causal_mask: 2048
+    max_length_causal_mask: 2_048
     use_learnable_pos_emb: true
 
   optim:
@@ -163,14 +155,17 @@ trainer:
   accelerator: gpu
   strategy: ddp_find_unused_parameters_true
   precision: bf16-mixed
-  max_epochs: ${max_epochs}
+  max_steps: ???
   accumulate_grad_batches: 1
-  enable_checkpointing: False # Provided by exp_manager
-  logger: false # Provided by exp_manager
+  enable_checkpointing: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
   log_every_n_steps: 100
-  check_val_every_n_epoch: 1
+  limit_train_batches: 1_000
+  val_check_interval: 1_000
   num_sanity_val_steps: 0
   benchmark: false
+  use_distributed_sampler: false  # required because Lhotse has its own handling
+
 
 exp_manager:
   exp_dir: null
@@ -178,9 +173,11 @@ exp_manager:
   create_tensorboard_logger: true
   create_wandb_logger: false
   wandb_logger_kwargs:
-    name: null
+    entity: null
     project: null
-    resume: true
+    group: null
+    name: null
+    resume: true  # enable resume to ensure continuous training log metrics merged on the previous run id.
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: val_loss
@@ -188,5 +185,6 @@ exp_manager:
     save_top_k: 5
     save_best_model: true
     always_save_nemo: true
+    filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.4f}-{step}-{epoch}'
   resume_if_exists: true
   resume_ignore_no_checkpoint: true

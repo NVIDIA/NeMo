@@ -221,7 +221,7 @@ def get_lhotse_dataloader_from_config(
     tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
-    Set up a Lhotse training dataloder.
+    Set up a Lhotse training dataloader.
 
     Expects a typical NeMo dataset configuration format, with additional fields: "use_lhotse=True".
     Some fields in the original NeMo configuration may be ignored.
@@ -267,7 +267,7 @@ def get_lhotse_dataloader_from_single_config(
     tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
-    Set up a Lhotse training dataloder.
+    Set up a Lhotse training dataloader.
 
     Expects a typical NeMo dataset configuration format, with additional fields: "use_lhotse=True".
     Some fields in the original NeMo configuration may be ignored.

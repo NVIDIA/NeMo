@@ -30,9 +30,41 @@ def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0
         metrics[key] = "{:.4f} +/- {:.4f}".format(mean, confidence_interval)
     return metrics
 
+def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
+    ''' helper function to rename older yamls from t5 to magpie '''
+    model_cfg.codecmodel_path = codecmodel_path
+    if hasattr(model_cfg, 'text_tokenizer'):
+        # Backward compatibility for models trained with absolute paths in text_tokenizer
+        model_cfg.text_tokenizer.g2p.phoneme_dict = "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+        model_cfg.text_tokenizer.g2p.heteronyms = "scripts/tts_dataset_files/heteronyms-052722"
+        model_cfg.text_tokenizer.g2p.phoneme_probability = 1.0
+    model_cfg.train_ds = None
+    model_cfg.validation_ds = None
+    if "t5_encoder" in model_cfg:
+        model_cfg.encoder = model_cfg.t5_encoder
+        del model_cfg.t5_encoder
+    if "t5_decoder" in model_cfg:
+        model_cfg.decoder = model_cfg.t5_decoder
+        del model_cfg.t5_decoder
+    if legacy_codebooks:
+        print("WARNING: Using legacy codebook indices for backward compatibility. Should only be used with old checkpoints.")
+        num_audio_tokens_per_codebook = model_cfg.num_audio_tokens_per_codebook
+        model_cfg.forced_num_all_tokens_per_codebook = num_audio_tokens_per_codebook
+        model_cfg.forced_audio_eos_id = num_audio_tokens_per_codebook - 1
+        model_cfg.forced_audio_bos_id = num_audio_tokens_per_codebook - 2
+        if model_cfg.model_type == 'decoder_context_tts':
+            model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 3
+            model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 4
+        else:
+            model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 1
+            model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 2
+
+    return model_cfg
+
 def run_inference(
         hparams_file,
         checkpoint_file,
+        nemo_file,
         datasets,
         out_dir,
         temperature,
@@ -53,33 +85,39 @@ def run_inference(
         confidence_level=0.95,
         use_local_transformer=False,
         use_maskgit=False,
-        maskgit_n_steps=3
+        maskgit_n_steps=3,
+        legacy_codebooks=False
     ):
-    # import ipdb; ipdb.set_trace()
-    model_cfg = OmegaConf.load(hparams_file).cfg
+    # Load model
+    if hparams_file is not None:
+        model_cfg = OmegaConf.load(hparams_file)
+        if "cfg" in model_cfg:
+            model_cfg = model_cfg.cfg
 
-    with open_dict(model_cfg):
-        model_cfg.codecmodel_path = codecmodel_path
-        if hasattr(model_cfg, 'text_tokenizer'):
-            # Backward compatibility for models trained with absolute paths in text_tokenizer
-            model_cfg.text_tokenizer.g2p.phoneme_dict = "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
-            model_cfg.text_tokenizer.g2p.heteronyms = "scripts/tts_dataset_files/heteronyms-052722"
-            model_cfg.text_tokenizer.g2p.phoneme_probability = 1.0
-        model_cfg.train_ds = None
-        model_cfg.validation_ds = None
+        with open_dict(model_cfg):
+            model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
 
+        model = MagpieTTSModel(cfg=model_cfg)
+        model.use_kv_cache_for_inference = True
 
-    model = MagpieTTSModel(cfg=model_cfg)
-    model.use_kv_cache_for_inference = True
+        # Load weights from checkpoint file
+        print("Loading weights from checkpoint")
+        ckpt = torch.load(checkpoint_file, weights_only=False)
+        model.load_state_dict(ckpt['state_dict'])
+        checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
+    elif nemo_file is not None:
+        model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True, remap_names=True)
+        with open_dict(model_cfg):
+            model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
+        model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
+        model.use_kv_cache_for_inference = True
+        checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
+    else:
+        raise ValueError("Need a checkpoint")
 
-    # Load weights from checkpoint file
-    print("Loading weights from checkpoint")
-    ckpt = torch.load(checkpoint_file, weights_only=False)
-    model.load_state_dict(ckpt['state_dict'], remap_names=True)
     print("Loaded weights.")
     model.cuda()
     model.eval()
-    # import ipdb; ipdb.set_trace()
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MG_{}_MGsteps{}_sv_{}".format(
@@ -125,14 +163,14 @@ def run_inference(
                 sample_rate=model_cfg.sample_rate,
                 min_duration=0.5,
                 max_duration=20,
-                codec_model_downsample_factor=model_cfg.codec_model_downsample_factor,
+                codec_model_samples_per_frame=model.codec_model_samples_per_frame,
                 bos_id=model.bos_id,
                 eos_id=model.eos_id,
                 context_audio_bos_id=model.context_audio_bos_id,
                 context_audio_eos_id=model.context_audio_eos_id,
                 audio_bos_id=model.audio_bos_id,
                 audio_eos_id=model.audio_eos_id,
-                num_audio_codebooks=model_cfg.num_audio_codebooks,
+                num_audio_codebooks=model.num_audio_codebooks,
                 prior_scaling_factor=None,
                 load_cached_codes_if_available=False,
                 dataset_type='test',
@@ -144,7 +182,9 @@ def run_inference(
                 context_duration_max=context_durration_max,
             )
             assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
-            test_dataset.text_tokenizer, test_dataset.text_conditioning_tokenizer = model._setup_tokenizers(model.cfg, mode='test')
+            
+            test_dataset.text_tokenizer = model.tokenizer
+            test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
 
             test_data_loader = torch.utils.data.DataLoader(
                 test_dataset,
@@ -235,7 +275,7 @@ def run_inference(
             with open(os.path.join(eval_dir, f"{dataset}_rtf_metrics_{repeat_idx}.json"), "w") as f:
                 json.dump(mean_rtf_metrics, f, indent=4)
 
-            all_experiment_csv = os.path.join(out_dir, "all_experiment_metrics.csv")
+            all_experiment_csv = os.path.join(eval_dir, "all_experiment_metrics.csv")
             if not os.path.exists(all_experiment_csv):
                 with open(all_experiment_csv, "w") as f:
                     f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n")
@@ -257,11 +297,11 @@ def run_inference(
             f.write(f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']},{metrics_mean_ci['frechet_codec_distance']}'\n")
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
 
-
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
     parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
+    parser.add_argument('--nemo_file', type=str, default=None)
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo")
     parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmountedresson/")
@@ -288,8 +328,7 @@ def main():
     parser.add_argument('--asr_model_name', type=str, default="stt_en_conformer_transducer_large") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
-    parser.add_argument('--debugger', action='store_true', help="Wait for debugger to attach")
-
+    parser.add_argument('--legacy_codebooks', action='store_true')
     args = parser.parse_args()
 
     if args.debugger:
@@ -306,7 +345,7 @@ def main():
     if args.apply_prior_to_layers is not None:
         apply_prior_to_layers = [int(l.strip()) for l in args.apply_prior_to_layers.split(",")]
 
-    if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null"):
+    if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null") and (args.checkpoint_files != "null"):
         hparam_files = args.hparams_files.split(",")
         checkpoint_files = args.checkpoint_files.split(",")
         print("Running inference for hparams files: ", hparam_files)
@@ -316,6 +355,7 @@ def main():
             run_inference(
                 hparams_file=hparams_file,
                 checkpoint_file=checkpoint_file,
+                nemo_file=None,
                 datasets=args.datasets.split(","),
                 out_dir=args.out_dir,
                 temperature=args.temperature,
@@ -335,10 +375,39 @@ def main():
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
+                legacy_codebooks=args.legacy_codebooks,
                 use_maskgit=args.use_maskgit,
                 maskgit_n_steps=args.maskgit_n_steps
             )
         return
+    elif (args.nemo_file is not None):
+        nemo_file = args.nemo_file
+        print("Running inference for nemo file: ", nemo_file)
+        run_inference(
+            hparams_file=None,
+            checkpoint_file=None,
+            nemo_file=nemo_file,
+            datasets=args.datasets.split(","),
+            out_dir=args.out_dir,
+            temperature=args.temperature,
+            topk=args.topk,
+            codecmodel_path=args.codecmodel_path,
+            use_cfg=args.use_cfg,
+            cfg_scale=args.cfg_scale,
+            batch_size=args.batch_size,
+            sv_model=args.sv_model,
+            asr_model_name=args.asr_model_name,
+            num_repeats=args.num_repeats,
+            apply_attention_prior=args.apply_attention_prior,
+            attention_prior_epsilon=args.attention_prior_epsilon,
+            attention_prior_lookahead_window=args.attention_prior_lookahead_window,
+            estimate_alignment_from_layers=estimate_alignment_from_layers,
+            apply_prior_to_layers=apply_prior_to_layers,
+            start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
+            confidence_level=args.confidence_level,
+            use_local_transformer=args.use_local_transformer,
+            legacy_codebooks=args.legacy_codebooks
+        )
     else:
         BASE_EXP_DIR = args.base_exp_dir
         DRACO_EXP_DIR = args.draco_exp_dir
@@ -374,12 +443,12 @@ def main():
             print(f"Running command: {scp_command_hparams}")
             os.system(scp_command_hparams)
             print("Copied hparams file.")
-            # import ipdb; ipdb.set_trace()
             print("Hparams file path: ", hparams_copy_path)
             print("Checkpoint file path: ", checkpoint_copy_path)
             run_inference(
                 hparams_copy_path,
                 checkpoint_copy_path,
+                nemo_file=None,
                 datasets=args.datasets.split(","),
                 out_dir=args.out_dir,
                 temperature=args.temperature,

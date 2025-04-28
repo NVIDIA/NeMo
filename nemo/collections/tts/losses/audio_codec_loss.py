@@ -230,8 +230,8 @@ class STFTLoss(Loss):
     @typecheck()
     def forward(self, audio_real, audio_gen, audio_len):
         spec_len = (audio_len // self.hop_length) + 1
-        spec_real = self._compute_spectrogram(audio=audio_real, spec_len=spec_len)
-        spec_gen = self._compute_spectrogram(audio=audio_gen, spec_len=spec_len)
+        spec_real = self._compute_spectrogram(audio=audio_real.float(), spec_len=spec_len).to(audio_gen.dtype)
+        spec_gen = self._compute_spectrogram(audio=audio_gen.float(), spec_len=spec_len).to(audio_gen.dtype)
         loss = self.loss_fn(predicted=spec_gen, target=spec_real, target_len=spec_len)
         return loss
 

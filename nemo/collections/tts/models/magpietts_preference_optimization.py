@@ -26,18 +26,20 @@ except ImportError:
 from nemo.collections.tts.models import MagpieTTSModel
 
 
-class MagpieTTSModelPrefDataGen(MagpieTTSModel):
-    """Small override to save inference metrics, used for datagen in Offline PO"""
+class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
+    """Small override of MagpieTTSModel for parallel multi-GPU inference and metrics calculation.
+    This class is used in 'test' mode and leverages trainer.test() for multi-GPU/multi-node inference.
+    Saves the predicted audio files and logs the CER/WER metrics as individual json files for each audio.
+    """
+    
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         if cfg.get('pref_set_language', "en") == "en":
             self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-ctc-0.6b")
             self.eval_asr_model.freeze()
-            self.eval_asr_model.eval()
 
         self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
         self.eval_speaker_verification_model.freeze()
-        self.eval_speaker_verification_model.eval()
 
         if cfg.get('load_whisper_model', False):
             from transformers import WhisperForConditionalGeneration, WhisperProcessor
@@ -86,7 +88,7 @@ class MagpieTTSModelPrefDataGen(MagpieTTSModel):
                         try:
                             if self.cfg.get("pref_set_language", "en") == "en":
                                 pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))
-                                pred_transcripts = [ process_text_for_cer(transcript) for transcript in pred_transcripts ]
+                                pred_transcripts = [ process_text_for_cer(transcript.text) for transcript in pred_transcripts ]
                             else:
                                 pred_transcripts = []
                                 for audio_path in predicted_audio_paths:
@@ -140,9 +142,13 @@ class MagpieTTSModelPrefDataGen(MagpieTTSModel):
                     json.dump(item_metrics, f)
 
 class MagpieTTSModelOfflinePO(MagpieTTSModel):
+    """
+    MagpieTTS_Model_OfflinePO is a class that extends MagpieTTS_Model to support 
+    offline preference optimization (DPO, IPO, RPO). 
+    Set cfg.model.dpo_loss_type to 'dpo', 'ipo', or 'rpo' to use the corresponding loss.
+    """
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
-        # Copy cfg
         ref_model_cfg = copy.deepcopy(cfg)
         with open_dict(ref_model_cfg):
             ref_model_cfg.train_ds = None
@@ -150,8 +156,7 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
         self._reference_model = MagpieTTSModel(cfg=ref_model_cfg)
         print("Loading reference model from checkpoint")
         self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
-        self.freeze_model(self._reference_model)
-        self._reference_model.eval()
+        self._reference_model.freeze()
         self._reference_model._no_state_dict = True
         print("Reference model loaded and frozen")
 
@@ -162,7 +167,6 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
-
 
     def _get_batch_logps(self, logits, labels, loss_mask, average_log_prob=False):
         """Compute the log probabilities of the given labels under the given logits.
@@ -182,7 +186,6 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
         else:
             return (per_token_logps * loss_mask).sum(-1)
 
-    # https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py
     def preference_loss(self, policy_chosen_logps,
                     policy_rejected_logps,
                     reference_chosen_logps,
@@ -195,7 +198,7 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
                     loss_type="dpo",
                     reference_free=False):
         """Compute the DPO loss for a batch of policy and reference model log probabilities.
-
+        Referenced From: https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py
         Args:
             policy_chosen_logps: Log probabilities of the policy model for the chosen responses. Shape: (batch_size,)
             policy_rejected_logps: Log probabilities of the policy model for the rejected responses. Shape: (batch_size,)
@@ -373,6 +376,10 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
         self.validation_step_outputs.clear()
 
 class MagpieTTSModelOnlinePO(MagpieTTSModel):
+    """
+    MagpieTTS_Model_OnlinePO is a class that extends MagpieTTS_Model to support
+    online preference optimization (GRPO).
+    """
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         # Copy cfg
@@ -386,15 +393,13 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             self._reference_model = MagpieTTSModel(cfg=ref_model_cfg)
             print("Loading reference model from checkpoint")
             self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
-            self.freeze_model(self._reference_model)
-            self._reference_model.eval()
+            self._reference_model.freeze()
             self._reference_model._no_state_dict = True
             print("Reference model loaded and frozen")
 
         if cfg.get('reward_asr_model', "nemo") == "nemo":
             self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-ctc-0.6b")
             self.eval_asr_model.freeze()
-            self.eval_asr_model.eval()
         elif cfg.get('reward_asr_model', "nemo") == "whisper":
             from transformers import WhisperForConditionalGeneration, WhisperProcessor
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
@@ -405,7 +410,6 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
 
         self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
         self.eval_speaker_verification_model.freeze()
-        self.eval_speaker_verification_model.eval()
 
         if cfg.get('load_whisper_model', False):
             from transformers import WhisperForConditionalGeneration, WhisperProcessor
@@ -500,7 +504,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         with torch.no_grad():
             if self.cfg.get("reward_asr_model", "nemo") == "nemo":
                 pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))
-                pred_transcripts = [ process_text_for_cer(transcript) for transcript in pred_transcripts ]
+                pred_transcripts = [ process_text_for_cer(transcript.text) for transcript in pred_transcripts ]
             elif self.cfg.get("reward_asr_model", "nemo") == "whisper":
                 pred_transcripts = []
                 for item_idx, audio_path in enumerate(predicted_audio_paths):
@@ -804,7 +808,6 @@ def get_speaker_embeddings_from_filepaths(filepaths, speaker_verification_model,
         return speaker_embeddings
 
 def transcribe_with_whisper(audio_filepath, language, whisper_processor, whisper_model, device):
-    print("Transcribing with whisper", language)
     speech_array, sampling_rate = librosa.load(audio_filepath, sr=16000)
     forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language) if language else None
     inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
