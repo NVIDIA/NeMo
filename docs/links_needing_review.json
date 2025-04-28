@@ -175,27 +175,11 @@
   "info": ""
 }
 {
-  "filename": "audio/datasets.rst",
-  "lineno": 33,
-  "status": "broken",
-  "code": 0,
-  "uri": "./configs.html#lhotse-dataset-configuration",
-  "info": ""
-}
-{
   "filename": "asr/models.rst",
   "lineno": 441,
   "status": "broken",
   "code": 0,
   "uri": "./configs.html#lstm-transducer",
-  "info": ""
-}
-{
-  "filename": "audio/datasets.rst",
-  "lineno": 19,
-  "status": "broken",
-  "code": 0,
-  "uri": "./configs.html#nemo-dataset-configuration",
   "info": ""
 }
 {
@@ -575,38 +559,6 @@
   "info": "Anchor 'L39' not found"
 }
 {
-  "filename": "audio/models.rst",
-  "lineno": 14,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/audio/modules/transforms.py#L34",
-  "info": "Anchor 'L34' not found"
-}
-{
-  "filename": "audio/models.rst",
-  "lineno": 14,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/audio/modules/transforms.py#L306",
-  "info": "Anchor 'L306' not found"
-}
-{
-  "filename": "audio/models.rst",
-  "lineno": 14,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/audio/modules/masking.py#L451",
-  "info": "Anchor 'L451' not found"
-}
-{
-  "filename": "audio/models.rst",
-  "lineno": 14,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/audio/modules/masking.py#L202",
-  "info": "Anchor 'L202' not found"
-}
-{
   "filename": "features/optimizations/communication_overlap.rst",
   "lineno": 52,
   "status": "broken",
@@ -671,100 +623,12 @@
   "info": "Anchor 'L64' not found"
 }
 {
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 32,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#diff-c0fc606b0f7750c3444a51159ce5deaa422a8cc4dd1134c504c4df2fdb683d64R140",
-  "info": "Anchor 'diff-c0fc606b0f7750c3444a51159ce5deaa422a8cc4dd1134c504c4df2fdb683d64R140' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 40,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#diff-7667eae242a8ef776bff78cd08e79bc81df4896a450f0a781f6ed317a3dfb7ffR136",
-  "info": "Anchor 'diff-7667eae242a8ef776bff78cd08e79bc81df4896a450f0a781f6ed317a3dfb7ffR136' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 17,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#:~:text=Resolve%20conversation-,cfg.trainer.strategy%20%3D%20%22ddp_find_unused_parameters_true%22,-logging.info",
-  "info": "Anchor '%3A~%3Atext%3DResolve%20conversation-%2Ccfg.trainer.strategy%20%3D%20%22ddp_find_unused_parameters_true%22%2C-logging.info' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 32,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#diff-c0fc606b0f7750c3444a51159ce5deaa422a8cc4dd1134c504c4df2fdb683d64R148-R152",
-  "info": "Anchor 'diff-c0fc606b0f7750c3444a51159ce5deaa422a8cc4dd1134c504c4df2fdb683d64R148-R152' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 43,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#diff-7667eae242a8ef776bff78cd08e79bc81df4896a450f0a781f6ed317a3dfb7ffR148-R150",
-  "info": "Anchor 'diff-7667eae242a8ef776bff78cd08e79bc81df4896a450f0a781f6ed317a3dfb7ffR148-R150' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 34,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#diff-e93ccae74f4b67d341676afc9f3c7e2c50f751ec64df84eb3b2a86b62029ef76R904-R911",
-  "info": "Anchor 'diff-e93ccae74f4b67d341676afc9f3c7e2c50f751ec64df84eb3b2a86b62029ef76R904-R911' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 32,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#diff-e93ccae74f4b67d341676afc9f3c7e2c50f751ec64df84eb3b2a86b62029ef76R269",
-  "info": "Anchor 'diff-e93ccae74f4b67d341676afc9f3c7e2c50f751ec64df84eb3b2a86b62029ef76R269' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 22,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/pull/6433/files#diff-fbee9218112b5eb07e4b799b868cbe3ab582336157bde6dc7c881daa63965ff5R20",
-  "info": "Anchor 'diff-fbee9218112b5eb07e4b799b868cbe3ab582336157bde6dc7c881daa63965ff5R20' not found"
-}
-{
   "filename": "tts/g2p.rst",
   "lineno": 237,
   "status": "broken",
   "code": 0,
   "uri": "https://github.com/NVIDIA/NeMo/tree/stable/docs/source/starthere/intro.rst#installation",
   "info": "Anchor 'installation' not found"
-}
-{
-  "filename": "audio/models.rst",
-  "lineno": 5,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/tree/stable/examples/audio",
-  "info": "404 Client Error: Not Found for url: https://github.com/NVIDIA/NeMo/tree/stable/examples/audio"
-}
-{
-  "filename": "audio/configs.rst",
-  "lineno": 8,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/tree/stable/examples/audio/conf",
-  "info": "404 Client Error: Not Found for url: https://github.com/NVIDIA/NeMo/tree/stable/examples/audio/conf"
-}
-{
-  "filename": "audio/intro.rst",
-  "lineno": 6,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/audio",
-  "info": "404 Client Error: Not Found for url: https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/audio"
 }
 {
   "filename": "nlp/punctuation_and_capitalization_lexical_audio.rst",
@@ -797,14 +661,6 @@
   "code": 0,
   "uri": "https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/thorsten_neutral/get_data.py#L41-L51",
   "info": "Anchor 'L41-L51' not found"
-}
-{
-  "filename": "audio/intro.rst",
-  "lineno": 4,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/tree/stable/tutorials/audio/",
-  "info": "404 Client Error: Not Found for url: https://github.com/NVIDIA/NeMo/tree/stable/tutorials/audio/"
 }
 {
   "filename": "nlp/quantization.rst",
@@ -981,4 +837,12 @@
   "code": 0,
   "uri": "https://pytorch.org/docs/stable/onnx.html#using-dictionaries-to-handle-named-arguments-as-model-inputs",
   "info": "Anchor 'using-dictionaries-to-handle-named-arguments-as-model-inputs' not found"
+}
+{
+  "filename": "checkpoints/intro.rst",
+  "lineno": 28,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://nvidia.github.io/TensorRT-LLM/architecture/checkpoint.html",
+  "info": "404 Client Error: Not Found for url: https://nvidia.github.io/TensorRT-LLM/architecture/checkpoint.html"
 }
