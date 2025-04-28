@@ -151,7 +151,8 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     model_cfg.tensor_model_parallel_size = tp_size
     model_cfg.pipeline_model_parallel_size = pp_size
     model_cfg.context_parallel_size = cp_size
-    model_cfg.expert_model_parallel_size = 1  # Assuming no MoE for now
+    model_cfg.expert_tensor_parallel_size = tp_size
+    model_cfg.expert_model_parallel_size = 1
     model_cfg.sequence_parallel = False  # Assuming standard TP/PP
 
     model_cfg.bf16 = dtype == torch.bfloat16
@@ -166,7 +167,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         model_cfg.params_dtype = torch.float32
 
     model_cfg.parallel_output = True  # Important for logprobs/generation across TP ranks
-    model_cfg.flash_decode = True
+    model_cfg.flash_decode = False
 
     checkpoint_config = CheckpointConfig(
         # load=pretrained_ckpt, # Use pretrained_checkpoint instead for NeMo Tron convention
@@ -183,8 +184,8 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         # Training config needed for some internal setups, even for inference
         train_config=TrainingConfig(
             micro_batch_size=1,
-            global_batch_size=tp_size * pp_size * cp_size,  # Example logic
-            train_iters=1,  # Dummy value
+            global_batch_size=1,  # Example logic
+            train_iters=1,  # Dummy micro_batch_sizevalue
             rampup_batch_size=None,  # Disable rampup
             # Might need seq_length_ramping if model uses it
         ),
@@ -212,11 +213,11 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     # Validate config *after* GlobalState is populated by initialize_megatron
     megatron_cfg.validate()
 
-    # JIT options (optional but good practice)
-    if megatron_cfg.train_config.micro_batch_size:  # Check if set
-        set_jit_fusion_options(megatron_cfg.model_config, megatron_cfg.train_config.micro_batch_size)
-    else:
-        print("Warning: micro_batch_size not in config, skipping JIT fusion options.")
+    # # JIT options (optional but good practice)
+    # if megatron_cfg.train_config.micro_batch_size:  # Check if set
+    #     set_jit_fusion_options(megatron_cfg.model_config, megatron_cfg.train_config.micro_batch_size)
+    # else:
+    #     print("Warning: micro_batch_size not in config, skipping JIT fusion options.")
 
     # Checkpointing context
     checkpointing_context = _init_checkpointing_context(megatron_cfg.checkpoint_config)
@@ -230,11 +231,11 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         tensor_model_parallel_size=megatron_cfg.model_config.tensor_model_parallel_size,
     )
     # Update model config with the final padded vocab size from the tokenizer build process
-    if megatron_tokenizer.vocab_size != megatron_cfg.model_config.vocab_size:
-        print(
-            f"Updating model_cfg vocab_size from {megatron_cfg.model_config.vocab_size} to {megatron_tokenizer.vocab_size}"
-        )
-        megatron_cfg.model_config.vocab_size = megatron_tokenizer.vocab_size
+    # if megatron_tokenizer.vocab_size != megatron_cfg.model_config.vocab_size:
+    #     print(
+    #         f"Updating model_cfg vocab_size from {megatron_cfg.model_config.vocab_size} to {megatron_tokenizer.vocab_size}"
+    #     )
+    #     megatron_cfg.model_config.vocab_size = megatron_tokenizer.vocab_size
     # Store the final padded vocab size for inference engine
     final_padded_vocab_size = megatron_cfg.model_config.vocab_size
     print(f"Final padded vocab size: {final_padded_vocab_size}")
@@ -470,9 +471,9 @@ if __name__ == "__main__":
         "--precision", type=str, default="bf16", choices=["bf16", "fp16", "fp32"], help="Computation precision"
     )
     parser.add_argument("--prompt", type=str, default="The capital of France is", help="Input prompt for generation")
-    parser.add_argument("--max_new_tokens", type=int, default=50, help="Maximum number of new tokens to generate")
+    parser.add_argument("--max_new_tokens", type=int, default=64, help="Maximum number of new tokens to generate")
     parser.add_argument("--gen_batch_size", type=int, default=1, help="Micro batch size for the generation engine")
-    parser.add_argument("--max_prompt_len", type=int, default=512, help="Maximum length for input prompt tokenization")
+    parser.add_argument("--max_prompt_len", type=int, default=20, help="Maximum length for input prompt tokenization")
 
     args = parser.parse_args()
 
@@ -537,7 +538,7 @@ if __name__ == "__main__":
         print(f"Tokenizing prompt: '{args.prompt}' with padding side: {megatron_tokenizer.padding_side}")
 
     # Handle potential list of prompts later if needed
-    prompts = ["tell me a story,", "I like you because"]
+    prompts = [args.prompt]
     encoded = megatron_tokenizer(
         prompts,
         padding="max_length",  # Pad to max_prompt_len
