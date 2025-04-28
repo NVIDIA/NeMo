@@ -62,9 +62,9 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
             [losses["kd_loss"], losses["logits_loss"], losses["intermediate_loss"]]
         )
         report = {
-            "avg": losses_averaged[0],
-            "logits distillation loss": losses_averaged[1],
-            "intermediate distillation loss": losses_averaged[2],
+            "avg": losses_averaged[0:1],  # preserves shape for downstream ops like concatenation
+            "logits distillation loss": losses_averaged[1:2],
+            "intermediate distillation loss": losses_averaged[2:3],
         }
 
         return losses["kd_loss"], report
