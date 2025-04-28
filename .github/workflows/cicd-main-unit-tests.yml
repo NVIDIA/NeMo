@@ -16,6 +16,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_Common
             runner: self-hosted-azure-cpu
+            cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
@@ -30,6 +31,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          cpu-only: ${{ matrix.cpu-only || false }}
 
   collections-llm-tests:
     strategy:
@@ -40,6 +42,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_LLM
             runner: self-hosted-azure-cpu
+            cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
@@ -54,6 +57,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          cpu-only: ${{ matrix.cpu-only || false }}
 
   collections-multimodal-tests:
     strategy:
@@ -64,6 +68,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_Multimodal
             runner: self-hosted-azure-cpu
+            cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
@@ -78,6 +83,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          cpu-only: ${{ matrix.cpu-only || false }}
 
   collections-vlm-tests:
     strategy:
@@ -88,6 +94,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_VLM
             runner: self-hosted-azure-cpu
+            cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
@@ -112,10 +119,12 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_Core
             runner: self-hosted-azure-cpu
+            cpu-only: true
           - script: L0_Unit_Tests_GPU_Hydra
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_Hydra
             runner: self-hosted-azure-cpu
+            cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
@@ -130,6 +139,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          cpu-only: ${{ matrix.cpu-only || false }}
 
   lightning-tests:
     strategy:
@@ -140,6 +150,7 @@ jobs:
             runner: self-hosted-azure
           - script: L0_Unit_Tests_CPU_Lightning
             runner: self-hosted-azure-cpu
+            cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
@@ -154,6 +165,7 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          cpu-only: ${{ matrix.cpu-only || false }}
 
   other-tests:
     strategy:
@@ -164,6 +176,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_Others
             runner: self-hosted-azure-cpu
+            cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     steps:
@@ -178,3 +191,4 @@ jobs:
           script: ${{ matrix.script }}
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
+          cpu-only: ${{ matrix.cpu-only || false }}

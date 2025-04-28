@@ -32,7 +32,10 @@ inputs:
     description: "Image to use for test"
     required: false
     default: "nemo_container"
-
+  cpu-only:
+    description: "Run tests on CPU only"
+    required: false
+    default: "false"
 runs:
   using: "composite"
   steps:
@@ -91,9 +94,7 @@ runs:
         )
 
         ARG=("")
-        if [[ -n "${GPU_CONFIGS[${{ inputs.runner }}]}" ]]; then
-          ARG=("--runtime=nvidia --cpus="40" --memory="400g" --gpus '\"device=${GPU_CONFIGS[${{ inputs.runner }}]}\"'")
-        elif [[ "${{ inputs.runner }}" != *cpu* ]]; then
+        if [[ "${{ inputs.cpu-only }}" == "true" ]]; then
           ARG=("--runtime=nvidia --gpus all")
         fi
 
