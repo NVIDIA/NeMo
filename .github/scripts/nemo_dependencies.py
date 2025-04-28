@@ -183,32 +183,33 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
         package_parts = package.split('.')
         print(f"{os.path.join(*package_parts[:-1])}.py")
         if os.path.isfile((file_path := f"{os.path.join(*package_parts[:-1])}.py")):
-            simplified_package = file_path
+            simplified_package_path = file_path
         elif os.path.isdir((file_path := f"{os.path.join(*package_parts[:-1])}")):
-            simplified_package = file_path
+            simplified_package_path = file_path
         else:
-            simplified_package = package
+            simplified_package_path = package
 
         for dep in deps:
             dep_parts = dep.split('.')
 
-            if simplified_package not in simplified_dependencies:
-                simplified_dependencies[simplified_package] = []
+            if simplified_package_path not in simplified_dependencies:
+                simplified_dependencies[simplified_package_path] = []
 
             if (
                 len(dep_parts) >= 2
                 and dep_parts[1] in find_top_level_packages(nemo_root)
                 and dep_parts[1] != 'collections'
             ):
-                simplified_dependencies[simplified_package].append(f"{dep_parts[0]}.{dep_parts[1]}")
+                simplified_dependencies[simplified_package_path].append(f"{dep_parts[0]}.{dep_parts[1]}")
 
             elif len(dep_parts) >= 3 and (
                 simplified_name := f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}"
             ) in find_collection_modules(nemo_root):
-                simplified_dependencies[simplified_package].append(simplified_name)
+                simplified_dependencies[simplified_package_path].append(simplified_name)
 
-            simplified_dependencies[simplified_package] = sorted(
-                list(set(simplified_dependencies[simplified_package]))
+            simplified_dependencies[simplified_package_path].append(package)
+            simplified_dependencies[simplified_package_path] = sorted(
+                list(set(simplified_dependencies[simplified_package_path]))
             )
     dependencies = simplified_dependencies
 
@@ -242,7 +243,7 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 def main():
     """Main function to analyze dependencies and output JSON."""
     # Get the root directory of the NeMo project
-    nemo_root = os.path.dirname(os.path.abspath(__file__))
+    nemo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     # Build dependency graph
     dependencies = build_dependency_graph(nemo_root)

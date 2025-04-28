@@ -1,0 +1,3025 @@
+{
+    "nemo/utils/model_utils.py": [
+        "NeMo2",
+        "automodel",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/lightning": [
+        "NeMo2",
+        "automodel",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/utils": [
+        "NeMo2",
+        "automodel",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/utils/import_utils.py": [
+        "NeMo2",
+        "automodel",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/collections/llm": [
+        "NeMo2",
+        "automodel",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/utils/exp_manager.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/ckpt_utils.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/pytorch/strategies/utils.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/utils/get_rank.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/io/mixin.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/pytorch/callbacks": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/utils.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/io/pl.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/megatron_parallel.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/llm/gpt/model/base.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/data.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/core/classes": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/core/classes/common.py": [
+        "NeMo2",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/core/classes/mixins": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/deploy": [
+        "NeMo2",
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/deploy/nlp": [
+        "NeMo2",
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/nemo_ckpt_loader/nemo_file.py": [
+        "NeMo2",
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/utils/distributed.py": [
+        "NeMo2",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/collections/nlp/parts/utils_funcs.py": [
+        "NeMo2",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/modules/perception_modules.py": [
+        "NeMo2",
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/tensorrt_llm.py": [
+        "NeMo2",
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/deploy/nlp/megatronllm_deployable.py": [
+        "NeMo2",
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/collections/llm/deploy/base.py": [
+        "NeMo2",
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/collections/common/tokenizers/tokenizer_spec.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/huggingface/auto_tokenizer.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/pytorch/optim": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/common/parts/utils.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/pytorch/plugins": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/lightning/pytorch/callbacks/peft.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/llm/gpt/model/hf_auto_model_for_causal_lm.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/sentencepiece_tokenizer.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/llm/fn": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/modules/common/audio_text_generation_utils.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/parts/utils/data_utils.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/core/classes/exportable.py": [
+        "NeMo2",
+        "export-deploy",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/modules/common/audio_text_generation_strategy.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/data/audio_text_dataset.py": [
+        "NeMo2",
+        "automodel",
+        "speech"
+    ],
+    "nemo/utils/app_state.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/lightning/io": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/core/optim/optimizers.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/megatron_init.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/core/optim": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/utils/env_var_parsing.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/mcore_logger.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/lightning/pytorch/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/plugins/mixed_precision.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/strategies/megatron_strategy.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/tp_overlap_configs/userbuffers.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/optim/megatron.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/io/hf.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/peft": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/common/callbacks": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/lightning_logger_patch.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/optim/lr_scheduler.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/neural_types/elements.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/classes/dataset.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/neural_types": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/data_utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/connectors/save_restore_connector.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/exceptions.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/classes/module.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/config": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/core/classes/modelPT.py": [
+        "NeMo2",
+        "export-deploy"
+    ],
+    "nemo/core/config/modelPT.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/metaclasses.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/s3_dirpath_utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_config.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/utils/loggers": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/callbacks": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/s3_utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/export/multimodal/run.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/multimodal/build.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/vllm/model_config.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/vllm/model_loader.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/vllm/engine.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/tensorrt_llm_run.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/utils.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/qnemo": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/converter/model_to_trt_llm_ckpt.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/tensorrt_llm_build.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/converter/model_converter.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/qnemo/tokenizer_utils.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/converter/utils.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/trt_llm/qnemo/utils.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py": [
+        "NeMo2",
+        "export-deploy"
+    ],
+    "nemo/export/vllm/model_converters.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/export/vllm/tokenizer_group.py": [
+        "automodel",
+        "export-deploy"
+    ],
+    "nemo/collections/llm/modelopt": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/evaluation/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/evaluation/api.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/api.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core/training_config.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core/base_config.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/llama.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/llama_nemotron_config.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/io/state.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/fn/activation.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/nlp/modules/common/tokenizer_utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_layer_specs.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_model.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/accelerate/transformer_engine.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/automodel/loss/linear_ce.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/automodel/loss": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/gemma2.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gpt_full_te_layer_autocast_spec.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/hf_llama_embedding.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/loss.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_block.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_layer.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_mixer.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_hybrid_layer_allocation.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/packed_sequence.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/core.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/fine_tuning.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/dolly.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/mock.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/hf_dataset.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/squad.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/data/fine_tuning.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/hf_dataset_packed_sequence.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/utils/sequence_packing_utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/inference/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/inference": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/modelopt/quantization/quant_cfg_choices.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/log/default.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/precision/mixed_precision.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/optim/adam.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/t5/data/core.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/t5/data/fine_tuning.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/peft/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/peft/module_matcher.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/peft/lora.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/common/parts/adapter_modules.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/model/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/model": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/model/bert.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/model/bert_spec.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/data/core.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/nemotron.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/callbacks/garbage_collection.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/callbacks/megatron_comm_overlap.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/finetune_default.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/hyena_base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/qwen2.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/optim/lr_scheduler.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/t5/model/t5.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/t5/data/squad.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/t5/data/mock.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data/megatron/hyena": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/data": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/callbacks/flops_callback.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/starcoder2.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/gemma2.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/bert/data/mock.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/bert.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/deepseek.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/deepseek.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/starcoder.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/phi3mini.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/starcoder2.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/nemotron.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/lightning/pytorch/callbacks/moe_token_drop.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/mistral.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/recipes/bert_embedding.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/mixtral.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/llm/gpt/model/qwen2.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_base_model.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/vlm/qwen2vl/model/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/vision": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/qwen2vl/model": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/model/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/qwen2vl/model/vision.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/multimodal_tokens.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/vision/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/layer_specs.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/preloaded.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo.lightning.apex_utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/config.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/conversation.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/mock.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/mllama/model/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/mllama/model/vision.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/mllama/model/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/mllama/model/language.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/multimodal/data/energon/sample_encoder.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/multimodal/data/energon/task_encoder.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/mllama/data/sample_encoder.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/data/preloaded.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/data/config.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/multimodal/data/energon/config.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/clip/model": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/clip/loss/clip_loss.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/multimodal/data/clip/clip_dataset.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/multimodal/data/clip/augmentations/augmentations.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/data/multimodal_tokens.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/data/sequence_packing.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/data/conversation.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/data/mock.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/mllama/data/mock.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/neva/model/llava.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/llava_next/model/base.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/llava_next/model/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/llava_next/data/sample.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/llava_next/data/vqa_sample_encoder.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/llava_next/data/interleaved_sample_encoder.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/vlm/llava_next/data/utils.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/asr/parts/utils/eval_utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/data/utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/models": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/metrics": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/data/build_dataset.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/multimodal/speech_llm/parts/mixins/adapter_mixin.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_model.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/models/nlp_model.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/parts/nlp_overrides.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_sft_model.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/prompts": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/data/prompt_fn.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/modules/conformer_encoder.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/utils/decorators": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/text_generation.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/tabular_tokenizer.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/models/modular_models.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/asr/data/audio_to_text.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/parts/preprocessing": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_text_dataset.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/preprocessing/segment.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/base_dataset_utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/blendable_dataset.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/preprocessing/features.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/data/lhotse/text_adapters.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/data/lhotse": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/preprocessing/perturb.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/multimodal/speech_llm/data/lhotse_dataset.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/core/classes/mixins/adapter_mixins.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/multimodal/models/multimodal_llm/neva/neva_model.py": [
+        "NeMo2",
+        "automodel"
+    ],
+    "nemo/collections/asr/metrics/wer.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_decoding.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/ctc_decoding.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/losses/rnnt.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/losses/ctc.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/mixins": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/models/asr_model.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/data": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/modules/rnnt.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/rnnt_utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/chat_template_mixin.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/aggregate_tokenizer.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/text_to_speech/ipa_lexicon.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/text_to_speech/tokenizer_utils.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/models/en_us_arpabet.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/text_to_speech/tts_tokenizers.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/export/tensorrt_lazy_compiler.py": [
+        "NeMo2",
+        "export-deploy"
+    ],
+    "nemo/utils/nemo_logging.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/parts/preprocessing/manifest.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/prompts/formatter.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/preprocessing": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/data/lhotse/dataloader.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/losses": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/parts/preprocessing/parsers.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/parts/preprocessing/collections.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/parts": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/parts/optional_cuda_graphs.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/data": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/metrics/punct_er.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/parts/rnn.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/conformer_modules.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/modules/common/transformer": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/common/data/dataset.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/asr/data/huggingface/hf_audio_to_text_dataset.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/tts/parts/utils/helpers.py": [
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/nlp/metrics/classification_report.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/modules/common": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/token_level_encoder_decoder.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/tts/data/speechllm/t5_speechllm_tarred_dataset.py": [
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/tts/data/speechllm/t5_speechllm_dataset.py": [
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/tts/models/speechllm/megatron_base_speechllm_prompt_model.py": [
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/nlp/parts": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/metrics/prompt_learning_metrics.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/base_prompt_learning_dataset.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/data/spellchecking_asr_customization": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_export.py": [
+        "NeMo2",
+        "export-deploy"
+    ],
+    "nemo/collections/nlp/data/spellchecking_asr_customization/bert_example.py": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/collections/speechlm/models/speech_to_text_llm_model.py": [
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/speechlm/utils/io.py": [
+        "automodel",
+        "speech"
+    ],
+    "nemo/collections/common/tokenizers/huggingface": [
+        "NeMo2",
+        "speech"
+    ],
+    "nemo/lightning/resume.py": [
+        "speech"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/megatron_batch_samplers.py": [
+        "NeMo2"
+    ],
+    "nemo/utils/callbacks/dist_ckpt_io.py": [
+        "NeMo2"
+    ],
+    "nemo/lightning/pytorch/strategies": [
+        "speech"
+    ],
+    "nemo/core/utils/optional_libs.py": [
+        "speech"
+    ],
+    "nemo/core/optim/mcore_optim.py": [
+        "NeMo2"
+    ],
+    "nemo/core/utils/neural_type_utils.py": [
+        "speech"
+    ],
+    "nemo/utils/export_utils.py": [
+        "export-deploy"
+    ],
+    "nemo/utils/te_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/core/optim/distributed_adam.py": [
+        "NeMo2"
+    ],
+    "nemo/core/utils/k2_utils.py": [
+        "speech"
+    ],
+    "nemo/core/utils/k2_guard.py": [
+        "speech"
+    ],
+    "nemo/deploy/triton_deployable.py": [
+        "export-deploy"
+    ],
+    "nemo/export/tarutils.py": [
+        "export-deploy"
+    ],
+    "nemo/deploy/deploy_base.py": [
+        "export-deploy"
+    ],
+    "nemo/deploy/utils.py": [
+        "export-deploy"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_softmax.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/tts/modules/submodules.py": [
+        "speech"
+    ],
+    "nemo/collections/common/parts/perf_metrics_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/export/utils": [
+        "export-deploy"
+    ],
+    "nemo/export/utils/constants.py": [
+        "export-deploy"
+    ],
+    "nemo/export/sentencepiece_tokenizer.py": [
+        "export-deploy"
+    ],
+    "nemo/export/utils/_mock_import.py": [
+        "export-deploy"
+    ],
+    "nemo/export/tiktoken_tokenizer.py": [
+        "export-deploy"
+    ],
+    "nemo/collections/vision/modules/vit/vit_backbone.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/data_samplers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/vision/data/megatron/data_samplers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/build_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/vision/data/megatron/vit_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/transformer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/layer_type.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_layer_norm.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/vision/modules/common/megatron/vision_transformer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/common/data_samplers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/vision/data/megatron/autoaugment.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/vision/data/megatron/image_folder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/flux/model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/vae/autoencoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/sampler/edm/edm_pipeline.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/dit_llama/dit_llama_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/utils/flux_ckpt_converter.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_layer_spec.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/flux/layers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/sampler/flow_matching/flow_match_euler_discrete.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/encoders/conditioner.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/utils/flux_pipeline_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/flux_controlnet/model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/flux_controlnet/layers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/flux/pipeline.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/dit_llama/dit_llama_layer_spec.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/dit": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_embeddings.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_attention.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/sampler/edm/edm.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/sampler/context_parallel.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/sampler/batch_ops.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/data/diffusion_mock_datamodule.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/models/model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/energon/base.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/cosmos_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/vae/train_vae.py": [
+        "NeMo2"
+    ],
+    "nemo.collections.diffusion.train.pretrain": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/data/diffusion_energon_datamodule.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/diffusion/vae/blocks.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/parts/peft_config.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/text_generation_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_gpt_sft_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_adapter_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/parts/mixins/nlp_adapter_mixins.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_decoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/parts/multi_layer_perceptron.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/materials/materials_base.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/nerf/txt2nerf_base.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/loss/normal_consistency_loss.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/loss/laplacian_smooth_loss.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/nerf/base.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/vision_language_foundation/clip/megatron_clip_models.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/nsfw/nsfw_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/losses/siglip_loss.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/losses/clip_loss.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/language_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/ldm/ddpm.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/instruct_pix2pix/edit_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/openaimodel.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/util.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/attention.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/parts/stable_diffusion/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/controlnet/controlnet_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/ddim.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/sampler/continuous_ddpm.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/parts/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/sampler/batch_ops.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/sampler/sampler.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/parts/imagen/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/nets.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/imagen/imagen_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/encoder/t5encoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/imagen/precond.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/imagen/imagen.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/stable_diffusion/stable_diffusion_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/wrappers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/base_sampler.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/distributions/distributions.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/ldm/autoencoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/common/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/encoders/modules.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/dreambooth/dreambooth_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/neva/neva_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/neva/conversation.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/neva/neva_energon_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gpt_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/adapters/parallel_adapters.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/parts/mixins/multimodal_adapter_mixins.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_init.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/sampler_dpm.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/para_ddim.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/plms.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/parts/stable_diffusion/sdxl_helpers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/sampling.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/data": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/models/visual_hybrid_rnnt_ctc_models.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/models/visual_rnnt_models.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/models/visual_ctc_models.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/conv2d.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/global_avg_pool2d.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/resnet_bottleneck_block.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/resnet_block.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/permute.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/resnet.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/preprocessing/features.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/background/nerf_background_base.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/geometry/layers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/encoding.py": [
+        "NeMo2"
+    ],
+    "nemo.collections.multimodal.modules.renderer.base_renderer.RendererBase": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/renderers/base_renderer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/geometry/dmtet.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/geometry/nerf_base.py": [
+        "NeMo2"
+    ],
+    "nemo.collections.multimodal.modules.renderer.base_renderer.BaseRenderer": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/guidance/txt2img_guidance_base.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/trt_engine.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/shencoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/gridencoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/freqencoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/activation.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/layers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/attention_alt.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/attention.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/blocks.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/embs.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/encoders/x_transformer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/sampling_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/energon/conversation.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/nerf/cameras.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/nerf/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/common/webdataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/stable_diffusion/augmentation/augmentations.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/clip/imagenet_zeroshot_data.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/imagen/augmentations/augmentations.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/imagen/augmentations/corruption.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal/data/common/webdataset_s3.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/metrics/classification_accuracy.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/column_coder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/char_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/networks": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/modules": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/layers3d.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/quantizers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/patching.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/parts/skills_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/canary_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/data/lhotse/sampling.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/data/lhotse/cutset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/data/lhotse/nemo_adapters.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/audio/metrics/squim.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/parts/utils/audio.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/models/audio_to_audio.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/data": [
+        "speech"
+    ],
+    "nemo/collections/audio/parts/utils/callbacks.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/metrics/audio.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/data/audio_to_audio_lhotse.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/multi_head_attention.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/losses/audio.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/parts/submodules/multichannel.py": [
+        "speech"
+    ],
+    "nemo/collections/audio/modules/features.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/manifest_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/multitask_decoding.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/optimization_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/ml_loss.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/grad_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/map_loss.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/graph_transducer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/losses/rnnt_pytorch.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss": [
+        "speech"
+    ],
+    "nemo/core/utils/numba_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/w_transducer.py": [
+        "speech"
+    ],
+    "nemo/core/utils": [
+        "speech"
+    ],
+    "nemo/collections/asr/losses": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_ctm_dataset.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/rnnt_models.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_text_dali.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/classes.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/ctc_models.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/graph_decoder.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_diar_label_lhotse.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/mixins/diarization.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/asr_multispeaker_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/vad_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/metrics/multi_binary_acc.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/speaker_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_diar_label.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/hybrid_rnnt_ctc_models.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/asr_confidence_utils.py": [
+        "speech"
+    ],
+    "nemo/utils/cast_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/mixins/transcription.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/label_models.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_text_lhotse.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/ssl_modules/masking.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/asr_batching.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/ctc_bpe_models.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/rnnt_bpe_models.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/mixins/mixins.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/classification_models.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/metrics/der.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_label.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_label_dataset.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/token_classifier.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/timestamp_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/audio_to_text_lhotse_prompted.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/metrics": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/online_clustering.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/offline_clustering.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/slu_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/models": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/text_to_text.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/hybrid_rnnt_ctc_bpe_models.py": [
+        "speech"
+    ],
+    "nemo/utils/enum.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/batchnorm.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/configs/diarizer_config.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/clustering_diarizer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/audio_preprocessing.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/conv_asr.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/configs/asr_models_config.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/models/configs": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/mixins/streaming.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/streaming_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/mixins/asr_adapter_mixins.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/context_biasing/ctc_based_word_spotter.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/context_biasing/context_graph_ctc.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/graph_compilers.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/loss_mixins.py": [
+        "speech"
+    ],
+    "nemo/core/classes/loss.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/rnnt_logprobs_triton.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/wfst_decoder.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/losses/lattice_losses.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/topologies.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/confidence_metrics.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/longform_clustering.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/multitask_greedy_decoding.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/multitask_beam_decoding.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_loop_labels_computer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/tdt_loop_labels_computer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/cuda_graph_rnnt_greedy_decoding.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/adapters/attention_adapter_mixin.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/causal_convs.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/jasper.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/rnnt_batched_beam_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/ngram_lm": [
+        "speech"
+    ],
+    "nemo/core/utils/cuda_python_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/activations.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/wfst_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/beam_search_decoder.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/k2/graph_decoders.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/flashlight_decoder.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_maes_batched_computer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_malsd_batched_computer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/tdt_malsd_batched_computer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_beam_decoding.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/ctc_beam_decoding.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/classifier.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/adapters/multi_head_attention_adapter_module.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/ngram_lm/constants.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/ngram_lm/ngram_lm_triton.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss/utils/cpu_utils": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss/utils": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss/utils/cuda_utils": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/numba/spec_augment": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/spectr_augment.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/subsampling.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/squeezeformer_modules.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/submodules/tdnn_attention.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/regularization_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_modules.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/reduction_encoders.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/bridge_encoders.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/perceiver_encoders.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_bottleneck.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_encoders.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_decoders.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/decoder_module.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/modules/transformer/encoder_module.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/ssl_dataset.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/preprocessing/feature_loader.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/feature_to_text.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/feature_to_label.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/parts/utils/data_simulation_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/data/huggingface/hf_audio_to_text.py": [
+        "speech"
+    ],
+    "nemo/core/neural_types/neural_type.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/transformer.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/aligner_loss.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/models/i18n_ipa.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/models/zh_cn_pinyin.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/models/base.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/data/t5.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/data/ctc.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/utils.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/models/base.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/data/heteronym_classification.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/g2p/models/heteronym_classification.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/fastpitchloss.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/parts/utils/callbacks.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/fastpitch.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/parts/mixins": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/radttsloss.py": [
+        "speech"
+    ],
+    "nemo/core/optim/radam.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/tacotron2loss.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/ssl_tts.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/torch/tts_tokenizers.py": [
+        "speech"
+    ],
+    "nemo/collections/asr/losses/angularloss.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/data/dataset.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/hifigan_losses.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/stftlosses.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/univnet_modules.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/hifigan_modules.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/parts/utils/tts_dataset_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/vits_losses.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/vits_modules.py": [
+        "speech"
+    ],
+    "nemo/utils/decorators/experimental.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/torch/tts_data_types.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/waveglowloss.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/spectrogram_enhancer_losses.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/losses/audio_codec_loss.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/audio_codec_modules.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/common.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/attribute_prediction_model.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/parts/utils/splines.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/parts/utils/distributed.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/monotonic_align": [
+        "speech"
+    ],
+    "nemo/collections/tts/modules/aligner.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/parts/preprocessing/feature_processors.py": [
+        "speech"
+    ],
+    "nemo/collections/tts/parts/preprocessing/features.py": [
+        "speech"
+    ],
+    "nemo/collections/nlp/modules/common/decoder_module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/encoder_module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/huggingface_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/lm_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/zero_shot_intent_recognition/zero_shot_intent_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering_squad/qa_squad_processing.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_bert_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/question_answering/qa_base_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/metrics/qa_metrics.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/data_processor/qa_processing.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_gpt_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_s2s_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/intent_slot_classification": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/intent_slot_classification": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/token_classifier.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/machine_translation/mt_enc_dec_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/common/sequence_to_sequence_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/xlm_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_lm_encoder_decoder_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/en_ja_tokenizers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/moses_tokenizers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/machine_translation/mt_enc_dec_config.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/bytelevel_tokenizers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/enc_dec_nlp_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/indic_tokenizers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/chinese_tokenizers.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_bottleneck.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/megatron_bert_embedding_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/information_retrieval/bert_embedding_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/bert/bert_spec.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/bert_embedding_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_bert_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/megatron_gpt_embedding_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/information_retrieval/gpt_embedding_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/bert/bert_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/base_ir_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_s2s_generation_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/metrics/dialogue_metrics.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/mellon_qa_data_processor.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/ms_marco_data_processor.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_gpt_generation_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_gpt_prompt_learning_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_bert_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/assistant_data_processor.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/sgd/evaluate.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/losses": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/sgd/prediction_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/design_data_processor.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_nearest_neighbour_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_zero_shot_intent_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text2sparql": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/glue_benchmark/glue_benchmark_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/glue_benchmark/metrics_for_glue.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_classification": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_normalization": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/duplex_text_normalization/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_normalization/decoder_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_normalization/utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/losses/cross_entropy.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/token_classification/punctuation_capitalization_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/token_classification/punctuation_capitalization_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/token_classification/punctuation_capitalization_config.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/token_classification/punctuation_capitalization_infer_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/token_classification/punctuation_capitalization_tarred_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/data_utils/data_preprocessing.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/token_classification/token_classification_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/token_classification/token_classification_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_griffin_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/lm_bert_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_prompt_learning_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_base_prompt_learning_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/retro_dataset_legacy.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/init.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/text_generation_strategy.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/shape.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_token_level_encoder_decoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_retrieval_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/retro_fine_tune_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/t5_prompt_learning_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gemma2/gemma2_spec.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gpt_layer_modelopt_spec.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_fim_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gemma2/gemma2_modules.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/t0_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/metrics": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/dataset_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_prompt_learning_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/t5_sft_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_chat_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/griffin_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_mamba_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/clip_grads.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/attention.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/retro_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/recurrent_layer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/recurrent_module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/griffin_block.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/griffin_layer_spec.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/metrics/perf_metrics.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/adapters/mcore_mixins.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/adapters/qlora.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/classifier.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/retro_inference_strategies.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_retro_model.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/null_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/word_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/tiktoken_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/common/tokenizers/regex_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_services/retrieval_service.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_bias_gelu.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/bert_module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_utils.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/chat_css.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_services/util.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/chatbot_component.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_modules.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/bridge_encoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/reduction_encoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/perceiver_encoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/huggingface_encoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/huggingface_decoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_encoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/hyena/hyena_filter.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/hyena/fftconv_wrapper.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/hyena/hyena.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/gpt_module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/camembert.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/albert.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/gpt2.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/distilbert.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/roberta.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/bert.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_transformer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_transformer_decoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/position_embedding": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/position_embedding/rotary_position_embedding.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_decoder_module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/layer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_encoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_decoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_transformer_encoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_perceiver_encoders.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_encoder_module.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/hiddens": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/layer_norm_1p.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_bias_geglu.py": [
+        "NeMo2"
+    ],
+    "nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding.build_relative_position": [
+        "NeMo2"
+    ],
+    "nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding.build_slopes": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mlp.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_bias_dropout_add.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_encoder_decoder.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/vocab_parallel_cross_entropy.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/indexed_retrieval_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_services/static_retrieval_server.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/infshape.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/position_embedding/alibi_relative_position_embedding.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/hiddens/megatron_hidden_transform.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/hiddens/megatron_hidden_loss.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/glue_benchmark/data_processors.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_bert_input_example.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_s2s_input_example.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_gpt_input_example.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/data_utils": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_input_example.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/intent_slot_classification/intent_slot_classification_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/sentence_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/text_memmap_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/input_example/sgd_input_example.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/input_example/input_example.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/data_processor.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/dialogue/sgd/schema.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/metrics/sgd_metrics.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging/tagging.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging/bert_example.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/indexed_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/length_distribution_type.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/t5_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/bert_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/ul2_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/lm_adapted_t5_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/bart_dataset.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/multimodal_autoregressive/tokenizer/cosmos_multimodal_tokenizer.py": [
+        "NeMo2"
+    ],
+    "nemo/collections/speechlm/utils/model_transform.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/data/dataset/data_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/modules/asr_module.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/utils/text_generation/audio_text_generation_strategy.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/utils/text_generation/audio_text_generation_utils.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/modules/modality_adapter.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/models/base.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/data/audio_to_text_module.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/utils": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/api.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/data/data_sampler.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/data/dataset/audio_text_dataset.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/data/text_processing.py": [
+        "speech"
+    ],
+    "nemo/collections/speechlm/data/dataset/audio_text_lhotse_dataset.py": [
+        "speech"
+    ],
+    "nemo/lightning/_strategy_lib.py": [],
+    "nemo/lightning/io/to_config.py": [],
+    "nemo/lightning/io/artifact/base.py": [],
+    "nemo/lightning/io/connector.py": [],
+    "nemo/lightning/io/capture.py": [],
+    "nemo/lightning/io/fdl_torch.py": [],
+    "nemo/lightning/io/artifact": [],
+    "nemo/lightning/io/api.py": [],
+    "nemo/lightning/fabric/conversion.py": [],
+    "nemo/lightning/pytorch/plugins/data_sampler.py": [],
+    "nemo/lightning/fabric/strategies.py": [],
+    "nemo/lightning/pytorch/trainer.py": [],
+    "nemo/lightning/fabric/fabric.py": [],
+    "nemo/lightning/pytorch/callbacks/model_transform.py": [],
+    "nemo/utils/hyena_flops_formulas.py": [],
+    "nemo/lightning/pytorch/optim/base.py": [],
+    "nemo/core/neural_types/comparison.py": [],
+    "nemo/core/neural_types/axes.py": [],
+    "nemo/utils/cloud.py": [],
+    "nemo/core/classes/mixins/hf_io_mixin.py": [],
+    "nemo/core/config/templates/model_card.py": [],
+    "nemo/utils/debug_hook.py": [],
+    "nemo/core/optim/adafactor.py": [],
+    "nemo/core/optim/novograd.py": [],
+    "nemo/core/optim/adan.py": [],
+    "nemo/core/optim/megatron_fused_adam.py": [],
+    "nemo/utils/nvtx.py": [],
+    "nemo/utils/formatters/base.py": [],
+    "nemo/utils/flops_formulas.py": [],
+    "nemo/utils/formatters/colors.py": [],
+    "nemo/utils/formatters/utils.py": []
+}
