@@ -1141,7 +1141,18 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
 
 
 class B2BCausalConv1dModule(nn.Module):
+    """Module that performs back-to-back causal convolution operations using optimized CUDA kernels.
+
+    Combines the projection and mixer convolutions into a single optimized operation.
+    """
     def __init__(self, proj_conv_module, short_conv_module, b2b_causal_conv1d=b2b_causal_conv1d):
+        """Initialize the B2BCausalConv1dModule.
+
+        Args:
+            proj_conv_module: The projection convolution module
+            short_conv_module: The short convolution module
+            b2b_causal_conv1d: The CUDA kernel function for back-to-back causal convolution
+        """
         super().__init__()
         self.b2b_causal_conv1d_fn = b2b_causal_conv1d
         # Store references to the modules, not their weights
@@ -1152,6 +1163,15 @@ class B2BCausalConv1dModule(nn.Module):
         self.effective_pad_size = (self._short_conv_module.kernel_size - 1) + (self._proj_conv_module.kernel_size - 1)
 
     def forward(self, x, _use_cp=True):
+        """Forward pass for the B2BCausalConv1dModule.
+
+        Args:
+            x: Input tensor [B, D, L]
+            _use_cp: Whether to use context parallelism
+
+        Returns:
+            Tensor: Output of the back-to-back causal convolution operation
+        """
         # Extract weights at runtime to avoid parameter registration
         # and reshape them to the expected dimensions
         proj_weight = self._proj_conv_module.short_conv_weight
