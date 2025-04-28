@@ -1573,7 +1573,7 @@ class MagpieTTSModel(ModelPT):
                 # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
                 dataset.text_tokenizer, dataset.text_conditioning_tokenizer = setup_tokenizers(
                     all_tokenizers_config=self.cfg.text_tokenizers,
-                    use_text_conditioning_tokenizer=self.use_kv_cache_for_inference,
+                    use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
                     mode='test'
                 )
 
