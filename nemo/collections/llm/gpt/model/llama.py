@@ -440,12 +440,12 @@ class LlamaModel(GPTModel):
     """
 
     def __init__(
-        self,
-        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
-        model_context_managers: Optional[List] = [],
+            self,
+            config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+            optim: Optional[OptimizerModule] = None,
+            tokenizer: Optional["TokenizerSpec"] = None,
+            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+            model_context_managers: Optional[List] = [],
     ):
         super().__init__(
             config or LlamaConfig(),
@@ -467,11 +467,11 @@ class MLPerfLoRALlamaModel(LlamaModel):
     """
 
     def __init__(
-        self,
-        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+            self,
+            config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+            optim: Optional[OptimizerModule] = None,
+            tokenizer: Optional["TokenizerSpec"] = None,
+            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         # Apply context manager to reduce memory by avoiding unnecessary gradients
         model_context_managers = [torch.no_grad()]
@@ -570,7 +570,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             )
         ]
         if 'llama4' in getattr(source.config, "model_type"):
-            source = _modify_llama4_source_state(source, source.config)
+            source = _modify_llama4_source_state_for_importer(source, self.config)
             # Update mapping for Llama4 model
             llama4_mapping = {
                 # Post Attention LayerNorm
@@ -646,42 +646,6 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
-
-    def _modify_llama4_source_state(self, source: nn.Module) -> _ModelState:
-        """
-        In Llama4, HF weight for local experts are mapped with a single tensor.
-        Pre-chunk it before convert_state.
-        For dense layer, we change the name for the post attention layer norm to
-        avoid the many-to-one mapping in the conversion.
-        """
-        state_dict = source.state_dict()
-        num_experts = source.config.num_local_experts
-        for layer_i in range(self.config.num_layers):
-            is_moe_layer = True
-            if isinstance(self.config.moe_layer_freq, list):
-                assert len(self.config.moe_layer_freq) == self.config.num_layers
-                is_moe_layer = self.config.moe_layer_freq[layer_i]
-            if is_moe_layer:
-                # gate_up_proj
-                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj")
-                weights = torch.chunk(weight, num_experts, dim=0)
-                for expert_i, expert_weight in enumerate(weights):
-                    state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"] = (
-                        expert_weight.squeeze().transpose(0, 1)
-                    )
-                # down_proj
-                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.down_proj")
-                weights = torch.chunk(weight, num_experts, dim=0)
-                for expert_i, expert_weight in enumerate(weights):
-                    state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
-                        expert_weight.squeeze().transpose(0, 1)
-                    )
-            else:
-                weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
-                state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
-
-        source = _ModelState(state_dict)
-        return source
 
     @property
     def config(self) -> LlamaConfig:
@@ -768,6 +732,43 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         )
 
         return output
+
+
+def _modify_llama4_source_state_for_importer(source: nn.Module, config: LlamaConfig) -> _ModelState:
+    """
+    In Llama4, HF weight for local experts are mapped with a single tensor.
+    Pre-chunk it before convert_state.
+    For dense layer, we change the name for the post attention layer norm to
+    avoid the many-to-one mapping in the conversion.
+    """
+    state_dict = source.state_dict()
+    num_experts = source.config.num_local_experts
+    for layer_i in range(config.num_layers):
+        is_moe_layer = True
+        if isinstance(config.moe_layer_freq, list):
+            assert len(config.moe_layer_freq) == config.num_layers
+            is_moe_layer = config.moe_layer_freq[layer_i]
+        if is_moe_layer:
+            # gate_up_proj
+            weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj")
+            weights = torch.chunk(weight, num_experts, dim=0)
+            for expert_i, expert_weight in enumerate(weights):
+                state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"] = (
+                    expert_weight.squeeze().transpose(0, 1)
+                )
+            # down_proj
+            weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.down_proj")
+            weights = torch.chunk(weight, num_experts, dim=0)
+            for expert_i, expert_weight in enumerate(weights):
+                state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
+                    expert_weight.squeeze().transpose(0, 1)
+                )
+        else:
+            weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
+            state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
+
+    source = _ModelState(state_dict)
+    return source
 
 
 @io.model_exporter(LlamaModel, "hf")
@@ -1085,38 +1086,37 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
         return state_dict, config_obj
 
+    def _modify_llama4_source_state(self, state_dict, source_config):
+        """
+        For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
+        For dense layer, we change the name for the post attention layer norm to
+        avoid the many-to-one mapping in the conversion confi.
+        """
+        for layer_i in range(source_config.num_layers):
+            is_moe_layer = True
+            if isinstance(source_config.moe_layer_freq, list):
+                assert len(source_config.moe_layer_freq) == source_config.num_layers
+                is_moe_layer = source_config.moe_layer_freq[layer_i]
+            if is_moe_layer:
+                # gate_up_proj
+                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight")
+                state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
+                    0, 2, 1
+                ).contiguous()
 
-def _modify_llama4_source_state(state_dict, source_config):
-    """
-    For MoE layer, we transpose the gate_up_proj and down_proj to match HF implementation.
-    For dense layer, we change the name for the post attention layer norm to
-    avoid the many-to-one mapping in the conversion confi.
-    """
-    for layer_i in range(source_config.num_layers):
-        is_moe_layer = True
-        if isinstance(source_config.moe_layer_freq, list):
-            assert len(source_config.moe_layer_freq) == source_config.num_layers
-            is_moe_layer = source_config.moe_layer_freq[layer_i]
-        if is_moe_layer:
-            # gate_up_proj
-            weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight")
-            state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
-                0, 2, 1
-            ).contiguous()
+                # down_proj
+                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight")
+                state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(
+                    0, 2, 1
+                ).contiguous()
 
-            # down_proj
-            weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight")
-            state_dict[f"decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(
-                0, 2, 1
-            ).contiguous()
+            else:
+                assert f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
+                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+                state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
 
-        else:
-            assert f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
-            weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
-            state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
-
-    source = _ModelState(state_dict, source_config)
-    return source
+        source = _ModelState(state_dict, source_config)
+        return source
 
 
 @io.model_exporter(LlamaModel, "hf-peft")
@@ -1287,7 +1287,7 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         from nemo.collections.llm.peft import DoRA
 
         assert (
-            not self.peft_obj.dropout or self.peft_obj.dropout_position == 'pre'
+                not self.peft_obj.dropout or self.peft_obj.dropout_position == 'pre'
         ), "LoRA dropout_position must be 'pre' to convert to HF."
 
         NEMO2HF = {
@@ -1317,11 +1317,11 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
 
 
 def apply_rope_scaling(
-    inv_freq,
-    factor: float = 8.0,
-    low_freq_factor: float = 1.0,
-    high_freq_factor: float = 4.0,
-    old_context_len: int = 8192,
+        inv_freq,
+        factor: float = 8.0,
+        low_freq_factor: float = 1.0,
+        high_freq_factor: float = 4.0,
+        old_context_len: int = 8192,
 ):
     """Apply RoPE scaling for extending context length in Llama models.
 
