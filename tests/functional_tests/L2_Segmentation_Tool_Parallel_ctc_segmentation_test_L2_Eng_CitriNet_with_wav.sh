@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 TIME=$(date +"%Y-%m-%d-%T")
-#
+
 bash tools/ctc_segmentation/run_segmentation.sh \
     --MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" \
     --DATA_DIR=/home/TestData/ctc_segmentation/eng \
