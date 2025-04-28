@@ -336,6 +336,10 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
+    if compute_dtype.lower() == "bf16": 
+        recipe.optim.config.use_precision_aware_optimizer = True
+        
+
     # low precision training configs
     if compute_dtype is not None and compute_dtype.lower() == "fp8":
         if fp8_recipe is None:
@@ -352,8 +356,6 @@ def set_primary_perf_configs(
         if use_mcore_fsdp:
             logging.warning("Currently FSDP does not support FP8 param gather. Disabling fp8 param gather.")
             recipe.trainer.plugins.fp8_param_gather = False
-
-        recipe.optim.config.use_precision_aware_optimizer = False
 
     # Activation recompute configs
     if recompute_modules is not None:

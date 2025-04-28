@@ -235,6 +235,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     recipe.trainer.strategy.tensor_model_parallel_size = 8
     recipe.trainer.strategy.sequence_parallel = True
 
-    recipe.optim.config.use_precision_aware_optimizer = True
+    recipe.optim.config.use_precision_aware_optimizer = False
 
     return recipe

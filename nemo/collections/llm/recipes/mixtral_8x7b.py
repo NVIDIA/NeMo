@@ -234,7 +234,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     recipe.trainer.strategy.sequence_parallel = True
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    recipe.optim.config.use_precision_aware_optimizer = True
+    recipe.optim.config.use_precision_aware_optimizer = False
 
     return recipe
 
