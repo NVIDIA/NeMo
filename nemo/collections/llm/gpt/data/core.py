@@ -971,6 +971,13 @@ class GPTSFTChatDataset(GPTSFTDataset):
             input_ids = [x[: self.max_seq_length] for x in input_ids]
             labels = [x[: self.max_seq_length] for x in labels]
             loss_mask = [x[: self.max_seq_length] for x in loss_mask]
+            for i, x in enumerate(loss_mask):
+                x = torch.tensor(x)
+                if x.sum().item() == 0:
+                    logger.warning(
+                        "Due to truncation to max_seq_length, no assistant tokens are found in sample. Setting loss_mask to all ones."
+                    )
+                    loss_mask[i] = [1] * self.max_seq_length
             if not self.use_hf_tokenizer_chat_template:
                 contexts = [x[: self.max_seq_length] for x in contexts]
                 answers = [x[: self.max_seq_length] for x in answers]
