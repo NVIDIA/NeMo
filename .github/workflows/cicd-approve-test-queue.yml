@@ -92,7 +92,7 @@ jobs:
           print(f"Max concurrency: {MAX_CONCURRENCY}")
 
           if total_workflows >= MAX_CONCURRENCY:
-              print("Maximum concurrency reached, no new approvals will be made")
+              print(f"NVIDIA/NeMo CI runs {TOTAL_CONCURRENCY} job at a time. At the moment, all slots are occupied. Your run has been scheduled and will get approved once slots are available. Thank you for your understanding and contribution!")
               exit(0)
 
           # Get waiting CI workflows for test environment
