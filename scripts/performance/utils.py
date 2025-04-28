@@ -336,9 +336,8 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
-    if compute_dtype.lower() == "bf16": 
+    if compute_dtype.lower() == "bf16":
         recipe.optim.config.use_precision_aware_optimizer = True
-        
 
     # low precision training configs
     if compute_dtype is not None and compute_dtype.lower() == "fp8":
