@@ -99,20 +99,6 @@ class SALM(LightningModule, HFHubMixin):
 
     @property
     def text_pad_id(self) -> int:
-        """
-        Text pad ID is used as a 'blank' for frames when the model is not speaking
-        and for frames where the model is speaking but has already predicted the
-        entire text channel's content.
-
-        Example:
-
-            flow:         |---user---||-------assistant--------||-user-|
-            text channel:  0000000000  1xxxxxxx0000000000000002  000000
-
-        Where 0 indicates PAD ID, 1 indicates BOS ID, 2 indacates EOS ID,
-        and x indicates tokens corresponding to actual text
-
-        """
         pad_id = self.tokenizer.pad
         if pad_id is None:
             pad_id = self.tokenizer.unk_id
@@ -263,24 +249,6 @@ class SALM(LightningModule, HFHubMixin):
             accuracies.append(val_acc)
         self.log("val_acc", torch.stack(accuracies).mean(), on_epoch=True, sync_dist=True)
 
-        # corpus_bleus = []
-        # for name in self._refs.keys():
-        #     val_bleu = torch.tensor(
-        #         sacrebleu.corpus_bleu(self._hyps[name], self._refs[name]).score, device=self.device
-        #     )
-        #     self.log(f"val_bleu_{name}", val_bleu, on_epoch=True, sync_dist=True)
-        #     corpus_bleus.append(val_bleu)
-        # self.log("val_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
-        #
-        # wers = []
-        # for name in self._refs.keys():
-        #     val_wer = torchmetrics.functional.text.word_error_rate(self._hyps[name], self._refs[name]).to(self.device)
-        #     self.log(f"val_wer_{name}", val_wer, on_epoch=True, sync_dist=True)
-        #     wers.append(val_wer)
-        # self.log("val_wer", torch.stack(wers).mean(), on_epoch=True, sync_dist=True)
-        #
-        # self._refs.clear()
-        # self._hyps.clear()
         self._partial_val_losses.clear()
         self._partial_accuracies.clear()
 
