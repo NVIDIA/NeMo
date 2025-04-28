@@ -24,4 +24,5 @@ torchrun \
         --data-file=/workspace/.coverage \
         tests/collections/llm/test_local_ckpt.py \
             --log-dir=/tmp/llm_tests/llama_local_ckpt_results \
+            --devices 2
             --async-save
