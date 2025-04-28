@@ -26,6 +26,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_Automodel
             runner: self-hosted-azure-cpu
+            cpu-only: true
     needs: [build]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
@@ -42,6 +43,7 @@ jobs:
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
+          cpu-only: ${{ matrix.cpu-only || false }}
 
   e2e-tests:
     strategy:

@@ -26,6 +26,7 @@ jobs:
             runner: self-hosted-azure
           - script: L0_Unit_Tests_CPU_Export_Deploy
             runner: self-hosted-azure-cpu
+            cpu-only: true
           - script: L0_Unit_Tests_Eval
             runner: self-hosted-azure
     needs: [build]
@@ -44,7 +45,7 @@ jobs:
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
-
+          cpu-only: ${{ matrix.cpu-only || false }}
   e2e-tests:
     strategy:
       fail-fast: false
