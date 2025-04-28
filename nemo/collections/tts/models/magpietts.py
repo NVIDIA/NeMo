@@ -17,6 +17,7 @@ import random
 import string
 import time
 from typing import List
+from enum import Enum, verify, CONTINUOUS, UNIQUE
 
 import librosa
 import numpy as np
@@ -97,6 +98,37 @@ class MagpieTTSModel(ModelPT):
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
 
+        # load codec
+        codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
+        # del codec discriminator to free memory
+        del codec_model.discriminator
+
+        # Reserve special tokens (appended at the end of the codebook after the actual audio codec tokens)
+        # (the actual index is this value plus the number of codec tokens - do not use the Enum directy)
+        @verify(CONTINUOUS, UNIQUE)
+        class SpecialAudioToken(Enum):
+            AUDIO_BOS = 0
+            AUDIO_EOS = 1
+            AUDIO_CONTEXT_BOS = 2
+            AUDIO_CONTEXT_EOS = 3
+            MASK_TOKEN = 4
+            # Reserved so that if we need to add more special tokens in the future the codebook size will remain the same
+            RESERVED_1 = 5
+            RESERVED_2 = 6
+            RESERVED_3 = 7
+
+        # Set up codebook configuration
+        self.num_audio_codebooks = codec_model.num_codebooks
+        self.codec_model_samples_per_frame = codec_model.samples_per_frame
+        # Our codebooks start with actual audio codec tokens, followed by special tokens. 
+        # The `forced_*` options are for backward compatibility for models trained with older code.
+        num_audio_tokens = codec_model.codebook_size
+        self.audio_bos_id = cfg.get('forced_audio_bos_id',num_audio_tokens + SpecialAudioToken.AUDIO_BOS.value)
+        self.audio_eos_id = cfg.get('forced_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_EOS.value)
+        self.context_audio_bos_id = cfg.get('forced_context_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_BOS.value)
+        self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_EOS.value)
+        self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
+
         # Setup tokenizer
         if hasattr(cfg, 'text_tokenizer'):
             # For backward compatibility for English-only models
@@ -119,18 +151,7 @@ class MagpieTTSModel(ModelPT):
         self.bos_id = num_tokens - 2
         self.eos_id = num_tokens - 1
 
-        self.audio_bos_id = cfg.num_audio_tokens_per_codebook - 2
-        self.audio_eos_id = cfg.num_audio_tokens_per_codebook - 1
-        self.context_audio_bos_id = cfg.num_audio_tokens_per_codebook - 2  # For backward compatibility
-        self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 1  # For backward compatibility
-
         self.model_type = cfg.get('model_type', 'single_encoder_sv_tts')
-
-        if self.model_type == 'decoder_context_tts':
-            self.context_audio_bos_id = (
-                cfg.num_audio_tokens_per_codebook - 4
-            )  # Changing these to make them different from target audio bos and eos
-            self.context_audio_eos_id = cfg.num_audio_tokens_per_codebook - 3
 
         self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
@@ -139,10 +160,14 @@ class MagpieTTSModel(ModelPT):
 
         if self.use_text_conditioning_encoder:
             self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
+        
+        # This needs to happen after super().__init__()
+        self._codec_model = codec_model
+        self._codec_model.freeze()  #Lightning does requires_grad = False and self.eval()
 
         audio_embeddings = []
-        for _ in range(cfg.num_audio_codebooks):
-            audio_embeddings.append(nn.Embedding(cfg.num_audio_tokens_per_codebook, cfg.embedding_dim))
+        for _ in range(self.num_audio_codebooks):
+            audio_embeddings.append(nn.Embedding(self.num_all_tokens_per_codebook, cfg.embedding_dim))
         self.audio_embeddings = nn.ModuleList(audio_embeddings)
 
         if self.model_type != 'decoder_pretrain_synthesizer':
@@ -151,7 +176,7 @@ class MagpieTTSModel(ModelPT):
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
-        self.final_proj = nn.Linear(cfg.decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook)
+        self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
         if cfg.get('use_local_transformer', False):
             local_transformer_hidden_dim = cfg.get('local_transformer_hidden_dim', 256)
             if local_transformer_hidden_dim != cfg.decoder.d_model:
@@ -165,13 +190,13 @@ class MagpieTTSModel(ModelPT):
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
                 is_causal=True,
-                max_length_causal_mask=cfg.num_audio_codebooks+2,
+                max_length_causal_mask=self.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
             local_transformer_out_projections = []
-            for _ in range(cfg.num_audio_codebooks):
+            for _ in range(self.num_audio_codebooks):
                 # Have a separate projection layer for each codebook, to distinguish between them
-                local_transformer_out_projections.append(nn.Linear(local_transformer_hidden_dim, cfg.num_audio_tokens_per_codebook))
+                local_transformer_out_projections.append(nn.Linear(local_transformer_hidden_dim, self.num_all_tokens_per_codebook))
             self.local_transformer_out_projections = nn.ModuleList(local_transformer_out_projections)
 
         if cfg.get('use_alignment_encoder', False):
@@ -181,12 +206,6 @@ class MagpieTTSModel(ModelPT):
                 dist_type="cosine",
                 temperature=15.0,
             )
-
-        codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
-        # del codec discriminator to free memory
-        del codec_model.discriminator
-        self._codec_model = codec_model
-        self._codec_model.freeze()  #Lightning does requires_grad = False and self.eval()
 
         if self.model_type == 'single_encoder_sv_tts':
             self._speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
@@ -334,13 +353,13 @@ class MagpieTTSModel(ModelPT):
         for codebook_num in range(audio_codes_target.size(1)):
             # Using a separate projection layer for each codebook (to distinguish between them)
             # Checked the time - this loop is not taking much time (compared to the local transformer forward pass)
-            codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, codebook_num, :]) # (B*T', num_audio_tokens_per_codebook)
+            codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, codebook_num, :]) # (B*T', num_all_tokens_per_codebook)
             all_code_logits.append(codebook_logits)
-        all_code_logits = torch.cat(all_code_logits, dim=1) # (B*T', num_codebooks * num_audio_tokens_per_codebook)
+        all_code_logits = torch.cat(all_code_logits, dim=1) # (B*T', num_codebooks * num_all_tokens_per_codebook)
 
         all_code_logits = all_code_logits.view(
             audio_codes_target.size(0), audio_codes_target.size(2), -1
-        ) # (B, T', C * num_audio_tokens_per_codebook)
+        ) # (B, T', C * num_all_tokens_per_codebook)
 
         return all_code_logits
 
@@ -351,8 +370,8 @@ class MagpieTTSModel(ModelPT):
         loss_mask = get_mask_from_lengths(audio_codes_lens)
         total_codebook_loss = None
         for codebook in range(audio_codes.size(1)):
-            si = codebook * self.cfg.num_audio_tokens_per_codebook
-            ei = si + self.cfg.num_audio_tokens_per_codebook
+            si = codebook * self.num_all_tokens_per_codebook
+            ei = si + self.num_all_tokens_per_codebook
             codebook_logits = logits[:, :, si:ei]  # (B, T', num_tokens_per_codebook)
             codebook_targets = audio_codes[:, codebook]  # (B, T')
             codebook_loss = self.cross_entropy_loss(
@@ -385,9 +404,9 @@ class MagpieTTSModel(ModelPT):
         # all_code_logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # audio_codes_lens: (B,)
         all_preds = []
-        for idx in range(self.cfg.num_audio_codebooks):
-            si = idx * self.cfg.num_audio_tokens_per_codebook
-            ei = si + self.cfg.num_audio_tokens_per_codebook
+        for idx in range(self.num_audio_codebooks):
+            si = idx * self.num_all_tokens_per_codebook
+            ei = si + self.num_all_tokens_per_codebook
             codebook_logits = all_code_logits[:, :, si:ei]
             codebook_probs = torch.softmax(codebook_logits, dim=-1)  # (B, T', num_tokens_per_codebook)
             # argmax to get the tokens
@@ -406,10 +425,10 @@ class MagpieTTSModel(ModelPT):
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
         local_transformer_input = self.local_transformer_in_projection(dec_output) # (B, 1, 128)
         all_preds = []
-        for codebook_num in range(self.cfg.num_audio_codebooks):
+        for codebook_num in range(self.num_audio_codebooks):
             _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
             local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, T, 128)
-            codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, -1, :]) # (B, num_audio_tokens_per_codebook)
+            codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, -1, :]) # (B, num_all_tokens_per_codebook)
             if use_cfg:
                 actual_batch_size = codebook_logits.size(0) // 2
                 conditional_logits = codebook_logits[:actual_batch_size]
@@ -446,9 +465,9 @@ class MagpieTTSModel(ModelPT):
     def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80, unfinished_items={}, finished_items={}):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = []
-        for idx in range(self.cfg.num_audio_codebooks):
-            si = idx * self.cfg.num_audio_tokens_per_codebook
-            ei = si + self.cfg.num_audio_tokens_per_codebook
+        for idx in range(self.num_audio_codebooks):
+            si = idx * self.num_all_tokens_per_codebook
+            ei = si + self.num_all_tokens_per_codebook
             codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
             for item_idx in unfinished_items:
                 codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
@@ -874,8 +893,8 @@ class MagpieTTSModel(ModelPT):
                 and torch.rand(1).item() < 0.5
             ):
                 # For some batches (half of them), replace decoder_input_dropout_prob of the timesteps with random tokens
-                max_codebook_val = self.cfg.get('dec_random_input_max', self.cfg.num_audio_tokens_per_codebook)
-                # @pneekhara: Keeping dec_random_input_max configurable since num_audio_tokens_per_codebook usually has padding tokens
+                max_codebook_val = self.cfg.get('dec_random_input_max', self.num_all_tokens_per_codebook)
+                # @pneekhara: Keeping dec_random_input_max configurable since num_all_tokens_per_codebook usually has padding tokens
                 # which can cause errors when doing codes_to_audio for audio_codes_input. We are not currently calling codes_to_audio on
                 # audio_codes_input so should not matter if we don't supply dec_random_input_max.
                 random_audio_tokens = torch.randint(
@@ -1245,7 +1264,7 @@ class MagpieTTSModel(ModelPT):
             context_tensors = self.prepare_context_tensors(batch)
             text = context_tensors['text']
             audio_codes_bos = torch.full(
-                (text.size(0), self.cfg.num_audio_codebooks, 1), self.audio_bos_id, device=text.device
+                (text.size(0), self.num_audio_codebooks, 1), self.audio_bos_id, device=text.device
             ).long()
             audio_codes_lens = torch.full((text.size(0),), 1, device=text.device).long()
             audio_codes_input = audio_codes_bos
@@ -1518,8 +1537,8 @@ class MagpieTTSModel(ModelPT):
             audio_eos_id=self.audio_eos_id,
             context_audio_bos_id=self.context_audio_bos_id,
             context_audio_eos_id=self.context_audio_eos_id,
-            num_audio_codebooks=self.cfg.num_audio_codebooks,
-            codec_model_downsample_factor=self.cfg.codec_model_downsample_factor,
+            num_audio_codebooks=self.num_audio_codebooks,
+            codec_model_samples_per_frame=self.codec_model_samples_per_frame,
             prior_scaling_factor=self.cfg.prior_scaling_factor,
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type,  # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
@@ -1540,13 +1559,13 @@ class MagpieTTSModel(ModelPT):
         dataset = MagpieTTSLhotseDataset(
             sample_rate=self.cfg.sample_rate,
             volume_norm=dataset_cfg.volume_norm,
-            codec_model_downsample_factor=self.cfg.codec_model_downsample_factor,
+            codec_model_samples_per_frame=self.codec_model_samples_per_framed,
             codec_model_name=self.cfg.codec_model_name,
             audio_bos_id=self.audio_bos_id,
             audio_eos_id=self.audio_eos_id,
             context_audio_bos_id=self.context_audio_bos_id,
             context_audio_eos_id=self.context_audio_eos_id,
-            num_audio_codebooks=self.cfg.num_audio_codebooks,
+            num_audio_codebooks=self.num_audio_codebooks,
             prior_scaling_factor=self.cfg.prior_scaling_factor,
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=mode,  # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)

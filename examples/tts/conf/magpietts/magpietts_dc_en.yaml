@@ -20,9 +20,6 @@ model:
   use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
   context_duration_min: 3.0
   context_duration_max: 5.0
-  num_audio_codebooks: 8
-  num_audio_tokens_per_codebook: 2024 # 2016 from codec + 8 reserved tokens (for things like EOS/BOS etc.)
-  codec_model_downsample_factor: 1024
   load_cached_codes_if_available: true
   prior_scaling_factor: 0.5
   prior_end_step: 12000

@@ -31,7 +31,7 @@ def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0
         metrics[key] = "{:.4f} +/- {:.4f}".format(mean, confidence_interval)
     return metrics
 
-def update_config(model_cfg, codecmodel_path):
+def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
     ''' helper function to rename older yamls from t5 to magpie '''
     model_cfg.codecmodel_path = codecmodel_path
     if hasattr(model_cfg, 'text_tokenizer'):
@@ -47,6 +47,19 @@ def update_config(model_cfg, codecmodel_path):
     if "t5_decoder" in model_cfg:
         model_cfg.decoder = model_cfg.t5_decoder
         del model_cfg.t5_decoder
+    if legacy_codebooks:
+        print("WARNING: Using legacy codebook indices for backward compatibility. Should only be used with old checkpoints.")
+        num_audio_tokens_per_codebook = model_cfg.num_audio_tokens_per_codebook
+        model_cfg.forced_num_all_tokens_per_codebook = num_audio_tokens_per_codebook
+        model_cfg.forced_audio_eos_id = num_audio_tokens_per_codebook - 1
+        model_cfg.forced_audio_bos_id = num_audio_tokens_per_codebook - 2
+        if model_cfg.model_type == 'decoder_context_tts':
+            model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 3
+            model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 4
+        else:
+            model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 1
+            model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 2
+
     return model_cfg
 
 def run_inference(
@@ -71,7 +84,8 @@ def run_inference(
         apply_prior_to_layers=None,
         start_prior_after_n_audio_steps=10,
         confidence_level=0.95,
-        use_local_transformer=False
+        use_local_transformer=False,
+        legacy_codebooks=False
     ):
     # Load model
     if hparams_file is not None:
@@ -80,7 +94,7 @@ def run_inference(
             model_cfg = model_cfg.cfg
 
         with open_dict(model_cfg):
-            model_cfg = update_config(model_cfg, codecmodel_path)
+            model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
 
         model = MagpieTTSModel(cfg=model_cfg)
         model.use_kv_cache_for_inference = True
@@ -93,7 +107,7 @@ def run_inference(
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
         with open_dict(model_cfg):
-            model_cfg = update_config(model_cfg, codecmodel_path)
+            model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
         model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
@@ -145,14 +159,14 @@ def run_inference(
                 sample_rate=model_cfg.sample_rate,
                 min_duration=0.5,
                 max_duration=20,
-                codec_model_downsample_factor=model_cfg.codec_model_downsample_factor,
+                codec_model_samples_per_frame=model.codec_model_samples_per_frame,
                 bos_id=model.bos_id,
                 eos_id=model.eos_id,
                 context_audio_bos_id=model.context_audio_bos_id,
                 context_audio_eos_id=model.context_audio_eos_id,
                 audio_bos_id=model.audio_bos_id,
                 audio_eos_id=model.audio_eos_id,
-                num_audio_codebooks=model_cfg.num_audio_codebooks,
+                num_audio_codebooks=model.num_audio_codebooks,
                 prior_scaling_factor=None,
                 load_cached_codes_if_available=False,
                 dataset_type='test',
@@ -302,6 +316,7 @@ def main():
     parser.add_argument('--asr_model_name', type=str, default="stt_en_conformer_transducer_large") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
+    parser.add_argument('--legacy_codebooks', action='store_true')
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -340,7 +355,8 @@ def main():
                 apply_prior_to_layers=apply_prior_to_layers,
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
-                use_local_transformer=args.use_local_transformer
+                use_local_transformer=args.use_local_transformer,
+                legacy_codebooks=args.legacy_codebooks
             )
         return
     elif (args.nemo_file is not None):
@@ -368,7 +384,8 @@ def main():
             apply_prior_to_layers=apply_prior_to_layers,
             start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
             confidence_level=args.confidence_level,
-            use_local_transformer=args.use_local_transformer
+            use_local_transformer=args.use_local_transformer,
+            legacy_codebooks=args.legacy_codebooks
         )
     else:
         BASE_EXP_DIR = args.base_exp_dir
