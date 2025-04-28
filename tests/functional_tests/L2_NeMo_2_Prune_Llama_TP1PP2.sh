@@ -11,9 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_prune.py \
-  --restore_path /home/TestData/nemo2_ckpt/llama_68M_v4 \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo
+python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path ./nemo2_ckpt
+
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo
+ torchrun --nproc_per_node=2 scripts/llm/gpt_prune.py \
+  --restore_path ./nemo2_ckpt \
   --legacy_ckpt \
+  --tokenizer gpt2 \
   --tp_size 1 \
   --pp_size 2 \
   --devices 2 \
@@ -28,3 +33,6 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo script
   --target_num_query_groups 4 \
   --target_num_layers 2 \
   --save_path /tmp/pruned-llama
+
+
+srun --mpi=pmix --no-kill --container-image nvcr.io/nvidian/swdl/nemo_train_pipe_14674101980 --container-mounts /lustre:/lustre,/lustre/fsw/coreai_dlalgo_genai/yuya/NeMo:/workspace,/lustre/fsw/coreai_dlalgo_genai/datasets/TestData/TestData:/home/TestData --account coreai_dlalgo_llm -N 1 -J coreai_dlalgo_llm-multimodal:debug -p batch --pty bash
