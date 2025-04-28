@@ -144,11 +144,15 @@ def setup(
         train_valid_test_datasets_provider = partial(train_valid_test_datasets_provider, tokenizer=tokenizer)
 
     train_data_iterator, valid_data_iterator, test_data_iterator = build_train_valid_test_data_iterators(
-        cfg=cfg,
+        dataset_config=cfg.dataset_config,
         train_state=state.train_state,
-        data_parallel_rank=get_rank_safe(),  # TODO: Change when Model Parallel support is added
-        data_parallel_size=get_world_size_safe(),  # TODO: Change when Model Parallel support is added
-        build_train_valid_test_datasets_provider=train_valid_test_datasets_provider,
+        rank=get_rank_safe(),
+        world_size=get_world_size_safe(),
+        micro_batch_size=cfg.train_config.micro_batch_size,
+        global_batch_size=cfg.train_config.global_batch_size,
+        train_iters=cfg.train_config.train_iters,
+        valid_iters=cfg.train_config.eval_iters,
+        test_iters=cfg.train_config.eval_iters,
     )
     timers("train/valid/test-data-iterators-setup").stop()
     barrier_and_log("after dataloaders are built")

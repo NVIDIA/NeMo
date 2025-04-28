@@ -229,7 +229,8 @@ def forward_with_loss_no_cp(model, batch, labels, loss_mask, config: AutoModelFo
     else:
         # use num_logits_to_keep=1 to avoid full logits matrix in memory
         # TODO: test CE with CP enabled
-        outputs = model_forward(model, batch, num_logits_to_keep=1)
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            outputs = model_forward(model, batch, num_logits_to_keep=1)
         hidden_states = outputs.hidden_states[-1]
         lm_head = model.get_output_embeddings().weight  # Get the weight matrix
         if loss_mask is not None:
@@ -249,6 +250,14 @@ def forward_with_loss_no_cp(model, batch, labels, loss_mask, config: AutoModelFo
     return loss
 
 
+def _get_batch_from_iterator(data_iterator: Iterable) -> dict[str, torch.Tensor]:
+    assert data_iterator is not None, "data_iterator must not be None"
+
+    data = next(data_iterator)
+    batch = {key: value.cuda(non_blocking=True) for key, value in data.items()}
+    return batch
+
+
 def forward_step(
     state: GlobalState, data_iterator: Iterable, model: torch.nn.Module, config: AutoModelForCausalLMConfig
 ):
@@ -257,12 +266,13 @@ def forward_step(
 
     timers("batch-generator", log_level=2).start()
     with straggler_timer(bdata=True):
-        tokens, labels, loss_mask, attention_mask, position_ids = get_batch_from_iterator(data_iterator).values()
+        batch = _get_batch_from_iterator(data_iterator)
+        # tokens, labels, loss_mask, attention_mask, position_ids = get_batch_from_iterator(data_iterator).values()
     timers("batch-generator").stop()
 
-    batch = {}
-    batch["input_ids"] = tokens
-    batch["attention_mask"] = loss_mask.bfloat16()
+    # batch = {}
+    # batch["input_ids"] = tokens
+    # batch["attention_mask"] = loss_mask.bfloat16()
     # if attention_mask is not None:
     # Change to HF Transformer format
     # batch["attention_mask"] = torch.logical_not(attention_mask).bfloat16()
@@ -271,6 +281,10 @@ def forward_step(
     batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1]).unsqueeze(0).cuda(non_blocking=True)
 
     # batch = _remove_extra_batch_keys(batch)
+    labels = batch.pop("labels")
+    loss_mask = batch.pop("loss_mask", None)
+    assert loss_mask is not None, "loss_mask is required for training"
+
     with straggler_timer:
         output_tensor = forward_with_loss_no_cp(model, batch, labels, loss_mask, config)
 

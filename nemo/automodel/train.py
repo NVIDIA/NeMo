@@ -268,7 +268,6 @@ def train(
         #     global_state.train_state.consumed_train_samples += batch_size
         #     global_state.train_state.skipped_train_samples += batch_size
         #     continue
-
         # Run training step.
         # fault_tolerance.on_training_step_start(global_state)
         loss_dict, skipped_iter, grad_norm = train_step(
