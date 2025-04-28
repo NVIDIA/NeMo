@@ -296,7 +296,7 @@ def setup_mcore_engine(
     enable_flash_decode: bool = True,
     max_batch_size: int = 32,
     random_seed: Optional[int] = None,
-) -> MCoreEngine:
+) -> tuple[MCoreEngine, AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
     """
     Sets up and returns a Megatron Core Engine for text generation inference.
 
@@ -318,12 +318,12 @@ def setup_mcore_engine(
     """
 
     model, tokenizer = setup_model_and_tokenizer(
-        path,
-        trainer,
-        params_dtype,
-        inference_batch_times_seqlen_threshold,
-        inference_max_seq_length,
-        enable_flash_decode,
+        path=path,
+        trainer=trainer,
+        params_dtype=params_dtype,
+        inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        inference_max_seq_length=inference_max_seq_length,
+        enable_flash_decode=enable_flash_decode,
     )
     text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(
