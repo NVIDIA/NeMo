@@ -1009,6 +1009,35 @@ class MagpieTTSModel(ModelPT):
         if local_transformer_loss is not None:
             self.log('train/local_transformer_loss', local_transformer_loss, prog_bar=True, sync_dist=True)
 
+        # Log batch info
+        batch_size, text_token_max_len = batch["text"].shape
+        text_token_total_num = batch["text_lens"].sum()
+        batch_info_dict = {
+            "train/batch_size": batch_size,
+            "train/text_token_max_len": text_token_max_len,
+            "train/text_token_total_num_in_batch": text_token_total_num,
+            "train/text_token_pad_ratio_percent_in_batch": 100 * (1 - text_token_total_num / (batch_size * text_token_max_len)),
+        }
+
+        if "audio_codes" in batch:
+            audio_codes_max_len = batch["audio_codes"].shape[-1]
+            audio_codes_total_num = batch["audio_codes_lens"].sum()
+            batch_info_dict.update({
+                "train/audio_codes_max_len": audio_codes_max_len,
+                "train/audio_codes_total_num_in_batch": audio_codes_total_num,
+                "train/audio_codes_pad_ratio_percent_in_batch": 100 * (1 - audio_codes_total_num / (batch_size * audio_codes_max_len)),
+            })
+        else:
+            audio_samples_max_len = batch["audio"].shape[-1]
+            audio_samples_total_num = batch["audio_lens"].sum()
+            batch_info_dict.update({
+                "train/audio_samples_max_len": audio_samples_max_len,
+                "train/audio_samples_total_num_in_batch": audio_samples_total_num,
+                "train/audio_samples_pad_ratio_percent_in_batch": 100 * (1 - audio_samples_total_num / (batch_size * audio_samples_max_len)),
+            })
+
+        self.log_dict(batch_info_dict, on_step=True)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
