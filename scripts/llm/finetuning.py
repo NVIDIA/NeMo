@@ -86,14 +86,18 @@ def get_parser():
         type=int,
         help="Global batch size.",
         required=False,
-        default=2048,
     )
     parser.add_argument(
         "--micro-batch-size",
         type=int,
         help="Micro batch size.",
         required=False,
-        default=8,
+    )
+    parser.add_argument(
+        "--seq-length",
+        type=int,
+        help="Sequence length.",
+        required=False,
     )
     parser.add_argument(
         "--max-steps",
@@ -263,10 +267,10 @@ def main():
     finetune.data = run.Config(
         ChatDataModule,
         dataset_root=args.data_path,
-        seq_length=finetune.data.seq_length,
+        seq_length=args.seq_length if args.seq_length else finetune.data.seq_length,
         tokenizer=tokenizer,
-        global_batch_size=args.global_batch_size,
-        micro_batch_size=args.micro_batch_size,
+        global_batch_size=args.global_batch_size if args.global_batch_size else finetune.data.global_batch_size,
+        micro_batch_size=args.micro_batch_size if args.micro_batch_size else finetune.data.micro_batch_size,
         use_hf_tokenizer_chat_template=True,
     )
 
@@ -285,8 +289,9 @@ def main():
             custom_mounts=[
                 "/lustre/fsw:/lustre/fsw",
                 "/lustre/fsw/portfolios/coreai/users/jennifchen/code/NeMo:/opt/NeMo",
-                "/lustre/fsw/portfolios/coreai/users/jennifchen/code/internal_megatron/megatron-lm:/opt/megatron-lm",
+                "/lustre/fsw/portfolios/coreai/users/jennifchen/code/Megatron-LM:/opt/megatron-lm",
             ],
+            custom_env_vars={"HF_HOME": "/lustre/fsw/portfolios/coreai/users/jennifchen/hf_cache"},
         )
     else:
         executor = local_executor_torchrun(nodes=finetune.trainer.num_nodes, devices=finetune.trainer.devices)
