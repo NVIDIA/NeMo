@@ -21,7 +21,7 @@ This module analyzes the codebase to determine internal dependencies between NeM
 import ast
 import json
 import os
-from typing import Dict, List, Set, Union
+from typing import Dict, List, Set
 
 
 def find_python_files(directory: str) -> List[str]:
@@ -49,8 +49,6 @@ def analyze_imports(nemo_root: str, file_path: str) -> Set[str]:
         with open(file_path, 'r', encoding='utf-8') as f:
             tree = ast.parse(f.read(), filename=file_path)
 
-        # Walk through the AST to find import statements
-
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith('nemo.'):
                 # Split the module path
@@ -60,24 +58,19 @@ def analyze_imports(nemo_root: str, file_path: str) -> Set[str]:
                     continue
 
                 if len(parts) >= 2:
-                    module_type = parts[1]  # collections, core, utils, or automodel
+                    module_type = parts[1]
 
                     if module_type == 'collections':
-                        if len(parts) >= 3:
-                            # Handle both collection-level imports and specific module imports
-                            collection = parts[2]
-                            imported_package = f"nemo.collections.{collection}"
-                            # imports.add(node.module)
-                            if node.names:
-                                for name in node.names:
-                                    if name.name == '*':
-                                        continue
+                        if len(parts) == 2:
+                            continue
+                        if node.names:
+                            for name in node.names:
+                                if name.name == '*':
+                                    continue
 
-                                    imports.add(f"{node.module}.{name.name}")
+                                imports.add(f"{node.module}.{name.name}")
 
                     elif module_type in find_top_level_packages(nemo_root):
-                        imported_package = f"nemo.{module_type}"
-                        # imports.add(node.module)
                         if node.names:
                             for name in node.names:
                                 if name.name == '*':
@@ -226,20 +219,15 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
         for dep in deps:
             if "asr" in dep or "tts" in dep or "speechlm" in dep or "audio" in dep:
                 new_deps.append("speech")
-            elif "export" in dep or "deploy" in dep:
+
+            if "export" in dep or "deploy" in dep:
                 new_deps.append("export-deploy")
-            elif (
-                "nemo.collections.llm" in dep
-                or "nemo.collections.nlp" in dep
-                or "nemo.collections.vlm" in dep
-                or "nemo.collections.multimodal" in dep
-                or "nemo.collections.vision" in dep
-                or "nemo.collections.diffusion" in dep
-                or "nemo.collections.multimodal_autoregressive" in dep
-            ):
+
+            if "llm" in dep or "vlm" in dep or "automodel" in dep:
+                new_deps.append("automodel")
+
+            if "collections" in dep and not ("asr" in dep or "tts" in dep or "speechlm" in dep or "audio" in dep):
                 new_deps.append("NeMo2")
-            else:
-                new_deps.append(dep)
 
         bucket_deps[package] = sorted(list(set(new_deps)))
 
@@ -262,7 +250,7 @@ def main():
     # Output as JSON
     data = json.dumps(dependencies, indent=4)
     # print(data)
-    with open('nemo_dependencies.json', 'w') as f:
+    with open('nemo_dependencies.json', 'w', encoding='utf-8') as f:
         f.write(data)
 
 
