@@ -80,7 +80,7 @@ def test_generate(deployable):
         mock_result = MagicMock()
         mock_result.generated_text = "Generated text"
         mock_generate.return_value = [mock_result]
-        
+
         results = deployable.generate(prompts, inference_params)
         assert len(results) == 1
         mock_generate.assert_called_once()
