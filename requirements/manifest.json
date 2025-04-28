@@ -11,7 +11,7 @@
     },
     "megatron-lm": {
       "repo": "https://github.com/NVIDIA/Megatron-LM",
-      "ref": "d0d2eeada29325356141590c291e190af24d05ab"
+      "ref": "c5a3d1e7afba19ddb3c210555619a60a34b8309a"
     },
     "trt-llm": {
       "repo": "https://github.com/NVIDIA/TensorRT-LLM.git",
