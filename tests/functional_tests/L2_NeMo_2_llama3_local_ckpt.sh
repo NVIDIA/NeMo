@@ -26,3 +26,5 @@ torchrun \
             --log-dir=/tmp/llm_tests/llama_local_ckpt_results \
             --devices 2
             --async-save
+
+coverage combine /workspace/

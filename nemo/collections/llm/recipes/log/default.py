@@ -127,9 +127,7 @@ def get_global_step_from_global_checkpoint_path(path: Union[str, Path]) -> int:
     else:
         # Handle plain value format (if metric name is not auto-inserted)
         if not step_part.isdigit():
-            raise ValueError(
-                f"Expected an integer but found '{step_part}'. Full path: {path}"
-            )
+            raise ValueError(f"Expected an integer but found '{step_part}'. Full path: {path}")
         step = int(step_part)
 
     return step
