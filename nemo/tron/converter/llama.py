@@ -122,3 +122,7 @@ class HFLlamaImporter(BaseImporter):
 
         self._tron_config = _NeMo2HFLlamaImporter.config.fget(self.input_path)
         return self._tron_config
+
+    @property
+    def config(self) -> LlamaConfig:
+        return self._tron_config
