@@ -24,7 +24,6 @@ import torch.nn as nn
 from einops import rearrange
 from megatron.core.parallel_state import (
     get_context_parallel_group,
-    get_context_parallel_rank,
     get_context_parallel_world_size,
     get_tensor_model_parallel_world_size,
 )
@@ -35,12 +34,11 @@ from megatron.core.transformer.utils import sharded_state_dict_default
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
-    ExchangeOverlappingRegionsCausal,
+    B2BCausalConv1dModule,
     ParallelCausalDepthwiseConv1d,
     ParallelHyenaOperator,
     ParallelShortHyenaOperator,
     divide,
-    zigzag_get_overlapping_patches,
 )
 
 
@@ -186,75 +184,7 @@ class HyenaMixer(MegatronModule):
             )  # mixer.short_conv.short_conv_weight
 
             if self.use_b2b_causal_conv1d:
-                from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
-
                 # Create a wrapper module that doesn't register parameters
-                class B2BCausalConv1dModule(nn.Module):
-                    def __init__(self, proj_conv_module, short_conv_module):
-                        super().__init__()
-                        self.b2b_causal_conv1d_fn = b2b_causal_conv1d
-                        # Store references to the modules, not their weights
-                        self._proj_conv_module = proj_conv_module
-                        self._short_conv_module = short_conv_module
-                        # Combined padding from both convolutions - this is a key difference from the 
-                        # sequential execution of two convs which applies padding separately
-                        self.effective_pad_size = (self._short_conv_module.kernel_size - 1) + (self._proj_conv_module.kernel_size - 1)
-
-                    def forward(self, x, _use_cp=True):
-                        # Extract weights at runtime to avoid parameter registration
-                        # and reshape them to the expected dimensions
-                        proj_weight = self._proj_conv_module.short_conv_weight
-                        short_weight = self._short_conv_module.short_conv_weight
-
-                        # Reshape proj_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
-                        if proj_weight.dim() == 3:
-                            proj_weight = proj_weight.reshape(-1, proj_weight.size(-1))
-
-                        # Reshape short_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
-                        if short_weight.dim() == 3:
-                            # If the middle dimension is 1, we can just squeeze it
-                            if short_weight.size(1) == 1:
-                                short_weight = short_weight.squeeze(1)
-                            else:
-                                # Otherwise reshape to flatten the first two dimensions
-                                short_weight = short_weight.reshape(-1, short_weight.size(-1))
-
-                        # maybe handle num_groups
-                        proj_weight = proj_weight.repeat_interleave(self._proj_conv_module.group_dim, dim=0)
-                        short_weight = short_weight.repeat_interleave(self._short_conv_module.group_dim, dim=0)
-
-                        # Support context parallelism similar to how it's done in ParallelCausalDepthwiseConv1d
-                        if _use_cp and get_context_parallel_world_size() > 1:
-
-                            cp_group = get_context_parallel_group()
-                            cp_rank = get_context_parallel_rank()
-
-                            # Transfer patches across ranks
-                            seq_dim = 2  # Last dimension (L)
-
-                            # Get overlapping patches - using the combined effective padding size
-                            chunk_a, chunk_b = zigzag_get_overlapping_patches(x, seq_dim=seq_dim, overlap_size=self.effective_pad_size)
-
-                            # We're exchanging larger patches once instead of smaller patches twice
-                            received_a, received_b = ExchangeOverlappingRegionsCausal.apply(chunk_a, chunk_b, cp_group, cp_rank)
-
-                            # Pad and rearrange
-                            x = rearrange(x, "b h (nc s) -> (nc b) h s", nc=2)
-                            padding = torch.concat([received_a, received_b], dim=0)
-
-                            x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
-                            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
-                            result = result[..., self.effective_pad_size:]  # Remove padding from output
-                            result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
-                        else:
-                            # Add proper causal padding for the non-CP case
-                            x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
-
-                            # Call the CUDA kernel and remove the padding from result
-                            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
-                            result = result[..., self.effective_pad_size:]  # Remove padding from output
-                        return result
-
                 # Use the existing weights from the original model
                 self.b2b_kernel = B2BCausalConv1dModule(self.hyena_proj_conv, self.mixer.short_conv)
 
