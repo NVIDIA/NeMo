@@ -10,7 +10,7 @@ from omegaconf import OmegaConf
 from transformers import GenerationConfig
 from whisper_normalizer.english import EnglishTextNormalizer
 
-from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.metrics.wer import word_error_rate, word_error_rate_detail
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset
 from nemo.collections.duplex_s2s.models.salm import SALM
 from nemo.core.config import hydra_runner
@@ -32,13 +32,17 @@ class SalmEvalConfig:
     output_manifest: Optional[str] = "generations.jsonl"
     verbose: bool = True
     use_normalizer: bool = True
+    device: str = "cuda"
 
 
 @hydra_runner(config_name="SalmEvalConfig", schema=SalmEvalConfig)
 def main(cfg: SalmEvalConfig):
     logging.info(f'Hydra config:\n{OmegaConf.to_yaml(cfg)}')
 
-    model = SALM.from_pretrained(cfg.pretrained_name).eval().to(torch.bfloat16).cuda()
+    with torch.device(cfg.device):
+        torch.set_default_dtype(torch.bfloat16)
+        model = SALM.from_pretrained(cfg.pretrained_name).eval().to(torch.bfloat16).to(cfg.device)
+        torch.set_default_dtype(torch.float32)
 
     cuts = guess_parse_cutset(cfg.inputs).sort_by_duration()
     dloader = torch.utils.data.DataLoader(
@@ -81,29 +85,31 @@ def main(cfg: SalmEvalConfig):
         batch_infer_duration = perf_counter() - ts
 
         batch_duration = sum(c.duration for c in batch["cuts"])
-        batch_refs = [cut.supervisions[0].text for cut in batch["cuts"]]
+        batch_refs = [normalizer(cut.supervisions[0].text) for cut in batch["cuts"]]
         batch_hyps = [
             normalizer(model.tokenizer.ids_to_text(ans[ans != model.text_pad_id]).strip()) for ans in answer_ids
         ]
         if cfg.verbose:
-            batch_wer = word_error_rate(batch_hyps, batch_refs)
+            batch_wer, _, nins, ndel, nsub = word_error_rate_detail(batch_hyps, batch_refs)
             batch_rtfx = batch_duration / batch_infer_duration
-            logging.info(f"Batch {batch_idx}: WER={batch_wer:.2%} RTFx={batch_rtfx:.1f}")
+            logging.info(
+                f"Batch {batch_idx}: WER={batch_wer:.2%} [ins={nins:.2%} del={ndel:.2%} sub={nsub:.2%}] RTFx={batch_rtfx:.1f}"
+            )
 
         refs.extend(batch_refs)
         hyps.extend(batch_hyps)
         input_durations.append(batch_duration)
         infer_durations.append(batch_infer_duration)
 
-    wer = word_error_rate(hypotheses=hyps, references=refs, use_cer=False)
+    wer, _, nins, ndel, nsub = word_error_rate_detail(hypotheses=hyps, references=refs, use_cer=False)
     rtfx = sum(input_durations) / sum(infer_durations)
-    logging.info(f"WER: {wer:.2%}")
+    logging.info(f"WER: {wer:.2%} [ins={nins:.2%} del={ndel:.2%} sub={nsub:.2%}]")
     logging.info(f"RTFx: {rtfx:.1f}")
 
     if cfg.output_manifest is not None:
         with SequentialJsonlWriter(cfg.output_manifest) as writer:
             for cut, ref, hyp in zip(cuts, refs, hyps):
-                writer.write({"id": cut.id, "text": ref, "pred_text": hyp})
+                writer.write({"id": cut.id, "duration": cut.duration, "text": ref, "pred_text": hyp})
 
 
 if __name__ == '__main__':
