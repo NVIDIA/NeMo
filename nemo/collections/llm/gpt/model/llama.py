@@ -639,25 +639,19 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
             return _handler
 
-        layernorm_mappings = [
-            (
-                ("decoder.layers.*.input_layernorm.weight", "model.layers.*.input_layernorm.weight"),
-                "model.layers.*.input_layernorm.weight",
-            ),
-            (
-                ("decoder.layers.*.pre_mlp_layernorm.weight", "model.layers.*.post_attention_layernorm.weight"),
-                "model.layers.*.post_attention_layernorm.weight",
-            ),
-            ("decoder.final_layernorm.weight", "model.norm.weight"),
-        ]
+        hf_to_nemo_layernorm_keys = {
+            "model.layers.*.input_layernorm.weight": ("decoder.layers.*.input_layernorm.weight", "model.layers.*.input_layernorm.weight"),
+            "model.layers.*.post_attention_layernorm.weight": ("decoder.layers.*.pre_mlp_layernorm.weight", "model.layers.*.post_attention_layernorm.weight"),
+            "model.norm.weight": "decoder.final_layernorm.weight"
+        }
 
         transforms = [
             io.state_transform(
-                source_key=source_key,
-                target_key=target_key,
+                source_key=nemo_keys,
+                target_key=hf_key,
                 fn=local_and_transformer_engine_specs_handler(source.config.params_dtype),
             )
-            for source_key, target_key in layernorm_mappings
+            for hf_key, nemo_keys in hf_to_nemo_layernorm_keys.items()
         ]
 
         transforms += [
