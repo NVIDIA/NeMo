@@ -26,12 +26,13 @@ import torch.distributed as dist
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+from torch.distributed.nn.functional import all_gather as functional_all_gather
+from torch.nn.parallel import DistributedDataParallel as DDP
+
 from nemo.collections.llm.gpt.model.hyena import HyenaTestConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer
-from torch.distributed.nn.functional import all_gather as functional_all_gather
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_size=1, context_parallel_size=1):
@@ -39,9 +40,9 @@ def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_si
 
     num_gpus = torch.cuda.device_count()
     required_world_size = tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size
-    assert num_gpus == required_world_size, (
-        f"World size {num_gpus} != TP={tensor_model_parallel_size} x PP={pipeline_model_parallel_size} x CP={context_parallel_size}"
-    )
+    assert (
+        num_gpus == required_world_size
+    ), f"World size {num_gpus} != TP={tensor_model_parallel_size} x PP={pipeline_model_parallel_size} x CP={context_parallel_size}"
 
     # Set up environment variables
     os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "0"
@@ -177,7 +178,7 @@ class B2BConv1d(torch.nn.Module):
             max_sequence_length=seq_len,
             submodules=submodules,
             layer_number=1,
-            operator_type="hyena_short_conv"
+            operator_type="hyena_short_conv",
         )
 
     def forward(self, x, _use_cp=True):
@@ -261,9 +262,11 @@ if __name__ == "__main__":
     output_features = ddp_b2b_conv1d(input_features, _use_cp=False)
 
     if dist.get_rank() == 0:
-        assert output_features.shape == (batch_size, b2b_conv1d.mixer.hidden_size, seq_len), (
-            f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
-        )
+        assert output_features.shape == (
+            batch_size,
+            b2b_conv1d.mixer.hidden_size,
+            seq_len,
+        ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
 
     loss = output_features.float().mean()
     loss.backward()
@@ -288,17 +291,17 @@ if __name__ == "__main__":
             batch_size,
             b2b_conv1d.mixer.hidden_size,
             seq_len // parallel_state.get_context_parallel_world_size(),
-        ), (
-            f"output_features_cp.shape: {output_features_cp.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
-        )
+        ), f"output_features_cp.shape: {output_features_cp.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
 
     # Gather from all ranks according to zigzag splitting.
     output_features_cp_gathered = zigzag_gather_from_group_ranks(output_features_cp, group=cp_group, seq_dim=2)
     if dist.get_rank() == 0:
         # Verify shapes are correct
-        assert output_features_cp_gathered.shape == (batch_size, b2b_conv1d.mixer.hidden_size, seq_len), (
-            f"output_features_cp_gathered.shape: {output_features_cp_gathered.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
-        )
+        assert output_features_cp_gathered.shape == (
+            batch_size,
+            b2b_conv1d.mixer.hidden_size,
+            seq_len,
+        ), f"output_features_cp_gathered.shape: {output_features_cp_gathered.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
 
     loss_with_cp = output_features_cp_gathered.float().mean()
     loss_with_cp.backward()
