@@ -42,7 +42,7 @@ from nemo.tron.setup import _init_checkpointing_context
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import get_rank_safe  # For rank checks
-from nemo.utils.get_rank import get_last_rank # Import for greedy gen broadcast
+from nemo.utils.get_rank import get_last_rank  # Import for greedy gen broadcast
 
 # from megatron.core.inference.sampling_params import SamplingParams # Optional for more control
 
@@ -311,12 +311,14 @@ def megatron_generate(
 
     if generation_method == "manual_greedy":
         if rank == 0:
-            print(f"Starting manual greedy generation: batch_size={input_ids.shape[0]}, max_new_tokens={max_new_tokens}")
+            print(
+                f"Starting manual greedy generation: batch_size={input_ids.shape[0]}, max_new_tokens={max_new_tokens}"
+            )
         start_time = time.time()
 
         # --- Manual Greedy Generation Loop ---
         generated_ids = input_ids.cuda().clone()
-        generated_ids = generated_ids[:, :input_lengths[0]]
+        generated_ids = generated_ids[:, : input_lengths[0]]
         # Determine stop tokens (use IDs from the Megatron tokenizer)
         stop_token_ids = set()
         # Assuming common patterns, adjust if needed based on tokenizer specifics
@@ -329,9 +331,9 @@ def megatron_generate(
             eom_id = megatron_tokenizer._tokenizer.vocab.get("<|eom|>", None)
             eot_id = megatron_tokenizer._tokenizer.vocab.get("<|eot|>", None)
             if eom_id:
-                 stop_token_ids.add(eom_id)
+                stop_token_ids.add(eom_id)
             if eot_id:
-                 stop_token_ids.add(eot_id)
+                stop_token_ids.add(eot_id)
         except AttributeError:
             print("Warning: Could not access tokenizer vocab directly for stop tokens.")
 
@@ -344,7 +346,9 @@ def megatron_generate(
             for step in range(max_new_tokens):
                 print(step)
                 position_ids = (
-                    torch.arange(current_input_ids.size(1), dtype=torch.long, device=current_input_ids.device).unsqueeze(0).expand_as(current_input_ids)
+                    torch.arange(current_input_ids.size(1), dtype=torch.long, device=current_input_ids.device)
+                    .unsqueeze(0)
+                    .expand_as(current_input_ids)
                 )
                 # Direct model call (no fwd_bwd_function needed here as model is already set up)
                 output = model(current_input_ids, position_ids, attention_mask=None)
@@ -360,18 +364,20 @@ def megatron_generate(
                         # Assuming model output are logits split across TP ranks on the vocab dim (-1)
                         world_size = parallel_state.get_tensor_model_parallel_world_size()
                         gathered_tensors = [torch.zeros_like(output) for _ in range(world_size)]
-                        dist.all_gather(gathered_tensors, output, group=parallel_state.get_tensor_model_parallel_group())
+                        dist.all_gather(
+                            gathered_tensors, output, group=parallel_state.get_tensor_model_parallel_group()
+                        )
                         # Concatenate along the vocab dimension (last dimension)
                         # Ensure the model output is indeed logits before concatenating
                         # If model output is hidden states, need to apply LM head first
                         # Let's assume 'output' are the logits for now. Needs verification.
                         gathered_output = torch.cat(gathered_tensors, dim=-1)
                     else:
-                        gathered_output = output # No TP, output is already full logits
+                        gathered_output = output  # No TP, output is already full logits
 
                     # Get the token ID for the *next* token (logit of the last position)
-                    next_token_logits = gathered_output[:, -1, :] # [mb, vocab_size]
-                    next_token_ids = torch.argmax(next_token_logits, dim=-1, keepdim=True) # [mb, 1]
+                    next_token_logits = gathered_output[:, -1, :]  # [mb, vocab_size]
+                    next_token_ids = torch.argmax(next_token_logits, dim=-1, keepdim=True)  # [mb, 1]
                 else:
                     # Other pipeline stages don't compute the final logits
                     # Create a dummy tensor to match the expected shape for broadcast
@@ -389,7 +395,7 @@ def megatron_generate(
 
                 # Append the new token ID to the generated sequence
                 generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
-                current_input_ids = generated_ids # Update input for next step
+                current_input_ids = generated_ids  # Update input for next step
 
                 # Check for stop tokens (only need to check on rank 0 after broadcast?)
                 # Safer to check on all ranks, especially if PP > 1
@@ -397,7 +403,7 @@ def megatron_generate(
                 if next_token_ids[0].item() in stop_token_ids:
                     if rank == 0:
                         print(f"Stop token {next_token_ids[0].item()} detected at step {step+1}.")
-                    break # Exit the loop
+                    break  # Exit the loop
 
             # --- Post-process Manual Greedy Output ---
             # `generated_ids` contains the full sequences [batch, seq_len]
@@ -407,7 +413,7 @@ def megatron_generate(
             # Create dummy logprobs tensor (manual greedy doesn't easily provide them)
             logprobs_padded = torch.full(
                 (batch_size, max_seq_len),
-                float('nan'), # Use NaN to indicate missing logprobs
+                float('nan'),  # Use NaN to indicate missing logprobs
                 dtype=torch.float,
                 device="cpu",
             )
@@ -417,7 +423,7 @@ def megatron_generate(
 
             for i in range(batch_size):
                 prompt_len = input_lengths[i].cpu().item()
-                seq_len = generated_ids.size(1) # Total length after generation
+                seq_len = generated_ids.size(1)  # Total length after generation
                 unpadded_lengths_list.append(seq_len)
                 generation_lengths_list.append(max(0, seq_len - prompt_len))
 
@@ -440,7 +446,9 @@ def megatron_generate(
     elif generation_method == "mcore_engine":
         # --- Original MCore Engine Logic ---
         if rank == 0:
-            print(f"Starting generation using MCore Engine: batch_size={input_ids.shape[0]}, max_new_tokens={max_new_tokens}")
+            print(
+                f"Starting generation using MCore Engine: batch_size={input_ids.shape[0]}, max_new_tokens={max_new_tokens}"
+            )
 
         # --- Inference Engine Setup ---
         inference_wrapper_config = InferenceWrapperConfig(
@@ -551,7 +559,9 @@ def megatron_generate(
                 # Tokens includes the prompt + generation
                 seq_len = len(engine_output["tokens"][i])
                 unpadded_lengths_list.append(seq_len)
-                output_ids_padded[i, :seq_len] = torch.tensor(engine_output["tokens"][i], dtype=torch.long, device="cpu")
+                output_ids_padded[i, :seq_len] = torch.tensor(
+                    engine_output["tokens"][i], dtype=torch.long, device="cpu"
+                )
 
                 # Logprobs usually correspond to predicting tokens[1:] based on tokens[0:t-1]
                 # Check if 'logprobs' exists and handle its length
@@ -714,7 +724,7 @@ if __name__ == "__main__":
         max_new_tokens=args.max_new_tokens,
         generation_batch_size=args.gen_batch_size,
         greedy=True,  # Keep it simple for now
-        generation_method=args.generation_method, # Pass the new argument
+        generation_method=args.generation_method,  # Pass the new argument
     )
 
     # --- Decode and Print Output (Rank 0) ---
