@@ -309,6 +309,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if 'attention_mask' in batch:
             batch['attention_mask'] = batch['attention_mask'].float()
 
+        num_items_in_batch = torch.count_nonzero(labels != -100).item()
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
 
@@ -339,10 +340,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 labels = labels.view(-1)
                 assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
                 loss = self.loss_fn(logits, labels, loss_mask)
-
-                self.loss_buffer.append(loss.item())
-                self.n_tok += labels.numel()
-
         else:
             batch["output_hidden_states"] = True if self.use_linear_ce_loss else False  # Enable hidden states output
 
@@ -365,7 +362,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
                     # -100 is the default ignore index in PyTorch's cross entropy loss
                     labels = labels.masked_fill(loss_mask == 0, -100)
-                num_items_in_batch = torch.count_nonzero(labels != -100).item()
                 logit_softcapping = 0
                 loss = fused_linear_cross_entropy(
                     hidden_states=hidden_states,
@@ -375,7 +371,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     logit_softcapping=logit_softcapping,
                 )
         self.loss_buffer.append(loss.item())
-        self.n_tok += labels.numel()
+        self.n_tok += num_items_in_batch
 
         return loss
 
