@@ -3,7 +3,7 @@ Magpie-TTS uses special tokens like AUDIO_BOS and AUDIO_EOS for its operation. T
 
 In April 2025 we changed the layout of the embedding table in a non-backwards compatible way:
 
-## Old Layout
+## Old Layout (until April 16)
 With the most common codec configuration (2016 codes), the layout used to look like this:
 ```
 | Index   | Token Description    | Comments                                                                                                  |
@@ -55,6 +55,8 @@ For checkpoints created before the change you can force legacy codebook layout i
 Just set the `--legacy_codebooks` command line option. No need to update your YAML file – The script will automatically add the overrides.
 
 ## If using a Hydra command line
+This scenario would happen when either finetuning with an old checkpoint or doing data generation with an old checkpoint.
+
 You have two options:
 ### Add these to your command line
 ```
@@ -80,3 +82,14 @@ forced_audio_bos_id: ${sum:${model.forced_num_all_tokens_per_codebook}, -2}     
 #forced_context_audio_eos_id: ${sum:${model.forced_num_all_tokens_per_codebook}, -3}   # 2045
 #forced_context_audio_bos_id: ${sum:${model.forced_num_all_tokens_per_codebook}, -4}   # 2044
 ```
+
+# Additional Details
+Over the last few weeks we have gone through a few embedding table layouts. When using an old checkpoint it's important to know which layout your checkpoint was trained with and configuring the system accordingly.
+
+* Layout 1: used until April 16 (described in the table above). Add `--legacy-codebooks` to the `infer_and_evaluate.py` command line to inference using this layout.
+
+* Layout 2: after the [config changes](https://github.com/blisc/NeMo/commit/7e2cdca74a866ecefdbe01c0076ad9b5d140ac61): 2018 tokens with special tokens at the end 2017, 2016, 2015, 2014 (the last two being overwrites of codec tokens). This is an invalid layout and these checkpoints should not be used.
+
+* Layout 3: after the [bugfix](https://github.com/blisc/NeMo/commit/23e299a0bd14b666543b4bbcc7783f783acb0bd3) but before the [refactoring](https://github.com/blisc/NeMo/commit/8ba55061a0ebb161abff4b329e402d5307f4af98): 2024 tokens with special tokens at the end (2023, 2022, 2021, 2020). There are no automatic options provided for using this layout but it can be manually configured by updating the `hparams.yaml` file with the `forced_*` options. Set `forced_num_all_tokens_per_codebook` to `2024` and set the rest of the overrides as defined under section `# Or, add these overrides to your YAML file` above.
+
+* Layout 4: The new layout, [from this commit onwards](https://github.com/blisc/NeMo/commit/8ba55061a0ebb161abff4b329e402d5307f4af98): 2024 tokens but with special tokens immediately after codec tokens (2016, 2017, 2018, 2019). Training and inference with the latest version of the code automatically use this layout.

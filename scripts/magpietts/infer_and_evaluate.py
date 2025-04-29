@@ -446,7 +446,8 @@ def main():
                 apply_prior_to_layers=apply_prior_to_layers,
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
-                use_local_transformer=args.use_local_transformer
+                use_local_transformer=args.use_local_transformer,
+                legacy_codebooks=args.legacy_codebooks
             )
 
 
