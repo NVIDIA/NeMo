@@ -294,7 +294,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # prprprprpr
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
+        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
         if kenlm_path is not None:
@@ -763,7 +763,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 )
             )
         
-        self.state.batched_hyps.add_results_(self.state.next_indices, self.state.next_labels, self.state.next_scores)
+        self.state.batched_hyps.add_results_no_checks_(self.state.next_indices, self.state.next_labels, self.state.next_scores)
         self.state.batched_hyps.self_recombine_hyps_()
         
         self.state.curr_length.add_(1)

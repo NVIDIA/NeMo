@@ -84,9 +84,9 @@ class BatchedBeamHypsCTC:
         next_labels,
         next_hyps_prob,
     ):
-        # if self.current_lengths_wb.max().item() + 1 >= self._max_length:
-        #     print("A"*100)
-        #     self._allocate_more()
+        # if needed - increase storage
+        if self.current_lengths_wb.max().item() >= self._max_length:
+            self._allocate_more()
             
         self.add_results_no_checks_(
             hyps_indices=hyps_indices,
