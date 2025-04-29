@@ -31,6 +31,22 @@ from nemo.utils.import_utils import safe_import
 
 @torch.no_grad()
 def count_tail_ignore(labels, ignore_label=-100):
+    """Counts the total number of padding in the tail of labels
+
+    e.g.
+        labels = torch.tensor([
+            [-100, 1, 1, -100, -100],   # 2 tail -100s
+            [-100, -100, 2, 3, 4],      # 0 tail -100s
+            [5, 6, -100, -100, -100],   # 3 tail -100s
+        ])
+        count_tail_ignore will return 5. Please do note there's more than 5 ignore labels.
+    Args:
+        labels (torch.Tensor): the labels
+        ignore_label (int, optional): ignore label index. Defaults to -100.
+
+    Returns:
+        int: total number of ignored tokens in the `labels` input.
+    """
 
     # Flip along the last dimension (seq_len)
     flipped = labels.flip(dims=[1])
