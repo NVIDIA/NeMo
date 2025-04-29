@@ -10,7 +10,7 @@ import git
 import nemo_dependencies
 
 
-def get_changelog(source_sha: str, target_sha: str) -> List[Dict[str, Any]]:
+def get_changelog(source_sha: str, target_sha: str) -> List[str]:
     """
     Fetch the changelog between current branch and main.
     Returns a list of dictionaries containing commit information.
@@ -19,30 +19,15 @@ def get_changelog(source_sha: str, target_sha: str) -> List[Dict[str, Any]]:
         # Initialize the repo object - go up two levels from this file's location
         repo = git.Repo(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-        # Get all commits between current branch and main
-        commits = list(repo.iter_commits(f"{target_sha}..{source_sha}"))
+        # Get the diff between target and source
+        diff_index = repo.commit(target_sha).diff(repo.commit(source_sha))
 
-        print(f"Commits: {commits}")
+        # Get just the changed filenames
+        changed_files = []
+        for diff in diff_index:
+            changed_files.append(diff.a_path if diff.a_path else diff.b_path)
 
-        # Format the commits into a list of dictionaries
-        changelog = []
-        for commit in commits:
-            # Get the list of changed files
-            changed_files = []
-            for diff in commit.diff(commit.parents[0] if commit.parents else None):
-                changed_files.append(diff.a_path if diff.a_path else diff.b_path)
-
-            changelog.append(
-                {
-                    'hash': commit.hexsha,
-                    'message': commit.message.strip(),
-                    'author': commit.author.name,
-                    'date': commit.committed_datetime.isoformat(),
-                    'files': changed_files,
-                }
-            )
-
-        return changelog
+        return changed_files
 
     except git.exc.GitCommandError as e:
         print(f"Error fetching changelog: {e}", file=sys.stderr)
