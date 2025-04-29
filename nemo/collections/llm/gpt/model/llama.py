@@ -632,20 +632,23 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
                     return tensor
 
                 target_tensor = tensor.clone().to(target_dtype)
-                if max(abs(tensor - target_tensor)) == 0.:
+                if max(abs(tensor - target_tensor)) == 0.0:
                     return target_tensor
 
                 raise ValueError(f"Layer norm weight dtype mismatch: {tensor.dtype} != {target_tensor.dtype}")
+
             return _handler
 
-
-        layernorm_mappings =[
-            (("decoder.layers.*.input_layernorm.weight", "model.layers.*.input_layernorm.weight"),
-                "model.layers.*.input_layernorm.weight"),
-            (("decoder.layers.*.pre_mlp_layernorm.weight", "model.layers.*.post_attention_layernorm.weight"),
-                "model.layers.*.post_attention_layernorm.weight"),
-            ("decoder.final_layernorm.weight",
-                "model.norm.weight"),
+        layernorm_mappings = [
+            (
+                ("decoder.layers.*.input_layernorm.weight", "model.layers.*.input_layernorm.weight"),
+                "model.layers.*.input_layernorm.weight",
+            ),
+            (
+                ("decoder.layers.*.pre_mlp_layernorm.weight", "model.layers.*.post_attention_layernorm.weight"),
+                "model.layers.*.post_attention_layernorm.weight",
+            ),
+            ("decoder.final_layernorm.weight", "model.norm.weight"),
         ]
 
         transforms = [
