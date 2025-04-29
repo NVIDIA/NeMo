@@ -10,7 +10,7 @@ import git
 import nemo_dependencies
 
 
-def get_changelog(source_sha: str, target_branch: str) -> List[Dict[str, Any]]:
+def get_changelog(source_sha: str, target_sha: str) -> List[Dict[str, Any]]:
     """
     Fetch the changelog between current branch and main.
     Returns a list of dictionaries containing commit information.
@@ -20,7 +20,7 @@ def get_changelog(source_sha: str, target_branch: str) -> List[Dict[str, Any]]:
         repo = git.Repo(os.path.join(os.path.dirname(__file__), "..", ".."))
 
         # Get all commits between current branch and main
-        commits = list(repo.iter_commits(f"{target_branch}..{source_sha}"))
+        commits = list(repo.iter_commits(f"{target_sha}..{source_sha}"))
 
         print(f"Commits: {commits}")
 
@@ -70,12 +70,12 @@ def get_changed_files(changelog: List[Dict[str, Any]]) -> Set[str]:
 
 @click.command()
 @click.option('--source-sha', type=str, required=True, help='Source commit SHA')
-@click.option('--target-ref', type=str, required=True, help='Target ref')
-def main(source_sha: str, target_ref: str):
+@click.option('--target-sha', type=str, required=True, help='Target commit sha')
+def main(source_sha: str, target_sha: str):
     """
     Main function to fetch and output the changelog and changed files.
     """
-    changelog = get_changelog(source_sha, target_ref.removeprefix('refs/heads/'))
+    changelog = get_changelog(source_sha, target_sha)
 
     # Output the changelog as JSON
     print("Changelog:")
