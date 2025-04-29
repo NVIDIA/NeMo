@@ -56,7 +56,7 @@ def count_tail_padding(labels, ignore_label=-100):
     prod_mask = torch.cumprod(tail_mask.int(), dim=1)
 
     # Count tail -100s by summing cumprod mask along the sequence dimension
-    return prod_mask.view(-1).sum()
+    return prod_mask.view(-1).sum().item()
 
 
 
@@ -401,7 +401,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     logit_softcapping=logit_softcapping,
                 )
         self.loss_buffer.append(loss.item())
-        self.n_tok += labels.numel() - count_tail_padding(labels)
+        self.n_tok += labels.numel() - count_tail_padding(labels.view_as(batch['input_ids']))
 
         return loss
 
