@@ -42,9 +42,6 @@ def megatron_pretrain(
                           datasets. If None, it's assumed the dataset
                           configuration is self-contained within `config`.
     """
-    if not config.train_config.enabled:
-        return
-
     config.validate()
 
     # SETUP

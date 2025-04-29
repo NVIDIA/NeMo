@@ -198,7 +198,7 @@ def get_distributed_optimizer_checkpoint_name(model_checkpoint_name: str) -> str
     )
 
 
-def find_checkpoint_rank_0(checkpoints_path: str, iteration: int, release: bool = False) -> str:
+def find_checkpoint_rank_0(checkpoints_path: str, iteration: int, release: bool = False) -> Optional[str]:
     """Find the checkpoint path for tensor/pipeline/expert rank 0.
 
     Useful for accessing rank 0 specific checkpoint files.
@@ -209,10 +209,70 @@ def find_checkpoint_rank_0(checkpoints_path: str, iteration: int, release: bool 
         release: If True, searches within the 'release' directory.
 
     Returns:
-        The full path to the rank 0 checkpoint file.
+        The full path to the rank 0 checkpoint file, if it exists.
     """
-    return get_checkpoint_name(checkpoints_path, iteration, release, pipeline_rank=0)
+    # Look for checkpoint with no pipelining and no expert parallelism
+    filename = get_checkpoint_name(
+        checkpoints_path,
+        iteration,
+        release,
+        pipeline_parallel=False,
+        tensor_rank=0,
+        pipeline_rank=0,
+        expert_parallel=False,
+        expert_rank=0,
+    )
+    if os.path.isfile(filename):
+        return filename
 
+    # Look for checkpoint with no pipelining and expert parallelism
+    filename = get_checkpoint_name(
+        checkpoints_path,
+        iteration,
+        release,
+        pipeline_parallel=False,
+        tensor_rank=0,
+        pipeline_rank=0,
+        expert_parallel=True,
+        expert_rank=0,
+    )
+    if os.path.isfile(filename):
+        return filename
+
+    # Look for checkpoint with pipelining and no expert parallelism
+    filename = get_checkpoint_name(
+        checkpoints_path,
+        iteration,
+        release,
+        pipeline_parallel=True,
+        tensor_rank=0,
+        pipeline_rank=0,
+        expert_parallel=False,
+        expert_rank=0,
+    )
+    if os.path.isfile(filename):
+        return filename
+
+    # Look for checkpoint with pipelining and expert parallelism
+    filename = get_checkpoint_name(
+        checkpoints_path,
+        iteration,
+        release,
+        pipeline_parallel=True,
+        tensor_rank=0,
+        pipeline_rank=0,
+        expert_parallel=True,
+        expert_rank=0,
+    )
+    if os.path.isfile(filename):
+        return filename
+
+    # Look for a distributed checkpoint
+    filename = get_checkpoint_name(checkpoints_path, iteration, release, pipeline_parallel=True, return_base_dir=True)
+    if dist_checkpointing.check_is_distributed_checkpoint(filename):
+        return filename
+
+    return None
 
 def get_checkpoint_train_state_filename(checkpoints_path: str, prefix: Optional[str] = None) -> str:
     """Get the filename for the train state tracker file.
@@ -259,7 +319,7 @@ def checkpoint_exists(checkpoints_path: str) -> bool:
 
 
 @lru_cache()
-def read_train_state(train_state_filename: str) -> Optional[dict[str, Any]]:
+def read_train_state(train_state_filename: str) -> TrainState:
     """Read the train state metadata from a YAML file (rank 0 only).
 
     Reads the file on rank 0 and broadcasts the result to other ranks.
@@ -268,7 +328,7 @@ def read_train_state(train_state_filename: str) -> Optional[dict[str, Any]]:
         train_state_filename: Path to the train state YAML file.
 
     Returns:
-        A dictionary containing the train state, or None if reading fails.
+        An initialized TrainState object.
     """
     state_obj = [None]
     if get_rank_safe() == 0:
@@ -653,24 +713,23 @@ def save_checkpoint(
         else:
             train_state_dict = train_state.state_dict()
 
-            def train_state_finalize_fn():
+            def train_state_finalize_fn() -> None:
                 train_state_dict["floating_point_operations_so_far"] = torch.tensor(
                     num_floating_point_operations_so_far, dtype=torch.float32
                 )
                 torch.save(train_state_dict, train_state_local_filename)
                 shutil.copy(train_state_local_filename, train_state_global_filename)
-                iteration = train_state_dict['step'].item()
-                tensor_rank = tensor_rank if tensor_rank is not None else mpu.get_tensor_model_parallel_rank()
-                tensor_world_size = mpu.get_tensor_model_parallel_world_size()
-                pipeline_rank = pipeline_rank if pipeline_rank is not None else mpu.get_pipeline_model_parallel_rank()
-                pipeline_world_size = mpu.get_pipeline_model_parallel_world_size()
-
                 cfg.to_yaml(config_filename)
+
+                tp_rank = (tensor_rank if tensor_rank is not None else mpu.get_tensor_model_parallel_rank()) + 1
+                tp_world_size = mpu.get_tensor_model_parallel_world_size()
+                pp_rank = (pipeline_rank if pipeline_rank is not None else mpu.get_pipeline_model_parallel_rank()) + 1
+                pp_world_size = mpu.get_pipeline_model_parallel_world_size()
                 print_rank_0(
-                    f"  successfully saved checkpoint from iteration {iteration:7d} to {ckpt_cfg.save} "
-                    f"[ t {tensor_rank + 1} / {tensor_world_size}, "
-                    f"p {pipeline_rank + 1} / {pipeline_world_size} ]"
+                    f"  successfully saved checkpoint from iteration {train_state_dict['step'].item():7d} "
+                    f"to {ckpt_cfg.save} [ t {tp_rank}/{tp_world_size}, p {pp_rank}/{pp_world_size} ]"
                 )
+
                 if cfg.logger_config.log_progress and ckpt_cfg.async_save:
                     append_to_progress_log(
                         ckpt_cfg.save,
@@ -687,7 +746,7 @@ def save_checkpoint(
     # Additional callback for wandb (last rank)
     if not torch.distributed.is_initialized() or is_last_rank():
 
-        def wandb_finalize_fn():
+        def wandb_finalize_fn() -> None:
             wandb_utils.on_save_checkpoint_success(
                 checkpoint_name,
                 save_dir,
@@ -1265,12 +1324,19 @@ def _transpose_first_dim(
 ) -> torch.Tensor:
     """Helper function to transpose first dimension of tensor t."""
     input_shape = t.size()
+    # We use a self_attention module but the values extracted aren't
+    # specific to self attention so should work for cross attention as well
     while hasattr(model, "module"):
         model = model.module
     attention_module = model.language_model.encoder.layers[0].self_attention
     hidden_size_per_attention_head = attention_module.hidden_size_per_attention_head
     num_attention_heads_per_partition = attention_module.num_attention_heads_per_partition
     if num_splits_first:
+        """[num_splits * np * hn, h]
+        -->(view) [num_splits, np, hn, h]
+        -->(tranpose) [np, num_splits, hn, h]
+        -->(view) [np * num_splits * hn, h]"""
+
         intermediate_shape = (
             num_splits,
             num_attention_heads_per_partition,
@@ -1280,6 +1346,11 @@ def _transpose_first_dim(
         t = t.view(*intermediate_shape)
         t = t.transpose(0, 1).contiguous()
     else:
+        """[np * hn * num_splits, h]
+        -->(view) [np, hn, num_splits, h]
+        -->(tranpose) [np, num_splits, hn, h]
+        -->(view) [np * num_splits * hn, h]"""
+
         intermediate_shape = (
             num_attention_heads_per_partition,
             hidden_size_per_attention_head,
@@ -1291,7 +1362,6 @@ def _transpose_first_dim(
     t = t.view(*input_shape)
 
     return t
-
 
 def _get_non_persistent_iteration(
     non_persistent_global_dir: str,
@@ -1306,6 +1376,8 @@ def _get_non_persistent_iteration(
         if os.path.isfile(train_state_filename):
             train_state = read_train_state(train_state_filename)
             iteration = train_state.step
+            # if train_state.release:
+            #     raise RuntimeError("Non-persistent checkpoint can't be a release checkpoint")            
         else:
             iteration = -1
             print_rank_0("WARNING: could not find the metadata file {}".format(train_state_filename))
