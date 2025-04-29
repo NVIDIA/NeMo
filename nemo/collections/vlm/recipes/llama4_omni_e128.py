@@ -273,7 +273,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 64,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
@@ -309,7 +309,9 @@ def finetune_recipe(
 
     strategy = run.Config(
         nl.MegatronStrategy,
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=4,
+        expert_tensor_parallel_size=4,
+        expert_model_parallel_size=128,
         pipeline_model_parallel_size=1,
         encoder_pipeline_model_parallel_size=0,
         sequence_parallel=True,
