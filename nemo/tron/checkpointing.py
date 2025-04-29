@@ -274,6 +274,7 @@ def find_checkpoint_rank_0(checkpoints_path: str, iteration: int, release: bool 
 
     return None
 
+
 def get_checkpoint_train_state_filename(checkpoints_path: str, prefix: Optional[str] = None) -> str:
     """Get the filename for the train state tracker file.
 
@@ -1363,6 +1364,7 @@ def _transpose_first_dim(
 
     return t
 
+
 def _get_non_persistent_iteration(
     non_persistent_global_dir: str,
     cfg: ConfigContainer,
@@ -1377,7 +1379,7 @@ def _get_non_persistent_iteration(
             train_state = read_train_state(train_state_filename)
             iteration = train_state.step
             # if train_state.release:
-            #     raise RuntimeError("Non-persistent checkpoint can't be a release checkpoint")            
+            #     raise RuntimeError("Non-persistent checkpoint can't be a release checkpoint")
         else:
             iteration = -1
             print_rank_0("WARNING: could not find the metadata file {}".format(train_state_filename))
