@@ -21,12 +21,8 @@ from typing import List
 import numpy as np
 from pytriton.decorators import batch, first_value
 from pytriton.model_config import Tensor
-
-try:
-    from vllm import LLM, SamplingParams
-    from vllm.lora.request import LoRARequest
-except ImportError:
-    print("vLLM is not installed. Please install it using `pip install vllm`.")
+from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
