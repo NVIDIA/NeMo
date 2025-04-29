@@ -40,7 +40,7 @@ def count_tail_ignore(labels):
     prod_mask = torch.cumprod(tail_mask.int(), dim=1)
 
     # Count tail -100s by summing cumprod mask along the sequence dimension
-    return prod_mask.sum(dim=1).view(-1).sum()
+    return prod_mask.view(-1).sum()
 
 
 
