@@ -25,9 +25,9 @@ from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import count_tai
         (
             torch.tensor(
                 [
-                    [-100,   1,  1, -100, -100],   # 2 tail -100s
-                    [-100, -100,  2,    3,    4],  # 0 tail -100s
-                    [   5,    6, -100, -100, -100] # 3 tail -100s
+                    [-100, 1, 1, -100, -100],  # 2 tail -100s
+                    [-100, -100, 2, 3, 4],  # 0 tail -100s
+                    [5, 6, -100, -100, -100],  # 3 tail -100s
                 ],
                 dtype=torch.long,
             ),
@@ -56,13 +56,13 @@ from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import count_tai
         (
             torch.tensor(
                 [
-                    [ 9,  8, -1, -1],
+                    [9, 8, -1, -1],
                     [-1, -1, -1, -1],
-                    [ 7,  6,  5,  4],
+                    [7, 6, 5, 4],
                 ],
                 dtype=torch.long,
             ),
-            6,   # 2 + 4 + 0
+            6,  # 2 + 4 + 0
             -1,
         ),
     ],

@@ -29,6 +29,7 @@ from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
+
 @torch.no_grad()
 def count_tail_padding(labels, ignore_label=-100):
     """Counts the total number of padding token in the tail of labels
@@ -50,14 +51,13 @@ def count_tail_padding(labels, ignore_label=-100):
 
     # Flip along the last dimension (seq_len)
     flipped = labels.flip(dims=[1])
-    tail_mask = (flipped == ignore_label)
+    tail_mask = flipped == ignore_label
 
     # Compute cumulative product to "break" on first non ignore_label
     prod_mask = torch.cumprod(tail_mask.int(), dim=1)
 
     # Count tail -100s by summing cumprod mask along the sequence dimension
     return prod_mask.view(-1).sum().item()
-
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
