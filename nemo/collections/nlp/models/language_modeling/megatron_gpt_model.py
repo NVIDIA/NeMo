@@ -16,7 +16,6 @@ import itertools
 import os
 import queue
 import warnings
-from contextlib import nullcontext
 from functools import cache, partial
 from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -72,7 +71,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
-from nemo.utils.te_utils import is_float8tensor, te_version
+from nemo.utils.te_utils import is_float8tensor
 
 try:
     from megatron.core import InferenceParams, parallel_state
@@ -130,6 +129,9 @@ HAVE_TE = HAVE_TE and HAVE_TE_MODULE and HAVE_HYENA_SPEC
 
 @cache
 def mcore_supports_moe() -> bool:
+    """
+    Check if megatron-core supports MoE
+    """
     global HAVE_MEGATRON_CORE
     if not HAVE_MEGATRON_CORE:
         return False
@@ -143,6 +145,9 @@ def mcore_supports_moe() -> bool:
 
 # TODO: This function will not work if TE is not installed
 def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict = None, fp8=False):
+    """
+    Get the specification dictionary for the given name
+    """
     from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
 
     # else cases for backwards compatibility with neva
@@ -170,6 +175,9 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
 
 
 def drop_layers(model, layers_to_drop: List[int]):
+    """
+    Drop some layers from the model by replacing their forward function with a noop function.
+    """
     def noop_forward_patch(
         hidden_states,
         attention_mask,
@@ -189,6 +197,9 @@ def drop_layers(model, layers_to_drop: List[int]):
 
 
 def mcore_model_customize(cfg, model):
+    """
+    Customize the model from the given config.
+    """
     if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
         extend_instance(model.embedding, EmbeddingScalingMixin)
     if cfg.get("scale_positional_embedding", False):
@@ -242,6 +253,9 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         self.dtype = utils_funcs.torch_dtype_from_precision(model.cfg.precision)
 
     def forward(self, tokens, position_ids, attention_mask):
+        """
+        Forward pass for the model.
+        """
         if self.fp8_enabled and HAVE_TE:
             with (
                 transformer_engine.pytorch.onnx_export(self.fp8_enabled),
@@ -280,10 +294,16 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
         return output_tensor
 
     def freeze(self):
+        """
+        Freeze the parameters of the model.
+        """
         for param in self.parameters():
             param.requires_grad = False
 
     def input_example(self, max_batch=1, max_dim=768, seq_len=6):
+        """
+        Get an example input for the model.
+        """
         ids = [self.model.tokenizer.text_to_ids(text) for text in ["how is the weather on           Sunday"]]
         id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
         masks_and_position_ids = [
@@ -296,6 +316,9 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        """
+        Get the input types for the model.
+        """
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "position_ids": NeuralType(('B', 'T'), ChannelType()),
@@ -304,14 +327,23 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """
+        Get the output types for the model.
+        """
         return {"logits": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def input_names(self) -> List[str]:
+        """
+        Get the input names for the model.
+        """
         return ['input_ids', 'position_ids', 'attention_mask']
 
     @property
     def output_names(self) -> List[str]:
+        """
+        Get the output names for the model.
+        """
         return ['logits']
 
 
@@ -466,9 +498,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             raise ValueError('Loss mask is not supported with sequence parallelism.')
 
     def set_inference_config(self, inference_config):
+        """
+        Set the inference config for the model.
+        """
         self._inference_config = inference_config
 
     def get_inference_config(self):
+        """
+        Get the inference config for the model.
+        """
         return self._inference_config
 
     def model_provider_func(self, pre_process, post_process):
@@ -701,11 +739,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return super().configure_optimizers()
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
+        """
+        Forward pass for the model.
+        """
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
-
+        """
+        Forward and backward pass for the model.
+        """
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -787,6 +830,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def initialize_ub_func(self):
+        """
+        Initialize the userbuffer function.
+        """
         ub_cfgs = self.cfg.get('ub_tp_comm_overlap_cfg', None)
         if ub_cfgs is None:
             warnings.warn(
@@ -1105,6 +1151,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 buf.copy_(synced)
 
     def allreduce_first_last_embeddings(self):
+        """
+        All-reduce word_embeddings' grad across first and last pipeline stages to ensure
+        that word_embeddings parameters stay in sync.
+        """
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407 # pylint: disable=line-too-long
         # All-reduce word_embeddings' grad across first and last stages to ensure
@@ -1179,6 +1229,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.proxies = []
 
             def make_proxy(self):
+                """
+                Make a proxy for the iterator.
+                """
                 self.proxies.append(CachingIterator.Proxy())
                 return self.proxies[-1]
 
@@ -1228,6 +1281,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return batch
 
     def get_batch_on_this_context_parallel_rank(self, batch):
+        """
+        Get the batch on the current context parallel rank.
+        """
         num_valid_tokens_in_ub = None
         if 'loss_mask' in batch and batch['loss_mask'] is not None:
             num_valid_tokens_in_ub = batch['loss_mask'].sum()
@@ -1257,6 +1313,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return batch
 
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
+        """
+        Get the forward output and loss function for the model.
+        """
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
@@ -1463,6 +1522,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
+        """
+        Get the forward output only function for the model.
+        """
         def fwd_output_only_func(dataloader_iter, model):
             # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
             batch = next(dataloader_iter)
@@ -1599,14 +1661,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return averaged_loss
 
     def test_step(self, dataloader_iter):
+        """
+        Test step for the model.
+        """
         return self.validation_step(dataloader_iter)
 
     def on_test_epoch_end(self):
+        """
+        Function performed at the end of test epoch.
+        """
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
         self.test_step_outputs.clear()  # free memory
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
+        """
+        Compute the loss for the model.
+        """
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
@@ -1616,6 +1687,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def build_train_valid_test_datasets(self):
+        """
+        Build the train, validation, and test datasets.
+        """
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
         logging.info('Building GPT datasets.')
@@ -1906,6 +1980,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        """
+        The inference step for the model.
+        """
         inference_config = self.get_inference_config()
         if inference_config is None:
             return None
@@ -2069,6 +2146,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return sharded_state_dict
 
     def parameters(self):
+        """
+        Get the parameters of the model.
+        """
         if isinstance(self.model, list):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
@@ -2076,12 +2156,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     @property
     def mgpt_wrapper(self):
+        """
+        Get the megatron-gpt wrapper for the model.
+        """
         return MegatronGPTExportableModel(self)
 
     def list_export_subnets(self):
+        """
+        List the exportable subnets for the model.
+        """
         return ['mgpt_wrapper']
 
     def initialize_last_rank_embeddings(self):
+        """
+        Initialize the embeddings of the last rank.
+        """
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.cfg.get('share_embeddings_and_output_weights', True):
                 for index, module in enumerate(self.get_model_module_list()):
