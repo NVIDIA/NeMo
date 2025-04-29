@@ -86,10 +86,16 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaModel,
     MLPerfLoRALlamaModel,
 )
-from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
+from nemo.collections.llm.gpt.model.llama_embedding import (
+    Llama32EmbeddingConfig1B,
+    Llama32EmbeddingConfig3B,
+    LlamaEmbeddingModel,
+)
 from nemo.collections.llm.gpt.model.llama_nemotron import (
     Llama31Nemotron70BConfig,
     Llama31NemotronNano8BConfig,
+    Llama31NemotronUltra253BConfig,
+    Llama33NemotronSuper49BConfig,
     LlamaNemotronModel,
 )
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
@@ -130,6 +136,10 @@ from nemo.collections.llm.gpt.model.ssm import (
     BaseMambaConfig130M,
     BaseMambaConfig370M,
     BaseMambaConfig780M,
+    MambaModel,
+    NemotronHConfig8B,
+    NemotronHConfig47B,
+    NemotronHConfig56B,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
     SSMConfig,
@@ -181,6 +191,8 @@ __all__ = [
     "Llama32Config3B",
     "LlamaNemotronModel",
     "Llama31NemotronNano8BConfig",
+    "Llama33NemotronSuper49BConfig",
+    "Llama31NemotronUltra253BConfig",
     "Llama31Nemotron70BConfig",
     "NemotronConfig",
     "Nemotron3Config4B",
@@ -191,6 +203,7 @@ __all__ = [
     "NemotronModel",
     "LlamaEmbeddingModel",
     "Llama32EmbeddingConfig1B",
+    "Llama32EmbeddingConfig3B",
     "Phi3Config",
     "Phi3ConfigMini",
     "Phi3Model",
@@ -238,6 +251,10 @@ __all__ = [
     "BaseMambaConfig2_7B",
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
+    "NemotronHConfig8B",
+    "NemotronHConfig47B",
+    "NemotronHConfig56B",
+    "MambaModel",
     "DeepSeekModel",
     "DeepSeekV2Config",
     "DeepSeekV2LiteConfig",

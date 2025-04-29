@@ -45,13 +45,16 @@ class HyenaModel(GPTModel):
       slightly differently.
     """
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+    def get_inference_wrapper(
+        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=None
+    ) -> torch.Tensor:
         """
         Gets the inference wrapper for the Hyena model.
 
         Args:
             params_dtype: The data type for model parameters
             inference_batch_times_seqlen_threshold: Threshold for batch size * sequence length during inference
+            inference_max_seq_length: Maximum sequence length for inference
 
         Returns:
             GPTInferenceWrapper: The inference wrapper for the model
@@ -84,6 +87,7 @@ class HyenaModel(GPTModel):
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
+            inference_max_seq_length=inference_max_seq_length,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
@@ -339,7 +343,7 @@ class Hyena1bConfig(HyenaConfig):
     layernorm_epsilon: float = 1e-6
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
-    recompute_num_layers: int = 4
+    recompute_num_layers: int = 5
     hyena_init_method: str = 'small_init'
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True

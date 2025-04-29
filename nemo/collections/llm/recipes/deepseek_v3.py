@@ -11,23 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config
 from nemo.collections.llm.peft import PEFT_STR2CLS
+from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
+from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "deepseek_v3"
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def model(use_mtp=False) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a DeepSeek-V3 (671B) model configuration.
 
@@ -42,18 +45,21 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    conf = run.Config(DeepSeekV3Config)
+    if use_mtp:
+        conf = run.Config(DeepSeekV3Config, mtp_num_layers=1, mtp_loss_scaling_factor=0.1)
+    else:
+        conf = run.Config(DeepSeekV3Config)
     return run.Config(DeepSeekModel, config=conf)
 
 
-# @run.cli.factory(target=pretrain, name=NAME)
+@run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 128,
     num_gpus_per_node: int = 8,
-    performance_mode: bool = False,
     fn: Callable = pretrain,
+    use_mtp: bool = True,
 ) -> run.Partial:
     """
     Create a pre-training recipe for DeepSeek-V3 (671B) model.
@@ -75,14 +81,38 @@ def pretrain_recipe(
     Examples:
         CLI usage:
             $ nemo llm pretrain --factory deepseek_v3
-            $ nemo llm pretrain --factory "deepseek_v3(num_nodes=4, name='my_deepseek_v3')"
+            $ nemo llm pretrain --factory "deepseek_v3(num_nodes=128, name='my_deepseek_v3')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="deepseek_v3_pretrain", num_nodes=4)
+            >>> recipe = pretrain_recipe(name="deepseek_v3_pretrain", num_nodes=128)
             >>> print(recipe)
 
     """
-    raise NotImplementedError("DeepSeek V3 Pretraining recipe in NeMo is not yet available")
+    recipe = run.Partial(
+        fn,
+        model=model(use_mtp),
+        trainer=trainer(
+            tensor_parallelism=1,
+            pipeline_parallelism=16,
+            expert_parallelism=64,
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            callbacks=[run.Config(TimingCallback)],
+        ),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=4096, micro_batch_size=1),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
+        resume=default_resume(),
+    )
+    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 3
+    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 2
+    recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None
+
+    recipe.model.config.recompute_granularity = "full"
+    recipe.model.config.recompute_method = "uniform"
+    recipe.model.config.recompute_num_layers = 1
+
+    return recipe
 
 
 @run.cli.factory(target=finetune, name=NAME)
@@ -142,12 +172,11 @@ def finetune_recipe(
 
     recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.sequence_parallel = True
-        recipe.trainer.strategy.expert_model_parallel_size = 4
-        recipe.trainer.strategy.tensor_model_parallel_size = 16
-        recipe.trainer.strategy.pipeline_model_parallel_size = 7
-        recipe.model.config.num_layers_in_first_pipeline_stage = 8
-        recipe.model.config.num_layers_in_last_pipeline_stage = 8
+        recipe.trainer.strategy.expert_model_parallel_size = 64
+        recipe.trainer.strategy.tensor_model_parallel_size = 1
+        recipe.trainer.strategy.pipeline_model_parallel_size = 8
+        recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 6
+        recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 7
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
@@ -164,8 +193,8 @@ def finetune_recipe(
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.expert_model_parallel_size = 1
         recipe.trainer.strategy.pipeline_model_parallel_size = 5
-        recipe.model.config.num_layers_in_first_pipeline_stage = 13
-        recipe.model.config.num_layers_in_last_pipeline_stage = 12
+        recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 13
+        recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 12
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
