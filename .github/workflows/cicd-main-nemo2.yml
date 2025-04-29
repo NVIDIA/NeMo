@@ -189,6 +189,9 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_CLIP_INFER
             runner: self-hosted-azure
+          - script: Optional_L2_NeMo_2_EVAL_Legacy
+            runner: self-hosted-azure-gpus-1
+            is_optional: true
           - script: Optional_L2_NeMo_2_EVAL
             runner: self-hosted-azure-gpus-1
             is_optional: true
