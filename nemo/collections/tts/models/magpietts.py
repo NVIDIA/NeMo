@@ -415,7 +415,7 @@ class MagpieTTSModel(ModelPT):
         # Apply the random permutations to the mask
         mask = torch.gather(mask, 1, random_permutations)
     
-        return mask
+        return mask # (B, C, T)
     
     def maskgit_apply_random_mask(self, codes):
         # Randomly replaces some codes with the MASK_TOKEN token with a proportion following the cosine schedule.
@@ -429,7 +429,7 @@ class MagpieTTSModel(ModelPT):
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # audio_codes: (B, C, T')
         # audio_codes_lens: (B,)
-        # mask_tokens_mask: True for tokens that were replaced with the MASK_TOKEN and should
+        # mask_tokens_mask: (B, C, T') True for tokens that were replaced with the MASK_TOKEN and should
         #                   therefore be the only ones included in the loss computation.
         loss_mask = get_mask_from_lengths(audio_codes_lens)
         if mask_tokens_mask is not None:
