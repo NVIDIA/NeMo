@@ -175,24 +175,28 @@ jobs:
   cicd-main-export-deploy:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-export-deploy.yml
+    if: ${{ contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy') }}
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-speech:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-speech.yml
+    if: ${{ contains(fromJson(needs.pre-flight.outputs.components_to_run), 'speech') }}
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-automodel:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-automodel.yml
+    if: ${{ contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel') }}
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-nemo2:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-nemo2.yml
+    if: ${{ contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2') }}
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 

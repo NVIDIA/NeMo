@@ -228,7 +228,7 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
                 new_deps.append("automodel")
 
             if "collections" in dep and not ("asr" in dep or "tts" in dep or "speechlm" in dep or "audio" in dep):
-                new_deps.append("NeMo2")
+                new_deps.append("nemo2")
 
         bucket_deps[package] = sorted(list(set(new_deps)))
 
