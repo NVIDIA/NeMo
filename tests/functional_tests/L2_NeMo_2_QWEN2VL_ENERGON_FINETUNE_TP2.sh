@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/generate.py \
-  --model_path /home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v4/ \
-  --tp 1 \
-  --pp 1 \
-  --devices 1 \
-  --top_p 0.0 \
-  --top_k 1 \
-  --num_tokens_to_generate 3 \
-  --legacy_ckpt
+TRANSFORMERS_OFFLINE=1 \
+    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/qwen2vl_finetune.py \
+    --num_nodes=1 --devices=2 \
+    --data_type="energon"  \
+    --data_path="/home/TestData/tiny_datasets/qwen2vl/energon-wds" \
+    --tp_size=2 --pp_size=1 \
+    --gbs=2 --mbs=2 \
+    --max_steps=4 \
+    --max_sequence_length=38400 \
+    --projector_type="mcore_mlp" \
+    --log_dir=/tmp/nemo2_qwen2vl_results/$RUN_ID
