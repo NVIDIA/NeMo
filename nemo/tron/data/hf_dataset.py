@@ -34,12 +34,16 @@ logger = logging.getLogger(__name__)
 
 
 class ProcessExampleOutput(TypedDict):
+    """Expected output structure from a `ProcessExampleFn`."""
+
     input: str
     output: str
     original_answers: list[str]
 
 
 class ProcessExampleFn(Protocol):
+    """Protocol defining the signature for a function that processes a single dataset example."""
+
     def __call__(
         self, example: dict[str, Any], tokenizer: Optional[MegatronTokenizer] = None
     ) -> ProcessExampleOutput: ...
@@ -47,6 +51,28 @@ class ProcessExampleFn(Protocol):
 
 @dataclass(kw_only=True)
 class HFDatasetConfig(FinetuningDatasetConfig):
+    """Configuration specific to using Hugging Face datasets for finetuning.
+
+    Inherits from FinetuningDatasetConfig and adds HF-specific options.
+
+    Attributes:
+        dataset_name: Name of the dataset on the Hugging Face Hub.
+        process_example_fn: A callable conforming to ProcessExampleFn protocol
+                            to process raw examples into the desired format.
+        dataset_subset: Optional subset name if the dataset has multiple subsets.
+        dataset_dict: Optional pre-loaded DatasetDict to use instead of downloading.
+        split: Optional specific split to load (e.g., 'train[:10%]').
+        download_mode: Download mode for load_dataset (e.g., 'force_redownload').
+        val_proportion: Proportion of the training set to use for validation if
+                        no validation set is present.
+        split_val_from_train: If True, creates validation set from training set.
+                              If False, uses test set to create validation set.
+        delete_raw: If True, delete the raw downloaded dataset files after processing.
+        hf_kwargs: Additional keyword arguments to pass to `load_dataset`.
+        hf_filter_lambda: Optional function to filter the loaded dataset.
+        hf_filter_lambda_kwargs: Optional keyword arguments for `hf_filter_lambda`.
+    """
+
     dataset_name: str
     process_example_fn: ProcessExampleFn
     dataset_subset: Optional[str] = None
@@ -76,7 +102,28 @@ def preprocess_and_split_data(
     seed: int = 1234,
     rewrite: bool = False,
 ):
-    """Preprocesses and splits the downloaded dataset into training, validation, and test sets."""
+    """Download, preprocess, split, and save a Hugging Face dataset to JSONL files.
+
+    Handles splitting into train/validation/test sets based on available splits
+    and the `val_proportion` parameter. Processes each example using the
+    provided `process_example_fn` and saves the results.
+
+    Args:
+        dset: The loaded Hugging Face DatasetDict.
+        dataset_name: Name of the dataset (for logging).
+        dataset_root: The root directory to save the processed JSONL files.
+        tokenizer: The tokenizer instance.
+        process_example_fn: Function to process individual examples.
+        split_val_from_train: If True, split validation from train set.
+                              Otherwise, split from test set (if available).
+        val_proportion: Proportion of data to use for validation split.
+        train_aliases: Tuple of possible names for the training split.
+        test_aliases: Tuple of possible names for the test split.
+        val_aliases: Tuple of possible names for the validation split.
+        delete_raw: If True, delete raw HF dataset cache after processing.
+        seed: Random seed for splitting.
+        rewrite: If True, overwrite existing processed files.
+    """
     logger.info(f"Preprocessing {dataset_name} to jsonl format and splitting...")
     save_splits = {}
     train_set: Dataset | None = None
@@ -182,7 +229,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         seed: int = 1234,
         memmap_workers: int = 1,
         max_train_samples: Optional[int] = None,
-        packed_sequence_specs: Optional[dict] = None,
+        packed_sequence_specs: Optional[dict[str, Any]] = None,
         download_mode: Optional[str] = None,
         val_proportion: Optional[float] = 0.05,
         split_val_from_train: bool = True,
@@ -194,6 +241,33 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         do_validation: bool = True,
         do_test: bool = True,
     ) -> None:
+        """Initializes the HFDatasetBuilder.
+
+        Args:
+            dataset_name: Name of the dataset on Hugging Face Hub.
+            tokenizer: The tokenizer instance.
+            is_built_on_rank: Callable to determine if data should be built on the current rank.
+            process_example_fn: Function conforming to ProcessExampleFn protocol.
+            dataset_dict: Optional pre-loaded DatasetDict.
+            dataset_subset: Optional dataset subset name.
+            dataset_root: Optional root directory for data; defaults based on dataset_name.
+            split: Optional specific split to load.
+            seq_length: Sequence length for processing.
+            seed: Random seed.
+            memmap_workers: Number of workers for memmapping.
+            max_train_samples: Optional maximum number of training samples.
+            packed_sequence_specs: Optional specs for packed sequence datasets.
+            download_mode: Download mode for `load_dataset`.
+            val_proportion: Proportion for validation split.
+            split_val_from_train: Whether to split validation from train set.
+            delete_raw: Whether to delete raw downloaded files.
+            hf_kwargs: Additional kwargs for `load_dataset`.
+            dataset_kwargs: Additional kwargs for the underlying dataset constructor.
+            hf_filter_lambda: Optional function to filter the dataset.
+            hf_filter_lambda_kwargs: Optional kwargs for the filter function.
+            do_validation: Whether to build the validation set.
+            do_test: Whether to build the test set.
+        """
         dataset_root = Path(dataset_root) if dataset_root else get_dataset_root(dataset_name)
 
         # Initialize the parent class with common parameters
@@ -232,6 +306,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         print_rank_0(f"Building HFDataset {self.dataset_name}")
 
     def prepare_data(self) -> None:
+        """Loads/downloads the dataset, filters it, preprocesses/splits it, and prepares memmaps."""
         if self.download_mode != "force_redownload" and self.hf_filter_lambda:
             raise ValueError("`hf_filter_lambda` is not supported when `download_mode` is not `force_redownload`")
 
@@ -257,7 +332,7 @@ class HFDatasetBuilder(FinetuningDatasetBuilder):
         )
         super().prepare_data()
 
-    def _load_dataset(self):
+    def _load_dataset(self) -> DatasetDict:
         """Load the dataset from Hugging Face or use the provided dataset."""
         if isinstance(self.dataset_name, str):
             logger.info(f"Loading HF dataset from {self.dataset_name} to {self.dataset_root}")

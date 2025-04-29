@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Callable, Optional, Union
+
+import torch.nn as nn
+
 from megatron.core.optimizer import MegatronOptimizer, OptimizerConfig, get_megatron_optimizer
 from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
+from megatron.core.transformer.module import MegatronModule
 
 from nemo.tron.config import SchedulerConfig
 
@@ -21,12 +26,26 @@ from nemo.tron.config import SchedulerConfig
 def setup_optimizer(
     optimizer_config: OptimizerConfig,
     scheduler_config: SchedulerConfig,
-    model,
+    model: Union[MegatronModule, list[MegatronModule]],
     use_gloo_process_groups: bool = False,
-    no_weight_decay_cond=None,
-    scale_lr_cond=None,
-    lr_mult=1.0,
-):
+    no_weight_decay_cond: Optional[Callable[[str, nn.Parameter], bool]] = None,
+    scale_lr_cond: Optional[Callable[[str, nn.Parameter], bool]] = None,
+    lr_mult: float = 1.0,
+) -> tuple[MegatronOptimizer, OptimizerParamScheduler]:
+    """Set up the optimizer and scheduler.
+
+    Args:
+        optimizer_config: Configuration for the optimizer
+        scheduler_config: Configuration for the scheduler
+        model: The model to optimize
+        use_gloo_process_groups: Whether to use Gloo process groups
+        no_weight_decay_cond: Condition for parameters to exclude from weight decay
+        scale_lr_cond: Condition for parameters to scale learning rate
+        lr_mult: Learning rate multiplier
+
+    Returns:
+        tuple containing the optimizer and scheduler
+    """
     optimizer = get_megatron_optimizer(
         optimizer_config,
         model,
@@ -40,7 +59,19 @@ def setup_optimizer(
     return optimizer, scheduler
 
 
-def _get_scheduler(optimizer_config: OptimizerConfig, scheduler_config: SchedulerConfig, optimizer: MegatronOptimizer):
+def _get_scheduler(
+    optimizer_config: OptimizerConfig, scheduler_config: SchedulerConfig, optimizer: MegatronOptimizer
+) -> OptimizerParamScheduler:
+    """Get the optimizer parameter scheduler.
+
+    Args:
+        optimizer_config: Configuration for the optimizer
+        scheduler_config: Configuration for the scheduler
+        optimizer: The optimizer to schedule
+
+    Returns:
+        The optimizer parameter scheduler
+    """
     scheduler = OptimizerParamScheduler(
         optimizer,
         init_lr=scheduler_config.lr_warmup_init,

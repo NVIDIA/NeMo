@@ -20,13 +20,16 @@ import functools
 import logging
 from enum import Enum
 from textwrap import dedent
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+from typing import Any, Callable, Sequence, Union
 
 from omegaconf import OmegaConf
 from omegaconf._utils import is_structured_config
 
 
-class InstantiationException(Exception): ...
+class InstantiationException(Exception):
+    """Custom exception type for instantiation errors."""
+
+    ...
 
 
 class InstantiationMode(Enum):
@@ -51,22 +54,42 @@ def instantiate(
     mode: InstantiationMode = InstantiationMode.LENIENT,
     **kwargs: Any,
 ) -> Any:
-    """
-    :param config: An config object describing what to call and what params to use.
-                   In addition to the parameters, the config must contain:
-                   _target_ : target class or callable name (str)
-                   And may contain:
-                   _args_: List-like of positional arguments to pass to the target
-                   _partial_: If True, return functools.partial wrapped method or object
-                              False by default. Configure per target.
-    :param args: Optional positional parameters pass-through
-    :param kwargs: Optional named parameters to override
-                   parameters in the config object. Parameters not present
-                   in the config objects are being passed as is to the target.
-                   IMPORTANT: dataclasses instances in kwargs are interpreted as config
-                              and cannot be used as passthrough
-    :return: if _target_ is a class name: the instantiated object
-             if _target_ is a callable: the return value of the call
+    """Instantiate an object or callable from a config object.
+
+    This function takes a configuration object (dictionary, list, OmegaConf config,
+    or Structured Config instance) and instantiates the target specified within it.
+
+    The config object must contain:
+        _target_ (str): The fully qualified name of the class or callable to instantiate.
+
+    The config object may also contain:
+        _args_ (list): Positional arguments for the target.
+        _partial_ (bool): If True, return a functools.partial object instead of calling
+                         the target. Defaults to False.
+        _call_ (bool): If False, simply resolves and returns the target without calling it.
+                       Defaults to True.
+        Additional keyword arguments to pass to the target.
+
+    Args:
+        config: The configuration object describing the target and its parameters.
+        *args: Optional positional arguments that will override _args_ in the config
+               if provided.
+        mode: Instantiation mode (STRICT or LENIENT). In LENIENT mode (default),
+              errors during instantiation of parameters are logged as warnings,
+              and None is used instead. In STRICT mode, errors are raised.
+        **kwargs: Optional keyword arguments that will override parameters in the config.
+                  Note: Dataclass instances in kwargs are treated as nested configs.
+
+    Returns:
+        The instantiated object or the return value of the callable.
+        If config._partial_ is True, returns a functools.partial object.
+        If config._call_ is False, returns the resolved target callable/class itself.
+        Returns None if the input config is None.
+
+    Raises:
+        InstantiationException: If the config is invalid, the target cannot be resolved,
+                                or instantiation fails in STRICT mode.
+        TypeError: If the _partial_ flag is not a boolean.
     """
 
     # Return None if config is None
@@ -121,6 +144,121 @@ def instantiate(
                 a plain dict/list, or a Structured Config class or instance."""
             )
         )
+
+
+def instantiate_node(
+    node: Any,
+    *args: Any,
+    partial: bool = False,
+    mode: InstantiationMode = InstantiationMode.LENIENT,
+) -> Any:
+    """Recursively instantiates a node within a configuration structure.
+
+    This function handles the instantiation of individual nodes (dictionaries,
+    lists, or primitive values) within a larger configuration tree, typically
+    managed by OmegaConf.
+
+    If the node is a dictionary containing a `_target_` key, it resolves and
+    instantiates the target callable/class using the other items in the
+    dictionary as keyword arguments. Nested nodes are recursively instantiated.
+
+    If the node is a list, it recursively instantiates each item in the list.
+
+    If the node is not an OmegaConf config node (e.g., a primitive type), it's
+    returned directly.
+
+    Args:
+        node: The configuration node to instantiate (can be DictConfig, ListConfig,
+              or a primitive type).
+        *args: Positional arguments passed down from the top-level `instantiate` call,
+               used primarily for the final target call if the node is a dictionary
+               with `_target_`.
+        partial: Boolean flag indicating whether to return a `functools.partial` object
+                 instead of calling the target. This can be overridden by a
+                 `_partial_` key within the node itself.
+        mode: Instantiation mode (STRICT or LENIENT). Determines error handling
+              behavior for nested instantiations.
+
+    Returns:
+        The instantiated object, list, or the original node if it wasn't a config.
+        Returns None if the input node is None or represents a None value in OmegaConf.
+
+    Raises:
+        InstantiationException: If instantiation fails in STRICT mode, or if there are
+                                issues like incompatible arguments or non-callable targets.
+        TypeError: If a `_partial_` flag within the config is not a boolean.
+    """
+    # Return None if config is None
+    if node is None or (OmegaConf.is_config(node) and node._is_none()):
+        return None
+
+    if not OmegaConf.is_config(node):
+        return node
+
+    # Override parent modes from config if specified
+    if OmegaConf.is_dict(node):
+        # using getitem instead of get(key, default) because OmegaConf will raise an exception
+        # if the key type is incompatible on get.
+        partial = node[_Keys.PARTIAL] if _Keys.PARTIAL in node else partial
+
+    full_key = node._get_full_key(None)
+
+    if not isinstance(partial, bool):
+        msg = f"Instantiation: _partial_ flag must be a bool, got {type(partial)}"
+        if node and full_key:
+            msg += f"\nfull_key: {full_key}"
+        raise TypeError(msg)
+
+    if OmegaConf.is_list(node):
+        items = [instantiate_node(item, mode=mode) for item in node._iter_ex(resolve=True)]
+
+        return items
+    elif OmegaConf.is_dict(node):
+        exclude_keys = set(item.value for item in _Keys if item != _Keys.ARGS)
+        if _is_target(node):
+            should_call_target = node.get("_call_", True)
+            _target_ = _resolve_target(node.get(_Keys.TARGET), full_key, check_callable=should_call_target)
+            kwargs = {}
+            is_partial = node.get("_partial_", False) or partial
+
+            if not should_call_target:
+                if len(set(node.keys()) - {"_target_", "_call_"}) != 0:
+                    extra_keys = set(node.keys()) - {"_target_", "_call_"}
+                    raise InstantiationException(
+                        f"_call_ was set to False for target {_convert_target_to_string(_target_)},"
+                        f" but extra keys were found: {extra_keys}"
+                    )
+                else:
+                    return _target_
+
+            for key in node.keys():
+                if key not in exclude_keys:
+                    if OmegaConf.is_missing(node, key) and is_partial:
+                        continue
+                    value = node[key]
+                    try:
+                        value = instantiate_node(value, mode=mode)
+                    except (ImportError, InstantiationException) as e:
+                        if mode == InstantiationMode.STRICT:
+                            raise InstantiationException(f"Error instantiating {value} for key {full_key}: {e}") from e
+                        else:
+                            value = None
+                            logging.warning(
+                                f"Error instantiating {value} for key {full_key}.{key}. "
+                                f"Using None instead in lenient mode."
+                            )
+                    kwargs[key] = _convert_node(value)
+
+            assert callable(_target_)
+            return _call_target(_target_, partial, args, kwargs, full_key)
+        else:
+            dict_items = {}
+            for key, value in node.items():
+                dict_items[key] = instantiate_node(value, mode=mode)
+            return dict_items
+
+    else:
+        assert False, f"Unexpected config type : {type(node).__name__}"
 
 
 def _locate(path: str) -> Any:
@@ -185,8 +323,8 @@ def _is_target(x: Any) -> bool:
 def _call_target(
     _target_: Callable[..., Any],
     _partial_: bool,
-    args: Tuple[Any, ...],
-    kwargs: Dict[str, Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
     full_key: str,
 ) -> Any:
     """Call target (type) with args and kwargs."""
@@ -216,7 +354,7 @@ def _convert_target_to_string(t: Any) -> Any:
         return t
 
 
-def _prepare_input_dict_or_list(d: Union[Dict[Any, Any], List[Any]]) -> Any:
+def _prepare_input_dict_or_list(d: Union[dict[Any, Any], list[Any]]) -> Any:
     res: Any
     if isinstance(d, dict):
         res = {}
@@ -259,7 +397,7 @@ def _resolve_target(
     return target
 
 
-def _extract_pos_args(input_args: Any, kwargs: Any) -> Tuple[Any, Any]:
+def _extract_pos_args(input_args: Any, kwargs: Any) -> tuple[Any, Any]:
     config_args = kwargs.pop(_Keys.ARGS, ())
     output_args = config_args
 
@@ -279,80 +417,3 @@ def _convert_node(node: Any) -> Any:
         node = OmegaConf.to_container(node, resolve=True)
 
     return node
-
-
-def instantiate_node(
-    node: Any,
-    *args: Any,
-    partial: bool = False,
-    mode: InstantiationMode = InstantiationMode.LENIENT,
-) -> Any:
-    # Return None if config is None
-    if node is None or (OmegaConf.is_config(node) and node._is_none()):
-        return None
-
-    if not OmegaConf.is_config(node):
-        return node
-
-    # Override parent modes from config if specified
-    if OmegaConf.is_dict(node):
-        # using getitem instead of get(key, default) because OmegaConf will raise an exception
-        # if the key type is incompatible on get.
-        partial = node[_Keys.PARTIAL] if _Keys.PARTIAL in node else partial
-
-    full_key = node._get_full_key(None)
-
-    if not isinstance(partial, bool):
-        msg = f"Instantiation: _partial_ flag must be a bool, got {type(partial)}"
-        if node and full_key:
-            msg += f"\nfull_key: {full_key}"
-        raise TypeError(msg)
-
-    if OmegaConf.is_list(node):
-        items = [instantiate_node(item, mode=mode) for item in node._iter_ex(resolve=True)]
-
-        return items
-    elif OmegaConf.is_dict(node):
-        exclude_keys = set(item.value for item in _Keys if item != _Keys.ARGS)
-        if _is_target(node):
-            should_call_target = node.get("_call_", True)
-            _target_ = _resolve_target(node.get(_Keys.TARGET), full_key, check_callable=should_call_target)
-            kwargs = {}
-            is_partial = node.get("_partial_", False) or partial
-
-            if not should_call_target:
-                if len(set(node.keys()) - {"_target_", "_call_"}) != 0:
-                    extra_keys = set(node.keys()) - {"_target_", "_call_"}
-                    raise InstantiationException(
-                        f"_call_ was set to False for target {_convert_target_to_string(_target_)}, but extra keys were found: {extra_keys}"
-                    )
-                else:
-                    return _target_
-
-            for key in node.keys():
-                if key not in exclude_keys:
-                    if OmegaConf.is_missing(node, key) and is_partial:
-                        continue
-                    value = node[key]
-                    try:
-                        value = instantiate_node(value, mode=mode)
-                    except (ImportError, InstantiationException) as e:
-                        if mode == InstantiationMode.STRICT:
-                            raise InstantiationException(f"Error instantiating {value} for key {full_key}: {e}") from e
-                        else:
-                            value = None
-                            logging.warning(
-                                f"Error instantiating {value} for key {full_key}.{key}. Using None instead in lenient mode."
-                            )
-                    kwargs[key] = _convert_node(value)
-
-            assert callable(_target_)
-            return _call_target(_target_, partial, args, kwargs, full_key)
-        else:
-            dict_items = {}
-            for key, value in node.items():
-                dict_items[key] = instantiate_node(value, mode=mode)
-            return dict_items
-
-    else:
-        assert False, f"Unexpected config type : {type(node).__name__}"

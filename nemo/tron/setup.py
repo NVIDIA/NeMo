@@ -15,7 +15,7 @@
 import inspect
 import time
 from functools import partial
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Callable, NamedTuple, Optional
 
 import torch
 from megatron.core.distributed import (
@@ -46,7 +46,7 @@ from nemo.utils.import_utils import safe_import
 _, HAVE_RESIL = safe_import("nvidia_resiliency_ext.checkpointing")
 
 try:
-    from megatron.core.distributed import TorchFullyShardedDataParallel  # noqa: F401
+    from megatron.core.distributed import TorchFullyShardedDataParallel  # noqa: F401 pylint: disable=unused-import
 
     HAVE_FSDP2 = True
 except ImportError:
@@ -54,6 +54,22 @@ except ImportError:
 
 
 class SetupOutput(NamedTuple):
+    """Represents the output of the main setup function.
+
+    Contains all the initialized components necessary for training or evaluation.
+
+    Attributes:
+        state: The global state object holding configuration and runtime information.
+        model: The initialized Megatron model.
+        optimizer: The initialized optimizer.
+        scheduler: The initialized learning rate scheduler.
+        train_data_iterator: The data iterator for the training dataset, if applicable.
+        valid_data_iterator: The data iterator for the validation dataset, if applicable.
+        test_data_iterator: The data iterator for the testing dataset, if applicable.
+        checkpointing_context: A dictionary holding context for checkpointing operations,
+                               especially for non-persistent local checkpointing.
+    """
+
     state: GlobalState
     model: MegatronModule
     optimizer: MegatronOptimizer
@@ -66,10 +82,32 @@ class SetupOutput(NamedTuple):
 
 def setup(
     cfg: ConfigContainer,
-    train_valid_test_datasets_provider,
-    get_embedding_ranks=None,
-    get_position_embedding_ranks=None,
-):
+    train_valid_test_datasets_provider: Callable[..., tuple[Optional[Any], Optional[Any], Optional[Any]]],
+    get_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
+    get_position_embedding_ranks: Optional[Callable[[list[int], Optional[int]], list[int]]] = None,
+) -> SetupOutput:
+    """Initializes the training/evaluation environment.
+
+    Sets up logging, initializes Megatron core components (distributed,
+    timers), builds the tokenizer, creates the model, optimizer, and scheduler,
+    loads checkpoints if specified, and prepares data iterators.
+
+    Args:
+        cfg: The main configuration container holding all sub-configurations
+             (model, training, optimizer, etc.).
+        train_valid_test_datasets_provider: A callable function that takes
+            configuration and potentially a tokenizer, and returns tuples
+            representing the training, validation, and test datasets.
+        get_embedding_ranks: Optional callable to determine ranks for embedding layers,
+                             used during Megatron initialization.
+        get_position_embedding_ranks: Optional callable to determine ranks for
+                                      position embedding layers, used during Megatron
+                                      initialization.
+
+    Returns:
+        A SetupOutput named tuple containing the initialized state, model,
+        optimizer, scheduler, data iterators, and checkpointing context.
+    """
     state = GlobalState()
     state.cfg = cfg
     # TODO: Freeze state.cfg
@@ -206,7 +244,7 @@ def setup(
     )
 
 
-def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> Dict[str, Any]:
+def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> dict[str, Any]:
     # Context used for persisting some state between checkpoint saves.
     if checkpoint_config.non_persistent_ckpt_type != "local":
         return {}

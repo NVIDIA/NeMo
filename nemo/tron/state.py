@@ -23,6 +23,7 @@ import yaml
 from megatron.core.timers import Timers
 from megatron.core.utils import StragglerDetector
 from torch.distributed.checkpoint.stateful import Stateful
+from torch.utils.tensorboard.writer import SummaryWriter
 
 from nemo.tron.config import ConfigContainer
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
@@ -32,6 +33,13 @@ from nemo.tron.utils.sig_utils import DistributedSignalHandler
 
 @dataclass
 class TrainState(Stateful):
+    """Dataclass to hold the state of the training process.
+
+    Inherits from Stateful for distributed checkpointing compatibility.
+    Tracks iteration count, consumed samples, flags for train/valid/test phases,
+    and floating-point operations.
+    """
+
     step: int = 0
     consumed_train_samples: int = 0
     skipped_train_samples: int = 0
@@ -42,7 +50,15 @@ class TrainState(Stateful):
     do_valid: bool = False
     do_test: bool = False
 
-    def state_dict(self) -> dict[str, Any]:
+    def state_dict(self) -> dict[str, torch.Tensor]:
+        """Serializes the training state into a dictionary of tensors.
+
+        Conforms to the Stateful interface for distributed checkpointing.
+
+        Returns:
+            A dictionary where keys are state variable names and values are
+            their corresponding tensor representations.
+        """
         return {
             "step": torch.tensor(self.step, dtype=torch.int32),
             "consumed_train_samples": torch.tensor(self.consumed_train_samples, dtype=torch.int32),
@@ -57,7 +73,12 @@ class TrainState(Stateful):
             "do_test": torch.tensor(self.do_test, dtype=torch.bool),
         }
 
-    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+    def load_state_dict(self, state_dict: dict[str, torch.Tensor]) -> None:
+        """Load the training state from a state dictionary.
+
+        Args:
+            state_dict: A dictionary containing the state variables as tensors.
+        """
         self.step = state_dict["step"].item()
         self.consumed_train_samples = state_dict["consumed_train_samples"].item()
         self.skipped_train_samples = state_dict["skipped_train_samples"].item()
@@ -71,6 +92,8 @@ class TrainState(Stateful):
 
 @dataclass
 class FaultToleranceState:
+    """Dataclass to hold state specific to fault tolerance mechanisms."""
+
     ft_state_path: Optional[str] = None
     is_persistent_chkpt_loaded: bool = False
     is_async_chkpt_enabled: bool = False
@@ -83,30 +106,44 @@ class FaultToleranceState:
 
 # replacement for Megatron's global variables, except mbs calc and parallel state
 class GlobalState:
-    def __init__(self):
+    """Manages the global state of the training process.
+
+    Provides access to configuration, tokenizer, loggers, timers,
+    training state, fault tolerance state, signal handler, and straggler detector
+    through properties with lazy initialization.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the GlobalState object."""
         # Prevent reinitialization in subsequent instantiations.
         if getattr(self, "_initialized", False):
             return
         self._initialized = True
 
-        self.cfg = None
-        self._tokenizer = None
-        self._tensorboard_logger = None
-        self._wandb_logger = None
-        self._timers = None
-        self._train_state = None
-        self.rank_monitor_client = None
-        self._signal_handler = None
-        self.start_time = time.time()
-        self._ft_state = None
-        self._straggler_timer = None
+        self._cfg: Optional[ConfigContainer] = None
+        self._tokenizer: Optional[Any] = None
+        self._tensorboard_logger: Optional[SummaryWriter] = None
+        self._wandb_logger: Optional[Any] = None
+        self._timers: Optional[Timers] = None
+        self._train_state: Optional[TrainState] = None
+        self.rank_monitor_client: Optional[Any] = None
+        self._signal_handler: Optional[DistributedSignalHandler] = None
+        self.start_time: float = time.time()
+        self._ft_state: Optional[FaultToleranceState] = None
+        self._straggler_timer: Optional[StragglerDetector] = None
 
     @property
-    def cfg(self):
+    def cfg(self) -> Optional[ConfigContainer]:
+        """The main configuration container object."""
         return self._cfg
 
     @cfg.setter
-    def cfg(self, value: ConfigContainer):
+    def cfg(self, value: Optional[ConfigContainer]) -> None:
+        """Sets the configuration container and initializes the signal handler.
+
+        Args:
+            value: The ConfigContainer instance to set.
+        """
         self._cfg = value
 
         # This lazily initializes the signal handler when the config is set
@@ -117,13 +154,15 @@ class GlobalState:
             self._set_signal_handler()
 
     @property
-    def tokenizer(self):
+    def tokenizer(self) -> Any:
+        """The tokenizer instance, lazily built based on the config."""
         if self._tokenizer is None:
             self._tokenizer = build_tokenizer(self.cfg.tokenizer_config)
         return self._tokenizer
 
     @property
-    def tensorboard_logger(self):
+    def tensorboard_logger(self) -> Optional[SummaryWriter]:
+        """The TensorBoard SummaryWriter instance, lazily initialized for rank N-1."""
         if self._tensorboard_logger is None:
             if self.cfg.logger_config.tensorboard_dir and get_rank_safe() == (get_world_size_safe() - 1):
                 from torch.utils.tensorboard.writer import SummaryWriter
@@ -138,7 +177,8 @@ class GlobalState:
         return self._tensorboard_logger
 
     @property
-    def wandb_logger(self):
+    def wandb_logger(self) -> Optional[Any]:
+        """The Weights & Biases logger instance, lazily initialized for rank N-1."""
         if self._wandb_logger is None:
             if self.cfg.logger_config.wandb_project and get_rank_safe() == (get_world_size_safe() - 1):
                 if self.cfg.logger_config.wandb_exp_name == "":
@@ -162,60 +202,73 @@ class GlobalState:
         return self._wandb_logger
 
     @property
-    def timers(self):
+    def timers(self) -> Timers:
+        """The Megatron Timers instance used for tracking execution times."""
         if self._timers is None:
             self._timers = Timers(self.cfg.logger_config.timing_log_level, self.cfg.logger_config.timing_log_option)
             self._timers.write_to_wandb = types.MethodType(_timers_write_to_wandb, self._timers)
         return self._timers
 
     @property
-    def train_state(self):
+    def train_state(self) -> TrainState:
+        """The TrainState object holding training progress information."""
         if self._train_state is None:
             self._train_state = TrainState()
         return self._train_state
 
     @train_state.setter
-    def train_state(self, value: TrainState):
+    def train_state(self, value: TrainState) -> None:
+        """Sets the training state object.
+
+        Args:
+            value: The TrainState instance to set.
+        """
         self._train_state = value
 
     @property
-    def fault_tolerance_state(self):
+    def fault_tolerance_state(self) -> FaultToleranceState:
+        """The FaultToleranceState object holding FT-specific information."""
         if self._ft_state is None:
             self._ft_state = FaultToleranceState()
         return self._ft_state
 
     @fault_tolerance_state.setter
-    def fault_tolerance_state(self, value: FaultToleranceState):
+    def fault_tolerance_state(self, value: FaultToleranceState) -> None:
+        """Sets the fault tolerance state object.
+
+        Args:
+            value: The FaultToleranceState instance to set.
+        """
         self._ft_state = value
 
     @property
-    def signal_handler(self):
+    def signal_handler(self) -> DistributedSignalHandler:
+        """The DistributedSignalHandler instance for graceful shutdown."""
         if self._signal_handler is None:
             self._set_signal_handler()
         return self._signal_handler
 
     @property
-    def straggler_timer(self):
+    def straggler_timer(self) -> StragglerDetector:
+        """The StragglerDetector instance for tracking slow GPUs."""
         if self._straggler_timer is None:
             self._straggler_timer = StragglerDetector()
         return self._straggler_timer
 
-    def _set_signal_handler(self):
-        cfg = self._cfg
-        assert cfg is not None, "ConfigContainer must be set before initializing signal handler"
-        sig = cfg.train_config.exit_signal
-        self._signal_handler = DistributedSignalHandler(sig).__enter__()
+    def _set_signal_handler(self) -> None:
+        """Initializes the distributed signal handler based on the configuration."""
+        self._signal_handler = DistributedSignalHandler(self.cfg.train_config.exit_signal)
 
 
 def _timers_write_to_wandb(
-    self,
+    self: Timers,
     names: list[str],
-    writer,
+    writer: Any,
     iteration: int,
     normalizer: float = 1.0,
     reset: bool = True,
     barrier: bool = False,
-):
+) -> None:
     """Patch to write timers to wandb for Megatron Core Timers."""
     # currently when using add_scalars,
     # torch.utils.add_scalars makes each timer its own run, which

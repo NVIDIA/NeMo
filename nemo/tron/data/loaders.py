@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import json
-from typing import Optional
+from typing import Any, Callable, Iterable, Iterator, Optional, Union
 
 import torch
 from megatron.core import mpu
 from megatron.core.datasets.utils import get_blend_from_list
 from megatron.core.rerun_state_machine import RerunDataIterator
+from torch.utils.data import DataLoader
 
 from nemo.tron.config import ConfigContainer
 from nemo.tron.data.samplers import build_pretraining_data_loader
@@ -34,8 +35,27 @@ def get_blend_and_blend_per_split(
     train_data_paths: Optional[list[str]] = None,
     valid_data_paths: Optional[list[str]] = None,
     test_data_paths: Optional[list[str]] = None,
-):
-    """Get blend and blend_per_split from passed-in arguments."""
+) -> tuple[Optional[list[str]], Optional[list[list[str]]]]:
+    """Determine dataset blends from command-line arguments or config files.
+
+    Parses different ways dataset paths/weights can be specified (single list,
+    per-split lists, config files) and returns the blend information.
+
+    Args:
+        data_paths: List of paths/weights for a single blended dataset.
+        data_args_path: Path to a file containing data paths/weights for a single blend.
+        per_split_data_args_path: Path to a JSON file containing train/valid/test splits,
+                                  each with its own list of paths/weights.
+        train_data_paths: List of paths/weights specifically for the training split.
+        valid_data_paths: List of paths/weights specifically for the validation split.
+        test_data_paths: List of paths/weights specifically for the test split.
+
+    Returns:
+        A tuple (blend, blend_per_split):
+        - blend: A list representing a single data blend, or None.
+        - blend_per_split: A list containing blends for train, valid, test splits, or None.
+                         Only one of `blend` or `blend_per_split` will be non-None.
+    """
     use_data_path = data_paths is not None or data_args_path is not None
     use_per_split_data_path = (
         any(elt is not None for elt in [train_data_paths, valid_data_paths, test_data_paths])
@@ -79,14 +99,25 @@ def get_blend_and_blend_per_split(
     return blend, blend_per_split
 
 
-def cyclic_iter(iter):
+def cyclic_iter(iter: Iterable) -> Iterator:
+    """Create an infinite iterator from a finite iterable."""
     while True:
         for x in iter:
             yield x
 
 
-def get_train_valid_test_num_samples(cfg: ConfigContainer):
-    """Train/valid/test num samples."""
+def get_train_valid_test_num_samples(cfg: ConfigContainer) -> tuple[int, int, int]:
+    """Calculate the number of samples for train, validation, and test sets.
+
+    Determines sample counts based on training iterations, global batch size,
+    and evaluation interval/iterations specified in the config.
+
+    Args:
+        cfg: The main configuration container.
+
+    Returns:
+        A tuple (train_samples, valid_samples, test_samples).
+    """
 
     # Number of train/valid/test samples.
     train_samples = cfg.train_config.train_iters * cfg.train_config.global_batch_size
@@ -100,8 +131,19 @@ def get_train_valid_test_num_samples(cfg: ConfigContainer):
     )
 
 
-def build_train_valid_test_datasets(cfg: ConfigContainer, build_train_valid_test_datasets_provider):
-    """Build pretraining datasets."""
+def build_train_valid_test_datasets(
+    cfg: ConfigContainer, build_train_valid_test_datasets_provider: Callable
+) -> tuple[Any, Any, Any]:
+    """Build train, validation, and test datasets using a provider function.
+
+    Args:
+        cfg: The main configuration container.
+        build_train_valid_test_datasets_provider: A function that takes
+            train_val_test_num_samples and dataset_config and returns the datasets.
+
+    Returns:
+        A tuple (train_dataset, valid_dataset, test_dataset).
+    """
     train_valid_test_num_samples = get_train_valid_test_num_samples(cfg)
     print_rank_0(" > datasets target sizes (minimum size):")
     print_rank_0("    train:      {}".format(train_valid_test_num_samples[0]))
@@ -111,9 +153,21 @@ def build_train_valid_test_datasets(cfg: ConfigContainer, build_train_valid_test
 
 
 def build_train_valid_test_data_loaders(
-    cfg: ConfigContainer, train_state: TrainState, build_train_valid_test_datasets_provider
-):
-    """Build pretraining data loaders."""
+    cfg: ConfigContainer, train_state: TrainState, build_train_valid_test_datasets_provider: Callable
+) -> tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader]]:
+    """Build train, validation, and test data loaders.
+
+    First builds the datasets using the provided provider function, then constructs
+    PyTorch DataLoaders with appropriate sampling and configuration.
+
+    Args:
+        cfg: The main configuration container.
+        train_state: The current training state.
+        build_train_valid_test_datasets_provider: A function to build the datasets.
+
+    Returns:
+        A tuple (train_dataloader, valid_dataloader, test_dataloader).
+    """
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
 
     print_rank_0("> building train, validation, and test datasets ...")
@@ -199,9 +253,21 @@ def build_train_valid_test_data_loaders(
 
 
 def build_train_valid_test_data_iterators(
-    cfg: ConfigContainer, train_state: TrainState, build_train_valid_test_datasets_provider
-):
-    """Build pretraining data iterators."""
+    cfg: ConfigContainer, train_state: TrainState, build_train_valid_test_datasets_provider: Callable
+) -> tuple[Optional[RerunDataIterator], Optional[RerunDataIterator], Optional[RerunDataIterator]]:
+    """Build train, validation, and test data iterators.
+
+    Builds the data loaders first, then wraps them in appropriate iterators
+    (e.g., RerunDataIterator, cyclic_iter) based on the configuration.
+
+    Args:
+        cfg: The main configuration container.
+        train_state: The current training state.
+        build_train_valid_test_datasets_provider: A function to build the datasets.
+
+    Returns:
+        A tuple (train_data_iterator, valid_data_iterator, test_data_iterator).
+    """
 
     # Build loaders.
     train_dataloader, valid_dataloader, test_dataloader = build_train_valid_test_data_loaders(
@@ -248,9 +314,32 @@ def build_train_valid_test_data_iterators(
 
 
 def setup_data_iterators(
-    cfg: ConfigContainer, train_state: TrainState, model_length: int, train_valid_test_datasets_provider
-):
-    """Setup data iterators."""
+    cfg: ConfigContainer,
+    train_state: TrainState,
+    model_length: int,
+    train_valid_test_datasets_provider: Callable,
+) -> tuple[
+    Union[Optional[RerunDataIterator], list[Optional[RerunDataIterator]]],
+    Union[Optional[RerunDataIterator], list[Optional[RerunDataIterator]]],
+    Union[Optional[RerunDataIterator], list[Optional[RerunDataIterator]]],
+]:
+    """Set up data iterators, handling virtual pipeline parallelism if enabled.
+
+    Calls `build_train_valid_test_data_iterators` potentially multiple times
+    if virtual pipeline parallelism is used, creating separate iterators for each
+    virtual stage.
+
+    Args:
+        cfg: The main configuration container.
+        train_state: The current training state.
+        model_length: The number of model chunks (used for virtual pipeline parallelism).
+        train_valid_test_datasets_provider: A function to build the datasets.
+
+    Returns:
+        A tuple (train_data_iterator, valid_data_iterator, test_data_iterator).
+        Each element can be a single iterator or a list of iterators if virtual
+        pipeline parallelism is enabled.
+    """
     if cfg.model_config.virtual_pipeline_model_parallel_size is not None:
         train_data_iterator = []
         valid_data_iterator = []

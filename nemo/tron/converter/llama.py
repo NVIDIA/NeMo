@@ -22,6 +22,7 @@ from nemo.tron.converter.common import BaseExporter, BaseImporter
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
+    from transformers import LlamaForCausalLM
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,12 @@ class HFLlamaExporter(BaseExporter):
 class HFLlamaImporter(BaseImporter):
     """Importer for converting Hugging Face Llama models to NeMo Tron format."""
 
-    def init_hf_model(self):
+    def init_hf_model(self) -> "LlamaForCausalLM":
+        """Initialize the source Hugging Face Llama model.
+
+        Returns:
+            The initialized Hugging Face Llama model instance.
+        """
         from transformers import LlamaForCausalLM
 
         return LlamaForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto")
@@ -88,6 +94,11 @@ class HFLlamaImporter(BaseImporter):
 
     @property
     def hf_config(self) -> "HFLlamaConfig":
+        """Load and return the Hugging Face LlamaConfig from the input path.
+
+        Returns:
+            The loaded Hugging Face LlamaConfig instance.
+        """
         from transformers import LlamaConfig as HFLlamaConfig
 
         if self._hf_config is not None:

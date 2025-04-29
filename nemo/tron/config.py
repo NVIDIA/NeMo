@@ -17,12 +17,11 @@ import os
 import signal
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.enums import ModelType
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
@@ -32,6 +31,8 @@ from nemo.tron.utils.config_utils import ConfigContainer as Container
 
 @dataclass
 class RNGConfig:
+    """Configuration settings for random number generation."""
+
     seed: int = 1234
     """Random seed used for python, numpy, pytorch, and cuda."""
 
@@ -48,6 +49,8 @@ class RNGConfig:
 
 @dataclass
 class RerunStateMachineConfig:
+    """Configuration for the rerun state machine used for result validation or stats."""
+
     error_injection_rate: int = 0
     """Rate at which to inject unexpected results, e.g. 1000 means
     once every 1000 result validations"""
@@ -62,6 +65,8 @@ class RerunStateMachineConfig:
 
 @dataclass
 class TokenizerConfig:
+    """Configuration settings for the tokenizer."""
+
     vocab_size: Optional[int] = None
     """Size of vocab before EOD or padding."""
 
@@ -99,17 +104,19 @@ class TokenizerConfig:
     tiktoken_num_special_tokens: int = 1000
     """Number of special tokens in tiktoken tokenizer"""
 
-    tiktoken_special_tokens: Optional[List[str]] = None
+    tiktoken_special_tokens: Optional[list[str]] = None
     """List of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
 
     tokenizer_prompt_format: Optional[str] = None
-    special_tokens: Optional[List[str]] = None
+    special_tokens: Optional[list[str]] = None
     image_tag_type: Optional[str] = None
     padded_vocab_size: Optional[int] = None
 
 
 @dataclass(kw_only=True)
 class DataloaderConfig:
+    """Base configuration for data loading."""
+
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
 
@@ -128,7 +135,10 @@ class DataloaderConfig:
 
 @dataclass
 class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
+    """Configuration specific to GPT datasets, inheriting from MCore and base DataloaderConfig."""
+
     def __post_init__(self) -> None:
+        """Post-initialization checks for GPT dataset config."""
         super(MCoreGPTDatasetConfig, self).__post_init__()
 
         assert self.reset_position_ids is not None
@@ -138,6 +148,8 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig, DataloaderConfig):
 
 @dataclass(kw_only=True)
 class FinetuningDatasetConfig(DataloaderConfig):
+    """Configuration specific to finetuning datasets, inheriting from DataloaderConfig."""
+
     dataset_root: Optional[Union[str, Path]] = None
     seq_length: int
     seed: int = 1234
@@ -151,22 +163,40 @@ class FinetuningDatasetConfig(DataloaderConfig):
 
 @dataclass
 class TrainingConfig:
+    """Configuration settings related to the training loop and validation."""
+
     # ---------------- Training config. ----------------
 
     micro_batch_size: Optional[int] = None
-    """Batch size per model instance (local batch size). Global batch size is local batch size times data parallel size times number of micro batches."""
+    """Batch size per model instance (local batch size). Global batch size is local batch size times
+    data parallel size times number of micro batches."""
 
     global_batch_size: Optional[int] = None
-    """Training batch size. If set, it should be a multiple of micro-batch-size times data-parallel-size. If this value is None, then use micro-batch-size * data-parallel-size as the global batch size. This choice will result in 1 for number of micro-batches."""
+    """Training batch size. If set, it should be a multiple of micro-batch-size times
+    data-parallel-size. If this value is None, then use micro-batch-size * data-parallel-size
+    as the global batch size. This choice will result in 1 for number of micro-batches."""
 
-    rampup_batch_size: Optional[List[int]] = None
-    """Batch size ramp up with the following values:  --rampup-batch-size <start batch size>                       <batch size incerement>                       <ramp-up samples> For example:   --rampup-batch-size 16 8 300000 \    --global-batch-size 1024will start with global batch size 16 and over  (1024 - 16) / 8 = 126 intervals will increase the batch size linearly to 1024. In each interval we will use approximately 300000 / 126 = 2380 samples."""
+    rampup_batch_size: Optional[list[int]] = None
+    """Batch size ramp up with the following values: <start batch size>, <batch size increment>,
+    <ramp-up samples>
+    For example:
+        rampup-batch-size = [16, 8, 300000]
+        global-batch-size 1024
+    will start with global batch size 16 and over (1024 - 16) / 8 = 126 intervals will increase
+    the batch size linearly to 1024. In each interval we will use approximately
+    300000 / 126 = 2380 samples.
+    """
 
     decrease_batch_size_if_needed: bool = False
-    """If set, decrease batch size if microbatch_size * dp_size does not divide batch_size. Useful for KSO (Keep Soldiering On) to continue making progress if number of healthy GPUs (and corresponding dp_size) does not support current batch_size. Old batch_size will be restored if training is re-started with dp_size that divides batch_size // microbatch_size."""
+    """If set, decrease batch size if microbatch_size * dp_size does not divide batch_size.
+    Useful for KSO (Keep Soldiering On) to continue making progress if number of healthy GPUs
+    (and corresponding dp_size) does not support current batch_size. Old batch_size will be
+    restored if training is re-started with dp_size that divides batch_size // microbatch_size."""
 
     empty_unused_memory_level: Literal[0, 1, 2] = 0
-    """Call torch.cuda.empty_cache() each iteration (training and eval), to reduce fragmentation. 0=off, 1=moderate, 2=aggressive."""
+    """Call torch.cuda.empty_cache() each iteration (training and eval), to reduce fragmentation.
+    0=off, 1=moderate, 2=aggressive.
+    """
 
     check_weight_hash_across_dp_replicas_interval: Optional[int] = None
     """Interval to check weight hashes are same across DP replicas. If not specified, weight hashes not checked."""
@@ -175,7 +205,9 @@ class TrainingConfig:
     """Training CPU-GPU synchronization interval, to ensure that CPU is not running too far ahead of GPU."""
 
     train_iters: Optional[int] = None
-    """Total number of iterations to train over all training runs. Note that either train-iters or train-samples should be provided."""
+    """Total number of iterations to train over all training runs.
+    Note that either train-iters or train-samples should be provided.
+    """
 
     exit_interval: Optional[int] = None
     """Exit the program after the iteration is divisible by this value."""
@@ -193,13 +225,20 @@ class TrainingConfig:
     """Use signal handler for dataloader workers"""
 
     manual_gc: bool = False
-    """Disable the threshold-based default garbage collector and trigger the garbage collection manually. Manual garbage collection helps to align the timing of the collection across ranks which mitigates the impact of CPU-associated jitters. When the manual gc is enabled, garbage collection is performed only at the start and the end of the validation routine by default."""
+    """Disable the threshold-based default garbage collector and trigger the garbage collection
+    manually. Manual garbage collection helps to align the timing of the collection across ranks
+    which mitigates the impact of CPU-associated jitters. When the manual gc is enabled, garbage
+    collection is performed only at the start and the end of the validation routine by default."""
 
     manual_gc_interval: int = 0
-    """Training step interval to trigger manual garbage collection. When the value is set to 0, garbage collection is not triggered between training steps."""
+    """Training step interval to trigger manual garbage collection.
+    When the value is set to 0, garbage collection is not triggered between training steps.
+    """
 
     manual_gc_eval: bool = True
-    """When using manual garbage collection, disable garbage collection at the start and the end of each evaluation run."""
+    """When using manual garbage collection,
+    disable garbage collection at the start and the end of each evaluation run.
+    """
 
     # ---------------- Validation config. ----------------
 
@@ -215,6 +254,8 @@ class TrainingConfig:
 
 @dataclass
 class DistributedInitConfig:
+    """Configuration settings for distributed training initialization."""
+
     # ---------------- Distributed config. ----------------
 
     distributed_backend: Literal["nccl", "gloo"] = "nccl"
@@ -224,22 +265,32 @@ class DistributedInitConfig:
     """Timeout minutes for torch.distributed."""
 
     align_grad_reduce: bool = True
-    """If not set, all PP stages will launch gradient reduces simultaneously. Otherwise, each PP stage will independently launch as needed."""
+    """If not set, all PP stages will launch gradient reduces simultaneously.
+    Otherwise, each PP stage will independently launch as needed.
+    """
 
     local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
 
     lazy_mpu_init: bool = False
-    """If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on --use-cpu-initialization flag. This is for external DDP manager."""
+    """If set to True, initialize_megatron() skips DDP initialization and returns function to
+    complete it instead. Also turns on --use-cpu-initialization flag. This is for external DDP
+    manager."""
 
     use_torch_fsdp2: bool = False
-    """Use the torch FSDP2 implementation. FSDP2 is not currently working with Pipeline Parallel.It is still not in a stable release stage, and may therefore contain bugs or other potential issues."""
+    """Use the torch FSDP2 implementation. FSDP2 is not currently working with Pipeline Parallel.
+    It is still not in a stable release stage, and may therefore contain bugs or other
+    potential issues."""
 
     nccl_communicator_config_path: Optional[str] = None
-    """Path to the yaml file with NCCL communicator configurations. The number of min/max thread groups and thread group cluster size of each communicator can be configured by setting `min_ctas`, `max_ctas`, and `cga_cluster_size`."""
+    """Path to the yaml file with NCCL communicator configurations. The number of min/max thread
+    groups and thread group cluster size of each communicator can be configured by setting
+    `min_ctas`, `max_ctas`, and `cga_cluster_size`."""
 
     use_tp_pp_dp_mapping: bool = False
-    """If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp. Make sure EP and CP aren't used with this option enabled"""
+    """If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp.
+    Make sure EP and CP aren't used with this option enabled.
+    """
 
     use_gloo_process_groups: bool = True
     """If set, create Gloo process groups for communications."""
@@ -247,10 +298,16 @@ class DistributedInitConfig:
 
 @dataclass
 class ProfilingConfig:
+    """Configuration settings for profiling the training process."""
+
     # ---------------- Profiling config. ----------------
 
     use_nsys_profiler: bool = False
-    """Enable nsys profiling. When using this option, nsys options should be specified in commandline. An example nsys commandline is `nsys profile -s none -t nvtx,cuda -o <path/to/output_file> --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop`."""
+    """Enable nsys profiling. When using this option, nsys options should be specified in
+    commandline. An example nsys commandline is
+    `nsys profile -s none -t nvtx,cuda -o <path/to/output_file> --force-overwrite true
+    --capture-range=cudaProfilerApi --capture-range-end=stop`.
+    """
 
     profile_step_start: int = 10
     """Global step to start profiling."""
@@ -261,7 +318,7 @@ class ProfilingConfig:
     use_pytorch_profiler: bool = False
     """Use the built-in pytorch profiler. Useful if you wish to view profiles in tensorboard."""
 
-    profile_ranks: List[int] = field(default_factory=lambda: [0])
+    profile_ranks: list[int] = field(default_factory=lambda: [0])
     """Global ranks to profile."""
 
     record_memory_history: bool = False
@@ -276,6 +333,8 @@ class ProfilingConfig:
 
 @dataclass(kw_only=True)
 class LoggerConfig:
+    """Configuration settings for logging, including TensorBoard and WandB."""
+
     # ---------------- Logging config. ----------------
 
     log_interval: int = 100
@@ -288,13 +347,25 @@ class LoggerConfig:
     """If set, calculate and log throughput per GPU."""
 
     log_progress: bool = False
-    """If set, log progress (in terms of number of processed tokens and number of floating-point operations) to progress.txt file in checkpoint directory."""
+    """If set, log progress (in terms of number of processed tokens and number of floating-point operations)
+    to progress.txt file in checkpoint directory.
+    """
 
     timing_log_level: Literal[0, 1, 2] = 0
-    """Granularity level to measure and report timing.    0: report only iteration time and make sure timing       does not introduce extra overhead.   1: report timing for operations that are executed       very limited times (basically once) during       each iteration (such as gradient all-reduce)    2: report timing for operations that migh be       executed numerous times during each iteration. Note that setting the level to 1 or 2 might cause increase in iteration time."""
+    """Granularity level to measure and report timing.
+    0: report only iteration time and make sure timing does not introduce extra overhead.
+    1: report timing for operations that are executed very limited times (basically once) during each iteration
+        (such as gradient all-reduce)
+    2: report timing for operations that migh be executed numerous times during each iteration.
+    Note that setting the level to 1 or 2 might cause increase in iteration time.
+    """
 
     timing_log_option: Literal["max", "minmax", "all"] = "minmax"
-    """Options for logging timing:  max: report the max timing across all ranks  minmax: report min and max timings across all ranks  all: report timings of all ranks."""
+    """Options for logging timing:
+    max: report the max timing across all ranks
+    minmax: report min and max timings across all ranks
+    all: report timings of all ranks.
+    """
 
     tensorboard_dir: Optional[str] = None
     """Write TensorBoard logs to this directory."""
@@ -303,7 +374,9 @@ class LoggerConfig:
     """Report to tensorboard interval."""
 
     tensorboard_queue_size: int = 1000
-    """Size of the tensorboard queue for pending events and summaries before one of the 'add' calls forces a flush to disk."""
+    """Size of the tensorboard queue for pending events and summaries
+    before one of the 'add' calls forces a flush to disk.
+    """
 
     log_timers_to_tensorboard: bool = False
     """If set, write timers to tensorboard."""
@@ -347,6 +420,8 @@ class LoggerConfig:
 
 @dataclass(kw_only=True)
 class SchedulerConfig:
+    """Configuration settings for the learning rate scheduler and weight decay."""
+
     # ---------------- Learning rate config. ----------------
     lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
     """Learning rate decay function."""
@@ -370,10 +445,14 @@ class SchedulerConfig:
     """Initial value for learning rate warmup. The scheduler starts warmup from this value."""
 
     override_opt_param_scheduler: bool = False
-    """Reset the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from input arguments and ignore values from checkpoints. Note that all the above values will be reset."""
+    """Reset the values of the scheduler (learning rate, warmup iterations, minimum learning rate,
+    maximum number of iterations, and decay style from input arguments and ignore values from
+    checkpoints. Note that all the above values will be reset."""
 
     use_checkpoint_opt_param_scheduler: bool = False
-    """Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments."""
+    """Use checkpoint to set the values of the scheduler (learning rate, warmup iterations,
+    minimum learning rate, maximum number of iterations, and decay style from checkpoint
+    and ignore input arguments."""
 
     # ---------------- Regularization config. ----------------
 
@@ -392,6 +471,7 @@ class SchedulerConfig:
     wsd_decay_steps: Optional[int] = field(init=False, default=None)
 
     def __post_init__(self):
+        """Post-initialization checks for scheduler config."""
         if self.start_weight_decay is not None:
             assert self.start_weight_decay >= 0.0
             assert self.end_weight_decay >= self.start_weight_decay
@@ -402,6 +482,8 @@ class SchedulerConfig:
 
 @dataclass(kw_only=True)
 class CheckpointConfig:
+    """Configuration settings for model checkpointing (saving and loading)."""
+
     # ---------------- Checkpointing config. ----------------
 
     save: Optional[str] = None
@@ -429,7 +511,11 @@ class CheckpointConfig:
     """Number of iterations between non-persistent saves."""
 
     non_persistent_ckpt_type: Optional[Literal["global", "local", "in_memory", "None"]] = None
-    """Type of non-persistent model checkpoints. "global" - Saved as a standard checkpoint (e.g., on Lustre) with old checkpoints being removed. "local" - [TBD] Each rank saves a portion of the checkpoint locally (e.g., on SSD/ramdisk). "in_memory" - [TBD] A special kind of local checkpoint that avoids serialization. None - No non-persistent checkpointing (default option)."""
+    """Type of non-persistent model checkpoints.
+    "global" - Saved as a standard checkpoint (e.g., on Lustre) with old checkpoints being removed.
+    "local" - [TBD] Each rank saves a portion of the checkpoint locally (e.g., on SSD/ramdisk).
+    "in_memory" - [TBD] A special kind of local checkpoint that avoids serialization.
+    None - No non-persistent checkpointing (default option)."""
 
     non_persistent_global_ckpt_dir: Optional[str] = None
     """Directory containing global non-persistent model checkpoints."""
@@ -441,7 +527,8 @@ class CheckpointConfig:
     """Algorithm for local non-persistent checkpointing."""
 
     finetune: bool = False
-    """Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0. Assumed when loading a release checkpoint."""
+    """Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0.
+    Assumed when loading a release checkpoint."""
 
     pretrained_checkpoint: Optional[str] = None
     """Directory containing a pretrained model checkpoint for finetuning."""
@@ -453,10 +540,12 @@ class CheckpointConfig:
     """Override any command line arguments with arguments from the checkpoint"""
 
     exit_on_missing_checkpoint: bool = False
-    """If '--load' is set, but checkpoint is not found (e.g., path typo), then exit instead of random initialization."""
+    """If 'load' is set, but checkpoint is not found (e.g., path typo), then exit instead of random initialization."""
 
     auto_detect_ckpt_format: bool = False
-    """Determine if the checkpoint format is in legacy or distributed format. If False, expects distributed checkpoint iff args.ckpt_format != "torch". Might slow down loading a bit (double rank0 ckpt load)."""
+    """Determine if the checkpoint format is in legacy or distributed format. If False, expects
+    distributed checkpoint iff args.ckpt_format != "torch". Might slow down loading a bit
+    (double rank0 ckpt load)."""
 
     ckpt_format: Literal["torch", "torch_dist", "zarr"] = "torch_dist"
     """Checkpoint format to use."""
@@ -468,10 +557,14 @@ class CheckpointConfig:
     """Save directory for converted checkpoint."""
 
     ckpt_convert_update_legacy_dist_opt_format: bool = False
-    """When loading a checkpoint, update the legacy format for the distributed optimizer, which previously used a merged param/grad buffer and a different bucket mapping. The legacy format was deprecated on Feb 13, 2024."""
+    """When loading a checkpoint, update the legacy format for the distributed optimizer,
+    which previously used a merged param/grad buffer and a different bucket mapping.
+    The legacy format was deprecated on Feb 13, 2024."""
 
     fully_parallel_save: bool = True
-    """Disable applying full save parallelization across DP for distributed checkpoints. Depending on ckpt format might decrease the number of files in the checkpoint. Makes DistributedOptimizer checkpoint non-reshardable."""
+    """Disable applying full save parallelization across DP for distributed checkpoints.
+    Depending on ckpt format might decrease the number of files in the checkpoint.
+    Makes DistributedOptimizer checkpoint non-reshardable."""
 
     async_save: bool = False
     """Apply async checkpointing save. Currently works only with `torch_dist` distributed checkpoint format."""
@@ -480,7 +573,8 @@ class CheckpointConfig:
     """Apply full load parallelization across DP for distributed checkpoints."""
 
     ckpt_assume_constant_structure: bool = False
-    """If the model and optimizer state dict structure is constant throughout a *single training job*, it allows for different checkpointing performance optimizations."""
+    """If the model and optimizer state dict structure is constant throughout a *single training job,
+    it allows for different checkpointing performance optimizations."""
 
     dist_ckpt_strictness: Literal[
         "assume_ok_unexpected",
@@ -492,13 +586,16 @@ class CheckpointConfig:
         "return_all",
         "ignore_all",
     ] = "assume_ok_unexpected"
-    """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning. NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
+    """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning.
+    NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
 
     replication: bool = False
     """If set, replication of local checkpoints is enabled. Needs to be enabled on all ranks."""
 
     replication_jump: Optional[int] = None
-    """Specifies `J`, the spacing between ranks storing replicas of a given rank's data. Replicas for rank `n` may be on ranks `n+J`, `n+2J`, ..., or `n-J`, `n-2J`, etc. This flag has an effect only if --replication is used. and must be consistent across all ranks."""
+    """Specifies `J`, the spacing between ranks storing replicas of a given rank's data. Replicas
+    for rank `n` may be on ranks `n+J`, `n+2J`, ..., or `n-J`, `n-2J`, etc. This flag has an
+    effect only if --replication is used. and must be consistent across all ranks."""
 
     replication_factor: int = 2
     """Number of machines storing the replica of a given rank's data."""
@@ -506,11 +603,15 @@ class CheckpointConfig:
 
 @dataclass
 class FaultToleranceConfig:
+    """Configuration settings related to fault tolerance mechanisms (NVIDIA internal use)."""
+
     enable_ft_package: bool = False
     """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
 
     calc_ft_timeouts: bool = False
-    """If set, FT package will try to automatically compute the timeouts. Note: This feature is for Nvidia internal use only."""
+    """If set, FT package will try to automatically compute the timeouts.
+    Note: This feature is for Nvidia internal use only.
+    """
 
     simulate_fault: bool = False
     """Sets a simulated fault for fault tolerance. NOTE: This if for fault tolerance testing only."""
@@ -527,6 +628,8 @@ class FaultToleranceConfig:
 
 @dataclass
 class StragglerDetectionConfig:
+    """Configuration settings for detecting and logging GPU stragglers."""
+
     log_straggler: bool = False
     """If set, tracks and logs straggler per GPU."""
 
@@ -546,6 +649,8 @@ class StragglerDetectionConfig:
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
 class ConfigContainer(Container):
+    """Top-level container holding all configuration objects."""
+
     rng_config: RNGConfig = field(default_factory=RNGConfig)
     rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     train_config: TrainingConfig
@@ -562,7 +667,12 @@ class ConfigContainer(Container):
     straggler_config: Optional[StragglerDetectionConfig] = None
     profiling_config: Optional[ProfilingConfig] = None
 
-    def validate(self):
+    def validate(self) -> None:
+        """Performs validation checks on the combined configuration.
+
+        Calculates dependent values like data_parallel_size and scheduler steps.
+        Ensures compatibility between different configuration settings.
+        """
         # Run validations
 
         # Distributed
@@ -580,7 +690,9 @@ class ConfigContainer(Container):
         total_model_size = encoder_model_size + decoder_model_size
         assert (
             world_size % total_model_size == 0
-        ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+        ), f"""
+        world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})
+        """
         self.data_parallel_size = world_size // total_model_size
 
         self.model_config.use_cpu_initialization = (
