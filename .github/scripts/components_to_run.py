@@ -5,6 +5,7 @@ import sys
 from typing import Any, Dict, List, Set
 
 import git
+
 import nemo_dependencies
 
 
@@ -93,6 +94,8 @@ def main():
     for changed_file in changed_files:
         if changed_file in dependencies:
             test_modules.extend(dependencies[changed_file])
+
+    test_modules = list(set(test_modules))
 
     print(test_modules)
 
