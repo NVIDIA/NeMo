@@ -62,31 +62,19 @@ class BacthedBeamCTCState:
     decoder_output_lengths: torch.Tensor
     last_timesteps: torch.Tensor
 
-    curr_times: torch.Tensor
-    
-    total_scores: torch.Tensor
-    lm_scores: torch.Tensor
-
-    batch_indices: torch.Tensor  # indices of elements in batch (constant, range [0, batch_size-1])
-    beam_indices: torch.Tensor  # indices of elements in batch (constant, range [0, beam_size-1])
-    batch_indices1d: torch.Tensor
-
-    blank_mask: torch.Tensor
-    active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
-    repeated_mask: torch.Tensor
-    active_mask_any: torch.Tensor  # 0-dim bool tensor, condition for outer loop ('any element is still active')
     vocab: torch.Tensor
-    batch_labels: torch.Tensor
-    zeros_column: torch.Tensor
+    blank_mask: torch.Tensor
+
+    curr_frame_idx: torch.Tensor
+    active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
+    active_mask_any: torch.Tensor  # 0-dim bool tensor, condition for outer loop ('any element is still active')
 
     batched_hyps: BatchedBeamHypsCTC  # batched hypotheses - decoding result
 
-    # LM-related fields
+    # NGramGPULM-related fields
     ngram_lm_batch: Optional[NGramGPULanguageModel] = None  # N-gram LM for hypotheses
-    lm_scores: Optional[torch.Tensor] = None  # LM scores for hypotheses
     batch_lm_states: Optional[torch.Tensor] = None  # LM states for hypotheses
     batch_lm_states_candidates: Optional[torch.Tensor] = None  # LM states for hypotheses candidates
-    init_lm_scores: Optional[torch.Tensor] = None  # initial LM scores for hypotheses
     init_batch_lm_states: Optional[torch.Tensor] = None  # initial LM states for hypotheses
     init_batch_lm_states_candidates: Optional[torch.Tensor] = None  # initial LM states for hypotheses candidates
 
@@ -141,32 +129,13 @@ class BacthedBeamCTCState:
             device=self.device
         )
 
-        # indices of elements in batch and beam (constant)
-        self.batch_indices = (
-            torch.arange(batch_size, dtype=torch.long, device=device)[:, None]
-            .expand(batch_size, self.beam_size)
-            .clone()
-        )  # size: batch_size x beam_size
-        self.beam_indices = (
-            torch.arange(self.beam_size, dtype=torch.long, device=self.device)[None, :, None]
-            .expand(self.batch_size, -1, self.beam_size)
-            .clone()
-        )  # size: batch_size x beam_size x beam_size
-
-        self.active_mask = torch.zeros_like(self.batch_indices, dtype=torch.bool)
-        self.active_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
         self.vocab=torch.arange(self.vocab_size, device=self.device, dtype=torch.long)
-        self.batch_indices1d=torch.arange(self.batch_size, device=self.device, dtype=torch.long)
-        self.batch_labels = self.vocab[None, None, :].expand(batch_size, self.beam_size, -1)
-        self.non_blank_mask = self.batch_labels != self.blank_index
-        self.zeros_column = torch.zeros([self.batch_size, self.beam_size, 1], device=self.device, dtype=self.float_dtype)
-        self.false_mask = torch.zeros([self.batch_size, self.beam_size, self.vocab_size], device=self.device, dtype=torch.bool)
-        self.curr_times = torch.zeros([self.beam_size], device=self.device, dtype=torch.long)
-        
-        self.repeated_mask = torch.zeros([self.batch_size, self.beam_size, self.vocab_size], device=self.device, dtype=torch.bool)
-        self.repeated_or_blank_mask = torch.zeros((self.batch_size, self.beam_size, self.vocab_size), device=self.device, dtype=torch.bool)
         self.blank_mask = torch.eq(self.vocab, self.blank_index)
-
+        
+        self.curr_frame_idx = torch.zeros([self.beam_size], device=self.device, dtype=torch.long)
+        self.active_mask = torch.zeros((batch_size, self.beam_size), device=self.device, dtype=torch.bool)
+        self.active_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
+        
         self.batched_hyps = BatchedBeamHypsCTC(
             batch_size=batch_size,
             beam_size=self.beam_size,
@@ -274,7 +243,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # prprprprpr
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
+        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
         if kenlm_path is not None:
@@ -623,14 +592,11 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         """
         Clears state and compute initial active mask
         """
-        # torch.cuda.set_sync_debug_mode(2)
+        # step 1.1: reset state
         self.state.batched_hyps.clear_()
+        self.state.curr_frame_idx.fill_(0)
 
-        # last found labels - initially <SOS> (<blank>) symbol
-        self.state.curr_times.fill_(0)
-        self.state.repeated_mask.fill_(0)
-        self.state.repeated_or_blank_mask.fill_(0)
-        
+        # maximum time step for each utterance
         torch.sub(self.state.decoder_output_lengths, 1, out=self.state.last_timesteps)
 
         # masks for utterances in batch
@@ -640,65 +606,53 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
         
+        # step 1.2: setup LM
         if self.ngram_lm_batch is not None:
             device = self.state.device
             self.ngram_lm_batch.to(device)
 
-            self.state.init_batch_lm_states = self.ngram_lm_batch.get_init_states(
-                batch_size=self.state.batch_size * self.beam_size, bos=True
-            ).view(self.state.batch_size, self.beam_size)
-            init_lm_scores, init_batch_lm_states_candidates = self.ngram_lm_batch.advance(
-                states=self.state.init_batch_lm_states.view(-1)
-            )  # vocab_size_no_blank
-            self.state.init_lm_scores = (
-                init_lm_scores.to(dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1)
-                * self.beam_alpha
-            )
-            self.state.init_batch_lm_states_candidates = init_batch_lm_states_candidates.view(
-                self.state.batch_size, self.beam_size, -1
-            )
-
-            self.state.batch_lm_states = self.state.init_batch_lm_states.clone()
-            self.state.batch_lm_states_candidates = self.state.init_batch_lm_states_candidates.clone()
+            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size * self.beam_size, bos=True)
+            self.state.batch_lm_states.copy_(batch_lm_states.view(self.state.batch_size, self.beam_size))
         
     def _process_batch(self): 
+        torch.cuda.set_sync_debug_mode(2)
         # step 2.1: getting the log probs and updating with LM scores
-        log_probs = self.state.decoder_outputs.index_select(dim=1, index=self.state.curr_times)
+        log_probs = self.state.decoder_outputs.index_select(dim=1, index=self.state.curr_frame_idx)
+        log_probs += self.state.batched_hyps.scores[:, :, None]
         
         if self.ngram_lm_batch is not None:
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=self.state.batch_lm_states.view(-1))
 
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates.view(self.state.batch_lm_states_candidates.shape))
             log_probs[..., :-1] += self.beam_alpha * lm_scores.view(self.state.batch_size, self.state.beam_size, -1)
-                   
-        log_probs += self.state.batched_hyps.scores[:, :, None]
         
-        torch.eq(self.state.batched_hyps.last_label[:, :, None], self.state.vocab[None, None, :], out=self.state.repeated_mask)
-        torch.logical_or(self.state.blank_mask[None, None, :], self.state.repeated_mask, out=self.state.repeated_or_blank_mask)
-        torch.where(self.state.repeated_or_blank_mask, log_probs, log_probs + self.beam_beta, out=log_probs)
+        # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
+        repeated_mask = self.state.batched_hyps.last_label[:, :, None] == self.state.vocab[None, None, :]
+        repeated_or_blank_mask = repeated_mask | self.state.blank_mask[None, None, :]
+        log_probs = torch.where(repeated_or_blank_mask, log_probs, log_probs + self.beam_beta)
         
+        # step 2.3: getting `beam_size` best candidates
         next_scores, hyps_candidates_indices = torch.topk(log_probs.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True)
+        next_indices = hyps_candidates_indices // self.state.vocab_size
+        next_labels = hyps_candidates_indices % self.state.vocab_size
         
-        next_indices=hyps_candidates_indices // self.state.vocab_size
-        next_labels = torch.gather(self.state.batch_labels, dim=-1, index=(hyps_candidates_indices % self.state.vocab_size).unsqueeze(-1)).squeeze(2)
-        next_scores.view(self.state.batch_size, -1)[
-            next_scores.view(self.state.batch_size, -1) <= 
-            next_scores.view(self.state.batch_size, -1).max(dim=-1, keepdim=True).values - 
-            self.beam_threshold
-        ] = float('-inf')
+        # step 2.3: pruning candidates with threshold `beam_threshold`
+        batch_next_scores = next_scores.view(self.state.batch_size, -1)
+        max_next_score = batch_next_scores.max(dim=-1, keepdim=True).values
+        batch_next_scores.masked_fill_(batch_next_scores <= max_next_score - self.beam_threshold, INACTIVE_SCORE)
+        next_scores.view(self.state.batch_size, self.beam_size, -1)
         
-        torch.where(self.state.active_mask, next_labels, self.state.MINUS_ONE_TENSOR, out=next_labels)
-        
-        # 
+        # step 2.4: preserving updated lm states
         if self.ngram_lm_batch is not None:
             last_labels = torch.gather(self.state.batched_hyps.last_label, dim=-1, index=next_indices)
             blank_mask = next_labels == self._blank_index
             repeating_mask = next_labels == last_labels
             preserve_state_mask = repeating_mask | blank_mask | ~self.state.active_mask
             
-            # masking blanks and inactive labels to pass to LM, as LM does not support blanks
+            # step 2.4.1: masking blanks and inactive labels to pass to LM, as LM does not support blanks
             next_labels_masked = torch.where(blank_mask | ~ self.state.active_mask, 0, next_labels)
             
+            # step 2.4.2: gathering LM states of extended hypotheses
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
             next_indices_extended=next_indices[:, :, None].expand(self.state.batch_size, self.beam_size, self.state.batch_lm_states_candidates.shape[-1])
@@ -706,16 +660,20 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             batch_lm_states_prev=torch.gather(self.state.batch_lm_states, dim=1, index=next_indices)
             batch_lm_states=torch.gather(batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)).squeeze()
             
-            # updating state variables
+            # step 2.5.2: state
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
             torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states, out=self.state.batch_lm_states)
-        
+            
+        # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
+        torch.where(self.state.active_mask, next_labels, self.state.MINUS_ONE_TENSOR, out=next_labels)
         self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
         self.state.batched_hyps.self_recombine_hyps_()
         
-        self.state.curr_times.add_(1)
-        torch.greater_equal(self.state.last_timesteps, self.state.curr_times, out=self.state.active_mask)
+        # step 2.5: updating frame idx and active masks
+        self.state.curr_frame_idx.add_(1)
+        torch.greater_equal(self.state.last_timesteps, self.state.curr_frame_idx, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
+        torch.cuda.set_sync_debug_mode(0)
   
     def _after_process_batch(self):     
         if self.ngram_lm_batch is not None:
