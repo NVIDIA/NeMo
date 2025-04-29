@@ -4,12 +4,13 @@ import os
 import sys
 from typing import Any, Dict, List, Set
 
+import click
 import git
 
 import nemo_dependencies
 
 
-def get_changelog() -> List[Dict[str, Any]]:
+def get_changelog(source_sha: str, target_branch: str) -> List[Dict[str, Any]]:
     """
     Fetch the changelog between current branch and main.
     Returns a list of dictionaries containing commit information.
@@ -18,14 +19,10 @@ def get_changelog() -> List[Dict[str, Any]]:
         # Initialize the repo object - go up two levels from this file's location
         repo = git.Repo(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-        # Get the current commit
-        current = repo.commit()
-
-        # Get the main branch
-        main = repo.heads['main']
-
         # Get all commits between current branch and main
-        commits = list(repo.iter_commits(f"{main.name}..{current}"))
+        commits = list(repo.iter_commits(f"{target_branch}..{source_sha}"))
+
+        print(f"Commits: {commits}")
 
         # Format the commits into a list of dictionaries
         changelog = []
@@ -71,11 +68,14 @@ def get_changed_files(changelog: List[Dict[str, Any]]) -> Set[str]:
     return changed_files
 
 
-def main():
+@click.command()
+@click.option('--source-sha', type=str, required=True, help='Source commit SHA')
+@click.option('--target-ref', type=str, required=True, help='Target ref')
+def main(source_sha: str, target_ref: str):
     """
     Main function to fetch and output the changelog and changed files.
     """
-    changelog = get_changelog()
+    changelog = get_changelog(source_sha, target_ref.removeprefix('refs/heads/'))
 
     # Output the changelog as JSON
     print("Changelog:")
@@ -90,7 +90,7 @@ def main():
     # Build dependency graph
     dependencies = nemo_dependencies.build_dependency_graph(nemo_root)
 
-    test_modules = []
+    test_modules: List[str] = []
     for changed_file in changed_files:
         if changed_file in dependencies:
             test_modules.extend(dependencies[changed_file])
