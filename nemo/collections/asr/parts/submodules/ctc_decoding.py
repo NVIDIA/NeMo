@@ -347,7 +347,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             )
 
             self.decoding.override_fold_consecutive_value = False
-    
+
         elif self.cfg.strategy == 'beam_batch':
             self.decoding = ctc_beam_decoding.BeamBatchedCTCInfer(
                 blank_index=blank_id,
@@ -359,7 +359,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
                 kenlm_path=self.cfg.beam.get('kenlm_path', None),
-                allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True)
+                allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
             )
 
             self.decoding.override_fold_consecutive_value = True

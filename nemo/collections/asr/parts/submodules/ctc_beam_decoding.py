@@ -18,24 +18,24 @@ import math
 import os
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
-import numpy as np
 
+import numpy as np
 import torch
 
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
+from nemo.collections.asr.parts.submodules.ctc_batched_beam_decoding import BatchedBeamCTCComputer
+from nemo.collections.asr.parts.submodules.ngram_lm import KenLMBatchedWrapper, NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.wfst_decoder import RivaDecoderConfig, WfstNbestHypothesis
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BlankLMScoreMode
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
-from nemo.collections.asr.parts.submodules.ctc_batched_beam_decoding import BatchedBeamCTCComputer
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel, KenLMBatchedWrapper
-
 from nemo.utils.timers import SimpleTimer
-from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BlankLMScoreMode
 
 DEFAULT_TOKEN_OFFSET = 100
+
 
 def pack_hypotheses(
     hypotheses: List[rnnt_utils.NBestHypotheses],
@@ -245,7 +245,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.return_best_hypothesis = return_best_hypothesis
         self.preserve_alignments = preserve_alignments
         self.compute_timestamps = compute_timestamps
-        
+
         self.timer = SimpleTimer()
 
         if self.compute_timestamps:
@@ -886,6 +886,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
 
         return self.k2_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
 
+
 class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
     """A batched beam CTC decoder.
 
@@ -913,7 +914,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         beam_beta: float = 0.0,
         beam_threshold: float = 20.0,
         kenlm_path: str = None,
-        allow_cuda_graphs: bool = True
+        allow_cuda_graphs: bool = True,
     ):
         super().__init__(blank_id=blank_index, beam_size=beam_size)
 
@@ -939,7 +940,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         self.pyctcdecode_beam_scorer = None
         self.flashlight_beam_scorer = None
         self.token_offset = 0
-        
+
         self.search_algorithm = BatchedBeamCTCComputer(
             blank_index=blank_index,
             beam_size=beam_size,
@@ -992,7 +993,8 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
                 packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
 
         return (packed_result,)
-    
+
+
 @dataclass
 class PyCTCDecodeConfig:
     # These arguments cannot be imported from pyctcdecode (optional dependency)

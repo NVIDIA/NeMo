@@ -11,17 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-    
+
 from dataclasses import dataclass, field
-from typing import Any, Optional, Tuple, Union, List
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BatchedBeamHypsCTC
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
+from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BatchedBeamHypsCTC, BlankLMScoreMode
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import (
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
@@ -31,7 +31,6 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
-from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BlankLMScoreMode
 
 try:
     from cuda import cudart
@@ -41,8 +40,8 @@ except ImportError:
     HAVE_CUDA_PYTHON = False
 
 
-NON_EXISTENT_LABEL_VALUE=-1
-INACTIVE_SCORE=float("-inf")
+NON_EXISTENT_LABEL_VALUE = -1
+INACTIVE_SCORE = float("-inf")
 
 
 class BacthedBeamCTCState:
@@ -51,7 +50,7 @@ class BacthedBeamCTCState:
     In initialization phase it is possible to assign values (tensors) to the state.
     For algorithm code the storage should be reused (prefer copy data instead of assigning tensors).
     """
-    
+
     max_time: int  # maximum length of internal storage for time dimension
     batch_size: int  # (maximum) length of internal storage for batch dimension
     device: torch.device  # device to store preallocated tensors
@@ -104,8 +103,8 @@ class BacthedBeamCTCState:
         self.max_time = max_time
         self.blank_index = blank_index
         self.vocab_size = vocab_size
-        
-        self.MINUS_ONE_TENSOR=torch.tensor(-1, device=self.device, dtype=torch.long)
+
+        self.MINUS_ONE_TENSOR = torch.tensor(-1, device=self.device, dtype=torch.long)
 
         self.NON_EXISTENT_LABEL = torch.tensor(NON_EXISTENT_LABEL_VALUE, device=self.device, dtype=torch.long)
         self.BLANK_TENSOR = torch.tensor(self.blank_index, device=self.device, dtype=torch.long)
@@ -117,23 +116,17 @@ class BacthedBeamCTCState:
             device=self.device,
         )
         self.decoder_output_lengths = torch.zeros(
-            (self.batch_size, self.beam_size),
-            dtype=torch.long,
-            device=self.device
+            (self.batch_size, self.beam_size), dtype=torch.long, device=self.device
         )
-        self.last_timesteps = torch.zeros(
-            (self.batch_size, self.beam_size),
-            dtype=torch.long,
-            device=self.device
-        )
+        self.last_timesteps = torch.zeros((self.batch_size, self.beam_size), dtype=torch.long, device=self.device)
 
-        self.vocab=torch.arange(self.vocab_size, device=self.device, dtype=torch.long)
+        self.vocab = torch.arange(self.vocab_size, device=self.device, dtype=torch.long)
         self.vocab_blank_mask = torch.eq(self.vocab, self.blank_index)
-        
+
         self.curr_frame_idx = torch.zeros([self.beam_size], device=self.device, dtype=torch.long)
         self.active_mask = torch.zeros((batch_size, self.beam_size), device=self.device, dtype=torch.bool)
         self.active_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
-        
+
         self.batched_hyps = BatchedBeamHypsCTC(
             batch_size=batch_size,
             beam_size=self.beam_size,
@@ -194,7 +187,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         beam_beta: float = 0.0,
         beam_threshold: float = 20.0,
         kenlm_path: str = None,
-        allow_cuda_graphs: bool = True
+        allow_cuda_graphs: bool = True,
     ):
         """
         Init method.
@@ -222,7 +215,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.compute_timestamps = compute_timestamps
         self.allow_cuda_graphs = allow_cuda_graphs
         self.return_best_hypothesis = return_best_hypothesis
-        
+
         self.beam_alpha = beam_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
@@ -295,21 +288,21 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
         """
         Pure PyTorch implementation of the batched beam search algorithm.
-        
+
         Args:
-            decoder_outputs (torch.Tensor): Tensor of shape [B, T, V+1], where B is the batch size, 
+            decoder_outputs (torch.Tensor): Tensor of shape [B, T, V+1], where B is the batch size,
                 T is the maximum sequence length, and V is the vocabulary size. The tensor contains log-probabilities.
             decoder_output_lengths (torch.Tensor): Tensor of shape [B], contains lengths of each sequence in the batch.
         Returns:
             A list of NBestHypotheses objects, one for each sequence in the batch.
         """
-                     
+
         curr_batch_size, curr_max_time, vocab_size = decoder_outputs.shape
 
         # zeros_column = torch.zeros([curr_batch_size, self.beam_size, 1], device=decoder_outputs.device, dtype=torch.long)
         vocab = torch.arange(vocab_size, device=decoder_outputs.device, dtype=torch.long)
         vocab_blank_mask = vocab == self._blank_index
-        
+
         batched_beam_hyps = BatchedBeamHypsCTC(
             batch_size=curr_batch_size,
             beam_size=self.beam_size,
@@ -318,59 +311,71 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             device=decoder_outputs.device,
             float_dtype=decoder_outputs.dtype,
         )
-        
+
         if self.ngram_lm_batch is not None:
             self.ngram_lm_batch.to(decoder_outputs.device)
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=curr_batch_size * self.beam_size, bos=True)
-        
+            batch_lm_states = self.ngram_lm_batch.get_init_states(
+                batch_size=curr_batch_size * self.beam_size, bos=True
+            )
+
         for frame_idx in range(curr_max_time):
             active_mask = frame_idx < decoder_output_lengths.unsqueeze(1)
-            
+
             # step 2.1: getting the log probs and updating with LM scores
             log_probs = decoder_outputs[:, frame_idx, :].unsqueeze(1).repeat(1, self.beam_size, 1)
             log_probs += batched_beam_hyps.scores.unsqueeze(-1)
-                
+
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states.view(-1))
                 log_probs[..., :-1] += self.beam_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
-              
-            # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`              
+
+            # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
             repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
             repeated_or_blank_mask = repeated_mask | vocab_blank_mask[None, None, :]
             log_probs = torch.where(repeated_or_blank_mask, log_probs, log_probs + self.beam_beta)
-            
+
             # step 2.3: getting `beam_size` best candidates
-            next_scores, next_candidates_indices = torch.topk(log_probs.view(curr_batch_size, -1), k=self.beam_size, largest=True, sorted=True)
+            next_scores, next_candidates_indices = torch.topk(
+                log_probs.view(curr_batch_size, -1), k=self.beam_size, largest=True, sorted=True
+            )
             next_indices = next_candidates_indices // vocab_size
             next_labels = next_candidates_indices % vocab_size
-            
+
             # step 2.3: pruning candidates with threshold `beam_threshold`
             batch_next_scores = next_scores.view(curr_batch_size, -1)
             max_next_score = batch_next_scores.max(dim=-1, keepdim=True).values
             batch_next_scores.masked_fill_(batch_next_scores <= max_next_score - self.beam_threshold, INACTIVE_SCORE)
             next_scores.view(curr_batch_size, self.beam_size, -1)
-                
+
             # step 2.4: preserving updated lm states
             if self.ngram_lm_batch is not None:
                 last_labels = torch.gather(batched_beam_hyps.last_label, dim=-1, index=next_indices)
                 blank_mask = next_labels == self._blank_index
                 repeating_mask = next_labels == last_labels
                 preserve_state_mask = repeating_mask | blank_mask | ~active_mask
-                
+
                 # step 2.4.1: masking blanks and inactive labels to pass to LM, as LM does not support blanks
                 next_labels_masked = torch.where(blank_mask, 0, next_labels)
-                
+
                 # step 2.4.2: gathering LM states of extended hypotheses
                 # batch_lm_states: [(BxBeam)]
                 # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
-                next_indices_extended=next_indices[:, :, None].expand(curr_batch_size, self.beam_size, batch_lm_states_candidates.shape[-1])
+                next_indices_extended = next_indices[:, :, None].expand(
+                    curr_batch_size, self.beam_size, batch_lm_states_candidates.shape[-1]
+                )
                 batch_lm_states_candidates = batch_lm_states_candidates.view(curr_batch_size, self.beam_size, -1)
-                batch_lm_states_candidates = torch.gather(batch_lm_states_candidates, dim=1, index=next_indices_extended)
-                batch_lm_states_prev = torch.gather(batch_lm_states.view(curr_batch_size, self.beam_size), dim=1, index=next_indices)
-                batch_lm_states = torch.gather(batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)).squeeze(-1)
-                
+                batch_lm_states_candidates = torch.gather(
+                    batch_lm_states_candidates, dim=1, index=next_indices_extended
+                )
+                batch_lm_states_prev = torch.gather(
+                    batch_lm_states.view(curr_batch_size, self.beam_size), dim=1, index=next_indices
+                )
+                batch_lm_states = torch.gather(
+                    batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
+                ).squeeze(-1)
+
                 batch_lm_states = torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states).view(-1)
-        
+
             # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
             next_labels = torch.where(active_mask, next_labels, NON_EXISTENT_LABEL_VALUE)
             batched_beam_hyps.add_results_(next_indices, next_labels, next_scores)
@@ -386,7 +391,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             # Wrap the result in NBestHypothesis.
             hypotheses = rnnt_utils.NBestHypotheses([decoder_outputs])
             nbest_hypotheses.append(hypotheses)
-            
+
         return nbest_hypotheses
 
     def batched_beam_search_cuda_graphs(
@@ -396,15 +401,15 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Cuda-Graphs implementation of the batched beam search algorithm.
-        
+
         Args:
-            decoder_outputs (torch.Tensor): Tensor of shape [B, T, V+1], where B is the batch size, 
+            decoder_outputs (torch.Tensor): Tensor of shape [B, T, V+1], where B is the batch size,
                 T is the maximum sequence length, and V is the vocabulary size. The tensor contains log-probabilities.
             decoder_output_lengths (torch.Tensor): Tensor of shape [B], contains lengths of each sequence in the batch.
         Returns:
             A list of NBestHypotheses objects, one for each sequence in the batch.
         """
-         
+
         assert self.cuda_graphs_mode is not None
 
         curr_batch_size, curr_max_time, _ = decoder_outputs.shape
@@ -443,7 +448,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             # Wrap the result in NBestHypothesis.
             hypotheses = rnnt_utils.NBestHypotheses([decoder_outputs])
             nbest_hypotheses.append(hypotheses)
-            
+
         return nbest_hypotheses[:curr_batch_size]
 
     @classmethod
@@ -500,7 +505,9 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
             self.ngram_lm_batch.to(device)
 
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size * self.beam_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(
+                batch_size=self.state.batch_size * self.beam_size, bos=True
+            )
             self.state.batch_lm_states = batch_lm_states.view(self.state.batch_size, self.beam_size)
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
@@ -575,7 +582,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             # loop while there are active utterances
             with with_conditional_node(loop_kernel, loop_args, loop_conditional_handle, device=self.state.device):
                 self._process_batch()
-            
+
             self._after_process_batch()
 
     def _before_process_batch(self):
@@ -595,20 +602,22 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
         # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
-        
+
         # step 1.2: setup LM
         if self.ngram_lm_batch is not None:
             device = self.state.device
             self.ngram_lm_batch.to(device)
 
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size * self.beam_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(
+                batch_size=self.state.batch_size * self.beam_size, bos=True
+            )
             self.state.batch_lm_states.copy_(batch_lm_states.view(self.state.batch_size, self.beam_size))
             self.state.batch_lm_states_candidates = torch.empty(
                 (self.state.batch_size, self.state.beam_size, self.ngram_lm_batch.vocab_size),
                 device=device,
-                dtype=torch.long
+                dtype=torch.long,
             )
-        
+
     def _process_batch(self):
         """
         Performs a decoding step.
@@ -616,69 +625,81 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # step 2.1: getting the log probs and updating with LM scores
         log_probs = self.state.decoder_outputs.index_select(dim=1, index=self.state.curr_frame_idx)
         log_probs += self.state.batched_hyps.scores[:, :, None]
-        
-        if self.ngram_lm_batch is not None:
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=self.state.batch_lm_states.view(-1))
 
-            self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates.view(self.state.batch_lm_states_candidates.shape))
+        if self.ngram_lm_batch is not None:
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
+                states=self.state.batch_lm_states.view(-1)
+            )
+
+            self.state.batch_lm_states_candidates.copy_(
+                batch_lm_states_candidates.view(self.state.batch_lm_states_candidates.shape)
+            )
             log_probs[..., :-1] += self.beam_alpha * lm_scores.view(self.state.batch_size, self.state.beam_size, -1)
-        
+
         # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
         repeated_mask = self.state.batched_hyps.last_label[:, :, None] == self.state.vocab[None, None, :]
         repeated_or_blank_mask = repeated_mask | self.state.vocab_blank_mask[None, None, :]
         log_probs = torch.where(repeated_or_blank_mask, log_probs, log_probs + self.beam_beta)
-        
+
         # step 2.3: getting `beam_size` best candidates
-        next_scores, next_candidates_indices = torch.topk(log_probs.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True)
+        next_scores, next_candidates_indices = torch.topk(
+            log_probs.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True
+        )
         next_indices = next_candidates_indices // self.state.vocab_size
         next_labels = next_candidates_indices % self.state.vocab_size
-        
+
         # step 2.3: pruning candidates with threshold `beam_threshold`
         batch_next_scores = next_scores.view(self.state.batch_size, -1)
         max_next_score = batch_next_scores.max(dim=-1, keepdim=True).values
         batch_next_scores.masked_fill_(batch_next_scores <= max_next_score - self.beam_threshold, INACTIVE_SCORE)
         next_scores.view(self.state.batch_size, self.beam_size, -1)
-        
+
         # step 2.4: preserving updated lm states
         if self.ngram_lm_batch is not None:
             last_labels = torch.gather(self.state.batched_hyps.last_label, dim=-1, index=next_indices)
             blank_mask = next_labels == self._blank_index
             repeating_mask = next_labels == last_labels
             preserve_state_mask = repeating_mask | blank_mask | ~self.state.active_mask
-            
+
             # step 2.4.1: masking blanks and inactive labels to pass to LM, as LM does not support blanks
             next_labels_masked = torch.where(blank_mask, 0, next_labels)
-            
+
             # step 2.4.2: gathering LM states of extended hypotheses
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
-            next_indices_extended=next_indices[:, :, None].expand(self.state.batch_lm_states_candidates.shape)
-            batch_lm_states_candidates=torch.gather(self.state.batch_lm_states_candidates, dim=1, index=next_indices_extended)
-            batch_lm_states_prev=torch.gather(self.state.batch_lm_states, dim=1, index=next_indices)
-            batch_lm_states=torch.gather(batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)).squeeze()
-            
+            next_indices_extended = next_indices[:, :, None].expand(self.state.batch_lm_states_candidates.shape)
+            batch_lm_states_candidates = torch.gather(
+                self.state.batch_lm_states_candidates, dim=1, index=next_indices_extended
+            )
+            batch_lm_states_prev = torch.gather(self.state.batch_lm_states, dim=1, index=next_indices)
+            batch_lm_states = torch.gather(
+                batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
+            ).squeeze()
+
             # step 2.4.3: update LM states in State
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
             torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states, out=self.state.batch_lm_states)
-            
+
         # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
         torch.where(self.state.active_mask, next_labels, self.state.MINUS_ONE_TENSOR, out=next_labels)
         self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
         self.state.batched_hyps.self_recombine_hyps_()
-        
+
         # step 2.6: updating frame idx and active masks
         self.state.curr_frame_idx.add_(1)
         torch.greater_equal(self.state.last_timesteps, self.state.curr_frame_idx, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
         torch.cuda.set_sync_debug_mode(0)
-  
+
     def _after_process_batch(self):
         """
         Finalizes the decoding process by updating the LM scores with the end-of-sequence (eos) scores.
         """
         # step 3: updating LM scores with eos scores
         if self.ngram_lm_batch is not None:
-            eos_score = self.ngram_lm_batch.get_final(self.state.batch_lm_states).view(self.state.batched_hyps.scores.shape)
+            eos_score = self.ngram_lm_batch.get_final(self.state.batch_lm_states).view(
+                self.state.batched_hyps.scores.shape
+            )
             self.state.batched_hyps.scores += eos_score * self.beam_alpha
 
     def __call__(
