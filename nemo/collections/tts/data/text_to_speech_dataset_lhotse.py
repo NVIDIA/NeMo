@@ -21,11 +21,9 @@ import torch
 from hydra.utils import instantiate
 from lhotse import CutSet
 from lhotse.dataset.collation import collate_matrices, collate_vectors
-from megatron.core import parallel_state
 from omegaconf import DictConfig
 from transformers import AutoTokenizer, T5Tokenizer
 
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     beta_binomial_prior_distribution,
@@ -72,16 +70,6 @@ def check_speaker_format(item: str):
     # enforce the format as example like "| Language:en Dataset:HiFiTTS Speaker:9136_other |".
     pattern = r"\| Language:\w+ Dataset:[\w\d\W]+ Speaker:[\w\d\W]+ \|"
     return bool(re.match(pattern, item))
-
-
-def build_lhotse_dataloader(dataset, data_cfg, is_eval=False):
-    """Buld dataloader given an input dataset."""
-    return get_lhotse_dataloader_from_config(
-        data_cfg,
-        global_rank=parallel_state.get_data_parallel_rank(),
-        world_size=parallel_state.get_data_parallel_world_size(),
-        dataset=dataset,
-    )
 
 
 class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
