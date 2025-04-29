@@ -79,6 +79,9 @@ class vLLMHFExporter(ITritonDeployable):
             self.model = LLM(model=model, enable_lora=enable_lora, **kwargs)
 
     def add_lora_models(self, lora_model_name, lora_model):
+        """
+        Add a lora model to the exporter.
+        """
         if self.lora_models is None:
             self.lora_models = {}
         self.lora_models[lora_model_name] = lora_model
@@ -130,6 +133,9 @@ class vLLMHFExporter(ITritonDeployable):
         temperature: float = 1.0,
         lora_model_name: str = None,
     ):
+        """
+        Forward pass for the model.
+        """
         assert self.model is not None, "Model is not initialized."
 
         lora_request = None
