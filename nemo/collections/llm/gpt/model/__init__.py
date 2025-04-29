@@ -89,7 +89,11 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaModel,
     MLPerfLoRALlamaModel,
 )
-from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
+from nemo.collections.llm.gpt.model.llama_embedding import (
+    Llama32EmbeddingConfig1B,
+    Llama32EmbeddingConfig3B,
+    LlamaEmbeddingModel,
+)
 from nemo.collections.llm.gpt.model.llama_nemotron import (
     Llama31Nemotron70BConfig,
     Llama31NemotronNano8BConfig,
@@ -205,6 +209,7 @@ __all__ = [
     "NemotronModel",
     "LlamaEmbeddingModel",
     "Llama32EmbeddingConfig1B",
+    "Llama32EmbeddingConfig3B",
     "Phi3Config",
     "Phi3ConfigMini",
     "Phi3Model",
