@@ -47,9 +47,9 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         # pylint: disable=C0115,C0116
-        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
 
@@ -277,6 +277,7 @@ class LinearAdapter(nn.Linear):
         # forward in the case where it uses quantized weights. We store a reference to nn.Linear's
         # forward in `super_fwd` attribute. If the attribute does not exist we do the usual linear.
         if (fwd := getattr(self, 'super_fwd', None)) is not None:
+            assert fwd != self.forward
             res = fwd(x)
         else:
             res = F.linear(x, self.weight, self.bias)
@@ -327,17 +328,21 @@ def patch_linear_module(
     """
 
     assert isinstance(orig_linear, nn.Linear) or orig_linear.__class__ == te.Linear
+    assert not hasattr(orig_linear, 'super_fwd'), orig_linear.super_fwd
 
     if isinstance(orig_linear, nn.Linear):
         LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
         cls = orig_linear.__class__
         new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
-    else:
+    elif orig_linear.__class__ == te.Linear:
         TELinearAdapter._init_adapter(
             orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
         )
         cls = orig_linear.__class__
         new_cls = type('PatchedTELinearAdapter', (TELinearAdapter, cls), {})
+    else:
+        raise NotImplementedError("Expected isinstance(orig_linear, (nn.Linear, te.Linear))")
+
     # If the model uses quantized weights, we want to use orig_linear's forward
     if (
         getattr(orig_linear, 'quant_state', None) is not None
@@ -430,7 +435,7 @@ class LoRA(PEFT, ModuleMatcher):
                 # - is DTensor (has _local_tensor attribute)
                 # - has quant_state attribute
                 if (
-                    self._is_fsdp_v1
+                    self._add_via_setattr
                     or hasattr(m.weight.data, '_local_tensor')
                     or (
                         getattr(m, 'quant_state', None) is not None
@@ -460,7 +465,6 @@ class LoRA(PEFT, ModuleMatcher):
                 self.dim,
                 base_linear_name=full_name,
                 activation='identity',
-                norm_position=None,
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,

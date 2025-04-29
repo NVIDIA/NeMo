@@ -45,6 +45,8 @@ Model Classes
     :show-inheritance:
     :members: transcribe
 
+.. _asr-api-modules:
+
 Modules
 -------
 
@@ -276,6 +278,10 @@ RNNT Decoding
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_beam_decoding.BeamBatchedRNNTInfer
+    :show-inheritance:
+    :members:
+
 TDT Decoding
 ~~~~~~~~~~~~~
 
@@ -288,6 +294,10 @@ TDT Decoding
     :members:
 
 .. autoclass:: nemo.collections.asr.parts.submodules.tdt_beam_decoding.BeamTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.tdt_beam_decoding.BeamBatchedTDTInfer
     :show-inheritance:
     :members:
 
