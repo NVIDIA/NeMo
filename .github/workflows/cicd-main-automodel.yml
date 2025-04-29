@@ -1,4 +1,4 @@
-name: NeMo E2E Export Deploy Tests
+name: NeMo E2E Automodel Tests
 on:
   workflow_call:
     inputs:
