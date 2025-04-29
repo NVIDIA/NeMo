@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
+from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.data.audio_to_eou_label_lhotse import (
@@ -33,10 +35,12 @@ from nemo.collections.asr.parts.utils.eou_utils import (
     cal_eou_metrics_from_frame_labels,
     flatten_nested_list,
 )
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.core.classes.mixins import AccessMixin
+from nemo.utils import logging
 
 __all__ = ['EncDecRNNTBPEEOUModel']
 
@@ -294,10 +298,8 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
             text_pred = self._get_text_from_tokens([x.y_sequence for x in hypotheses])
 
             eou_predictions = self.get_eou_predictions_from_hypotheses(hypotheses, batch)
-            del hypotheses
 
             eou_metrics_list, eob_metrics_list = self._calculate_eou_metrics(eou_predictions, batch)
-            del eou_predictions
 
             if loss_value is not None:
                 tensorboard_logs['val_loss'] = loss_value
@@ -441,16 +443,12 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
             eou_metrics_list.append(eou_metrics)
             eob_metrics_list.append(eob_metrics)
 
-            del eou_labels_i
-            del eou_preds_i
-            del eob_labels_i
-            del eob_preds_i
-            del eou_prediction
-
         return eou_metrics_list, eob_metrics_list
 
     def multi_inference_epoch_end(self, outputs, dataloader_idx: int = 0, mode: str = "val"):
         assert mode in ['val', 'test'], f"Invalid mode: {mode}. Must be 'val' or 'test'."
+        self._maybe_save_predictions(outputs, mode=mode, dataloader_idx=dataloader_idx)
+
         # Aggregate WER metrics
         if self.compute_eval_loss:
             loss_mean = torch.stack([x[f'{mode}_loss'] for x in outputs]).mean()
@@ -537,3 +535,34 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         return self.multi_inference_epoch_end(outputs, dataloader_idx, mode='test')
+
+    @rank_zero_only
+    def _maybe_save_predictions(self, outputs: List[Dict], mode: str = "val", dataloader_idx: int = 0):
+        """
+        Save predictions to disk.
+        Args:
+            outputs: list of outputs
+            mode: mode of the model, either 'val' or 'test'
+        """
+
+        if not self.cfg.get('save_pred_to_file', None):
+            return
+
+        output_file = Path(self.cfg.save_pred_to_file)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        output_file = output_file.with_suffix(f'.{dataloader_idx}.json')
+
+        manifest = []
+        for output in outputs:
+            for i in range(len(output[f'{mode}_sample_id'])):
+                item = {
+                    "sample_id": output[f'{mode}_sample_id'][i],
+                    "audio_filepath": output[f'{mode}_audio_filepath'][i],
+                    "eou_text": output[f'{mode}_text_gt'][i],
+                    "eou_pred_text": output[f'{mode}_text_pred'][i],
+                }
+                manifest.append(item)
+        write_manifest(output_file, manifest)
+        logging.info(f"Predictions saved to {output_file}")
+        return output_file
