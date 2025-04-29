@@ -178,6 +178,7 @@ def drop_layers(model, layers_to_drop: List[int]):
     """
     Drop some layers from the model by replacing their forward function with a noop function.
     """
+
     def noop_forward_patch(
         hidden_states,
         attention_mask,
@@ -1316,6 +1317,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         Get the forward output and loss function for the model.
         """
+
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
@@ -1525,6 +1527,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         Get the forward output only function for the model.
         """
+
         def fwd_output_only_func(dataloader_iter, model):
             # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
             batch = next(dataloader_iter)
