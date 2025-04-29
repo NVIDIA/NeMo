@@ -1488,6 +1488,27 @@ jobs:
       SCRIPT: L2_NeMo_2_NEVA_LOAD_GENERATE
       IS_OPTIONAL: true
 
+  L2_NeMo_2_QWEN2VL_MOCK_FINETUNE_TP2:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_QWEN2VL_MOCK_FINETUNE_TP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_QWEN2VL_MOCK_FINETUNE_TP2
+
+  L2_NeMo_2_QWEN2VL_PRELOADED_FINETUNE_TP2:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_QWEN2VL_PRELOADED_FINETUNE_TP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_QWEN2VL_PRELOADED_FINETUNE_TP2
+
+  L2_NeMo_2_QWEN2VL_ENERGON_FINETUNE_TP2:
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_QWEN2VL_ENERGON_FINETUNE_TP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_QWEN2VL_ENERGON_FINETUNE_TP2
+
   L2_NeMo_2_LLAVA_IMPORT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -2186,6 +2207,9 @@ jobs:
       - L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2
       - L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2
       - OPTIONAL_L2_NeMo_2_NEVA_LOAD_GENERATE
+      - L2_NeMo_2_QWEN2VL_MOCK_FINETUNE_TP2
+      - L2_NeMo_2_QWEN2VL_PRELOADED_FINETUNE_TP2
+      - L2_NeMo_2_QWEN2VL_MOCK_FINETUNE_TP2
       - Optional_L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2
       - L2_NeMo_2_MLLAMA_PRELOADED_FINETUNE_TP2
       - Optional_L2_NEMO_2_MLLAMA_Inference
