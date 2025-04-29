@@ -15,8 +15,8 @@ def get_changelog() -> List[Dict[str, Any]]:
     Returns a list of dictionaries containing commit information.
     """
     try:
-        # Initialize the repo object
-        repo = git.Repo(os.getcwd())
+        # Initialize the repo object - go up two levels from this file's location
+        repo = git.Repo(os.path.join(os.path.dirname(__file__), "..", ".."))
 
         # Get the current branch (PR branch)
         current = repo.active_branch
