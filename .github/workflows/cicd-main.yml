@@ -57,7 +57,7 @@ jobs:
         run: |
           pip install -U pip
           pip install git-python
-          components_to_run=$(python .github/scripts/components_to_run.py --source-sha ${{ github.event.pull_request.base.sha }} --target-ref ${{ github.base_ref }})
+          components_to_run=$(python .github/scripts/components_to_run.py --source-sha ${{ github.event.pull_request.head.sha }} --target-ref ${{ github.base_ref }})
           echo "main=${components_to_run}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Select tests to run
