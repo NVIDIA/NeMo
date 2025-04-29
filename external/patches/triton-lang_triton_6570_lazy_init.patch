@@ -1,4 +1,4 @@
-/* 
+/*
  * Code imported via patch from https://github.com/triton-lang/triton/pull/6570, commit 2afae45951b74785b144151b31e91e6c82b0b02f.
  * Copyright (c) 2018-2022 Philippe Tillet, OpenAI.
  * Licensed under the MIT License.
@@ -10,62 +10,25 @@ Date: Tue, 22 Apr 2025 18:42:23 -0700
 Subject: [PATCH] [autotuner] Lazily initiailize do_bench
 
 ---
- python/test/unit/runtime/test_autotuner.py | 20 ++++++++++++++++++++
- python/triton/runtime/autotuner.py         | 15 +++++++++------
- 2 files changed, 29 insertions(+), 6 deletions(-)
-
-diff --git a/python/test/unit/runtime/test_autotuner.py b/python/test/unit/runtime/test_autotuner.py
-index c6fcc6e5c..df7fcb6fd 100644
---- a/python/test/unit/runtime/test_autotuner.py
-+++ b/python/test/unit/runtime/test_autotuner.py
-@@ -38,6 +38,26 @@ def test_kwargs(use_cuda_graph: bool, device: str):
-     assert len(_kernel.cache) == 2
- 
- 
-+def test_no_do_bench(device: str):
-+    M, N = 1024, 16
-+    src = torch.randn(M * N, device=device)
-+    dst = torch.empty(M * N, device=device)
-+
-+    configs = [triton.Config(kwargs={'BLOCK_SIZE_M': 32}), triton.Config(kwargs={'BLOCK_SIZE_M': 128})]
-+
-+    @triton.autotune(configs=configs, key=["M"])
-+    @triton.jit
-+    def _kernel(dst, src, stride_m: tl.constexpr, M, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_M: tl.constexpr):
-+        offsets_m = tl.program_id(0) * stride_m + tl.arange(0, BLOCK_SIZE_M)
-+        offsets_n = tl.arange(0, BLOCK_SIZE_N)
-+        x = tl.load(src + offsets_m[:, None] * BLOCK_SIZE_N + offsets_n[None, :])
-+        tl.store(dst + offsets_m[:, None] * BLOCK_SIZE_N + offsets_n[None, :], x)
-+
-+    grid = lambda META: (triton.cdiv(N, META['BLOCK_SIZE_M']), )
-+    _kernel[grid](dst, src, N, M, N)
-+    assert len(_kernel.cache) == 1
-+
-+
- @pytest.mark.parametrize('pass_kwargs_to_kernel', [False, True])
- def test_restore(pass_kwargs_to_kernel, device):
-     N = 1024
-diff --git a/python/triton/runtime/autotuner.py b/python/triton/runtime/autotuner.py
-index 5ab16d35f..f59a66f46 100644
---- a/python/triton/runtime/autotuner.py
-+++ b/python/triton/runtime/autotuner.py
-@@ -6,6 +6,7 @@ import time
+--- a/triton/runtime/autotuner.py	2025-04-28 20:28:01
++++ b/triton/runtime/autotuner.py	2025-04-28 20:39:42
+@@ -4,6 +4,7 @@
+ import os
+ import time
  import inspect
- import hashlib
- import json
 +from functools import cached_property
- from typing import Dict, Tuple, List, Optional
- 
+ from typing import Dict
+
  from .jit import KernelInterface
-@@ -84,6 +85,7 @@ class Autotuner(KernelInterface):
+@@ -97,6 +98,7 @@
          while not inspect.isfunction(self.base_fn):
              self.base_fn = self.base_fn.fn
- 
+
 +        self._do_bench = do_bench
          self.num_warmups = warmup
          self.num_reps = rep
          self.use_cuda_graph = use_cuda_graph
-@@ -97,7 +99,7 @@ class Autotuner(KernelInterface):
+@@ -110,7 +112,7 @@
                            stacklevel=1)
              if use_cuda_graph:
                  from ..testing import do_bench_cudagraph
@@ -74,19 +37,19 @@ index 5ab16d35f..f59a66f46 100644
                      kernel_call,
                      rep=rep if rep is not None else 100,
                      quantiles=quantiles,
-@@ -105,7 +107,7 @@ class Autotuner(KernelInterface):
+@@ -118,7 +120,7 @@
                  return
- 
+
              import triton.testing
 -            self.do_bench = lambda kernel_call, quantiles: triton.testing.do_bench(
 +            self._do_bench = lambda kernel_call, quantiles: triton.testing.do_bench(
                  kernel_call,
                  warmup=warmup if warmup is not None else 25,
                  rep=rep if rep is not None else 100,
-@@ -113,10 +115,11 @@ class Autotuner(KernelInterface):
+@@ -126,10 +128,11 @@
              )
              return
- 
+
 -        if do_bench is None:
 -            self.do_bench = driver.active.get_benchmarker()
 -        else:
@@ -96,9 +59,6 @@ index 5ab16d35f..f59a66f46 100644
 +        if self._do_bench is None:
 +            return driver.active.get_benchmarker()
 +        return self._do_bench
- 
+
      def _bench(self, *args, config, **meta):
          from ..compiler.errors import CompileTimeAssertionFailure
--- 
-2.39.5 (Apple Git-154)
-
