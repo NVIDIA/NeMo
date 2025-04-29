@@ -86,7 +86,6 @@ class BacthedBeamCTCState:
     lm_scores: Optional[torch.Tensor] = None  # LM scores for hypotheses
     batch_lm_states: Optional[torch.Tensor] = None  # LM states for hypotheses
     batch_lm_states_candidates: Optional[torch.Tensor] = None  # LM states for hypotheses candidates
-    batch_lm_states_prev: Optional[torch.Tensor] = None  # previous LM states for hypotheses
     init_lm_scores: Optional[torch.Tensor] = None  # initial LM scores for hypotheses
     init_batch_lm_states: Optional[torch.Tensor] = None  # initial LM states for hypotheses
     init_batch_lm_states_candidates: Optional[torch.Tensor] = None  # initial LM states for hypotheses candidates
@@ -287,7 +286,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # prprprprpr
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
+        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
         if kenlm_path is not None:
@@ -678,7 +677,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             self.state.batch_lm_states = self.state.init_batch_lm_states.clone()
             self.state.batch_lm_states_candidates = self.state.init_batch_lm_states_candidates.clone()
             self.state.lm_scores[..., :-1].copy_(self.state.init_lm_scores.view(self.state.batch_size, self.state.beam_size, -1))
-            self.state.batch_lm_states_prev = self.state.init_batch_lm_states.clone()
         
     def _process_batch(self): 
         log_probs = (
@@ -718,37 +716,14 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             next_labels_masked = torch.where(blank_mask | ~ self.state.active_mask, 0, next_labels)
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
-            self.state.batch_lm_states_candidates.copy_(
-                torch.gather(
-                    self.state.batch_lm_states_candidates,
-                    dim=1,
-                    index=next_indices[:, :, None].expand(
-                        self.state.batch_size, self.beam_size, self.state.batch_lm_states_candidates.shape[-1]
-                        ),
-                )
-            )
-            self.state.batch_lm_states_prev.copy_(
-                torch.gather(
-                    self.state.batch_lm_states, 
-                    dim=1, 
-                    index=next_indices
-                )
-            )
-
-            self.state.batch_lm_states.copy_(
-                torch.gather(
-                    self.state.batch_lm_states_candidates, 
-                    dim=-1, 
-                    index=next_labels_masked.unsqueeze(-1)
-                ).squeeze()
-            )
-            self.state.batch_lm_states.copy_(
-                torch.where(
-                    preserve_state_mask, 
-                    self.state.batch_lm_states_prev, 
-                    self.state.batch_lm_states
-                )
-            )
+            next_indices_extended=next_indices[:, :, None].expand(self.state.batch_size, self.beam_size, self.state.batch_lm_states_candidates.shape[-1])
+            batch_lm_states_candidates=torch.gather(self.state.batch_lm_states_candidates, dim=1, index=next_indices_extended)
+            batch_lm_states_prev=torch.gather(self.state.batch_lm_states, dim=1, index=next_indices)
+            batch_lm_states=torch.gather(batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)).squeeze()
+            
+            self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
+            # self.state.batch_lm_states_prev.copy_(batch_lm_states_prev)
+            torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states, out=self.state.batch_lm_states)
         
         self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
         self.state.batched_hyps.self_recombine_hyps_()
