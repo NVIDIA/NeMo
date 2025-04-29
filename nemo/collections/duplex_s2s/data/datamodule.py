@@ -18,11 +18,23 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.duplex_s2s.data.dataset import DuplexS2SDataset
 
 
-class S2SDataModule(LightningDataModule):
-    def __init__(self, cfg, tokenizer: TokenizerSpec) -> None:
+class DataModule(LightningDataModule):
+    """
+    A Lightning DataModule specialized for Lhotse dataloading.
+    It takes care of setting up the proper DP ranks for dataloaders, and instantiating them.
+    Keep in mind the actual dataset paths and blend are defined by the YAML config, not Python code.
+
+    Args:
+        cfg: a DictConfig instance, typically corresponding to `data` namespace in YAML configs.
+        tokenizer: a tokenizer instance, typically NeMo's AutoTokenizer wrapping HF's AutoTokenizer.
+        dataset: a torch.utils.data.Dataset instance, expected to define __getitem__ that accepts
+            a lhotse.CutSet. It converts metadata + raw data to a batch of PyTorch tensors.
+            The data sampling is controlled by Lhotse samplers rather than the dataset.
+    """
+
+    def __init__(self, cfg, tokenizer: TokenizerSpec, dataset: torch.utils.data.Dataset) -> None:
         super().__init__()
         self.cfg = cfg
         with open_dict(self.cfg):
@@ -31,14 +43,7 @@ class S2SDataModule(LightningDataModule):
                     getattr(self.cfg, k).force_finite = True
                     getattr(self.cfg, k).force_map_dataset = True
         self.tokenizer = tokenizer
-        self.dataset = DuplexS2SDataset(
-            tokenizer=self.tokenizer,
-            frame_length=self.cfg.frame_length,
-            source_sample_rate=self.cfg.source_sample_rate,
-            target_sample_rate=self.cfg.target_sample_rate,
-            input_roles=self.cfg.input_roles,
-            output_roles=self.cfg.output_roles,
-        )
+        self.dataset = dataset
 
     def train_dataloader(self):
         if "train_ds" not in self.cfg:

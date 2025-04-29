@@ -26,13 +26,15 @@ from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.data.lhotse.text_adapters import TextTurn
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter
-from nemo.collections.common.tokenizers import TokenizerSpec
+from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
+from nemo.collections.duplex_s2s.data.utils import get_pad_id
 from nemo.utils import logging
 
 
 class SALMDataset(torch.utils.data.Dataset):
-    def __init__(self, pad_id: int) -> None:
-        self.pad_id = pad_id
+    def __init__(self, tokenizer: AutoTokenizer) -> None:
+        self.tokenizer = tokenizer
+        self.pad_id = get_pad_id(tokenizer)
 
     def __getitem__(self, conversations: CutSet) -> dict:
         all_cuts = []

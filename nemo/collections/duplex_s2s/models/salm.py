@@ -231,8 +231,6 @@ class SALM(LightningModule, HFHubMixin):
     def on_validation_epoch_start(self) -> None:
         self._partial_val_losses = defaultdict(list)
         self._partial_accuracies = defaultdict(list)
-        # self._refs = defaultdict(list)
-        # self._hyps = defaultdict(list)
 
     def on_validation_epoch_end(self) -> None:
         val_losses = []

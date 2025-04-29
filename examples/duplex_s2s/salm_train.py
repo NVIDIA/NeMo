@@ -13,12 +13,12 @@
 # limitations under the License.
 import os
 
-import hydra
 import torch
 from lightning.pytorch import Callback, Trainer
 from omegaconf import OmegaConf
 
-from nemo.collections.duplex_s2s.data.salm_datamodule import SALMDataModule
+from nemo.collections.duplex_s2s.data.datamodule import DataModule
+from nemo.collections.duplex_s2s.data.salm_dataset import SALMDataset
 from nemo.collections.duplex_s2s.models.salm import SALM
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
@@ -55,7 +55,6 @@ def train(cfg):
     OmegaConf.resolve(cfg)
     torch.distributed.init_process_group(backend="nccl")
     torch.set_float32_matmul_precision("medium")
-    # TODO: decide on exp_manager or adopting NeMo 2.0 API with _setup function, or sth else ?
     trainer = Trainer(
         **resolve_trainer_cfg(cfg.trainer),
         # callbacks=[PROFILING()],
@@ -63,15 +62,10 @@ def train(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     with trainer.init_module():
-        model = SALM(cfg.model)
+        model = SALM(OmegaConf.to_container(cfg.model, resolve=True))
 
-    # TODO: see migration guide exp_manager -> NeMo 2
-    # exp_manager / NeMo2 _setup provide:
-    # * PEFT (possibly from HF)
-    # * save/load checkpoint (exp_manager -> .nemo only)
-    # * resume
-    # * W&B loggers etc
-    datamodule = SALMDataModule(cfg.data, tokenizer=model.tokenizer)
+    dataset = SALMDataset(tokenizer=model.tokenizer)
+    datamodule = DataModule(cfg.data, tokenizer=model.tokenizer, dataset=dataset)
 
     trainer.fit(model, datamodule)
 

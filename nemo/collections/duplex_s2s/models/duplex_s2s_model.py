@@ -312,7 +312,7 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         input_embeds = self.embed_tokens(text_inputs)
         for cbidx in range(self._num_codebooks):
             input_embeds.add_(self.embed_audio_tokens[cbidx](audio_inputs[..., cbidx]))
-        input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3))
+        input_embeds.add_(source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 1.0))
 
         return {
             "input_embeds": input_embeds,
@@ -493,7 +493,7 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             input_signal=input_signal,
             input_signal_length=input_signal_lens,
         )
-        input_embeds *= self.cfg.get("duplex_user_channel_weight", 0.3)
+        input_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
 
         # Pre-allocate the memory for outputs.
         cache = DynamicCache()

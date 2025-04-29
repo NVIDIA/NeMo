@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import warnings
 
 import torch
 import torch.utils.data
@@ -22,14 +21,11 @@ from lhotse.dataset.collation import collate_audio, collate_vectors
 from lhotse.utils import ifnone
 
 from nemo.collections.common.tokenizers import TokenizerSpec
+from nemo.collections.duplex_s2s.data.utils import get_pad_id
 from nemo.utils import logging
 
 
 class DuplexS2SDataset(torch.utils.data.Dataset):
-    """
-    TODO: documentation
-    """
-
     def __init__(
         self,
         tokenizer: TokenizerSpec,
@@ -82,14 +78,7 @@ def collate_token_channel(
     frame_length: Seconds,
     roles: set[str],
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    pad_id = tokenizer.pad
-    if pad_id is None:
-        pad_id = tokenizer.unk_id
-    if pad_id is None:
-        warnings.warn(
-            "The text tokenizer has no <pad> or <unk> tokens available, using ID 0 for padding (this may lead to silent bugs)."
-        )
-        pad_id = 0
+    pad_id = get_pad_id(tokenizer)
     tokens = [
         build_token_channel(c, tokenizer=tokenizer, frame_length=frame_length, roles=roles, pad_id=pad_id)
         for c in cuts
