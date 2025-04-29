@@ -96,8 +96,6 @@ class BacthedBeamCTCState:
     init_lm_scores: Optional[torch.Tensor] = None  # initial LM scores for hypotheses
     init_batch_lm_states: Optional[torch.Tensor] = None  # initial LM states for hypotheses
     init_batch_lm_states_candidates: Optional[torch.Tensor] = None  # initial LM states for hypotheses candidates
-    
-    log10e: torch.Tensor
 
     def __init__(
         self,
@@ -197,8 +195,6 @@ class BacthedBeamCTCState:
             device=device,
             float_dtype=float_dtype,
         )
-        
-        self.log10e = torch.log10(torch.tensor(torch.e, device=self.device, dtype=self.float_dtype))
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
         """Check if need to reinit state: larger batch_size/max_time, or new device"""
@@ -387,7 +383,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         step=0
         for t in range(max_time):
             active_mask = decoder_output_lengths.unsqueeze(1) > t
-            log_probs = decoder_outputs[:, t, :].unsqueeze(1) * np.log10(np.e)
+            log_probs = decoder_outputs[:, t, :].unsqueeze(1)
             
             # if self.beam_size_token is not None:
             #     _, topk_idx = torch.topk(log_probs, k=self.beam_size_token, largest=True, sorted=True)
@@ -396,7 +392,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
-                lm_scores = lm_scores.to(dtype=decoder_outputs.dtype).view(batch_size, self.beam_size, -1) * self.beam_alpha * np.log10(np.e)
+                lm_scores = lm_scores.to(dtype=decoder_outputs.dtype).view(batch_size, self.beam_size, -1) * self.beam_alpha
             
                 log_probs = log_probs + torch.cat((lm_scores, zeros_column), dim=-1)
                             
@@ -452,7 +448,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             step+=1
 
         if self.ngram_lm_batch is not None:
-            batched_beam_hyps.scores += self.ngram_lm_batch.get_final(batch_lm_states).view(batch_size, self.beam_size) * np.log10(np.e) * self.beam_alpha
+            batched_beam_hyps.scores += self.ngram_lm_batch.get_final(batch_lm_states).view(batch_size, self.beam_size) * self.beam_alpha
 
         for hyp in batched_beam_hyps.to_hyps_list():
             print("score", hyp.score)
@@ -743,7 +739,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates.view(self.state.batch_size, self.state.beam_size, -1))
             log_probs[..., :-1] += self.beam_alpha * lm_scores.view(self.state.batch_size, self.state.beam_size, -1)
         
-        self.state.log_probs.copy_(log_probs).mul_(self.state.log10e)            
+        self.state.log_probs.copy_(log_probs)            
         self.state.log_probs.add_(self.state.batched_hyps.scores[:, :, None])
         
         torch.eq(self.state.batched_hyps.last_label[:, :, None], self.state.vocab[None, None, :], out=self.state.repeated_mask)
@@ -814,7 +810,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
   
     def _after_process_batch(self):     
         if self.ngram_lm_batch is not None:
-            self.state.batched_hyps.scores += self.ngram_lm_batch.get_final(self.state.batch_lm_states).view(self.state.batch_size, self.beam_size) * np.log10(np.e) * self.beam_alpha
+            self.state.batched_hyps.scores += self.ngram_lm_batch.get_final(self.state.batch_lm_states).view(self.state.batch_size, self.beam_size) * self.beam_alpha
 
     def __call__(
         self,

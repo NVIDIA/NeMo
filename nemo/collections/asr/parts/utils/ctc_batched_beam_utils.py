@@ -101,7 +101,6 @@ class BatchedBeamHypsCTC:
         next_hyps_prob,
     ):
         # TODO: timesteps
-        # TODO: sdelat' chtom esli next_labels = -1, tut ne obnovlyalos nichego!
         self.scores.copy_(torch.gather(self.scores, dim=-1, index=hyps_indices))
         torch.where(next_labels > 0, next_hyps_prob, self.scores, out=self.scores)
         # self.scores.copy_(next_hyps_prob)
@@ -109,8 +108,6 @@ class BatchedBeamHypsCTC:
         self.transcript_wb_prev_ptr.scatter_(
             dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1)
         )
-        # self.transcript.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
-        # self.transcript_prev_ptr.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
@@ -161,7 +158,6 @@ class BatchedBeamHypsCTC:
     def self_recombine_hyps_(self):
         if self.beam_size <= 1:
             return
-        # TODO: separate lm scores
         hyps_equal = (
             (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
             # & (self.last_label[:, :, None] == self.last_label[:, None, :]) # TODO check last nb token
@@ -176,8 +172,8 @@ class BatchedBeamHypsCTC:
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
-        # new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        new_scores = torch.max(np.log(10) * scores_matrix, dim=-1, keepdim=False).values * np.log10(np.e)
+
+        new_scores = torch.max(scores_matrix, dim=-1, keepdim=False).values
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
         
 class BlankLMScoreMode(PrettyStrEnum):
