@@ -11,12 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/generate.py \
-  --model_path /home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v4/ \
-  --tp 1 \
-  --pp 1 \
-  --devices 1 \
-  --top_p 0.0 \
-  --top_k 1 \
-  --num_tokens_to_generate 3 \
-  --legacy_ckpt
+CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 coverage run -a --data-file=/workspace/.coverage --source=/workspace/ -m pytest tests/automodel tests/collections/llm/hf/ tests/collections/vlm/hf/ -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
