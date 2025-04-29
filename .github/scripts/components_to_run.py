@@ -10,7 +10,7 @@ import git
 import nemo_dependencies
 
 
-def get_changelog(source_sha: str, target_sha: str) -> List[str]:
+def get_changed_files(source_sha: str, target_sha: str) -> List[str]:
     """
     Fetch the changelog between current branch and main.
     Returns a list of dictionaries containing commit information.
@@ -37,22 +37,6 @@ def get_changelog(source_sha: str, target_sha: str) -> List[str]:
         sys.exit(1)
 
 
-def get_changed_files(changelog: List[Dict[str, Any]]) -> Set[str]:
-    """
-    Extract a unique set of changed files from the changelog.
-
-    Args:
-        changelog: List of commit dictionaries from get_changelog()
-
-    Returns:
-        Set of unique file paths that were changed
-    """
-    changed_files = set()
-    for commit in changelog:
-        changed_files.update(commit['files'])
-    return changed_files
-
-
 @click.command()
 @click.option('--source-sha', type=str, required=True, help='Source commit SHA')
 @click.option('--target-sha', type=str, required=True, help='Target commit sha')
@@ -60,15 +44,11 @@ def main(source_sha: str, target_sha: str):
     """
     Main function to fetch and output the changelog and changed files.
     """
-    changelog = get_changelog(source_sha, target_sha)
-
-    # Output the changelog as JSON
-    print("Changelog:")
-    print(json.dumps(changelog, indent=2))
 
     # Output unique changed files
     print("\nChanged files:")
-    changed_files = get_changed_files(changelog)
+    changed_files = get_changed_files(source_sha, target_sha)
+
     print(json.dumps(sorted(list(changed_files)), indent=2))
 
     nemo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
