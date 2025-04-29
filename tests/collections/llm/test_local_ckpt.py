@@ -1,5 +1,16 @@
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
-# ... (License header remains the same)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Test NeMo 2.0 local checkpointing functionality with NVRx resiliency extensions.
@@ -54,6 +65,9 @@ import torch.distributed as dist
 from lightning.pytorch.callbacks import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+
+import nemo_run as run
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -249,6 +263,17 @@ def main() -> None:
     assert args.crash_step < args.max_steps, "Crash step must be before max_steps"
     assert args.local_checkpoint_interval > 0, "Local checkpoint interval must be positive"
 
+    executor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="torchrun")
+    # Convert Namespace to dict for serialization
+    args_dict = vars(args)
+    script = run.Partial(run_test, args_dict)
+    run.run(script, executor)
+
+
+def run_test(args_dict: dict) -> None:
+    # Convert dict back to Namespace for compatibility with existing code
+    args = argparse.Namespace(**args_dict)
+
     global_rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
 
@@ -266,7 +291,6 @@ def main() -> None:
     log_dir_path = Path(args.log_dir)
     if args.cleanup_log_dir and global_rank == 0:
         if log_dir_path.exists():
-            # Use logger
             shutil.rmtree(log_dir_path)
         logger.debug(f"Creating log directory: {log_dir_path}")
         log_dir_path.mkdir(parents=True, exist_ok=True)

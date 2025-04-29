@@ -14,17 +14,10 @@
 
 mkdir -p /tmp/llm_tests/llama_local_ckpt_results
 
-torchrun \
-    --standalone \
-    --nnodes=1 \
-    --nproc_per_node=2 \
-    coverage run \
-        --parallel-mode \
-        --source=/workspace/nemo \
-        --data-file=/workspace/.coverage \
-        tests/collections/llm/test_local_ckpt.py \
-            --log-dir=/tmp/llm_tests/llama_local_ckpt_results \
-            --devices 2
-            --async-save
-
-coverage combine /workspace/
+coverage run \
+    --data-file=/workspace/.coverage \
+    --source=/workspace/nemo \
+    tests/collections/llm/test_local_ckpt.py \
+        --log-dir=/tmp/llm_tests/llama_local_ckpt_results \
+        --devices=2 \
+        --async-save
