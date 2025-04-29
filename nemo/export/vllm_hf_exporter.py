@@ -68,6 +68,7 @@ class vLLMHFExporter(ITritonDeployable):
             # Convert the NeMo 2 model to HF format
             if (model_path / 'context').exists():
                 from nemo.collections.llm import api
+
                 api.export_ckpt(
                     path=model_path,
                     target='hf',
