@@ -95,6 +95,9 @@ def get_checkpoint_version():
     global _CHECKPOINT_VERSION
     return _CHECKPOINT_VERSION
 
+"""
+sanity check for installation
+"""
 
 # TODO: Convert this to ConfigContainer
 # def check_checkpoint_args(checkpoint_args):
