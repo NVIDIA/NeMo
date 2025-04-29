@@ -29,9 +29,7 @@ from torch import Tensor
 
 try:
     from flashattn_hopper.flash_attn_interface import _flash_attn_forward
-    from flashattn_hopper.flash_attn_interface import (
-        flash_attn_with_kvcache as flash_attn3_with_kvcache,
-    )
+    from flashattn_hopper.flash_attn_interface import flash_attn_with_kvcache as flash_attn3_with_kvcache
 
     HAVE_FA3 = True
 except:
@@ -166,19 +164,19 @@ class Llama4SelfAttention(MCoreSelfAttention):
         super(Llama4SelfAttention, self).__init__(*args, **kwargs)
 
     def forward(
-            self,
-            hidden_states: Tensor,
-            attention_mask: Tensor,
-            key_value_states: Optional[Tensor] = None,
-            inference_context: Optional[BaseInferenceContext] = None,
-            rotary_pos_emb: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
-            rotary_pos_cos: Optional[Tensor] = None,
-            rotary_pos_sin: Optional[Tensor] = None,
-            attention_bias: Optional[Tensor] = None,
-            packed_seq_params: Optional[PackedSeqParams] = None,
-            sequence_len_offset: Optional[int] = None,
-            *,
-            inference_params: Optional[BaseInferenceContext] = None,
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        key_value_states: Optional[Tensor] = None,
+        inference_context: Optional[BaseInferenceContext] = None,
+        rotary_pos_emb: Optional[Union[Tensor, Tuple[Tensor, Tensor]]] = None,
+        rotary_pos_cos: Optional[Tensor] = None,
+        rotary_pos_sin: Optional[Tensor] = None,
+        attention_bias: Optional[Tensor] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
+        sequence_len_offset: Optional[int] = None,
+        *,
+        inference_params: Optional[BaseInferenceContext] = None,
     ) -> Tuple[Tensor, Tensor]:
         """
         Perform a forward pass through the attention module.
@@ -234,17 +232,15 @@ class Llama4SelfAttention(MCoreSelfAttention):
         # This branch only runs in the decode phase of flash decoding and returns after the linear
         # projection. This conditional is not used in the prefill phase or non-flash-decoding cases.
         if (
-                self.config.flash_decode
-                and inference_context is not None
-                and inference_context.is_decode_only()
-                and not self.training
-                and rotary_pos_cos is not None
+            self.config.flash_decode
+            and inference_context is not None
+            and inference_context.is_decode_only()
+            and not self.training
+            and rotary_pos_cos is not None
         ):
             assert self.layer_number in inference_context.key_value_memory_dict
             assert inference_context.sequence_len_offset is not None
-            inference_key_memory, inference_value_memory = inference_context.key_value_memory_dict[
-                self.layer_number
-            ]
+            inference_key_memory, inference_value_memory = inference_context.key_value_memory_dict[self.layer_number]
             output = self.flash_decode(
                 sequence_len_offset=sequence_len_offset,
                 query_layer=query,
@@ -260,17 +256,15 @@ class Llama4SelfAttention(MCoreSelfAttention):
             output, bias = self.linear_proj(context_layer)
             return output, bias
 
-        query, key, value, rotary_pos_emb, attn_mask_type, block_table = (
-            self._adjust_key_value_for_inference(
-                inference_context,
-                query,
-                key,
-                value,
-                rotary_pos_emb,
-                rotary_pos_cos,
-                rotary_pos_sin,
-                sequence_len_offset,
-            )
+        query, key, value, rotary_pos_emb, attn_mask_type, block_table = self._adjust_key_value_for_inference(
+            inference_context,
+            query,
+            key,
+            value,
+            rotary_pos_emb,
+            rotary_pos_cos,
+            rotary_pos_sin,
+            sequence_len_offset,
         )
 
         original_shape = None
@@ -387,9 +381,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
                 # Dynamic batching attention kernel.
                 q, k, v = (query, key, value)
                 cu_query_lengths, max_seqlen_q = inference_context.cu_query_lengths()
-                cu_kv_lengths, kv_lengths, kv_lengths_decode_only, max_seqlen_k = (
-                    inference_context.cu_kv_lengths()
-                )
+                cu_kv_lengths, kv_lengths, kv_lengths_decode_only, max_seqlen_k = inference_context.cu_kv_lengths()
 
                 core_attn_out = self.flash_decode_and_prefill(
                     q,
