@@ -53,33 +53,30 @@ class vLLMHFExporter(ITritonDeployable):
     def __init__(self):
         self.model = None
         self.lora_models = None
-        self._tmp_hf_dir = None
 
-    def __del__(self):
-        if self._tmp_hf_dir:
-            shutil.rmtree(self._tmp_hf_dir)
-
-    def export(self, model, enable_lora: bool = False):
+    def export(self, model, enable_lora: bool = False, **kwargs):
         """
         Exports the HF checkpoint to vLLM and initializes the engine.
         Args:
             model (str): model name or the path
+            enable_lora (bool): whether to enable lora
+            **kwargs: additional arguments for the LLM constructor
         """
 
         model_path = Path(model)
-        if (model_path / 'context').exists():
-            from nemo.collections.llm import api
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Convert the NeMo 2 model to HF format
+            if (model_path / 'context').exists():
+                from nemo.collections.llm import api
+                api.export_ckpt(
+                    path=model_path,
+                    target='hf',
+                    output_path=tmp_dir,
+                    overwrite=True,
+                )
+                model = str(tmp_dir)
 
-            self._tmp_hf_dir = tempfile.mkdtemp()
-            api.export_ckpt(
-                path=model_path,
-                target='hf',
-                output_path=self._tmp_hf_dir,
-                overwrite=True,
-            )
-            model = str(self._tmp_hf_dir)
-
-        self.model = LLM(model=model, enable_lora=enable_lora)
+            self.model = LLM(model=model, enable_lora=enable_lora, **kwargs)
 
     def add_lora_models(self, lora_model_name, lora_model):
         if self.lora_models is None:
