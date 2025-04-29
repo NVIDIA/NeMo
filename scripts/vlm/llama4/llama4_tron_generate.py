@@ -1,7 +1,8 @@
 # Combined Megatron Initialization and Generation Script
 
-# ln -s /lustre/fsw/coreai_dlalgo_genai/yuya/checkpoints /opt/checkpoints
-# python scripts/vlm/llama4/llama4_tron_generate.py --model_name=Qwen/Qwen2.5-1.5B
+#  ln -s /lustre/fsw/coreai_dlalgo_genai/yuya/checkpoints /root/checkpoints
+#
+#  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_tron_generate.py --model_name meta-llama/Llama-4-Scout-17B-16E-Instruct --tp 8
 
 import argparse
 import os
@@ -10,6 +11,7 @@ import warnings
 from contextlib import nullcontext
 
 import torch
+import torch.distributed as dist
 
 # Megatron-Core Inference Imports
 from megatron.core import parallel_state  # Needed for distributed checks
@@ -40,6 +42,7 @@ from nemo.tron.setup import _init_checkpointing_context
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import get_rank_safe  # For rank checks
+from nemo.utils.get_rank import get_last_rank # Import for greedy gen broadcast
 
 # from megatron.core.inference.sampling_params import SamplingParams # Optional for more control
 
@@ -59,7 +62,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
     # --- Checkpoint Conversion (Placeholder - Run Separately Beforehand) ---
     # This section should ideally be run *once* before launching the main script,
     # typically on a single node/rank.
-    output_path = f"/opt/checkpoints/tron/{hf_model_name}"  # Example path - ADJUST AS NEEDED
+    output_path = f"/root/checkpoints/tron/{hf_model_name}"  # Example path - ADJUST AS NEEDED
     if rank == 0:
         if not (os.path.exists(output_path) and os.path.exists(os.path.join(output_path, "iter_0000000"))):
             print(f"INFO: Converted checkpoint not found at {output_path}.")
@@ -167,7 +170,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         model_cfg.params_dtype = torch.float32
 
     model_cfg.parallel_output = True  # Important for logprobs/generation across TP ranks
-    model_cfg.flash_decode = False
+    model_cfg.flash_decode = True
 
     checkpoint_config = CheckpointConfig(
         # load=pretrained_ckpt, # Use pretrained_checkpoint instead for NeMo Tron convention
@@ -263,14 +266,14 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         megatron_cfg.checkpoint_config.pretrained_checkpoint
     ):
         print(f"Loading checkpoint from: {megatron_cfg.checkpoint_config.pretrained_checkpoint}")
-        load_checkpoint(
-            state,  # Pass GlobalState
-            model_list,  # Pass the list
-            None,  # No optimizer
-            None,  # No scheduler
-            checkpointing_context=checkpointing_context,
-            # Add skip_load_to_model_and_opt if using FSDP2
-        )
+        # load_checkpoint(
+        #     state,  # Pass GlobalState
+        #     model_list,  # Pass the list
+        #     None,  # No optimizer
+        #     None,  # No scheduler
+        #     checkpointing_context=checkpointing_context,
+        #     # Add skip_load_to_model_and_opt if using FSDP2
+        # )
         print("Checkpoint loaded successfully.")
     else:
         print(
@@ -298,6 +301,7 @@ def megatron_generate(
     max_new_tokens: int,
     generation_batch_size: int,  # Micro-batch size for inference engine
     greedy: bool = True,  # Add greedy option
+    generation_method: str = "mcore_engine",  # Add generation_method argument
 ):
     """Generates text using the initialized Megatron model and inference engine."""
 
@@ -305,150 +309,281 @@ def megatron_generate(
     model_cfg = mtron_cfg.model_config
     rank = get_rank_safe()
 
-    if rank == 0:
-        print(f"Starting generation: batch_size={input_ids.shape[0]}, max_new_tokens={max_new_tokens}")
+    if generation_method == "manual_greedy":
+        if rank == 0:
+            print(f"Starting manual greedy generation: batch_size={input_ids.shape[0]}, max_new_tokens={max_new_tokens}")
+        start_time = time.time()
 
-    # --- Inference Engine Setup ---
-    inference_wrapper_config = InferenceWrapperConfig(
-        hidden_size=model_cfg.hidden_size,
-        # Adjust threshold based on typical sequence lengths if needed
-        inference_batch_times_seqlen_threshold=model_cfg.seq_length * generation_batch_size * 2,
-        fp32_residual_connection=model_cfg.fp32_residual_connection,
-        params_dtype=model_cfg.params_dtype,
-        padded_vocab_size=final_padded_vocab_size,  # Use the final padded size
-        # Max length for the *entire* sequence (prompt + new) engine might handle
-        # Let's set it large enough based on model seq length and max new tokens
-        inference_max_seq_length=model_cfg.seq_length,
-        inference_max_requests=generation_batch_size,  # Max concurrent requests in engine
-        # Add other relevant flags from ModelConfig if needed by wrapper
-        # e.g., model_cfg.gated_linear_unit, model_cfg.layernorm_style etc.
-    )
+        # --- Manual Greedy Generation Loop ---
+        generated_ids = input_ids.cuda().clone()
+        generated_ids = generated_ids[:, :input_lengths[0]]
+        # Determine stop tokens (use IDs from the Megatron tokenizer)
+        stop_token_ids = set()
+        # Assuming common patterns, adjust if needed based on tokenizer specifics
+        eos_token_id = getattr(megatron_tokenizer._tokenizer, 'eos_token_id', None)
+        if eos_token_id is not None:
+            stop_token_ids.add(eos_token_id)
+        # Add other specific stop tokens if necessary (e.g., <|eom|>, <|eot|> for some models)
+        # Need to check the specific tokenizer used for Llama-4
+        try:
+            eom_id = megatron_tokenizer._tokenizer.vocab.get("<|eom|>", None)
+            eot_id = megatron_tokenizer._tokenizer.vocab.get("<|eot|>", None)
+            if eom_id:
+                 stop_token_ids.add(eom_id)
+            if eot_id:
+                 stop_token_ids.add(eot_id)
+        except AttributeError:
+            print("Warning: Could not access tokenizer vocab directly for stop tokens.")
 
-    # Wrap the model for inference server logic
-    inference_wrapped_model = ModelInferenceWrapperServer(model, inference_wrapper_config)
+        if not stop_token_ids and rank == 0:
+            print("Warning: No stop tokens identified. Generation might run to max_new_tokens.")
 
-    # Controller handles tokenization details and generation loop logic internally (via engine)
-    text_generation_controller = TextGenerationController(
-        inference_wrapped_model=inference_wrapped_model,
-        tokenizer=megatron_tokenizer,  # Megatron tokenizer instance from setup
-    )
+        current_input_ids = generated_ids
 
-    # Static engine is simpler for batch processing
-    inference_engine = StaticInferenceEngine(
-        text_generation_controller=text_generation_controller,
-        max_batch_size=generation_batch_size,  # Should match inference_max_requests
-    )
+        with torch.no_grad():
+            for step in range(max_new_tokens):
+                print(step)
+                position_ids = (
+                    torch.arange(current_input_ids.size(1), dtype=torch.long, device=current_input_ids.device).unsqueeze(0).expand_as(current_input_ids)
+                )
+                # Direct model call (no fwd_bwd_function needed here as model is already set up)
+                output = model(current_input_ids, position_ids, attention_mask=None)
+                # output shape: [micro_batch_size, sequence_length, hidden_size]
+                # or [micro_batch_size, sequence_length, vocab_size] if LM head is part of the model
+                # Assuming output is logits: [mb, seq, vocab_tp_shard_size] on each TP rank
+                # or [mb, seq, hidden_size] if LM head is separate or applied later
 
-    # Ensure inputs are on the correct device (GPU for computation)
-    input_ids = input_ids.cuda()
-    input_lengths = input_lengths.cuda()
+                # Handle Parallelism for Logits/Next Token ID
+                if parallel_state.is_pipeline_last_stage():
+                    # If TP > 1, gather logits across TP ranks
+                    if parallel_state.get_tensor_model_parallel_world_size() > 1:
+                        # Assuming model output are logits split across TP ranks on the vocab dim (-1)
+                        world_size = parallel_state.get_tensor_model_parallel_world_size()
+                        gathered_tensors = [torch.zeros_like(output) for _ in range(world_size)]
+                        dist.all_gather(gathered_tensors, output, group=parallel_state.get_tensor_model_parallel_group())
+                        # Concatenate along the vocab dimension (last dimension)
+                        # Ensure the model output is indeed logits before concatenating
+                        # If model output is hidden states, need to apply LM head first
+                        # Let's assume 'output' are the logits for now. Needs verification.
+                        gathered_output = torch.cat(gathered_tensors, dim=-1)
+                    else:
+                        gathered_output = output # No TP, output is already full logits
 
-    # Calculate how many tokens to generate.
-    # run_mcore_engine expects the number of *new* tokens to generate.
-    tokens_to_generate = max_new_tokens
+                    # Get the token ID for the *next* token (logit of the last position)
+                    next_token_logits = gathered_output[:, -1, :] # [mb, vocab_size]
+                    next_token_ids = torch.argmax(next_token_logits, dim=-1, keepdim=True) # [mb, 1]
+                else:
+                    # Other pipeline stages don't compute the final logits
+                    # Create a dummy tensor to match the expected shape for broadcast
+                    # Use long dtype as token IDs are integers
+                    batch_dim = current_input_ids.size(0)
+                    next_token_ids = torch.zeros((batch_dim, 1), device=current_input_ids.device, dtype=torch.long)
 
-    # --- Sampling Parameters (Optional) ---
-    # if greedy:
-    #     # Default behavior or explicitly set greedy parameters
-    #     sampling_params = SamplingParams(tokens_to_generate=tokens_to_generate, ...)
-    # else:
-    #     # Configure sampling parameters
-    #     sampling_params = SamplingParams(tokens_to_generate=tokens_to_generate, temperature=0.7, top_k=50, ...)
-    # Pass sampling_params to run_mcore_engine if used
+                # Broadcast the next token ID from the last pipeline stage to all ranks
+                # Use get_last_rank which handles PP correctly
+                # Source rank needs to be the *global* rank of the last PP stage
+                # TODO: Verify get_last_rank works correctly with TP>1 on last stage
+                # It might be safer to use parallel_state.get_pipeline_model_parallel_last_rank()
+                # source_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+                # torch.distributed.broadcast(next_token_ids, src=source_rank)
 
-    # --- Run the Engine ---
-    if rank == 0:
-        print("Running MCore Inference Engine...")
-    start_time = time.time()
-    with torch.no_grad(), nullcontext():  # Use nullcontext if autocast not needed/handled internally
-        # Note: input_ids should be right-padded for this engine function.
-        engine_output = run_mcore_engine(
-            engine=inference_engine,
-            prompt_tokens_tensor=input_ids,
-            prompt_lengths_tensor=input_lengths,
-            tokens_to_generate=tokens_to_generate,
-            # sampling_params=sampling_params, # Pass if using non-greedy
-            # return_output_log_probs = True, # Ensure logprobs are returned if needed
+                # Append the new token ID to the generated sequence
+                generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
+                current_input_ids = generated_ids # Update input for next step
+
+                # Check for stop tokens (only need to check on rank 0 after broadcast?)
+                # Safer to check on all ranks, especially if PP > 1
+                # Check the first sample in the batch for stopping (assuming uniform stopping)
+                if next_token_ids[0].item() in stop_token_ids:
+                    if rank == 0:
+                        print(f"Stop token {next_token_ids[0].item()} detected at step {step+1}.")
+                    break # Exit the loop
+
+            # --- Post-process Manual Greedy Output ---
+            # `generated_ids` contains the full sequences [batch, seq_len]
+            batch_size = generated_ids.size(0)
+            max_seq_len = generated_ids.size(1)
+
+            # Create dummy logprobs tensor (manual greedy doesn't easily provide them)
+            logprobs_padded = torch.full(
+                (batch_size, max_seq_len),
+                float('nan'), # Use NaN to indicate missing logprobs
+                dtype=torch.float,
+                device="cpu",
+            )
+
+            generation_lengths_list = []
+            unpadded_lengths_list = []
+
+            for i in range(batch_size):
+                prompt_len = input_lengths[i].cpu().item()
+                seq_len = generated_ids.size(1) # Total length after generation
+                unpadded_lengths_list.append(seq_len)
+                generation_lengths_list.append(max(0, seq_len - prompt_len))
+
+            # Move final IDs to CPU
+            output_ids_padded = generated_ids.cpu()
+
+            end_time = time.time()
+            if rank == 0:
+                print(f"Manual greedy execution time: {end_time - start_time:.3f} seconds")
+
+            # Prepare final output dictionary
+            output_dict = {
+                "output_ids": output_ids_padded,  # [batch, max_output_len]
+                "logprobs": logprobs_padded,  # [batch, max_output_len] (NaN for manual greedy)
+                "generation_lengths": torch.tensor(generation_lengths_list, dtype=torch.long),  # [batch]
+                "unpadded_sequence_lengths": torch.tensor(unpadded_lengths_list, dtype=torch.long),  # [batch]
+            }
+            return output_dict
+
+    elif generation_method == "mcore_engine":
+        # --- Original MCore Engine Logic ---
+        if rank == 0:
+            print(f"Starting generation using MCore Engine: batch_size={input_ids.shape[0]}, max_new_tokens={max_new_tokens}")
+
+        # --- Inference Engine Setup ---
+        inference_wrapper_config = InferenceWrapperConfig(
+            hidden_size=model_cfg.hidden_size,
+            # Adjust threshold based on typical sequence lengths if needed
+            inference_batch_times_seqlen_threshold=model_cfg.seq_length * generation_batch_size * 2,
+            fp32_residual_connection=model_cfg.fp32_residual_connection,
+            params_dtype=model_cfg.params_dtype,
+            padded_vocab_size=final_padded_vocab_size,  # Use the final padded size
+            # Max length for the *entire* sequence (prompt + new) engine might handle
+            # Let's set it large enough based on model seq length and max new tokens
+            inference_max_seq_length=model_cfg.seq_length,
+            inference_max_requests=generation_batch_size,  # Max concurrent requests in engine
+            # Add other relevant flags from ModelConfig if needed by wrapper
+            # e.g., model_cfg.gated_linear_unit, model_cfg.layernorm_style etc.
         )
-    end_time = time.time()
-    if rank == 0:
-        print(f"Engine execution time: {end_time - start_time:.3f} seconds")
 
-    # --- Post-process the output ---
-    # engine_output is a dict with 'tokens' (list of lists), 'logprobs' (list of lists)
+        # Wrap the model for inference server logic
+        inference_wrapped_model = ModelInferenceWrapperServer(model, inference_wrapper_config)
 
-    batch_size = input_ids.size(0)
-    # engine_output['tokens'] contains the full sequences (prompt + generated)
-    # Need to handle potential empty outputs if generation fails
-    if not engine_output or not engine_output["tokens"]:
-        print("Warning: MCore engine returned empty output.")
-        # Return empty/dummy tensors matching expected structure
-        max_seq_len = input_ids.size(1)  # Use input length as fallback
-        output_ids_padded = torch.full(
-            (batch_size, max_seq_len), megatron_tokenizer._tokenizer.pad_token_id, dtype=torch.long, device="cpu"
+        # Controller handles tokenization details and generation loop logic internally (via engine)
+        text_generation_controller = TextGenerationController(
+            inference_wrapped_model=inference_wrapped_model,
+            tokenizer=megatron_tokenizer,  # Megatron tokenizer instance from setup
         )
-        logprobs_padded = torch.zeros((batch_size, max_seq_len), dtype=torch.float, device="cpu")
-        generation_lengths_list = [0] * batch_size
-        unpadded_lengths_list = input_lengths.cpu().tolist()  # Fallback to input lengths
+
+        # Static engine is simpler for batch processing
+        inference_engine = StaticInferenceEngine(
+            text_generation_controller=text_generation_controller,
+            max_batch_size=generation_batch_size,  # Should match inference_max_requests
+        )
+
+        # Ensure inputs are on the correct device (GPU for computation)
+        input_ids = input_ids.cuda()
+        input_lengths = input_lengths.cuda()
+
+        # Calculate how many tokens to generate.
+        # run_mcore_engine expects the number of *new* tokens to generate.
+        tokens_to_generate = max_new_tokens
+
+        # --- Sampling Parameters (Optional) ---
+        # if greedy:
+        #     # Default behavior or explicitly set greedy parameters
+        #     sampling_params = SamplingParams(tokens_to_generate=tokens_to_generate, ...)
+        # else:
+        #     # Configure sampling parameters
+        #     sampling_params = SamplingParams(tokens_to_generate=tokens_to_generate, temperature=0.7, top_k=50, ...)
+        # Pass sampling_params to run_mcore_engine if used
+
+        # --- Run the Engine ---
+        if rank == 0:
+            print("Running MCore Inference Engine...")
+        start_time = time.time()
+        with torch.no_grad(), nullcontext():  # Use nullcontext if autocast not needed/handled internally
+            # Note: input_ids should be right-padded for this engine function.
+            engine_output = run_mcore_engine(
+                engine=inference_engine,
+                prompt_tokens_tensor=input_ids,
+                prompt_lengths_tensor=input_lengths,
+                tokens_to_generate=tokens_to_generate,
+                # sampling_params=sampling_params, # Pass if using non-greedy
+                # return_output_log_probs = True, # Ensure logprobs are returned if needed
+            )
+        end_time = time.time()
+        if rank == 0:
+            print(f"Engine execution time: {end_time - start_time:.3f} seconds")
+
+        # --- Post-process the output ---
+        # engine_output is a dict with 'tokens' (list of lists), 'logprobs' (list of lists)
+
+        batch_size = input_ids.size(0)
+        # engine_output['tokens'] contains the full sequences (prompt + generated)
+        # Need to handle potential empty outputs if generation fails
+        if not engine_output or not engine_output["tokens"]:
+            print("Warning: MCore engine returned empty output.")
+            # Return empty/dummy tensors matching expected structure
+            max_seq_len = input_ids.size(1)  # Use input length as fallback
+            output_ids_padded = torch.full(
+                (batch_size, max_seq_len), megatron_tokenizer._tokenizer.pad_token_id, dtype=torch.long, device="cpu"
+            )
+            logprobs_padded = torch.zeros((batch_size, max_seq_len), dtype=torch.float, device="cpu")
+            generation_lengths_list = [0] * batch_size
+            unpadded_lengths_list = input_lengths.cpu().tolist()  # Fallback to input lengths
+        else:
+            # Determine max length from the *generated* sequences
+            max_seq_len = max(len(tokens) for tokens in engine_output["tokens"])
+
+            # Create padded tensors for tokens and logprobs
+            output_ids_padded = torch.full(
+                (batch_size, max_seq_len),
+                megatron_tokenizer._tokenizer.pad_token_id,  # Use tokenizer's pad ID
+                dtype=torch.long,
+                device="cpu",  # Move results to CPU
+            )
+            # Initialize logprobs with a suitable value (e.g., 0 or NaN)
+            logprobs_padded = torch.full(
+                (batch_size, max_seq_len),
+                0.0,  # Or float('nan')
+                dtype=torch.float,
+                device="cpu",  # Move results to CPU
+            )
+
+            generation_lengths_list = []
+            unpadded_lengths_list = []
+
+            # Fill in the padded tensors
+            for i in range(batch_size):
+                # Tokens includes the prompt + generation
+                seq_len = len(engine_output["tokens"][i])
+                unpadded_lengths_list.append(seq_len)
+                output_ids_padded[i, :seq_len] = torch.tensor(engine_output["tokens"][i], dtype=torch.long, device="cpu")
+
+                # Logprobs usually correspond to predicting tokens[1:] based on tokens[0:t-1]
+                # Check if 'logprobs' exists and handle its length
+                if "logprobs" in engine_output and engine_output["logprobs"] and i < len(engine_output["logprobs"]):
+                    logprob_len = len(engine_output["logprobs"][i])
+                    # Place logprobs starting from the second token position (index 1)
+                    # Ensure logprob_len doesn't exceed available space
+                    effective_len = min(logprob_len, max_seq_len - 1)
+                    if effective_len > 0:
+                        logprobs_padded[i, 1 : effective_len + 1] = torch.tensor(
+                            engine_output["logprobs"][i][:effective_len], dtype=torch.float, device="cpu"
+                        )
+                else:
+                    # Handle cases where logprobs are missing or empty
+                    if rank == 0:
+                        print(f"Warning: Logprobs missing or empty for sample {i}.")
+
+                # Generation length is total length minus prompt length
+                # Ensure input_lengths is on CPU for item() call
+                prompt_len = input_lengths[i].cpu().item()
+                generation_lengths_list.append(max(0, seq_len - prompt_len))
+
+        # Prepare final output dictionary
+        output_dict = {
+            "output_ids": output_ids_padded,  # [batch, max_output_len]
+            "logprobs": logprobs_padded,  # [batch, max_output_len] (logprob[t] is for token[t])
+            "generation_lengths": torch.tensor(generation_lengths_list, dtype=torch.long),  # [batch]
+            "unpadded_sequence_lengths": torch.tensor(unpadded_lengths_list, dtype=torch.long),  # [batch]
+        }
+        return output_dict
     else:
-        # Determine max length from the *generated* sequences
-        max_seq_len = max(len(tokens) for tokens in engine_output["tokens"])
-
-        # Create padded tensors for tokens and logprobs
-        output_ids_padded = torch.full(
-            (batch_size, max_seq_len),
-            megatron_tokenizer._tokenizer.pad_token_id,  # Use tokenizer's pad ID
-            dtype=torch.long,
-            device="cpu",  # Move results to CPU
-        )
-        # Initialize logprobs with a suitable value (e.g., 0 or NaN)
-        logprobs_padded = torch.full(
-            (batch_size, max_seq_len),
-            0.0,  # Or float('nan')
-            dtype=torch.float,
-            device="cpu",  # Move results to CPU
-        )
-
-        generation_lengths_list = []
-        unpadded_lengths_list = []
-
-        # Fill in the padded tensors
-        for i in range(batch_size):
-            # Tokens includes the prompt + generation
-            seq_len = len(engine_output["tokens"][i])
-            unpadded_lengths_list.append(seq_len)
-            output_ids_padded[i, :seq_len] = torch.tensor(engine_output["tokens"][i], dtype=torch.long, device="cpu")
-
-            # Logprobs usually correspond to predicting tokens[1:] based on tokens[0:t-1]
-            # Check if 'logprobs' exists and handle its length
-            if "logprobs" in engine_output and engine_output["logprobs"] and i < len(engine_output["logprobs"]):
-                logprob_len = len(engine_output["logprobs"][i])
-                # Place logprobs starting from the second token position (index 1)
-                # Ensure logprob_len doesn't exceed available space
-                effective_len = min(logprob_len, max_seq_len - 1)
-                if effective_len > 0:
-                    logprobs_padded[i, 1 : effective_len + 1] = torch.tensor(
-                        engine_output["logprobs"][i][:effective_len], dtype=torch.float, device="cpu"
-                    )
-            else:
-                # Handle cases where logprobs are missing or empty
-                if rank == 0:
-                    print(f"Warning: Logprobs missing or empty for sample {i}.")
-
-            # Generation length is total length minus prompt length
-            # Ensure input_lengths is on CPU for item() call
-            prompt_len = input_lengths[i].cpu().item()
-            generation_lengths_list.append(max(0, seq_len - prompt_len))
-
-    # Prepare final output dictionary
-    output_dict = {
-        "output_ids": output_ids_padded,  # [batch, max_output_len]
-        "logprobs": logprobs_padded,  # [batch, max_output_len] (logprob[t] is for token[t])
-        "generation_lengths": torch.tensor(generation_lengths_list, dtype=torch.long),  # [batch]
-        "unpadded_sequence_lengths": torch.tensor(unpadded_lengths_list, dtype=torch.long),  # [batch]
-    }
-
-    return output_dict
+        raise ValueError(f"Unsupported generation_method: {generation_method}")
 
 
 # --- Main Execution Block ---
@@ -457,7 +592,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_name", type=str, required=True, help="HuggingFace model identifier (e.g., meta-llama/Llama-2-7b-hf)"
     )
-    # Checkpoint path override - conversion still uses /opt/checkpoints/tron/{model_name} convention
+    # Checkpoint path override - conversion still uses /root/checkpoints/tron/{model_name} convention
     parser.add_argument(
         "--checkpoint_path",
         type=str,
@@ -474,6 +609,13 @@ if __name__ == "__main__":
     parser.add_argument("--max_new_tokens", type=int, default=64, help="Maximum number of new tokens to generate")
     parser.add_argument("--gen_batch_size", type=int, default=1, help="Micro batch size for the generation engine")
     parser.add_argument("--max_prompt_len", type=int, default=20, help="Maximum length for input prompt tokenization")
+    parser.add_argument(
+        "--generation_method",
+        type=str,
+        default="mcore_engine",
+        choices=["mcore_engine", "manual_greedy"],
+        help="Method to use for generation ('mcore_engine' or 'manual_greedy')",
+    )
 
     args = parser.parse_args()
 
@@ -572,6 +714,7 @@ if __name__ == "__main__":
         max_new_tokens=args.max_new_tokens,
         generation_batch_size=args.gen_batch_size,
         greedy=True,  # Keep it simple for now
+        generation_method=args.generation_method, # Pass the new argument
     )
 
     # --- Decode and Print Output (Rank 0) ---
@@ -586,7 +729,7 @@ if __name__ == "__main__":
         # Decode the full generated sequence (including prompt)
         # Use the same Megatron tokenizer
         decoded_texts = megatron_tokenizer._tokenizer.batch_decode(
-            generation_output['output_ids'], skip_special_tokens=True, clean_up_tokenization_spaces=True
+            generation_output['output_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=True
         )
 
         for i, text in enumerate(decoded_texts):
@@ -608,8 +751,8 @@ if __name__ == "__main__":
             #         print(f"  '{token_str}' (ID: {tok_id.item()}): {lp.item():.4f}")
 
     # --- Cleanup ---
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()  # Sync before exit
-        # Optional: Explicitly destroy process group, though often handled by launcher exit
-        # torch.distributed.destroy_process_group()
+    # if torch.distributed.is_initialized():
+    #     torch.distributed.barrier()  # Sync before exit
+    #     # Optional: Explicitly destroy process group, though often handled by launcher exit
+    torch.distributed.destroy_process_group()
     print(f"Rank {rank} finished.")
