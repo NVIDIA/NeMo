@@ -53,6 +53,8 @@ jobs:
       - name: Select components to run
         id: components_to_run
         run: |
+          pip install -U pip
+          pip install git-python
           components_to_run=$(python .github/scripts/components_to_run.py)
           echo "main=${components_to_run}" | tee -a "$GITHUB_OUTPUT"
 
