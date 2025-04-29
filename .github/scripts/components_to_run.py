@@ -22,7 +22,7 @@ def get_changelog() -> List[Dict[str, Any]]:
         current = repo.commit()
 
         # Get the main branch
-        main = repo.heads.main
+        main = repo.heads['main']
 
         # Get all commits between current branch and main
         commits = list(repo.iter_commits(f"{main.name}..{current}"))
