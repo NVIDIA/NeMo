@@ -624,22 +624,40 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
-            "decoder.final_layernorm.weight": "model.norm.weight",
         }
 
-        if "module.decoder.layers.0.input_layernorm.weight" in source.state_dict():
-            layer_norm_attention_key = "decoder.layers.*.input_layernorm.weight"
-        else:
-            layer_norm_attention_key = "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight"
-        mapping[layer_norm_attention_key] = "model.layers.*.input_layernorm.weight"
+        def local_and_transformer_engine_specs_handler(target_dtype):
+            def _handler(tensor):
+                if tensor.dtype == target_dtype:
+                    return tensor
 
-        if "module.decoder.layers.0.pre_mlp_layernorm.weight" in source.state_dict():
-            layer_norm_mlp_key = "decoder.layers.*.pre_mlp_layernorm.weight"
-        else:
-            layer_norm_mlp_key = "decoder.layers.*.mlp.linear_fc1.layer_norm_weight"
-        mapping[layer_norm_mlp_key] = "model.layers.*.post_attention_layernorm.weight"
+                target_tensor = tensor.clone().to(target_dtype)
+                if max(abs(tensor - target_tensor)) == 0.:
+                    return target_tensor
+
+                raise ValueError(f"Layer norm weight dtype mismatch: {tensor.dtype} != {target_tensor.dtype}")
+            return _handler
+
+
+        layernorm_mappings =[
+            (("decoder.layers.*.input_layernorm.weight", "model.layers.*.input_layernorm.weight"),
+                "model.layers.*.input_layernorm.weight"),
+            (("decoder.layers.*.pre_mlp_layernorm.weight", "model.layers.*.post_attention_layernorm.weight"),
+                "model.layers.*.post_attention_layernorm.weight"),
+            ("decoder.final_layernorm.weight",
+                "model.norm.weight"),
+        ]
 
         transforms = [
+            io.state_transform(
+                source_key=source_key,
+                target_key=target_key,
+                fn=local_and_transformer_engine_specs_handler(source.config.params_dtype),
+            )
+            for source_key, target_key in layernorm_mappings
+        ]
+
+        transforms += [
             io.state_transform(
                 source_key="decoder.layers.*.self_attention.linear_qkv.weight",
                 target_key=(
@@ -660,6 +678,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
                 fn=TransformFns.prune_padding,
             ),
         ]
+
         if not self.config.tie_word_embeddings:
             transforms.append(
                 io.state_transform(
