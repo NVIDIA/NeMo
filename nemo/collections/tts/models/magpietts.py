@@ -202,7 +202,7 @@ class MagpieTTSModel(ModelPT):
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
                 is_causal=causal_lt,
-                max_length_causal_mask=cfg.num_audio_codebooks+2,
+                max_length_causal_mask=self.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
             local_transformer_out_projections = []
@@ -377,7 +377,7 @@ class MagpieTTSModel(ModelPT):
             # for autoregressive local transformer the target for index 0 is codebook 0, for index 1 is codebook 1, etc.
             local_transformer_output = local_transformer_output[:, :-1, :] # (B*T', C, E)
         else:
-            # for MaskGit the target for index **1** is codebook 0, for index **2** is codebook 1, etc.
+            # for MaskGit the target for index **1** is codebook 0, for index 2 is codebook 1, etc.
             local_transformer_output = local_transformer_output[:, 1:, :] # (B*T', C, E)
         all_code_logits = []
         for codebook_num in range(audio_codes_target.size(1)):
@@ -602,7 +602,7 @@ class MagpieTTSModel(ModelPT):
             # optionally: add noise to confidences (as in token-critic paper)
         
         codes = sampled_codes
-        assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens at the end of MaskGit sampling"
+        assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
         if use_cfg:
             codes = codes[:actual_batch_size]
         return codes
@@ -1170,8 +1170,10 @@ class MagpieTTSModel(ModelPT):
 
         local_transformer_loss = None
         local_transformer_logits = None
-        if self.cfg.get('use_local_transformer', False):
-            if self.cfg.get('use_local_maskgit', False):
+        # TODO switch to new name
+        use_maskgit = self.cfg.get('use_local_maskgit', False) or self.cfg.get('use_maskgit', False)
+        if self.cfg.get('use_local_transformer', False) or use_maskgit:
+            if use_maskgit:
                 # randomly replace some positions with MASK token
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
@@ -1602,15 +1604,8 @@ class MagpieTTSModel(ModelPT):
                 unifinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
-                if False:
-                    import debugpy
-                    # only attach if not already attached
-                    if not debugpy.is_client_connected():
-                        debugpy.listen(("0.0.0.0", 5678))  # You can change the port if needed
-                        print("Waiting for debugger to attach...")
-                        debugpy.wait_for_client()  # This will block execution until the debugger attaches
-                        print("Debugger is attached!")                
-                if self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference or use_maskgit_for_inference:
+                # TODO switch to new name (use_maskgit)
+                if (self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference) or ((self.cfg.get('use_maskgit', False) or self.cfg.get('use_local_maskgit', False)) and use_maskgit_for_inference):
                     if not use_maskgit_for_inference:
                         audio_codes_next = self.sample_codes_from_local_transformer(
                             dec_output=dec_out[:,-1,:],
