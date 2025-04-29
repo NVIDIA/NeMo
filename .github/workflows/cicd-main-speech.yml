@@ -37,9 +37,11 @@ jobs:
         include:
           - script: L0_Unit_Tests_GPU_ASR
             runner: self-hosted-azure-gpus-1
+            timeout: 20
           - script: L0_Unit_Tests_CPU_ASR
             runner: self-hosted-azure-cpu
             cpu-only: true
+            timeout: 20
           - script: L0_Unit_Tests_GPU_TTS
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_TTS
@@ -49,6 +51,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L0_Unit_Tests_CPU_Audio
             runner: self-hosted-azure-cpu
+            cpu-only: true
     needs: [build]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
@@ -65,7 +68,7 @@ jobs:
           is_unit_test: true
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
-          timeout: 20
+          timeout: ${{ matrix.timeout || 10 }}
           cpu-only: ${{ matrix.cpu-only || false }}
 
   e2e-tests:
@@ -180,5 +183,4 @@ jobs:
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
-          timeout: ${{ matrix.timeout || 10}}
           is_optional: ${{ matrix.is_optional || false }}
