@@ -30,8 +30,8 @@ from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
 @torch.no_grad()
-def count_tail_ignore(labels, ignore_label=-100):
-    """Counts the total number of padding in the tail of labels
+def count_tail_padding(labels, ignore_label=-100):
+    """Counts the total number of padding token in the tail of labels
 
     e.g.
         labels = torch.tensor([
@@ -39,7 +39,7 @@ def count_tail_ignore(labels, ignore_label=-100):
             [-100, -100, 2, 3, 4],      # 0 tail -100s
             [5, 6, -100, -100, -100],   # 3 tail -100s
         ])
-        count_tail_ignore will return 5. Please do note there's more than 5 ignore labels.
+        count_tail_padding will return 5. Please do note there's more than 5 ignore labels.
     Args:
         labels (torch.Tensor): the labels
         ignore_label (int, optional): ignore label index. Defaults to -100.
@@ -401,7 +401,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     logit_softcapping=logit_softcapping,
                 )
         self.loss_buffer.append(loss.item())
-        self.n_tok += labels.numel() - count_tail_ignore(labels)
+        self.n_tok += labels.numel() - count_tail_padding(labels)
 
         return loss
 
