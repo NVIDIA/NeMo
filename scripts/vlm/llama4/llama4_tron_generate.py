@@ -266,14 +266,14 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         megatron_cfg.checkpoint_config.pretrained_checkpoint
     ):
         print(f"Loading checkpoint from: {megatron_cfg.checkpoint_config.pretrained_checkpoint}")
-        # load_checkpoint(
-        #     state,  # Pass GlobalState
-        #     model_list,  # Pass the list
-        #     None,  # No optimizer
-        #     None,  # No scheduler
-        #     checkpointing_context=checkpointing_context,
-        #     # Add skip_load_to_model_and_opt if using FSDP2
-        # )
+        load_checkpoint(
+            state,  # Pass GlobalState
+            model_list,  # Pass the list
+            None,  # No optimizer
+            None,  # No scheduler
+            checkpointing_context=checkpointing_context,
+            # Add skip_load_to_model_and_opt if using FSDP2
+        )
         print("Checkpoint loaded successfully.")
     else:
         print(
