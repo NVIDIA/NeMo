@@ -15,5 +15,5 @@ TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source
     --devices=2 --data_type=energon --use_toy_model \
     --data_path=/home/TestData/tiny_datasets/llava-energon \
     --mbs=1 --gbs=4 --max_steps=4 \
-    --tp=2 --ep=2 \
+    --ep=2 \
     --log_dir=/tmp/nemo2_neva_results/$RUN_ID

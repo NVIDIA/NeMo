@@ -14,5 +14,5 @@
 TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/llama4/llama4_finetune.py \
     --devices=2 --data_type=mock --use_toy_model \
     --mbs=2 --gbs=4 --max_steps=4 \
-    --cp=2 --ep=2 \
+    --cp=2 \
     --log_dir=/tmp/nemo2_neva_results/$RUN_ID
