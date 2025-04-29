@@ -35,7 +35,7 @@ VAL_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/turnGPT_TTS_data/daily_di
 NOISE_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/noise_manifest.json
 
 PRETRAINED_NEMO=/media/data3/pretrained_models/nemo_asr/stt_en_fastconformer_hybrid_large_streaming_80ms_rnnt.nemo
-TOKENIZER_DIR=/media/data3/pretrained_models/nemo_asr/tokenizers/stt_en_fastconformer_hybrid_large_streaming_80ms-eou/
+TOKENIZER_DIR=/media/data3/pretrained_models/nemo_asr/tokenizers/stt_en_fastconformer_hybrid_large_streaming_80ms_eou
 
 BATCH_DURATION=30
 NUM_WORKERS=0

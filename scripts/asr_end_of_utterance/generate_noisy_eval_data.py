@@ -119,16 +119,16 @@ def main(cfg):
         output_audio_dir = output_dir
         flatten_audio_path = False
 
-    # Load the dataset
-    tokenizer = parsers.make_parser(labels)  # dummy tokenizer
-    dataset = LhotseSpeechToTextBpeEOUDataset(
-        cfg=cfg.data, tokenizer=tokenizer, return_eou_labels=False, return_cuts=True
-    )
-
+    # Patch data config
     with open_dict(cfg.data):
         cfg.data.force_finite = True
         cfg.data.force_map_dataset = True
         cfg.data.shuffle = False
+        cfg.data.check_tokenizer = False  # No need to check tokenizer in LhotseSpeechToTextBpeEOUDataset
+
+    # Load the dataset
+    tokenizer = parsers.make_parser(labels)  # dummy tokenizer
+    dataset = LhotseSpeechToTextBpeEOUDataset(cfg=cfg.data, tokenizer=tokenizer, return_cuts=True)
 
     dataloader = get_lhotse_dataloader_from_config(
         config=cfg.data,
@@ -160,14 +160,14 @@ def main(cfg):
             audio_file = cut.recording.sources[0].source
 
             if flatten_audio_path:
-                output_audio_file = output_audio_dir / str(audio_file).replace('/', '_')
+                output_audio_file = output_audio_dir / str(audio_file).replace('/', '_')[:255]
             else:
                 output_audio_file = output_audio_dir / Path(audio_file).relative_to(manifest_parent_dir)
 
             output_audio_file.parent.mkdir(parents=True, exist_ok=True)
             sf.write(output_audio_file, audio, dataset.sample_rate)
 
-            manifest_item["audio_filepath"] = str(output_audio_file)
+            manifest_item["audio_filepath"] = str(output_audio_file.relative_to(output_audio_dir))
             manifest_item["offset"] = 0
             manifest_item["duration"] = audio.shape[0] / dataset.sample_rate
 

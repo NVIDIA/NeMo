@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import math
-from typing import Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch.utils.data
@@ -37,6 +38,18 @@ EOB_STRING = '<EOB>'
 
 EOU_LENGTH_PERTURBATION = ['speed', 'time_stretch']
 EOU_PROHIBITED_AUGMENTATIONS = ['random_segment']
+
+
+@dataclass
+class AudioToTextEOUBatch:
+    sample_ids: List | None = None
+    audio_filepaths: List | None = None
+    audio_signal: torch.Tensor | None = None
+    audio_lengths: torch.Tensor | None = None
+    text_tokens: torch.Tensor | None = None
+    text_token_lengths: torch.Tensor | None = None
+    eou_targets: torch.Tensor | None = None
+    eou_target_lengths: torch.Tensor | None = None
 
 
 class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
@@ -114,17 +127,15 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             'text_token_lens': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(
-        self, cfg: DictConfig, tokenizer: TokenizerSpec, return_eou_labels: bool = False, return_cuts: bool = False
-    ):
+    def __init__(self, cfg: DictConfig, tokenizer: TokenizerSpec, return_cuts: bool = False):
         super().__init__()
         self.cfg = cfg
-        self.return_eou_labels = return_eou_labels
         self.return_cuts = return_cuts
         self.eou_string = self.cfg.get('eou_string', EOU_STRING)
         self.eob_string = self.cfg.get('eob_string', EOB_STRING)
 
-        self._check_special_tokens(tokenizer)
+        if cfg.get('check_tokenizer', True):
+            self._check_special_tokens(tokenizer)
 
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
@@ -178,11 +189,15 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         audio_lengths = []
         eou_targets = []
         text_tokens = []
-
+        sample_ids = []
+        audio_filepaths = []
         for i in range(len(cuts)):
             c = cuts[i]
             if isinstance(c, MixedCut):
                 c = c.first_non_padding_cut
+
+            sample_ids.append(c.id)
+            audio_filepaths.append(c.recording.sources[0].source)
 
             audio_i = audio[i]
             audio_len_i = audio_lens[i]
@@ -216,9 +231,16 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         if self.return_cuts:
             return audio_signals, audio_lengths, cuts
 
-        if not self.return_eou_labels:
-            return audio_signals, audio_lengths, text_tokens, text_token_lens
-        return audio_signals, audio_lengths, text_tokens, text_token_lens, eou_targets, eou_target_lens
+        return AudioToTextEOUBatch(
+            sample_ids=sample_ids,
+            audio_filepaths=audio_filepaths,
+            audio_signal=audio_signals,
+            audio_lengths=audio_lengths,
+            text_tokens=text_tokens,
+            text_token_lengths=text_token_lens,
+            eou_targets=eou_targets,
+            eou_target_lengths=eou_target_lens,
+        )
 
     def _audio_len_to_frame_len(self, num_samples: int):
         """
@@ -277,10 +299,11 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             seg_len_in_secs = eou_time[i] - sou_time[i]
             seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.sample_rate))
             eou_targets[sou_idx : sou_idx + seg_len] = 1
+            last_idx = min(sou_idx + seg_len - 1, hidden_length - 1)
             if is_backchannel[i]:
-                eou_targets[sou_idx + seg_len - 1] = EOB_LABEL  # end of backchannel
+                eou_targets[last_idx] = EOB_LABEL  # end of backchannel
             else:
-                eou_targets[sou_idx + seg_len - 1] = EOU_LABEL  # end of utterance
+                eou_targets[last_idx] = EOU_LABEL  # end of utterance
 
         return eou_targets
 

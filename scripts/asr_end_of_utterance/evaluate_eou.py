@@ -88,8 +88,8 @@ def main():
     predictions = load_json(args.predictions, args.drop_prefix)
     references = load_json(args.references, args.drop_prefix)
     results = evaluate_eou(
-        predictions,
-        references,
+        prediction=predictions,
+        reference=references,
         threshold=args.threshold,
         collar=args.collar,
     )

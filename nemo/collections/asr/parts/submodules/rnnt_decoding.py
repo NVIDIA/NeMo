@@ -548,7 +548,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             return all_hyp
 
         else:
-            hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
+            hypotheses = self.decode_hypothesis(prediction_list)  # type: List[Hypothesis]
 
             # If computing timestamps
             if self.compute_timestamps is True:
@@ -821,13 +821,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         for t in range(len(char_offsets)):
             # Subtract one here for the extra RNNT BLANK token emitted to designate "End of timestep"
             num_flattened_tokens += len(char_offsets[t]['char']) - 1
+            if char_offsets[t]['char'][-1] != self.blank_id:
+                num_flattened_tokens += 1  # Add one back if it reaches max steps without blank token
 
         if num_flattened_tokens != len(hypothesis.text):
-            raise ValueError(
-                f"`char_offsets`: {char_offsets} and `processed_tokens`: {hypothesis.text}"
-                " have to be of the same length, but are: "
-                f"`len(offsets)`: {len(char_offsets)} and `len(processed_tokens)`:"
-                f" {len(hypothesis.text)}"
+            raise RuntimeError(
+                f"Number of tokens in hypothesis ({len(hypothesis.text)}) does not match the number of offsets "
+                f"({num_flattened_tokens}). Please check the hypothesis and offsets manually."
             )
 
         encoded_char_offsets = copy.deepcopy(char_offsets)
