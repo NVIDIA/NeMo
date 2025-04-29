@@ -380,15 +380,9 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             self.ngram_lm_batch.to(decoder_outputs.device)
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
         
-        step=0
         for t in range(max_time):
             active_mask = decoder_output_lengths.unsqueeze(1) > t
             log_probs = decoder_outputs[:, t, :].unsqueeze(1)
-            
-            # if self.beam_size_token is not None:
-            #     _, topk_idx = torch.topk(log_probs, k=self.beam_size_token, largest=True, sorted=True)
-            #     mask = torch.zeros_like(log_probs, dtype=torch.bool).scatter_(dim=2, index=topk_idx, value=True)
-            #     log_probs.masked_fill_(~mask, float('inf'))
             
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
@@ -440,20 +434,10 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             batched_beam_hyps.add_results_(hyps_indices, next_labels, hyps_scores)
             
             batched_beam_hyps.self_recombine_hyps_()
-            
-            print("Step: ", step)
-            print("scores: ", batched_beam_hyps.scores)
-            print("labels: ", batched_beam_hyps.transcript_wb[..., step])
-            print("ptrs: ", batched_beam_hyps.transcript_wb_prev_ptr[..., step])
-            step+=1
 
         if self.ngram_lm_batch is not None:
             batched_beam_hyps.scores += self.ngram_lm_batch.get_final(batch_lm_states).view(batch_size, self.beam_size) * self.beam_alpha
 
-        for hyp in batched_beam_hyps.to_hyps_list():
-            print("score", hyp.score)
-            print("y_sequence", hyp.y_sequence)
-            
         nbest_hypotheses = []
         for decoder_outputs in batched_beam_hyps.to_hyps_list():
             # Wrap the result in NBestHypothesis.
@@ -494,22 +478,10 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_GRAPHS:
             # this mode is only for testing purposes
             # manual loop instead of using graphs
-            # step=0
             self._before_process_batch()
             while self.state.active_mask_any.item():
                 self._process_batch()
-            
-                # print("Step: ", step)
-                # print("scores: ", self.state.batched_hyps.scores)
-                # print("labels: ", self.state.batched_hyps.transcript_wb[..., step])
-                # print("ptrs: ", self.state.batched_hyps.transcript_wb_prev_ptr[..., step])
-                # step+=1
-            
             self._after_process_batch()
-            
-            # for hyp in self.state.batched_hyps.to_hyps_list():
-            #     print("score", hyp.score)
-            #     print("y_sequence", hyp.y_sequence)
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
@@ -695,7 +667,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
         # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
-        # torch.cuda.set_sync_debug_mode(0)
         
         if self.ngram_lm_batch is not None:
             device = self.state.device
@@ -721,17 +692,10 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             self.state.batch_lm_states_prev = self.state.init_batch_lm_states.clone()
         
     def _process_batch(self): 
-        # torch.cuda.set_sync_debug_mode(2)
         log_probs = (
             self.state.decoder_outputs
             .index_select(dim=1, index=self.state.curr_length.repeat(self.beam_size))
         )
-        
-        # print("bstbstbst", self.beam_size_token)
-        # if self.beam_size_token is not None:
-        #     _, topk_idx = log_probs.topk(k=self.beam_size_token, largest=True, sorted=True)
-        #     mask = self.state.false_mask.scatter_(dim=2, index=topk_idx, value=True)
-        #     log_probs.masked_fill_(~mask, float('-inf'))
         
         if self.ngram_lm_batch is not None:
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=self.state.batch_lm_states.view(-1))
@@ -805,8 +769,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.state.curr_length.add_(1)
         torch.greater_equal(self.state.last_timesteps, self.state.curr_length, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
-        
-        # torch.cuda.set_sync_debug_mode(0)
   
     def _after_process_batch(self):     
         if self.ngram_lm_batch is not None:
