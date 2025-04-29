@@ -17,6 +17,10 @@ def get_changelog() -> List[Dict[str, Any]]:
     try:
         # Initialize the repository
         repo = git.Repo(os.getcwd())
+        if repo.head.is_detached:
+            # Handle detached HEAD state
+            current_commit = repo.head.commit
+            repo.head.reference = current_commit
 
         # Get the current branch
         current_branch = repo.active_branch.name
