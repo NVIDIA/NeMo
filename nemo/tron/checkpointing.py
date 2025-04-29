@@ -95,6 +95,7 @@ def get_checkpoint_version():
     global _CHECKPOINT_VERSION
     return _CHECKPOINT_VERSION
 
+
 """
 sanity check for installation
 """
