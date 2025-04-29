@@ -41,9 +41,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
+      components_to_run: ${{ steps.components_to_run.outputs.main }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
-      COMPONENTS_TO_RUN: ${{ steps.components_to_run.outputs.main }}
       EVENT_NAME: ${{ github.event_name }}
       HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
     steps:
