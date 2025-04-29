@@ -135,7 +135,8 @@ class MagpieTTSModel(ModelPT):
         self.context_audio_bos_id = cfg.get('forced_context_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_BOS.value)
         self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_EOS.value)
         self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
-
+        self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK.value)
+    
         # Setup tokenizer
         if hasattr(cfg, 'text_tokenizer'):
             # For backward compatibility for English-only models

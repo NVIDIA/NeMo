@@ -55,6 +55,7 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
         if model_cfg.model_type == 'decoder_context_tts':
             model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 3
             model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 4
+            model_cfg.forced_mask_token_id = num_audio_tokens_per_codebook - 5
         else:
             model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 1
             model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 2
