@@ -64,7 +64,7 @@ jobs:
           LAST_PRS=$(gh api graphql -f query='
             query {
               repository(owner: "NVIDIA", name: "NeMo") {
-                pullRequests(states: MERGED, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                pullRequests(states: MERGED, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
                   nodes {
                     number
                   }
@@ -85,6 +85,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - dockerfile: Dockerfile.ci
+            image-name: nemo_container_automodel
+          - dockerfile: Dockerfile.ci
+            image-name: nemo_container_nemo2
+          - dockerfile: Dockerfile.ci
+            image-name: nemo_container_speech
           - dockerfile: Dockerfile.ci
             image-name: nemo_container
           - dockerfile: Dockerfile.ci.export_deploy
