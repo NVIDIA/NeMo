@@ -33,14 +33,14 @@ from nemo.utils.import_utils import safe_import
 def count_tail_ignore(labels):
 
     # Flip along the last dimension (seq_len)
-    flipped = x.flip(dims=[1])
+    flipped = labels.flip(dims=[1])
     tail_mask = (flipped == -100)
 
     # Compute cumulative product to "break" on first non -100
-    cumprod_mask = torch.cumprod(tail_mask.int(), dim=1)
+    prod_mask = torch.cumprod(tail_mask.int(), dim=1)
 
     # Count tail -100s by summing cumprod mask along the sequence dimension
-    return cumprod_mask.sum(dim=1).view(-1).sum()
+    return prod_mask.sum(dim=1).view(-1).sum()
 
 
 
