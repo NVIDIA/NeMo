@@ -59,14 +59,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+import nemo_run as run
 import torch
 import torch.distributed as dist
-
 from lightning.pytorch.callbacks import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-
-import nemo_run as run
 
 from nemo import lightning as nl
 from nemo.collections import llm
