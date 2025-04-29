@@ -13,12 +13,10 @@
 # limitations under the License.
     
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Optional, Tuple, Union, List
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -66,7 +64,6 @@ class BacthedBeamCTCState:
 
     curr_length: torch.Tensor
     
-    log_probs: torch.Tensor
     next_labels: torch.Tensor  # storage for next labels
     next_scores: torch.Tensor  # storage for next scores
     next_indices: torch.Tensor  # storage for next scores
@@ -159,7 +156,6 @@ class BacthedBeamCTCState:
             device=self.device,
             dtype=float_dtype
         )
-        self.log_probs = torch.zeros([self.batch_size, self.beam_size, self.vocab_size],  dtype=float_dtype, device=self.device)
 
         # indices of elements in batch and beam (constant)
         self.batch_indices = (
@@ -294,7 +290,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # prprprprpr
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
+        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
         if kenlm_path is not None:
@@ -654,7 +650,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.state.next_indices.fill_(0.0)
         self.state.total_scores.fill_(INACTIVE_SCORE)
         self.state.curr_length.fill_(0)
-        self.state.log_probs.fill_(0.0)
         self.state.lm_scores.fill_(0.0)
         self.state.repeated_mask.fill_(0)
         self.state.repeated_or_blank_mask.fill_(0)
@@ -702,15 +697,14 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates.view(self.state.batch_size, self.state.beam_size, -1))
             log_probs[..., :-1] += self.beam_alpha * lm_scores.view(self.state.batch_size, self.state.beam_size, -1)
-        
-        self.state.log_probs.copy_(log_probs)            
-        self.state.log_probs.add_(self.state.batched_hyps.scores[:, :, None])
+                   
+        log_probs +=self.state.batched_hyps.scores[:, :, None]
         
         torch.eq(self.state.batched_hyps.last_label[:, :, None], self.state.vocab[None, None, :], out=self.state.repeated_mask)
         torch.logical_or(self.state.blank_mask[None, None, :], self.state.repeated_mask, out=self.state.repeated_or_blank_mask)
-        torch.where(self.state.repeated_or_blank_mask, self.state.log_probs, self.state.log_probs + self.beam_beta, out=self.state.log_probs)
+        torch.where(self.state.repeated_or_blank_mask, log_probs, log_probs + self.beam_beta, out=log_probs)
         
-        hyps_scores, hyps_candidates_indices = torch.topk(self.state.log_probs.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True)
+        hyps_scores, hyps_candidates_indices = torch.topk(log_probs.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True)
         
         self.state.next_scores.copy_(hyps_scores)
         self.state.next_indices.copy_(hyps_candidates_indices // self.state.vocab_size)
