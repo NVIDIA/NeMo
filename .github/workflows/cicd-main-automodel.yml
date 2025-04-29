@@ -36,7 +36,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: NVIDIA/NeMo/.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
+        uses: NVIDIA/NeMo/.github/actions/test-template@main
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
@@ -116,7 +116,7 @@ jobs:
         with:
           path: ${{ github.run_id }}
       - name: main
-        uses: NVIDIA/NeMo/.github/actions/test-template@ko3n1g/ci/move-more-asr-and-speechlm-tests
+        uses: NVIDIA/NeMo/.github/actions/test-template@main
         with:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
