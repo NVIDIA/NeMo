@@ -210,7 +210,7 @@ class AbstractBeamCTCInfer(Typing):
 
 
 class BeamCTCInfer(AbstractBeamCTCInfer):
-    """A greedy CTC decoder.
+    """A beam CTC decoder.
 
     Provides a common abstraction for sample level and batch level greedy decoding.
 
@@ -288,11 +288,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.pyctcdecode_beam_scorer = None
         self.flashlight_beam_scorer = None
         self.token_offset = 0
-        
-        self.ngram_lm_batch = None
-        if kenlm_path is not None:
-            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
-        
 
     @typecheck()
     def forward(
@@ -892,7 +887,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         return self.k2_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
 
 class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
-    """A greedy CTC decoder.
+    """A batched beam CTC decoder.
 
     Provides a common abstraction for sample level and batch level greedy decoding.
 
@@ -909,7 +904,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
 
     def __init__(
         self,
-        blank_id: int,
+        blank_index: int,
         beam_size: int,
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
@@ -917,12 +912,10 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
         beam_threshold: float = 20.0,
-        beam_size_token: Optional[int] = 16,
-        blank_lm_score_mode: str = "no_score",
         kenlm_path: str = None,
         allow_cuda_graphs: bool = True
     ):
-        super().__init__(blank_id=blank_id, beam_size=beam_size)
+        super().__init__(blank_id=blank_index, beam_size=beam_size)
 
         self.return_best_hypothesis = return_best_hypothesis
         self.preserve_alignments = preserve_alignments
@@ -937,8 +930,6 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         self.beam_alpha = beam_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
-        self.beam_size_token = beam_size_token
-        self.blank_lm_score_mode = blank_lm_score_mode
 
         # Default beam search args
         self.kenlm_path = kenlm_path
@@ -949,12 +940,8 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         self.flashlight_beam_scorer = None
         self.token_offset = 0
         
-        self.ngram_lm_batch = None
-        if kenlm_path is not None:
-            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
-            
         self.search_algorithm = BatchedBeamCTCComputer(
-            blank_index=blank_id,
+            blank_index=blank_index,
             beam_size=beam_size,
             return_best_hypothesis=return_best_hypothesis,
             preserve_alignments=preserve_alignments,
@@ -962,10 +949,8 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             beam_alpha=beam_alpha,
             beam_beta=beam_beta,
             beam_threshold=beam_threshold,
-            beam_size_token=beam_size_token,
             kenlm_path=kenlm_path,
             allow_cuda_graphs=allow_cuda_graphs,
-            blank_lm_score_mode=blank_lm_score_mode
         )
 
     @typecheck()
@@ -1042,9 +1027,7 @@ class BeamCTCInferConfig:
     beam_alpha: float = 1.0
     beam_beta: float = 1.0
     beam_threshold: float = 20.0
-    beam_size_token: Optional[int] = None
     kenlm_path: Optional[str] = None
-    blank_lm_score_mode: Optional[BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())

@@ -350,16 +350,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
     
         elif self.cfg.strategy == 'beam_batch':
             self.decoding = ctc_beam_decoding.BeamBatchedCTCInfer(
-                blank_id=blank_id,
+                blank_index=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                beam_size_token=self.cfg.beam.get('beam_size_token', None),
                 beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
-                blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', 'no_score'),
                 kenlm_path=self.cfg.beam.get('kenlm_path', None),
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True)
             )
