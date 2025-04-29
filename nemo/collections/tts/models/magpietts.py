@@ -386,7 +386,7 @@ class MagpieTTSModel(ModelPT):
 
     def maskgit_create_random_mask(self, codes):
         """
-        Creates a mask where True indicates the positions that should be replaced with a MASK token.
+        Creates a mask where True indicates the positions that should be replaced with a MASK_TOKEN.
         """
         # Codes: (B, C, T)
         B,C,T = codes.shape
@@ -398,6 +398,7 @@ class MagpieTTSModel(ModelPT):
         n_masked = torch.ceil(frac_masked * C).long() # B,T
         # start from all unmasked
         mask = torch.zeros_like(codes, dtype=torch.bool)
+        # The code further below is the vectorized version of this:
         #  for b in range(B):
         #      for t in range(T):
         #          if n_masked[b,t] > 0:
@@ -405,7 +406,6 @@ class MagpieTTSModel(ModelPT):
         #              perm = torch.randperm(C)
         #              # mask the top n_masked positions
         #              mask[b, perm[:n_masked[b,t]], t] = True
-        # Above is the non-vectorized version of below
         #
         # Create random permutations 
         random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)        
@@ -418,23 +418,19 @@ class MagpieTTSModel(ModelPT):
         return mask
     
     def maskgit_apply_random_mask(self, codes):
-        # Codes: (B, C, T)
-        # create random mask (with proportions determined by the cosine schedule)
+        # Randomly replaces some codes with the MASK_TOKEN token with a proportion following the cosine schedule.
+        # Codes: (B, C, T)        
         mask = self.maskgit_create_random_mask(codes)
-        ## replace some tokens with MASK token
+        ## replace some tokens with MASK_TOKEN
         codes_with_mask = torch.where(mask, self.mask_token_id, codes)
         return codes_with_mask, mask
-    
-    def maskgit_mask_all(self, codes):
-        # Codes: (B, C, T)        
-        mask = torch.ones_like(codes)
-        masked_codes = mask * self.mask_token_id
-        return mask, masked_codes
 
     def compute_loss(self, logits, audio_codes, audio_codes_lens, mask_tokens_mask=None):
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # audio_codes: (B, C, T')
         # audio_codes_lens: (B,)
+        # mask_tokens_mask: True for tokens that were replaced with the MASK_TOKEN and should
+        #                   therefore be the only ones included in the loss computation.
         loss_mask = get_mask_from_lengths(audio_codes_lens)
         if mask_tokens_mask is not None:
             # For MaskGit we only compute loss for the masked tokens.
@@ -443,6 +439,7 @@ class MagpieTTSModel(ModelPT):
             # 2. the token is not padding
             loss_mask = loss_mask.unsqueeze(1) * mask_tokens_mask
             if not loss_mask.any():
+                # Without this we were very rarely getting NaNs in the loss
                 logging.warning("No tokens valid were found in compute_loss()!")
                 return torch.tensor(0.0, device=loss_mask.device), loss_mask 
         else:            
@@ -500,8 +497,10 @@ class MagpieTTSModel(ModelPT):
         return all_preds
 
     def maskgit_sample_codes(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3):
+        """
+        Sample codes for one timestep from the local transformer using MaskGit.
+        """
         # dec_output: (B, E)
-        # import ipdb; ipdb.set_trace()
         device = dec_output.device
         # disable KV cache since our transformer is not causal
         self.local_transformer.reset_cache(use_cache=False)
@@ -510,29 +509,19 @@ class MagpieTTSModel(ModelPT):
         C = self.cfg.num_audio_codebooks
         B = dec_output.size(0)
 
-        # TODO choose initial confidence
         min_confidence = float("-inf")
-        max_confidence = 10000
+        max_confidence = 10000 # this needs to be large enough that unmasked items will always remain unmasked. # TODO @rfejgin: use float('inf')?
         confidences = min_confidence * torch.ones(B, C, device=device)
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
-        fixed_schedule = False
-        if n_steps == 9:
-            print("Forcing fixed schedule")
-            fixed_schedule = True
-            schedule = [8,7,6,5,4,3,2,1]
-            n_steps = C
         for step in range(n_steps):            
             # get mask fraction
             frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
             # how many codebooks to mask
-            n_masked = torch.ceil(C * frac_masked).long() # todo make sure this starts with exactly `C`-- or force it (to avoid numerical issues)
-            if fixed_schedule:
-                # hack to force a fixed schedule
-                n_masked = schedule[step]
+            n_masked = torch.ceil(C * frac_masked).long() # TODO @rfejgin: should we force this to be initialized to exactly `C` (to avoid numerical issues)?
             n_unmasked = C - n_masked
-            # pick top-confidence up to n_unmasked
+            # pick top-confidence codebooks up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
 
             # replace masks of the top-k confident codebooks with the the codes that were sampled for them
@@ -581,16 +570,17 @@ class MagpieTTSModel(ModelPT):
             probs = torch.softmax(logits_rescored / temperature, dim=-1) # (B, C, num_audio_tokens_per_codebook)
             sampled_codes = torch.multinomial(probs.view(B*C, -1), 1).view(B, C)
             if use_cfg:
-                # TODO: why do we need to keep second half of the batch? can probably optimize this
+                # TODO @rfejgin: why do we need to keep second half of the batch? can probably optimize this
                 sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
                 probs[actual_batch_size:] = probs[:actual_batch_size]
             confidences  = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
+
             # set confidence to max for unmasked codebooks so that they will remain unmasked
             confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
 
             # replace entries in sampled_codes with previously unmasked codebooks
             sampled_codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
-            # optionally: add noise to confidences (as in token-critic paper)
+            # optionally: add noise to confidences here (as in token-critic paper) (not implemented)
         
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
@@ -1163,17 +1153,16 @@ class MagpieTTSModel(ModelPT):
 
         local_transformer_loss = None
         local_transformer_logits = None
-        # TODO switch to new name
         use_maskgit = self.cfg.get('use_maskgit', False)
         if self.cfg.get('use_local_transformer', False) or use_maskgit:
             if use_maskgit:
-                # randomly replace some positions with MASK token
+                # randomly replace some positions with MASK_TOKEN
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
                 #audio_codes_masked = audio_codes_masked[:, 1:, :]
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
             else:            
-                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target)
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target, targets_offset_by_one=False)
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
             local_transformer_loss_scale = self.cfg.get('local_transformer_loss_scale', 1.0)
             loss = loss + local_transformer_loss_scale * local_transformer_loss
@@ -1625,9 +1614,10 @@ class MagpieTTSModel(ModelPT):
                 unifinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
-                # TODO switch to new name (use_maskgit)
-                if (self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference) or (self.cfg.get('use_maskgit', False) and use_maskgit_for_inference):
+                if (self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference) or \
+                   (self.cfg.get('use_maskgit', False) and use_maskgit_for_inference):
                     if not use_maskgit_for_inference:
+                        # Autoregressive sampling with local transformer
                         audio_codes_next = self.sample_codes_from_local_transformer(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
@@ -1638,8 +1628,9 @@ class MagpieTTSModel(ModelPT):
                             cfg_scale=cfg_scale
                         )
                     else:
-                            assert self.cfg.get("use_maskgit", False), "Can't inference with MaskGit if it wasn't enabled in training."
-                            audio_codes_next = self.maskgit_sample_codes(
+                        # MaskGit sampling with local transformer
+                        assert self.cfg.get("use_maskgit", False), "Can't inference with MaskGit if it wasn't enabled in training."
+                        audio_codes_next = self.maskgit_sample_codes(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
                             topk=topk,
@@ -1651,6 +1642,7 @@ class MagpieTTSModel(ModelPT):
                         )
                     all_codes_next_argmax = audio_codes_next
                 else:
+                    # Parallel sampling from all codebooks
                     audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
                     all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
 
