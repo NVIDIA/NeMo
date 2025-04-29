@@ -1,9 +1,9 @@
-import torch
 from typing import Optional
+
 import numpy as np
+import torch
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-
 from nemo.utils.enum import PrettyStrEnum
 
 # https://stackoverflow.com/a/77213071
@@ -11,8 +11,10 @@ MULTIPLIER = 6364136223846793005
 INCREMENT = 1
 MODULUS = 2**64
 
+
 def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
     return prev_hash * MULTIPLIER + INCREMENT + add_labels
+
 
 class BatchedBeamHypsCTC:
     """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
@@ -31,7 +33,7 @@ class BatchedBeamHypsCTC:
         self.INIT_POINTER_VALUE = -1
         self.INIT_PREFIX_HASH_VALUE = 0
         self.NON_EXISTENT_LABEL_VALUE = -1
-                
+
         self._max_length = init_length
         self.beam_size = beam_size
         self.blank_index = blank_index
@@ -43,18 +45,23 @@ class BatchedBeamHypsCTC:
             (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
         )
         self.transcript_wb_prev_ptr = torch.full(
-            (batch_size, self.beam_size, self._max_length), fill_value=self.INIT_POINTER_VALUE, device=device, dtype=torch.long
+            (batch_size, self.beam_size, self._max_length),
+            fill_value=self.INIT_POINTER_VALUE,
+            device=device,
+            dtype=torch.long,
         )
-        self.last_label = torch.full([batch_size, self.beam_size], fill_value=self.NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long)
+        self.last_label = torch.full(
+            [batch_size, self.beam_size], fill_value=self.NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
+        )
         self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
-        
+
         self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
         self.scores.fill_(self.INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
 
         self.batch_indices = torch.arange(self.batch_size, device=device)
-        self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)  
+        self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)
 
     def clear_(self):
         self.current_lengths_nb.fill_(0)
@@ -63,10 +70,10 @@ class BatchedBeamHypsCTC:
         self.timesteps.fill_(0)
         self.scores.fill_(self.INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
-        
+
         self.transcript_wb.fill_(0)
         self.transcript_wb_prev_ptr.fill_(self.INIT_POINTER_VALUE)
-        
+
         self.transcript_hash.fill_(0)
 
     def _allocate_more(self):
@@ -75,7 +82,7 @@ class BatchedBeamHypsCTC:
             (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
         )
         self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
-        
+
         self._max_length *= 2
 
     def add_results_(
@@ -87,7 +94,7 @@ class BatchedBeamHypsCTC:
         # if needed - increase storage
         if self.current_lengths_wb.max().item() >= self._max_length:
             self._allocate_more()
-            
+
         self.add_results_no_checks_(
             hyps_indices=hyps_indices,
             next_labels=next_labels,
@@ -111,7 +118,9 @@ class BatchedBeamHypsCTC:
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
-        self.current_lengths_nb.copy_(torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label)
+        self.current_lengths_nb.copy_(
+            torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
+        )
 
         self.last_label.copy_(torch.gather(self.last_label, dim=-1, index=hyps_indices))
         self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=hyps_indices))
@@ -121,17 +130,19 @@ class BatchedBeamHypsCTC:
             mask_to_update_mask,
             hash_text(self.transcript_hash, next_labels),
             self.transcript_hash,
-            out=self.transcript_hash
+            out=self.transcript_hash,
         )
-        
+
         self.last_label.copy_(next_labels)
-    
+
     def to_hyps_list(self, score_norm: bool = False) -> list[Hypothesis]:
-        normalized_scores = self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
+        normalized_scores = (
+            self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
+        )
         _, best_hyp_index = torch.max(normalized_scores, dim=-1)
-                
+
         scores = self.scores[self.batch_indices, best_hyp_index].tolist()
-        
+
         tokens_list = []
         max_idx = self.current_lengths_wb.max() - 1
         ptr = best_hyp_index
@@ -141,7 +152,7 @@ class BatchedBeamHypsCTC:
 
             max_idx -= 1
             tokens_list.insert(0, tokens)
-        
+
         transcripts = torch.stack(tokens_list, dim=1).cpu().detach().numpy()
         hypotheses = [
             Hypothesis(
@@ -154,12 +165,13 @@ class BatchedBeamHypsCTC:
             for i, _ in enumerate(range(self.batch_size))
         ]
         return hypotheses
-    
+
     def self_recombine_hyps_(self):
         if self.beam_size <= 1:
             return
         hyps_equal = (
-            (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
+            self.transcript_hash[:, :, None]
+            == self.transcript_hash[:, None, :]
             # & (self.last_label[:, :, None] == self.last_label[:, None, :]) # TODO check last nb token
         )
 
@@ -175,7 +187,8 @@ class BatchedBeamHypsCTC:
 
         new_scores = torch.max(scores_matrix, dim=-1, keepdim=False).values
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
-        
+
+
 class BlankLMScoreMode(PrettyStrEnum):
     """
     Defines the strategies for handling blank token scores in a external Ngram LM
