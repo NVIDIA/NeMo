@@ -70,7 +70,8 @@ class AutoTokenizer(TokenizerSpec):
         """
         try:
             self.tokenizer = self._initialize_tokenizer(
-                pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
+                pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code
+            )
             if self.tokenizer is False:
                 raise RuntimeError("Failed to init tokenizer")
         except Exception:
