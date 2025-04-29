@@ -590,7 +590,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
     def _before_process_batch(self):
         """
-        Clears state and compute initial active mask
+        Clears state and setups LM.
         """
         # step 1.1: reset state
         self.state.batched_hyps.clear_()
@@ -614,8 +614,10 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size * self.beam_size, bos=True)
             self.state.batch_lm_states.copy_(batch_lm_states.view(self.state.batch_size, self.beam_size))
         
-    def _process_batch(self): 
-        torch.cuda.set_sync_debug_mode(2)
+    def _process_batch(self):
+        """
+        Performs a decoding step.
+        """
         # step 2.1: getting the log probs and updating with LM scores
         log_probs = self.state.decoder_outputs.index_select(dim=1, index=self.state.curr_frame_idx)
         log_probs += self.state.batched_hyps.scores[:, :, None]
@@ -650,7 +652,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             preserve_state_mask = repeating_mask | blank_mask | ~self.state.active_mask
             
             # step 2.4.1: masking blanks and inactive labels to pass to LM, as LM does not support blanks
-            next_labels_masked = torch.where(blank_mask | ~ self.state.active_mask, 0, next_labels)
+            next_labels_masked = torch.where(blank_mask, 0, next_labels)
             
             # step 2.4.2: gathering LM states of extended hypotheses
             # batch_lm_states: [(BxBeam)]
@@ -669,13 +671,17 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
         self.state.batched_hyps.self_recombine_hyps_()
         
-        # step 2.5: updating frame idx and active masks
+        # step 2.6: updating frame idx and active masks
         self.state.curr_frame_idx.add_(1)
         torch.greater_equal(self.state.last_timesteps, self.state.curr_frame_idx, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
         torch.cuda.set_sync_debug_mode(0)
   
-    def _after_process_batch(self):     
+    def _after_process_batch(self):
+        """
+        Finalizes the decoding process by updating the LM scores with the end-of-sequence (eos) scores.
+        """
+        # step 3: updating LM scores with eos scores
         if self.ngram_lm_batch is not None:
             eos_score = self.ngram_lm_batch.get_final(self.state.batch_lm_states).view(self.state.batched_hyps.scores.shape)
             self.state.batched_hyps.scores += eos_score * self.beam_alpha
