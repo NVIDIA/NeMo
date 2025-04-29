@@ -69,10 +69,13 @@ class AutoTokenizer(TokenizerSpec):
                 any), yielding self.tokenizer(text).input_ids
         """
         try:
-            self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
+            self.tokenizer = self._initialize_tokenizer(
+                pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
+            if self.tokenizer is False:
+                raise RuntimeError("Failed to init tokenizer")
         except Exception:
             try:
-                self._initialize_tokenizer(
+                self.tokenizer = self._initialize_tokenizer(
                     pretrained_model_name, vocab_file, merges_file, not use_fast, trust_remote_code
                 )
             except Exception as e:
@@ -168,20 +171,20 @@ class AutoTokenizer(TokenizerSpec):
     ):
         # this logic deals with different huggingface tokenizers having different positional args
         if vocab_file is None:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+            return AUTOTOKENIZER.from_pretrained(
                 pretrained_model_name_or_path=pretrained_model_name,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
             )
         elif merges_file is None:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+            return AUTOTOKENIZER.from_pretrained(
                 pretrained_model_name_or_path=pretrained_model_name,
                 vocab_file=vocab_file,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
             )
         else:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+            return AUTOTOKENIZER.from_pretrained(
                 pretrained_model_name_or_path=pretrained_model_name,
                 vocab_file=vocab_file,
                 merges_file=merges_file,
