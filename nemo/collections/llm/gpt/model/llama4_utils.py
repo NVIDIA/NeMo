@@ -29,10 +29,11 @@ from torch import Tensor
 
 try:
     from flashattn_hopper.flash_attn_interface import _flash_attn_forward
-    from flashattn_hopper.flash_attn_interface import flash_attn_with_kvcache as flash_attn3_with_kvcache
 
     HAVE_FA3 = True
-except:
+except ImportError:
+    _flash_attn_forward = None
+
     HAVE_FA3 = False
 
 
@@ -204,7 +205,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
         inference_context = deprecate_inference_params(inference_context, inference_params)
 
         if inference_context and inference_context.is_dynamic_batching():
-            assert HAVE_FA3 or is_fa_min_version(
+            assert (HAVE_FA3 and _flash_attn_forward is not None) or is_fa_min_version(
                 "2.7.3"
             ), "flash attn verion v2.7.3 and above is required for dynamic batching."
 
