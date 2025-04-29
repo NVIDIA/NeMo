@@ -18,14 +18,14 @@ def get_changelog() -> List[Dict[str, Any]]:
         # Initialize the repo object - go up two levels from this file's location
         repo = git.Repo(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-        # Get the current branch (PR branch)
-        current = repo.active_branch
+        # Get the current commit
+        current = repo.commit()
 
         # Get the main branch
         main = repo.heads.main
 
         # Get all commits between current branch and main
-        commits = list(repo.iter_commits(f"{main.name}..{current.name}"))
+        commits = list(repo.iter_commits(f"{main.name}..{current}"))
 
         # Format the commits into a list of dictionaries
         changelog = []
