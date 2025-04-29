@@ -29,6 +29,20 @@ from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
+@torch.no_grad()
+def count_tail_ignore(labels):
+
+    # Flip along the last dimension (seq_len)
+    flipped = x.flip(dims=[1])
+    tail_mask = (flipped == -100)
+
+    # Compute cumulative product to "break" on first non -100
+    cumprod_mask = torch.cumprod(tail_mask.int(), dim=1)
+
+    # Count tail -100s by summing cumprod mask along the sequence dimension
+    return cumprod_mask.sum(dim=1).view(-1).sum()
+
+
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
@@ -309,7 +323,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if 'attention_mask' in batch:
             batch['attention_mask'] = batch['attention_mask'].float()
 
-        num_items_in_batch = torch.count_nonzero(labels != -100).item()
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
 
@@ -362,6 +375,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     # Replace labels with -100 where mask is 0 (don't compute loss for these positions)
                     # -100 is the default ignore index in PyTorch's cross entropy loss
                     labels = labels.masked_fill(loss_mask == 0, -100)
+                num_items_in_batch = torch.count_nonzero(labels != -100).item()
                 logit_softcapping = 0
                 loss = fused_linear_cross_entropy(
                     hidden_states=hidden_states,
@@ -371,7 +385,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     logit_softcapping=logit_softcapping,
                 )
         self.loss_buffer.append(loss.item())
-        self.n_tok += num_items_in_batch
+        self.n_tok += labels.numel() - count_tail_ignore(labels)
 
         return loss
 
