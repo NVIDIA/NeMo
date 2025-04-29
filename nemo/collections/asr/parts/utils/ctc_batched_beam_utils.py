@@ -7,7 +7,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils.enum import PrettyStrEnum
 
 # https://stackoverflow.com/a/77213071
-MULTIPLIER = 7
+MULTIPLIER = 6364136223846793005
 INCREMENT = 1
 MODULUS = 2**64
 

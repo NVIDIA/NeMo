@@ -446,7 +446,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             batched_beam_hyps.self_recombine_hyps_()
             
             print("Step: ", step)
-            print("scores: ", batched_beam_hyps.scores+self.ngram_lm_batch.get_final(batch_lm_states).view(batch_size, self.beam_size) * np.log10(np.e) * self.beam_alpha)
+            print("scores: ", batched_beam_hyps.scores)
             print("labels: ", batched_beam_hyps.transcript_wb[..., step])
             print("ptrs: ", batched_beam_hyps.transcript_wb_prev_ptr[..., step])
             step+=1
@@ -807,7 +807,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.state.batched_hyps.self_recombine_hyps_()
         
         self.state.curr_length.add_(1)
-        torch.greater(self.state.last_timesteps, self.state.curr_length, out=self.state.active_mask)
+        torch.greater_equal(self.state.last_timesteps, self.state.curr_length, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
         
         # torch.cuda.set_sync_debug_mode(0)
