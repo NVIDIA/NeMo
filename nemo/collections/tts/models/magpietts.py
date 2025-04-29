@@ -191,17 +191,13 @@ class MagpieTTSModel(ModelPT):
                 self.local_transformer_in_projection = nn.Linear(cfg.decoder.d_model, local_transformer_hidden_dim)
             else:
                 self.local_transformer_in_projection = nn.Identity()
-            if cfg.get('use_local_transformer_maskgit', False):
-                causal_lt = False
-            else:
-                causal_lt = True
             self.local_transformer = transformer_2501.Transformer(
                 n_layers=self.cfg.get('local_transformer_n_layers', 2),
                 d_model=local_transformer_hidden_dim,
                 d_ffn=local_transformer_hidden_dim*4,
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
-                is_causal=causal_lt,
+                is_causal=cfg.get('use_maskgit', False),
                 max_length_causal_mask=self.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
@@ -1171,7 +1167,7 @@ class MagpieTTSModel(ModelPT):
         local_transformer_loss = None
         local_transformer_logits = None
         # TODO switch to new name
-        use_maskgit = self.cfg.get('use_local_maskgit', False) or self.cfg.get('use_maskgit', False)
+        use_maskgit = self.cfg.get('use_maskgit', False)
         if self.cfg.get('use_local_transformer', False) or use_maskgit:
             if use_maskgit:
                 # randomly replace some positions with MASK token
@@ -1605,7 +1601,7 @@ class MagpieTTSModel(ModelPT):
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
                 # TODO switch to new name (use_maskgit)
-                if (self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference) or ((self.cfg.get('use_maskgit', False) or self.cfg.get('use_local_maskgit', False)) and use_maskgit_for_inference):
+                if (self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference) or (self.cfg.get('use_maskgit', False) and use_maskgit_for_inference):
                     if not use_maskgit_for_inference:
                         audio_codes_next = self.sample_codes_from_local_transformer(
                             dec_output=dec_out[:,-1,:],
@@ -1617,8 +1613,7 @@ class MagpieTTSModel(ModelPT):
                             cfg_scale=cfg_scale
                         )
                     else:
-
-                            assert self.cfg.get("use_local_maskgit", False), "Can't inference with MaskGit if it wasn't enabled in training."
+                            assert self.cfg.get("use_maskgit", False), "Can't inference with MaskGit if it wasn't enabled in training."
                             audio_codes_next = self.maskgit_sample_codes(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
