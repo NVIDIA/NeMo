@@ -733,7 +733,7 @@ def save_checkpoint(
                 if cfg.logger_config.log_progress and ckpt_cfg.async_save:
                     append_to_progress_log(
                         ckpt_cfg.save,
-                        f"Saved async checkpoint\tIteration: {iteration}",
+                        f"Saved async checkpoint\tIteration: {train_state_dict['step'].item()}",
                         barrier=False,
                     )
 
