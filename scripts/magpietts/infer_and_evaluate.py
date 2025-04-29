@@ -284,7 +284,7 @@ def run_inference(
         metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
                        'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
                        'ssim_pred_gt_avg_alternate', 'ssim_pred_context_avg_alternate', 'ssim_gt_context_avg_alternate',
-                       'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative', 'frechet_codec_distance'
+                       'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative'
                        ]
         metrics_mean_ci = compute_mean_and_confidence_interval(metrics_n_repeated, metric_keys, confidence=confidence_level)
         all_experiment_csv_with_ci = os.path.join(out_dir, "all_experiment_metrics_with_ci.csv")
