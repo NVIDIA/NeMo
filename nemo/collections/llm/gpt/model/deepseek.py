@@ -435,7 +435,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             moe_router_num_groups=source.n_group,
             moe_router_group_topk=source.topk_group,
             moe_router_topk_scaling_factor=source.routed_scaling_factor,
-            moe_aux_loss_coeff=source.aux_loss_alpha,
+            moe_aux_loss_coeff=getattr(source, "aux_loss_alpha", 0.001),
             kv_lora_rank=source.kv_lora_rank,
             qk_head_dim=source.qk_nope_head_dim,
             qk_pos_emb_head_dim=source.qk_rope_head_dim,
