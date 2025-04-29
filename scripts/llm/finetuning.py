@@ -104,7 +104,6 @@ def get_parser():
         type=int,
         help="Max steps.",
         required=False,
-        default=1000,
     )
     parser.add_argument(
         "--val-check-interval",
@@ -257,10 +256,11 @@ def main():
 
     finetune.trainer.val_check_interval = args.val_check_interval
     finetune.log.ckpt.save_top_k = args.save_top_k
-    finetune.trainer.max_steps = args.max_steps
-    if args.nodes is not None:
+    if args.max_steps:
+        finetune.trainer.max_steps = args.max_steps
+    if args.nodes:
         finetune.trainer.num_nodes = args.nodes
-    if args.devices is not None:
+    if args.devices:
         finetune.trainer.devices = args.devices
 
     # Change here and add your files to custom_mounts
