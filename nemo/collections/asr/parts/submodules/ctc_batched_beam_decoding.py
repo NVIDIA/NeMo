@@ -64,9 +64,6 @@ class BacthedBeamCTCState:
 
     curr_length: torch.Tensor
     
-    next_labels: torch.Tensor  # storage for next labels
-    next_scores: torch.Tensor  # storage for next scores
-    next_indices: torch.Tensor  # storage for next scores
     total_scores: torch.Tensor
     lm_scores: torch.Tensor
 
@@ -645,9 +642,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.state.batched_hyps.clear_()
 
         # last found labels - initially <SOS> (<blank>) symbol
-        self.state.next_scores.fill_(0.0)
-        self.state.next_labels.fill_(0.0)
-        self.state.next_indices.fill_(0.0)
         self.state.total_scores.fill_(INACTIVE_SCORE)
         self.state.curr_length.fill_(0)
         self.state.lm_scores.fill_(0.0)
@@ -704,32 +698,31 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         torch.logical_or(self.state.blank_mask[None, None, :], self.state.repeated_mask, out=self.state.repeated_or_blank_mask)
         torch.where(self.state.repeated_or_blank_mask, log_probs, log_probs + self.beam_beta, out=log_probs)
         
-        hyps_scores, hyps_candidates_indices = torch.topk(log_probs.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True)
+        next_scores, hyps_candidates_indices = torch.topk(log_probs.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True)
         
-        self.state.next_scores.copy_(hyps_scores)
-        self.state.next_indices.copy_(hyps_candidates_indices // self.state.vocab_size)
-        self.state.next_labels.copy_(torch.gather(self.state.batch_labels, dim=-1, index=(hyps_candidates_indices % self.state.vocab_size).unsqueeze(-1)).squeeze(2))
-        self.state.next_scores.view(self.state.batch_size, -1)[
-            self.state.next_scores.view(self.state.batch_size, -1) <= 
-            self.state.next_scores.view(self.state.batch_size, -1).max(dim=-1, keepdim=True).values - 
+        next_indices=hyps_candidates_indices // self.state.vocab_size
+        next_labels = torch.gather(self.state.batch_labels, dim=-1, index=(hyps_candidates_indices % self.state.vocab_size).unsqueeze(-1)).squeeze(2)
+        next_scores.view(self.state.batch_size, -1)[
+            next_scores.view(self.state.batch_size, -1) <= 
+            next_scores.view(self.state.batch_size, -1).max(dim=-1, keepdim=True).values - 
             self.beam_threshold
         ] = float('-inf')
         
-        torch.where(self.state.active_mask, self.state.next_labels, self.state.MINUS_ONE_TENSOR, out=self.state.next_labels)
+        torch.where(self.state.active_mask, next_labels, self.state.MINUS_ONE_TENSOR, out=next_labels)
         
         if self.ngram_lm_batch is not None:
-            repeating_mask = self.state.next_labels == torch.gather(self.state.batched_hyps.last_label, dim=-1, index=self.state.next_indices)
-            blank_mask = self.state.next_labels == self._blank_index
+            repeating_mask = next_labels == torch.gather(self.state.batched_hyps.last_label, dim=-1, index=next_indices)
+            blank_mask = next_labels == self._blank_index
             preserve_state_mask = repeating_mask | blank_mask | ~ self.state.active_mask
             
-            next_labels_masked = torch.where(blank_mask | ~ self.state.active_mask, 0, self.state.next_labels)
+            next_labels_masked = torch.where(blank_mask | ~ self.state.active_mask, 0, next_labels)
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
             self.state.batch_lm_states_candidates.copy_(
                 torch.gather(
                     self.state.batch_lm_states_candidates,
                     dim=1,
-                    index=self.state.next_indices[:, :, None].expand(
+                    index=next_indices[:, :, None].expand(
                         self.state.batch_size, self.beam_size, self.state.batch_lm_states_candidates.shape[-1]
                         ),
                 )
@@ -738,7 +731,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 torch.gather(
                     self.state.batch_lm_states, 
                     dim=1, 
-                    index=self.state.next_indices
+                    index=next_indices
                 )
             )
 
@@ -757,7 +750,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 )
             )
         
-        self.state.batched_hyps.add_results_no_checks_(self.state.next_indices, self.state.next_labels, self.state.next_scores)
+        self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
         self.state.batched_hyps.self_recombine_hyps_()
         
         self.state.curr_length.add_(1)
