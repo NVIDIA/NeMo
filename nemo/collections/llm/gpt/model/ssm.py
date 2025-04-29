@@ -34,8 +34,8 @@ try:
     from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
     from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
-    from megatron.core.tokenizers import MegatronTokenizerBase
     from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec as default_mamba_stack_spec
+    from megatron.core.tokenizers import MegatronTokenizerBase
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
