@@ -38,6 +38,7 @@ class Text(_Collection):
     class TextEntity:
         def __init__(self, tokens):
             self.tokens = tokens
+
     OUTPUT_TYPE = TextEntity
 
     def __init__(self, texts: List[str], parser: parsers.CharParser):
@@ -107,6 +108,7 @@ class AudioText(_Collection):
             self.speaker = speaker
             self.orig_sr = orig_sr
             self.lang = lang
+
     OUTPUT_TYPE = AudioTextEntity
 
     def __init__(
@@ -230,6 +232,7 @@ class VideoText(_Collection):
             self.speaker = speaker
             self.orig_sr = orig_sr
             self.lang = lang
+
     OUTPUT_TYPE = VideoTextEntity
 
     def __init__(
@@ -336,7 +339,19 @@ class InstructionTuningAudioText(_Collection):
     """`AudioText` collector from asr structured json files."""
 
     class InstructionTuningAudioTextEntity:
-        def __init__(self, id, context, context_type, context_duration, question, question_type, answer, answer_type, answer_duration, speaker):
+        def __init__(
+            self,
+            id,
+            context,
+            context_type,
+            context_duration,
+            question,
+            question_type,
+            answer,
+            answer_type,
+            answer_duration,
+            speaker,
+        ):
             self.id = id
             self.context = context
             self.context_type = context_type
@@ -347,6 +362,7 @@ class InstructionTuningAudioText(_Collection):
             self.answer_type = answer_type
             self.answer_duration = answer_duration
             self.speaker = speaker
+
     OUTPUT_TYPE = InstructionTuningAudioTextEntity
 
     def __init__(
@@ -836,6 +852,7 @@ class SpeechLabel(_Collection):
             self.duration = duration
             self.label = label
             self.offset = offset
+
     OUTPUT_TYPE = SpeechLabelEntity
 
     def __init__(
@@ -1002,6 +1019,7 @@ class FeatureSequenceLabel(_Collection):
         def __init__(self, feature_file, seq_label):
             self.feature_file = feature_file
             self.seq_label = seq_label
+
     OUTPUT_TYPE = FeatureSequenceLabelEntity
 
     def __init__(
@@ -1144,7 +1162,9 @@ class DiarizationLabel(_Collection):
     """List of diarization audio-label correspondence with preprocessing."""
 
     class DiarizationLabelEntity:
-        def __init__(self, audio_file, duration, rttm_file, offset, target_spks, sess_spk_dict, clus_spk_digits, rttm_spk_digits):
+        def __init__(
+            self, audio_file, duration, rttm_file, offset, target_spks, sess_spk_dict, clus_spk_digits, rttm_spk_digits
+        ):
             self.audio_file = audio_file
             self.duration = duration
             self.rttm_file = rttm_file
@@ -1153,6 +1173,7 @@ class DiarizationLabel(_Collection):
             self.sess_spk_dict = sess_spk_dict
             self.clus_spk_digits = clus_spk_digits
             self.rttm_spk_digits = rttm_spk_digits
+
     OUTPUT_TYPE = DiarizationLabelEntity
 
     def __init__(
@@ -1436,6 +1457,7 @@ class EndtoEndDiarizationLabel(_Collection):
             self.duration = duration
             self.rttm_file = rttm_file
             self.offset = offset
+
     OUTPUT_TYPE = EndtoEndDiarizationLabelEntity
 
     def __init__(
@@ -1649,6 +1671,7 @@ class Audio(_Collection):
             self.duration = duration
             self.offset = offset
             self.text = text
+
     OUTPUT_TYPE = AudioEntity
 
     def __init__(
@@ -1835,6 +1858,7 @@ class FeatureLabel(_Collection):
             self.feature_file = feature_file
             self.label = label
             self.duration = duration
+
     OUTPUT_TYPE = FeatureLabelEntity
 
     def __init__(
@@ -1971,7 +1995,9 @@ class FeatureText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
     class FeatureTextEntity:
-        def __init__(self, id, feature_file, rttm_file, duration, text_tokens, offset, text_raw, speaker, orig_sr, lang):
+        def __init__(
+            self, id, feature_file, rttm_file, duration, text_tokens, offset, text_raw, speaker, orig_sr, lang
+        ):
             self.id = id
             self.feature_file = feature_file
             self.rttm_file = rttm_file
@@ -1982,6 +2008,7 @@ class FeatureText(_Collection):
             self.speaker = speaker
             self.orig_sr = orig_sr
             self.lang = lang
+
     OUTPUT_TYPE = FeatureTextEntity
 
     def __init__(
