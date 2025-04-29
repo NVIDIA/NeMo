@@ -15,18 +15,17 @@ def get_changelog() -> List[Dict[str, Any]]:
     Returns a list of dictionaries containing commit information.
     """
     try:
-        # Initialize the repository
+        # Initialize the repo object
         repo = git.Repo(os.getcwd())
-        if repo.head.is_detached:
-            # Handle detached HEAD state by using the commit directly
-            current_commit = repo.head.commit
-            main_branch = 'main'
-            commits = list(repo.iter_commits(f'{main_branch}..{current_commit.hexsha}'))
-        else:
-            # Get the current branch
-            current_branch = repo.active_branch.name
-            main_branch = 'main'
-            commits = list(repo.iter_commits(f'{main_branch}..{current_branch}'))
+
+        # Get the current branch (PR branch)
+        current = repo.active_branch
+
+        # Get the main branch
+        main = repo.heads.main
+
+        # Get all commits between current branch and main
+        commits = list(repo.iter_commits(f"{main.name}..{current.name}"))
 
         # Format the commits into a list of dictionaries
         changelog = []
