@@ -19,9 +19,9 @@ import lightning.pytorch as L
 import torch
 import torch.nn.functional as F
 from megatron.core import parallel_state
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import Tensor, nn
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
 from nemo.collections.llm.bert.model import BertConfig, BertModel
 from nemo.collections.llm.bert.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
@@ -151,7 +151,7 @@ class BertEmbeddingModel(BertModel):
         config: BertConfig,
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config, optim, tokenizer, model_transform)

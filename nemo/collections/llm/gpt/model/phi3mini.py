@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
@@ -27,8 +28,6 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 if TYPE_CHECKING:
     from transformers import Phi3Config as HFPhi3Config
     from transformers import Phi3ForCausalLM
-
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -63,7 +62,7 @@ class Phi3Model(GPTModel):
         self,
         config: Optional[Phi3Config] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or Phi3Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
@@ -116,9 +115,12 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
     @property
     def tokenizer(self):
         # pylint: disable=C0115,C0116
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface", "model_type": "phi3mini"},
+        )
 
     @property
     def config(self) -> Phi3Config:

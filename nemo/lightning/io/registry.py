@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo.lightning.io.artifact import DirOrStringArtifact, FileArtifact
+from nemo.lightning.io.artifact import DirOrStringArtifact, FileArtifact, MCoreArtifact
 from nemo.lightning.io.mixin import track_io
 
 # Registers all required classes with track_io functionality
@@ -53,6 +53,16 @@ try:
     track_io(SentencePieceTokenizer, artifacts=[FileArtifact("model_path")])
     track_io(TiktokenTokenizer, artifacts=[FileArtifact("vocab_file")])
     track_io(ByteLevelTokenizer)
+except ImportError:
+    # Tokenizers are not available, no need to track it.
+    pass
+
+
+try:
+    # track MCore tokenizers
+    from megatron.core.tokenizers import MegatronTokenizerBase
+
+    track_io(MegatronTokenizerBase, artifacts=[MCoreArtifact("path")])
 except ImportError:
     # Tokenizers are not available, no need to track it.
     pass
