@@ -28,23 +28,26 @@ from nemo.deploy.utils import cast_output, str_ndarray2list
 
 AnyPath = Union[Path, str]
 
+
 def _load_connector_from_trainer_ckpt(path: AnyPath, target: str):
     # pylint: disable=C0116
 
     from nemo.lightning import io
+
     if not isinstance(path, Path):
         path = Path(path)
     return io.load_context(path, subpath="model").exporter(target, path)
+
 
 def _export_ckpt(
     path: AnyPath,
     target: str,
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
-    load_connector = _load_connector_from_trainer_ckpt,
+    load_connector=_load_connector_from_trainer_ckpt,
     **kwargs,
 ) -> Path:
-    """ A local copy of nemo.collections.llm.api.export_ckpt.
+    """A local copy of nemo.collections.llm.api.export_ckpt.
     Temporary solution, until the HF exporter is moved to the nemo-export package.
     """
     from nemo.lightning import io
