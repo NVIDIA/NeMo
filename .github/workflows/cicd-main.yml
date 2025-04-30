@@ -2302,8 +2302,8 @@ jobs:
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_Export_HF_TRT_LLM
       - L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2
-      - L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2_EP2
-      - L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_TP2_EP2
+      - L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2
+      - L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     permissions: write-all
