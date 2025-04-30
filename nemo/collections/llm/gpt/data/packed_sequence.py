@@ -46,7 +46,6 @@ def tokenize_dataset(
     if not dataset_kwargs:
         dataset_kwargs = {}
 
-    
     ts = dataset_kwargs.get("tool_schemas")
     if ts and not isinstance(ts, str):
         dataset_kwargs["tool_schemas"] = json.dumps(ts)
