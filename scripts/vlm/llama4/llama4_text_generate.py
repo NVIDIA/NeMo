@@ -16,7 +16,6 @@
 THIS SCRIPT NO LONGER WORKS. USE LLM GENERATION SCRIPT DIRECTLY.
 """
 
-from scripts.vlm.llama4.debugger import register_hooks
 import argparse
 from pathlib import Path
 
@@ -24,6 +23,7 @@ import torch
 import torch.distributed as dist
 from megatron.core import parallel_state
 from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+from scripts.vlm.llama4.debugger import register_hooks
 
 import nemo.lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer

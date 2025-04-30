@@ -4,7 +4,6 @@
 #
 #  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_tron_generate.py --model_name meta-llama/Llama-4-Scout-17B-16E-Instruct --tp 8
 
-from scripts.vlm.llama4.debugger import register_hooks
 import argparse
 import os
 import time
@@ -16,12 +15,13 @@ import torch.distributed as dist
 
 # Megatron-Core Inference Imports
 from megatron.core import parallel_state  # Needed for distributed checks
+from megatron.core.inference.contexts import StaticInferenceContext
 from megatron.core.inference.engines import StaticInferenceEngine
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.inference.text_generation.mcore_engine_server import ModelInferenceWrapperServer, run_mcore_engine
+from scripts.vlm.llama4.debugger import register_hooks
 from transformers import AutoTokenizer  # Keep for initial check/loading if needed, but primarily use build_tokenizer
-from megatron.core.inference.contexts import StaticInferenceContext
 
 from nemo.collections.llm import GPTConfig
 from nemo.collections.llm import GPTModel as ModelConfig

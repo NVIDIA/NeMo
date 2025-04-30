@@ -1,9 +1,11 @@
+import hashlib
+import inspect
+import json
+
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-import json
-import hashlib
-import inspect
+
 
 def tensor_fingerprint(tensor):
     """
@@ -22,15 +24,10 @@ def tensor_fingerprint(tensor):
             "min": float(cpu_tensor.min()),
             "max": float(cpu_tensor.max()),
             "mean": float(cpu_tensor.mean()),
-            "abs_sum": float(cpu_tensor.abs().sum())
+            "abs_sum": float(cpu_tensor.abs().sum()),
         }
     else:
-        stats = {
-            "min": None,
-            "max": None,
-            "mean": None,
-            "abs_sum": None
-        }
+        stats = {"min": None, "max": None, "mean": None, "abs_sum": None}
 
     # Flatten the tensor and extract sample elements.
     # flattened = cpu_tensor.flatten().tolist()
@@ -55,6 +52,7 @@ def tensor_fingerprint(tensor):
         # "samples": sample,
     }
 
+
 def safe_convert(obj):
     """
     Recursively convert objects into JSON-serializable representations.
@@ -75,6 +73,7 @@ def safe_convert(obj):
         except TypeError:
             return f"<non-serializable: {type(obj).__name__}>"
 
+
 def get_forward_arg_names(module, inputs):
     """
     Attempt to extract the forward() method's argument names (excluding 'self').
@@ -91,6 +90,7 @@ def get_forward_arg_names(module, inputs):
     except Exception:
         return [f"input{i}" for i in range(len(inputs))]
 
+
 def create_forward_hook(module_names):
     """
     Create a forward hook that logs:
@@ -98,6 +98,7 @@ def create_forward_hook(module_names):
       - A mapping of forward input argument names to their fingerprint.
       - The fingerprint of the output.
     """
+
     def forward_hook(module, inputs, output):
         global_name = module_names.get(id(module), module.__class__.__name__)
         input_names = get_forward_arg_names(module, inputs)
@@ -129,7 +130,9 @@ def create_forward_hook(module_names):
             with open(log_filename, "a") as f:
                 error_entry = {"module": global_name, "error": f"Serialization error: {str(e)}"}
                 f.write(json.dumps(error_entry) + "\n")
+
     return forward_hook
+
 
 def create_backward_hook(module_names):
     """
@@ -137,6 +140,7 @@ def create_backward_hook(module_names):
       - The module's hierarchical name.
       - Fingerprints of grad_input and grad_output.
     """
+
     def backward_hook(module, grad_input, grad_output):
         global_name = module_names.get(id(module), module.__class__.__name__)
         grad_input_summary = safe_convert(grad_input)
@@ -146,7 +150,7 @@ def create_backward_hook(module_names):
             "hook": "backward",
             "module": global_name,
             "grad_input": grad_input_summary,
-            "grad_output": grad_output_summary
+            "grad_output": grad_output_summary,
         }
 
         rank = dist.get_rank() if (dist.is_available() and dist.is_initialized()) else 0
@@ -162,7 +166,9 @@ def create_backward_hook(module_names):
             with open(log_filename, "a") as f:
                 error_entry = {"module": global_name, "error": f"Serialization error: {str(e)}"}
                 f.write(json.dumps(error_entry) + "\n")
+
     return backward_hook
+
 
 def register_hooks(model):
     """
@@ -171,8 +177,9 @@ def register_hooks(model):
     so that each log entry contains a global name (e.g., "layer1.block.MLP") instead of just the class name.
     """
     # Build mapping: module id -> hierarchical name.
-    module_names = {id(module): name if name != "" else module.__class__.__name__
-                    for name, module in model.named_modules()}
+    module_names = {
+        id(module): name if name != "" else module.__class__.__name__ for name, module in model.named_modules()
+    }
 
     # Create hook functions that share the module names mapping.
     forward_hook_fn = create_forward_hook(module_names)
