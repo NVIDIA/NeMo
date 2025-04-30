@@ -6,7 +6,6 @@ set -ex
 ALL_LIBRARIES=(
   "trtllm"
   "mcore"
-  "nemo"
   "vllm"
 )
 
@@ -229,47 +228,6 @@ vllm() {
       $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
   fi
 
-}
-
-nemo() {
-  local mode="$1"
-
-  if [[ "$mode" == "build" ]]; then
-    echo "No build supported for Nemo, directly install."
-    return
-  fi
-
-  NEMO_DIR=${NEMO_DIR:-"$INSTALL_DIR/NeMo"}
-  if [[ -n "$NEMO_TAG" ]]; then
-    if [ ! -d "$NEMO_DIR/.git" ]; then
-      rm -rf "$NEMO_DIR" &&
-        mkdir -p $(dirname "$NEMO_DIR") &&
-        cd $(dirname "$NEMO_DIR") &&
-        git clone ${NEMO_REPO}
-    fi &&
-      pushd $NEMO_DIR &&
-      git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
-      git fetch origin $NEMO_TAG &&
-      git checkout -f $NEMO_TAG
-  else
-    NEMO_DIR=$CURR
-  fi
-
-  DEPS=(
-    "llama-index==0.10.43"                                                                     # incompatible with nvidia-pytriton
-    "ctc_segmentation==1.7.1 ; (platform_machine == 'x86_64' and platform_system != 'Darwin')" # requires numpy<2.0.0 to be installed before
-    "nemo_run"                                                                                 # Not compatible in Python 3.12
-    "nvidia-modelopt[torch]==0.27.1 ; platform_system != 'Darwin'"                             # We want a specific version of nvidia-modelopt
-  )
-
-  echo 'Installing dependencies of nemo'
-  pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
-  pip install --no-cache-dir "${DEPS[@]}"
-  # needs no-deps to avoid installing triton on top of pytorch-triton.
-  pip install --no-deps --no-cache-dir "liger-kernel==0.5.8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
-  pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86aba72cfd2f0d8abecaf81c13c4528ea07d8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
-  echo 'Installing nemo itself'
-  pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
 
 echo 'Uninstalling stuff'
