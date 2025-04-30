@@ -591,7 +591,8 @@ def deploy(
         backend (str): options: "in-framework" or "trtllm". Deploys nemo2 checkpoint directly on Pytriton server w/o
             any conversion if "in-framework". If "trtllm", exports nemo2 model to trtllm and deploys on PyTriton.
             Default: "in-framework".
-        model_type (str): Type of the model for the "trtllm" backend option. Autodetected from checkpoint by default.
+        model_type (str): Type of the model for the "trtllm" backend option. Autodetected from the given nemo
+            checkpoint by default.
         triton_model_name (str): Name for the model that gets deployed on PyTriton. Please ensure that the same model
             name is passed to the evalute method for the model to be accessible while sending evalution requests.
             Default: 'triton_model'.
