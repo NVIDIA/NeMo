@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +13,14 @@
 # limitations under the License.
 
 import copy
-import os
-from typing import Any, Dict, List, Optional, Union, Tuple
-import math
-import numpy as np
-import tempfile
 import json
-from tqdm import tqdm
+import os
+import tempfile
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
+from tqdm import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
@@ -31,20 +28,26 @@ from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpe
 from nemo.collections.asr.data.audio_to_text_lhotse_target_language import LhotseSpeechToTextBpeDatasetTgtLangID
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.metrics.bleu import BLEU
-from nemo.core.classes.mixins import AccessMixin
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin, TranscribeConfig
-from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnType
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
+from nemo.core.classes.mixins import AccessMixin
+from nemo.core.neural_types import (
+    AcousticEncodedRepresentation,
+    AudioSignal,
+    LabelsType,
+    LengthsType,
+    NeuralType,
+    SpectrogramType,
+)
 from nemo.utils import logging, model_utils
-from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, SpectrogramType, LabelsType, AcousticEncodedRepresentation
+from pytorch_lightning import Trainer
 
 
 class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin):
@@ -54,59 +57,90 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
-        self._GLOBAL_LANG_MAP= {
-            # Group 1: 
-            'en-US': 0,   'en-GB': 1,   
-            'es-ES': 2,   'es-US': 3,   # Spanish variants
-            'zh-CN': 4,   'zh-TW': 5,   # Chinese variants
-            'hi-IN': 6,   'ar-AR': 7,   # Hindi & Arabic
-            'fr-FR': 8,   'de-DE': 9,   # French & German
-            'ja-JP': 10,  'ru-RU': 11,  # Japanese & Russian
-            'pt-BR': 12,  'pt-PT': 13,  # Portuguese variants
-            'ko-KR': 14,  'it-IT': 15,  # Korean & Italian
-
-            # Group 2: 
-            'nl-NL': 16,  'pl-PL': 17,  
-            'tr-TR': 18,  'uk-UA': 19,
-            'ro-RO': 20,  'el-GR': 21,
-            'cs-CZ': 22,  'hu-HU': 23,
-            'sv-SE': 24,  'da-DK': 25,
-            'fi-FI': 26,  'no-NO': 27,
-            'sk-SK': 28,  'hr-HR': 29,
-            'bg-BG': 30,  'lt-LT': 31,
-
-            # Group 3: 
-            'th-TH': 32,  'vi-VN': 33,
-            'id-ID': 34,  'ms-MY': 35,
-            'bn-IN': 36,  'ur-PK': 37,
-            'fa-IR': 38,  'ta-IN': 39,
-            'te-IN': 40,  'mr-IN': 41,
-            'gu-IN': 42,  'kn-IN': 43,
-            'ml-IN': 44,  'si-LK': 45,
-            'ne-NP': 46,  'km-KH': 47,
-
-            # Group 4: 
-            'sw-KE': 48,  'am-ET': 49,
-            'ha-NG': 50,  'zu-ZA': 51,
-            'yo-NG': 52,  'ig-NG': 53,
-            'af-ZA': 54,  'rw-RW': 55,
-            'so-SO': 56,  'ny-MW': 57,
-            'ln-CD': 58,  'or-KE': 59,
-
-
-            # Group 5: 
-            'he-IL': 64,  'ku-TR': 65,
-            'az-AZ': 66,  'ka-GE': 67,
-            'hy-AM': 68,  'uz-UZ': 69,
-            'tg-TJ': 70,  'ky-KG': 71,
-
-            'qu-PE': 80,  'ay-BO': 81,
-            'gn-PY': 82,  'nah-MX': 83,
-
-
-            # Group 7: 
-            'mi-NZ': 96,  'haw-US': 97,
-            'sm-WS': 98,  'to-TO': 99}
+        self._GLOBAL_LANG_MAP = {
+            # Group 1:
+            'en-US': 0,
+            'en-GB': 1,
+            'es-ES': 2,
+            'es-US': 3,  # Spanish variants
+            'zh-CN': 4,
+            'zh-TW': 5,  # Chinese variants
+            'hi-IN': 6,
+            'ar-AR': 7,  # Hindi & Arabic
+            'fr-FR': 8,
+            'de-DE': 9,  # French & German
+            'ja-JP': 10,
+            'ru-RU': 11,  # Japanese & Russian
+            'pt-BR': 12,
+            'pt-PT': 13,  # Portuguese variants
+            'ko-KR': 14,
+            'it-IT': 15,  # Korean & Italian
+            # Group 2:
+            'nl-NL': 16,
+            'pl-PL': 17,
+            'tr-TR': 18,
+            'uk-UA': 19,
+            'ro-RO': 20,
+            'el-GR': 21,
+            'cs-CZ': 22,
+            'hu-HU': 23,
+            'sv-SE': 24,
+            'da-DK': 25,
+            'fi-FI': 26,
+            'no-NO': 27,
+            'sk-SK': 28,
+            'hr-HR': 29,
+            'bg-BG': 30,
+            'lt-LT': 31,
+            # Group 3:
+            'th-TH': 32,
+            'vi-VN': 33,
+            'id-ID': 34,
+            'ms-MY': 35,
+            'bn-IN': 36,
+            'ur-PK': 37,
+            'fa-IR': 38,
+            'ta-IN': 39,
+            'te-IN': 40,
+            'mr-IN': 41,
+            'gu-IN': 42,
+            'kn-IN': 43,
+            'ml-IN': 44,
+            'si-LK': 45,
+            'ne-NP': 46,
+            'km-KH': 47,
+            # Group 4:
+            'sw-KE': 48,
+            'am-ET': 49,
+            'ha-NG': 50,
+            'zu-ZA': 51,
+            'yo-NG': 52,
+            'ig-NG': 53,
+            'af-ZA': 54,
+            'rw-RW': 55,
+            'so-SO': 56,
+            'ny-MW': 57,
+            'ln-CD': 58,
+            'or-KE': 59,
+            # Group 5:
+            'he-IL': 64,
+            'ku-TR': 65,
+            'az-AZ': 66,
+            'ka-GE': 67,
+            'hy-AM': 68,
+            'uz-UZ': 69,
+            'tg-TJ': 70,
+            'ky-KG': 71,
+            'qu-PE': 80,
+            'ay-BO': 81,
+            'gn-PY': 82,
+            'nah-MX': 83,
+            # Group 7:
+            'mi-NZ': 96,
+            'haw-US': 97,
+            'sm-WS': 98,
+            'to-TO': 99,
+        }
 
         # Tokenizer is necessary for this model
         if 'tokenizer' not in cfg:
@@ -280,30 +314,6 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
             pin_memory=config.get('pin_memory', False),
         )
 
-    # this function is taken from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_hidden_length_from_sample_length        
-    def get_hidden_length_from_sample_length(self,
-        num_samples: int, 
-        num_sample_per_mel_frame: int = 160, 
-        num_mel_frame_per_asr_frame: int = 8
-    ) -> int:
-        """ 
-        Calculate the hidden length from the given number of samples.
-
-        This function computes the number of frames required for a given number of audio samples,
-        considering the number of samples per mel frame and the number of mel frames per ASR frame.
-
-        Parameters:
-            num_samples (int): The total number of audio samples.
-            num_sample_per_mel_frame (int, optional): The number of samples per mel frame. Default is 160.
-            num_mel_frame_per_asr_frame (int, optional): The number of mel frames per ASR frame. Default is 8.
-
-        Returns:
-            hidden_length (int): The calculated hidden length in terms of the number of frames.
-        """
-        mel_frame_count = math.ceil((num_samples + 1) / num_sample_per_mel_frame)
-        hidden_length = math.ceil(mel_frame_count / num_mel_frame_per_asr_frame)
-        return int(hidden_length)
-        
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
@@ -321,14 +331,10 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
             A pytorch DataLoader for the given audio file(s).
         """
         if 'manifest_filepath' in config:
-            print("'manifest_filepath' in config")
             manifest_filepath = config['manifest_filepath']
             batch_size = config['batch_size']
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            # import pdb
-            # pdb.set_trace()
-            print(manifest_filepath)
             batch_size = min(config['batch_size'], len(config['paths2audio_files']))
 
         dl_config = {
@@ -348,7 +354,6 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
 
         if config.get("augmentor"):
             dl_config['augmentor'] = config.get("augmentor")
-
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
@@ -437,7 +442,9 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
 
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
                     encoded, encoded_len = self.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device), target_lang_id=test_batch[4].to(device)
+                        input_signal=test_batch[0].to(device),
+                        input_signal_length=test_batch[1].to(device),
+                        target_lang_id=test_batch[4].to(device),
                     )
                     best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                         encoded,
@@ -466,246 +473,6 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
                 self.decoder.unfreeze()
                 self.joint.unfreeze()
         return hypotheses, all_hypotheses
-    # def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
-    #     """
-    #     Setup function for a temporary data loader which wraps the provided audio file.
-
-    #     Args:
-    #         config: A python dictionary which contains the following keys:
-    #         paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-    #             Recommended length per file is between 5 and 25 seconds.
-    #         batch_size: (int) batch size to use during inference. \
-    #             Bigger will result in better throughput performance but would use more memory.
-    #         temp_dir: (str) A temporary directory where the audio manifest is temporarily
-    #             stored.
-
-    #     Returns:
-    #         A pytorch DataLoader for the given audio file(s).
-    #     """
-    #     if 'manifest_filepath' in config:
-    #         print("'manifest_filepath' in config")
-    #         manifest_filepath = config['manifest_filepath']
-    #         batch_size = config['batch_size']
-    #     else:
-    #         manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-    #         print(manifest_filepath)
-    #         batch_size = min(config['batch_size'], len(config['paths2audio_files']))
-
-    #     dl_config = {
-    #         'manifest_filepath': manifest_filepath,
-    #         'sample_rate': self.preprocessor._sample_rate,
-    #         'labels': self.joint.vocabulary,
-    #         'batch_size': batch_size,
-    #         'trim_silence': False,
-    #         'shuffle': False,
-    #         'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
-    #         'pin_memory': True,
-    #         'use_lhotse': True,
-    #         'use_bucketing': False,
-    #         'drop_last': False,
-    #         'initialize_target_lang_id_concatination': True,
-    #     }
-
-    #     if config.get("augmentor"):
-    #         dl_config['augmentor'] = config.get("augmentor")
-
-    #     temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
-    #     return temporary_datalayer
-
-    # @torch.no_grad()
-    # def transcribe(
-    #     self,
-    #     audio: List[str],
-    #     batch_size: int = 4,
-    #     return_hypotheses: bool = False,
-    #     partial_hypothesis: Optional[List['Hypothesis']] = None,
-    #     num_workers: int = 0,
-    #     # channel_selector: Optional[ChannelSelectorType] = None,
-    #     augmentor: DictConfig = None,
-    #     verbose: bool = True,
-    #     target_lang: str = None,
-    #     # override_config: Optional[TranscribeConfig] = None,
-    # ) -> TranscriptionReturnType:
-    #     """
-    #     Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
-
-    #     Args:
-    #         audio: (a single or list) of paths to audio files or a np.ndarray audio array.
-    #             Can also be a dataloader object that provides values that can be consumed by the model.
-    #             Recommended length per file is between 5 and 25 seconds. \
-    #             But it is possible to pass a few hours long file if enough GPU memory is available.
-    #         batch_size: (int) batch size to use during inference. \
-    #             Bigger will result in better throughput performance but would use more memory.
-    #         return_hypotheses: (bool) Either return hypotheses or text
-    #             With hypotheses can do some postprocessing like getting timestamp or rescoring
-    #         num_workers: (int) number of workers for DataLoader
-    #         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels 
-    #             from multi-channel audio. If set to `'average'`, it performs averaging across channels. 
-    #             Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
-    #         augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
-    #         verbose: (bool) whether to display tqdm progress bar
-    #         target_lang: (str) Target language code (e.g., "en-US", "de-DE") for transcription/translation
-    #         override_config: (Optional[TranscribeConfig]) Configuration overrides for transcription
-
-    #     Returns:
-    #         Returns a tuple of 2 items -
-    #         * A list of greedy transcript texts / Hypothesis
-    #         * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
-    #     """
-    #     if self.cur_decoder not in ["ctc", "rnnt"]:
-    #         raise ValueError(
-    #             f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
-    #         )
-
-    #     # Create or update the override config with target language info
-    #     config_dict = {}
-    #     if override_config is not None:
-    #         config_dict = {k: getattr(override_config, k) for k in override_config.__dict__ 
-    #                     if not k.startswith('_')}
-        
-    #     # Add target language to config if provided
-    #     if target_lang is not None:
-    #         config_dict['target_lang'] = target_lang
-
-    #     # Create a new TranscribeConfig or update the existing one
-    #     if config_dict and override_config is None:
-    #         override_config = TranscribeConfig(**config_dict)
-    #     elif config_dict:
-    #         for k, v in config_dict.items():
-    #             setattr(override_config, k, v)
-
-    #     return super().transcribe(
-    #         audio=audio,
-    #         batch_size=batch_size,
-    #         return_hypotheses=return_hypotheses,
-    #         partial_hypothesis=partial_hypothesis,
-    #         num_workers=num_workers,
-    #         channel_selector=channel_selector,
-    #         augmentor=augmentor,
-    #         verbose=verbose,
-    #         override_config=override_config,
-    #     )
-
-    # def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
-    #     """
-    #     Forward pass for transcription that handles target language codes
-    #     """
-    #     # Create language ID tensor if target language is specified
-    #     lang_id_tensor = None
-        
-    #     # Check if we have a target language specified
-    #     if hasattr(trcfg, 'target_lang') and trcfg.target_lang is not None:
-    #         # Convert string language code to numeric ID
-    #         try:
-    #             lang_id = self._GLOBAL_LANG_MAP[trcfg.target_lang]
-                
-    #             # Create a tensor for the language ID
-    #             batch_size = batch[0].size(0)
-    #             device = batch[0].device
-                
-    #             # Get the language embedding dimension from the model
-    #             embedding_dim = self.num_langs if hasattr(self, 'num_langs') else 128
-                
-    #             # Calculate encoder output length based on input audio
-    #             num_samples = batch[0].size(-1)
-    #             hidden_length = self.get_hidden_length_from_sample_length(
-    #                 num_samples,
-    #                 num_sample_per_mel_frame=160,  # Default value, adjust as needed
-    #                 num_mel_frame_per_asr_frame=8  # Default value, adjust as needed
-    #             )
-                
-    #             # Create the language ID tensor (batch_size, seq_len, embedding_dim)
-    #             lang_id_tensor = torch.zeros(batch_size, hidden_length, embedding_dim, device=device)
-                
-    #             # Set the corresponding language ID to 1 for all time steps
-    #             lang_id_tensor[:, :, lang_id] = 1
-                
-    #             print(f"Using target language: {trcfg.target_lang} (ID: {lang_id})")
-    #         except KeyError:
-    #             print(f"Warning: Unknown language code: {trcfg.target_lang}. Proceeding without language ID.")
-        
-    #     if self.cur_decoder == "rnnt":
-    #         # Forward pass with the language ID tensor
-    #         if lang_id_tensor is not None:
-    #             encoded, encoded_len = self.forward(
-    #                 input_signal=batch[0], 
-    #                 input_signal_length=batch[1],
-    #                 target_lang_id=lang_id_tensor
-    #             )
-                
-    #             # Apply decoder
-    #             best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-    #                 encoder_output=encoded,
-    #                 encoded_lengths=encoded_len,
-    #                 return_hypotheses=hasattr(trcfg, 'return_hypotheses') and trcfg.return_hypotheses,
-    #                 partial_hypotheses=hasattr(trcfg, 'partial_hypothesis') and trcfg.partial_hypothesis,
-    #             )
-                
-    #             return {"best_hyp": best_hyp, "all_hyp": all_hyp}
-    #         else:
-    #             # No language ID specified, call the parent method
-    #             return super()._transcribe_forward(batch, trcfg)
-    #     else:
-    #         # CTC Path
-    #         if lang_id_tensor is not None:
-    #             encoded, encoded_len = self.forward(
-    #                 input_signal=batch[0], 
-    #                 input_signal_length=batch[1],
-    #                 target_lang_id=lang_id_tensor
-    #             )
-    #         else:
-    #             encoded, encoded_len = self.forward(
-    #                 input_signal=batch[0], 
-    #                 input_signal_length=batch[1]
-    #             )
-            
-    #         logits = self.ctc_decoder(encoder_output=encoded)
-    #         output = dict(logits=logits, encoded_len=encoded_len)
-            
-    #         del encoded
-    #         return output
-
-    # def _transcribe_output_processing(
-    #     self, outputs, trcfg: TranscribeConfig
-    # ) -> Tuple[List['Hypothesis'], List['Hypothesis']]:
-    #     if self.cur_decoder == "rnnt":
-    #         return super()._transcribe_output_processing(outputs, trcfg)
-
-    #     # CTC Path
-    #     logits = outputs.pop('logits')
-    #     encoded_len = outputs.pop('encoded_len')
-
-    #     best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-    #         logits,
-    #         encoded_len,
-    #         return_hypotheses=trcfg.return_hypotheses,
-    #     )
-    #     logits = logits.cpu()
-
-    #     if trcfg.return_hypotheses:
-    #         # dump log probs per file
-    #         for idx in range(logits.shape[0]):
-    #             best_hyp[idx].y_sequence = logits[idx][: encoded_len[idx]]
-    #             if best_hyp[idx].alignments is None:
-    #                 best_hyp[idx].alignments = best_hyp[idx].y_sequence
-
-    #     # DEPRECATED?
-    #     # if logprobs:
-    #     #     for logit, elen in zip(logits, encoded_len):
-    #     #         logits_list.append(logit[:elen])
-
-    #     del logits, encoded_len
-
-    #     hypotheses = []
-    #     all_hypotheses = []
-
-    #     hypotheses += best_hyp
-    #     if all_hyp is not None:
-    #         all_hypotheses += all_hyp
-    #     else:
-    #         all_hypotheses += best_hyp
-
-    #     return (hypotheses, all_hypotheses)
 
     def change_vocabulary(
         self,
@@ -1394,131 +1161,6 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
         self.finalize_interctc_metrics(metrics, outputs, prefix="val_")
 
         return metrics
-
-
-    @classmethod
-    def list_available_models(cls) -> List[PretrainedModelInfo]:
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
-        Returns:
-            List of available pre-trained models.
-        """
-        results = []
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_en_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_en_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_de_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_de_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_it_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_it_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_it_fastconformer_hybrid_large_pc/versions/1.20.0/files/stt_it_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_es_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_es_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_es_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_es_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_hr_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_hr_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_hr_fastconformer_hybrid_large_pc/versions/1.21.0/files/FastConformer-Hybrid-Transducer-CTC-BPE-v256-averaged.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_ua_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_ua_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_ua_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_ua_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_pl_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_pl_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_pl_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_pl_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_by_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_by_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_by_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_by_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_ru_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_ru_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_ru_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_ru_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_fr_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_fr_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_fr_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_fr_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_multilingual_fastconformer_hybrid_large_pc_blend_eu",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_multilingual_fastconformer_hybrid_large_pc_blend_eu",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_multilingual_fastconformer_hybrid_large_pc_blend_eu/versions/1.21.0/files/stt_multilingual_fastconformer_hybrid_large_pc_blend_eu.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_multilingual_fastconformer_hybrid_large_pc",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_multilingual_fastconformer_hybrid_large_pc",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_multilingual_fastconformer_hybrid_large_pc/versions/1.21.0/files/stt_multilingual_fastconformer_hybrid_large_pc.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_en_fastconformer_hybrid_large_streaming_80ms",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_streaming_80ms",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_streaming_80ms/versions/1.20.0/files/stt_en_fastconformer_hybrid_large_streaming_80ms.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_en_fastconformer_hybrid_large_streaming_480ms",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_streaming_480ms",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_streaming_480ms/versions/1.20.0/files/stt_en_fastconformer_hybrid_large_streaming_480ms.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_en_fastconformer_hybrid_large_streaming_1040ms",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_streaming_1040ms",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_streaming_1040ms/versions/1.20.0/files/stt_en_fastconformer_hybrid_large_streaming_1040ms.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="stt_en_fastconformer_hybrid_large_streaming_multi",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_fastconformer_hybrid_large_streaming_multi",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_fastconformer_hybrid_large_streaming_multi/versions/1.20.0/files/stt_en_fastconformer_hybrid_large_streaming_multi.nemo",
-        )
-        results.append(model)
-
-        return results
 
     @property
     def bleu(self):
