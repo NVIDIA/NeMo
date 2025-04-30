@@ -579,7 +579,7 @@ class BatchedBeamHypsCTC:
         # non-blank/non-repeating and full lengths
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        
+
         # Initializing tree structure for hypothesis storing
         self.transcript_wb = torch.zeros(
             (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
@@ -599,26 +599,24 @@ class BatchedBeamHypsCTC:
             [batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=INACTIVE_SCORE
         )
         self.scores[:, 0].fill_(0.0)
-        
+
         self.last_label = torch.full(
             [batch_size, self.beam_size], fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
         )
         self.last_label_nb = torch.full(
             [batch_size, self.beam_size], fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
         )
-        
-        self.transcript_hash = torch.zeros(
-            [batch_size, self.beam_size], device=device, dtype=torch.long
-        )
+
+        self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
 
     def clear_(self):
         self.current_lengths_nb.fill_(0)
         self.current_lengths_wb.fill_(0)
-        
+
         self.transcript_wb.fill_(0)
         self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
         self.timesteps.fill_(0)
-        
+
         self.scores.fill_(INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
 
@@ -637,7 +635,7 @@ class BatchedBeamHypsCTC:
             (self.timesteps, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)), dim=-1
         )
         self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
-        
+
         self._max_length *= 2
 
     def add_results_(
@@ -654,7 +652,7 @@ class BatchedBeamHypsCTC:
             next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
             next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
         """
-        
+
         # if needed - increase storage
         if self.current_lengths_wb.max().item() + 1 >= self._max_length:
             self._allocate_more()
@@ -679,25 +677,25 @@ class BatchedBeamHypsCTC:
             next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
             next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
         """
-        
+
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(
             dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_indices.unsqueeze(-1)
         )
-        
+
         is_extended = next_labels >= 0
         is_extended_w_blank = next_labels == self.blank_index
         is_repeated = next_labels == torch.gather(self.last_label, dim=-1, index=next_indices)
-        is_rep_nb_label = (is_extended) & (~is_extended_w_blank) & (is_repeated) # repeat non-blank label
-        is_nrep_nb_label = (is_extended) & (~is_extended_w_blank) & (~is_repeated) # non-repeated non-blank label
-        
+        is_rep_nb_label = (is_extended) & (~is_extended_w_blank) & (is_repeated)  # repeat non-blank label
+        is_nrep_nb_label = (is_extended) & (~is_extended_w_blank) & (~is_repeated)  # non-repeated non-blank label
+
         self.current_lengths_nb.copy_(
             torch.gather(self.current_lengths_nb, dim=-1, index=next_indices) + is_nrep_nb_label
         )
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         self.scores.copy_(next_hyps_prob)
 
-        prev_transcript_hash=torch.gather(self.transcript_hash, dim=-1, index=next_indices)
+        prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=next_indices)
         # update hashes and prefix hashes
         torch.where(
             is_extended_w_blank | is_rep_nb_label,
@@ -732,11 +730,11 @@ class BatchedBeamHypsCTC:
         """
         if self.beam_size <= 1:
             return
-        
+
         hyps_equal = (
-            (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :]) &
-            (self.last_label_nb[:, :, None] == self.last_label_nb[:, None, :]) &
-            (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
+            (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
+            & (self.last_label_nb[:, :, None] == self.last_label_nb[:, None, :])
+            & (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
         )
 
         scores_matrix = torch.where(
@@ -750,8 +748,8 @@ class BatchedBeamHypsCTC:
         )
 
         new_scores = torch.max(scores_matrix, dim=-1, keepdim=False).values
-        torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)    
-        
+        torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
+
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
         """
         Converts the batched beam search results into a list of signle best hypotheses for each batch.
@@ -780,7 +778,7 @@ class BatchedBeamHypsCTC:
             for batch_idx in range(self.batch_size)
         ]
         return hypotheses
-    
+
     def to_nbest_hyps_list(self, score_norm: bool = True) -> list[NBestHypotheses]:
         """
         Converts the batched beam search results into a list of N-best hypotheses for each batch.
@@ -814,7 +812,7 @@ class BatchedBeamHypsCTC:
             )
             for batch_idx in range(self.batch_size)
         ]
-        return hypotheses    
+        return hypotheses
 
     def flatten_sort_(self):
         """
