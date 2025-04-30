@@ -71,7 +71,9 @@ class AutoTokenizer(TokenizerSpec):
                 any), yielding self.tokenizer(text).input_ids
         """
         try:
-            self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code, chat_template)
+            self._initialize_tokenizer(
+                pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code, chat_template
+            )
             assert self.tokenizer, "tokenizer not initialized"
         except Exception:
             try:
@@ -177,7 +179,7 @@ class AutoTokenizer(TokenizerSpec):
                 pretrained_model_name_or_path=pretrained_model_name,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
-                chat_template=chat_template
+                chat_template=chat_template,
             )
         elif merges_file is None:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
@@ -185,7 +187,7 @@ class AutoTokenizer(TokenizerSpec):
                 vocab_file=vocab_file,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
-                chat_template=chat_template
+                chat_template=chat_template,
             )
         else:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
@@ -194,7 +196,7 @@ class AutoTokenizer(TokenizerSpec):
                 merges_file=merges_file,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
-                chat_template=chat_template
+                chat_template=chat_template,
             )
 
     @property

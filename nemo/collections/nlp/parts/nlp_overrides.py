@@ -605,9 +605,7 @@ class NLPDDPStrategy(DDPStrategy):
                 # not adding jitter/anything complex since not concerned with stampede...
                 time.sleep(error_count * 5)
             else:
-                raise FileNotFoundError(
-                    f"Checkpoint at {checkpoint_path} not found. Aborting training."
-                )
+                raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
             torch.cuda.empty_cache()
             start_time = time.monotonic()
             checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path)

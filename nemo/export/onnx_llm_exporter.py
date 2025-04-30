@@ -15,7 +15,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -26,9 +26,9 @@ from nemo.deploy import ITritonDeployable
 from nemo.export.utils import get_example_inputs, get_model_device_type, is_nemo2_checkpoint, validate_fp8_network
 from nemo.utils import logging
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import tensorrt as trt
+
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -63,6 +63,7 @@ try:
 except ImportError:
     logging.warning("tensorrt is not available")
     use_trt = False
+
 
 # pylint: disable=line-too-long
 class OnnxLLMExporter(ITritonDeployable):

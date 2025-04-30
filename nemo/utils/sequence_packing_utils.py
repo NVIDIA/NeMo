@@ -177,7 +177,7 @@ def create_packing_strategy(
         'dataset_max_seqlen': max_seqlen,
         'max_samples_per_bin': max_samples_per_bin,
         'packing_factor': round(packing_factor, 2),
-        'packing_efficiency': round(sum(packed_seq_lens)/len(packed_seq_lens)/pack_size*100, 2),
+        'packing_efficiency': round(sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100, 2),
         'pack_size': pack_size,
     }
     logging.debug("Packed sequence lengths:")
@@ -237,8 +237,9 @@ def fill_packing_strategy(
                             ]
                         )[perm].tolist()
                     except KeyError as err:
-                        logging.error(f"Key errors mask, loss_mask and answer_start_idx missing in example - {err} {per_seq_data[0]}")
-                        loss_mask = None
+                        err_msg = f"Key errors mask, loss_mask and answer_start_idx missing in example - {err} {per_seq_data[0]}"
+                        logging.error(err_msg)
+                        raise ValueError(err_msg)
 
             ifile_handles[seq_len] = (input_ids, loss_mask)
 

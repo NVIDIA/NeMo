@@ -26,7 +26,9 @@ from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
 
 
-def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int, dataset_kwargs: Optional[dict]):
+def tokenize_dataset(
+    path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int, dataset_kwargs: Optional[dict]
+):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
     and prepares it for further processing.
@@ -44,15 +46,12 @@ def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, 
     if not dataset_kwargs:
         dataset_kwargs = {}
 
-    TEMPLATE_DIR = os.environ.get("TEMPLATE_DIR", "/app/services/customizer/src/shared/templates")
-    chat_template = dataset_kwargs.pop("chat_template", None)
-    if chat_template and dataset_kwargs.get("chat"):
-        chat_template = open(f"{TEMPLATE_DIR}/{chat_template}").read()
-
+    
     ts = dataset_kwargs.get("tool_schemas")
     if ts and not isinstance(ts, str):
         dataset_kwargs["tool_schemas"] = json.dumps(ts)
 
+    chat_template = dataset_kwargs.pop("chat_template", None)
     if chat_template:
         # Needs to be called after the trainer has started and populated the tokenizer
         # But it can't be in prepare_data because it is only called in Rank 0
