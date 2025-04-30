@@ -371,9 +371,13 @@ class TestCovarianceMatrix:
     @pytest.mark.unit
     @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
     @pytest.mark.parametrize('num_channels', [1, 3])
-    @pytest.mark.parametrize('num_freq', [17, 33, 65])
+    @pytest.mark.parametrize('num_freq', [17, 33])
     @pytest.mark.parametrize('use_mask', [True, False])
-    def test_calculate_covariance_matrix_vs_psd(self, num_channels: int, num_freq: int, use_mask: bool):
+    @pytest.mark.parametrize('normalize_mask', [True, False])
+    @pytest.mark.parametrize('mask_type', ['real', 'complex', 'bool'])
+    def test_calculate_covariance_matrix_vs_psd(
+        self, num_channels: int, num_freq: int, use_mask: bool, normalize_mask: bool, mask_type: str
+    ):
         """Test against reference calculation using torchaudio."""
         # Element-wise relative tolerance
         atol = 1e-5
@@ -387,19 +391,29 @@ class TestCovarianceMatrix:
         batch_size, num_steps = 8, 100
 
         # Reference calculation of multichannel covariance matrix
-        psd_ref = torchaudio.transforms.PSD(multi_mask=False, normalize=True, eps=1e-8)
+        psd_ref = torchaudio.transforms.PSD(multi_mask=False, normalize=normalize_mask, eps=1e-8)
 
         for n in range(num_examples):
 
             input = torch.randn(batch_size, num_channels, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
-            mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.float, generator=rng)
+
+            if mask_type == 'real':
+                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.float, generator=rng)
+            elif mask_type == 'complex':
+                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
+            elif mask_type == 'bool':
+                mask = torch.randint(0, 2, (batch_size, num_freq, num_steps), dtype=torch.bool, generator=rng)
+            else:
+                raise ValueError(f'Mask type {mask_type} not supported.')
 
             # UUT
-            uut = covariance_matrix(x=input, mask=mask if use_mask else None)
+            uut = covariance_matrix(x=input, mask=mask if use_mask else None, normalize_mask=normalize_mask)
 
             # Reference
-            # Note: No mask is same as using all ones with normalize=True
-            ref = psd_ref(specgram=input, mask=mask if use_mask else torch.ones_like(mask))
+            ref = psd_ref(specgram=input, mask=mask if use_mask else None)
+            if not use_mask:
+                # torchaudio is summing over time, divide by num_steps to have an average over time
+                ref = ref / num_steps
 
             # Check if the UUT matches the reference
             assert torch.allclose(uut, ref, atol=atol), f'Example {n}: UUT not matching the reference.'
@@ -408,7 +422,11 @@ class TestCovarianceMatrix:
     @pytest.mark.parametrize('num_channels', [1, 3])
     @pytest.mark.parametrize('num_freq', [3, 10])
     @pytest.mark.parametrize('use_mask', [True, False])
-    def test_calculate_covariance_matrix(self, num_channels: int, num_freq: int, use_mask: bool):
+    @pytest.mark.parametrize('normalize_mask', [True, False])
+    @pytest.mark.parametrize('mask_type', ['real', 'complex', 'bool'])
+    def test_calculate_covariance_matrix(
+        self, num_channels: int, num_freq: int, use_mask: bool, normalize_mask: bool, mask_type: str
+    ):
         """Test against simple reference calculation."""
         # Element-wise relative tolerance
         atol = 1e-5
@@ -424,10 +442,18 @@ class TestCovarianceMatrix:
         for n in range(num_examples):
 
             input = torch.randn(batch_size, num_channels, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
-            mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.float, generator=rng)
+
+            if mask_type == 'real':
+                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.float, generator=rng)
+            elif mask_type == 'complex':
+                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
+            elif mask_type == 'bool':
+                mask = torch.randint(0, 2, (batch_size, num_freq, num_steps), dtype=torch.bool, generator=rng)
+            else:
+                raise ValueError(f'Mask type {mask_type} not supported.')
 
             # UUT
-            uut = covariance_matrix(x=input, mask=mask if use_mask else None)
+            uut = covariance_matrix(x=input, mask=mask if use_mask else None, normalize_mask=normalize_mask)
 
             # Reference calculation
             ref = torch.zeros(batch_size, num_freq, num_channels, num_channels, num_steps, dtype=torch.cfloat)
@@ -438,16 +464,19 @@ class TestCovarianceMatrix:
                     for t in range(num_steps):
                         ref[b, f, :, :, t] = torch.outer(input[b, :, f, t], input[b, :, f, t].conj())
 
-            # average over time
+            # aggregate over time
             if use_mask:
-                # normalize the mask
-                mask = mask / (mask.sum(dim=-1, keepdim=True) + 1e-8)
+                # mask: weighted sum over time
+                if normalize_mask:
+                    # normalize the mask
+                    mask = mask / (mask.sum(dim=-1, keepdim=True) + 1e-8)
                 # apply the mask
                 ref = ref * mask[..., None, None, :]
+
                 # aggregate over time
                 ref = ref.sum(dim=-1)
             else:
-                # average over time
+                # no mask: average over time
                 ref = ref.mean(dim=-1)
 
             # Check if the UUT matches the reference
