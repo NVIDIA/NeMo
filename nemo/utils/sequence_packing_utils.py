@@ -177,16 +177,12 @@ def create_packing_strategy(
         "dataset_max_seqlen": max_seqlen,
         "max_samples_per_bin": max_samples_per_bin,
         "packing_factor": round(packing_factor, 2),
-        "packing_efficiency": round(
-            sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100, 2
-        ),
+        "packing_efficiency": round(sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100, 2),
         "pack_size": pack_size,
     }
     logging.debug("Packed sequence lengths:")
     logging.debug(packed_seq_lens)
-    logging.info(
-        f"Packing is {sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100:.2f}% efficient"
-    )
+    logging.info(f"Packing is {sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100:.2f}% efficient")
     logging.info(
         f">>>>> For pack size {pack_size}, average number of sequences per pack is n = {packing_factor:.3f} <<<<<"
     )
@@ -229,9 +225,7 @@ def fill_packing_strategy(
                 loss_mask = np.array([x["mask"] for x in per_seq_data])[perm].tolist()
             except KeyError:
                 try:
-                    loss_mask = np.array([x["loss_mask"] for x in per_seq_data])[
-                        perm
-                    ].tolist()
+                    loss_mask = np.array([x["loss_mask"] for x in per_seq_data])[perm].tolist()
                 except KeyError:
                     try:
                         loss_mask = np.array(
@@ -239,8 +233,7 @@ def fill_packing_strategy(
                                 [
                                     # (x['answer_start_idx'] - 1) because we want to train on the output
                                     # after the last context token
-                                    idx >= (x["answer_start_idx"] - 1)
-                                    and x["input_ids"][idx] != pad_id
+                                    idx >= (x["answer_start_idx"] - 1) and x["input_ids"][idx] != pad_id
                                     for idx in range(len(x["input_ids"]))
                                 ]
                                 for x in per_seq_data
@@ -276,10 +269,6 @@ def fill_packing_strategy(
         }
         output_data.append(item_dict)
 
-    assert all(not seq[0] for seq in ifile_handles.values()), (
-        "Error: There are items left over from the assignment"
-    )
-    assert all(not seq[1] for seq in ifile_handles.values()), (
-        "Error: There are items left over from the assignment"
-    )
+    assert all(not seq[0] for seq in ifile_handles.values()), "Error: There are items left over from the assignment"
+    assert all(not seq[1] for seq in ifile_handles.values()), "Error: There are items left over from the assignment"
     return output_data

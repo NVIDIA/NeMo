@@ -29,27 +29,15 @@ from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import (
-    BlendableDataset,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
-    GPTSFTChatDataset,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import (
-    GPTSFTDataset,
-    GPTSFTPackedDataset,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset, GPTSFTPackedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
-    MegatronGPTModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate,
-    get_computeprob_response,
-)
+from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -73,9 +61,7 @@ try:
     )
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning(
-        "Megatron num_microbatches_calculator not found, using Apex version."
-    )
+    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
     )
@@ -98,43 +84,25 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get("sep_id", 49704)
         if hasattr(self.cfg.data, "validation_ds"):
-            self.val_metric, self.val_metric_name = self.setup_metric(
-                self.cfg.data.validation_ds
-            )
-            self.val_metric = (
-                torch.nn.ModuleList(self.val_metric)
-                if self.val_metric is not None
-                else None
-            )
+            self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+            self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
             # Used other keys from metadata to calulate metrics
             if hasattr(self.cfg.data.validation_ds, "metric"):
-                self.val_metric_label_key = self.cfg.data.validation_ds.metric.get(
-                    "label_key", "labels"
-                )
+                self.val_metric_label_key = self.cfg.data.validation_ds.metric.get("label_key", "labels")
 
         if hasattr(self.cfg.data, "test_ds"):
-            self.test_metric, self.test_metric_name = self.setup_metric(
-                self.cfg.data.test_ds
-            )
-            self.test_metric = (
-                torch.nn.ModuleList(self.test_metric)
-                if self.test_metric is not None
-                else None
-            )
+            self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
+            self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
             # Used other keys from metadata to calulate metrics
             if hasattr(self.cfg.data.test_ds, "metric"):
-                self.test_metric_label_key = self.cfg.data.test_ds.metric.get(
-                    "label_key", "labels"
-                )
+                self.test_metric_label_key = self.cfg.data.test_ds.metric.get("label_key", "labels")
 
         # Set the profile start and end steps in the unit of global batach
         if hasattr(self, "_nsys_profile_enabled"):
             self._nsys_profile_start_step = self.cfg.nsys_profile.get("start_step", 0)
             self._nsys_profile_end_step = self.cfg.nsys_profile.get("end_step", 0)
         if hasattr(self, "_memory_profile_enabled"):
-            self._memory_profile_start_step = self.cfg.memory_profile.get(
-                "start_step", 0
-            )
+            self._memory_profile_start_step = self.cfg.memory_profile.get("start_step", 0)
             self._memory_profile_end_step = self.cfg.memory_profile.get("end_step", 0)
 
         self.virtual_tokens = 0
@@ -175,10 +143,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                         "Class labels are not provided properly in the metric section witnin the data config. "
                         f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
                     )
-                if (
-                    len(data_cfg.metric.get("class_labels", None))
-                    != data_cfg.metric.num_classes
-                ):
+                if len(data_cfg.metric.get("class_labels", None)) != data_cfg.metric.num_classes:
                     raise ValueError(
                         f"Number of class labels {len(data_cfg.metric.get('class_labels', None))} does not match `num_classes` : {data_cfg.metric.num_classes}"
                     )
@@ -215,13 +180,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return set(["f1", "accuracy", "average_precision"])
 
     def maybe_setup_test(self):
-        if (
-            hasattr(self.cfg.data, "test_ds")
-            and self.cfg.data.test_ds.get("file_names", None) is not None
-        ):
-            self._test_dl = self.setup_eval_dataloader(
-                self._test_ds, self.cfg.data.test_ds
-            )
+        if hasattr(self.cfg.data, "test_ds") and self.cfg.data.test_ds.get("file_names", None) is not None:
+            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
         return
 
     def setup(self, stage=None):
@@ -230,9 +190,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         resume_checkpoint_path = self.trainer.ckpt_path
         self.setup_complete = True
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
-                resume_checkpoint_path
-            )
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -247,17 +205,13 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self, "_train_ds"):
             self.setup_training_dataloader()
         if hasattr(self, "_validation_ds"):
-            self._validation_dl = self.setup_eval_dataloader(
-                self._validation_ds, self.cfg.data.validation_ds
-            )
+            self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
         self.maybe_setup_test()
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         self.initialize_last_rank_embeddings()
 
-        if self.cfg.get("transformer_engine", False) or self.cfg.get(
-            "mcore_gpt", False
-        ):
+        if self.cfg.get("transformer_engine", False) or self.cfg.get("mcore_gpt", False):
             self.setup_transformer_engine_tp_groups()
             self.setup_transformer_engine_cp_groups()
         self.setup_complete = True
@@ -268,9 +222,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Determine if we are using a single dataset or a list of datasets.
         is_list_config = isinstance(data_cfg.file_names, ListConfig)
         if not is_list_config:
-            raise ValueError(
-                "SFT train/validation datasets must be provided as a list of individual JSONL files."
-            )
+            raise ValueError("SFT train/validation datasets must be provided as a list of individual JSONL files.")
 
         if is_train:
             # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
@@ -285,9 +237,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                     )
                 )
 
-            if len(data_cfg.get("concat_sampling_probabilities", None)) != len(
-                data_cfg.file_names
-            ):
+            if len(data_cfg.get("concat_sampling_probabilities", None)) != len(data_cfg.file_names):
                 raise ValueError(
                     (
                         "concat_sampling_probabilities must be of the same size as file_names.",
@@ -296,9 +246,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 )
 
             data_prefix = []
-            for weight, prefix in zip(
-                data_cfg.concat_sampling_probabilities, data_cfg.file_names
-            ):
+            for weight, prefix in zip(data_cfg.concat_sampling_probabilities, data_cfg.file_names):
                 data_prefix.append(weight)
                 data_prefix.append(prefix)
 
@@ -307,12 +255,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                     f"Trainer max_steps must be set to a positive integer. Found {self.trainer.max_steps}"
                 )
             num_train_samples = [self.trainer.max_steps * data_cfg.global_batch_size]
-            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(
-                data_prefix, num_train_samples
-            )
-            num_train_samples_after_blend = sum(
-                [x[0] for x in num_train_samples_per_dataset]
-            )
+            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
+            num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
         else:
             num_train_samples_per_dataset = [[None]] * len(data_cfg.file_names)
 
@@ -330,36 +274,23 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # When using sequence parallel, sequence will further be split by TP size
         # When using context parallel, sequence is split by CP size as well
         pad_seq_length_to_mult = (
-            8 * self.cfg.get("tensor_model_parallel_size", 1)
-            if self.cfg.get("sequence_parallel", False)
-            else 16
+            8 * self.cfg.get("tensor_model_parallel_size", 1) if self.cfg.get("sequence_parallel", False) else 16
         )
         pad_seq_length_to_mult *= self.cfg.get("context_parallel_size", 1)
 
         dataset_kwargs = {}
-        for file_path, num_samples in zip(
-            data_cfg.file_names, num_train_samples_per_dataset
-        ):
+        for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
             if packed_sequence:
                 dataset_cls = GPTSFTPackedDataset
-                dataset_kwargs = {
-                    "return_cu_seqlen": data_cfg.get(
-                        "packed_sequence_return_cu_seqlen", True
-                    )
-                }
-                assert data_cfg.micro_batch_size == 1, (
-                    "Micro batch size must be 1 if using packed sequence"
-                )
+                dataset_kwargs = {"return_cu_seqlen": data_cfg.get("packed_sequence_return_cu_seqlen", True)}
+                assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             elif self.cfg.data.get("chat", False):
                 dataset_cls = GPTSFTChatDataset
             else:
                 dataset_cls = GPTSFTDataset
 
             # TODO(akoumparouli): MCore assumes/requires equal length input sequences.
-            if (
-                not data_cfg.get("pad_to_max_length", False)
-                and self.cfg.get("expert_model_parallel_size", 1) > 1
-            ):
+            if not data_cfg.get("pad_to_max_length", False) and self.cfg.get("expert_model_parallel_size", 1) > 1:
                 raise ValueError("Expert parallelism requires pad_to_max_length")
 
             dataset = dataset_cls(
@@ -381,9 +312,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 index_mapping_dir=data_cfg.get("index_mapping_dir", None),
                 prompt_template=data_cfg.get("prompt_template", None),
                 ceil_to_power_2=data_cfg.get("ceil_to_power_2", False),
-                get_attention_mask_from_fusion=data_cfg.get(
-                    "get_attention_mask_from_fusion", True
-                ),
+                get_attention_mask_from_fusion=data_cfg.get("get_attention_mask_from_fusion", True),
                 global_sample_mapping=data_cfg.get("global_sample_mapping", False),
                 virtual_tokens=self.virtual_tokens,
                 tokens_to_generate=data_cfg.get(
@@ -407,9 +336,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             datasets.append(dataset)
         if is_train:
             if packed_sequence:
-                num_train_samples_after_blend = sum(
-                    len(dataset) for dataset in datasets
-                )
+                num_train_samples_after_blend = sum(len(dataset) for dataset in datasets)
             dataset = BlendableDataset(
                 datasets=datasets,
                 weights=data_cfg.concat_sampling_probabilities,
@@ -448,9 +375,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         _, seq_length = batch["tokens"].shape
-        data_iter = get_iterator_k_split(
-            batch, get_num_microbatches(), self.enforce_divisible_batch
-        )
+        data_iter = get_iterator_k_split(batch, get_num_microbatches(), self.enforce_divisible_batch)
 
         if log_token_counts:
             self.log("seq_length_padded", seq_length, prog_bar=True, batch_size=1)
@@ -466,11 +391,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         no_sync_func = None
         grad_sync_func = None
         param_sync_func = None
-        if (
-            not forward_only
-            and self.with_distributed_adam
-            and not self.use_mcore_dist_optim
-        ):
+        if not forward_only and self.with_distributed_adam and not self.use_mcore_dist_optim:
             no_sync_func = partial(
                 self._optimizer.no_sync,
                 greedy_grad_copy=self.megatron_amp_O2,
@@ -483,25 +404,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
 
                 if self.cfg.optim.get("delay_grad_reduce", True):
-                    grad_sync_func = [
-                        model_chunk.start_grad_sync for model_chunk in self.model
-                    ]
-                    grad_sync_func = (
-                        grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
-                    )
-            if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get(
-                "delay_param_gather", False
-            ):
+                    grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
+                    grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
+            if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
                 param_sync_func = [
-                    lambda x,
-                    model_index=model_index: self._optimizer.finish_param_sync(
-                        model_index, x
-                    )
+                    lambda x, model_index=model_index: self._optimizer.finish_param_sync(model_index, x)
                     for model_index in range(len(self.model))
                 ]
-                param_sync_func = (
-                    param_sync_func[0] if len(self.model) == 1 else param_sync_func
-                )
+                param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
 
         for module in self.get_model_module_list():
             module.config.no_sync_func = no_sync_func
@@ -513,9 +423,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(
-                tuning=True, validation_step=forward_only
-            ),
+            forward_step_func=self.get_forward_output_and_loss_func(tuning=True, validation_step=forward_only),
             data_iterator=self._make_data_iterator_list(data_iter),
             model=self.model,
             num_microbatches=get_num_microbatches(),
@@ -536,10 +444,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                         non_loss_tensors[k] = av
             if (not forward_only) or self.cfg.data.get("validation_drop_last", True):
                 # average loss across micro batches
-                loss_tensors_list = [
-                    loss_reduced["avg"]
-                    for loss_reduced in losses_reduced_per_micro_batch
-                ]
+                loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
                 loss_mean = loss_tensor.mean()
             else:
@@ -564,9 +469,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         # if forward_only:
         # return loss_mean
-        if (
-            non_loss_tensors
-        ):  # TODO: need a nicer way to do this via inheritance (@adithyare)
+        if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
             return loss_mean, non_loss_tensors
         else:
             return loss_mean
@@ -579,70 +482,45 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def inference_step(self, dataloader_iter, mode):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
-        data_cfg = (
-            self.cfg.data.validation_ds
-            if mode == "validation"
-            else self.cfg.data.test_ds
-        )
+        data_cfg = self.cfg.data.validation_ds if mode == "validation" else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
-        outputs = self.inference_step_validation_call(
-            batch, batch_idx, data_cfg, dataloader_idx
-        )
+        outputs = self.inference_step_validation_call(batch, batch_idx, data_cfg, dataloader_idx)
 
         if mode == "validation":
-            if (
-                isinstance(self.trainer.val_dataloaders, list)
-                and len(self.trainer.val_dataloaders) > 1
-            ):
+            if isinstance(self.trainer.val_dataloaders, list) and len(self.trainer.val_dataloaders) > 1:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[dataloader_idx][-1] = outputs
             else:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[-1] = outputs
         else:
-            if (
-                isinstance(self.trainer.test_dataloaders, list)
-                and len(self.trainer.test_dataloaders) > 1
-            ):
+            if isinstance(self.trainer.test_dataloaders, list) and len(self.trainer.test_dataloaders) > 1:
                 self.test_step_outputs[dataloader_idx][-1] = outputs
             else:
                 self.test_step_outputs[-1] = outputs
         return outputs
 
-    def inference_step_validation_call(
-        self, batch, batch_idx, data_cfg, dataloader_idx=0
-    ):
+    def inference_step_validation_call(self, batch, batch_idx, data_cfg, dataloader_idx=0):
         metadata = batch.get("metadata", [{}] * len(batch["tokens"]))
         # Pass dataloader_idx, as it's needed in val_step of GPTModel to append the loss correctly to self.val/test_step_outputs
         # in case of multi dataloaders
         loss = super().validation_step(itertools.chain([batch]), dataloader_idx)
 
-        if (
-            data_cfg.get("write_predictions_to_file", False)
-            or data_cfg.metric.name != "loss"
-        ):
+        if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != "loss":
             # We need _inference_config to get generation params
             # add_BOS and tokens_to_generate are set in dataset
             if self.get_inference_config() is None:
                 self.set_inference_config(inference_config={})
             self._inference_config["add_BOS"] = data_cfg.add_bos
-            self._inference_config["tokens_to_generate"] = data_cfg.get(
-                "tokens_to_generate"
-            )
+            self._inference_config["tokens_to_generate"] = data_cfg.get("tokens_to_generate")
 
             output = self.predict_step(batch, batch_idx, dataloader_idx)
             if output:
-                inputs_text = [
-                    self.tokenizer.ids_to_text(c.tolist()) for c in batch["contexts"]
-                ]
-                labels_text = [
-                    self.tokenizer.ids_to_text(a.tolist()) for a in batch["answers"]
-                ]
+                inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch["contexts"]]
+                labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch["answers"]]
                 preds_text = [
-                    self.tokenizer.ids_to_text(
-                        t[l.item() :][: data_cfg.get("tokens_to_generate")]
-                    )
+                    self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get("tokens_to_generate")])
                     for t, l in zip(output["token_ids"], batch["context_lengths"])
                 ]
             else:
@@ -659,13 +537,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         }
         return outputs
 
-    def gather_and_maybe_write_predictions(
-        self, output, data_cfg, mode, averaged_metric, dataloader_idx=0
-    ):
+    def gather_and_maybe_write_predictions(self, output, data_cfg, mode, averaged_metric, dataloader_idx=0):
         # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
-        gathered_outputs = [
-            None for _ in range(parallel_state.get_data_parallel_world_size())
-        ]
+        gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
         torch.distributed.all_gather_object(
             gathered_outputs,
             [
@@ -700,28 +574,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                         deduplicated_outputs["inputs"].append(input)
                         deduplicated_outputs["metadata"].append(metadata)
                     else:
-                        logging.info(
-                            f"skipping autogenerated example example {input} prediction {pred} label {label}"
-                        )
+                        logging.info(f"skipping autogenerated example example {input} prediction {pred} label {label}")
 
         # Compute metric score
-        metric_name = (
-            self.val_metric_name if mode == "validation" else self.test_metric_name
-        )
-        metric_label_key = (
-            self.val_metric_label_key
-            if mode == "validation"
-            else self.test_metric_label_key
-        )
+        metric_name = self.val_metric_name if mode == "validation" else self.test_metric_name
+        metric_label_key = self.val_metric_label_key if mode == "validation" else self.test_metric_label_key
         if metric_name != "loss":
-            metric_log_key = self._determine_log_key(
-                data_cfg, dataloader_idx, metric_name, mode
-            )
-            metric_fn = (
-                self.val_metric[dataloader_idx]
-                if mode == "validation"
-                else self.test_metric[dataloader_idx]
-            )
+            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+            metric_fn = self.val_metric[dataloader_idx] if mode == "validation" else self.test_metric[dataloader_idx]
             if metric_label_key in deduplicated_outputs["metadata"][0]:
                 labels = [m[metric_label_key] for m in deduplicated_outputs["metadata"]]
             else:
@@ -752,16 +612,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             )
 
             # Check if the user provided a prefix path to the file(s) they want to write.
-            if (
-                not hasattr(data_cfg, "output_file_path_prefix")
-                or data_cfg.output_file_path_prefix is None
-            ):
+            if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
                 raise ValueError(
                     "Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                 )
-            filename_log_key = self._determine_log_key(
-                data_cfg, dataloader_idx, None, mode
-            )
+            filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
             self.write_predictions_to_file(
                 deduplicated_outputs,
                 f"{data_cfg.output_file_path_prefix}_{filename_log_key}",
@@ -792,10 +647,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 else:
                     # Compute the avg loss by total_loss across all samples / total number of samples
                     total_loss_and_total_samples = torch.vstack(loss_vals).sum(axis=0)
-                    avg_loss = (
-                        total_loss_and_total_samples[0]
-                        / total_loss_and_total_samples[1]
-                    )
+                    avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
                     loss = avg_loss.type(torch.float32).cuda()
             else:
                 loss = torch.tensor(0.0, dtype=torch.float32).cuda()
@@ -806,30 +658,20 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self.log("val_loss", loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
-            loss_log_key = self._determine_log_key(
-                data_cfg, dataloader_idx, "loss", mode
-            )
+            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
-            self.gather_and_maybe_write_predictions(
-                output, data_cfg, mode, averaged_metric, dataloader_idx
-            )
+            self.gather_and_maybe_write_predictions(output, data_cfg, mode, averaged_metric, dataloader_idx)
 
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
             outputs[dataloader_idx].clear()  # free memory
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = (
-            sum(averaged_metric) / len(averaged_metric)
-            if len(averaged_metric) >= 1
-            else None
-        )
+        averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) >= 1 else None
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
-        if averaged_metric is not None and (
-            torch.isinf(averaged_metric) or torch.isnan(averaged_metric)
-        ):
+        if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
             app_state = AppState()
             monitor_mode = app_state.checkpoint_callback_params.mode
             assert monitor_mode in ["min", "max"]
@@ -857,9 +699,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             )
         # When running `trainer.validate()`, the training dataset is not available.
         else:
-            logging.warning(
-                "No training data found, reconfiguring microbatches based on validation batch sizes."
-            )
+            logging.warning("No training data found, reconfiguring microbatches based on validation batch sizes.")
             reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
@@ -870,9 +710,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         return averaged_loss, averaged_metric
 
-    def predict_step(
-        self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None
-    ) -> Any:
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
         # need to overwrite some configuration, make it immutable
         inference_config = inference_config.copy()
@@ -904,10 +742,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=global_batch_size_per_gpu
-            * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=global_batch_size_per_gpu
-            // num_micro_batches_before_decode,
+            global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_size_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
@@ -917,10 +753,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
         with open(output_file_path, "w") as f_json:
             assert (
-                len(outputs["inputs"])
-                == len(outputs["preds"])
-                == len(outputs["labels"])
-                == len(outputs["metadata"])
+                len(outputs["inputs"]) == len(outputs["preds"]) == len(outputs["labels"]) == len(outputs["metadata"])
             )
             for i, p, l, m in zip(
                 outputs["inputs"],
@@ -936,9 +769,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         logging.info(f"Predictions saved to {output_file_path}")
 
-    def cast_for_metric(
-        self, pred, label, metric_name, class_labels=None, labels_are_strings=False
-    ):
+    def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
         if metric_name == "exact_string_match" or "rouge" in metric_name:
             return pred, label
         pred = pred.replace(" ", "")
@@ -961,10 +792,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             label = torch.FloatTensor([label]).to(self.device)
 
         # Other metrics require casting to integers.
-        elif (
-            metric_name in self._metrics_require_string2category_map
-            and not labels_are_strings
-        ):
+        elif metric_name in self._metrics_require_string2category_map and not labels_are_strings:
             # Text-to-text model predictions may not always be valid integers.
             try:
                 pred = int(pred)
@@ -980,19 +808,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             label = torch.LongTensor([label]).to(self.device)
 
         # If labels are strings, we need to convert them to indices for some metrics.
-        elif (
-            metric_name in self._metrics_require_string2category_map
-            and labels_are_strings
-        ):
+        elif metric_name in self._metrics_require_string2category_map and labels_are_strings:
             # Cast string labels to integers before computing the metric.
             if pred not in class_labels:
                 pred = 0  # If the prediction is not in the class labels, use the first class label.
             else:
                 pred = class_labels.index(pred)
             if label not in class_labels:
-                raise ValueError(
-                    f"Ground truth labe; {label} is not in the class labels list : {class_labels}"
-                )
+                raise ValueError(f"Ground truth labe; {label} is not in the class labels list : {class_labels}")
             label = class_labels.index(label)
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
@@ -1007,21 +830,18 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # This should happen only on the last batch of the dataset.
         if (
             global_batch_size_per_gpu
-            != get_current_global_batch_size()
-            // parallel_state.get_data_parallel_world_size()
+            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
         ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             if (
                 global_batch_size_per_gpu
-                != data_cfg.global_batch_size
-                // parallel_state.get_data_parallel_world_size()
+                != data_cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
                 reconfigure_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
-                    global_batch_size=global_batch_size_per_gpu
-                    * parallel_state.get_data_parallel_world_size(),
+                    global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
                     micro_batch_size=global_batch_size_per_gpu,
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
@@ -1037,10 +857,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 )
 
     def maybe_build_test(self):
-        if (
-            hasattr(self.cfg.data, "test_ds")
-            and self.cfg.data.test_ds.get("file_names", None) is not None
-        ):
+        if hasattr(self.cfg.data, "test_ds") and self.cfg.data.test_ds.get("file_names", None) is not None:
             logging.info("Building GPT SFT test datasets.")
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
@@ -1051,9 +868,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if stage != "test":
             logging.info("Building GPT SFT validation datasets.")
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
-            self._validation_ds = self._build_dataset(
-                self.cfg.data.validation_ds, is_train=False
-            )
+            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
             if self._validation_ds:
                 logging.info(f"Length of val dataset: {len(self._validation_ds[0])}")
 
@@ -1142,16 +957,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return self.on_test_epoch_start()
 
     def on_test_epoch_end(self):
-        _ = self.inference_epoch_end(
-            self.test_step_outputs, "test", self.cfg.data.test_ds
-        )
+        _ = self.inference_epoch_end(self.test_step_outputs, "test", self.cfg.data.test_ds)
         # Commenting as on_test_epoch_end was a no-op in PTL 1.9
         # return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
-        _ = self.inference_epoch_end(
-            self.validation_step_outputs, "validation", self.cfg.data.validation_ds
-        )
+        _ = self.inference_epoch_end(self.validation_step_outputs, "validation", self.cfg.data.validation_ds)
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
         # return super().on_validation_epoch_end()
 
