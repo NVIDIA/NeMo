@@ -86,6 +86,7 @@ jobs:
     needs: [pre-flight]
     runs-on: ubuntu-latest
     environment: test
+    if: ${{ !startsWith(github.ref_name, 'bump-ci-container') }}
     steps:
       - name: Running CI tests
         run: |
@@ -93,8 +94,9 @@ jobs:
 
   cicd-test-container-build:
     uses: ./.github/workflows/_build_container.yml
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     needs: [pre-flight, code-linting, cicd-wait-in-queue]
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]' && (always() || needs.cicd-wait-in-queue.result == 'skipped')
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
