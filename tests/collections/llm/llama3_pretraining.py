@@ -168,6 +168,25 @@ def main():
         os.path.join(args.experiment_dir, exp_name),
     )
 
+    if args.profiler:
+        exp_path = os.path.join(args.experiment_dir, exp_name)
+        trace_root = os.path.join(exp_path, "traces")
+        device_dir = os.path.join(trace_root, "device")
+        host_dir = os.path.join(trace_root, "host")
+
+        assert os.path.isdir(device_dir), f"Missing device traces directory: {device_dir}"
+        assert os.path.isdir(host_dir), f"Missing host traces directory: {host_dir}"
+
+        device_jsons = [f for f in os.listdir(device_dir) if f.endswith(".json")]
+        host_jsons = [f for f in os.listdir(host_dir) if f.endswith(".json")]
+
+        assert (
+            len(device_jsons) == args.devices
+        ), f"Expected {args.devices} JSON files in {device_dir}, found {len(device_jsons)}"
+        assert (
+            len(host_jsons) == args.devices
+        ), f"Expected {args.devices} JSON files in {host_dir}, found {len(host_jsons)}"
+
 
 if __name__ == '__main__':
     main()
