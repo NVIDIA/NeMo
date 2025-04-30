@@ -83,6 +83,10 @@ def train(
         checkpointing_context: Context dictionary for checkpointing.
         process_non_loss_data_func: Optional function to process non-loss data during evaluation.
         non_loss_data_func: Optional function to compute non-loss data during evaluation.
+
+    Warnings:
+        This is an experimental API and is subject to change in backwards
+        incompatible ways without notice.
     """
     config: ConfigContainer = global_state.cfg
     model_config = get_model_config(model[0])
