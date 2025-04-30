@@ -299,7 +299,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
         curr_batch_size, curr_max_time, vocab_size = decoder_outputs.shape
 
-        # zeros_column = torch.zeros([curr_batch_size, self.beam_size, 1], device=decoder_outputs.device, dtype=torch.long)
         vocab = torch.arange(vocab_size, device=decoder_outputs.device, dtype=torch.long)
         vocab_blank_mask = vocab == self._blank_index
 
@@ -386,13 +385,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             eos_score = self.ngram_lm_batch.get_final(batch_lm_states).view(batched_beam_hyps.scores.shape)
             batched_beam_hyps.scores += eos_score * self.beam_alpha
 
-        nbest_hypotheses = []
-        for decoder_outputs in batched_beam_hyps.to_hyps_list():
-            # Wrap the result in NBestHypothesis.
-            hypotheses = rnnt_utils.NBestHypotheses([decoder_outputs])
-            nbest_hypotheses.append(hypotheses)
-
-        return nbest_hypotheses
+        return batched_beam_hyps
 
     def batched_beam_search_cuda_graphs(
         self,
@@ -443,13 +436,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
-        nbest_hypotheses = []
-        for decoder_outputs in self.state.batched_hyps.to_hyps_list():
-            # Wrap the result in NBestHypothesis.
-            hypotheses = rnnt_utils.NBestHypotheses([decoder_outputs])
-            nbest_hypotheses.append(hypotheses)
-
-        return nbest_hypotheses[:curr_batch_size]
+        return self.state.batched_hyps
+        
 
     @classmethod
     def _create_process_batch_kernel(cls):

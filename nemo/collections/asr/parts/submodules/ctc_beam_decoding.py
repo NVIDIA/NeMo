@@ -964,27 +964,21 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             packed list containing batch number of sentences (Hypotheses).
         """
         with torch.no_grad(), torch.inference_mode():
-            # Process each sequence independently
-            prediction_tensor = decoder_output
-
-            if prediction_tensor.ndim != 3:
+            if decoder_output.ndim != 3:
                 raise ValueError(
                     f"`decoder_output` must be a tensor of shape [B, T, V] (log probs, float). "
-                    f"Provided shape = {prediction_tensor.shape}"
+                    f"Provided shape = {decoder_output.shape}"
                 )
 
-            # determine type of input - logprobs or labels
-            out_len = decoder_lengths if decoder_lengths is not None else None
-            hypotheses = self.search_algorithm(prediction_tensor, out_len)
+            batched_beam_hyps = self.search_algorithm(decoder_output, decoder_lengths)
+            
+            batch_size=decoder_lengths.shape[0]
+            if self.return_best_hypothesis:
+                hyps=batched_beam_hyps.to_hyps_list()[:batch_size]
+            else:
+                hyps=batched_beam_hyps.to_nbest_hyps_list()[:batch_size]
 
-            # Pack results into Hypotheses
-            packed_result = pack_hypotheses(hypotheses, decoder_lengths)
-
-            # Pack the result
-            if self.return_best_hypothesis and isinstance(packed_result[0], rnnt_utils.NBestHypotheses):
-                packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
-
-        return (packed_result,)
+        return (hyps,)
 
 
 @dataclass
