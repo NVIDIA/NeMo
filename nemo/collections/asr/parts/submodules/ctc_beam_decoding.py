@@ -45,7 +45,7 @@ def pack_hypotheses(
         else:
             logitlen_cpu = logitlen
 
-    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils NBestHypotheses
+    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.NBestHypotheses
         for candidate_idx, cand in enumerate(hyp.n_best_hypotheses):
             cand.y_sequence = torch.tensor(cand.y_sequence, dtype=torch.long)
 
@@ -243,8 +243,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.preserve_alignments = preserve_alignments
         self.compute_timestamps = compute_timestamps
 
-        self.timer = SimpleTimer()
-
         if self.compute_timestamps:
             raise ValueError("Currently this flag is not supported for beam search algorithms.")
 
@@ -321,9 +319,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
             # determine type of input - logprobs or labels
             out_len = decoder_lengths if decoder_lengths is not None else None
-            self.timer.start(device=decoder_lengths.device)
             hypotheses = self.search_algorithm(prediction_tensor, out_len)
-            self.timer.stop(device=decoder_lengths.device)
 
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, decoder_lengths)
