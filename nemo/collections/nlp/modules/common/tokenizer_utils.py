@@ -19,13 +19,13 @@ from nemo.utils import logging
 
 from .huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 
-__all__ = ['get_tokenizer', 'get_tokenizer_list']
+__all__ = ["get_tokenizer", "get_tokenizer_list"]
 
 
 megatron_tokenizer_model_map = {
-    'BertWordPieceLowerCase': 'megatron-bert-345m-uncased',
-    'BertWordPieceCase': 'megatron-bert-345m-cased',
-    'GPT2BPETokenizer': 'megatron-gpt-345m',
+    "BertWordPieceLowerCase": "megatron-bert-345m-uncased",
+    "BertWordPieceCase": "megatron-bert-345m-cased",
+    "GPT2BPETokenizer": "megatron-gpt-345m",
 }
 
 
@@ -84,7 +84,10 @@ def get_tokenizer(
     import omegaconf
     from omegaconf import OmegaConf
 
-    if isinstance(special_tokens, (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig)):
+    if isinstance(
+        special_tokens,
+        (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig),
+    ):
         special_tokens = OmegaConf.to_container(special_tokens)
 
     if special_tokens is None:
@@ -92,7 +95,7 @@ def get_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
-    if 'megatron' in tokenizer_name:
+    if "megatron" in tokenizer_name:
         try:
             from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
                 get_megatron_merges_file,
@@ -109,8 +112,10 @@ def get_tokenizer(
             merges_file = get_megatron_merges_file(tokenizer_name)
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
-    if tokenizer_name == 'sentencepiece':
-        from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+    if tokenizer_name == "sentencepiece":
+        from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+            SentencePieceTokenizer,
+        )
 
         logging.info("tokenizer_model: " + str(tokenizer_model))
         return SentencePieceTokenizer(
@@ -119,28 +124,37 @@ def get_tokenizer(
             legacy=True,
             chat_template=chat_template,
         )
-    elif tokenizer_name == 'tiktoken':
-        from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
+    elif tokenizer_name == "tiktoken":
+        from nemo.collections.common.tokenizers.tiktoken_tokenizer import (
+            TiktokenTokenizer,
+        )
 
-        return TiktokenTokenizer(vocab_file=vocab_file, special_tokens=special_tokens['additional_special_tokens'])
-    elif tokenizer_name == 'word':
+        return TiktokenTokenizer(
+            vocab_file=vocab_file,
+            special_tokens=special_tokens["additional_special_tokens"],
+        )
+    elif tokenizer_name == "word":
         from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
-    elif tokenizer_name == 'char':
+    elif tokenizer_name == "char":
         from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
-    elif tokenizer_name == 'regex':
+    elif tokenizer_name == "regex":
         from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 
-        return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
+        return RegExTokenizer().load_tokenizer(
+            regex_file=tokenizer_model, vocab_file=vocab_file
+        )
 
     logging.info(
         f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, "
         f"merges_files: {merges_file}, special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
     )
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+        AutoTokenizer,
+    )
 
     tokenizer = AutoTokenizer(
         pretrained_model_name=tokenizer_name,
@@ -155,7 +169,7 @@ def get_tokenizer(
 
 
 def get_nmt_tokenizer(
-    library: str = 'sentencepiece',
+    library: str = "sentencepiece",
     model_name: Optional[str] = None,
     tokenizer_model: Optional[str] = None,
     vocab_file: Optional[str] = None,
@@ -185,20 +199,26 @@ def get_nmt_tokenizer(
     import omegaconf
     from omegaconf import OmegaConf
 
-    if isinstance(special_tokens, (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig)):
+    if isinstance(
+        special_tokens,
+        (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig),
+    ):
         special_tokens = OmegaConf.to_container(special_tokens)
     if special_tokens is None:
         special_tokens_dict = {}
     else:
         special_tokens_dict = special_tokens
 
-    if (library != 'byte-level') and (
-        model_name is None and (tokenizer_model is None or not os.path.isfile(tokenizer_model))
+    if (library != "byte-level") and (
+        model_name is None
+        and (tokenizer_model is None or not os.path.isfile(tokenizer_model))
     ):
         raise ValueError("No Tokenizer path provided or file does not exist!")
 
-    if library == 'huggingface':
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    if library == "huggingface":
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+            AutoTokenizer,
+        )
 
         logging.info(f'Getting HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
         tokenizer = AutoTokenizer(
@@ -216,7 +236,7 @@ def get_nmt_tokenizer(
     elif library == 'sentencepiece':
         from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
-        logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
+        logging.info(f"Getting SentencePiece with model: {tokenizer_model}")
 
         return SentencePieceTokenizer(
             model_path=tokenizer_model,
@@ -224,20 +244,25 @@ def get_nmt_tokenizer(
             legacy=legacy,
             chat_template=chat_template,
         )
-    elif library == 'byte-level':
-        from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
+    elif library == "byte-level":
+        from nemo.collections.common.tokenizers.bytelevel_tokenizers import (
+            ByteLevelTokenizer,
+        )
 
-        logging.info('Using byte-level tokenization')
+        logging.info("Using byte-level tokenization")
         return ByteLevelTokenizer(special_tokens_dict)
-    elif library == 'regex':
+    elif library == "regex":
         from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 
-        logging.info('Using regex tokenization')
-        return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
-    elif library == 'megatron':
-
-        if model_name == 'GPTSentencePieceTokenizer':
-            from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+        logging.info("Using regex tokenization")
+        return RegExTokenizer().load_tokenizer(
+            regex_file=tokenizer_model, vocab_file=vocab_file
+        )
+    elif library == "megatron":
+        if model_name == "GPTSentencePieceTokenizer":
+            from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+                SentencePieceTokenizer,
+            )
 
             logging.info("tokenizer_model: ")
             logging.info(tokenizer_model)
@@ -256,15 +281,19 @@ def get_nmt_tokenizer(
             special_tokens=special_tokens_dict,
             chat_template=chat_template,
         )
-    elif library == 'tabular':
-        from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
+    elif library == "tabular":
+        from nemo.collections.common.tokenizers.tabular_tokenizer import (
+            TabularTokenizer,
+        )
 
         return TabularTokenizer(vocab_file, delimiter=delimiter)
-    elif library == 'tiktoken':
-        from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
+    elif library == "tiktoken":
+        from nemo.collections.common.tokenizers.tiktoken_tokenizer import (
+            TiktokenTokenizer,
+        )
 
         return TiktokenTokenizer(vocab_file=vocab_file)
-    elif library == 'null':
+    elif library == "null":
         assert vocab_size is not None
         from nemo.collections.common.tokenizers.null_tokenizer import NullTokenizer
 

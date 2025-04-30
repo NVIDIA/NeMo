@@ -22,11 +22,19 @@ import numpy as np
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.utils import logging
-from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
+from nemo.utils.sequence_packing_utils import (
+    create_hist,
+    create_packing_strategy,
+    fill_packing_strategy,
+)
 
 
 def tokenize_dataset(
-    path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int, dataset_kwargs: Optional[dict]
+    path: Path,
+    tokenizer: TokenizerSpec,
+    max_seq_length: int,
+    seed: int,
+    dataset_kwargs: Optional[dict],
 ):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
@@ -95,11 +103,17 @@ def prepare_packed_sequence_data(
     """
 
     logging.info(f"Preparing packed sequence from {input_path}")
-    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, dataset_kwargs)
+    dataset = tokenize_dataset(
+        input_path, tokenizer, max_seq_length, seed, dataset_kwargs
+    )
     sequences, histogram = create_hist(dataset, max_seq_length)
 
-    assignments, packing_metadata = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)
-    output_data = fill_packing_strategy(assignments, sequences, packed_sequence_size, tokenizer.eos_id)
+    assignments, packing_metadata = create_packing_strategy(
+        histogram, packed_sequence_size, packing_algorithm
+    )
+    output_data = fill_packing_strategy(
+        assignments, sequences, packed_sequence_size, tokenizer.eos_id
+    )
 
     # save output data
     np.save(output_path, output_data)
@@ -115,7 +129,9 @@ def prepare_packed_sequence_data(
                 # Each dict records two values: 'max_samples_per_bin', the max
                 # number of samples per packed sequence, and 'dataset_max_seqlen', the max
                 # sequence length per sample in the packed dataset.
-                assert isinstance(packing_metadata_file, list), "invalid packing_metadata_file!"
+                assert isinstance(packing_metadata_file, list), (
+                    "invalid packing_metadata_file!"
+                )
         except FileNotFoundError:
             packing_metadata_file = []
 
@@ -165,18 +181,18 @@ class PackedSequenceSpecs:
     def __post_init__(self):
         if self.packed_train_data_path is not None:
             self.packed_train_data_path = Path(self.packed_train_data_path)
-            assert (
-                self.packed_train_data_path.suffix == ".npy"
-            ), f"packed training data file must be a .npy file: {self.packed_train_data_path}"
-            assert (
-                self.packed_train_data_path.exists()
-            ), f"packed training data file does not exist: {self.packed_train_data_path}"
+            assert self.packed_train_data_path.suffix == ".npy", (
+                f"packed training data file must be a .npy file: {self.packed_train_data_path}"
+            )
+            assert self.packed_train_data_path.exists(), (
+                f"packed training data file does not exist: {self.packed_train_data_path}"
+            )
 
         if self.packed_val_data_path is not None:
             self.packed_val_data_path = Path(self.packed_val_data_path)
-            assert (
-                self.packed_val_data_path.suffix == ".npy"
-            ), f"packed validation data file must be a .npy file: {self.packed_val_data_path}"
-            assert (
-                self.packed_val_data_path.exists()
-            ), f"packed validation data file does not exist: {self.packed_val_data_path}"
+            assert self.packed_val_data_path.suffix == ".npy", (
+                f"packed validation data file must be a .npy file: {self.packed_val_data_path}"
+            )
+            assert self.packed_val_data_path.exists(), (
+                f"packed validation data file does not exist: {self.packed_val_data_path}"
+            )
