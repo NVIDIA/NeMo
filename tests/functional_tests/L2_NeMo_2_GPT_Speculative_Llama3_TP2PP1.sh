@@ -16,13 +16,12 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/modelopt/test_speculative_training.py \
     --name 'test_speculative_training' \
     --model_path /tmp/nemo2_ckpt \
-    --tokenizer gpt2 \
     --tp_size 2 \
     --cp_size 1 \
     --pp_size 1 \
     --devices 2 \
     --num_nodes 1 \
-    --log_dir /tmp/distill_logs \
+    --log_dir /tmp/speculative_logs \
     --max_steps 5 \
     --gbs 4 \
     --mbs 1 \
