@@ -56,10 +56,17 @@ def get_parser():
         help="Path to the checkpoint to resume training from. If not provided, the model will be initialized from the HF model.",
         required=False,
     )
+    # TODO add resume_dir?
     parser.add_argument(
         "--data-path",
         type=str,
         help="Path to the finetuning chat dataset. Can be either ShareGPT or HuggingFace/OpenAI chat format",
+        required=True,
+    )
+    parser.add_argument(
+        "--ckpt-save-dir",
+        type=str,
+        help="Path to the directory to save the checkpoint.",
         required=True,
     )
     parser.add_argument(
@@ -143,14 +150,36 @@ def get_parser():
         type=int,
         help="Number of nodes.",
         required=False,
-        default=None,
     )
     parser.add_argument(
         "--devices",
         type=int,
         help="Number of devices.",
         required=False,
-        default=None,
+    )
+    parser.add_argument(
+        "--tensor-parallel-size",
+        type=int,
+        help="Tensor parallelism size.",
+        required=False,
+    )
+    parser.add_argument(
+        "--pipeline-parallel-size",
+        type=int,
+        help="Pipeline model parallel size.",
+        required=False,
+    )
+    parser.add_argument(
+        "--expert-model-parallel-size",
+        type=int,
+        help="Expert model parallel size.",
+        required=False,
+    )
+    parser.add_argument(
+        "--expert-tensor-parallel-size",
+        type=int,
+        help="Expert tensor parallel size.",
+        required=False,
     )
     return parser
 
@@ -168,6 +197,7 @@ def slurm_executor(
     custom_env_vars: Optional[dict[str, str]] = None,
     container_image: str = "nvcr.io/nvidia/nemo:dev",
     retries: int = 0,
+    dependency=None,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
         raise RuntimeError(
@@ -238,7 +268,7 @@ def main():
         llm, args.recipe
     ), f"Recipe named {args.recipe} not found. General format is <model_name>_<model_size>(_<long_sequence_length> or other special settings)"
     finetune_recipe = getattr(llm, args.recipe).finetune_recipe
-    finetune = partial(finetune_recipe)(name=exp_name, dir="/nemo_run/checkpoints", peft_scheme=args.peft_scheme)
+    finetune = partial(finetune_recipe)(name=exp_name, dir=args.ckpt_save_dir, peft_scheme=args.peft_scheme)
     finetune.tokenizer = 'data'  # by default use dataset's HF tokenizer
     if not args.hf_tokenizer:
         # Use base model tokenizer if not specified
@@ -262,6 +292,14 @@ def main():
         finetune.trainer.num_nodes = args.nodes
     if args.devices:
         finetune.trainer.devices = args.devices
+    if args.tensor_parallel_size:
+        finetune.trainer.strategy.tensor_model_parallel_size = args.tensor_parallel_size
+    if args.pipeline_parallel_size:
+        finetune.trainer.strategy.pipeline_model_parallel_size = args.pipeline_parallel_size
+    if args.expert_model_parallel_size:
+        finetune.trainer.strategy.expert_model_parallel_size = args.expert_model_parallel_size
+    if args.expert_tensor_parallel_size:
+        finetune.trainer.strategy.expert_tensor_parallel_size = args.expert_tensor_parallel_size
 
     # Change here and add your files to custom_mounts
     finetune.data = run.Config(
@@ -290,6 +328,7 @@ def main():
                 "/lustre/fsw:/lustre/fsw",
                 "/lustre/fsw/portfolios/coreai/users/jennifchen/code/NeMo:/opt/NeMo",
                 "/lustre/fsw/portfolios/coreai/users/jennifchen/code/Megatron-LM:/opt/megatron-lm",
+                "/lustre/fsw/portfolios/coreai/users/jennifchen/code/modelopt/modelopt:/usr/local/lib/python3.12/dist-packages/modelopt",
             ],
             custom_env_vars={"HF_HOME": "/lustre/fsw/portfolios/coreai/users/jennifchen/hf_cache"},
         )
