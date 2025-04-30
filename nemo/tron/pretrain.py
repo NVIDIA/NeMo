@@ -41,6 +41,10 @@ def megatron_pretrain(
         dataset_provider: Optional callable to provide train/validation/test
                           datasets. If None, it's assumed the dataset
                           configuration is self-contained within `config`.
+
+    Warnings:
+        This is an experimental API and is subject to change in backwards
+        incompatible ways without notice.
     """
     config.validate()
 
