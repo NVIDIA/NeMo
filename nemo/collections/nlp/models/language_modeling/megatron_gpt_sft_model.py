@@ -473,14 +473,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         outputs = self.inference_step_validation_call(batch, batch_idx, data_cfg, dataloader_idx)
 
         if mode == 'validation':
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            if isinstance(self.trainer.val_dataloaders, list) and len(self.trainer.val_dataloaders) > 1:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[dataloader_idx][-1] = outputs
             else:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[-1] = outputs
         else:
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            if isinstance(self.trainer.test_dataloaders, list) and len(self.trainer.test_dataloaders) > 1:
                 self.test_step_outputs[dataloader_idx][-1] = outputs
             else:
                 self.test_step_outputs[-1] = outputs
@@ -594,7 +594,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             # Check if the user provided a prefix path to the file(s) they want to write.
             if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
                 raise ValueError(
-                    f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                    "Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                 )
             filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
             self.write_predictions_to_file(
