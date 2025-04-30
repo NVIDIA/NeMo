@@ -234,7 +234,8 @@ class TBranch(NamedTuple):
     """Structure (tuple) to represent N-Gram element (symbol, weight, backoff)"""
 
     symbol: int
-    node: ContextState
+    start_node: ContextState
+    next_node: ContextState
 
 
 class Arc(NamedTuple):
@@ -270,6 +271,8 @@ class SuffixTreeStorage:
     states: np.ndarray = field(init=False)
 
     _arc_cache: dict[tuple[int, ...], int] = field(default_factory=dict)
+
+    _node_cache: dict[int, int] = field(default_factory=dict)
 
     unk_prob: float = float("-inf")
     normalize_unk: bool = True
@@ -307,41 +310,46 @@ class SuffixTreeStorage:
         )
         self.states["final"] = NEG_INF
         self.bos_state = 1 if separate_bos_state else self.start_state
+        self._node_cache[0] = 0
+        self.unk_prob = 0.0
 
-    def _add_unigrams(self, ngrams: np.ndarray, bos_id: int, unk_id: int):
+    def _add_tbranches(self, tbranches: list, bos_id: int, unk_id: int):
         """Add all unigrams"""
         assert bos_id < 0 and unk_id < 0
         bos_unigram = None
 
-        ngrams.sort(order="symbols")
-        for ngram in ngrams:
-            assert len(ngram["symbols"]) == 1  # unigrams
-            symbol = ngram["symbols"][-1]
-            if symbol == unk_id:
-                self.unk_prob = ngram["weight"]
-            elif symbol == bos_id:
-                bos_unigram = ngram
-        assert bos_unigram is not None
+        # import pdb; pdb.set_trace()
+        # tbranches.sort(order="symbol")
+        tbranches = sorted(tbranches, key=lambda x: (x.start_node.id, x.symbol))
+        # for tbranch in tbranches:
+        #     # assert len(ngram["symbols"]) == 1  # unigrams
+        #     symbol = tbranch["symbol"]
+        #     if symbol == unk_id:
+        #         self.unk_prob = ngram["weight"]
+        #     elif symbol == bos_id:
+        #         bos_unigram = ngram
+        # assert bos_unigram is not None
 
-        self.num_states = 2  # SOS + BOS
+        # self.num_states = 2  # SOS + BOS
+        self.num_states = 1
         self.num_arcs = 0
         # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
         self.states[self.start_state] = (0, self.vocab_size, 1, self.start_state, 0.0, NEG_INF)
         added_symbols = set()
         num_vocab_labels = 0
-        for ngram in ngrams:
-            ilabel = ngram["symbols"][-1]
-            if ilabel < 0:
-                # special symbol
-                if ilabel == _EOS_ID:
-                    self.states[self.start_state]["final"] = ngram["weight"]
-                continue
+        for tbranch in tbranches:
+            ilabel = tbranch.symbol
+            # if ilabel < 0:
+            #     # special symbol
+            #     if ilabel == _EOS_ID:
+            #         self.states[self.start_state]["final"] = ngram["weight"]
+            #     continue
             assert ilabel < self.vocab_size
             arc_id = ilabel
             added_symbols.add(ilabel)
             next_state = self.num_states
             self.num_states += 1
-            self.arcs[arc_id] = (self.start_state, next_state, ilabel, ngram["weight"])
+            self.arcs[arc_id] = (self.start_state, next_state, ilabel, tbranch.next_node.token_score)
             self.num_arcs += 1
             # state order
             self.states[next_state] = (
@@ -349,31 +357,32 @@ class SuffixTreeStorage:
                 0,
                 self.states[self.start_state]["order"] + 1,
                 self.start_state,
-                ngram["backoff"],
+                tbranch.next_node.node_score,
                 NEG_INF,
             )
             num_vocab_labels += 1
+            self._node_cache[tbranch.next_node.id] = next_state
 
-        if self.normalize_unk:
-            num_unk_labels = self.vocab_size - num_vocab_labels
-            if num_unk_labels > 1:
-                self.unk_prob -= np.log(num_unk_labels)
+        # if self.normalize_unk:
+        #     num_unk_labels = self.vocab_size - num_vocab_labels
+        #     if num_unk_labels > 1:
+        #         self.unk_prob -= np.log(num_unk_labels)
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
                 self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_prob)
                 self.num_arcs += 1
 
-        # add BOS unigram
-        assert self.bos_state == 1
-        # NB: we do not add BOS unigram to the arcs, but only to the states
-        self.states[self.bos_state] = (
-            0,
-            0,
-            self.states[self.start_state]["order"] + 1,
-            self.start_state,
-            bos_unigram["backoff"],
-            NEG_INF,
-        )
+        # # add BOS unigram
+        # assert self.bos_state == 1
+        # # NB: we do not add BOS unigram to the arcs, but only to the states
+        # self.states[self.bos_state] = (
+        #     0,
+        #     0,
+        #     self.states[self.start_state]["order"] + 1,
+        #     self.start_state,
+        #     bos_unigram["backoff"],
+        #     NEG_INF,
+        # )
 
     def _find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
         """
@@ -395,36 +404,43 @@ class SuffixTreeStorage:
             return self.arcs[label]["to"]
         raise ValueError(f"Invalid symbol {label}")
 
-    def _add_ngrams_next_order(self, ngrams: np.ndarray, bos_id: int):
-        """Add ngrams for the order > 1; should be called after adding unigrams, using increasing order"""
-        ngrams.sort(order="symbols")
+    def _add_tbranches_next_order(self, tbranches: list, bos_id: int):
+        """Add tbranches for the order > 1; should be called after adding unigrams, using increasing order"""
+        tbranches = sorted(tbranches, key=lambda x: (x.start_node.id, x.symbol))
         new_arc_cache = dict()
-        for ngram in tqdm(ngrams):
-            symbols = ngram["symbols"].item()
-            ilabel = symbols[-1]
-            from_state = self._find_state(symbols[:-1], bos_id=bos_id)
-            if ilabel < 0:
-                assert ilabel == _EOS_ID
-                self.states[from_state]["final"] = ngram["weight"]
-                continue
+        # import pdb; pdb.set_trace()
+        for tbranch in tqdm(tbranches):
+            ilabel = tbranch.symbol
+            # import pdb; pdb.set_trace()
+            # from_state = self._find_state(symbols[:-1], bos_id=bos_id)
+            from_state = self._node_cache[tbranch.start_node.id]
+            # if ilabel < 0:
+            #     assert ilabel == _EOS_ID
+            #     self.states[from_state]["final"] = ngram["weight"]
+            #     continue
             assert ilabel < self.vocab_size
-            backoff_state = self._find_state(symbols[1:], bos_id=bos_id)
+            # backoff_state = self._find_state(symbols[1:], bos_id=bos_id)
+            backoff_state = self._node_cache[tbranch.next_node.fail.id]
+            backoff_weight = tbranch.next_node.node_score - tbranch.next_node.fail.node_score
 
             arc_id = self.num_arcs
             next_state = self.num_states
             self.num_arcs += 1
             self.num_states += 1
-            self.arcs[arc_id] = (from_state, next_state, ilabel, ngram["weight"])
+            self.arcs[arc_id] = (from_state, next_state, ilabel, tbranch.next_node.token_score)
             # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
             self.states[next_state] = (
                 0,
                 0,
                 self.states[from_state]["order"] + 1,
                 backoff_state,
-                ngram["backoff"],
+                backoff_weight,
                 NEG_INF,
             )
-
+            
+            self._node_cache[tbranch.next_node.id] = next_state
+            # import pdb; pdb.set_trace()
+            
             if self.states[from_state]["arcs_start"] == 0:
                 self.states[from_state]["arcs_start"] = arc_id
                 self.states[from_state]["arcs_end"] = arc_id + 1
@@ -432,8 +448,8 @@ class SuffixTreeStorage:
                 assert self.states[from_state]["arcs_end"] == arc_id
                 self.states[from_state]["arcs_end"] = arc_id + 1
             # cache state
-            new_arc_cache[symbols] = next_state
-        self._arc_cache = new_arc_cache  # replace arc cache, previous is not needed
+            # new_arc_cache[symbols] = next_state
+        # self._arc_cache = new_arc_cache  # replace arc cache, previous is not needed
 
     def _start_adding_ngrams_for_order(self, order: int, max_tbranches: int):
         """Prepare for adding ngrams for the given order: initialize temporary storage"""
@@ -468,17 +484,18 @@ class SuffixTreeStorage:
     def _end_adding_ngrams_for_order(self, order: int, bos_id: int, unk_id: int):
         """Finish adding ngrams for the given order"""
         if order == 1:
-            assert self._ngrams.shape[0] == self._ngrams_cnt
-            self._add_unigrams(ngrams=self._ngrams, bos_id=bos_id, unk_id=unk_id)
-            self._ngrams = None
-            self._ngrams_cnt = 0
-        elif order < self.max_order:
-            assert self._ngrams.shape[0] == self._ngrams_cnt
-            self._add_ngrams_next_order(ngrams=self._ngrams, bos_id=bos_id)
-            self._ngrams = None
-            self._ngrams_cnt = 0
+            assert len(self._tbranches) == self._tbranches_cnt
+            self._add_tbranches(tbranches=self._tbranches, bos_id=bos_id, unk_id=unk_id)
+            self._tbranches = None
+            self._tbranches_cnt = 0
+        # elif order < self.max_order:
         else:
-            self._end_adding_ngrams_max_order()
+            assert len(self._tbranches) == self._tbranches_cnt
+            self._add_tbranches_next_order(tbranches=self._tbranches, bos_id=bos_id)
+            self._tbranches = None
+            self._tbranches_cnt = 0
+        # else:
+        #     self._end_adding_ngrams_max_order()
 
     def _add_ngram_max_order(self, ngram: NGram, bos_id: int):
         """Add ngram for the maximum order"""
@@ -689,9 +706,12 @@ class GPUBoostingTreeModel(ModelPT):
             current_node = queue.popleft()
             for token, node in current_node.next.items():
                 if node.id not in seen:
-                    tbranches_list.append(TBranch(symbol=token, node=node))
+                    tbranches_list.append(TBranch(symbol=token, start_node=current_node, next_node=node))
                     order2cnt[node.level] = order2cnt.get(node.level, 0) + 1
                     queue.append(node)
+        
+        # import pdb; pdb.set_trace()
+        # tbranches_list = sorted(tbranches_list, key=lambda x: x.start_node.id)
         
         return order2cnt, tbranches_list
 
@@ -726,7 +746,7 @@ class GPUBoostingTreeModel(ModelPT):
         order2cnt, tbranches_list = cls._read_cb_tree(cb_tree=cb_tree)
 
         # init suffix tree storage
-        max_states = cb_tree.num_nodes
+        max_states = cb_tree.num_nodes + 1 # + 1 for root state
         suffix_tree_np = SuffixTreeStorage(
             num_states_max=max_states,
             num_states=0,
@@ -748,16 +768,20 @@ class GPUBoostingTreeModel(ModelPT):
                 suffix_tree_np._start_adding_ngrams_for_order(order=cur_order, max_tbranches=order2cnt[cur_order])
             tbranch_cur_order_i += 1
 
-            suffix_tree_np._add_tbranch(tbranch=tbranch, bos_id=_BOS_ID)
-            import pdb; pdb.set_trace()
+            # add tbranch
+            suffix_tree_np._tbranches.append(tbranch)
+            suffix_tree_np._tbranches_cnt += 1
+            
             if tbranch_cur_order_i == order2cnt[cur_order]:
                 suffix_tree_np._end_adding_ngrams_for_order(order=cur_order, bos_id=_BOS_ID, unk_id=_UNK_ID)
                 logging.info(f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}")
                 cur_order += 1
                 tbranch_cur_order_i = 0
+                # import pdb; pdb.set_trace()
 
         assert tbranch_cur_order_i == 0
         suffix_tree_np.sanity_check()
+        import pdb; pdb.set_trace()
 
         # with open(lm_path, "r", encoding="utf-8") as f:
         #     order2cnt = cls._read_header(f=f)
