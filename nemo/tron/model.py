@@ -63,6 +63,7 @@ def get_model_from_config(
         model = []
         for i in range(parallel_state.get_virtual_pipeline_model_parallel_world_size()):
             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+            # this_model.vp_stage = i
             # Set pre_process and post_process only after virtual rank is set.
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
