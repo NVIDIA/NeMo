@@ -4,6 +4,7 @@
 #
 #  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_tron_generate.py --model_name meta-llama/Llama-4-Scout-17B-16E-Instruct --tp 8
 
+from scripts.vlm.llama4.debugger import register_hooks
 import argparse
 import os
 import time
@@ -20,6 +21,7 @@ from megatron.core.inference.model_inference_wrappers.inference_wrapper_config i
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.inference.text_generation.mcore_engine_server import ModelInferenceWrapperServer, run_mcore_engine
 from transformers import AutoTokenizer  # Keep for initial check/loading if needed, but primarily use build_tokenizer
+from megatron.core.inference.contexts import StaticInferenceContext
 
 from nemo.collections.llm import GPTConfig
 from nemo.collections.llm import GPTModel as ModelConfig
@@ -306,7 +308,10 @@ def megatron_generate(
     """Generates text using the initialized Megatron model and inference engine."""
 
     model.eval()  # Ensure model is in eval mode
+    register_hooks(model)
+
     model_cfg = mtron_cfg.model_config
+    model_cfg.seq_length = 1024
     rank = get_rank_safe()
 
     if generation_method == "manual_greedy":
@@ -384,7 +389,7 @@ def megatron_generate(
                     # Use long dtype as token IDs are integers
                     batch_dim = current_input_ids.size(0)
                     next_token_ids = torch.zeros((batch_dim, 1), device=current_input_ids.device, dtype=torch.long)
-
+                exit(0)
                 # Broadcast the next token ID from the last pipeline stage to all ranks
                 # Use get_last_rank which handles PP correctly
                 # Source rank needs to be the *global* rank of the last PP stage
@@ -615,10 +620,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "fp16", "fp32"], help="Computation precision"
     )
-    parser.add_argument("--prompt", type=str, default="The capital of France is", help="Input prompt for generation")
-    parser.add_argument("--max_new_tokens", type=int, default=64, help="Maximum number of new tokens to generate")
+    messages = "The following are multiple choice questions (with answers) about world religions.\n\nWhen was the first Buddhist temple constructed in Japan?\nA. 325 CE\nB. 119 CE\nC. 451 CE\nD. 596 CE\nAnswer:"
+    parser.add_argument("--prompt", type=str, default=messages, help="Input prompt for generation")
+    parser.add_argument("--max_new_tokens", type=int, default=10, help="Maximum number of new tokens to generate")
     parser.add_argument("--gen_batch_size", type=int, default=1, help="Micro batch size for the generation engine")
-    parser.add_argument("--max_prompt_len", type=int, default=20, help="Maximum length for input prompt tokenization")
+    parser.add_argument("--max_prompt_len", type=int, default=64, help="Maximum length for input prompt tokenization")
     parser.add_argument(
         "--generation_method",
         type=str,
@@ -739,9 +745,9 @@ if __name__ == "__main__":
         # Decode the full generated sequence (including prompt)
         # Use the same Megatron tokenizer
         decoded_texts = megatron_tokenizer._tokenizer.batch_decode(
-            generation_output['output_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=True
+            generation_output['output_ids'], skip_special_tokens=False, clean_up_tokenization_spaces=False
         )
-
+        # print(decoded_texts)
         for i, text in enumerate(decoded_texts):
             print(f"\n--- Sample {i+1} ---")
             print(f"Prompt: {prompts[i]}")
