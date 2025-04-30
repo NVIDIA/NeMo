@@ -1188,7 +1188,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         word_offsets = []
         built_word = ""
         previous_token_index = 0
-        
+
         # For every offset token
         for i, offset in enumerate(offsets):
             # For every subword token in offset token list (ignoring the RNNT Blank token if it exists)
@@ -1221,12 +1221,16 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         built_word = ""
                         built_word += token_text
                         previous_token_index = i
-                    
+
                     # If the token is a punctuation mark and there is no built word, then the previous word is complete
                     # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
                     elif curr_punctuation and not built_word:
                         word_offsets[-1]['end_offset'] = offset['end_offset']
-                        word_offsets[-1]['word'] = word_offsets[-1]['word'][:-1] if word_offsets[-1]['word'][-1] == ' ' else word_offsets[-1]['word']
+                        word_offsets[-1]['word'] = (
+                            word_offsets[-1]['word'][:-1]
+                            if word_offsets[-1]['word'][-1] == ' '
+                            else word_offsets[-1]['word']
+                        )
                         word_offsets[-1]['word'] += token_text.strip()
                     else:
                         # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
