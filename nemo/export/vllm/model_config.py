@@ -164,6 +164,7 @@ class NemoModelConfig(ModelConfig):
         )
         self.is_attention_free = self._init_attention_free()
         self.has_inner_state = self._init_has_inner_state()
+        self.has_noops = self._init_has_noops()
 
         self._verify_tokenizer_mode()
         self._verify_quantization()
