@@ -224,7 +224,7 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
     BaichuanForCausalLM format, including weight mapping and configuration translation.
     """
 
-    def init(self, dtype=torch.bfloat16, model_name="baichuan-inc/Baichuan2-7B-Base") -> "AutoModelForCausalLM":
+    def init(self, dtype=torch.bfloat16, model_name=None) -> "AutoModelForCausalLM":
         """
         Initialize a HF BaichuanForCausalLM instance.
 
@@ -237,7 +237,9 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        if model_name is None:
+            model_name = "baichuan-inc/Baichuan2-7B-Base"
+        with no_init_weights():
             # Since Baichuan2 is not importable from transformers, we can only initialize the HF model
             # from a known checkpoint. The model_name will need to be passed in.
             hf_model = AutoModelForCausalLM.from_pretrained(
