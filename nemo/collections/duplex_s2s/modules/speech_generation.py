@@ -3,7 +3,7 @@ from omegaconf import DictConfig
 from torch import nn
 
 from nemo.core.classes.module import NeuralModule
-from nemo.collections.tts.modules import t5tts_transformer
+from nemo.collections.tts.modules import transformer_2501
 
 class TransformerARSpeechDecoder(NeuralModule):
     def __init__(self, speech_decoder_parms: DictConfig, lantent_dim: int, num_audio_codebooks: int, num_audio_tokens_per_codebook: int):
@@ -26,7 +26,7 @@ class TransformerARSpeechDecoder(NeuralModule):
             self.input_proj = None
 
         # instanciate T5-TTS decoder to full compatibility and potentialy load pretrained model
-        self.t5_decoder = t5tts_transformer.Transformer(**self.speech_decoder_parms)
+        self.t5_decoder = transformer_2501.Transformer(**self.speech_decoder_parms)
 
         # projection to predict audio codes
         self.final_proj = nn.Linear(self.speech_decoder_parms["d_model"], num_audio_codebooks * num_audio_tokens_per_codebook)

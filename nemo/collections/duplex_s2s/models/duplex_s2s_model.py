@@ -361,9 +361,9 @@ class DuplexS2SModel(LightningModule):
             val_asr_bleu = torch.tensor(
                 sacrebleu.corpus_bleu(self._asr_preds[name], self._refs[name]).score, device=self.device
             )
-            self.log(f"val_asr_bleu_{name}", val_asr_bleu, on_epoch=True, sync_dist=False)
+            self.log(f"val_asr_bleu_{name}", val_asr_bleu, on_epoch=True, sync_dist=True)
             corpus_bleus.append(val_asr_bleu)
-        self.log("val_asr_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=False)
+        self.log("val_asr_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
 
         corpus_bleus = []
         for name in self._refs.keys():
@@ -372,7 +372,7 @@ class DuplexS2SModel(LightningModule):
             )
             self.log(f"val_txt_bleu_{name}", val_txt_bleu, on_epoch=True, sync_dist=False)
             corpus_bleus.append(val_txt_bleu)
-        self.log("val_txt_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=False)
+        self.log("val_txt_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
 
         self._refs.clear()
         self._asr_preds.clear()
@@ -386,6 +386,9 @@ class DuplexS2SModel(LightningModule):
 
 
         for name, dataset_batch in batch.items():
+
+
+
             if dataset_batch is None:
                 continue  # some dataset is exhausted
 
@@ -528,6 +531,28 @@ class DuplexS2SModel(LightningModule):
             ans["lr_scheduler"] = {"scheduler": lr_scheduler, "interval": "step", "frequency": 1}
         return ans
 
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": dict,
+            "inputs": [
+                {"name": "source_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "source_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {"name": "target_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "target_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "target_tokens",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+            ],
+        }
+
     def configure_model(self) -> None:
         self._use_fsdp = False
         self._use_tp = False
@@ -538,6 +563,7 @@ class DuplexS2SModel(LightningModule):
         if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
             self._use_tp = True
 
+            # TODO: Distributing embeddings with TP in this setup is tricky
             plan = {
                 "layers.0": PrepareModuleInput(
                     input_layouts=(Replicate(),),  # , None)
@@ -564,6 +590,8 @@ class DuplexS2SModel(LightningModule):
                     "mlp.gate_proj": ColwiseParallel(),
                     "mlp.up_proj": ColwiseParallel(),
                     "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    # "pre_feedforward_layernorm": SequenceParallel(),
+                    # "post_feedforward_layernorm": SequenceParallel(),
                 }
 
                 # Adjust attention module to use the local number of heads
@@ -842,7 +870,7 @@ class DuplexS2SModelSpeechDecoder(DuplexS2SModel):
             )
 
             txt_hyps = [
-                self.tokenizer.ids_to_text(hyp_ids[:hyp_len]) for hyp_ids, hyp_len in zip(gen_text.cpu(), lengths)
+                self.tokenizer.ids_to_text(hyp_ids[:hyp_len]).replace('!', "") for hyp_ids, hyp_len in zip(gen_text.cpu(), lengths)
             ]
 
 
@@ -995,6 +1023,8 @@ class DuplexS2SModelSpeechDecoder(DuplexS2SModel):
                     "mlp.gate_proj": ColwiseParallel(),
                     "mlp.up_proj": ColwiseParallel(),
                     "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    # "pre_feedforward_layernorm": SequenceParallel(),
+                    # "post_feedforward_layernorm": SequenceParallel(),
                 }
 
                 # Adjust attention module to use the local number of heads
