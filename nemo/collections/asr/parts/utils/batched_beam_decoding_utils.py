@@ -581,8 +581,8 @@ class BatchedBeamHypsCTC:
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
 
         # Initializing tree structure for hypothesis storing
-        self.transcript_wb = torch.zeros(
-            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
+        self.transcript_wb = torch.full(
+            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long, fill_value=NON_EXISTENT_LABEL_VALUE
         )
         self.transcript_wb_prev_ptr = torch.full(
             (batch_size, self.beam_size, self._max_length),
@@ -611,7 +611,7 @@ class BatchedBeamHypsCTC:
         self.current_lengths_nb.fill_(0)
         self.current_lengths_wb.fill_(0)
 
-        self.transcript_wb.fill_(0)
+        self.transcript_wb.fill_(NON_EXISTENT_LABEL_VALUE)
         self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
         self.timestamps.copy_(self._create_timestamps_tensor(self._max_length))
 
@@ -627,10 +627,9 @@ class BatchedBeamHypsCTC:
             (self.transcript_wb, torch.full_like(self.transcript_wb, fill_value=NON_EXISTENT_LABEL_VALUE)), dim=-1
         )
         self.transcript_wb_prev_ptr = torch.cat(
-            (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
+            (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)), dim=-1
         )
         self.timestamps = self._create_timestamps_tensor(2 * self._max_length)
-        self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
 
         self._max_length *= 2
 
@@ -841,7 +840,7 @@ class BatchedBeamHypsCTC:
         self.current_lengths_wb.copy_(torch.gather(self.current_lengths_wb, dim=-1, index=indices))
 
         self.last_label.copy_(torch.gather(self.last_label, dim=-1, index=indices))
-        self.last_label_nb.copy_(torch.gather(self.last_label, dim=-1, index=indices))
+        self.last_label_nb.copy_(torch.gather(self.last_label_nb, dim=-1, index=indices))
 
         self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=indices))
 

@@ -29,7 +29,6 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.timers import SimpleTimer
 
 DEFAULT_TOKEN_OFFSET = 100
 
