@@ -20,6 +20,14 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.distributed
 from megatron.core.transformer import TransformerConfig
+from torch import Tensor
+from transformers import MllamaConfig as HFMllamaConfig
+from transformers import MllamaForConditionalGeneration
+from transformers.models.mllama.configuration_mllama import (
+    MllamaTextConfig,
+    MllamaVisionConfig,
+)
+
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.vlm.mllama.model.base import (
@@ -35,12 +43,6 @@ from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
-from torch import Tensor
-from transformers import MllamaForConditionalGeneration
-from transformers.models.mllama.configuration_mllama import (
-    MllamaTextConfig,
-    MllamaVisionConfig,
-)
 
 # pylint: disable=C0115,C0116,C0301
 
@@ -685,10 +687,8 @@ class HFMLlamaExporter(
         Generates the configuration for the HuggingFace MLlama model based on the NeMo model.
 
         Returns:
-            MLlamaModelConfig: A configuration object for the HuggingFace MLlama model.
+            HFMllamaConfig: A configuration object for the HuggingFace MLlama model.
         """
-        from transformers import MllamaConfig as HFMllamaConfig
-
         source = io.load_context(str(self), subpath="model.config")
         vision_model_config = source.vision_model_config
         language_config = source.language_model_config
