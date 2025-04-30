@@ -500,8 +500,6 @@ class BatchedBeamHyps:
         Args:
             score_norm (bool, optional): If True, normalizes the scores by dividing
                 them by the current lengths of the hypotheses plus one. Defaults to True.
-        Returns:
-            list[Hypothesis]: A list of sorted and flattened hypotheses.
         This method performs the following steps:
         1. Normalizes the scores if `score_norm` is True.
         2. Sorts the normalized scores in descending order and retrieves the corresponding indices.
@@ -576,6 +574,7 @@ class BatchedBeamHypsCTC:
         self.blank_index = blank_index
         self.batch_size = batch_size
         self.batch_indices = torch.arange(self.batch_size, device=device)
+        self.beam_indices = torch.arange(self.beam_size, device=device)
 
         # non-blank/non-repeating and full lengths
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
@@ -753,33 +752,100 @@ class BatchedBeamHypsCTC:
         new_scores = torch.max(scores_matrix, dim=-1, keepdim=False).values
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)    
         
-    def to_hyps_list(self, score_norm: bool = False) -> list[Hypothesis]:
-        normalized_scores = (
-            self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
-        )
-        _, best_hyp_index = torch.max(normalized_scores, dim=-1)
+    def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+        """
+        Converts the batched beam search results into a list of signle best hypotheses for each batch.
+        Args:
+            score_norm (bool):  If True, normalize the scores before sorting. Defaults to True.
+        Returns:
+            list[Hypothesis]: A list where each element corresponds to a batch and contains
+            best hypothesis.
+        """
 
-        scores = self.scores[self.batch_indices, best_hyp_index].tolist()
+        self.flatten_sort_()
 
-        tokens_list = []
+        scores = self.scores[self.batch_indices, 0].tolist()
+
         max_idx = self.current_lengths_wb.max() - 1
-        ptr = best_hyp_index
-        while max_idx >= 0:
-            tokens = self.transcript_wb[self.batch_indices, ptr, max_idx]
-            ptr = self.transcript_wb_prev_ptr[self.batch_indices, ptr, max_idx]
-
-            max_idx -= 1
-            tokens_list.insert(0, tokens)
-
-        transcripts = torch.stack(tokens_list, dim=1).cpu().detach().numpy()
+        # timestamps = self.timestamps[..., 0, : max_idx + 1].cpu().detach().numpy()
+        transcripts = self.transcript_wb[..., 0, : max_idx + 1].cpu().detach().numpy()
         hypotheses = [
             Hypothesis(
-                score=scores[i],
-                y_sequence=transcripts[i][transcripts[i] >= 0],
-                timestamp=[],
+                score=scores[batch_idx],
+                y_sequence=transcripts[batch_idx][
+                    mask := (transcripts[batch_idx] >= 0)
+                ],
+                # timestamp=timestamps[batch_idx][mask],
                 alignments=None,
                 dec_state=None,
             )
-            for i, _ in enumerate(range(self.batch_size))
+            for batch_idx in range(self.batch_size)
         ]
         return hypotheses
+    
+    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[NBestHypotheses]:
+        """
+        Converts the batched beam search results into a list of N-best hypotheses for each batch.
+        Args:
+            score_norm (bool, optional): If True, normalize the scores before sorting. Defaults to True.
+        Returns:
+            list[NBestHypotheses]: A list where each element corresponds to a batch and contains
+            N-best hypotheses.
+        """
+
+        self.flatten_sort_(score_norm)
+
+        scores = self.scores.tolist()
+
+        max_idx = self.current_lengths_wb.max() - 1
+        transcripts = self.transcript_wb[..., : max_idx + 1].cpu().detach().numpy()
+        # timestamps = self.timestamps[..., : max_idx + 1].cpu().detach().numpy()
+        hypotheses = [
+            NBestHypotheses(
+                [
+                    Hypothesis(
+                        score=scores[batch_idx][beam_idx],
+                        y_sequence=transcripts[batch_idx][beam_idx][
+                            mask := (transcripts[batch_idx][beam_idx] >= 0)
+                        ],
+                        # timestamp=timestamps[batch_idx][beam_idx][mask],
+                        alignments=None,
+                        dec_state=None,
+                    )
+                    for beam_idx in range(self.beam_size)
+                    if scores[batch_idx][beam_idx] > INACTIVE_SCORE
+                ]
+            )
+            for batch_idx in range(self.batch_size)
+        ]
+        return hypotheses    
+
+    def flatten_sort_(self):
+        """
+        Sorts and flattens the tree structure of hypotheses in a batched beam search decoding process.
+        This method performs the following steps:
+        1. Sorts hypothesis scores in descending order and retrieves the corresponding indices.
+        2. Iteratively reconstructs the tokens and timestamps for each hypothesis in reverse order.
+        3. Updates the internal state of the object, including transcripts, timestamps, scores,
+           lengths, labels, and other metadata, based on the sorted order.
+        """
+
+        # add one for consistency with non-batched decodings, that use SOS.
+        _, indices = torch.sort(self.scores, dim=-1, descending=True)
+
+        max_idx = self.current_lengths_wb.max() - 1
+        ptrs = indices
+
+        for idx in range(max_idx, -1, -1):
+            self.transcript_wb[..., idx].copy_(self.transcript_wb[self.batch_indices.unsqueeze(-1), ptrs, idx])
+            ptrs = self.transcript_wb_prev_ptr[self.batch_indices.unsqueeze(-1), ptrs, idx]
+        self.transcript_wb_prev_ptr[..., : max_idx + 1].copy_(self.beam_indices.unsqueeze(0).unsqueeze(-1))
+
+        self.scores.copy_(torch.gather(self.scores, dim=-1, index=indices))
+        self.current_lengths_nb.copy_(torch.gather(self.current_lengths_nb, dim=-1, index=indices))
+        self.current_lengths_wb.copy_(torch.gather(self.current_lengths_wb, dim=-1, index=indices))
+
+        self.last_label.copy_(torch.gather(self.last_label, dim=-1, index=indices))
+        self.last_label_nb.copy_(torch.gather(self.last_label, dim=-1, index=indices))
+
+        self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=indices))
