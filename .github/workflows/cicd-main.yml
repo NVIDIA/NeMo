@@ -96,7 +96,7 @@ jobs:
     uses: ./.github/workflows/_build_container.yml
     needs: [pre-flight, code-linting, cicd-wait-in-queue]
     if: |
-      needs.pre-flight.outputs.test_to_run != '[]' && (always() || needs.cicd-wait-in-queue.result == 'skipped')
+      needs.pre-flight.outputs.test_to_run != '[]' && (success() || needs.cicd-wait-in-queue.result == 'skipped')
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
