@@ -64,6 +64,25 @@ AnyPath = Union[Path, str]
 
 
 @run.cli.entrypoint(namespace="llm")
+def get_latest_checkpoint(
+    resume: Annotated[AutoResume, run.Config[AutoResume]],
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+) -> Path:
+    _log = log or NeMoLogger()
+
+    dummy_trainer = pl.Trainer()
+    from nemo.utils.app_state import AppState
+
+    app_state = AppState()
+    app_state.log_dir, _, _, _ = _log._get_log_dir_state(
+        dummy_trainer,
+        resume_if_exists=getattr(resume, "resume_if_exists", False),
+    )
+
+    return resume.get_trainer_ckpt_path()
+
+
+@run.cli.entrypoint(namespace="llm")
 def train(
     model: pl.LightningModule,
     data: pl.LightningDataModule,

@@ -353,6 +353,7 @@ try:
         export_ckpt,
         finetune,
         generate,
+        get_latest_checkpoint,
         import_ckpt,
         pretrain,
         prune,
@@ -374,6 +375,7 @@ try:
             "prune",
             "ptq",
             "distill",
+            "get_latest_checkpoint",
         ]
     )
 except ImportError as error:
