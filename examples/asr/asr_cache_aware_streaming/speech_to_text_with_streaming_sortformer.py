@@ -37,7 +37,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 audio_rttm_map as get_audio_rttm_map,
 rttm_to_labels,
 )
-from examples.asr.asr_cache_aware_streaming.start_words import COMMON_SENTENCE_STARTS
+# from examples.asr.asr_cache_aware_streaming.start_words import COMMON_SENTENCE_STARTS
 from nemo.collections.asr.parts.utils.diarization_utils import (
 print_sentences,
 get_color_palette,
@@ -54,6 +54,54 @@ import time
 from functools import wraps
 import math
 
+import jiwer
+from jiwer.transforms import RemoveKaldiNonWords
+import re
+# import string as strfrm
+
+jiwer_tn_version6_scoring = jiwer.Compose(
+    [
+        RemoveKaldiNonWords(),
+        jiwer.SubstituteRegexes({r"\"": " ", "^[ \t]+|[ \t]+$": "", r"\u2019": "'"}),
+        jiwer.RemoveEmptyStrings(),
+        jiwer.RemoveMultipleSpaces(),
+    ]
+)
+jiwer_tn_version7_scoring = jiwer.Compose(
+    [
+        jiwer.SubstituteRegexes(
+            {
+                "(?:^|(?<= ))(hm|hmm|mhm|mmh|mmm)(?:(?= )|$)": "hmmm",
+                "(?:^|(?<= ))(uhm|um|umm|umh|ummh)(?:(?= )|$)": "ummm",
+                "(?:^|(?<= ))(uh|uhh)(?:(?= )|$)": "uhhh",
+            }
+        ),
+        jiwer.RemoveEmptyStrings(),
+        jiwer.RemoveMultipleSpaces(),
+    ]
+)
+
+
+def tn_version7_norm_scoring(txt):
+    return jiwer_tn_version7_scoring(
+        jiwer_tn_version6_scoring(txt)  # noqa: E731
+    )  # noqa: E731
+
+def normalize_text(line):
+    line = line.replace("((", "").replace("))", "")
+    # Remove all the bracketed words
+    line = re.sub(r'\[\[.*?\]\]', '', line)
+    line = re.sub(r'\[.*?\]', '', line)
+    line = re.sub( r'\{.*?\}', '', line)
+    # Remove all the language tags
+    line = re.sub(r"[^'a-zA-Z0-9]", ' ', line)
+    line = tn_version7_norm_scoring(line)
+    line = line.lower().strip()
+    line = re.sub(' +', ' ', line).strip()
+    return line
+
+
+
 @dataclass
 class DiarizationConfig:
     # Required configs
@@ -64,7 +112,7 @@ class DiarizationConfig:
     
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
-    eval_mode: bool = True
+    # eval_mode: bool = True
     no_der: bool = False
     out_rttm_dir: Optional[str] = None
     opt_style: Optional[str] = None
@@ -75,21 +123,29 @@ class DiarizationConfig:
     num_workers: int = 8
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
     bypass_postprocessing: bool = True # If True, postprocessing will be bypassed
-    log: bool = True # If True, log will be printed
+    log: bool = False # If True, log will be printed
     
     # Eval Settings: (0.25, False) should be default setting for sortformer eval.
     collar: float = 0.25 # Collar in seconds for DER calculation
     ignore_overlap: bool = False # If True, DER will be calculated only for non-overlapping segments
     
     # Streaming diarization configs
-    streaming_mode: bool = True # If True, streaming diarization will be used. 
-    mem_len: int = 188
-    # mem_refresh_rate: int = 0
+    streaming_mode: bool = True # If True, streaming diarization will be used.
+    spkcache_len: int = 188
+    spkcache_refresh_rate: int = 0
     fifo_len: int = 188
-    step_len: int = 0
-    step_left_context: int = 0
-    step_right_context: int = 0
+    chunk_len: int = 0
+    chunk_left_context: int = 0
+    chunk_right_context: int = 0
 
+    # streaming_mode: bool = True # If True, streaming diarization will be used. 
+    # mem_len: int = 188
+    # # mem_refresh_rate: int = 0
+    # fifo_len: int = 188
+    # step_len: int = 0
+    # step_left_context: int = 0
+    # step_right_context: int = 0
+ 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
@@ -114,6 +170,7 @@ class DiarizationConfig:
     set_decoder: Optional[str] = None # ["ctc", "rnnt"]
     att_context_size: Optional[str] = None
     generate_scripts: bool = True
+    output_seglst_file: Optional[str] = None
     
     word_window: int = 50
     fix_speaker_assignments: bool = False
@@ -124,7 +181,7 @@ class DiarizationConfig:
     right_frame_shift: int = 0
     min_sigmoid_val: float = 1e-2
     discarded_frames: int = 8
-    limit_max_spks: int = 2
+    limit_max_spks: int = 4
     print_time: bool = True
     colored_text: bool = True
     real_time_mode: bool = False
@@ -148,6 +205,49 @@ def format_time(seconds):
     minutes = math.floor(seconds / 60)
     sec = seconds % 60
     return f"{minutes}:{sec:05.2f}"
+   
+def add_seglst_dicts(spk_tagger):
+    for _, word_ts_and_seq in enumerate(spk_tagger._word_and_ts_seq):
+        for sentence_dict in word_ts_and_seq['sentences']:
+            seglst_dict = {}
+            seglst_dict["session_id"] = word_ts_and_seq['uniq_id']
+            seglst_dict["speaker"] = sentence_dict['speaker']
+            seglst_dict["words"] = sentence_dict["words"]
+            seglst_dict["start_time"] = f"{sentence_dict['start_time']:.2f}"
+            seglst_dict["end_time"] = f"{sentence_dict['end_time']:.2f}"
+            duration = f"{sentence_dict['end_time'] - sentence_dict['start_time']:.2f}"
+            seglst_dict["duration"] = duration
+            spk_tagger.seglst_dict_list.append(seglst_dict)
+        # seglst_dict_spks = [{}] * word_ts_and_seq['speaker_count']
+        # for spk_idx in range(word_ts_and_seq['speaker_count']):
+        #     seglst_dict_spks[spk_idx]["session_id"] = word_ts_and_seq['uniq_id']
+        #     seglst_dict_spks[spk_idx]["words"] = ""
+        #     seglst_dict_spks[spk_idx]["speaker"] = f"speaker_{spk_idx}"
+        #     seglst_dict_spks[spk_idx]["start_time"] = None 
+        #     seglst_dict_spks[spk_idx]["end_time"] = None 
+        # import ipdb; ipdb.set_trace() 
+        # for spk_idx in range(word_ts_and_seq['speaker_count']):
+        #     seglist_temp_dict = deepcopy(seglst_dict_spks[spk_idx])
+        #     for sent_idx, sentence in enumerate(word_ts_and_seq['sentences']):
+                
+        #         if sent_idx == 0:
+        #             seglist_temp_dict["start_time"] = sentence['start_time']
+        #         # if seglst_dict_spks[spk_idx]["speaker"] == sentence['speaker']: 
+        #         if f"speaker_{spk_idx}" == sentence['speaker']: 
+        #             seglist_temp_dict["words"] += sentence['text'] + " "
+        #     # seglist_temp_dict["words"] = 
+        #     concat_text = seglist_temp_dict["words"].strip() 
+        #     seglist_temp_dict["words"] = normalize_text(concat_text)
+        #     if len(word_ts_and_seq['sentences']) > 0:
+        #         seglist_temp_dict["end_time"] = sentence['end_time']
+        #     spk_tagger.seglst_dict_list.append(seglist_temp_dict)
+    
+    # return spk_tagger 
+
+
+def write_seglst_file(seglst_dict_list, output_path):
+    with open(output_path, 'w') as f:
+        f.write(json.dumps(seglst_dict_list, indent=4) + '\n')
     
 def perform_streaming(
     cfg, 
@@ -170,6 +270,12 @@ def perform_streaming(
 
     multispk_asr_streamer = SpeakerTaggedASR(cfg, asr_model, diar_model)
     feat_frame_count = 0
+    
+    streaming_state = diar_model.sortformer_modules.init_streaming_state(
+            batch_size = cfg.batch_size,
+            async_streaming = True,
+            device = diar_model.device
+        )
     # write_txt(path="/home/taejinp/projects/mimsasr_sortformer_pr01_fifo_memory/start_flag.txt", the_list=["start"])
     session_start_time = time.time()
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
@@ -185,8 +291,9 @@ def perform_streaming(
                     cache_last_time,
                     cache_last_channel_len,
                     previous_hypotheses,
-                    mem_last_time,
-                    fifo_last_time,
+                    streaming_state,
+                    # mem_last_time,
+                    # fifo_last_time,
                     diar_pred_out_stream) = multispk_asr_streamer.perform_streaming_stt_spk(
                         step_num=step_num,
                         chunk_audio=chunk_audio,
@@ -198,8 +305,9 @@ def perform_streaming(
                         previous_hypotheses=previous_hypotheses,
                         asr_pred_out_stream=asr_pred_out_stream,
                         diar_pred_out_stream=diar_pred_out_stream,
-                        mem_last_time=mem_last_time,
-                        fifo_last_time=fifo_last_time,
+                        streaming_state=streaming_state,
+                        # mem_last_time=mem_last_time,
+                        # fifo_last_time=fifo_last_time,
                         left_offset=left_offset,
                         right_offset=right_offset,
                         pad_and_drop_preencoded=False,
@@ -209,6 +317,8 @@ def perform_streaming(
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
         loop_end_time = time.time()
         feat_frame_count += (chunk_audio.shape[-1] - cfg.discarded_frames)
+        # if step_num > 20:
+            # break 
         if cfg.real_time_mode:
             time_diff = max(0, (time.time() - session_start_time) - feat_frame_count * cfg.feat_len_sec)
             eta_min_sec = format_time(time.time() - session_start_time)
@@ -216,6 +326,8 @@ def perform_streaming(
                          f"Time difference for real-time mode: {time_diff:.4f} seconds")
             time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - 
                            (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))
+    add_seglst_dicts(spk_tagger=multispk_asr_streamer)
+    write_seglst_file(seglst_dict_list=multispk_asr_streamer.seglst_dict_list, output_path=cfg.output_seglst_file)
     final_streaming_tran = extract_transcriptions(transcribed_texts)
     return final_streaming_tran, final_offline_tran
 
@@ -266,7 +378,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     else:
         raise ValueError("cfg.diar_model_path must end with.ckpt or.nemo!")
     
-    diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
+    # diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     diar_model.set_trainer(trainer)
     
@@ -278,15 +390,16 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model._cfg.test_ds.num_workers = cfg.num_workers
     diar_model.setup_test_data(test_data_config=diar_model._cfg.test_ds)    
     
-    # Steaming mode setup 
+    # Steaming mode setup
     diar_model.streaming_mode = cfg.streaming_mode
-    diar_model.sortformer_modules.step_len = cfg.step_len
-    diar_model.sortformer_modules.mem_len = cfg.mem_len
-    diar_model.sortformer_modules.step_left_context = cfg.step_left_context
-    diar_model.sortformer_modules.step_right_context = cfg.step_right_context
+    diar_model.sortformer_modules.chunk_len = cfg.chunk_len
+    diar_model.sortformer_modules.spkcache_len = cfg.spkcache_len
+    diar_model.sortformer_modules.chunk_left_context = cfg.chunk_left_context
+    diar_model.sortformer_modules.chunk_right_context = cfg.chunk_right_context
     diar_model.sortformer_modules.fifo_len = cfg.fifo_len
     diar_model.sortformer_modules.log = cfg.log
-
+    diar_model.sortformer_modules.spkcache_refresh_rate = cfg.spkcache_refresh_rate
+    
     args = cfg
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
@@ -391,7 +504,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                sample['audio_filepath'], offset=sample['offset'], duration=sample['duration'], stream_id=-1
+                sample['audio_filepath'], offset=sample['offset'], duration=sample['duration'], stream_id=-1, 
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])

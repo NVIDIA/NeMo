@@ -278,17 +278,21 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             }
         )
 
-    def frontend_encoder(self, processed_signal, processed_signal_length, pre_encode_input: bool=False):
+    def frontend_encoder(self, processed_signal, processed_signal_length, bypass_pre_encode: bool=False):
         """
         Generate encoder outputs from frontend encoder.
 
         Args:
-            processed_signal (torch.Tensor): tensor containing audio-feature (mel spectrogram, mfcc, etc.)
-            processed_signal_length (torch.Tensor): tensor containing lengths of audio signal in integers
+            processed_signal (torch.Tensor):
+                tensor containing audio-feature (mel spectrogram, mfcc, etc.).
+            processed_signal_length (torch.Tensor):
+                tensor containing lengths of audio signal in integers.
 
         Returns:
-            emb_seq (torch.Tensor): tensor containing encoder outputs
-            emb_seq_length (torch.Tensor): tensor containing lengths of encoder outputs
+            emb_seq (torch.Tensor): 
+                tensor containing encoder outputs.
+            emb_seq_length (torch.Tensor): 
+                tensor containing lengths of encoder outputs.
         """
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
@@ -296,7 +300,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         emb_seq, emb_seq_length = self.encoder(
             audio_signal=processed_signal,
             length=processed_signal_length,
-            pre_encode_input=pre_encode_input,
+            bypass_pre_encode=bypass_pre_encode,
         )
         emb_seq = emb_seq.transpose(1, 2)
         if self.sortformer_modules.encoder_proj is not None:
@@ -308,14 +312,14 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         The main forward pass for diarization for offline diarization inference.
 
         Args:
-            emb_seq (torch.Tensor): tensor containing FastConformer encoder states (embedding vectors).
-                Dimension: (batch_size, diar_frame_count, emb_dim)
-            emb_seq_length (torch.Tensor): tensor containing lengths of FastConformer encoder states.
-                Dimension: (batch_size,)
+            emb_seq (torch.Tensor): Tensor containing FastConformer encoder states (embedding vectors).
+                Shape: (batch_size, diar_frame_count, emb_dim)
+            emb_seq_length (torch.Tensor): Tensor containing lengths of FastConformer encoder states.
+                Shape: (batch_size,)
 
         Returns:
             preds (torch.Tensor): Sorted tensor containing Sigmoid values for predicted speaker labels.
-                Dimension: (batch_size, diar_frame_count, num_speakers)
+                Shape: (batch_size, diar_frame_count, num_speakers)
         """
         encoder_mask = self.sortformer_modules.length_to_mask(emb_seq_length, emb_seq.shape[1])
         trans_emb_seq = self.transformer_encoder(encoder_states=emb_seq, encoder_mask=encoder_mask)
@@ -490,10 +494,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Shape: (batch_size,)
 
         Returns:
-                processed_signal (torch.Tensor): The preprocessed audio signal.
-                    Shape: (batch_size, num_features, num_frames)
-                processed_signal_length (torch.Tensor): The length of each processed signal.
-                    Shape: (batch_size,)
+            processed_signal (torch.Tensor): The preprocessed audio signal.
+                Shape: (batch_size, num_features, num_frames)
+            processed_signal_length (torch.Tensor): The length of each processed signal.
+                Shape: (batch_size,)
         """
         audio_signal, audio_signal_length = audio_signal.to(self.device), audio_signal_length.to(self.device)
         if not self.streaming_mode:
@@ -508,8 +512,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             processed_signal, processed_signal_length = self.preprocessor(
                 input_signal=audio_signal, length=audio_signal_length
             )
-        del audio_signal, audio_signal_length
-        if not self.training:
+        # This cache clearning can significantly slow down the training speed.
+        # Only perform `empty_cache()` when the input file is extremely large for streaming mode.
+        if not self.training and self.streaming_mode:
+            del audio_signal, audio_signal_length
             torch.cuda.empty_cache()
         return processed_signal, processed_signal_length
 
@@ -522,14 +528,14 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         Forward pass for training and inference.
 
         Args:
-            audio_signal (torch.Tensor): tensor containing audio waveform
-                Dimension: (batch_size, num_samples)
-            audio_signal_length (torch.Tensor): tensor containing lengths of audio waveforms
-                Dimension: (batch_size,)
+            audio_signal (torch.Tensor): Tensor containing audio waveform
+                Shape: (batch_size, num_samples)
+            audio_signal_length (torch.Tensor): Tensor containing lengths of audio waveforms
+                Shape: (batch_size,)
 
         Returns:
             preds (torch.Tensor): Sorted tensor containing predicted speaker labels
-                Dimension: (batch_size, max. diar frame count, num_speakers)
+                Shape: (batch_size, max. diar frame count, num_speakers)
         """
         processed_signal, processed_signal_length = self.process_signal(
             audio_signal=audio_signal, audio_signal_length=audio_signal_length
@@ -554,8 +560,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         return ["preds"]
 
     def streaming_input_examples(self):
-        """
-        Input tensor examples for exporting streaming version of model.
+        """Input tensor examples for exporting streaming version of model
         """
         batch_size = 4
         chunk = torch.rand([batch_size, 120, 80]).to(self.device)
@@ -567,6 +572,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         return chunk, chunk_lengths, spkcache, spkcache_lengths, fifo, fifo_lengths
 
     def streaming_export(self, output: str):
+        """Exports the model for streaming inference.
+        """
         input_example = self.streaming_input_examples()
         export_out = self.export(output, input_example=input_example)
         return export_out
@@ -576,29 +583,29 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         This forward pass is for ONNX model export.
 
         Args:
-            chunk (torch.Tensor): tensor containing audio waveform.
+            chunk (torch.Tensor): Tensor containing audio waveform.
                 The term "chunk" refers to the "input buffer" in the speech processing pipeline.
                 The size of chunk (input buffer) determines the latency introduced by buffering.
-                Dimension: (batch_size, feature frame count, dimension)
-            chunk_lengths (torch.Tensor): tensor containing lengths of audio waveforms
-                Dimension: (batch_size,)
-            spkcache (torch.Tensor): tensor containing speaker cache embeddings from start
-                Dimension: (batch_size, spkcache_len, emb_dim)
-            spkcache_lengths (torch.Tensor): tensor containing lengths of speaker cache
-                Dimension: (batch_size,)
-            fifo (torch.Tensor): tensor containing embeddings from latest chunks
-                Dimension: (batch_size, fifo_len, emb_dim)
-            fifo_lengths (torch.Tensor): tensor containing lengths of FIFO queue embeddings
-                Dimension: (batch_size,)
+                Shape: (batch_size, feature frame count, dimension)
+            chunk_lengths (torch.Tensor): Tensor containing lengths of audio waveforms
+                Shape: (batch_size,)
+            spkcache (torch.Tensor): Tensor containing speaker cache embeddings from start
+                Shape: (batch_size, spkcache_len, emb_dim)
+            spkcache_lengths (torch.Tensor): Tensor containing lengths of speaker cache
+                Shape: (batch_size,)
+            fifo (torch.Tensor): Tensor containing embeddings from latest chunks
+                Shape: (batch_size, fifo_len, emb_dim)
+            fifo_lengths (torch.Tensor): Tensor containing lengths of FIFO queue embeddings
+                Shape: (batch_size,)
 
         Returns:
             spkcache_fifo_chunk_preds (torch.Tensor): Sorted tensor containing predicted speaker labels
-                Dimension: (batch_size, max. diar frame count, num_speakers)
-            chunk_pre_encode_embs (torch.Tensor): tensor containing pre-encoded embeddings from the chunk
-                Dimension: (batch_size, num_frames, emb_dim)
-            chunk_pre_encode_lengths (torch.Tensor): tensor containing lengths of pre-encoded embeddings
+                Shape: (batch_size, max. diar frame count, num_speakers)
+            chunk_pre_encode_embs (torch.Tensor): Tensor containing pre-encoded embeddings from the chunk
+                Shape: (batch_size, num_frames, emb_dim)
+            chunk_pre_encode_lengths (torch.Tensor): Tensor containing lengths of pre-encoded embeddings
                 from the chunk (=input buffer).
-                Dimension: (batch_size,)
+                Shape: (batch_size,)
         """
         # pre-encode the chunk
         chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(x=chunk, lengths=chunk_lengths)
@@ -614,7 +621,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         spkcache_fifo_chunk_fc_encoder_embs, spkcache_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(
             processed_signal=spkcache_fifo_chunk_pre_encode_embs,
             processed_signal_length=spkcache_fifo_chunk_pre_encode_lengths,
-            pre_encode_input=True,
+            bypass_pre_encode=True,
         )
 
         # forward pass for inference
@@ -632,15 +639,15 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         The main forward pass for diarization inference in streaming mode.
 
         Args:
-            processed_signal (torch.Tensor): tensor containing audio waveform
-                Dimension: (batch_size, num_samples)
-            processed_signal_length (torch.Tensor): tensor containing lengths of audio waveforms
-                Dimension: (batch_size,)
+            processed_signal (torch.Tensor): Tensor containing audio waveform
+                Shape: (batch_size, num_samples)
+            processed_signal_length (torch.Tensor): Tensor containing lengths of audio waveforms
+                Shape: (batch_size,)
 
         Returns:
-            total_pred (torch.Tensor): tensor containing predicted speaker labels for the current chunk
+            total_preds (torch.Tensor): Tensor containing predicted speaker labels for the current chunk
                 and all previous chunks
-                Dimension: (batch_size, pred_len, num_speakers)
+                Shape: (batch_size, pred_len, num_speakers)
         """
         streaming_state = self.sortformer_modules.init_streaming_state(
             batch_size = processed_signal.shape[0],
@@ -727,32 +734,35 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         One-step forward pass for diarization inference in streaming mode.
 
         Args:
-            processed_signal (torch.Tensor): tensor containing audio waveform
-                Dimension: (batch_size, num_samples)
-            processed_signal_length (torch.Tensor): tensor containing lengths of audio waveforms
-                Dimension: (batch_size,)
-            fifo_last_time (torch.Tensor): tensor containing embeddings for the latest chunks
-                Dimension: (batch_size, fifo_len, emb_dim)
-            spkcache_last_time (torch.Tensor): tensor containing speaker cache embeddings
-                Dimension: (batch_size, spkcache_len, emb_dim)
-            spkcache_preds_last_time (torch.Tensor): tensor containing original predictions for speaker cache
-                Dimension: (batch_size, spkcache_len, n_spk)
-            previous_pred_out (torch.Tensor): tensor containing total predicted speaker activity probabilities
-                Dimension: (batch_size, pred_len, n_spk)
+            processed_signal (torch.Tensor): Tensor containing audio waveform
+                Shape: (batch_size, num_samples)
+            processed_signal_length (torch.Tensor): Tensor containing lengths of audio waveforms
+                Shape: (batch_size,)
+            streaming_state (SortformerStreamingState):
+                    Tensor variables that contain the streaming state of the model.
+                    Find more details in the `SortformerStreamingState` class in `sortformer_modules.py`.
+
+                Attributes:
+                    spkcache (torch.Tensor): Speaker cache to store embeddings from start
+                    spkcache_lengths (torch.Tensor): Lengths of the speaker cache
+                    spkcache_preds (torch.Tensor): The speaker predictions for the speaker cache parts
+                    fifo (torch.Tensor): FIFO queue to save the embedding from the latest chunks
+                    fifo_lengths (torch.Tensor): Lengths of the FIFO queue
+                    fifo_preds (torch.Tensor): The speaker predictions for the FIFO queue parts
+                    spk_perm (torch.Tensor): Speaker permutation information for the speaker cache
+
+            total_preds (torch.Tensor): Tensor containing total predicted speaker activity probabilities
+                Shape: (batch_size, cumulative pred length, num_speakers)
             left_offset (int): left offset for the current chunk
             right_offset (int): right offset for the current chunk
 
         Returns:
-            spkcache (torch.Tensor): tensor containing speaker cache pre-encode embeddings
-                Dimension: (batch_size, spkcache_len, emb_dim)
-            fifo (torch.Tensor): tensor containing pre-encode embeddings from latest chunks
-                Dimension: (batch_size, fifo_len, emb_dim)
-            spkcache_preds (torch.Tensor): tensor containing predicted speaker activity probabilities for speaker cache
-                Dimension: (batch_size, spkcache_len, n_spk)
-            fifo_preds (torch.Tensor): tensor containing predicted speaker activity probabilities for FIFO queue
-                Dimension: (batch_size, fifo_len, num_speakers)
-            total_step_preds (torch.Tensor): tensor containing total predicted speaker activity probabilities
-                Dimension: (batch_size, total_pred_len, num_speakers)
+            streaming_state (SortformerStreamingState):
+                    Tensor variables that contain the updated streaming state of the model from
+                    this function call.
+            total_preds (torch.Tensor):
+                Tensor containing the updated total predicted speaker activity probabilities.
+                Shape: (batch_size, cumulative pred length, num_speakers)
         """
         chunk_pre_encode_embs, chunk_pre_encode_lengths = self.encoder.pre_encode(
             x=processed_signal,
@@ -777,7 +787,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         spkcache_fifo_chunk_fc_encoder_embs, spkcache_fifo_chunk_fc_encoder_lengths = self.frontend_encoder(
              processed_signal=spkcache_fifo_chunk_pre_encode_embs,
              processed_signal_length=spkcache_fifo_chunk_pre_encode_lengths,
-             pre_encode_input=True
+             bypass_pre_encode=True
         )
         spkcache_fifo_chunk_preds = self.forward_infer(
              emb_seq=spkcache_fifo_chunk_fc_encoder_embs,
@@ -804,7 +814,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 lc=round(left_offset / self.encoder.subsampling_factor),
                 rc=math.ceil(right_offset / self.encoder.subsampling_factor),
             )
-
         total_preds = torch.cat([total_preds, chunk_preds], dim=1)
 
         return streaming_state, total_preds

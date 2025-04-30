@@ -63,7 +63,6 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     PostProcessingParams,
     load_postprocessing_from_yaml,
     predlist_to_timestamps,
-    ts_vad_post_processing,
 )
 from nemo.core.config import hydra_runner
 
@@ -100,7 +99,7 @@ class DiarizationConfig:
     ignore_overlap: bool = False  # If True, DER will be calculated only for non-overlapping segments
 
     # Streaming diarization configs
-    streaming_mode: bool = True # If True, streaming diarization will be used.
+    streaming_mode: bool = False # If True, streaming diarization will be used.
     spkcache_len: int = 188
     spkcache_refresh_rate: int = 24
     fifo_len: int = 188
@@ -195,7 +194,7 @@ def diarization_objective(
     Returns:
         float: The Diarization Error Rate (DER) for the given set of postprocessing parameters.
     """
-    with tempfile.TemporaryDirectory(dir=temp_out_dir, prefix="Diar_PostProcessing_") as local_temp_out_dir:
+    with tempfile.TemporaryDirectory(dir=temp_out_dir, prefix="Diar_PostProcessing_") as _:
         if trial is not None:
             postprocessing_cfg = optuna_suggest_params(postprocessing_cfg, trial)
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(
@@ -205,7 +204,7 @@ def diarization_objective(
             unit_10ms_frame_count=8,
             bypass_postprocessing=False,
         )
-        metric, mapping_dict, itemized_errors = score_labels(
+        metric, _, _ = score_labels(
             AUDIO_RTTM_MAP=infer_audio_rttm_dict,
             all_reference=all_refs,
             all_hypothesis=all_hyps,
@@ -278,7 +277,7 @@ def convert_pred_mat_to_segments(
        all_reference (list): list of pyannote objects for each audio file.
        all_uems (list): list of pyannote objects for each audio file.
     """
-    batch_pred_ts_segs, all_hypothesis, all_reference, all_uems = [], [], [], []
+    all_hypothesis, all_reference, all_uems = [], [], []
     cfg_vad_params = OmegaConf.structured(postprocessing_cfg)
     total_speaker_timestamps = predlist_to_timestamps(
         batch_preds_list=batch_preds_list,
@@ -402,7 +401,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         )
         diar_model_preds_total_list = torch.load(tensor_path)
     else:
-        logging.info(f"No saved prediction tensors found. Running inference on the dataset...")
+        logging.info("No saved prediction tensors found. Running inference on the dataset...")
         diar_model.test_batch()
         diar_model_preds_total_list = diar_model.preds_total_list
         if cfg.save_preds_tensors:
@@ -423,7 +422,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         if cfg.out_rttm_dir is not None and not os.path.exists(cfg.out_rttm_dir):
             os.mkdir(cfg.out_rttm_dir)
 
-        logging.info(f"Running offline diarization evaluation...")
+        logging.info("Running offline diarization evaluation...")
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(
             infer_audio_rttm_dict,
             postprocessing_cfg=postprocessing_cfg,
@@ -433,7 +432,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             out_rttm_dir=cfg.out_rttm_dir,
         )
         logging.info(f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments...")
-        metric, mapping_dict, itemized_errors = score_labels(
+        score_labels(
             AUDIO_RTTM_MAP=infer_audio_rttm_dict,
             all_reference=all_refs,
             all_hypothesis=all_hyps,

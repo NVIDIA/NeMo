@@ -27,40 +27,23 @@ from typing import List, Tuple
 
 __all__ = ['SortformerModules']
 
-def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
-    """Concatenates lengths[i] first embeddings of embs[i], and pads the rest elements with zeros.
-    Args:
-        embs: List of embeddings Tensors of (B, T_i, D) shape
-        lengths: List of lengths Tensors of (B,) shape
-
-    Returns:
-        output: concatenated embeddings Tensor of (B, T, D) shape
-        total_lengths: output lengths Tensor of (B,) shape
-    """
-
-    assert len(embs) == len(lengths)
-    device = embs[0].device
-    dtype = embs[0].dtype
-    B, D = embs[0].shape[0], embs[0].shape[2]
-
-    total_lengths = torch.sum(torch.stack(lengths), dim=0)
-    max_length = total_lengths.max().item()
-
-    output = torch.zeros(B, max_length, D, device=device, dtype=dtype)
-    start_indices = torch.zeros(B, dtype=torch.int64, device=device)
-
-    for E, L in zip(embs, lengths):
-        end_indices = start_indices + L
-        for b in range(B):
-            output[b, start_indices[b]:end_indices[b]] = E[b, :L[b]]
-        start_indices = end_indices
-
-    return output, total_lengths
-
 @dataclass
 class StreamingSortformerState():
-    spkcache = None  # speaker cache to store embeddings from start
-    spkcache_lengths = None
+    """
+    This class creates a class instance that will be used to store the state of the
+    streaming Sortformer model.
+
+    Attributes:
+        spkcache (torch.Tensor): Speaker cache to store embeddings from start
+        spkcache_lengths (torch.Tensor): Lengths of the speaker cache
+        spkcache_preds (torch.Tensor): The predictions for the speaker cache parts
+        fifo (torch.Tensor): FIFO queue to save the embedding from the latest chunks
+        fifo_lengths (torch.Tensor): Lengths of the FIFO queue
+        fifo_preds (torch.Tensor): The predictions for the FIFO queue parts
+        spk_perm (torch.Tensor): Speaker permutation information for the speaker cache
+    """
+    spkcache = None  # Speaker cache to store embeddings from start
+    spkcache_lengths = None #
     spkcache_preds = None  # speaker cache predictions
     fifo = None  # to save the embedding from the latest chunks
     fifo_lengths = None
@@ -71,7 +54,8 @@ class SortformerModules(NeuralModule, Exportable):
     """
     A class including auxiliary functions for Sortformer models.
     This class contains and will contain the following functions that performs streaming features,
-    and any neural layers that are not included in the NeMo neural modules (e.g. Transformer, Fast-Conformer).
+    and any neural layers that are not included in the NeMo neural modules
+    (e.g. Transformer, Fast-Conformer).
     """
 
     def init_weights(self, m):
@@ -143,12 +127,12 @@ class SortformerModules(NeuralModule, Exportable):
         Convert length values to encoder mask input tensor
 
         Args:
-            lengths (torch.Tensor): tensor containing lengths of sequences
+            lengths (torch.Tensor): Tensor containing lengths of sequences
             max_length (int): maximum sequence length
 
         Returns:
-            mask (torch.Tensor): tensor of shape (batch_size, max_len) containing 0's
-                                in the padded region and 1's elsewhere
+            mask (torch.Tensor): Tensor of shape (batch_size, max_len) containing 0's
+                                 in the padded region and 1's elsewhere
         """
         batch_size = lengths.shape[0]
         arange = torch.arange(max_length, device=lengths.device)
@@ -166,18 +150,18 @@ class SortformerModules(NeuralModule, Exportable):
 
         Args:
             feat_seq (torch.Tensor): Tensor containing feature sequence
-                Dimension: (batch_size, feat_dim, feat frame count)
+                Shape: (batch_size, feat_dim, feat frame count)
             feat_seq_length (torch.Tensor): Tensor containing feature sequence lengths
-                Dimension: (batch_size,)
+                Shape: (batch_size,)
             feat_seq_offset (torch.Tensor): Tensor containing feature sequence offsets
-                Dimension: (batch_size,)
+                Shape: (batch_size,)
 
         Returns:
             chunk_idx (int): Index of the current chunk
             chunk_feat_seq (torch.Tensor): Tensor containing the chunk of feature sequence
-                Dimension: (batch_size, diar frame count, feat_dim)
+                Shape: (batch_size, diar frame count, feat_dim)
             feat_lengths (torch.Tensor): Tensor containing lengths of the chunk of feature sequence
-                Dimension: (batch_size,)
+                Shape: (batch_size,)
         """
         feat_len = feat_seq.shape[2]
         num_chunks = math.ceil(feat_len / (self.chunk_len * self.subsampling_factor))
@@ -211,15 +195,16 @@ class SortformerModules(NeuralModule, Exportable):
 
     def forward_speaker_sigmoids(self, hidden_out):
         """
-        The final layer that renders speaker probabilities in Sigmoid activation function.
+        The final layer that outputs speaker probabilities using the Sigmoid activation function.
 
         Args:
-            hidden_out (torch.Tensor): tensor containing hidden states from the encoder
-                Dimension: (batch_size, n_frames, hidden_dim)
+            hidden_out (torch.Tensor): Tensor containing hidden states from the encoder
+                Shape: (batch_size, n_frames, hidden_dim)
 
         Returns:
-            preds (torch.Tensor): tensor containing speaker probabilities in Sigmoid activation function
-                Dimension: (batch_size, n_frames, n_spk)
+            preds (torch.Tensor): Tensor containing speaker probabilities computed using
+                the Sigmoid activation function
+                Shape: (batch_size, n_frames, n_spk)
         """
         hidden_out = self.dropout(F.relu(hidden_out))
         hidden_out = self.first_hidden_to_hidden(hidden_out)
@@ -254,14 +239,19 @@ class SortformerModules(NeuralModule, Exportable):
         else:
             return embs
 
-    def init_streaming_state(self, batch_size: int = 1, async_streaming: bool = False, device: torch.device = None):
+    def init_streaming_state(
+        self,
+        batch_size: int = 1,
+        async_streaming: bool = False,
+        device: torch.device = None
+    ):
         """
         Initializes StreamingSortformerState with empty tensors or zero-valued tensors.
 
         Args:
-            batch_size (int): batch size for tensors in streaming state
+            batch_size (int): Batch size for tensors in streaming state
             async_streaming (bool): True for asynchronous update, False for synchronous update
-            device (torch.device): device for tensors in streaming state
+            device (torch.device): Device for tensors in streaming state
 
         Returns:
             streaming_state (SortformerStreamingState): initialized streaming state
@@ -285,11 +275,11 @@ class SortformerModules(NeuralModule, Exportable):
 
         Args:
             spkcache_fifo_chunk_preds (torch.Tensor): Speaker predictions of the chunk
-            spkcache_fifo_chunk_fc_encoder_lengths (torch.Tensor): lengths of current chunk in
+            spkcache_fifo_chunk_fc_encoder_lengths (torch.Tensor): Lengths of current chunk in
                                                                    the Fast-Conformer encoder
 
         Returns:
-            spkcache_fifo_chunk_preds (torch.Tensor): speaker predictions of the chunk with valid frames only
+            spkcache_fifo_chunk_preds (torch.Tensor): Speaker predictions of the chunk with valid frames only
         """
         batch_size, n_frames, n_spk = spkcache_fifo_chunk_preds.shape
         preds_mask = torch.arange(n_frames, device=spkcache_fifo_chunk_preds.device).view(1, -1, 1)
@@ -313,20 +303,20 @@ class SortformerModules(NeuralModule, Exportable):
         Should be used for real streaming applications.
 
         Args:
-            streaming_state (SortformerStreamingState): previous streaming state including speaker cache and FIFO
+            streaming_state (SortformerStreamingState): Previous streaming state including speaker cache and FIFO
             chunk (torch.Tensor): chunk of embeddings to be predicted
-                Dimension: (batch_size, lc+chunk_len+rc, emb_dim)
-            chunk_lengths (torch.Tensor): lengths of current chunk
-                Dimension: (batch_size,)
-            preds (torch.Tensor): speaker predictions of the [spkcache + fifo + chunk] embeddings
-                Dimension: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
-            lc and rc (int): left & right offset of the chunk,
+                Shape: (batch_size, lc+chunk_len+rc, emb_dim)
+            chunk_lengths (torch.Tensor): Lengths of current chunk
+                Shape: (batch_size,)
+            preds (torch.Tensor): Speaker predictions of the [spkcache + fifo + chunk] embeddings
+                Shape: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
+            lc and rc (int): The left & right offset of the chunk,
                 only the chunk[:, lc:chunk_len+lc] is used for update of speaker cache and FIFO queue
 
         Returns:
-            streaming_state (SortformerStreamingState): current streaming state including speaker cache and FIFO
-            chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
-                Dimension: (batch_size, chunk_len, num_spks)
+            streaming_state (SortformerStreamingState): Current streaming state including speaker cache and FIFO
+            chunk_preds (torch.Tensor): Speaker predictions of the chunk embeddings
+                Shape: (batch_size, chunk_len, num_spks)
         """
         batch_size, _, emb_dim = chunk.shape
         n_spk = preds.shape[2]
@@ -435,16 +425,16 @@ class SortformerModules(NeuralModule, Exportable):
         Args:
             streaming_state (SortformerStreamingState): previous streaming state including speaker cache and FIFO
             chunk (torch.Tensor): chunk of embeddings to be predicted
-                Dimension: (batch_size, lc+chunk_len+rc, emb_dim)
+                Shape: (batch_size, lc+chunk_len+rc, emb_dim)
             preds (torch.Tensor): speaker predictions of the [spkcache + fifo + chunk] embeddings
-                Dimension: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
+                Shape: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
             lc and rc (int): left & right offset of the chunk,
                 only the chunk[:, lc:chunk_len+lc] is used for update of speaker cache and FIFO queue
 
         Returns:
             streaming_state (SortformerStreamingState): current streaming state including speaker cache and FIFO
             chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
-                Dimension: (batch_size, chunk_len, num_spks)
+                Shape: (batch_size, chunk_len, num_spks)
         """
 
         batch_size, _, emb_dim = chunk.shape
@@ -518,9 +508,9 @@ class SortformerModules(NeuralModule, Exportable):
         Increase `n_boost_per_spk` highest scores for each speaker.
 
         Args:
-            scores (torch.Tensor): Tensor containing scores for each frame and speaker.
+            scores (torch.Tensor): Tensor containing scores for each frame and speaker
                 Shape: (batch_size, n_frames, n_spk)
-            n_boost_per_spk (int): Number of frames to boost per speaker.
+            n_boost_per_spk (int): Number of frames to boost per speaker
             scale_factor (float): Scaling factor for boosting scores. Defaults to 1.0.
             offset (float): Offset for score adjustment. Defaults to 0.5.
 
@@ -542,13 +532,13 @@ class SortformerModules(NeuralModule, Exportable):
         Embeddings are considered as silence if sum of corresponding preds is lower than self.sil_threshold.
 
         Args:
-            emb_seq (torch.Tensor): Tensor containing sequence of embeddings.
+            emb_seq (torch.Tensor): Tensor containing sequence of embeddings
                 Shape: (batch_size, n_frames, emb_dim)
-            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
                 Shape: (batch_size, n_frames, n_spk)
 
         Returns:
-            mean_sil_emb (torch.Tensor): Mean silence embedding tensor.
+            mean_sil_emb (torch.Tensor): Mean silence embedding tensor
                 Shape: (batch_size, emb_dim)
         """
         is_sil = (preds.sum(dim=2) < self.sil_threshold)
@@ -565,11 +555,11 @@ class SortformerModules(NeuralModule, Exportable):
         Scores are log-based and designed to be high for confident prediction of non-overlapped speech.
 
         Args:
-            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
                 Shape: (batch_size, n_frames, n_spk)
 
         Returns:
-            scores (torch.Tensor): Tensor containing speaker scores.
+            scores (torch.Tensor): Tensor containing speaker scores
                 Shape: (batch_size, n_frames, n_spk)
         """
         log_probs = torch.log(torch.clamp(preds, min=self.pred_score_threshold))
@@ -585,13 +575,13 @@ class SortformerModules(NeuralModule, Exportable):
         Mean silence embedding will be used for these frames.
 
         Args:
-            scores (torch.Tensor): Tensor containing speaker scores, including for extra silence frames.
+            scores (torch.Tensor): Tensor containing speaker scores, including for extra silence frames
                 Shape: (batch_size, n_frames, n_spk)
 
         Returns:
-            topk_indices_sorted (torch.Tensor): Tensor containing frame indices of spkcache_len highest scores.
+            topk_indices_sorted (torch.Tensor): Tensor containing frame indices of spkcache_len highest scores
                 Shape: (batch_size, spkcache_len)
-            is_disabled (torch.Tensor): Tensor containing binary mask for frames in topk to be disabled.
+            is_disabled (torch.Tensor): Tensor containing binary mask for frames in topk to be disabled
                 Shape: (batch_size, spkcache_len)
         """
         batch_size, n_frames, _ = scores.shape
@@ -619,11 +609,11 @@ class SortformerModules(NeuralModule, Exportable):
         Args:
             emb_seq (torch.Tensor): Tensor containing sequence of embeddings.
                 Shape: (batch_size, n_frames, emb_dim)
-            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
                 Shape: (batch_size, n_frames, n_spk)
-            topk_indices (torch.Tensor): Tensor containing indices of frames to gather.
+            topk_indices (torch.Tensor): Tensor containing indices of frames to gather
                 Shape: (batch_size, spkcache_len)
-            is_disabled (torch.Tensor): Tensor containing binary mask for disabled frames.
+            is_disabled (torch.Tensor): Tensor containing binary mask for disabled frames
                 Shape: (batch_size, spkcache_len)
 
         Returns:
@@ -656,11 +646,11 @@ class SortformerModules(NeuralModule, Exportable):
         These speakers will be randomly permuted during _compress_spkcache (training only).
 
         Args:
-            scores (torch.Tensor): Tensor containing speaker scores.
+            scores (torch.Tensor): Tensor containing speaker scores
                 Shape: (batch_size, n_frames, n_spk)
 
         Returns:
-            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute.
+            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute
                 Shape: (batch_size)
         """
 
@@ -677,9 +667,9 @@ class SortformerModules(NeuralModule, Exportable):
         Also sets non-positive scores to '-inf', if there are at least min_pos_scores_per_spk positive scores.
 
         Args:
-            preds (torch.Tensor): Tensor containing speaker activity probabilities.
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
                 Shape: (batch_size, n_frames, n_spk)
-            scores (torch.Tensor): Tensor containing speaker importance scores.
+            scores (torch.Tensor): Tensor containing speaker importance scores
                 Shape: (batch_size, n_frames, n_spk)
             min_pos_scores_per_spk (int): if number of positive scores for a speaker is greater than this,
                 then all non-positive scores for this speaker will be disabled, i.e. set to '-inf'.
@@ -704,16 +694,16 @@ class SortformerModules(NeuralModule, Exportable):
         Create a random permutation of scores max_perm_index first speakers.
 
         Args:
-            scores (torch.Tensor): Tensor containing speaker scores.
+            scores (torch.Tensor): Tensor containing speaker scores
                 Shape: (batch_size, n_frames, n_spk)
-            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute.
+            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute
                 Shape: (batch_size)
 
         Returns:
             scores (torch.Tensor): Tensor with permuted scores.
                 Shape: (batch_size, n_frames, n_spk)
-            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores.
-                Dimension: (batch_size, n_spk)
+            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores
+                Shape: (batch_size, n_spk)
         """
         spk_perm_list, scores_list = [], []
         batch_size, _, n_spk = scores.shape
@@ -734,19 +724,19 @@ class SortformerModules(NeuralModule, Exportable):
 
         Args:
             emb_seq (torch.Tensor): Tensor containing n_frames > spkcache_len embeddings
-                Dimension: (batch_size, n_frames, emb_dim)
+                Shape: (batch_size, n_frames, emb_dim)
             preds (torch.Tensor): Tensor containing n_frames > spkcache_len speaker activity probabilities
-                Dimension: (batch_size, n_frames, n_spk)
+                Shape: (batch_size, n_frames, n_spk)
             permute_spk (bool): If true, will generate a random permutation of existing speakers
 
         Returns:
             spkcache (torch.Tensor): Tensor containing spkcache_len most important embeddings from emb_seq.
-            Embeddings are ordered by speakers. Within each speaker, original order of frames is kept.
-                Dimension: (batch_size, spkcache_len, emb_dim)
+                Embeddings are ordered by speakers. Within each speaker, original order of frames is kept.
+                Shape: (batch_size, spkcache_len, emb_dim)
             spkcache_preds (torch.Tensor): predictions corresponding to speaker cache
-                Dimension: (batch_size, spkcache_len, n_spk)
+                Shape: (batch_size, spkcache_len, n_spk)
             spk_perm (torch.Tensor): random speaker permutation tensor if permute_spk=True, otherwise None
-                Dimension: (batch_size, n_spk)
+                Shape: (batch_size, n_spk)
         """
         batch_size, n_frames, n_spk = preds.shape
         spkcache_len_per_spk = self.spkcache_len // n_spk - self.spkcache_sil_frames_per_spk

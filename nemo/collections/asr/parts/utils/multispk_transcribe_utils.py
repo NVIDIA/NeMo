@@ -35,7 +35,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 audio_rttm_map as get_audio_rttm_map,
 rttm_to_labels,
 )
-from examples.asr.asr_cache_aware_streaming.start_words import COMMON_SENTENCE_STARTS
+# from examples.asr.asr_cache_aware_streaming.start_words import COMMON_SENTENCE_STARTS
 from nemo.collections.asr.parts.utils.diarization_utils import (
 print_sentences,
 get_color_palette,
@@ -53,7 +53,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 audio_rttm_map as get_audio_rttm_map,
 rttm_to_labels,
 )
-from examples.asr.asr_cache_aware_streaming.start_words import COMMON_SENTENCE_STARTS
+# from examples.asr.asr_cache_aware_streaming.start_words import COMMON_SENTENCE_STARTS
 from nemo.collections.asr.parts.utils.diarization_utils import (
 print_sentences,
 get_color_palette,
@@ -443,9 +443,11 @@ class SpeakerTaggedASR:
         self._frame_len_sec = 0.08
         self._initial_steps = cfg.ignored_initial_frame_steps
         self._all_sentences = []
-        self._stt_words = COMMON_SENTENCE_STARTS
+        # self._stt_words = COMMON_SENTENCE_STARTS
+        self._stt_words = []
         self._init_evaluator() 
         self._frame_hop_length = self.asr_model.encoder.streaming_cfg.valid_out_len
+        self.seglst_dict_list = []
     
     def _init_evaluator(self):  
         self.online_evaluators, self._word_and_ts_seq, self._sentence_and_ts_seq = [], [], []
@@ -528,11 +530,12 @@ class SpeakerTaggedASR:
                 'text': ''}
         
     def text_post_processing(self, sentence):
-        sentence['text'] =  sentence['text'].replace("twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty three", "twenty twenty three")
         if self.cfg.uppercase_first_letter and len(sentence['text']) > 1:
-            sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
+            # sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
+            sentence['text'] = sentence['text'][:1].lower() + sentence['text'][1:]
         if self.cfg.remove_pnc:
-            sentence['text'] = sentence['text'].lower().replace('.', '').replace(',', '').replace('!', '').replace('?', '').upper()
+            # sentence['text'] = sentence['text'].lower().replace('.', '').replace(',', '').replace('!', '').replace('?', '').upper()
+            sentence['text'] = sentence['text'].lower().replace('.', '').replace(',', '').replace('!', '').replace('?', '').lower()
         return sentence
     
     
@@ -694,7 +697,24 @@ class SpeakerTaggedASR:
                 word_and_ts_seq = correct_speaker_assignments(word_and_ts_seq=word_and_ts_seq, 
                                                                 sentence_render_length=self._sentence_render_length)
         return word_and_ts_seq
-
+    
+    def _save_seglst_dicts(self, word_and_ts_seq):
+        """ 
+        Save the word_and_ts_seq dictionary to a seglst file.
+        
+        Args:
+            word_and_ts_seq: Dictionary containing word and time-related information.
+        """
+        # import ipdb; ipdb.set_trace()
+        # seglst_list = []
+        # for word_dict in word_and_ts_seq['words']:
+        #     seglst_list.append({
+        #                         'start_time': word_dict['start_time'], 
+        #                         'end_time': word_dict['end_time'], 
+        #                         'speaker': word_dict['speaker'], 
+        #                         'word': word_dict['word']})
+        # write_seglst(f'{self.cfg.print_path}'.replace(".sh", f"_seglst.sh"), seg
+    
     @measure_eta 
     def perform_streaming_stt_spk(
         self,
@@ -707,14 +727,15 @@ class SpeakerTaggedASR:
         previous_hypotheses,
         asr_pred_out_stream,
         diar_pred_out_stream,
-        mem_last_time,
-        fifo_last_time,
+        streaming_state,
+        # mem_last_time,
+        # fifo_last_time,
         left_offset,
         right_offset,
         is_buffer_empty,
         pad_and_drop_preencoded,
     ):
-
+        
         (
             asr_pred_out_stream,
             transcribed_texts,
@@ -736,26 +757,22 @@ class SpeakerTaggedASR:
             ),
             return_transcription=True,
         )
+        if diar_pred_out_stream is None:
+            diar_pred_out_stream = torch.zeros((chunk_audio.shape[0], 0, self.diar_model.sortformer_modules.n_spk), device=chunk_audio.device)
 
         if step_num > 0:
             left_offset = 8
             chunk_audio = chunk_audio[..., 1:]
             chunk_lengths -= 1
-        (
-            mem_last_time,
-            fifo_last_time,
-            mem_preds,
-            fifo_preds,
-            diar_pred_out_stream
-        ) = self.diar_model.forward_streaming_step(
+        streaming_state, diar_pred_out_stream = self.diar_model.forward_streaming_step(
             processed_signal=chunk_audio.transpose(1, 2),
             processed_signal_length=chunk_lengths,
-            mem_last_time=mem_last_time,
-            fifo_last_time=fifo_last_time,
-            previous_pred_out=diar_pred_out_stream,
+            streaming_state=streaming_state,
+            total_preds=diar_pred_out_stream,
             left_offset=left_offset,
             right_offset=right_offset,
-        )
+            )
+
         transcribed_speaker_texts = [None] * len(self.test_manifest_dict)
         for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()): 
             if not (len( previous_hypotheses[idx].text) == 0 and step_num <= self._initial_steps):
@@ -769,9 +786,6 @@ class SpeakerTaggedASR:
                 if len(self._word_and_ts_seq[idx]["words"]) > 0:
                     self._word_and_ts_seq[idx] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[idx], 
                                                                            sentence_render_length=self._sentence_render_length)
-                    if self.cfg.eval_mode:
-                        der, cpwer, is_update = self.online_evaluators[idx].evaluate_inloop(hyp_seglst=self._word_and_ts_seq[idx]["sentences"], 
-                                                                                            end_step_time=self._word_and_ts_seq[idx]["sentences"][-1]["end_time"])
                     if self.cfg.generate_scripts:
                         transcribed_speaker_texts[idx] = \
                             print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], 
@@ -788,116 +802,9 @@ class SpeakerTaggedASR:
                 cache_last_time,
                 cache_last_channel_len,
                 previous_hypotheses,
-                mem_last_time,
-                fifo_last_time,
-                diar_pred_out_stream)
-    
-    @measure_eta 
-    def perform_queryless_streaming_stt_spk(
-        self,
-        step_num,
-        chunk_audio,
-        chunk_lengths,
-        cache_last_channel,
-        cache_last_time,
-        cache_last_channel_len,
-        previous_hypotheses,
-        asr_pred_out_stream,
-        diar_pred_out_stream,
-        mem_last_time,
-        fifo_last_time,
-        left_offset,
-        right_offset,
-        is_buffer_empty,
-        pad_and_drop_preencoded,
-    ):
-        
-        if step_num > 0:
-            left_offset = 8
-            chunk_audio = chunk_audio[..., 1:]
-            chunk_lengths -= 1
-        (
-            mem_last_time,
-            fifo_last_time,
-            mem_preds,
-            fifo_preds,
-            diar_pred_out_stream
-        ) = self.diar_model.forward_streaming_step(
-            processed_signal=chunk_audio.transpose(1, 2),
-            processed_signal_length=chunk_lengths,
-            mem_last_time=mem_last_time,
-            fifo_last_time=fifo_last_time,
-            previous_pred_out=diar_pred_out_stream,
-            left_offset=left_offset,
-            right_offset=right_offset,
-        )
-
-        spk_targets = diar_pred_out_stream[:, -14:] > 0.5
-        (
-            asr_pred_out_stream,
-            transcribed_texts,
-            cache_last_channel,
-            cache_last_time,
-            cache_last_channel_len,
-            previous_hypotheses,
-        ) = self.asr_model.conformer_stream_step(
-            processed_signal=chunk_audio,
-            processed_signal_length=chunk_lengths,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            cache_last_channel_len=cache_last_channel_len,
-            keep_all_outputs=is_buffer_empty,
-            previous_hypotheses=previous_hypotheses,
-            previous_pred_out=asr_pred_out_stream,
-            drop_extra_pre_encoded=calc_drop_extra_pre_encoded(
-                self.asr_model, step_num, pad_and_drop_preencoded
-            ),
-            return_transcription=True,
-            spk_targets=spk_targets
-        )
-
-        n_spk = spk_targets.shape[-1]
-        transcribed_speaker_texts = [None] * n_spk
-        uniq_id = list(self.test_manifest_dict.keys())[0]
-        if len(self._word_and_ts_seq) < n_spk:
-            self._word_and_ts_seq = [deepcopy(self._word_and_ts_seq[0]) for _ in range(n_spk)]
-
-        # # step 1: save the word and time-stamp sequence for each speaker
-        for speaker_index in range(n_spk): 
-            if not (len( previous_hypotheses[speaker_index].text) == 0 and step_num <= self._initial_steps):
-                # Get the word-level dictionaries for each word in the chunk
-                diar_pred_out_stream_idx = torch.zeros_like(diar_pred_out_stream)
-                diar_pred_out_stream_idx[:, :, speaker_index] = diar_pred_out_stream[:, :, speaker_index]
-                self._word_and_ts_seq[speaker_index] = self.get_frame_and_words_online(uniq_id=uniq_id,
-                                                                            step_num=step_num, 
-                                                                            diar_pred_out_stream=diar_pred_out_stream_idx[0],
-                                                                            previous_hypothesis=previous_hypotheses[speaker_index], 
-                                                                            word_and_ts_seq=self._word_and_ts_seq[speaker_index],
-                                                                            )
-                if len(self._word_and_ts_seq[speaker_index]["words"]) > 0:
-                    self._word_and_ts_seq[speaker_index] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[speaker_index], 
-                                                                           sentence_render_length=self._sentence_render_length)
-                    if self.cfg.eval_mode:
-                        der, cpwer, is_update = self.online_evaluators[speaker_index].evaluate_inloop(hyp_seglst=self._word_and_ts_seq[speaker_index]["sentences"], 
-                                                                                            end_step_time=self._word_and_ts_seq[speaker_index]["sentences"][-1]["end_time"])
-                    if self.cfg.generate_scripts:
-                        transcribed_speaker_texts[speaker_index] = \
-                            print_sentences(sentences=self._word_and_ts_seq[speaker_index]["sentences"], 
-                            color_palette=get_color_palette(), 
-                            params=self.cfg)
-                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_spk{speaker_index}.sh"), 
-                                  transcribed_speaker_texts[speaker_index].strip())
-        
-        return (transcribed_speaker_texts,
-                transcribed_texts,
-                asr_pred_out_stream,
-                transcribed_texts,
-                cache_last_channel,
-                cache_last_time,
-                cache_last_channel_len,
-                previous_hypotheses,
-                mem_last_time,
-                fifo_last_time,
+                streaming_state,
+                # mem_last_time,
+                # fifo_last_time,
                 diar_pred_out_stream)
 
     def _add_speaker_transcriptions(self, transcriptions: list, speaker_transcriptions: List[str], word_and_ts_seq: List[Dict[str, Any]]) -> Tuple[List[Hypothesis], List[Hypothesis]]:
