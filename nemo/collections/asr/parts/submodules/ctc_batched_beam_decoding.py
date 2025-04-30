@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import torch

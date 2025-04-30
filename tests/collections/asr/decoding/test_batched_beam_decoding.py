@@ -853,7 +853,7 @@ class TestCTCDecoding:
         beam_size,
     ):
         device = torch.device("cuda")
-        beam_config["kenlm_path"] = kenlm_model_path
+        beam_config["ngram_lm_model"] = kenlm_model_path
 
         num_samples = min(batch_size, len(test_audio_filenames))
         model = ctc_model.to(device)

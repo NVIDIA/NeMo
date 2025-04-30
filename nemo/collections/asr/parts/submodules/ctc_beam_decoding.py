@@ -886,13 +886,20 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
 
     Args:
         blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        beam_size: int size of the beam.
+        return_best_hypothesis:  When set to True (default), returns a single Hypothesis.
+            When set to False, returns a NBestHypotheses container, which contains a list of Hypothesis.
         preserve_alignments: Bool flag which preserves the history of logprobs generated during
             decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
         compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
                 The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
-
+        beam_alpha: float, the language model weight.
+        beam_beta: float, the word insertion weight.
+        beam_threshold: float, the beam pruning threshold.
+        ngram_lm_model: str, the path to the ngram model.
+        allow_cuda_graphs: bool, whether to allow cuda graphs for the beam search algorithm.
     """
 
     def __init__(
@@ -905,7 +912,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
         beam_threshold: float = 20.0,
-        kenlm_path: str = None,
+        ngram_lm_model: str = None,
         allow_cuda_graphs: bool = True,
     ):
         super().__init__(blank_id=blank_index, beam_size=beam_size)
@@ -916,7 +923,9 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         self.allow_cuda_graphs = allow_cuda_graphs
 
         if self.compute_timestamps:
-            raise ValueError("Currently this flag is not supported for beam search algorithms.")
+            raise ValueError("`Compute timestamps` is not supported for batched beam search.")
+        if self.preserve_alignments:
+            raise ValueError("`Preserve alignments` is not supported for batched beam search.")
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
 
@@ -925,7 +934,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         self.beam_threshold = beam_threshold
 
         # Default beam search args
-        self.kenlm_path = kenlm_path
+        self.kenlm_path = ngram_lm_model
 
         # Default beam search scorer functions
         self.default_beam_scorer = None
@@ -942,7 +951,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             beam_alpha=beam_alpha,
             beam_beta=beam_beta,
             beam_threshold=beam_threshold,
-            kenlm_path=kenlm_path,
+            kenlm_path=ngram_lm_model,
             allow_cuda_graphs=allow_cuda_graphs,
         )
 

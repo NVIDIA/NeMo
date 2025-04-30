@@ -358,7 +358,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
-                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                ngram_lm_model=self.cfg.beam.get('kenlm_path', None),
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
             )
 
