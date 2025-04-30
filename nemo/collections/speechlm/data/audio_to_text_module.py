@@ -110,8 +110,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 eoa_string=data_cfg.get("eoa_string", "<EOA>"),
             )
         else:
-            # Legacy text processor for non-lhotse datasets
-            text_processor = get_text_processor_from_cfg(cfg=data_cfg, tokenizer=self.tokenizer)
+            raise ValueError("You need to specify the prompt format in the data config.")
+
         return text_processor
 
     def prepare_data(self):
@@ -198,7 +198,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         if data_cfg.get('is_tarred', False):
             dataset = get_tarred_audio_text_dataset_from_config(
                 config=data_cfg,
-                text_processor=self.text_processor,
+                text_processor=get_text_processor_from_cfg(cfg=self.data_cfg, tokenizer=self.tokenizer),
                 augmentor=augmentor,
                 global_rank=parallel_state.get_data_parallel_rank(),
                 world_size=parallel_state.get_data_parallel_world_size(),
@@ -207,7 +207,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             dataset = get_audio_text_dataset_from_config(
                 manifest_filepath=data_cfg.manifest_filepath,
                 config=data_cfg,
-                text_processor=self.text_processor,
+                text_processor=get_text_processor_from_cfg(cfg=self.data_cfg, tokenizer=self.tokenizer),
                 augmentor=augmentor,
                 is_train=(mode == 'train'),
             )
