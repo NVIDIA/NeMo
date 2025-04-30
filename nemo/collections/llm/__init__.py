@@ -375,7 +375,7 @@ except ImportError as error:
     logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
 
 try:
-    from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
+    from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad  # noqa: F401
 
     __all__.extend(["dolly", "hf_dataset", "mock", "squad"])
 except ImportError as error:
