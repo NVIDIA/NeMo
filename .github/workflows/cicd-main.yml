@@ -2068,6 +2068,30 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: L2_NeMo_2_Export_HF_TRT_LLM
 
+  L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2
+
+  L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2
+
+  L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2
+
   Nemo_CICD_Test:
     needs:
       - pre-flight
@@ -2277,7 +2301,9 @@ jobs:
       - Optional_L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_Export_HF_TRT_LLM
-
+      - L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2
+      - L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2_EP2
+      - L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_TP2_EP2
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     permissions: write-all
