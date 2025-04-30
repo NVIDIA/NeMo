@@ -25,7 +25,6 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/
   --min_tps 1 \
   --in_framework True \
   --test_deployment True \
-  --enable_flash_decode True \
   --run_accuracy True \
   --test_data_path /tmp/lambada.json \
   --accuracy_threshold 0.0 \

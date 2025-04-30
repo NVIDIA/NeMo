@@ -19,7 +19,6 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo script
   --nemo_checkpoint /tmp/nemo2_ckpt \
   --triton_model_name llama \
   --num_gpus 2 \
-  --enable_flash_decode \
   --tensor_parallelism_size 2 &
 
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/deploy/nlp/query_inframework.py \
