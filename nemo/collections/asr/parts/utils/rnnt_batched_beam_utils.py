@@ -590,9 +590,7 @@ class BatchedBeamHypsCTC:
             device=device,
             dtype=torch.long,
         )
-        self.timesteps = torch.zeros(
-            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
-        )  # timestamps
+        self.timestamps = self._create_timestamps_tensor(self._max_length)  # timestamps
 
         # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
         self.scores = torch.full(
@@ -615,7 +613,7 @@ class BatchedBeamHypsCTC:
 
         self.transcript_wb.fill_(0)
         self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
-        self.timesteps.fill_(0)
+        self.timestamps.copy_(self._create_timestamps_tensor(self._max_length))
 
         self.scores.fill_(INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
@@ -631,9 +629,7 @@ class BatchedBeamHypsCTC:
         self.transcript_wb_prev_ptr = torch.cat(
             (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
         )
-        self.timesteps = torch.cat(
-            (self.timesteps, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)), dim=-1
-        )
+        self.timestamps = self._create_timestamps_tensor(2*self._max_length)
         self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
 
         self._max_length *= 2
@@ -750,7 +746,7 @@ class BatchedBeamHypsCTC:
         new_scores = torch.max(scores_matrix, dim=-1, keepdim=False).values
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
 
-    def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+    def to_hyps_list(self) -> list[Hypothesis]:
         """
         Converts the batched beam search results into a list of signle best hypotheses for each batch.
         Args:
@@ -765,13 +761,15 @@ class BatchedBeamHypsCTC:
         scores = self.scores[self.batch_indices, 0].tolist()
 
         max_idx = self.current_lengths_wb.max() - 1
-        # timestamps = self.timestamps[..., 0, : max_idx + 1].cpu().detach().numpy()
-        transcripts = self.transcript_wb[..., 0, : max_idx + 1].cpu().detach().numpy()
+        timestamps = self.timestamps[..., 0, : max_idx + 1]
+        transcripts = self.transcript_wb[..., 0, : max_idx + 1] #.cpu().detach().numpy()
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
-                y_sequence=transcripts[batch_idx][transcripts[batch_idx] >= 0],
-                # timestamp=timestamps[batch_idx][mask],
+                y_sequence=transcripts[batch_idx][
+                    mask:= self._create_fold_consecutive_mask(transcripts[batch_idx])
+                ],
+                timestamp=timestamps[batch_idx][mask],
                 alignments=None,
                 dec_state=None,
             )
@@ -779,7 +777,7 @@ class BatchedBeamHypsCTC:
         ]
         return hypotheses
 
-    def to_nbest_hyps_list(self, score_norm: bool = True) -> list[NBestHypotheses]:
+    def to_nbest_hyps_list(self) -> list[NBestHypotheses]:
         """
         Converts the batched beam search results into a list of N-best hypotheses for each batch.
         Args:
@@ -789,20 +787,22 @@ class BatchedBeamHypsCTC:
             N-best hypotheses.
         """
 
-        self.flatten_sort_(score_norm)
+        self.flatten_sort_()
 
         scores = self.scores.tolist()
 
         max_idx = self.current_lengths_wb.max() - 1
-        transcripts = self.transcript_wb[..., : max_idx + 1].cpu().detach().numpy()
-        # timestamps = self.timestamps[..., : max_idx + 1].cpu().detach().numpy()
+        transcripts = self.transcript_wb[..., : max_idx + 1]
+        timestamps = self.timestamps[..., : max_idx + 1]
         hypotheses = [
             NBestHypotheses(
                 [
                     Hypothesis(
                         score=scores[batch_idx][beam_idx],
-                        y_sequence=transcripts[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
-                        # timestamp=timestamps[batch_idx][beam_idx][mask],
+                        y_sequence=transcripts[batch_idx][beam_idx][
+                            mask:= self._create_fold_consecutive_mask(transcripts[batch_idx][beam_idx])
+                        ].cpu().detach().numpy(),
+                        timestamp=timestamps[batch_idx][beam_idx][mask].cpu().detach().numpy(),
                         alignments=None,
                         dec_state=None,
                     )
@@ -843,3 +843,38 @@ class BatchedBeamHypsCTC:
         self.last_label_nb.copy_(torch.gather(self.last_label, dim=-1, index=indices))
 
         self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=indices))
+
+    def _create_fold_consecutive_mask(self, transcript):
+        """
+        Creates a mask to filter consecutive duplicates, blanks, and invalid tokens in a transcript.
+        Args:
+            transcript (torch.Tensor): 1D tensor of token sequence.
+        Returns:
+            torch.Tensor: Boolean mask indicating valid tokens.
+        """
+        device=transcript.device
+        mask = (
+            (transcript >= 0) & 
+            torch.cat([torch.tensor([True], device=device), transcript[1:] != transcript[:-1]]) &
+            (transcript != self.blank_index)
+        )
+        
+        return mask
+    
+    def _create_timestamps_tensor(self, max_time):
+        """
+        Generates a tensor of timestamps.
+
+        In CTC, labels align with input frames, allowing timestamps to be precomputed.
+
+        Args:
+            max_time (int): The maximum number of time steps (frames) to include in the tensor.
+
+        Returns:
+            torch.Tensor: A tensor of shape (batch_size, beam_size, max_time) containing
+            sequential timestamps for each batch and beam.
+        """
+        return (
+            torch.arange(max_time, device=self.device, dtype=torch.long)[None, None, :]
+            .repeat(self.batch_size, self.beam_size, 1)
+        )

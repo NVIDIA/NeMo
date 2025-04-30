@@ -362,7 +362,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
             )
 
-            self.decoding.override_fold_consecutive_value = True
+            self.decoding.override_fold_consecutive_value = False
 
         else:
             raise ValueError(
