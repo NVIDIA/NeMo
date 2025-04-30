@@ -313,7 +313,7 @@ class SuffixTreeStorage:
         self._node_cache[0] = 0
         self.unk_prob = 0.0
 
-    def _add_tbranches(self, tbranches: list, bos_id: int, unk_id: int):
+    def _add_tbranches_first_order(self, tbranches: list, bos_id: int, unk_id: int):
         """Add all unigrams"""
         assert bos_id < 0 and unk_id < 0
         bos_unigram = None
@@ -384,25 +384,25 @@ class SuffixTreeStorage:
         #     NEG_INF,
         # )
 
-    def _find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
-        """
-        Find the state given sequence of symbols
-        Args:
-            symbols: sequence of symbols
-            bos_id: ID of the Begin-of-Sentence symbol
+    # def _find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
+    #     """
+    #     Find the state given sequence of symbols
+    #     Args:
+    #         symbols: sequence of symbols
+    #         bos_id: ID of the Begin-of-Sentence symbol
 
-        Returns:
-            state in tree for the last symbol
-        """
-        if len(symbols) > 1:
-            return self._arc_cache[tuple(symbols)]
-        assert len(symbols) == 1
-        label = symbols[0]
-        if label == bos_id:
-            return 1
-        elif label >= 0:
-            return self.arcs[label]["to"]
-        raise ValueError(f"Invalid symbol {label}")
+    #     Returns:
+    #         state in tree for the last symbol
+    #     """
+    #     if len(symbols) > 1:
+    #         return self._arc_cache[tuple(symbols)]
+    #     assert len(symbols) == 1
+    #     label = symbols[0]
+    #     if label == bos_id:
+    #         return 1
+    #     elif label >= 0:
+    #         return self.arcs[label]["to"]
+    #     raise ValueError(f"Invalid symbol {label}")
 
     def _add_tbranches_next_order(self, tbranches: list, bos_id: int):
         """Add tbranches for the order > 1; should be called after adding unigrams, using increasing order"""
@@ -421,7 +421,8 @@ class SuffixTreeStorage:
             assert ilabel < self.vocab_size
             # backoff_state = self._find_state(symbols[1:], bos_id=bos_id)
             backoff_state = self._node_cache[tbranch.next_node.fail.id]
-            backoff_weight = tbranch.next_node.node_score - tbranch.next_node.fail.node_score
+            backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
+            # import pdb; pdb.set_trace()
 
             arc_id = self.num_arcs
             next_state = self.num_states
@@ -472,20 +473,20 @@ class SuffixTreeStorage:
     #         self._tbranches_cnt = 0
     #     # for max order - no need in accumulator
 
-    def _add_tbranch(self, tbranch: NGram, bos_id: int):
-        """Helper to add ngram"""
-        # assert len(ngram.symbols) == self._cur_order
-        if self._cur_order == self.max_order:
-            self._add_ngram_max_order(tbranch=tbranch, bos_id=bos_id)
-            return
-        self._tbranches[self._tbranches_cnt] = tbranch
-        self._tbranches_cnt += 1
+    # def _add_tbranch(self, tbranch: NGram, bos_id: int):
+    #     """Helper to add ngram"""
+    #     # assert len(ngram.symbols) == self._cur_order
+    #     if self._cur_order == self.max_order:
+    #         self._add_ngram_max_order(tbranch=tbranch, bos_id=bos_id)
+    #         return
+    #     self._tbranches[self._tbranches_cnt] = tbranch
+    #     self._tbranches_cnt += 1
 
     def _end_adding_ngrams_for_order(self, order: int, bos_id: int, unk_id: int):
         """Finish adding ngrams for the given order"""
         if order == 1:
             assert len(self._tbranches) == self._tbranches_cnt
-            self._add_tbranches(tbranches=self._tbranches, bos_id=bos_id, unk_id=unk_id)
+            self._add_tbranches_first_order(tbranches=self._tbranches, bos_id=bos_id, unk_id=unk_id)
             self._tbranches = None
             self._tbranches_cnt = 0
         # elif order < self.max_order:
@@ -754,7 +755,7 @@ class GPUBoostingTreeModel(ModelPT):
             num_arcs_max=max_states * 2 + vocab_size * 2 + 1,
             normalize_unk=normalize_unk,
             vocab_size=vocab_size,
-            max_order=max(order2cnt),
+            max_order=max(order2cnt)+1,
         )
 
         # convert cb_tree to np suffix tree
@@ -781,7 +782,7 @@ class GPUBoostingTreeModel(ModelPT):
 
         assert tbranch_cur_order_i == 0
         suffix_tree_np.sanity_check()
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         # with open(lm_path, "r", encoding="utf-8") as f:
         #     order2cnt = cls._read_header(f=f)
@@ -902,74 +903,74 @@ class GPUBoostingTreeModel(ModelPT):
         model._resolve_final()
         return model
 
-    @classmethod
-    def _read_header(cls, f) -> dict[int, int]:
-        """
-        Parse ARPA header
+    # @classmethod
+    # def _read_header(cls, f) -> dict[int, int]:
+    #     """
+    #     Parse ARPA header
 
-        Args:
-            f: file object
+    #     Args:
+    #         f: file object
 
-        Returns:
-            dictionary with order -> number of ngrams
-        """
-        is_start = True
-        order2cnt: dict[int, int] = defaultdict(int)
-        for line in f:
-            line = line.strip()
-            if is_start:
-                assert line == "\\data\\"
-                is_start = False
-                continue
+    #     Returns:
+    #         dictionary with order -> number of ngrams
+    #     """
+    #     is_start = True
+    #     order2cnt: dict[int, int] = defaultdict(int)
+    #     for line in f:
+    #         line = line.strip()
+    #         if is_start:
+    #             assert line == "\\data\\"
+    #             is_start = False
+    #             continue
 
-            if line.startswith("ngram"):
-                ngram_order, cnt = line.split("=")
-                order = int(ngram_order.split()[-1])
-                cnt = int(cnt)
-                order2cnt[order] = cnt
-                continue
-            else:
-                assert not line, "empty line expected after header"
-                break
-        return order2cnt
+    #         if line.startswith("ngram"):
+    #             ngram_order, cnt = line.split("=")
+    #             order = int(ngram_order.split()[-1])
+    #             cnt = int(cnt)
+    #             order2cnt[order] = cnt
+    #             continue
+    #         else:
+    #             assert not line, "empty line expected after header"
+    #             break
+    #     return order2cnt
 
-    @classmethod
-    def _read_ngrams(cls, f, token_offset: int) -> Iterator[NGram]:
-        special_words_pattern = '|'.join(re.escape(symbol) for symbol in _SPECIAL_SYMBOLS_MAP)
-        pattern = re.compile(rf'({special_words_pattern}|.)\s?')
-        for line in f:
-            if line.endswith("\n"):
-                line = line[:-1]
+    # @classmethod
+    # def _read_ngrams(cls, f, token_offset: int) -> Iterator[NGram]:
+    #     special_words_pattern = '|'.join(re.escape(symbol) for symbol in _SPECIAL_SYMBOLS_MAP)
+    #     pattern = re.compile(rf'({special_words_pattern}|.)\s?')
+    #     for line in f:
+    #         if line.endswith("\n"):
+    #             line = line[:-1]
 
-            if not line:
-                continue
+    #         if not line:
+    #             continue
 
-            if line.startswith("\\end\\"):
-                break
+    #         if line.startswith("\\end\\"):
+    #             break
 
-            if line.startswith("\\"):
-                continue
+    #         if line.startswith("\\"):
+    #             continue
 
-            ngram = cls._line_to_ngram(line=line, pattern=pattern, token_offset=token_offset)
-            yield ngram
+    #         ngram = cls._line_to_ngram(line=line, pattern=pattern, token_offset=token_offset)
+    #         yield ngram
 
-    @staticmethod
-    def _line_to_ngram(line: str, pattern: re.Pattern, token_offset: int) -> NGram:
-        """Parse ARPA line to N-Gram structure"""
-        weight, symbols_str, *backoff_opt = line.split("\t")
-        if backoff_opt:
-            assert len(backoff_opt) == 1
-            backoff = _log_10_to_e(float(backoff_opt[0]))
-        else:
-            backoff = 0.0
-        weight = _log_10_to_e(float(weight))
-        symbols_re = pattern.findall(symbols_str)
+    # @staticmethod
+    # def _line_to_ngram(line: str, pattern: re.Pattern, token_offset: int) -> NGram:
+    #     """Parse ARPA line to N-Gram structure"""
+    #     weight, symbols_str, *backoff_opt = line.split("\t")
+    #     if backoff_opt:
+    #         assert len(backoff_opt) == 1
+    #         backoff = _log_10_to_e(float(backoff_opt[0]))
+    #     else:
+    #         backoff = 0.0
+    #     weight = _log_10_to_e(float(weight))
+    #     symbols_re = pattern.findall(symbols_str)
 
-        symbols = tuple(
-            (ord(symbol) - token_offset if symbol not in _SPECIAL_SYMBOLS_MAP else _SPECIAL_SYMBOLS_MAP[symbol])
-            for symbol in symbols_re
-        )
-        return NGram(symbols=symbols, weight=weight, backoff=backoff)
+    #     symbols = tuple(
+    #         (ord(symbol) - token_offset if symbol not in _SPECIAL_SYMBOLS_MAP else _SPECIAL_SYMBOLS_MAP[symbol])
+    #         for symbol in symbols_re
+    #     )
+    #     return NGram(symbols=symbols, weight=weight, backoff=backoff)
 
     def _init_from_suffix_tree_np(self, suffix_tree_np: SuffixTreeStorage):
         """Helper function to init params from suffix tree params"""
@@ -989,6 +990,7 @@ class GPUBoostingTreeModel(ModelPT):
         self.state_order.data.copy_(torch.from_numpy(suffix_tree_np.states["order"][: self.num_states]))
 
         # sanity check
+        # import pdb; pdb.set_trace()
         assert self.state_order.min().item() == 1
         assert self.state_order.max().item() <= self.max_order
 
