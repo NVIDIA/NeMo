@@ -76,6 +76,9 @@ def main(source_sha: str, target_sha: str):
 
     test_modules = list(set(test_modules))
 
+    if len(test_modules) == 0:
+        test_modules = ["all"]
+
     with open("test_modules.json", "w", encoding="utf-8") as f:
         json.dump(test_modules, f)
 
