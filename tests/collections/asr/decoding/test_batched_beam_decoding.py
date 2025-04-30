@@ -24,11 +24,11 @@ from omegaconf import open_dict
 from tqdm import tqdm
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.parts.submodules.ctc_beam_decoding import BeamBatchedCTCInfer
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedRNNTInfer
 from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
-from nemo.collections.asr.parts.submodules.ctc_beam_decoding import BeamBatchedCTCInfer
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
@@ -87,7 +87,9 @@ def ctc_model():
 # encoder output fixtures
 @pytest.fixture(scope="module")
 def get_rnnt_encoder_output(rnnt_model, test_audio_filenames):
-    encoder_output, encoded_lengths = get_transducer_model_encoder_output(test_audio_filenames, MAX_SAMPLES, rnnt_model)
+    encoder_output, encoded_lengths = get_transducer_model_encoder_output(
+        test_audio_filenames, MAX_SAMPLES, rnnt_model
+    )
     return encoder_output, encoded_lengths
 
 
@@ -138,6 +140,7 @@ def get_transducer_model_encoder_output(
         encoded_outputs, encoded_length = model(input_signal=input_batch, input_signal_length=length_batch)
 
     return encoded_outputs, encoded_length
+
 
 def get_ctc_model_output(
     test_audio_filenames,
@@ -250,9 +253,12 @@ def decode_text_from_hypotheses(hyps, model):
 
 def decode_text_from_nbest_hypotheses(hyps, model):
     if isinstance(model, EncDecCTCModel):
-        return [model.decoding.decode_hypothesis(nbest_hyp.n_best_hypotheses, fold_consecutive=False) for nbest_hyp in hyps]
+        return [
+            model.decoding.decode_hypothesis(nbest_hyp.n_best_hypotheses, fold_consecutive=False) for nbest_hyp in hyps
+        ]
     else:
         return [model.decoding.decode_hypothesis(nbest_hyp.n_best_hypotheses) for nbest_hyp in hyps]
+
 
 class TestRNNTDecoding:
     @pytest.mark.skipif(
@@ -734,6 +740,7 @@ class TestTransducerCudaGraphBeamDecoding:
             with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=True):
                 model.transcribe(test_audio_filenames, batch_size=batch_size, num_workers=None)
 
+
 class TestCTCDecoding:
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -753,9 +760,7 @@ class TestCTCDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = ctc_model.to(device)
         log_probs, encoded_lengths = get_ctc_output
-        log_probs, encoded_lengths = log_probs[:num_samples].to(device), encoded_lengths[:num_samples].to(
-            device
-        )
+        log_probs, encoded_lengths = log_probs[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedCTCInfer(
@@ -799,9 +804,7 @@ class TestCTCDecoding:
         num_samples = min(batch_size, len(test_audio_filenames))
         model = ctc_model.to(device)
         log_probs, encoded_lengths = get_ctc_output
-        log_probs, encoded_lengths = log_probs[:num_samples].to(device), encoded_lengths[:num_samples].to(
-            device
-        )
+        log_probs, encoded_lengths = log_probs[:num_samples].to(device), encoded_lengths[:num_samples].to(device)
 
         vocab_size = model.tokenizer.vocab_size
         decoding = BeamBatchedCTCInfer(
@@ -881,4 +884,3 @@ class TestCTCDecoding:
             check_res_best_hyps(num_samples, hyps)
             hyps = decode_text_from_hypotheses(hyps, model)
             print_res_best_hyps(hyps)
-
