@@ -79,7 +79,7 @@ jobs:
           echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
       - name: Extract branch name
         shell: bash
-        run: echo "main=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        run: echo "main=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" | tee -a "$GITHUB_OUTPUT"
         id: branch_name
 
   code-linting:
