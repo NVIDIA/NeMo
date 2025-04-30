@@ -21,8 +21,10 @@ from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.setup import setup
 from nemo.tron.train import _finish_train, train
 from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
+from nemo.tron.utils.decorators import experimental_fn
 
 
+@experimental_fn
 def megatron_pretrain(
     config: ConfigContainer,
     forward_step_func: Callable,
