@@ -210,6 +210,7 @@ class NemoModelConfig(ModelConfig):
             'num_key_value_heads': 'num_query_groups',
             # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
             'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
+            'tie_word_embeddings': 'share_embeddings_and_output_weights',
             'rms_norm_eps': 'layernorm_epsilon',
             'attention_dropout': 'attention_dropout',
             'initializer_range': 'init_method_std',
