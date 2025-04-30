@@ -629,7 +629,7 @@ class BatchedBeamHypsCTC:
         self.transcript_wb_prev_ptr = torch.cat(
             (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
         )
-        self.timestamps = self._create_timestamps_tensor(2*self._max_length)
+        self.timestamps = self._create_timestamps_tensor(2 * self._max_length)
         self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
 
         self._max_length *= 2
@@ -762,13 +762,11 @@ class BatchedBeamHypsCTC:
 
         max_idx = self.current_lengths_wb.max() - 1
         timestamps = self.timestamps[..., 0, : max_idx + 1]
-        transcripts = self.transcript_wb[..., 0, : max_idx + 1] #.cpu().detach().numpy()
+        transcripts = self.transcript_wb[..., 0, : max_idx + 1]  # .cpu().detach().numpy()
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
-                y_sequence=transcripts[batch_idx][
-                    mask:= self._create_fold_consecutive_mask(transcripts[batch_idx])
-                ],
+                y_sequence=transcripts[batch_idx][mask := self._create_fold_consecutive_mask(transcripts[batch_idx])],
                 timestamp=timestamps[batch_idx][mask],
                 alignments=None,
                 dec_state=None,
@@ -800,8 +798,11 @@ class BatchedBeamHypsCTC:
                     Hypothesis(
                         score=scores[batch_idx][beam_idx],
                         y_sequence=transcripts[batch_idx][beam_idx][
-                            mask:= self._create_fold_consecutive_mask(transcripts[batch_idx][beam_idx])
-                        ].cpu().detach().numpy(),
+                            mask := self._create_fold_consecutive_mask(transcripts[batch_idx][beam_idx])
+                        ]
+                        .cpu()
+                        .detach()
+                        .numpy(),
                         timestamp=timestamps[batch_idx][beam_idx][mask].cpu().detach().numpy(),
                         alignments=None,
                         dec_state=None,
@@ -852,15 +853,15 @@ class BatchedBeamHypsCTC:
         Returns:
             torch.Tensor: Boolean mask indicating valid tokens.
         """
-        device=transcript.device
+        device = transcript.device
         mask = (
-            (transcript >= 0) & 
-            torch.cat([torch.tensor([True], device=device), transcript[1:] != transcript[:-1]]) &
-            (transcript != self.blank_index)
+            (transcript >= 0)
+            & torch.cat([torch.tensor([True], device=device), transcript[1:] != transcript[:-1]])
+            & (transcript != self.blank_index)
         )
-        
+
         return mask
-    
+
     def _create_timestamps_tensor(self, max_time):
         """
         Generates a tensor of timestamps.
@@ -874,7 +875,6 @@ class BatchedBeamHypsCTC:
             torch.Tensor: A tensor of shape (batch_size, beam_size, max_time) containing
             sequential timestamps for each batch and beam.
         """
-        return (
-            torch.arange(max_time, device=self.device, dtype=torch.long)[None, None, :]
-            .repeat(self.batch_size, self.beam_size, 1)
+        return torch.arange(max_time, device=self.device, dtype=torch.long)[None, None, :].repeat(
+            self.batch_size, self.beam_size, 1
         )
