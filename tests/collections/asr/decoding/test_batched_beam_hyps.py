@@ -18,7 +18,7 @@ from typing import List, Literal, Union
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
+from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import (
     INIT_POINTER_VALUE,
     NON_EXISTENT_LABEL_VALUE,
     BatchedBeamHyps,
