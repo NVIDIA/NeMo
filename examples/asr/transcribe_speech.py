@@ -17,12 +17,17 @@ import os
 from dataclasses import dataclass, field, is_dataclass
 from typing import List, Optional, Union
 
-import lightning.pytorch as pl
 import numpy as np
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel, EncDecHybridRNNTCTCBPEModelTgtLangID
+import lightning.pytorch as pl
+from nemo.collections.asr.models import (
+    EncDecCTCModel,
+    EncDecHybridRNNTCTCBPEModelTgtLangID,
+    EncDecHybridRNNTCTCModel,
+    EncDecRNNTModel,
+)
 from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
@@ -40,6 +45,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.timers import SimpleTimer
+
 
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
@@ -365,7 +371,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if isinstance(asr_model, EncDecHybridRNNTCTCBPEModelTgtLangID):
         # Special case for EncDecHybridRNNTCTCBPEModelTgtLangID, where the input manifest is directly passed into the model's transcribe() function
         filepaths = cfg.dataset_manifest
-        assert cfg.dataset_manifest is not None, "dataset_manifest must be provided for EncDecHybridRNNTCTCBPEModelTgtLangID"
+        assert (
+            cfg.dataset_manifest is not None
+        ), "dataset_manifest must be provided for EncDecHybridRNNTCTCBPEModelTgtLangID"
         sorted_manifest_path = None
     else:
         filepaths, sorted_manifest_path = prepare_audio_data(cfg)
