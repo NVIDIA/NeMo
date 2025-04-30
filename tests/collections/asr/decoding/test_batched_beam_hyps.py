@@ -89,7 +89,7 @@ if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     DEVICES.append(torch.device("mps"))
 
 
-class TestBatchedBeamHypsCTC:
+class TestBatchedBeamHyps:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_instantiate(self, device: torch.device):
