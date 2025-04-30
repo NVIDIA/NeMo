@@ -573,32 +573,45 @@ class ASRTarredDatasetBuilder:
     def _write_to_tar(
         self, tar, audio_filepath: str, squashed_filename: str, duration: float = None, offset: float = 0
     ) -> None:
-        if ((codec := self.config.force_codec) is None or audio_filepath.endswith(f".{codec}")) and not duration:
-            # Add existing file without transcoding.
+        codec = self.config.force_codec
+        to_transcode = not (codec is None or audio_filepath.endswith(f".{codec}"))
+        to_crop = not (duration is None and offset == 0)
+
+        if not to_crop and not to_transcode:
+            # Add existing file without transcoding, trimming, or re-encoding.
             tar.add(audio_filepath, arcname=squashed_filename)
-        else:
-            # Read audio file
-            audio, sampling_rate = soundfile.read(audio_filepath, dtype=np.float32)
-            # Calculate start and end points for slicing
-            start_sample = int(offset * sampling_rate)
-            end_sample = int((offset + duration) * sampling_rate) if duration else None
-            audio = audio[start_sample:end_sample]
-            # Transcode and write to tar
-            encoded_audio = BytesIO()
-            if codec is not None:
-                if codec == "opus":
-                    kwargs = {"format": "ogg", "subtype": "opus"}
-                else:
-                    kwargs = {"format": codec}
+            return
+         
+        # Standard processing: read, trim, and transcode the audio file   
+        audio, sampling_rate = soundfile.read(audio_filepath, dtype=np.float32)
+
+        # Trim audio based on offset and duration.
+        start_sample = int(offset * sampling_rate)
+        end_sample = int((offset + duration) * sampling_rate) if duration else None
+        audio = audio[start_sample:end_sample]
+
+        # Determine codec parameters.
+        if codec is not None:
+            if codec == "opus":
+                kwargs = {"format": "ogg", "subtype": "opus"}
             else:
-                codec = soundfile.info(audio_filepath).format.lower()
                 kwargs = {"format": codec}
-            soundfile.write(encoded_audio, audio, sampling_rate, closefd=False, **kwargs)
-            encoded_squashed_filename = f"{squashed_filename.split('.')[0]}.{codec}"
-            ti = tarfile.TarInfo(encoded_squashed_filename)
-            encoded_audio.seek(0)
-            ti.size = len(encoded_audio.getvalue())
-            tar.addfile(ti, encoded_audio)
+        else:
+            codec = soundfile.info(audio_filepath).format.lower()
+            kwargs = {"format": codec}
+        
+        # Transcode and write audio to tar.
+        encoded_audio = BytesIO()
+        soundfile.write(encoded_audio, audio, sampling_rate, closefd=False, **kwargs)
+
+        # Generate filename with the appropriate extension.
+        encoded_squashed_filename = f"{squashed_filename.split('.')[0]}.{codec}"
+
+        # Add the in-memory audio file to the tar archive.
+        ti = tarfile.TarInfo(encoded_squashed_filename)
+        encoded_audio.seek(0)
+        ti.size = len(encoded_audio.getvalue())
+        tar.addfile(ti, encoded_audio)
 
     def _create_shard(self, entries, target_dir, shard_id, manifest_folder: str = None, dry_run: bool = False):
         """Creates a tarball containing the audio files from `entries`."""
