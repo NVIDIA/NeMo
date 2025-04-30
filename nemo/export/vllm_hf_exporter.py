@@ -15,7 +15,7 @@
 
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Union
 
 import numpy as np
 from pytriton.decorators import batch, first_value
@@ -26,10 +26,40 @@ from vllm.lora.request import LoRARequest
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
 
+AnyPath = Union[Path, str]
+
+def _load_connector_from_trainer_ckpt(path: AnyPath, target: str):
+    # pylint: disable=C0116
+
+    from nemo.lightning import io
+    if not isinstance(path, Path):
+        path = Path(path)
+    return io.load_context(path, subpath="model").exporter(target, path)
+
+def _export_ckpt(
+    path: AnyPath,
+    target: str,
+    output_path: Optional[AnyPath] = None,
+    overwrite: bool = False,
+    load_connector = _load_connector_from_trainer_ckpt,
+    **kwargs,
+) -> Path:
+    """ A local copy of nemo.collections.llm.api.export_ckpt.
+    Temporary solution, until the HF exporter is moved to the nemo-export package.
+    """
+    from nemo.lightning import io
+
+    if not isinstance(path, Path):
+        path = Path(path)
+    if output_path and not isinstance(output_path, Path):
+        output_path = Path(output_path)
+
+    return io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
+
 
 class vLLMHFExporter(ITritonDeployable):
     """
-    The Exporter class uses vLLM APIs to convert a HF model to vLLM and makes the class,
+    The Exporter class uses vLLM APIs to convert a NeMo or HF model to vLLM and makes the class,
     deployable with Triton server.
 
     Example:
@@ -66,9 +96,7 @@ class vLLMHFExporter(ITritonDeployable):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Convert the NeMo 2 model to HF format
             if (model_path / 'context').exists():
-                from nemo.collections.llm import api
-
-                api.export_ckpt(
+                _export_ckpt(
                     path=model_path,
                     target='hf',
                     output_path=tmp_dir,
