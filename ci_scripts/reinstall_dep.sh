@@ -11,8 +11,8 @@ ALL_LIBRARIES=(
 
 export INSTALL_OPTION=${1:-dev}
 export HEAVY_DEPS=${HEAVY_DEPS:-false}
-export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
+export CURR=$INSTALL_DIR
 export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 export PIP=pip
 export TRTLLM_REPO=${TRTLLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."trt_llm".repo')}
