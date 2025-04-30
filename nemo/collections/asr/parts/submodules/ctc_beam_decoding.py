@@ -971,12 +971,12 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
                 )
 
             batched_beam_hyps = self.search_algorithm(decoder_output, decoder_lengths)
-            
-            batch_size=decoder_lengths.shape[0]
+
+            batch_size = decoder_lengths.shape[0]
             if self.return_best_hypothesis:
-                hyps=batched_beam_hyps.to_hyps_list()[:batch_size]
+                hyps = batched_beam_hyps.to_hyps_list()[:batch_size]
             else:
-                hyps=batched_beam_hyps.to_nbest_hyps_list()[:batch_size]
+                hyps = batched_beam_hyps.to_nbest_hyps_list()[:batch_size]
 
         return (hyps,)
 
