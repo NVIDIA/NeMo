@@ -136,5 +136,7 @@ if __name__ == "__main__":
         resume=resume,
         optim=optim,
         tokenizer=get_tokenizer(args.tokenizer) if args.tokenizer else None,
-        model_transform=SpeculativeTransform(num_eagle_layers=args.num_eagle_layers, num_medusa_heads=args.num_medusa_heads)
+        model_transform=SpeculativeTransform(
+            num_eagle_layers=args.num_eagle_layers, num_medusa_heads=args.num_medusa_heads
+        ),
     )
