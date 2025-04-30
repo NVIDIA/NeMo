@@ -19,7 +19,6 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig

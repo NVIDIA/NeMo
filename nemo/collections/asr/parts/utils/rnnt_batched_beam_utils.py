@@ -772,9 +772,7 @@ class BatchedBeamHypsCTC:
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
-                y_sequence=transcripts[batch_idx][
-                    mask := (transcripts[batch_idx] >= 0)
-                ],
+                y_sequence=transcripts[batch_idx][transcripts[batch_idx] >= 0],
                 # timestamp=timestamps[batch_idx][mask],
                 alignments=None,
                 dec_state=None,
@@ -805,9 +803,7 @@ class BatchedBeamHypsCTC:
                 [
                     Hypothesis(
                         score=scores[batch_idx][beam_idx],
-                        y_sequence=transcripts[batch_idx][beam_idx][
-                            mask := (transcripts[batch_idx][beam_idx] >= 0)
-                        ],
+                        y_sequence=transcripts[batch_idx][beam_idx][transcripts[batch_idx][beam_idx] >= 0],
                         # timestamp=timestamps[batch_idx][beam_idx][mask],
                         alignments=None,
                         dec_state=None,
