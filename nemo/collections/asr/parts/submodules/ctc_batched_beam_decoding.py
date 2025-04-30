@@ -437,7 +437,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
         return self.state.batched_hyps
-        
 
     @classmethod
     def _create_process_batch_kernel(cls):
