@@ -370,7 +370,7 @@ class DuplexS2SModel(LightningModule):
             val_txt_bleu = torch.tensor(
                 sacrebleu.corpus_bleu(self._txt_preds[name], self._refs[name]).score, device=self.device
             )
-            self.log(f"val_txt_bleu_{name}", val_txt_bleu, on_epoch=True, sync_dist=False)
+            self.log(f"val_txt_bleu_{name}", val_txt_bleu, on_epoch=True, sync_dist=True)
             corpus_bleus.append(val_txt_bleu)
         self.log("val_txt_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
 
