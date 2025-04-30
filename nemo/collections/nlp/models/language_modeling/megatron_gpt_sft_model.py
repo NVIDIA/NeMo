@@ -215,7 +215,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Determine if we are using a single dataset or a list of datasets.
         is_list_config = isinstance(data_cfg.file_names, ListConfig)
         if not is_list_config:
-            raise ValueError(f"SFT train/validation datasets must be provided as a list of individual JSONL files.")
+            raise ValueError("SFT train/validation datasets must be provided as a list of individual JSONL files.")
 
         if is_train:
             # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
@@ -225,7 +225,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             ):
                 raise ValueError(
                     (
-                        f"concat_sampling_probabilities must be a ListConfig with the same number of files in file_names."
+                        "concat_sampling_probabilities must be a ListConfig with the same number of files in file_names."
                         f"Found: {data_cfg.concat_sampling_probabilities}"
                     )
                 )
@@ -233,7 +233,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             if len(data_cfg.get('concat_sampling_probabilities', None)) != len(data_cfg.file_names):
                 raise ValueError(
                     (
-                        f"concat_sampling_probabilities must be of the same size as file_names.",
+                        "concat_sampling_probabilities must be of the same size as file_names.",
                         f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.file_names)}",
                     )
                 )
