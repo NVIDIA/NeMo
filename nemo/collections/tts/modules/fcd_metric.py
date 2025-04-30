@@ -45,6 +45,10 @@ class CodecEmbedder(nn.Module):
 
 
 class FrechetCodecDistance(Metric):
+    is_differentiable = False
+    higher_is_better = False
+    full_state_update = False
+
     def __init__(
         self,
         codec,
@@ -53,8 +57,6 @@ class FrechetCodecDistance(Metric):
         """
         This class is adapted from an implementation of FID on images:
             https://github.com/pytorch/torcheval/blob/main/torcheval/metrics/image/fid.py
-            
-            Copyright notice:
 
                 # Copyright (c) Meta Platforms, Inc. and affiliates.
                 # All rights reserved.
@@ -107,7 +109,6 @@ class FrechetCodecDistance(Metric):
 
         # Set the model and put it in evaluation mode
         self.model = CodecEmbedder(codec)
-        self.model = self.model.to(device)
         self.model.eval()
         self.model.requires_grad_(False)
 
@@ -254,7 +255,14 @@ if __name__ == "__main__":
 
     B = 3
     T = 20
-    C = 8
+    C = codec.num_codebooks
+
+    # "generated"
+    codes = torch.randint(low=0, high=codec.codebook_size, size=(B, C, T), device=device)
+    codes_len = torch.randint(low=1, high=T, size=(B,), device=device)
+    metric.update(codes, codes_len, is_real=False)
+
+    # real
     codes = torch.randint(low=0, high=codec.codebook_size, size=(B, C, T), device=device)
     codes_len = torch.randint(low=1, high=T, size=(B,), device=device)
     metric.update_from_codes(codes, codes_len, is_real=True)
@@ -262,8 +270,5 @@ if __name__ == "__main__":
     metric.update_from_audio_file(
         "/datap/misc/Datasets/LibriTTS/dev-clean/1272/141231/1272_141231_000013_000002.wav", is_real=True
     )
-
-    codes = torch.randint(low=0, high=2048, size=(B, C, T), device=device)
-    codes_len = torch.randint(low=1, high=T, size=(B,), device=device)
-    metric.update(codes, codes_len, is_real=False)
+    # compute metric
     print(metric.compute())
