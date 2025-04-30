@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
+      branch_name: ${{ steps.branch_name.outputs.main }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -76,6 +77,10 @@ jobs:
 
           parsed_string=$(echo "$TESTS_TO_RUN" | jq -c --raw-input 'split(",")')
           echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
+      - name: Extract branch name
+        shell: bash
+        run: echo "main=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: branch_name
 
   code-linting:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
@@ -86,7 +91,7 @@ jobs:
     needs: [pre-flight]
     runs-on: ubuntu-latest
     environment: test
-    if: ${{ !startsWith(github.ref_name, 'bump-ci-container') }}
+    if: ${{ !startsWith(needs.pre-flight.outputs.branch_name, 'bump-ci-container') }}
     steps:
       - name: Running CI tests
         run: |
