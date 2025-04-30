@@ -581,8 +581,8 @@ class ASRTarredDatasetBuilder:
             # Add existing file without transcoding, trimming, or re-encoding.
             tar.add(audio_filepath, arcname=squashed_filename)
             return
-         
-        # Standard processing: read, trim, and transcode the audio file   
+
+        # Standard processing: read, trim, and transcode the audio file
         audio, sampling_rate = soundfile.read(audio_filepath, dtype=np.float32)
 
         # Trim audio based on offset and duration.
@@ -599,7 +599,7 @@ class ASRTarredDatasetBuilder:
         else:
             codec = soundfile.info(audio_filepath).format.lower()
             kwargs = {"format": codec}
-        
+
         # Transcode and write audio to tar.
         encoded_audio = BytesIO()
         soundfile.write(encoded_audio, audio, sampling_rate, closefd=False, **kwargs)
