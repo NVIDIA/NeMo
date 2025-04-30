@@ -70,3 +70,13 @@ When running the custom_recipe.py file, it will execute the `custom_llama3_8b` r
    ```
 
 These options provide flexibility in customizing your pretraining recipe directly from the command line.
+
+## Multi-datacenter Example
+`multi_datacenter.py` provides a modified Llama 3.1 70B recipe with a few modifications to boost its performance across 2 datacenters.
+1. 2 distributed optimizer instances. This is achieved by setting `num_distributed_optimizer_instances=2` in `nemo.lightning.MegatronStrategy`.
+1. `net_name` as `socket` for the `inter_dp_cp` communication group. This is achieved through the NCCL config file `multi_dc_nccl_communicator_config.yaml` and passing its path to `nemo.lightning.MegatronStrategy`.
+
+Run the example recipe with this command.
+```bash
+python multi_datacenter.py
+```
