@@ -17,7 +17,7 @@ import logging
 import math
 import re
 from pathlib import Path
-from typing import List, Mapping, Optional
+from typing import Any, List, Mapping, Optional
 
 import datasets
 import numpy as np
@@ -30,8 +30,7 @@ from nemo.collections.llm.gpt.data.utils import (
     _JSONLMemMapDataset,
     _OnlineSampleMapping,
     _preprocess,
-    _preprocess_hf_chat_template,
-    _transform_to_chat_message,
+    _chat_preprocess,
 )
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -105,16 +104,15 @@ def create_sft_dataset(
         'truncation_method': truncation_method,
     }
 
-    if chat:
-        return GPTSFTChatDataset(
-            **gpt_sft_dataset_kwargs,
-            use_hf_tokenizer_chat_template=use_hf_tokenizer_chat_template,
-            **kwargs,
-        )
-    elif path.suffix == '.npy':
+    if path.suffix == '.npy':
         return GPTSFTPackedDataset(
             pack_metadata_file_path=pack_metadata_file_path,
             pad_cu_seqlens=pad_cu_seqlens,
+            **gpt_sft_dataset_kwargs,
+            **kwargs,
+        )
+    elif chat:
+        return GPTSFTChatDataset(
             **gpt_sft_dataset_kwargs,
             **kwargs,
         )
@@ -556,6 +554,7 @@ class GPTSFTDataset(Dataset):
             'metadata': metadata,
             'token_count': len(input_ids),
         }
+        processed_example["mask"] = self._build_loss_mask(processed_example)
 
         return processed_example
 
@@ -884,6 +883,75 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         return processed_batch
 
 
+def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
+    """
+    Preprocess messages to apply chat template and tokenize. Returns a dictionary of tokens
+    {
+        "input_ids": [],
+        "mask": [],
+        "context_ids": [],
+        "answer_ids": [],
+    }
+
+    * input_ids contain tokenized messages with chat template applied
+    * mask corresponds to tokens of input_ids where 1 represents output tokens for the role `assistant` in both
+    context and answer for multi-turn, and 0 to mask all other tokens, e.g. system, user, and tool calling.
+    * context_ids contain tokenized messages with chat template applied for all messages except assistant's last
+    * answer_ids contain tokenized messages with chat template applied for only the assistant's last generated
+    output
+
+    Input source is expected HuggingFace AutoTokenizer format
+        {"messages": [{"role": "system","content":"<text>"}, {"role": "user","content":"<text>"}, {"role": "assistant","content":"<text>"}]}
+    Input source as conversations format is also supported and is converted to HF format, however mask and type are
+    ignored. Mask will apply to all non-assistant output tokens.
+        {"conversations": [{"from": "User","value":"<text>"}, {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}]}
+    """
+    if not hasattr(tokenizer.tokenizer, "apply_chat_template"):
+        raise ValueError("Cannot apply chat template with tokenizer that is not a HuggingFace AutoTokenizer")
+
+    tools = None
+    if isinstance(source, dict):
+        tools = source.get("tools") or tool_schemas
+
+        if source.get("conversations"):
+            # Detect if Nemo {"conversations": [{"from": "User/Assistant", "value": ""}]}
+            # Convert to HuggingFace chat template [{"role": "stystem/user/assistant", "content": ""}]
+            chat = [{"role": convo["from"].lower(), "content": convo["value"]} for convo in source["conversations"]]
+            if source.get("system"):
+                chat.insert(0, {"role": "system", "content": source["system"]})
+
+        elif source.get("messages"):
+            # HuggingFace chat template {"messages": [{"role": "system/user/assistant", "content": ""}]}
+            chat = source.get("messages")
+    else:
+        chat = source
+
+    tokenized_chat = tokenizer.tokenizer.apply_chat_template(
+        chat,
+        tools=tools,
+        tokenize=True,
+        return_dict=True,
+        return_assistant_tokens_mask=True,
+    )
+
+    # Choose the last conversation as answer other history are context by finding the last masked token
+    # which indicates end of context and beginning of answer
+    input_ids = tokenized_chat.get("input_ids")
+    mask = tokenized_chat["assistant_masks"]
+    if tokenizer.eos_id:
+        input_ids += [tokenizer.eos_id]
+        mask += [1]
+    context_end_idx = len(mask) - mask[::-1].index(0) # traverse the list backward for first occurrence of masked token
+    context_ids = input_ids[:context_end_idx]
+    answer_ids = input_ids[context_end_idx:]
+
+    return dict(
+        input_ids=input_ids,
+        mask=mask,
+        context_ids=context_ids,
+        answer_ids=answer_ids,
+    )
+
 class GPTSFTChatDataset(GPTSFTDataset):
     """
     Dataset for fine-tuning a chat model.
@@ -933,6 +1001,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         get_attention_mask_from_fusion: bool = False,
         sanity_check_dist_workers: bool = True,
         use_hf_tokenizer_chat_template: bool = False,
+        tool_schemas: Optional[str|dict] = None,
     ):
         super().__init__(
             file_path,
@@ -966,26 +1035,15 @@ class GPTSFTChatDataset(GPTSFTDataset):
             sanity_check_dist_workers,
         )
         self.use_hf_tokenizer_chat_template = use_hf_tokenizer_chat_template
+        self.tool_schemas = tool_schemas
+        if isinstance(self.tool_schemas, str):
+            self.tool_schemas = json.loads(self.tool_schemas)
+
+        if self.use_hf_tokenizer_chat_template and not hasattr(self.tokenizer, "tokenizer") or not hasattr(self.tokenizer.tokenizer, "apply_chat_template"):
+            raise ValueError("Dataset does not have a tokenizer and cannot be used as a chat dataset")
 
     def _maybe_validate_prompt_template(self):
         pass
-
-    def _build_samples_mapping(self):
-        super()._build_samples_mapping()
-        LABEL_START = self.special_tokens['label_start']
-        END_NAME_SIGNAL = self.special_tokens['end_of_name']
-
-        id1 = self.tokenizer.text_to_ids(PREFIX_STR)
-        id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
-        self.label_start_tokens = id2[len(id1) :]
-
-        id1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
-        id2 = self.tokenizer.text_to_ids(PREFIX_STR)
-        self.name_end_token_ids = id1[len(id2) :]
-
-        id1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
-        id2 = self.tokenizer.text_to_ids(PREFIX_STR)
-        self.num_turn_start_tokens = len(id1) - len(id2)
 
     def _process_example(self, example):
         """
@@ -1003,33 +1061,54 @@ class GPTSFTChatDataset(GPTSFTDataset):
                 self.num_turn_start_tokens,
             )
         else:
-            if "conversations" in example:  # convert ShareGPT format to HuggingFace chat template format
-                example = _transform_to_chat_message(example)
-            result = _preprocess_hf_chat_template(
-                example,
-                self.tokenizer,
-            )
+            result = _chat_preprocess(example, self.tokenizer, self.tool_schemas)
+        
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in ['conversations', 'messages']}
+        
         result['metadata'] = metadata
         if self.output_original_text:
-            result['metadata']['conversations'] = example['conversations']
+            for k in ['conversations', 'messages']:
+                if k in example:
+                    result['metadata'][k] = example[k]
 
         return result
 
     def collate_fn(self, batch):
-        input_ids = [item['input_ids'][:-1].tolist() for item in batch]
-        labels = [item['input_ids'][1:].tolist() for item in batch]
-        loss_mask = [item['mask'][1:].tolist() for item in batch]
+        # Removes the last token from each input sequence to ensure the model
+        # never sees the token it is supposed to predict. This enforces an
+        # autoregressive training setup where the model learns to generate
+        # the next token step-by-step.
+        input_ids = [item['input_ids'][:-1] for item in batch]
+        # Removes the first token from each input sequence to create labels
+        # that align with the model's prediction target. This ensures that
+        # at time step `t`, the model's output is evaluated against the token
+        # that originally followed the input at `t` in the dataset.
+        labels = [item['input_ids'][1:] for item in batch]
+        # Context tokens remain unchanged, representing the initial portion of
+        # the sequence that serves as input to the model. This allows the model
+        # to condition its predictions on prior information.
+        contexts = [item['context_ids'] for item in batch]
+        # Extracts the assistant's response portion of the sequence, which
+        # represents the part the model is trained to generate. This helps
+        # distinguish between the input prompt and the expected model output.
+        answers = [item['answer_ids'] for item in batch]
+        # Removes the first element from the mask to align with the shifted labels,
+        # ensuring that loss is only computed for valid, predictable tokens. This
+        # prevents the model from incurring loss on tokens that were never meant to
+        # be predicted, such as user-provided context or padding.
+        loss_mask = [item['mask'][1:] for item in batch]
+        # Metadata remains unchanged, carrying any additional non-token-related
+        # information that might be useful for evaluation, debugging, or tracking
+        # purposes.
         metadata = [item['metadata'] for item in batch]
         if not self.use_hf_tokenizer_chat_template:
-            contexts = [item['context_ids'].tolist() for item in batch]
-            answers = [item['answer_ids'].tolist() for item in batch]
             max_length = max(
                 max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate
             )
         else:
             max_length = max([len(x) for x in input_ids])
+        
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
             input_ids = [x[: self.max_seq_length] for x in input_ids]
@@ -1052,6 +1131,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
             max_length = self.max_seq_length
         else:
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
+
         assert max_length <= self.max_seq_length
 
         if not self.get_attention_mask_from_fusion:

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import os
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -24,7 +26,7 @@ from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
 
 
-def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int):
+def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int, dataset_kwargs: Optional[dict]):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
     and prepares it for further processing.
@@ -38,12 +40,31 @@ def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, 
     Returns:
         np.ndarray: A NumPy array containing the tokenized data.
     """
+
+    if not dataset_kwargs:
+        dataset_kwargs = {}
+
+    TEMPLATE_DIR = os.environ.get("TEMPLATE_DIR", "/app/services/customizer/src/shared/templates")
+    chat_template = dataset_kwargs.pop("chat_template", None)
+    if chat_template and dataset_kwargs.get("chat"):
+        chat_template = open(f"{TEMPLATE_DIR}/{chat_template}").read()
+
+    ts = dataset_kwargs.get("tool_schemas")
+    if ts and not isinstance(ts, str):
+        dataset_kwargs["tool_schemas"] = json.dumps(ts)
+
+    if chat_template:
+        # Needs to be called after the trainer has started and populated the tokenizer
+        # But it can't be in prepare_data because it is only called in Rank 0
+        tokenizer.tokenizer.chat_template = chat_template
+
     dataset = create_sft_dataset(
         path=path,
         tokenizer=tokenizer,
         seq_length=max_seq_length,
         seed=seed,
         is_test=True,
+        **dataset_kwargs,
     )
     return np.array([dataset[i] for i in range(len(dataset))])
 
@@ -57,6 +78,7 @@ def prepare_packed_sequence_data(
     max_seq_length: int,
     seed: Optional[int] = 0,
     packing_algorithm: str = "first_fit_shuffle",
+    dataset_kwargs: dict = None,
 ):
     """
     Prepares a packed sequence dataset from a given input file and saves it to an output file.
@@ -76,7 +98,7 @@ def prepare_packed_sequence_data(
     """
 
     logging.info(f"Preparing packed sequence from {input_path}")
-    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed)
+    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, dataset_kwargs)
     sequences, histogram = create_hist(dataset, max_seq_length)
 
     assignments, packing_metadata = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)

@@ -69,8 +69,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         self.special_token_to_id = {}
         self.id_to_special_token = {}
         self.trim_spm_separator_after_special_token = trim_spm_separator_after_special_token
-        self.spm_separator_id = self.tokenizer.piece_to_id(spm_separator)
         self.spm_separator = spm_separator
+        self.spm_separator_id = self.tokenizer.piece_to_id(spm_separator)
 
         if special_tokens:
             if not self.legacy:
@@ -87,25 +87,24 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
             text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text)
         if self.legacy:
             tokens = []
-            idx = 0
-            last_idx = 0
+            cur_idx = 0
 
             while 1:
-                indices = {}
+                st_indices = {}
 
                 for token in self.special_token_to_id:
                     try:
-                        indices[token] = text[idx:].index(token)
+                        st_indices[token] = text[cur_idx:].index(token)
                     except ValueError:
                         continue
 
-                if len(indices) == 0:
+                if len(st_indices) == 0:
                     break
 
-                next_token = min(indices, key=indices.get)
-                next_idx = idx + indices[next_token]
-
-                tok = self.tokenizer.encode_as_pieces(text[idx:next_idx])
+                next_special_token = min(st_indices, key=st_indices.get)
+                next_start_idx = cur_idx + st_indices[next_special_token]
+                # tokens between the last special token and the next special token
+                text_tokens = self.tokenizer.encode_as_pieces(text[cur_idx:next_start_idx])
                 # Chat-templates insert a space between a special token and first word (e.g.
                 # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
                 # <inst-id> <who-id>.
@@ -113,15 +112,18 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     self.trim_spm_separator_after_special_token
                     and len(tokens) > 0
                     and tokens[-1] in self.special_token_to_id
-                    and len(tok) > 0
-                    and tok[0] == self.spm_separator
+                    and len(text_tokens) > 0
+                    and text_tokens[0] == self.spm_separator
                 ):
-                    tok.pop(0)
-                tokens.extend(tok)
-                tokens.append(next_token)
-                idx = next_idx + len(next_token)
+                    text_tokens.pop(0)
+                # Add the text tokens between the last special token and this one
+                tokens.extend(text_tokens)
+                # add the next special token
+                tokens.append(next_special_token)
+                # increment
+                cur_idx = next_start_idx + len(next_special_token)
 
-            tokens.extend(self.tokenizer.encode_as_pieces(text[idx:]))
+            tokens.extend(self.tokenizer.encode_as_pieces(text[cur_idx:]))
 
         else:
             tokens = self.tokenizer.encode_as_pieces(text)
@@ -143,25 +145,25 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
             text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text).rstrip()
         if self.legacy:
             ids = []
-            idx = 0
-            last_idx = 0
+            cur_idx = 0
 
+            # Account for special tokens
             while 1:
-                indices = {}
+                st_indices = {}
 
                 for token in self.special_token_to_id:
                     try:
-                        indices[token] = text[idx:].index(token)
+                        st_indices[token] = text[cur_idx:].index(token)
                     except ValueError:
                         continue
 
-                if len(indices) == 0:
+                if len(st_indices) == 0:
                     break
 
-                next_token = min(indices, key=indices.get)
-                next_idx = idx + indices[next_token]
-
-                text_tokens = self.tokenizer.encode(text[idx:next_idx])
+                next_special_token = min(st_indices, key=st_indices.get)
+                next_start_idx = cur_idx + st_indices[next_special_token]
+                # tokens between the last special token and the next special token
+                text_tokens = self.tokenizer.encode(text[cur_idx:next_start_idx])
                 # Chat-templates insert a space between a special token and first word (e.g.
                 # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
                 # <inst-id> <who-id>.
@@ -173,14 +175,17 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     and text_tokens[0] == self.spm_separator_id
                 ):
                     text_tokens.pop(0)
+                # Add the text tokens between the last special token and this one
                 ids.extend(text_tokens)
-                ids.append(self.special_token_to_id[next_token])
-                idx = next_idx + len(next_token)
+                # add the next special token
+                ids.append(self.special_token_to_id[next_special_token])
+                # increment
+                cur_idx = next_start_idx + len(next_special_token)
 
             if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
-                ids.extend(self._text_to_ids_extra_space(text[idx:]))
+                ids.extend(self._text_to_ids_extra_space(text[cur_idx:]))
             else:
-                ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
+                ids.extend(self.tokenizer.encode_as_ids(text[cur_idx:]))
             return ids
 
         if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
@@ -206,7 +211,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         return ids
 
     def tokens_to_text(self, tokens):
-        if isinstance(tokens, np.ndarray):
+        if isinstance(tokens, (np.ndarray, torch.Tensor)):
             tokens = tokens.tolist()
 
         return self.tokenizer.decode_pieces(tokens)
@@ -221,8 +226,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
             for i, id in enumerate(ids):
                 if id in self.id_to_special_token:
-                    text += self.tokenizer.decode_ids(ids[last_i:i]) + " "
-                    text += self.id_to_special_token[id] + " "
+                    text += self.tokenizer.decode_ids(ids[last_i:i])
+                    text += self.id_to_special_token[id]
                     last_i = i + 1
 
             text += self.tokenizer.decode_ids(ids[last_i:])
@@ -237,6 +242,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         return self.tokenizer.piece_to_id(token)
 
     def ids_to_tokens(self, ids):
+        if isinstance(ids, (np.ndarray, torch.Tensor)):
+            ids = ids.tolist()
         tokens = []
         for id in ids:
             if id >= self.original_vocab_size:
@@ -285,7 +292,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     self.special_token_to_id[token] = self.tokenizer.piece_to_id(token)
                     self.id_to_special_token[self.special_token_to_id[token]] = token
         else:
-            raise ValueError("Expected special_tokens to be a list or a dict " + str(type(special_tokens)))
+            raise ValueError(f"Expected special_tokens to be a list or a dict {str(type(special_tokens))}")
 
     @property
     def pad_id(self):

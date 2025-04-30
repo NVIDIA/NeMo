@@ -81,6 +81,11 @@ def get_tokenizer(
             model better learn word compositionality and become robust to segmentation errors.
             It has empirically been shown to improve inference time BLEU scores.
     """
+    import omegaconf
+    from omegaconf import OmegaConf
+
+    if isinstance(special_tokens, (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig)):
+        special_tokens = OmegaConf.to_container(special_tokens)
 
     if special_tokens is None:
         special_tokens_dict = {}
@@ -203,6 +208,7 @@ def get_nmt_tokenizer(
             **special_tokens_dict,
             use_fast=use_fast,
             trust_remote_code=trust_remote_code,
+            chat_template=chat_template,
         )
         if chat_template:
             tokenizer.tokenizer.chat_template = chat_template

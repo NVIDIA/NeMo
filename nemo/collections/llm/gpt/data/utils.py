@@ -802,58 +802,81 @@ def _preprocess(
     return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
 
 
-def _transform_to_chat_message(source: dict[str, list]):
+def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
     """
-    Convert ShareGPT conversation format to HuggingFace chat message format.
-
-    Input format:
-    {"conversations": [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]}
-
-    Output format:
+    Preprocess messages to apply chat template and tokenize. Returns a dictionary of tokens
     {
-      "messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."},
-                   {"role": "assistant", "content": "..."}]
+        "input_ids": [],
+        "mask": [],
+        "context_ids": [],
+        "answer_ids": [],
     }
-    """
-    messages = []
-    for conv in source["conversations"]:
-        role = conv["from"].lower()  # Convert User/Assistant to user/assistant
-        message = {"role": role, "content": conv["value"]}
-        messages.append(message)
-    return {"messages": messages}
 
+    * input_ids contain tokenized messages with chat template applied
+    * mask corresponds to tokens of input_ids where 1 represents output tokens for the role `assistant` in both
+    context and answer for multi-turn, and 0 to mask all other tokens, e.g. system, user, and tool calling.
+    * context_ids contain tokenized messages with chat template applied for all messages except assistant's last
+    * answer_ids contain tokenized messages with chat template applied for only the assistant's last generated
+    output
 
-def _preprocess_hf_chat_template(
-    hf_chat_dict: dict,
-    tokenizer: TokenizerSpec,
-):
+    Input source is expected HuggingFace AutoTokenizer format
+        {"messages": [{"role": "system","content":"<text>"}, {"role": "user","content":"<text>"}, {"role": "assistant","content":"<text>"}]}
+    Input source as conversations format is also supported and is converted to HF format, however mask and type are
+    ignored. Mask will apply to all non-assistant output tokens.
+        {"conversations": [{"from": "User","value":"<text>"}, {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}]}
     """
-    Given a conversation list (source) this function applies the following transformations:
-    1. Convert JSONL conversation format to chat message format.
-    2. Tokenize the chat message by applying the chat template.
-    3. Calculate the mask for the assistant tokens.
+    if not hasattr(tokenizer.tokenizer, "apply_chat_template"):
+        raise ValueError("Cannot apply chat template with tokenizer that is not a HuggingFace AutoTokenizer")
 
-    Args:
-        hf_chat_dict: dict, the chat message dict from HuggingFace tokenizer.
-        tokenizer: TokenizerSpec, the tokenizer object.
-    """
-    # Use HuggingFace tokenizer to apply the chat template.
+    tools = None
+    if isinstance(source, dict):
+        tools = source.get("tools") or tool_schemas
+
+        if source.get("conversations"):
+            # Detect if Nemo {"conversations": [{"from": "User/Assistant", "value": ""}]}
+            # Convert to HuggingFace chat template [{"role": "stystem/user/assistant", "content": ""}]
+            chat = [{"role": convo["from"].lower(), "content": convo["value"]} for convo in source["conversations"]]
+            if source.get("system"):
+                chat.insert(0, {"role": "system", "content": source["system"]})
+
+        elif source.get("messages"):
+            # HuggingFace chat template {"messages": [{"role": "system/user/assistant", "content": ""}]}
+            chat = source.get("messages")
+    else:
+        chat = source
+
     template_has_generation_kwd = (
         '{% generation %}' in tokenizer.tokenizer.chat_template
     )  # assistant mask only works if chat template has generation keyword
-    tokens = tokenizer.tokenizer.apply_chat_template(
-        hf_chat_dict['messages'],
+
+    tokenized_chat = tokenizer.tokenizer.apply_chat_template(
+        chat,
+        tools=tools,
+        tokenize=True,
         return_dict=True,
         return_assistant_tokens_mask=template_has_generation_kwd,
-        return_tensors='pt',
     )
-    input_ids = tokens['input_ids'][0]
+
+    # Choose the last conversation as answer other history are context by finding the last masked token
+    # which indicates end of context and beginning of answer
+    input_ids = tokenized_chat.get("input_ids")
     if template_has_generation_kwd:
-        mask = torch.tensor(tokens['assistant_masks']).to(bool)
+        mask = torch.tensor(tokenized_chat['assistant_masks']).to(bool)
     else:
         mask = torch.ones_like(input_ids)
-    return dict(input_ids=input_ids, mask=mask)
+    if tokenizer.eos_id:
+        input_ids += [tokenizer.eos_id]
+        mask += [1]
+    context_end_idx = len(mask) - mask[::-1].index(0) # traverse the list backward for first occurrence of masked token
+    context_ids = input_ids[:context_end_idx]
+    answer_ids = input_ids[context_end_idx:]
 
+    return dict(
+        input_ids=input_ids,
+        mask=mask,
+        context_ids=context_ids,
+        answer_ids=answer_ids,
+    )
 
 def _mask_targets(
     target,

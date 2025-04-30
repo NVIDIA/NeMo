@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import collections
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -141,7 +141,7 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
 
 def create_packing_strategy(
     histogram: List[int], pack_size: int, packing_algorithm: str = 'first_fit'
-) -> List[List[int]]:
+) -> Tuple[List[List[int]], dict]:
     """
     Packs sequences into bins using the specified packing algorithm.
 
@@ -167,14 +167,19 @@ def create_packing_strategy(
         all_seq_lens.extend([i] * count)
 
     packing_fn = globals()[packing_algorithm]
-    assignments = packing_fn(all_seq_lens, pack_size)
+    assignments: List[List[int]] = packing_fn(all_seq_lens, pack_size)
     packed_seq_lens = [sum(x) for x in assignments]
     packing_factor = len(all_seq_lens) / len(packed_seq_lens)
 
     max_seqlen = max(all_seq_lens)
     max_samples_per_bin = max([len(b) for b in assignments])
-    packing_metadata = {'dataset_max_seqlen': max_seqlen, 'max_samples_per_bin': max_samples_per_bin}
-
+    packing_metadata = {
+        'dataset_max_seqlen': max_seqlen,
+        'max_samples_per_bin': max_samples_per_bin,
+        'packing_factor': round(packing_factor, 2),
+        'packing_efficiency': round(sum(packed_seq_lens)/len(packed_seq_lens)/pack_size*100, 2),
+        'pack_size': pack_size,
+    }
     logging.debug("Packed sequence lengths:")
     logging.debug(packed_seq_lens)
     logging.info(f"Packing is {sum(packed_seq_lens)/len(packed_seq_lens)/pack_size*100:.2f}% efficient")
@@ -214,19 +219,27 @@ def fill_packing_strategy(
             perm = np.random.permutation(len(per_seq_data))
             input_ids = np.array([x['input_ids'] for x in per_seq_data])[perm].tolist()
             try:
-                loss_mask = np.array(
-                    [
-                        [
-                            # (x['answer_start_idx'] - 1) because we want to train on the output
-                            # after the last context token
-                            idx >= (x['answer_start_idx'] - 1) and x['input_ids'][idx] != pad_id
-                            for idx in range(len(x['input_ids']))
-                        ]
-                        for x in per_seq_data
-                    ]
-                )[perm].tolist()
+                loss_mask = np.array([x["mask"] for x in per_seq_data])[perm].tolist()
             except KeyError:
-                loss_mask = None
+                try:
+                    loss_mask = np.array([x["loss_mask"] for x in per_seq_data])[perm].tolist()
+                except KeyError:
+                    try:
+                        loss_mask = np.array(
+                            [
+                                [
+                                    # (x['answer_start_idx'] - 1) because we want to train on the output
+                                    # after the last context token
+                                    idx >= (x['answer_start_idx'] - 1) and x['input_ids'][idx] != pad_id
+                                    for idx in range(len(x['input_ids']))
+                                ]
+                                for x in per_seq_data
+                            ]
+                        )[perm].tolist()
+                    except KeyError as err:
+                        logging.error(f"Key errors mask, loss_mask and answer_start_idx missing in example - {err} {per_seq_data[0]}")
+                        loss_mask = None
+
             ifile_handles[seq_len] = (input_ids, loss_mask)
 
     input_ids, loss_mask, seq_start_id = {}, {}, {}

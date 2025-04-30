@@ -273,12 +273,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         dataset_kwargs = {}
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
-            if self.cfg.data.get("chat", False):
-                dataset_cls = GPTSFTChatDataset
-            elif packed_sequence:
+            if packed_sequence:
                 dataset_cls = GPTSFTPackedDataset
                 dataset_kwargs = {'return_cu_seqlen': data_cfg.get("packed_sequence_return_cu_seqlen", True)}
                 assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
+            elif self.cfg.data.get("chat", False):
+                dataset_cls = GPTSFTChatDataset
             else:
                 dataset_cls = GPTSFTDataset
 
