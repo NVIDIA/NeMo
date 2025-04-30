@@ -76,22 +76,10 @@ class NeMoLogger(IOMixin):
                 " to True. Please set either one or neither."
             )
 
-    def setup(self, trainer: Union[pl.Trainer, fl.Fabric], resume_if_exists: bool = False, task_config=None):
-        """Setup the logger for the experiment.
+    def _get_log_dir_state(self, trainer: Union[pl.Trainer, fl.Fabric], resume_if_exists: bool = False):
 
-        Args:
-            trainer (Union[pl.Trainer, fl.Fabric]): Trainer or Fabric instance.
-            resume_if_exists (bool): Whether to resume if log directory exists.
-
-        Returns:
-            AppState: The application state with updated log directory and other settings.
-        """
         from nemo.constants import NEMO_ENV_VARNAME_VERSION
         from nemo.utils.get_rank import is_global_rank_zero
-
-        self.local_rank = trainer.local_rank
-        self.global_rank = trainer.global_rank
-        logging.rank = self.global_rank
 
         # If explicit log_dir was passed, short circuit
         if self.explicit_log_dir and isinstance(trainer, pl.Trainer):
@@ -119,7 +107,7 @@ class NeMoLogger(IOMixin):
                 )
             if is_global_rank_zero() and Path(self.explicit_log_dir).exists():
                 logging.warning("NeMoLogger is logging to {}, but it already exists.".format(self.explicit_log_dir))
-            log_dir, _dir, self.name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
+            log_dir, _dir, _name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
 
         else:
             # Default dir to ./nemo_experiments if None was passed
@@ -127,8 +115,7 @@ class NeMoLogger(IOMixin):
             if self.log_dir is None:
                 _dir = str(Path.cwd() / "nemo_experiments")
 
-            if not self.name:
-                self.name = "default"
+            _name = self.name or "default"
 
             version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
             if not version:
@@ -146,7 +133,26 @@ class NeMoLogger(IOMixin):
 
             log_dir = Path(_dir) / Path(str(self.name)) / Path("" if version is None else str(version))
 
+        return log_dir, _dir, _name, version
+
+    def setup(self, trainer: Union[pl.Trainer, fl.Fabric], resume_if_exists: bool = False, task_config=None):
+        """Setup the logger for the experiment.
+
+        Args:
+            trainer (Union[pl.Trainer, fl.Fabric]): Trainer or Fabric instance.
+            resume_if_exists (bool): Whether to resume if log directory exists.
+
+        Returns:
+            AppState: The application state with updated log directory and other settings.
+        """
+        from nemo.utils.get_rank import is_global_rank_zero
+
+        self.local_rank = trainer.local_rank
+        self.global_rank = trainer.global_rank
+        logging.rank = self.global_rank
+
         # update app_state with log_dir, exp_dir, etc
+        log_dir, _dir, self.name, version = self._get_log_dir_state(trainer, resume_if_exists)
         app_state = AppState()
         app_state.log_dir = log_dir
         app_state.exp_dir = _dir
