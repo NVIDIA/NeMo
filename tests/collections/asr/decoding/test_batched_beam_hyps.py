@@ -877,11 +877,11 @@ class TestBatchedBeamHypsCTC:
     @pytest.mark.unit
     @pytest.mark.parametrize("y", [torch.tensor([1, 1024, 1024, 2, 2, 1024, 2, 3, 3, 1024, 3, 2, 2, 2])])
     def test_ctc_create_fold_consecutive_mask(self, y: torch.Tensor):
-        batched_hyps=BatchedBeamHypsCTC(batch_size=1, beam_size=4, init_length=30, blank_index=1024)
-        mask=batched_hyps._create_fold_consecutive_mask(transcript=y)
-        
+        batched_hyps = BatchedBeamHypsCTC(batch_size=1, beam_size=4, init_length=30, blank_index=1024)
+        mask = batched_hyps._create_fold_consecutive_mask(transcript=y)
+
         assert y[mask].tolist() == [1, 2, 2, 3, 3, 2]
-            
+
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_ctc_add_results(self, device: torch.device):
@@ -917,7 +917,7 @@ class TestBatchedBeamHypsCTC:
             [0, -1, 1],
             [2, -1, -1],
         ]
-        
+
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_rnnt_add_multiple_results(self, device: torch.device):
@@ -976,14 +976,8 @@ class TestBatchedBeamHypsCTC:
                 [0, 1, 2, 3],
             ],
         ]
-        assert hyps.last_label.tolist() == [
-            [3, 4, 1024],
-            [5, 1024, 6]
-        ]
-        assert hyps.last_label_nb.tolist() == [
-            [3, 4, -1],
-            [5, -1, 6]
-        ]
+        assert hyps.last_label.tolist() == [[3, 4, 1024], [5, 1024, 6]]
+        assert hyps.last_label_nb.tolist() == [[3, 4, -1], [5, -1, 6]]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -1049,6 +1043,7 @@ class TestBatchedBeamHypsCTC:
             [4, 7, 8],
             [10, 5, 9],
         ]
+
 
 class TestConvertToHypothesesCTC:
     @pytest.mark.unit

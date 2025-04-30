@@ -582,7 +582,10 @@ class BatchedBeamHypsCTC:
 
         # Initializing tree structure for hypothesis storing
         self.transcript_wb = torch.full(
-            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long, fill_value=NON_EXISTENT_LABEL_VALUE
+            (batch_size, self.beam_size, self._max_length),
+            device=device,
+            dtype=torch.long,
+            fill_value=NON_EXISTENT_LABEL_VALUE,
         )
         self.transcript_wb_prev_ptr = torch.full(
             (batch_size, self.beam_size, self._max_length),
@@ -627,7 +630,8 @@ class BatchedBeamHypsCTC:
             (self.transcript_wb, torch.full_like(self.transcript_wb, fill_value=NON_EXISTENT_LABEL_VALUE)), dim=-1
         )
         self.transcript_wb_prev_ptr = torch.cat(
-            (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)), dim=-1
+            (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)),
+            dim=-1,
         )
         self.timestamps = self._create_timestamps_tensor(2 * self._max_length)
 
