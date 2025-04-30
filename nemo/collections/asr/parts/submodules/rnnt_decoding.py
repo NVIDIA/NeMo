@@ -672,11 +672,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 token_repetitions = [1] * len(alignments)  # preserve number of repetitions per token
                 hypothesis = (prediction, alignments, token_repetitions)
             else:
-                hypothesis = self.decode_tokens_to_str(prediction)
-
-                # TODO: remove
-                # collapse leading spaces before . , ? for PC models
-                hypothesis = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis)
+                hypothesis = self.decode_tokens_to_str_with_strip_punctuation(prediction)
 
                 if self.compute_hypothesis_token_set:
                     hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
@@ -820,6 +816,16 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             A list of decoded LIDS.
         """
         raise NotImplementedError()
+
+    def decode_tokens_to_str_with_strip_punctuation(self, tokens: List[int]) -> str:
+        """
+        Decodes a list of tokens to a string and removes a space before supported punctuation marks.
+        """
+        text = self.decode_tokens_to_str(tokens)
+        if self.supported_punctuation:
+            punct_pattern = '|'.join([re.escape(p) for p in self.supported_punctuation])
+            text = re.sub(r'(\s)(' + punct_pattern + ')', r'\2', text)
+        return text
 
     def update_joint_fused_batch_size(self):
         """ "
@@ -984,10 +990,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             hypothesis.timestamp['segment'] = segment_offsets
 
         # Convert the flattened token indices to text
-        hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
-
-        # collapse leading spaces before . , ? for PC models
-        hypothesis.text = re.sub(r'(\s+)([\.\,\?])', r'\2', hypothesis.text)
+        hypothesis.text = self.decode_tokens_to_str_with_strip_punctuation(hypothesis.text)
 
         if self.compute_hypothesis_token_set:
             hypothesis.tokens = self.decode_ids_to_tokens(decoded_prediction)
@@ -1133,16 +1136,16 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     end_offset = offset["end_offset"]
                     word += char
                 else:
-                    next_puntuation = (
+                    next_punctuation = (
                         (supported_punctuation and offsets[i + 1]['char'][0] in supported_punctuation)
                         if i < len(offsets) - 1
                         else False
                     )
                     # Switching state
-                    if state == "SPACE" and not next_puntuation:
+                    if state == "SPACE" and not next_punctuation:
                         # Finishing a word
                         word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
-                    elif state == "SPACE" and next_puntuation:
+                    elif state == "SPACE" and next_punctuation:
                         continue
                     else:
                         # Starting a new word
@@ -1185,6 +1188,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         word_offsets = []
         built_word = ""
         previous_token_index = 0
+        
         # For every offset token
         for i, offset in enumerate(offsets):
             # For every subword token in offset token list (ignoring the RNNT Blank token if it exists)
@@ -1196,12 +1200,12 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     token = decode_ids_to_tokens([char])[0]
                     token_text = decode_tokens_to_str([char])
 
-                    # It is a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
-                    if supported_punctuation and token_text in supported_punctuation:
-                        built_word += token_text.strip()
+                    curr_punctuation = supported_punctuation and token_text.strip() in supported_punctuation
+
                     # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
                     # after forcing partial text conversion of the token.
-                    elif token != token_text:
+                    # AND it is not a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
+                    if token != token_text and not curr_punctuation:
                         # If there is partially or fully built word, append to word offsets.
                         # Note: This is "old" subword, that occurs *after* current sub-word has started.
                         if built_word:
@@ -1217,6 +1221,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         built_word = ""
                         built_word += token_text
                         previous_token_index = i
+                    
+                    # If the token is a punctuation mark and there is no built word, then the previous word is complete
+                    # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
+                    elif curr_punctuation and not built_word:
+                        word_offsets[-1]['end_offset'] = offset['end_offset']
+                        word_offsets[-1]['word'] = word_offsets[-1]['word'][:-1] if word_offsets[-1]['word'][-1] == ' ' else word_offsets[-1]['word']
+                        word_offsets[-1]['word'] += token_text.strip()
                     else:
                         # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
                         # Append to current built word.
