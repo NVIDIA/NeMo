@@ -90,10 +90,9 @@ jobs:
 
   cicd-wait-in-queue:
     needs: [pre-flight]
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     runs-on: ubuntu-latest
     environment: test
-    if: ${{ !startsWith(needs.pre-flight.outputs.branch_name, 'bump-ci-container') }}
+    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' && !startsWith(needs.pre-flight.outputs.branch_name, 'bump-ci-container') }}
     steps:
       - name: Running CI tests
         run: |
