@@ -21,8 +21,10 @@ from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.setup import setup
 from nemo.tron.train import _finish_train, train
 from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
+from nemo.tron.utils.decorators import experimental_fn
 
 
+@experimental_fn
 def megatron_pretrain(
     config: ConfigContainer,
     forward_step_func: Callable,
@@ -41,6 +43,10 @@ def megatron_pretrain(
         dataset_provider: Optional callable to provide train/validation/test
                           datasets. If None, it's assumed the dataset
                           configuration is self-contained within `config`.
+
+    Warnings:
+        This is an experimental API and is subject to change in backwards
+        incompatible ways without notice.
     """
     config.validate()
 
