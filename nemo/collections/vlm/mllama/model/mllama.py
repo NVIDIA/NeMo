@@ -20,6 +20,10 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.distributed
 from megatron.core.transformer import TransformerConfig
+from torch import Tensor
+from transformers import MllamaForConditionalGeneration
+from transformers.models.mllama.configuration_mllama import MllamaTextConfig, MllamaVisionConfig
+
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.vlm.mllama.model.base import (
@@ -28,28 +32,18 @@ from nemo.collections.vlm.mllama.model.base import (
     MLlamaModel,
     MLlamaModelConfig,
 )
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
-    load_distributed_model_weights,
-)
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
-from torch import Tensor
-from transformers import MllamaForConditionalGeneration
-from transformers.models.mllama.configuration_mllama import (
-    MllamaTextConfig,
-    MllamaVisionConfig,
-)
 
 # pylint: disable=C0115,C0116,C0301
 
 
 @dataclass
 class MLlamaConfig11B(MLlamaModelConfig):
-    language_model_config: Optional[TransformerConfig] = field(
-        default_factory=lambda: CrossAttentionTextConfig()
-    )
+    language_model_config: Optional[TransformerConfig] = field(default_factory=lambda: CrossAttentionTextConfig())
     vision_model_config: Optional[TransformerConfig] = field(
         default_factory=lambda: CrossAttentionVisionConfig(vision_chunk_size=448)
     )
@@ -57,9 +51,7 @@ class MLlamaConfig11B(MLlamaModelConfig):
 
 @dataclass
 class MLlamaConfig11BInstruct(MLlamaModelConfig):
-    language_model_config: Optional[TransformerConfig] = field(
-        default_factory=lambda: CrossAttentionTextConfig()
-    )
+    language_model_config: Optional[TransformerConfig] = field(default_factory=lambda: CrossAttentionTextConfig())
     vision_model_config: Optional[TransformerConfig] = field(
         default_factory=lambda: CrossAttentionVisionConfig(vision_chunk_size=560)
     )
@@ -77,9 +69,7 @@ class MLlamaConfig90B(MLlamaModelConfig):
         )
     )
     vision_model_config: Optional[TransformerConfig] = field(
-        default_factory=lambda: CrossAttentionVisionConfig(
-            vision_chunk_size=560, text_hidden_size=8192
-        )
+        default_factory=lambda: CrossAttentionVisionConfig(vision_chunk_size=560, text_hidden_size=8192)
     )
 
 
@@ -99,9 +89,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
         return output_path
 
     def apply(self, output_path: Path) -> Path:
-        source = MllamaForConditionalGeneration.from_pretrained(
-            str(self), torch_dtype="auto"
-        )
+        source = MllamaForConditionalGeneration.from_pretrained(str(self), torch_dtype="auto")
 
         state_dict = _rename_xattn_layer_nums_hf(source.state_dict())
         source = _ModelState(state_dict)
@@ -241,9 +229,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
                         "vision_model.global_transformer.layers.*.self_attn.k_proj.weight",
                         "vision_model.global_transformer.layers.*.self_attn.v_proj.weight",
                     ),
-                    target_key=(
-                        f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"
-                    ),
+                    target_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
                     fn=_import_vision_qkv,
                 ),
                 io.state_transform(
@@ -252,9 +238,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
                         "vision_model.transformer.layers.*.self_attn.k_proj.weight",
                         "vision_model.transformer.layers.*.self_attn.v_proj.weight",
                     ),
-                    target_key=(
-                        f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"
-                    ),
+                    target_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
                     fn=_import_vision_qkv,
                 ),
                 io.state_transform(
@@ -265,9 +249,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
             ]
         )
 
-        return io.apply_transforms(
-            source, target, mapping=mapping, transforms=transforms
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -321,9 +303,7 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
 
 
 @io.model_exporter(MLlamaModel, "hf")
-class HFMLlamaExporter(
-    io.ModelConnector[MLlamaModel, "MllamaForConditionalGeneration"]
-):
+class HFMLlamaExporter(io.ModelConnector[MLlamaModel, "MllamaForConditionalGeneration"]):
     """
     Exporter class for converting NeMo MLlama model to HuggingFace format.
 
@@ -350,9 +330,7 @@ class HFMLlamaExporter(
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return MllamaForConditionalGeneration._from_config(
-                self.config, torch_dtype=dtype
-            )
+            return MllamaForConditionalGeneration._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
         """
@@ -502,9 +480,7 @@ class HFMLlamaExporter(
         transforms.extend(
             [
                 io.state_transform(
-                    source_key=(
-                        f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"
-                    ),
+                    source_key=(f"{v}.global_transformer.layers.*.self_attention.linear_qkv.weight"),
                     target_key=(
                         "vision_model.global_transformer.layers.*.self_attn.q_proj.weight",
                         "vision_model.global_transformer.layers.*.self_attn.k_proj.weight",
@@ -513,9 +489,7 @@ class HFMLlamaExporter(
                     fn=_export_vision_qkv,
                 ),
                 io.state_transform(
-                    source_key=(
-                        f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"
-                    ),
+                    source_key=(f"{v}.transformer.layers.*.self_attention.linear_qkv.weight"),
                     target_key=(
                         "vision_model.transformer.layers.*.self_attn.q_proj.weight",
                         "vision_model.transformer.layers.*.self_attn.k_proj.weight",
@@ -530,9 +504,7 @@ class HFMLlamaExporter(
                 ),
             ]
         )
-        return io.apply_transforms(
-            source, target, mapping=mapping, transforms=transforms
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "TokenizerSpec":
@@ -563,16 +535,12 @@ class HFMLlamaExporter(
 
         langauge_layers = config.language_model_config.num_layers
         vision_layers = config.vision_model_config.num_layers
-        distributed_model_weights = load_distributed_model_weights(
-            dist_ckpt_folder, True
-        ).items()
+        distributed_model_weights = load_distributed_model_weights(dist_ckpt_folder, True).items()
         for k, v in distributed_model_weights:
             if "_extra_state" in k:
                 continue
             new_k = k.replace("module.", "")
-            if "layers" in new_k and (
-                v.size(0) == langauge_layers or v.size(0) == vision_layers
-            ):
+            if "layers" in new_k and (v.size(0) == langauge_layers or v.size(0) == vision_layers):
                 # Only split layers
                 for i in range(v.size(0)):
                     state_dict[new_k.replace("layers", f"layers.{str(i)}")] = v[i]
@@ -608,12 +576,8 @@ class HFMLlamaExporter(
             )
 
         text_config = source_config.language_model_config
-        cross_attention_frequency = (
-            text_config.num_layers // text_config.num_cross_attention_layers
-        )
-        total_num_layer = (
-            text_config.num_layers + text_config.num_cross_attention_layers
-        )
+        cross_attention_frequency = text_config.num_layers // text_config.num_cross_attention_layers
+        total_num_layer = text_config.num_layers + text_config.num_cross_attention_layers
         prefix = "language_model.decoder"
 
         new_state_dict = {}
@@ -622,47 +586,31 @@ class HFMLlamaExporter(
             cross_num = (i - 3) // (cross_attention_frequency + 1)
             if (i - 3) % (cross_attention_frequency + 1) == 0:
                 xattn_index = cross_num * cross_attention_frequency + 3
-                new_state_dict[
-                    f"{prefix}.layers.{i}.mlp.linear_fc1.layer_norm_weight"
-                ] = state_dict.pop(
+                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc1.layer_norm_weight"] = state_dict.pop(
                     f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc1.layer_norm_weight"
                 )
-                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc2.weight"] = (
-                    state_dict.pop(
-                        f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc2.weight"
-                    )
+                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc2.weight"] = state_dict.pop(
+                    f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc2.weight"
                 )
-                new_state_dict[
-                    f"{prefix}.layers.{i}.self_attention.linear_qkv.layer_norm_weight"
-                ] = state_dict.pop(
+                new_state_dict[f"{prefix}.layers.{i}.self_attention.linear_qkv.layer_norm_weight"] = state_dict.pop(
                     f"{prefix}.xattn_layers.{xattn_index}.cross_attention.linear_q.layer_norm_weight"
                 )
-                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc1.weight"] = (
-                    state_dict.pop(
-                        f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc1.weight"
-                    )
+                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc1.weight"] = state_dict.pop(
+                    f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc1.weight"
                 )
             else:
                 attn_index = i - cross_num - 1
-                new_state_dict[
-                    f"{prefix}.layers.{i}.mlp.linear_fc1.layer_norm_weight"
-                ] = state_dict.pop(
+                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc1.layer_norm_weight"] = state_dict.pop(
                     f"{prefix}.layers.{attn_index}.mlp.linear_fc1.layer_norm_weight"
                 )
-                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc2.weight"] = (
-                    state_dict.pop(
-                        f"{prefix}.layers.{attn_index}.mlp.linear_fc2.weight"
-                    )
+                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc2.weight"] = state_dict.pop(
+                    f"{prefix}.layers.{attn_index}.mlp.linear_fc2.weight"
                 )
-                new_state_dict[
-                    f"{prefix}.layers.{i}.self_attention.linear_qkv.layer_norm_weight"
-                ] = state_dict.pop(
+                new_state_dict[f"{prefix}.layers.{i}.self_attention.linear_qkv.layer_norm_weight"] = state_dict.pop(
                     f"{prefix}.layers.{attn_index}.self_attention.linear_qkv.layer_norm_weight"
                 )
-                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc1.weight"] = (
-                    state_dict.pop(
-                        f"{prefix}.layers.{attn_index}.mlp.linear_fc1.weight"
-                    )
+                new_state_dict[f"{prefix}.layers.{i}.mlp.linear_fc1.weight"] = state_dict.pop(
+                    f"{prefix}.layers.{attn_index}.mlp.linear_fc1.weight"
                 )
 
         for k, v in new_state_dict.items():
@@ -703,17 +651,12 @@ class HFMLlamaExporter(
         )
         cross_attention_layers = [
             x + i
-            for i, x in enumerate(
-                language_config._init_fusion_schedule(
-                    language_config.num_cross_attention_layers
-                )
-            )
+            for i, x in enumerate(language_config._init_fusion_schedule(language_config.num_cross_attention_layers))
         ]
         # Create text config for HuggingFace model
         text_config = MllamaTextConfig(
             rope_theta=language_config.rotary_base,
-            num_hidden_layers=language_config.num_layers
-            + language_config.num_cross_attention_layers,
+            num_hidden_layers=language_config.num_layers + language_config.num_cross_attention_layers,
             tie_word_embeddings=language_config.share_embeddings_and_output_weights,
             cross_attention_layers=cross_attention_layers,
             hidden_size=language_config.hidden_size,
@@ -732,9 +675,7 @@ class HFMLlamaExporter(
             torch_dtype="bfloat16",
         )
         # Create the MllamaConfig for HuggingFace
-        return HFMllamaConfig(
-            vision_config=vision_config, text_config=text_config, torch_dtype="bfloat16"
-        )
+        return HFMllamaConfig(vision_config=vision_config, text_config=text_config, torch_dtype="bfloat16")
 
 
 def _rename_xattn_layer_nums_hf(source: Dict):
@@ -857,15 +798,11 @@ def _merge_qkv(
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, (
-        qkv_weights.shape
-    )
+    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape(
-        [head_size * (head_num + 2 * num_query_groups), hidden_size]
-    )
+    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
     return qkv_weights
 
@@ -890,18 +827,14 @@ def _split_kv(
     return k_proj, v_proj
 
 
-def _split_qkv(
-    qkv, head_num: int, num_query_groups: int, head_size: int, hidden_size: int
-):
+def _split_qkv(qkv, head_num: int, num_query_groups: int, head_size: int, hidden_size: int):
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange(
-                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
-            )
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
             for i in range(num_query_groups)
         ]
     )
