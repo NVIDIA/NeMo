@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -ex
 
-export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
+export CURR=$INSTALL_DIR
 export PIP=pip
 
 echo 'Installing nemo'
