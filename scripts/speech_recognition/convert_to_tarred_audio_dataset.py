@@ -85,6 +85,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
+from tabulate import tabulate
 from typing import Any, List, Optional
 
 import numpy as np
@@ -176,6 +177,7 @@ class ASRTarredDatasetBuilder:
         buckets_num: int = 1,
         dynamic_buckets_num: int = 30,
         only_manifests: bool = False,
+        dry_run: bool = False,
     ):
         """
         Creates a new tarred dataset from a given manifest file.
@@ -215,19 +217,34 @@ class ASRTarredDatasetBuilder:
 
         # Read the existing manifest
         entries, total_duration, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
+       
+        header = [
+            "Min.\nduration", "Max.\nduration",
+            "Entries amount\nafter filtration", "Total duration\nafter filtration",
+            "Shards\namount", "Entries\nper shard", "Remainded\nentries"
+        ]
 
-        if len(filtered_entries) > 0:
-            print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
-        print(
-            f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio."
-        )
+        entires_amount = f'{len(entries)} / {len(entries) + len(filtered_entries)}'
+        entries_duration = f'{total_duration:.2f} / {total_duration + filtered_duration:.2f} s'
+        entries_per_shard = len(entries) // config.num_shards
+        remainder = len(entries) % config.num_shards 
+
+        data = [
+            [f"{config.min_duration} s", f"{config.max_duration} s",
+            f"{entires_amount}", f"{entries_duration}",
+            f"{config.num_shards}", f"{entries_per_shard}", f"{remainder}"]
+        ]
+
+        print(tabulate(data, headers=header, tablefmt="grid", colalign = ["center"] * len(header)))
+        if dry_run:
+            return
 
         if len(entries) == 0:
             print("No tarred dataset was created as there were 0 valid samples after filtering!")
             return
         if config.shuffle:
             random.seed(config.shuffle_seed)
-            print("Shuffling...")
+            print(f"Shuffling (seed: {config.shuffle_seed})...")
             if config.keep_files_together:
                 filename_entries = defaultdict(list)
                 for ent in entries:
@@ -241,9 +258,6 @@ class ASRTarredDatasetBuilder:
             else:
                 random.shuffle(entries)
 
-        # Create shards and updated manifest entries
-        print(f"Number of samples added : {len(entries)}")
-        print(f"Remainder: {len(entries) % config.num_shards}")
 
         start_indices = []
         end_indices = []
@@ -711,7 +725,6 @@ class ASRTarredDatasetBuilder:
                 metadata_copy.pop('history', None)
             history.append(metadata_copy)
 
-
 def main(args):
     if args.buckets_num > 1:
         bucket_length = (args.max_duration - args.min_duration) / float(args.buckets_num)
@@ -728,7 +741,8 @@ def main(args):
             )
             print(f"Results are being saved at: {bucket_config.target_dir}.")
             create_tar_datasets(**vars(bucket_config))
-            print(f"Bucket {i_bucket+1} is created.")
+            if not args.dry_run:
+                print(f"Bucket {i_bucket+1} is created.")
     else:
         create_tar_datasets(**vars(args))
 
@@ -753,6 +767,7 @@ def create_tar_datasets(
     workers: int = 1,
     slice_with_offset: bool = False,
     only_manifests: bool = False,
+    dry_run: bool = False,
 ):
     builder = ASRTarredDatasetBuilder()
 
@@ -780,8 +795,6 @@ def create_tar_datasets(
         exit(0)
 
     if concat_manifest_paths is None or len(concat_manifest_paths) == 0:
-        print("Creating new tarred dataset ...")
-
         # Create a tarred dataset from scratch
         config = ASRTarredDatasetConfig(
             num_shards=num_shards,
@@ -803,6 +816,7 @@ def create_tar_datasets(
             buckets_num=buckets_num,
             dynamic_buckets_num=dynamic_buckets_num,
             only_manifests=only_manifests,
+            dry_run = dry_run
         )
 
     else:
@@ -842,10 +856,11 @@ def create_tar_datasets(
             only_manifests=only_manifests,
         )
 
-    if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
-        print("Constructing DALI Tarfile Index - ", target_dir)
-        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=workers)
-        dali_index.main(index_config)
+    if not dry_run:
+        if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
+            print("Constructing DALI Tarfile Index - ", target_dir)
+            index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=workers)
+            dali_index.main(index_config)
 
 
 if __name__ == "__main__":
@@ -967,6 +982,13 @@ if __name__ == "__main__":
         help=(
             "If set, only creates manifests for each shard without creating the actual tar files. "
             "This allows you to verify the output structure and content before committing to the full tarball creation process."
+        ),
+    )
+    parser.add_argument(
+        "--dry_run",
+        action='store_true',
+        help=(
+            "Run in simulation mode: calculate and display the number of shards and estimated data per shard without reading audio files or writing any output."
         ),
     )
     parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
