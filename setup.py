@@ -138,7 +138,7 @@ extras_require['slu'] = list(
     chain(
         extras_require['slu'],
         extras_require['asr'],
-   )
+    )
 )
 
 
