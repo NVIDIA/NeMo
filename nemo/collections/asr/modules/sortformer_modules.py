@@ -36,10 +36,10 @@ class StreamingSortformerState():
     Attributes:
         spkcache (torch.Tensor): Speaker cache to store embeddings from start
         spkcache_lengths (torch.Tensor): Lengths of the speaker cache
-        spkcache_preds (torch.Tensor): The predictions for the speaker cache parts
+        spkcache_preds (torch.Tensor): The speaker predictions for the speaker cache parts
         fifo (torch.Tensor): FIFO queue to save the embedding from the latest chunks
         fifo_lengths (torch.Tensor): Lengths of the FIFO queue
-        fifo_preds (torch.Tensor): The predictions for the FIFO queue parts
+        fifo_preds (torch.Tensor): The speaker predictions for the FIFO queue parts
         spk_perm (torch.Tensor): Speaker permutation information for the speaker cache
     """
     spkcache = None  # Speaker cache to store embeddings from start

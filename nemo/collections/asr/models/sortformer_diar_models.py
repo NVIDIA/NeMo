@@ -512,6 +512,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             processed_signal, processed_signal_length = self.preprocessor(
                 input_signal=audio_signal, length=audio_signal_length
             )
+        # This cache clearning can significantly slow down the training speed.
+        # Only perform `empty_cache()` when the input file is extremely large for streaming mode.
         if not self.training and self.streaming_mode:
             del audio_signal, audio_signal_length
             torch.cuda.empty_cache()
@@ -555,7 +557,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
     @property
     def output_names(self):
-        return ["preds"]
+        return ["spkcache_fifo_chunk_preds", "chunk_pre_encode_embs", "chunk_pre_encode_lengths"]
 
     def streaming_input_examples(self):
         """Input tensor examples for exporting streaming version of model
