@@ -285,7 +285,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     @torch.no_grad()
     def batched_beam_search_torch(
         self, decoder_outputs: torch.Tensor, decoder_output_lengths: torch.Tensor
-    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
+    ) -> BatchedBeamHypsCTC:
         """
         Pure PyTorch implementation of the batched beam search algorithm.
 
@@ -391,7 +391,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self,
         decoder_outputs: torch.Tensor,
         decoder_output_lengths: torch.Tensor,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+    ) -> BatchedBeamHypsCTC:
         """
         Cuda-Graphs implementation of the batched beam search algorithm.
 
