@@ -29,7 +29,6 @@ from typing_extensions import Annotated
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
-from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -530,7 +529,6 @@ def ptq(
         model = HFAutoModelForCausalLM(model_name=model_path, trust_remote_code=trust_remote_code, device_map="auto")
         model.configure_model()
     else:
-        assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
         model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
             model_path=model_path,
             tensor_model_parallel_size=calibration_tp,
@@ -576,6 +574,7 @@ def deploy(
     pipeline_parallelism_size: int = 1,
     context_parallel_size: int = 1,
     expert_model_parallel_size: int = 1,
+    expert_tensor_parallel_size: int = 1,
     dtype: str = "bfloat16",
     max_input_len: int = 4096,
     max_output_len: int = 256,
@@ -659,6 +658,7 @@ def deploy(
             pipeline_model_parallel_size=pipeline_parallelism_size,
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
+            expert_tensor_parallel_size=expert_tensor_parallel_size,
             inference_max_seq_length=max_input_len,
         )
 
@@ -767,6 +767,7 @@ def evaluate(
             url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
+    from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
         _legacy_evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
@@ -1079,6 +1080,11 @@ def generate(
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
 
+    max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)
+    # set kv cache allocation to only num tokens in prompt + max tokens to generate
+    inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
+    inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
+
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
     dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
     chunk_size = (len(inputs) + dp_size - 1) // dp_size
@@ -1219,12 +1225,13 @@ def _validate_config(
 
     # Data validation
     assert data.micro_batch_size > 0
-    assert data.global_batch_size > 0
-    assert data.seq_length > 0
+    if isinstance(trainer.strategy, nl.MegatronStrategy):
+        assert data.global_batch_size > 0
+        assert data.seq_length > 0
 
-    assert (
-        data.global_batch_size % data.micro_batch_size == 0
-    ), "Global batch size must be divisible by micro batch size in data module."
+        assert (
+            data.global_batch_size % data.micro_batch_size == 0
+        ), "Global batch size must be divisible by micro batch size in data module."
 
     # Trainer validation
 

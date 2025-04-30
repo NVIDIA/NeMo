@@ -170,7 +170,7 @@ class T5Config(TransformerConfig, io.IOMixin):
     bias_dropout_fusion: bool = True
     deallocate_pipeline_outputs: bool = True
     pipeline_model_parallel_split_rank: int = 0
-    num_moe_experts: int = 1
+    num_moe_experts: Optional[int] = None
     recompute_num_layers: int = 1
     distribute_saved_activations: bool = False
     enable_autocast: bool = False
@@ -615,7 +615,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
     def init(self) -> "T5ForConditionalGeneration":
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return T5ForConditionalGeneration(config=self.config)
 
     def apply(self, output_path: Path) -> Path:

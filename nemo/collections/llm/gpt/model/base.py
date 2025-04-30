@@ -662,7 +662,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         params_dtype: torch.dtype,
         inference_batch_times_seqlen_threshold: int,
         inference_max_seq_length: int = 2560,
-    ) -> torch.Tensor:
+    ) -> GPTInferenceWrapper:
         """Get an inference wrapper for the model.
 
         Creates and configures a GPTInferenceWrapper around the model for efficient inference.
@@ -673,7 +673,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             inference_max_seq_length: Maximum sequence length for inference (prefill and decode)
 
         Returns:
-            torch.Tensor: Wrapped model for inference
+            GPTInferenceWrapper: Wrapped model for inference
         """
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
@@ -685,10 +685,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
         vocab_size = None
-        if self.tokenizer is not None:
-            vocab_size = self.tokenizer.vocab_size
-        elif hasattr(self.config, "vocab_size"):
+        if hasattr(self.config, "vocab_size"):
             vocab_size = self.config.vocab_size
+        elif self.tokenizer is not None:
+            vocab_size = self.tokenizer.vocab_size
         else:
             raise ValueError(
                 "Unable to find vocab size."

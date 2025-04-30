@@ -297,7 +297,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
         from transformers import Starcoder2ForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return Starcoder2ForCausalLM._from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -402,6 +402,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
         source: Starcoder2Config = io.load_context(str(self)).model.config
 
         return HFStarcoder2Config(
+            architectures=["Starcoder2ForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
