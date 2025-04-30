@@ -14,8 +14,7 @@
 
 from argparse import ArgumentParser
 
-from nemo.collections.llm.modelopt import setup_trainer_and_restore_model_with_modelopt_spec
-from nemo.collections.llm.modelopt.speculative import SpeculativeTransform
+from nemo.collections.llm.modelopt import SpeculativeTransform, setup_trainer_and_restore_model_with_modelopt_spec
 from nemo.collections.llm.utils import barrier
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext

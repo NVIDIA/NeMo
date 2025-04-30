@@ -34,7 +34,7 @@ class SpeculativeTransform:
         num_eagle_layers: Number of Eagle layers to use for speculative decoding.
 
     Example:
-        >>> from nemo.collections.llm.modelopt.speculative.model_transform import SpeculativeTransform
+        >>> from nemo.collections.llm.modelopt import SpeculativeTransform
         >>> model = GPTModel(config, model_transform=SpeculativeTransform(num_medusa_heads=4))
         >>> # The model will be transformed when trainer.fit() or trainer.validate() is called
     """
