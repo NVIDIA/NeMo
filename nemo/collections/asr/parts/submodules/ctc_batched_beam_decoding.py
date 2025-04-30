@@ -21,7 +21,7 @@ import torch
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
-from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import BatchedBeamHypsCTC, BlankLMScoreMode
+from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import BatchedBeamHypsCTC, BlankLMScoreMode
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import (
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
@@ -379,7 +379,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
             next_labels = torch.where(active_mask, next_labels, NON_EXISTENT_LABEL_VALUE)
             batched_beam_hyps.add_results_(next_indices, next_labels, next_scores)
-            batched_beam_hyps.self_recombine_hyps_()
+            batched_beam_hyps.recombine_hyps_()
 
         # step 3: updating LM scores with eos scores
         if self.ngram_lm_batch is not None:
@@ -683,7 +683,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
         torch.where(self.state.active_mask, next_labels, self.state.MINUS_ONE_TENSOR, out=next_labels)
         self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
-        self.state.batched_hyps.self_recombine_hyps_()
+        self.state.batched_hyps.recombine_hyps_()
 
         # step 2.6: updating frame idx and active masks
         self.state.curr_frame_idx.add_(1)

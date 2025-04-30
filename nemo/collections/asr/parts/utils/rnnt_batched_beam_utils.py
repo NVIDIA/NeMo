@@ -205,9 +205,10 @@ class BatchedBeamHyps:
         Updates batch of beam hypotheses with labels. If the maximum allowed length
         is exceeded, underlying memory is doubled.
         Args:
-            hyps_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_indices (torch.Tensor): Indices of the hypotheses to be updated.
             next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
             next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
+            next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `is_tdt=True`.
         """
 
         if self.is_tdt and next_label_durations is None:
@@ -535,3 +536,250 @@ class BatchedBeamHyps:
         self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=indices))
         if self.store_prefix_hashes:
             self.transcript_prefix_hash.copy_(torch.gather(self.transcript_prefix_hash, dim=-1, index=indices))
+
+
+class BatchedBeamHypsCTC:
+    """Class to store batch of beam hypotheses (labels, time_indices, scores) for efficient CTC batched beam decoding"""
+
+    def __init__(
+        self,
+        batch_size: int,
+        beam_size: int,
+        init_length: int,
+        blank_index: int,
+        device: Optional[torch.device] = None,
+        float_dtype: Optional[torch.dtype] = None,
+    ):
+        """
+        Initializes the batched beam hypotheses utility for Transducer decoding (RNN-T and TDT models).
+        Args:
+            batch_size (int): Batch size.
+            beam_size (int): Beam size.
+            init_length (int): The initial maximum length of the hypotheses.
+            blank_index (int): The index representing the blank token in the vocabulary.
+            device (torch.device): The device on which tensors will be allocated. Defaults to None.
+            float_dtype (torch.dtype): The floating-point data type. Defaults to None.
+        """
+        if beam_size <= 0:
+            raise ValueError("Beam size must be greater than 0.")
+        if batch_size <= 0:
+            raise ValueError("Batch size must be greater than 0.")
+        if init_length <= 0:
+            raise ValueError("Initial hypothesis lengths must be greater than 0.")
+
+        self.device = device
+        self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
+        self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)
+
+        self._max_length = init_length
+        self.beam_size = beam_size
+        self.blank_index = blank_index
+        self.batch_size = batch_size
+        self.batch_indices = torch.arange(self.batch_size, device=device)
+
+        # non-blank/non-repeating and full lengths
+        self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
+        self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
+        
+        # Initializing tree structure for hypothesis storing
+        self.transcript_wb = torch.zeros(
+            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
+        )
+        self.transcript_wb_prev_ptr = torch.full(
+            (batch_size, self.beam_size, self._max_length),
+            fill_value=INIT_POINTER_VALUE,
+            device=device,
+            dtype=torch.long,
+        )
+        self.timesteps = torch.zeros(
+            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
+        )  # timestamps
+
+        # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
+        self.scores = torch.full(
+            [batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=INACTIVE_SCORE
+        )
+        self.scores[:, 0].fill_(0.0)
+        
+        self.last_label = torch.full(
+            [batch_size, self.beam_size], fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
+        )
+        self.last_label_nb = torch.full(
+            [batch_size, self.beam_size], fill_value=NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long
+        )
+        
+        self.transcript_hash = torch.zeros(
+            [batch_size, self.beam_size], device=device, dtype=torch.long
+        )
+
+    def clear_(self):
+        self.current_lengths_nb.fill_(0)
+        self.current_lengths_wb.fill_(0)
+        
+        self.transcript_wb.fill_(0)
+        self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
+        self.timesteps.fill_(0)
+        
+        self.scores.fill_(INACTIVE_SCORE)
+        self.scores[:, 0].fill_(0.0)
+
+        self.last_label.fill_(NON_EXISTENT_LABEL_VALUE)
+        self.last_label_nb.fill_(NON_EXISTENT_LABEL_VALUE)
+        self.transcript_hash.fill_(0)
+
+    def _allocate_more(self):
+        self.transcript_wb = torch.cat(
+            (self.transcript_wb, torch.full_like(self.transcript_wb, fill_value=NON_EXISTENT_LABEL_VALUE)), dim=-1
+        )
+        self.transcript_wb_prev_ptr = torch.cat(
+            (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
+        )
+        self.timesteps = torch.cat(
+            (self.timesteps, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)), dim=-1
+        )
+        self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
+        
+        self._max_length *= 2
+
+    def add_results_(
+        self,
+        next_indices,
+        next_labels,
+        next_hyps_prob,
+    ):
+        """
+        Updates batch of beam hypotheses with labels. If the maximum allowed length
+        is exceeded, underlying memory is doubled.
+        Args:
+            next_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
+            next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
+        """
+        
+        # if needed - increase storage
+        if self.current_lengths_wb.max().item() + 1 >= self._max_length:
+            self._allocate_more()
+
+        self.add_results_no_checks_(
+            next_indices=next_indices,
+            next_labels=next_labels,
+            next_hyps_prob=next_hyps_prob,
+        )
+
+    def add_results_no_checks_(
+        self,
+        next_indices,
+        next_labels,
+        next_hyps_prob,
+    ):
+        """
+        Updates batch of beam hypotheses with labels. If the maximum allowed length
+        is exceeded, underlying memory is doubled.
+        Args:
+            next_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
+            next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
+        """
+        
+        self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
+        self.transcript_wb_prev_ptr.scatter_(
+            dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_indices.unsqueeze(-1)
+        )
+        
+        is_extended = next_labels >= 0
+        is_extended_w_blank = next_labels == self.blank_index
+        is_repeated = next_labels == torch.gather(self.last_label, dim=-1, index=next_indices)
+        is_rep_nb_label = (is_extended) & (~is_extended_w_blank) & (is_repeated) # repeat non-blank label
+        is_nrep_nb_label = (is_extended) & (~is_extended_w_blank) & (~is_repeated) # non-repeated non-blank label
+        
+        self.current_lengths_nb.copy_(
+            torch.gather(self.current_lengths_nb, dim=-1, index=next_indices) + is_nrep_nb_label
+        )
+        torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
+        self.scores.copy_(next_hyps_prob)
+
+        prev_transcript_hash=torch.gather(self.transcript_hash, dim=-1, index=next_indices)
+        # update hashes and prefix hashes
+        torch.where(
+            is_extended_w_blank | is_rep_nb_label,
+            prev_transcript_hash,
+            hash_text(prev_transcript_hash, next_labels),
+            out=self.transcript_hash,
+        )
+
+        # track last label
+        torch.where(
+            is_extended,
+            next_labels,
+            torch.gather(self.last_label, dim=-1, index=next_indices),
+            out=self.last_label,
+        )
+        # track last non-blank label
+        torch.where(
+            is_extended & (~is_extended_w_blank),
+            next_labels,
+            torch.gather(self.last_label_nb, dim=-1, index=next_indices),
+            out=self.last_label_nb,
+        )
+
+    def recombine_hyps_(self):
+        """
+        Recombines hypotheses in the beam search process by identifying and merging equivalent hypotheses.
+        It identifies hypotheses that are equivalent based on their transcript hash, last label, and current lengths
+        and retains only the highest-scoring hypothesis among duplicates within each beam.
+
+        Returns:
+            None: The method modifies the `self.scores` tensor in-place to reflect the recombined hypotheses.
+        """
+        if self.beam_size <= 1:
+            return
+        
+        hyps_equal = (
+            (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :]) &
+            (self.last_label_nb[:, :, None] == self.last_label_nb[:, None, :]) &
+            (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
+        )
+
+        scores_matrix = torch.where(
+            hyps_equal,
+            self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
+            self.INACTIVE_SCORE_TENSOR,
+        )
+        scores_argmax = scores_matrix.argmax(-1, keepdim=False)
+        scores_to_keep = (
+            torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
+        )
+
+        new_scores = torch.max(scores_matrix, dim=-1, keepdim=False).values
+        torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)    
+        
+    def to_hyps_list(self, score_norm: bool = False) -> list[Hypothesis]:
+        normalized_scores = (
+            self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
+        )
+        _, best_hyp_index = torch.max(normalized_scores, dim=-1)
+
+        scores = self.scores[self.batch_indices, best_hyp_index].tolist()
+
+        tokens_list = []
+        max_idx = self.current_lengths_wb.max() - 1
+        ptr = best_hyp_index
+        while max_idx >= 0:
+            tokens = self.transcript_wb[self.batch_indices, ptr, max_idx]
+            ptr = self.transcript_wb_prev_ptr[self.batch_indices, ptr, max_idx]
+
+            max_idx -= 1
+            tokens_list.insert(0, tokens)
+
+        transcripts = torch.stack(tokens_list, dim=1).cpu().detach().numpy()
+        hypotheses = [
+            Hypothesis(
+                score=scores[i],
+                y_sequence=transcripts[i][transcripts[i] >= 0],
+                timestamp=[],
+                alignments=None,
+                dec_state=None,
+            )
+            for i, _ in enumerate(range(self.batch_size))
+        ]
+        return hypotheses
