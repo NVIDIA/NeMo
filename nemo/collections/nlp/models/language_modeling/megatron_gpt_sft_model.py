@@ -120,12 +120,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 return None, "loss"
             if data_cfg.metric.name not in MetricStringToTorchMetric:
                 raise KeyError(
-                    f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                    f"{data_cfg.metric.name} is not supported."
+                    f" List of supported metrics: {MetricStringToTorchMetric.keys()}"
                 )
             if data_cfg.metric.name in self._metrics_require_string2category_map:
                 if data_cfg.metric.average is None:
                     raise ValueError(
-                        f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                        f"{data_cfg.metric.name} requires specifying whether you want to "
+                        "compute a micro or macro average. Found None."
                     )
             if (
                 data_cfg.metric.get("labels_are_strings", False)
@@ -134,7 +136,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 if data_cfg.metric.num_classes is None:
                     raise ValueError(
                         "Number of classes is not provided in the metric section within the data config. "
-                        f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
+                        "Please provide the number of classes in the data config to use the "
+                        f"{data_cfg.metric.name} metric."
                     )
                 if data_cfg.metric.get("class_labels", None) is None or not isinstance(
                     data_cfg.metric.get("class_labels", None), ListConfig
@@ -1111,7 +1114,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
-        """Handles end-of-validation processing, including metric aggregation, logging, and reset of microbatch state."""
+        """ Handles end-of-validation processing, including metric aggregation, logging, 
+            and reset of microbatch state."""
         _ = self.inference_epoch_end(self.validation_step_outputs, "validation", self.cfg.data.validation_ds)
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
         # return super().on_validation_epoch_end()

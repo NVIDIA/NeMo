@@ -922,10 +922,17 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
     output
 
     Input source is expected HuggingFace AutoTokenizer format
-        {"messages": [{"role": "system","content":"<text>"}, {"role": "user","content":"<text>"}, {"role": "assistant","content":"<text>"}]}
+        {"messages": [
+            {"role": "system","content":"<text>"}, 
+            {"role": "user","content":"<text>"}, 
+            {"role": "assistant","content":"<text>"}
+        ]}
     Input source as conversations format is also supported and is converted to HF format, however mask and type are
     ignored. Mask will apply to all non-assistant output tokens.
-        {"conversations": [{"from": "User","value":"<text>"}, {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}]}
+        {"conversations": [
+            {"from": "User","value":"<text>"}, 
+            {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}
+        ]}
     """
     if not hasattr(tokenizer.tokenizer, "apply_chat_template"):
         raise ValueError("Cannot apply chat template with tokenizer that is not a HuggingFace AutoTokenizer")
@@ -1067,6 +1074,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
             raise ValueError("Dataset does not have a tokenizer and cannot be used as a chat dataset")
 
     def _maybe_validate_prompt_template(self):
+        """Overrides parent to make this function a no-op."""
         pass
 
     def _process_example(self, example):
@@ -1099,6 +1107,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         return result
 
     def collate_fn(self, batch):
+        """Overrides parent function to ensure loss mask gets exported correctly."""
         # Removes the last token from each input sequence to ensure the model
         # never sees the token it is supposed to predict. This enforces an
         # autoregressive training setup where the model learns to generate

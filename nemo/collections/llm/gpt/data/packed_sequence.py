@@ -131,11 +131,14 @@ def prepare_packed_sequence_data(
 
 @dataclass
 class PackedSequenceSpecs:
+    """Defines the packed sequence specifications used for generating a packed dataset."""
+
     packed_sequence_size: int = -1
     """
     If a positive integer, this arg enables training with sequence packing and specifies the pack size
     If less than or equal to 0, sequence packing is disabled. Defaults to -1.
-    Note: This arg is distinct from `seq_length` because `seq_length` specifies the maximum length of the original sequence
+    Note: This arg is distinct from `seq_length` because `seq_length` specifies the maximum
+        length of the original sequence
     (i.e. the length to truncate long sequences in the input data).
     """
 
