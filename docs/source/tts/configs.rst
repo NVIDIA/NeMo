@@ -59,7 +59,7 @@ file. Refer to the `Dataset Processing Classes <./api.html#Datasets>`__ section 
 Audio Preprocessor Configuration
 --------------------------------
 
-If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the raw audio signal to features (e.g. mel-spectrogram or MFCC). The ``preprocessor`` section of the config specifies the audio preprocessor to be used via the ``_target_`` field, as well as any initialization parameters for that preprocessor. An example of specifying a preprocessor is as follows. Refer to the `Audio Preprocessors <../asr/api.html#Audio Preprocessors>`__ API section for the preprocessor options, expected arguments, and defaults.
+If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the raw audio signal to features (e.g. mel-spectrogram or MFCC). The ``preprocessor`` section of the config specifies the audio preprocessor to be used via the ``_target_`` field, as well as any initialization parameters for that preprocessor. An example of specifying a preprocessor is as follows. Refer to the :ref:`Audio Preprocessors <asr-audio-preprocessors>` in the ASR API section for the preprocessor options, expected arguments, and defaults.
 
 .. code-block:: yaml
 
