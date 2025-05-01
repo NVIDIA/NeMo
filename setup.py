@@ -72,13 +72,9 @@ extras_require = {
     'core': req_file(["requirements_lightning.txt", "requirements_automodel.txt"]),
     'common': req_file('requirements_common.txt'),
     # domain packages
-    'asr': req_file("requirements_asr.txt"),
     'ctc_segmentation': req_file("requirements.txt", folder="tools/ctc_segmentation"),
     'nlp': req_file("requirements_nlp.txt"),
-    'tts': req_file("requirements_tts.txt"),
-    'slu': req_file("requirements_slu.txt"),
     'multimodal': req_file("requirements_multimodal.txt"),
-    'audio': req_file("requirements_audio.txt"),
     'deploy': req_file("requirements_deploy.txt"),
     'eval': req_file("requirements_eval.txt"),
 }
