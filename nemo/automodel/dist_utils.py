@@ -60,9 +60,6 @@ class FirstRankPerNode(ContextDecorator):
 
         return self._first
 
-    # ====================================================================== #
-    # Exit
-    # ====================================================================== #
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             if self._first and dist.is_initialized():
@@ -77,11 +74,8 @@ class FirstRankPerNode(ContextDecorator):
         # propagate any exception to outer scope
         return False
 
-    # ====================================================================== #
-    # Helper
-    # ====================================================================== #
     def _try_bootstrap_pg(self) -> bool:
-        """Try to create a (single‑node) default pg from env:// variables."""
+        """Try to create a default pg from env:// variables."""
         env = os.environ
         required = ("WORLD_SIZE", "RANK", "MASTER_ADDR", "MASTER_PORT")
         if all(k in env for k in required):
