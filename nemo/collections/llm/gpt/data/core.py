@@ -334,7 +334,7 @@ class GPTSFTDataset(Dataset):
         if self.samples_mapping is not None:
             assert idx < len(self.samples_mapping)
             idx, _, _ = self.samples_mapping[idx]
-            if isinstance(idx, np.uint32) or isinstance(idx, np.int64):
+            if isinstance(idx, (np.uint32, np.int64)):
                 idx = idx.item()
 
         assert idx < len(self.indexed_dataset)
@@ -897,8 +897,70 @@ class GPTSFTChatDataset(GPTSFTDataset):
     If use_hf_tokenizer_chat_template is True, the dataset will try to usethe HuggingFace chat template format or convert the ShareGPT format if needed.
     """
 
-    def __init__(self, use_hf_tokenizer_chat_template: bool = False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        file_path: str,
+        tokenizer: TokenizerSpec,
+        max_seq_length: int = 1024,
+        min_seq_length: int = 1,
+        pad_seq_length_to_mult: int = 16,
+        add_bos: bool = False,
+        add_eos: bool = True,
+        add_sep: bool = False,
+        sep_id: int = None,
+        max_num_samples: int = None,
+        seed: int = 1234,
+        label_key: str = "answer",
+        answer_only_loss: bool = True,
+        truncation_field: str = "text",
+        pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
+        index_mapping_dir: str = None,
+        prompt_template: str = None,
+        virtual_tokens: int = 0,
+        tokens_to_generate: int = 0,
+        memmap_workers: Optional[int] = None,
+        hf_dataset: bool = False,
+        global_sample_mapping: bool = False,
+        truncation_method: str = 'right',
+        special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
+        is_test: bool = False,
+        output_original_text: bool = False,
+        ceil_to_power_2: bool = False,
+        get_attention_mask_from_fusion: bool = False,
+        sanity_check_dist_workers: bool = True,
+        use_hf_tokenizer_chat_template: bool = False,
+    ):
+        super().__init__(
+            file_path,
+            tokenizer,
+            max_seq_length,
+            min_seq_length,
+            pad_seq_length_to_mult,
+            add_bos,
+            add_eos,
+            add_sep,
+            sep_id,
+            max_num_samples,
+            seed,
+            label_key,
+            answer_only_loss,
+            truncation_field,
+            pad_to_max_length,
+            index_mapping_dir,
+            prompt_template,
+            virtual_tokens,
+            tokens_to_generate,
+            memmap_workers,
+            hf_dataset,
+            global_sample_mapping,
+            truncation_method,
+            special_tokens,
+            is_test,
+            output_original_text,
+            ceil_to_power_2,
+            get_attention_mask_from_fusion,
+            sanity_check_dist_workers,
+        )
         self.use_hf_tokenizer_chat_template = use_hf_tokenizer_chat_template
 
     def _maybe_validate_prompt_template(self):
@@ -944,7 +1006,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
                 self.tokenizer,
             )
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in {'conversations', 'messages'}}
+        metadata = {k: v for k, v in example.items() if k not in ['conversations', 'messages']}
         result['metadata'] = metadata
         if self.output_original_text:
             result['metadata']['conversations'] = example['conversations']
@@ -959,8 +1021,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
         if not self.use_hf_tokenizer_chat_template:
             contexts = [item['context_ids'].tolist() for item in batch]
             answers = [item['answer_ids'].tolist() for item in batch]
-
-        if not self.use_hf_tokenizer_chat_template:
             max_length = max(
                 max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate
             )
