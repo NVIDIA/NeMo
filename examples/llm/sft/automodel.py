@@ -18,12 +18,12 @@ import fiddle as fdl
 import lightning.pytorch as pl
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.automodel.misc_utils import calculate_valid_accumulate_grad_batches
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-from nemo.automodel.dist_utils import FirstRankPerNode
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
@@ -34,6 +34,7 @@ from nemo.automodel.dist_utils import FirstRankPerNode
 #   --ckpt-folder "output"
 #
 # Note: ensure that the --nproc-per-node and --devices values match.
+
 
 @FirstRankPerNode()
 def make_squad_hf_dataset(

@@ -18,11 +18,10 @@ import fiddle as fdl
 import lightning.pytorch as pl
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-from nemo.automodel.dist_utils import FirstRankPerNode
-
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
