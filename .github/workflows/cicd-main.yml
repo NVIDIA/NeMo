@@ -230,18 +230,10 @@ jobs:
           tests_to_run: '["L0_Setup_Test_Data_And_Models"]'
 
   cicd-main-unit-tests:
-    needs: [pre-flight, cicd-test-container-build, cicd-wait-in-queue]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/cicd-main-unit-tests.yml
     if: |
-      needs.pre-flight.outputs.test_to_run != '[]' 
-      && (
-        success() 
-        || (
-          needs.cicd-wait-in-queue.result == 'skipped'
-          && needs.pre-flight.outputs.is_ci_workload == 'true'
-        )
-      )
-      && !cancelled()
+      needs.pre-flight.outputs.test_to_run != '[]'
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
