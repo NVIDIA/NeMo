@@ -19,12 +19,13 @@ Every symbol is imported with `safe_import_from`.
 If the import fails the variable is set to `None` and the app keeps running.
 """
 
-from importlib import import_module
 import logging
+from importlib import import_module
 from types import ModuleType
 from typing import Any, Dict, List, Tuple
 
 LOG = logging.getLogger(__name__)
+
 
 # -----------------------------------------------------------------------------#
 # Helper
@@ -46,9 +47,7 @@ def safe_import_from(module: str, name: str) -> Tuple[Any, bool]:
 # -----------------------------------------------------------------------------#
 # Special case: Float8Tensor
 # -----------------------------------------------------------------------------#
-Float8Tensor, HAVE_TE_FLOAT8TENSOR = safe_import_from(
-    "transformer_engine.pytorch.float8_tensor", "Float8Tensor"
-)
+Float8Tensor, HAVE_TE_FLOAT8TENSOR = safe_import_from("transformer_engine.pytorch.float8_tensor", "Float8Tensor")
 
 
 # -----------------------------------------------------------------------------#

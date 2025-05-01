@@ -16,12 +16,13 @@
 Central import hub with graceful‑failure semantics.
 """
 
-from importlib import import_module
 import logging
+from importlib import import_module
 from types import ModuleType
 from typing import Any, Dict, List, Tuple
 
 LOG = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------- #
 # Helper utilities                                                             #
@@ -48,8 +49,7 @@ def safe_import_from(module: str, name: str | None = None) -> Tuple[Any, bool]:
             return mod, True
         return getattr(mod, name), True
     except Exception as exc:  # pragma: no cover
-        LOG.debug("Optional import failed: %s%s – %s",
-                  module, f'.{name}' if name else '', exc)
+        LOG.debug("Optional import failed: %s%s – %s", module, f'.{name}' if name else '', exc)
         return None, False
 
 
@@ -204,7 +204,7 @@ _imports: Dict[str, List[str | None]] = {
     ],
     # -------------- T5 -------------------------------------------------------
     "nemo.collections.llm.t5.data": [
-        ("FineTuningDataModule", "T5FineTuningDataModule"),   # rename later
+        ("FineTuningDataModule", "T5FineTuningDataModule"),  # rename later
         ("MockDataModule", "T5MockDataModule"),
         ("PreTrainingDataModule", "T5PreTrainingDataModule"),
         ("SquadDataModule", "T5SquadDataModule"),
@@ -264,11 +264,7 @@ for mod, sym_list in _imports.items():
             target_attr = sym
             export_name = sym
 
-        obj, ok = (
-            safe_import_from(mod, target_attr)
-            if target_attr or target_attr is None
-            else (None, False)
-        )
+        obj, ok = safe_import_from(mod, target_attr) if target_attr or target_attr is None else (None, False)
         globals_ns[export_name] = obj
         if ok:
             __all__.append(export_name)
