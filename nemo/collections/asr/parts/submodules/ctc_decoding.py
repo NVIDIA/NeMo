@@ -612,7 +612,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             punct_pattern = '|'.join([re.escape(p) for p in self.supported_punctuation])
             text = re.sub(r'(\s)(' + punct_pattern + ')', r'\2', text)
         return text
-    
+
     def compute_ctc_timestamps(self, hypothesis: Hypothesis, timestamp_type: str = "all"):
         """
         Method to compute time stamps at char/subword, and word level given some hypothesis.
@@ -882,12 +882,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 # Prepare new built_word
                 built_word = ""
                 built_word += token_text
-                previous_token_index = i         
+                previous_token_index = i
             # If the token is a punctuation mark and there is no built word, then the previous word is complete
             # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
             elif curr_punctuation and not built_word:
                 word_offsets[-1]['end_offset'] = offsets[i]['end_offset']
-                word_offsets[-1]['word'] = word_offsets[-1]['word'][:-1] if word_offsets[-1]['word'][-1] == ' ' else word_offsets[-1]['word']
+                word_offsets[-1]['word'] = (
+                    word_offsets[-1]['word'][:-1] if word_offsets[-1]['word'][-1] == ' ' else word_offsets[-1]['word']
+                )
                 word_offsets[-1]['word'] += token_text.strip()
             else:
                 # If the token does not contain any sub-word start mark, then the sub-word has not completed yet

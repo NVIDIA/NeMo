@@ -268,11 +268,7 @@ class FloatList(click.Option):
     "where each item is a pair of (max_input_seq_len, max_output_seq_len) for a given bucket.",
 )
 @click.option(
-    "-x",
-    "--max_tps",
-    cls=FloatList,
-    required=False,
-    help="List of maximum tokens per second for each bucket."
+    "-x", "--max_tps", cls=FloatList, required=False, help="List of maximum tokens per second for each bucket."
 )
 @click.option(
     "-t",
@@ -443,7 +439,7 @@ def oomptimizer(
 
             if tps:
                 output_len = math.ceil(tps * input_len)
-                
+
             match modalities:
                 case "audio", "audio":
                     return (
