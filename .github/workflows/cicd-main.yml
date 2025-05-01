@@ -415,6 +415,8 @@ jobs:
         run: |
           set -x
           pip install PyGithub
+          export BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+
           python .github/scripts/notify.py
 
       - name: Exit
