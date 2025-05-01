@@ -445,7 +445,7 @@ def oomptimizer(
             )  # TODO: may need to extend schema for broader model coverage
 
             if tps:
-                output_len = math.ceil(tps * input_len)
+                output_len = min(output_len, math.ceil(tps * input_len))
 
             match modalities:
                 case "audio", "audio":
