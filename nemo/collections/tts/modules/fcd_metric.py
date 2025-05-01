@@ -49,11 +49,11 @@ class FrechetCodecDistance(Metric):
     Computes the Frechet Codec Distance between two distributions of audio codec codes (real and generated).
     This is done in codec embedding space. We name this metric the Frechet Codec Distance (FCD).
     """
-    
+
     """
-    This class is adapted from the following implementation of FID (Frechet Inception Distance) on images:
+    Parts of this are based on the following implementation of FID (Frechet Inception Distance) on images:
     
-    https://github.com/pytorch/torcheval/blob/main/torcheval/metrics/image/fid.py
+        https://github.com/pytorch/torcheval/blob/main/torcheval/metrics/image/fid.py
 
         # Copyright (c) Meta Platforms, Inc. and affiliates.
         # All rights reserved.
