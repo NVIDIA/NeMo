@@ -26,7 +26,8 @@ class Perplexity(Metric):
     ``probs`` or ``logits`` to the :meth:`update` method. The class computes perplexities for distributions passed to
     :meth:`update` method in ``probs`` or ``logits`` arguments and averages the perplexities. Reducing results between
     all workers is done via SUM operations.
-    See the `TorchMetrics in PyTorch Lightning guide <https://lightning.ai/docs/torchmetrics/stable/pages/lightning.html>`_
+    See the `TorchMetrics in PyTorch Lightning guide 
+    <https://lightning.ai/docs/torchmetrics/stable/pages/lightning.html>`_
     for the metric usage instructions.
 
     Args:
