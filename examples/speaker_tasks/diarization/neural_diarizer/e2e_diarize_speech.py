@@ -40,8 +40,8 @@ import json
 import logging
 import os
 import tempfile
-from tempfile import NamedTemporaryFile
 from dataclasses import dataclass, is_dataclass
+from tempfile import NamedTemporaryFile
 from typing import Dict, List, Optional, Union
 
 import lightning.pytorch as pl
@@ -50,8 +50,6 @@ import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
-from nemo.collections.asr.parts.utils.transcribe_utils import read_and_maybe_sort_manifest
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -59,11 +57,13 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_uniqname_from_filepath,
     timestamps_to_pyannote_object,
 )
+from nemo.collections.asr.parts.utils.transcribe_utils import read_and_maybe_sort_manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
     PostProcessingParams,
     load_postprocessing_from_yaml,
     predlist_to_timestamps,
 )
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.config import hydra_runner
 
 seed_everything(42)
@@ -89,7 +89,7 @@ class DiarizationConfig:
     num_workers: int = 0
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
     bypass_postprocessing: bool = True  # If True, postprocessing will be bypassed
-    log: bool = False # If True, log will be printed
+    log: bool = False  # If True, log will be printed
 
     use_lhotse: bool = True
     batch_duration: int = 33000
@@ -303,6 +303,7 @@ def convert_pred_mat_to_segments(
         )
     return all_hypothesis, all_reference, all_uems
 
+
 @hydra_runner(config_name="DiarizationConfig", schema=DiarizationConfig)
 def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     """Main function for end-to-end speaker diarization inference."""
@@ -444,6 +445,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     if cfg.presort_manifest is not None:
         if remove_path_after_done is not None:
             os.unlink(remove_path_after_done)
+
 
 if __name__ == '__main__':
     main()
