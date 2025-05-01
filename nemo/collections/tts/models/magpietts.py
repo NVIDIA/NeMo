@@ -62,14 +62,6 @@ def worker_init_fn(worker_id):
     dataset.text_tokenizer = tokenizer
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
 
-
-def cosine_schedule(x: torch.Tensor):
-    """
-    Maps input values from [0, 1] to [1, 0] using the first quadrant of the cosine function.
-    Used for MaskGit mask scheduling.
-    """
-    return torch.cos(x * (torch.pi / 2))
-
 class MagpieTTSModel(ModelPT):
     """
     Magpie-TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context
@@ -348,10 +340,25 @@ class MagpieTTSModel(ModelPT):
 
     def compute_local_transformer_logits(self, dec_out, audio_codes_target, targets_offset_by_one=False):
         """
-        Loss from the autoregressive codebook predictor (used per frame)
+        Predicts the logits for all codebooks using the local transformer. Used in both autoregressive (AR) and MaskGit (MG) modes.
+        This function is used in training and validation, not inference/sampling.
+        The sequence layout is slightly different between AR and MG modes, as shown in the diagram below:
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        | AR target  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |   none  |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        | MG target  |  none   |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        |   Input    | Magpie  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |
+        |            | Latent  | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        | Seq. Index |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |    8    |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        
+        dec_out: (B, T', E)
+        audio_codes_target: (B, C, T')
+        targets_offset_by_one: bool, if False, the target for index 0 is codebook 0, for index 1 is codebook 1, etc. (autoregressive)
+                                     if True, the target for index 1 is codebook 0, for index 2 is codebook 1, etc. (MaskGit)
         """
-        # dec_out: (B, T', E)
-        # audio_codes: (B, C, T')
         dec_out_all = dec_out.reshape(-1, dec_out.size(-1)) # (B*T', E)
         local_transformer_input = [dec_out_all]
         for codebook_num in range(audio_codes_target.size(1)):
@@ -384,6 +391,14 @@ class MagpieTTSModel(ModelPT):
 
         return all_code_logits
 
+    @staticmethod
+    def cosine_schedule(x: torch.Tensor):
+        """
+        Maps input values from [0, 1] to [1, 0] using the first quadrant of the cosine function.
+        Used for MaskGit mask scheduling.
+        """
+        return torch.cos(x * (torch.pi / 2))
+
     def maskgit_create_random_mask(self, codes):
         """
         Creates a mask where True indicates the positions that should be replaced with a MASK_TOKEN.
@@ -393,7 +408,7 @@ class MagpieTTSModel(ModelPT):
         # get a uniform random vector uniformly sampled from [0,1) ## Todo does it need to be inclusive on the right?
         rand_values = torch.rand(B,T, device=codes.device)
         # apply the cosine schedule 
-        frac_masked = cosine_schedule(rand_values)
+        frac_masked = self.cosine_schedule(rand_values)
         # how many positions to mask
         n_masked = torch.ceil(frac_masked * C).long() # B,T
         # start from all unmasked
@@ -418,7 +433,7 @@ class MagpieTTSModel(ModelPT):
         return mask # (B, C, T)
     
     def maskgit_apply_random_mask(self, codes):
-        # Randomly replaces some codes with the MASK_TOKEN token with a proportion following the cosine schedule.
+        # Randomly replaces some codes with the MASK_TOKEN with a proportion following the cosine schedule.
         # Codes: (B, C, T)        
         mask = self.maskgit_create_random_mask(codes)
         ## replace some tokens with MASK_TOKEN
@@ -426,11 +441,17 @@ class MagpieTTSModel(ModelPT):
         return codes_with_mask, mask
 
     def compute_loss(self, logits, audio_codes, audio_codes_lens, mask_tokens_mask=None):
-        # logits: (B, T', num_codebooks * num_tokens_per_codebook)
-        # audio_codes: (B, C, T')
-        # audio_codes_lens: (B,)
-        # mask_tokens_mask: (B, C, T') True for tokens that were replaced with the MASK_TOKEN and should
-        #                   therefore be the only ones included in the loss computation.
+        """
+        Computes the audio codebook loss. Used by
+        (1) The main Magpie-TTS transformer
+        (2) The local transformer, for both autoregressive and MaskGit methods
+        
+        logits: (B, T', num_codebooks * num_tokens_per_codebook)
+        audio_codes: (B, C, T')
+        audio_codes_lens: (B,)
+        mask_tokens_mask: (B, C, T') True for tokens that were replaced with the MASK_TOKEN and should
+                                     therefore be the only ones included in the loss computation.
+        """
         loss_mask = get_mask_from_lengths(audio_codes_lens)
         if mask_tokens_mask is not None:
             # For MaskGit we only compute loss for the masked tokens.
