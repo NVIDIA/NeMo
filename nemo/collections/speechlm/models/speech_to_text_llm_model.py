@@ -45,10 +45,7 @@ from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model.base import (
-    GPTConfig,
-    get_packed_seq_params,
-)
+from nemo.collections.llm.gpt.model.base import GPTConfig, get_packed_seq_params
 from nemo.collections.speechlm.data.dataset.data_utils import build_position_ids, pad_or_trim_to_max_length
 from nemo.collections.speechlm.models.base import SpeechLanguageModel
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig, HFWrappedEncoder
