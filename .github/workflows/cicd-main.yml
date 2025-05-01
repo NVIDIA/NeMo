@@ -261,13 +261,14 @@ jobs:
           body: |
             [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
 
-            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
+            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully.
 
-            So it might be time to merge this PR or get some approvals
+            So it might be time to merge this PR or get some approvals.
 
-            I'm just a bot so I'll leave it you what to do next.
+            Due to a major CI change, merges are currently handled by the automation team.  
+            We will reach out to you quickly to merge this PR, but you can always reach us with the following handles:
 
-            //cc @pablo-garay @ko3n1g
+            //cc @chtruong814 @ko3n1g @pablo-garay @thomasdhc
 
       - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
         if: ${{ always() && steps.result.outputs.code == 'failure' && env.SLACK_WEBHOOK != '' }}
