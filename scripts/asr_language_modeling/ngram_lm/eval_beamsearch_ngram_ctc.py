@@ -161,16 +161,16 @@ def beam_search_eval(
     else:
         model.change_decoding_strategy(model.cfg.decoding)
     logging.setLevel(level)
-    
+
     all_hyps = model.transcribe(audio_filepaths, cfg.acoustic_batch_size)
-    
+
     wer_dist_first = cer_dist_first = 0
     wer_dist_best = cer_dist_best = 0
     words_count = 0
     chars_count = 0
     if preds_output_file:
         out_file = open(preds_output_file, 'w', encoding='utf_8', newline='\n')
-        
+
     for batch_idx, nbest_hyp in enumerate(all_hyps):
         target = target_transcripts[batch_idx]
         target_split_w = target.split()
@@ -204,7 +204,7 @@ def beam_search_eval(
                 out_file.write('{}\t{}\n'.format(pred_text, score))
         wer_dist_best += wer_dist_min
         cer_dist_best += cer_dist_min
-        
+
     if preds_output_file:
         out_file.close()
         logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
@@ -226,9 +226,9 @@ def beam_search_eval(
             wer_dist_best / words_count, cer_dist_best / chars_count
         )
     )
-    
+
     logging.info(f"=================================================================================")
-    
+
     return wer_dist_first / words_count, cer_dist_first / chars_count
 
 
@@ -334,7 +334,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
         lm_path = cfg.kenlm_model_file
     else:
         lm_path = None
-    
+
     # 'greedy' decoding_mode would skip the beam search decoding
     if cfg.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
         if cfg.beam_width is None or cfg.beam_alpha is None or cfg.beam_beta is None:
