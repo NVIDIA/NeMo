@@ -18,10 +18,10 @@ from nemo.tron.config import (
     DistributedInitConfig,
     GPTDatasetConfig,
     LoggerConfig,
+    RNGConfig,
     SchedulerConfig,
     TokenizerConfig,
     TrainingConfig,
-    RNGConfig,
 )
 from nemo.tron.init import initialize_megatron
 from nemo.tron.model import get_model_from_config
