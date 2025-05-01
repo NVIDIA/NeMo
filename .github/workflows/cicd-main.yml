@@ -106,7 +106,7 @@ jobs:
         run: |
           branch_name=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
-          if [[ "$branch_name" =~ ^bump-ci-container ]]; then
+          if [[ "$branch_name" =~ ^bump-ci-container || "$EVENT_NAME" == "schedule" ]]; then
             is_ci_workload=true
             echo "main=true" | tee -a "$GITHUB_OUTPUT"
           else
