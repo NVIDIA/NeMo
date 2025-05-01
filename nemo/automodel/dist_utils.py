@@ -15,7 +15,6 @@
 
 import os
 from contextlib import ContextDecorator
-import torch
 import torch.distributed as dist
 
 class FirstRankPerNode(ContextDecorator):
