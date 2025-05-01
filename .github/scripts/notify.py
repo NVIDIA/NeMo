@@ -37,11 +37,11 @@ def send_slack_notification():
     if pr_number != 0:
         pr = repo.get_pull(pr_number)
 
-        title = f"<{server_url}/{repository}/pull/{pr_number}|PR#{pr_number}>: {pr.title.replace('`', '')}"
+        title = f"*<{server_url}/{repository}/pull/{pr_number}|PR#{pr_number}>: {pr.title.replace('`', '')}*"
         author = f"<{server_url}/{pr.user.login}|{pr.user.login}>"
         branch = f"<{server_url}/{pr.head.repo.full_name}/tree/{pr.head.ref}|{pr.head.ref}>"
     else:
-        title = f"Run on {server_url}/{repository}/tree/{branch_name}"
+        title = f"*Run on <{server_url}/{repository}/tree/{branch_name}|{branch_name}>*"
         author = "No author"
         branch = f"<{server_url}/{repository}/tree/{branch_name}|{branch_name}>"
 
@@ -51,7 +51,7 @@ def send_slack_notification():
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"*{title}*\n"
+                    f"{title}\n"
                     f"• Author: {author}\n"
                     f"• Branch: {branch}\n"
                     f"• Pipeline: <{server_url}/{repository}/actions/runs/{run_id}|View Run>\n"
