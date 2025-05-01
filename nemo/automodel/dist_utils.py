@@ -14,65 +14,100 @@
 # limitations under the License.
 
 import os
-import torch
 from contextlib import ContextDecorator
-
-def is_first_rank_on_node() -> bool:
-    """Based on environment variables determines whether it runs on LOCAL_RANK 0 or node
-
-    Returns:
-        bool: True if current process has LOCAL_RANK = 0.
-    """
-    env = os.environ
-    if "LOCAL_RANK" in env:
-        return int(env["LOCAL_RANK"]) == 0
-    if "SLURM_LOCALID" in env:
-        return int(env["SLURM_LOCALID"]) == 0
-    if "OMPI_COMM_WORLD_LOCAL_RANK" in env:
-        return int(env["OMPI_COMM_WORLD_LOCAL_RANK"]) == 0
-    return True
+import torch
+import torch.distributed as dist
 
 class FirstRankPerNode(ContextDecorator):
     """
-    Context manager for ensuring only LOCAL_RANK==0 runs the code first
-    on each node. Creates and destroys a temporary process group if needed.
+    Context manager that:
+      • Lets LOCAL_RANK==0 run the protected code first on each node.
+      • Inserts an extra barrier across *only* the node‑local rank‑0 processes.
+      • Works on a single GPU (no env flags, no distributed initialisation).
+
+    Note: it is assumed the scoped code is not torch.distributed heavy.
     """
 
     def __enter__(self):
         self._created_pg = False
-        self._group = None
-        dist_is_init = torch.distributed.is_initialized()
-        if not dist_is_init:
+        self._node0_group = None
+        self._first = True          # default for single‑GPU / no‑dist case
+
+        # ------------------------------------------------------------------ #
+        # 1. Make sure there is at least *some* process‑group initialised
+        # ------------------------------------------------------------------ #
+        if not dist.is_initialized():
             self._created_pg = self._try_bootstrap_pg()
 
-        self._first = is_first_rank_on_node()
-        if not self._first and dist_is_init:
-            torch.distributed.barrier(group=self._group)
+        if not dist.is_initialized():                     # pure single GPU
+            return True                                   # I am “first”
+
+        # ------------------------------------------------------------------ #
+        # 2. Figure out local/global ranks
+        # ------------------------------------------------------------------ #
+        env = os.environ
+        world_size   = dist.get_world_size()
+        global_rank  = dist.get_rank()
+        local_rank   = int(env.get("LOCAL_RANK", global_rank))  # fallback
+        self._first  = local_rank == 0
+
+        # ------------------------------------------------------------------ #
+        # 3. Build a subgroup that contains exactly one rank per node
+        #    (those where local_rank == 0)
+        # ------------------------------------------------------------------ #
+        # Gather all local_ranks so every process can derive the same subgroup
+        gathered_local = [None] * world_size
+        dist.all_gather_object(gathered_local, local_rank)
+        node0_ranks = [idx for idx, lr in enumerate(gathered_local) if lr == 0]
+
+        # new_group must be called by *all* ranks with identical `ranks` list
+        self._node0_group = dist.new_group(ranks=node0_ranks, backend="gloo")
+
+        # ------------------------------------------------------------------ #
+        # 4. Synchronisation logic
+        # ------------------------------------------------------------------ #
+        if not self._first:
+            # Non‑rank‑0 processes wait for their node‑rank-0
+            dist.barrier()
+        else:
+            # Rank‑0 processes wait for their *peer* rank‑0s on other nodes
+            if dist.get_world_size(self._node0_group) > 1:
+                dist.barrier(group=self._node0_group)
+
         return self._first
 
+    # ====================================================================== #
+    # Exit
+    # ====================================================================== #
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
-            pass
+            if self._first and dist.is_initialized():
+                # Ensure all node‑0 peers leave the context together
+                if self._node0_group is not None and dist.get_world_size(self._node0_group) > 1:
+                    dist.barrier(group=self._node0_group)
+                # Re‑sync the whole world so that non‑rank‑0s can proceed
+                dist.barrier()
+                if exc_type is not None:
+                    dist.abort()      # propagate failure to the entire job
         finally:
-            if self._first:
-                dist_is_init = torch.distributed.is_initialized()
-                if dist_is_init:
-                    torch.distributed.barrier(group=self._group)
-                if exc_type is not None and dist_is_init:
-                    torch.distributed.abort()
-        # propagate any exception outside context manager
+            if self._created_pg:
+                dist.destroy_process_group()
+
+        # propagate any exception to outer scope
         return False
 
-    def _try_bootstrap_pg(self):
+    # ====================================================================== #
+    # Helper
+    # ====================================================================== #
+    def _try_bootstrap_pg(self) -> bool:
+        """Try to create a (single‑node) default pg from env:// variables."""
         env = os.environ
-        if all(k in env for k in ("WORLD_SIZE", "RANK", "MASTER_ADDR", "MASTER_PORT")):
-            # Use env:// with the correct world size/rank
-            torch.distributed.init_process_group(
+        required = ("WORLD_SIZE", "RANK", "MASTER_ADDR", "MASTER_PORT")
+        if all(k in env for k in required):
+            dist.init_process_group(
                 backend="gloo",
-                init_method=None,
-                world_size=int(env.get('WORLD_SIZE', '1')),
-                rank=int(env.get('RANK', '0')),
+                world_size=int(env.get("WORLD_SIZE")),
+                rank=int(env.get("RANK")),
             )
             return True
-        else:
-            return False
+        return False
