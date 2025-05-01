@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/llama4/llama4_finetune.py \
-    --devices=2 --data_type=mock --use_toy_model \
-    --mbs=2 --gbs=4 --max_steps=4 \
-    --pp=2 \
+    --devices=2 --data_type=energon --use_toy_model \
+    --data_path=/home/TestData/tiny_datasets/llava-energon \
+    --mbs=1 --gbs=4 --max_steps=4 \
+    --ep=2 \
     --log_dir=/tmp/nemo2_neva_results/$RUN_ID
