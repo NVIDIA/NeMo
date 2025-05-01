@@ -18,6 +18,11 @@ import torch
 from contextlib import ContextDecorator
 
 def is_first_rank_on_node() -> bool:
+    """Based on environment variables determines whether it runs on LOCAL_RANK 0 or node
+
+    Returns:
+        bool: True if current process has LOCAL_RANK = 0.
+    """
     env = os.environ
     if "LOCAL_RANK" in env:
         return int(env["LOCAL_RANK"]) == 0
@@ -35,16 +40,13 @@ class FirstRankPerNode(ContextDecorator):
 
     def __enter__(self):
         self._created_pg = False
-        self._temp_group = None
-        if not torch.distributed.is_initialized():
-            self._temp_group = self._bootstrap_pg()
-            self._created_pg = True
-            self._group = self._temp_group
-        else:
-            self._group = None  # Use the default global group
+        self._group = None
+        dist_is_init = torch.distributed.is_initialized()
+        if not dist_is_init:
+            self._created_pg = self._try_bootstrap_pg()
 
         self._first = is_first_rank_on_node()
-        if not self._first:
+        if not self._first and dist_is_init:
             torch.distributed.barrier(group=self._group)
         return self._first
 
@@ -53,27 +55,24 @@ class FirstRankPerNode(ContextDecorator):
             pass
         finally:
             if self._first:
-                if torch.distributed.is_initialized():
+                dist_is_init = torch.distributed.is_initialized()
+                if dist_is_init:
                     torch.distributed.barrier(group=self._group)
-                if exc_type is not None:
+                if exc_type is not None and dist_is_init:
                     torch.distributed.abort()
-            if self._created_pg and self._temp_group is not None:
-                torch.distributed.destroy_process_group(self._temp_group)
-        # propagate exception outside context manager
+        # propagate any exception outside context manager
         return False
 
-    def _bootstrap_pg(self):
+    def _try_bootstrap_pg(self):
         env = os.environ
         if all(k in env for k in ("WORLD_SIZE", "RANK", "MASTER_ADDR", "MASTER_PORT")):
             # Use env:// with the correct world size/rank
-            group = torch.distributed.new_group(backend="gloo")
-            return group
-        else:
             torch.distributed.init_process_group(
                 backend="gloo",
                 init_method=None,
                 world_size=int(env.get('WORLD_SIZE', '1')),
                 rank=int(env.get('RANK', '0')),
             )
-            return None  # The default group is used in single-process
-
+            return True
+        else:
+            return False
