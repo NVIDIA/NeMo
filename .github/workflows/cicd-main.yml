@@ -118,9 +118,9 @@ jobs:
         shell: bash
         id: no_fail_fast
         env:
-          HAS_FAIL_FAST: ${{ contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
+          HAS_FAIL_FAST_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
         run: |
-          if [[ "$HAS_FAIL_FAST" == "true" || "$EVENT_NAME" == "schedule" ]]; then
+          if [[ "$HAS_FAIL_FAST_LABEL" == "true" || "$EVENT_NAME" == "schedule" ]]; then
             no_fail_fast=true
           else
             no_fail_fast=false
