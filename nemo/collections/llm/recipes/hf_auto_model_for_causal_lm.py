@@ -40,13 +40,15 @@ def model(
     trust_remote_code=False,
     attn_implementation="sdpa",
     use_linear_ce_loss=True,
+    enable_grad_ckpt=False,
 ) -> run.Config[pl.LightningModule]:
     """
     Factory function to create HFAutoModelForCausalLM model configurations.
 
     Args:
         model_name (str): Model id on HF.
-
+        use_linear_ce_loss (bool): Whether to use linear CE loss.
+        enable_grad_ckpt (bool): Whether to enable gradient checkpointing.
     Returns:
         run.Config[pl.LightningModule]: Configuration for the HFAutoModelForCausalLM.
 
@@ -65,6 +67,7 @@ def model(
         trust_remote_code=trust_remote_code,
         attn_implementation=attn_implementation,
         use_linear_ce_loss=use_linear_ce_loss,
+        enable_grad_ckpt=enable_grad_ckpt,
     )
 
 
@@ -186,6 +189,7 @@ def finetune_recipe(
     trust_remote_code: bool = False,
     attn_implementation: str = 'sdpa',
     use_linear_ce_loss: bool = True,
+    enable_grad_ckpt: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -202,6 +206,7 @@ def finetune_recipe(
         peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
             Allowed values: 'lora', 'none'/None.
         use_linear_ce_loss (bool): Whether to use linear CE loss.
+        enable_grad_ckpt (bool): Whether to enable gradient checkpointing.
     Returns:
         run.Partial: Partial configuration for fine-tuning.
 
@@ -224,6 +229,7 @@ def finetune_recipe(
             trust_remote_code=trust_remote_code,
             attn_implementation=attn_implementation,
             use_linear_ce_loss=use_linear_ce_loss,
+            enable_grad_ckpt=enable_grad_ckpt,
         ),
         trainer=trainer(
             num_nodes=num_nodes,

@@ -326,7 +326,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             for key in batch[0].keys()
         }
 
-    def setup(self, stage: str):
+    def setup(self, stage: str = None):
         """setups sampler"""
         # Turn-on dist-sampler if the user is running inside a dist-env.
         if not self.use_dist_sampler and has_dist_env_init_or_rank_env_var():
@@ -398,7 +398,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             raise ValueError("split_names must None/str/list")
 
         for split_name in split_names:
-            if not self.dataset_splits[split_name] is None:
+            if self.dataset_splits[split_name] is not None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
 
 
@@ -551,7 +551,14 @@ class SquadHFDataModule(HFDatasetDataModule):
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.pad_token_id = self.tokenizer.eos_id
+        # Handle tokenizers that don't have eos_id attribute
+        if hasattr(self.tokenizer, 'eos_id'):
+            self.pad_token_id = self.tokenizer.eos_id
+        elif hasattr(self.tokenizer, 'eos_token_id'):
+            self.pad_token_id = self.tokenizer.eos_token_id
+        else:
+            # Fallback to using the pad_token_id from kwargs or default to 0
+            self.pad_token_id = kwargs.get('pad_token_id', 0)
 
     def formatting_prompts_func(self, example):
         """
@@ -589,7 +596,7 @@ class SquadHFDataModule(HFDatasetDataModule):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    def setup(self, stage):
+    def setup(self, stage: str = None):
         """
         Prepares the dataset for training and applies formatting.
 
