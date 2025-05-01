@@ -239,11 +239,12 @@ class FloatList(click.Option):
 
 class NullableFloatList(FloatList):
     """FloatList that accepts None values"""
-    
+
     def type_cast_value(self, ctx, value):
         if value is None:
             return None
         return super().type_cast_value(ctx, value)
+
 
 @click.command(context_settings={'show_default': True})
 @click.option(
@@ -274,11 +275,7 @@ class NullableFloatList(FloatList):
     "where each item is a pair of (max_input_seq_len, max_output_seq_len) for a given bucket.",
 )
 @click.option(
-    "-x",
-    "--max_tps",
-    cls=NullableFloatList,
-    required=False,
-    help="List of maximum tokens per second for each bucket."
+    "-x", "--max_tps", cls=NullableFloatList, required=False, help="List of maximum tokens per second for each bucket."
 )
 @click.option(
     "-t",
@@ -449,7 +446,7 @@ def oomptimizer(
 
             if tps:
                 output_len = math.ceil(tps * input_len)
-                
+
             match modalities:
                 case "audio", "audio":
                     return (
