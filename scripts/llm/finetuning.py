@@ -51,7 +51,7 @@ def get_parser():
         help="Choose NeMo 2.0 recipe. Recipes are named in the format of <model_name>_<model_size>(_<long_sequence_length> or other special settings)",
     )
     parser.add_argument(
-        "--resume_path",
+        "--resume-path",
         type=str,
         help="Path to the checkpoint to resume training from. If not provided, the model will be initialized from the HF model.",
         required=False,
