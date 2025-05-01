@@ -151,6 +151,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
@@ -165,6 +166,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     needs: [cicd-test-container-build, pre-flight]
     runs-on: self-hosted-azure-gpus-1
     steps:
@@ -213,6 +215,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -238,6 +241,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -259,6 +263,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -280,6 +285,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -301,6 +307,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -322,6 +329,7 @@ jobs:
           && needs.pre-flight.outputs.is_ci_workload == 'true'
         )
       )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
