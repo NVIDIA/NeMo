@@ -14,7 +14,7 @@
 
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 import torch
 from lightning.pytorch.callbacks import Callback
