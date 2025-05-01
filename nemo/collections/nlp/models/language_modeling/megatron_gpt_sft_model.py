@@ -1114,8 +1114,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
-        """ Handles end-of-validation processing, including metric aggregation, logging, 
-            and reset of microbatch state."""
+        """Handles end-of-validation processing, including metric aggregation, logging,
+        and reset of microbatch state."""
         _ = self.inference_epoch_end(self.validation_step_outputs, "validation", self.cfg.data.validation_ds)
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
         # return super().on_validation_epoch_end()
