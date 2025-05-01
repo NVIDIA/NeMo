@@ -16,7 +16,7 @@ import tempfile
 
 import fiddle as fdl
 import lightning.pytorch as pl
-import os
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
