@@ -106,8 +106,6 @@ jobs:
             is_ci_workload=false
           fi
 
-          # for debugging
-          is_ci_workload=true
           echo "main=$is_ci_workload" | tee -a "$GITHUB_OUTPUT"
 
       - name: Check if no-fail-fast is set
