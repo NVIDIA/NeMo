@@ -238,7 +238,20 @@ jobs:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-export-deploy.yml
     if: |
-      (success() || (needs.cicd-wait-in-queue.result == 'skipped' && needs.pre-flight.outputs.is_ci_workload == 'true') || needs.pre-flight.outputs.no_fail_fast == 'true') && (contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy') || needs.pre-flight.outputs.components_to_run == '["all"]')
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy') 
+          || needs.pre-flight.outputs.components_to_run == '["all"]'
+        )
+      ) 
+      && (
+        success() 
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -246,7 +259,20 @@ jobs:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-speech.yml
     if: |
-      (success() || needs.cicd-wait-in-queue.result == 'skipped' || needs.pre-flight.outputs.no_fail_fast == 'true') && (contains(fromJson(needs.pre-flight.outputs.components_to_run), 'speech') || needs.pre-flight.outputs.components_to_run == '["all"]')
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'speech') 
+          || needs.pre-flight.outputs.components_to_run == '["all"]'
+        )
+      ) 
+      && (
+        success() 
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -254,7 +280,20 @@ jobs:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-automodel.yml
     if: |
-      (success() || needs.cicd-wait-in-queue.result == 'skipped' || needs.pre-flight.outputs.no_fail_fast == 'true') && ( contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel') || needs.pre-flight.outputs.components_to_run == '["all"]')
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel') 
+          || needs.pre-flight.outputs.components_to_run == '["all"]'
+        )
+      ) 
+      && (
+        success() 
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -262,7 +301,20 @@ jobs:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
     uses: ./.github/workflows/cicd-main-nemo2.yml
     if: |
-      (success() || needs.cicd-wait-in-queue.result == 'skipped' || needs.pre-flight.outputs.no_fail_fast == 'true') && (contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2') || needs.pre-flight.outputs.components_to_run == '["all"]')
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2') 
+          || needs.pre-flight.outputs.components_to_run == '["all"]'
+        )
+      ) 
+      && (
+        success() 
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
