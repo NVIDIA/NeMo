@@ -224,8 +224,6 @@ class FloatList(click.Option):
     name = "list[float]"
 
     def type_cast_value(self, ctx, value):
-        if value is None:
-            return None
         if isinstance(value, list) and all(isinstance(v, float) for v in value):
             return value
         try:
@@ -238,6 +236,14 @@ class FloatList(click.Option):
         except ValueError:
             raise click.BadParameter(value)
 
+
+class NullableFloatList(FloatList):
+    """FloatList that accepts None values"""
+    
+    def type_cast_value(self, ctx, value):
+        if value is None:
+            return None
+        return super().type_cast_value(ctx, value)
 
 @click.command(context_settings={'show_default': True})
 @click.option(
@@ -270,7 +276,7 @@ class FloatList(click.Option):
 @click.option(
     "-x",
     "--max_tps",
-    cls=FloatList,
+    cls=NullableFloatList,
     required=False,
     help="List of maximum tokens per second for each bucket."
 )
