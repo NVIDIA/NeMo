@@ -763,7 +763,7 @@ class BatchedBeamHypsCTC:
 
         max_idx = self.current_lengths_wb.max() - 1
         timestamps = self.timestamps[..., 0, : max_idx + 1]
-        transcripts = self.transcript_wb[..., 0, : max_idx + 1]  # .cpu().detach().numpy()
+        transcripts = self.transcript_wb[..., 0, : max_idx + 1]
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
