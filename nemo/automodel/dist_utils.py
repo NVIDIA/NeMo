@@ -46,33 +46,17 @@ class FirstRankPerNode(ContextDecorator):
         # 2. Figure out local/global ranks
         # ------------------------------------------------------------------ #
         env = os.environ
-        world_size   = dist.get_world_size()
-        global_rank  = dist.get_rank()
-        local_rank   = int(env.get("LOCAL_RANK", global_rank))  # fallback
-        self._first  = local_rank == 0
+        world_size = dist.get_world_size()
+        global_rank = dist.get_rank()
+        local_rank = int(env.get("LOCAL_RANK", global_rank))  # fallback
+        self._first = local_rank == 0
 
         # ------------------------------------------------------------------ #
-        # 3. Build a subgroup that contains exactly one rank per node
-        #    (those where local_rank == 0)
-        # ------------------------------------------------------------------ #
-        # Gather all local_ranks so every process can derive the same subgroup
-        gathered_local = [None] * world_size
-        dist.all_gather_object(gathered_local, local_rank)
-        node0_ranks = [idx for idx, lr in enumerate(gathered_local) if lr == 0]
-
-        # new_group must be called by *all* ranks with identical `ranks` list
-        self._node0_group = dist.new_group(ranks=node0_ranks, backend="gloo")
-
-        # ------------------------------------------------------------------ #
-        # 4. Synchronisation logic
+        # 3. Synchronisation logic
         # ------------------------------------------------------------------ #
         if not self._first:
             # Non‑rank‑0 processes wait for their node‑rank-0
             dist.barrier()
-        else:
-            # Rank‑0 processes wait for their *peer* rank‑0s on other nodes
-            if dist.get_world_size(self._node0_group) > 1:
-                dist.barrier(group=self._node0_group)
 
         return self._first
 
@@ -82,9 +66,6 @@ class FirstRankPerNode(ContextDecorator):
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             if self._first and dist.is_initialized():
-                # Ensure all node‑0 peers leave the context together
-                if self._node0_group is not None and dist.get_world_size(self._node0_group) > 1:
-                    dist.barrier(group=self._node0_group)
                 # Re‑sync the whole world so that non‑rank‑0s can proceed
                 dist.barrier()
                 if exc_type is not None:
