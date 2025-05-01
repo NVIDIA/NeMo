@@ -36,6 +36,7 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import get_batch_on_this_cp_rank
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import ASRModel
@@ -46,7 +47,6 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
-    get_batch_on_this_context_parallel_rank,
     get_packed_seq_params,
 )
 from nemo.collections.speechlm.data.dataset.data_utils import build_position_ids, pad_or_trim_to_max_length
@@ -575,7 +575,7 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         }
 
         # Split the batch for context parallelism
-        batch_cp = get_batch_on_this_context_parallel_rank(batch)
+        batch_cp = get_batch_on_this_cp_rank(batch)
         attention_mask_cp = batch_cp["attention_mask"]
         decoder_input_cp = batch_cp["decoder_input"].transpose(0, 1).contiguous()  # [b, t, h] -> [t, b, h]
         labels_cp = batch_cp["labels"]

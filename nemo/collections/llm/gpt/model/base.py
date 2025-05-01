@@ -26,7 +26,7 @@ from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.utils import get_batch_on_this_cp_rank as get_batch_on_this_context_parallel_rank
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import nn
 
 from nemo.collections.llm import fn
@@ -104,7 +104,7 @@ def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
             _batch_required_keys[key] = None
 
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch_required_keys)
+    output = get_batch_on_this_cp_rank(_batch_required_keys)
 
     return output
 
