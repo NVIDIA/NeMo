@@ -174,6 +174,8 @@ class T5Config(TransformerConfig, io.IOMixin):
     recompute_num_layers: int = 1
     distribute_saved_activations: bool = False
     enable_autocast: bool = False
+    tp_comm_overlap_cfg: Optional[str] = None
+    """Config file when tp_comm_overlap is enabled."""
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["T5Config"], ModuleSpec]] = default_layer_spec
     forward_step_fn: Callable = t5_forward_step

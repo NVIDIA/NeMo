@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 
-def masked_cross_entropy(logits, targets, mask=None, fp32_upcast=True, ignore_index=-100):
+def masked_cross_entropy(logits, targets, mask=None, fp32_upcast=True, ignore_index=-100, reduction="mean"):
     """
     Compute the masked cross-entropy loss between logits and targets.
 
@@ -44,4 +44,4 @@ def masked_cross_entropy(logits, targets, mask=None, fp32_upcast=True, ignore_in
             del mask
     if fp32_upcast:
         logits = logits.float()
-    return F.cross_entropy(logits, targets)
+    return F.cross_entropy(logits, targets, reduction=reduction)

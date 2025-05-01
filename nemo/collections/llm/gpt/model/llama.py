@@ -401,6 +401,8 @@ class Llama4Config(Llama3Config):
     moe_token_dispatcher_type: str = "alltoall"
     moe_router_dtype: Optional[str] = None
     moe_apply_probs_on_input: bool = True
+    moe_shared_expert_overlap: bool = True
+    moe_permute_fusion: bool = True
     # Configs that are overwritten in subclass models
     qk_l2_norm: bool = True
     rope_scaling: bool = True
@@ -570,7 +572,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             )
         ]
         if 'llama4' in getattr(source.config, "model_type"):
-            source = self._modify_llama4_source_state(source)
+            source = _modify_llama4_source_state_for_importer(source, self.config)
             # Update mapping for Llama4 model
             llama4_mapping = {
                 # Post Attention LayerNorm
@@ -646,42 +648,6 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
-
-    def _modify_llama4_source_state(self, source: nn.Module) -> _ModelState:
-        """
-        In Llama4, HF weight for local experts are mapped with a single tensor.
-        Pre-chunk it before convert_state.
-        For dense layer, we change the name for the post attention layer norm to
-        avoid the many-to-one mapping in the conversion.
-        """
-        state_dict = source.state_dict()
-        num_experts = source.config.num_local_experts
-        for layer_i in range(self.config.num_layers):
-            is_moe_layer = True
-            if isinstance(self.config.moe_layer_freq, list):
-                assert len(self.config.moe_layer_freq) == self.config.num_layers
-                is_moe_layer = self.config.moe_layer_freq[layer_i]
-            if is_moe_layer:
-                # gate_up_proj
-                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj")
-                weights = torch.chunk(weight, num_experts, dim=0)
-                for expert_i, expert_weight in enumerate(weights):
-                    state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"] = (
-                        expert_weight.squeeze().transpose(0, 1)
-                    )
-                # down_proj
-                weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.down_proj")
-                weights = torch.chunk(weight, num_experts, dim=0)
-                for expert_i, expert_weight in enumerate(weights):
-                    state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
-                        expert_weight.squeeze().transpose(0, 1)
-                    )
-            else:
-                weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
-                state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
-
-        source = _ModelState(state_dict)
-        return source
 
     @property
     def config(self) -> LlamaConfig:
@@ -768,6 +734,43 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         )
 
         return output
+
+
+def _modify_llama4_source_state_for_importer(source: nn.Module, config: LlamaConfig) -> _ModelState:
+    """
+    In Llama4, HF weight for local experts are mapped with a single tensor.
+    Pre-chunk it before convert_state.
+    For dense layer, we change the name for the post attention layer norm to
+    avoid the many-to-one mapping in the conversion.
+    """
+    state_dict = source.state_dict()
+    num_experts = source.config.num_local_experts
+    for layer_i in range(config.num_layers):
+        is_moe_layer = True
+        if isinstance(config.moe_layer_freq, list):
+            assert len(config.moe_layer_freq) == config.num_layers
+            is_moe_layer = config.moe_layer_freq[layer_i]
+        if is_moe_layer:
+            # gate_up_proj
+            weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.gate_up_proj")
+            weights = torch.chunk(weight, num_experts, dim=0)
+            for expert_i, expert_weight in enumerate(weights):
+                state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"] = (
+                    expert_weight.squeeze().transpose(0, 1)
+                )
+            # down_proj
+            weight = state_dict.pop(f"model.layers.{layer_i}.feed_forward.experts.down_proj")
+            weights = torch.chunk(weight, num_experts, dim=0)
+            for expert_i, expert_weight in enumerate(weights):
+                state_dict[f"model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
+                    expert_weight.squeeze().transpose(0, 1)
+                )
+        else:
+            weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
+            state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
+
+    source = _ModelState(state_dict)
+    return source
 
 
 @io.model_exporter(LlamaModel, "hf")
