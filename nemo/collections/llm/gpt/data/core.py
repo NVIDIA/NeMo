@@ -623,6 +623,7 @@ class GPTSFTDataset(Dataset):
             )
         assert max_length <= self.max_seq_length
 
+        attention_mask = None
         if not self.get_attention_mask_from_fusion:
             attention_mask = [self._create_attention_mask(max_length) for _ in batch]
             attention_mask = torch.stack(attention_mask)

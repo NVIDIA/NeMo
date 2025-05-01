@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -553,7 +554,7 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
 
         return get_peft_model(model, self.peft_config, autocast_adapter_dtype=False)
 
-    def apply(self, output_path: Path) -> Path:
+    def apply(self, output_path: Path, target_model_name=None) -> Path:
         """Apply the conversion from NeMo PEFT model to HF format.
 
         Args:
@@ -567,7 +568,26 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
         self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self)).model.model_transform
 
         source, _ = self.nemo_load(str(self))
-        target = self.init(torch_dtype_from_mcore_config(source.config))
+        is_heterogeneous = isinstance(source.config, HeterogeneousTransformerConfig)
+        if target_model_name is None:
+            # Llama-Nemotron Super/Ultra uses customize modeling class
+            if is_heterogeneous:
+                num_layers = source.config.num_layers
+                if num_layers == 80:
+                    target_model_name = 'nvidia/Llama-3_3-Nemotron-Super-49B-v1'
+                elif num_layers == 162:
+                    target_model_name = 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1'
+                else:
+                    raise ValueError(
+                        'Unknown target model. '
+                        'Currently only support exporting Llama-Nemotron Nano/Super/Ultra models.'
+                    )
+
+        target = self.init(
+            torch_dtype_from_mcore_config(source.config),
+            from_config=not is_heterogeneous,
+            model_name=target_model_name,
+        )
         target = self.convert_state(source, target)
         target = target.cpu()
         target.save_pretrained(output_path, save_embedding_layers=False)

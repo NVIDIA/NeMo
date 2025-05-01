@@ -240,7 +240,8 @@ def fill_packing_strategy(
                             ]
                         )[perm].tolist()
                     except KeyError as err:
-                        err_msg = f"Key errors mask, loss_mask and answer_start_idx missing in example - {err} {per_seq_data[0]}"
+                        err_msg = "Key errors mask, loss_mask and answer_start_idx missing in example - "
+                        err_msg += f"{err} {per_seq_data[0]}"
                         logging.error(err_msg)
                         raise ValueError(err_msg)
 
