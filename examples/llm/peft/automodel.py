@@ -16,11 +16,12 @@ import tempfile
 
 import fiddle as fdl
 import lightning.pytorch as pl
-
+import os
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+from nemo.automodel.dist_utils import FirstRankPerNode
 
 
 # Run this example with torchrun, for example:
@@ -34,7 +35,9 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
+@FirstRankPerNode()
 def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
+    print('os.environ make_squad_hf_dataset = ' + str(os.environ))
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -54,7 +57,7 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
 
     datamodule = llm.HFDatasetDataModule(
         "rajpurkar/squad",
-        split="train",
+        split="train[:100]",
         micro_batch_size=batch_size,
         pad_token_id=tokenizer.eos_id or 0,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
@@ -66,6 +69,50 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
     return datamodule
+
+
+# def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
+#     def formatting_prompts_func(example):
+#         formatted_text = [
+#             f"Context: {example['context']} Question: {example['question']} Answer:",
+#             f" {example['answers']['text'][0].strip()}",
+#         ]
+#         # context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
+#         # if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id and tokenizer.bos_id is not None:
+#         #     context_ids.insert(0, tokenizer.bos_id)
+#         # if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
+#         #     answer_ids.append(tokenizer.eos_id)
+#         messages = [
+#             {"role": "assistant", "content": f"Context: example['context']"},
+#             {"role": "user", "content": f"Question: {example['question']} Answer:"},
+#             {"role": "assistant", "content": example['answers']['text'][0].strip()}
+#         ]
+#         tokens = tokenizer.apply_chat_template(
+#             messages,
+#             tokenize=True,
+#             add_generation_prompt=True,
+#             enable_thinking=False # Switches between thinking and non-thinking modes. Default is True.
+#         )
+#         return dict(
+#             labels=(tokens)[1:],
+#             input_ids=(tokens)[:-1],
+#             # loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+#         )
+
+#     datamodule = llm.HFDatasetDataModule(
+#         "rajpurkar/squad",
+#         split="train",
+#         micro_batch_size=batch_size,
+#         pad_token_id=tokenizer.eos_id or 0,
+#         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+#     )
+#     datamodule.map(
+#         formatting_prompts_func,
+#         batched=False,
+#         batch_size=2,
+#         remove_columns=["id", "title", "context", "question", 'answers'],
+#     )
+#     return datamodule
 
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False):
@@ -228,10 +275,10 @@ def main():
         ),
         optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
-        peft=llm.peft.LoRA(
-            target_modules=['*_proj'],
-            dim=8,
-        ),
+        # peft=llm.peft.LoRA(
+        #     target_modules=['*_proj'],
+        #     dim=8,
+        # ),
         resume=resume,
     )
 
