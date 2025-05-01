@@ -99,6 +99,7 @@ jobs:
             echo "main=true" | tee -a "$GITHUB_OUTPUT"
           else
             echo "main=false" | tee -a "$GITHUB_OUTPUT"
+          fi
 
   code-linting:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
