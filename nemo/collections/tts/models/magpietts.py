@@ -342,7 +342,8 @@ class MagpieTTSModel(ModelPT):
         """
         Predicts the logits for all codebooks using the local transformer. Used in both autoregressive (AR) and MaskGit (MG) modes.
         This function is used in training and validation, not inference/sampling.
-        The sequence layout is slightly different between AR and MG modes, as shown in the diagram below:
+        The sequence layout is slightly different between AR and MG modes, as shown in the diagram below,
+        (using an 8-codebook setup as an example):
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
         | AR target  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |   none  |
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
@@ -357,7 +358,7 @@ class MagpieTTSModel(ModelPT):
         dec_out: (B, T', E)
         audio_codes_target: (B, C, T')
         targets_offset_by_one: bool, if False, the target for index 0 is codebook 0, for index 1 is codebook 1, etc. (autoregressive)
-                                     if True, the target for index 1 is codebook 0, for index 2 is codebook 1, etc. (MaskGit)
+                                     if True,  the target for index 1 is codebook 0, for index 2 is codebook 1, etc. (MaskGit)
         """
         dec_out_all = dec_out.reshape(-1, dec_out.size(-1)) # (B*T', E)
         local_transformer_input = [dec_out_all]
@@ -536,9 +537,9 @@ class MagpieTTSModel(ModelPT):
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
-        for step in range(n_steps):            
+        for step in range(n_steps):
             # get mask fraction
-            frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
+            frac_masked = self.cosine_schedule(torch.tensor(step / (n_steps)))
             # how many codebooks to mask
             n_masked = torch.ceil(C * frac_masked).long() # TODO @rfejgin: should we force this to be initialized to exactly `C` (to avoid numerical issues)?
             n_unmasked = C - n_masked
