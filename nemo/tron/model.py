@@ -34,6 +34,7 @@ def get_model_from_config(
     use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
     data_parallel_random_init: bool = True,
+    tokenizer = None,
 ) -> list[MegatronModule]:
     """Get a model from the given configuration.
 
@@ -89,7 +90,7 @@ def get_model_from_config(
             )
         else:
             model = model_config.configure_model(
-                tokenizer=None,
+                tokenizer=tokenizer,
                 pre_process=pre_process,
                 post_process=post_process,
             )
