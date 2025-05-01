@@ -11,13 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
 import warnings
 from collections import defaultdict
 from itertools import repeat
-from typing import Any, Generator, Iterable, Optional
+from typing import Any, Optional
 
-import hydra
 import torch
 from lhotse.dataset.collation import collate_vectors
 from lightning import LightningModule
@@ -40,6 +38,7 @@ from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.duplex_s2s.parts.hf_hub import HFHubMixin
+from nemo.collections.duplex_s2s.parts.optim_setup import configure_optimizers, is_frozen
 from nemo.collections.duplex_s2s.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
 from nemo.utils import logging
 
@@ -83,6 +82,9 @@ class SALM(LightningModule, HFHubMixin):
             self.cfg.perception.output_dim = self.llm.config.hidden_size
         self.perception = AudioPerceptionModule(self.cfg.perception).train()
         self.perception.load_state_dict(asr.state_dict(), strict=False)
+
+        self._use_fsdp = False
+        self._use_tp = False
 
     @property
     def text_vocab_size(self):
@@ -193,11 +195,9 @@ class SALM(LightningModule, HFHubMixin):
         }
 
     def training_step(self, batch: dict, batch_idx: int):
-        if self.cfg.freeze_asr:
-            self.perception.preprocessor.eval()
-            self.perception.encoder.eval()
-        if self.cfg.freeze_llm:
-            self.llm.eval()
+        for m in (self.perception.preprocessor, self.perception.encoder, self.llm):
+            if is_frozen(m):
+                m.eval()
 
         inputs = self.prepare_inputs(batch)
         forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
@@ -365,22 +365,9 @@ class SALM(LightningModule, HFHubMixin):
         return answer_tokens
 
     def configure_optimizers(self):
-        to_freeze = []
-        if self.cfg.freeze_llm:
-            to_freeze.extend([r"^llm\..+$", r"^embed_tokens\..+$"])
-        if self.cfg.freeze_asr:
-            to_freeze.extend([r"^perception\.preprocessor\..+$", r"^perception\.encoder\..+$"])
-        parameters = freeze_and_subset(self.named_parameters(), patterns=to_freeze)
-        optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
-        ans = {"optimizer": optimizer}
-        if "lr_scheduler" in self.cfg:
-            lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
-            ans["lr_scheduler"] = {"scheduler": lr_scheduler, "interval": "step", "frequency": 1}
-        return ans
+        return configure_optimizers(self)
 
     def configure_model(self) -> None:
-        self._use_fsdp = False
-        self._use_tp = False
         device_mesh = self.device_mesh
         if device_mesh is None:
             return
@@ -598,24 +585,3 @@ def replace_placeholders_and_build_targets(
         attention_masks[i, :seq_len] = att
 
     return output, new_target_ids, attention_masks
-
-
-def freeze_and_subset(
-    named_parameters: Iterable[tuple[str, torch.nn.Parameter]], patterns: list[str]
-) -> Generator[torch.nn.Parameter, None, None]:
-    patterns = [re.compile(p) for p in patterns]
-    trainable, nontrainable = 0, 0
-    for name, param in named_parameters:
-        discard = False
-        for pattern in patterns:
-            if pattern.match(name) is not None:
-                param.requires_grad = False
-                discard = True
-        if not discard:
-            yield param
-            trainable += param.numel()
-        else:
-            nontrainable += param.numel()
-    total = trainable + nontrainable
-    if torch.distributed.is_available() and torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:
-        logging.info(f"Parameters | trainable={trainable} ({trainable / total:.2%}) | total={total}")

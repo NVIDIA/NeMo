@@ -100,3 +100,17 @@ class AudioPerceptionModule(NeuralModule, Exportable):
         encoded = self.proj(encoded.transpose(1, 2))
 
         return encoded, encoded_len
+
+
+class IdentityConnector(NeuralModule, Exportable):
+    """User to pass encoder's representations as-is to the LLM."""
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__()
+
+    def forward(self, audio_signal, length=None, *args, **kwargs):
+        return audio_signal, length

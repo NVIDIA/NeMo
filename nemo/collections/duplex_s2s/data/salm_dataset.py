@@ -99,6 +99,7 @@ def default_multimodal_conversation_prompt_format_fn(
         {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
         for role, turn_grp in turns
     ]
-    turns[0]["role"] = "system_and_user"
-    turns[0]["slots"]["system"] = example.system_prompt
+    if hasattr(example, "system_prompt"):
+        turns[0]["role"] = "system_and_user"
+        turns[0]["slots"]["system"] = example.system_prompt
     return prompt.encode_dialog(turns)

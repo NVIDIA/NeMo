@@ -41,6 +41,7 @@ from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaG
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.duplex_s2s.parts.hf_hub import HFHubMixin
+from nemo.collections.duplex_s2s.parts.optim_setup import configure_optimizers, is_frozen
 from nemo.collections.duplex_s2s.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
@@ -110,6 +111,9 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             torch.tensor([self.speech_bos_id, self.speech_eos_id, self.speech_delay_id], device=self.device),
         )
         self.normalizer = EnglishTextNormalizer()
+
+        self._use_fsdp = False
+        self._use_tp = False
 
     @property
     def speech_vocab_size(self):
@@ -323,6 +327,9 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         }
 
     def training_step(self, batch: dict, batch_idx: int):
+        for m in (self.perception.preprocessor, self.perception.encoder, self.llm):
+            if is_frozen(m):
+                m.eval()
         inputs = self.prepare_inputs(batch)
         forward_outputs = self(inputs["input_embeds"])
         num_frames = inputs["input_lens"].sum()
@@ -523,20 +530,7 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             super().backward(*args, **kwargs)
 
     def configure_optimizers(self):
-        parameters = chain(
-            self.perception.parameters(),
-            self.llm.parameters(),
-            self.lm_head.parameters(),
-            self.audio_head.parameters(),
-            self.embed_tokens.parameters(),
-            self.embed_audio_tokens.parameters(),
-        )
-        optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
-        ans = {"optimizer": optimizer}
-        if "lr_scheduler" in self.cfg:
-            lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
-            ans["lr_scheduler"] = {"scheduler": lr_scheduler, "interval": "step", "frequency": 1}
-        return ans
+        return configure_optimizers(self)
 
     @property
     def oomptimizer_schema(self) -> dict:

@@ -12,14 +12,21 @@ model:
 
   pretrained_weights: True  # When False, we use pretrained_name to load the architecture, but with random init
 
-  freeze_llm: true
-  freeze_asr: true
+  # Regexp (re.compile) patterns matching parameters to be frozen.
+  freeze_params:
+    # Frozen LLM
+    - "^llm\\..+$"  # LLM
+    - "^embed_tokens\\..+$"  # LLM embedding is moved
+    # Frozen pretrained ASR (only the modality adapter layers are trainable)
+    - "^perception\\.preprocessor\\..+$"
+    - "^perception\\.encoder\\..+$"
+  prevent_freeze_params: []  # Use to make specific submodules trainable; overrides freeze_params
 
   prompt_format: llama3
   audio_locator_tag: "<|audioplaceholder|>"  # placeholder token for audio turn is expected
 
   perception:
-     target: nemo.collections.multimodal.speech_llm.modules.perception_modules.AudioPerceptionModule
+     target: nemo.collections.duplex_s2s.modules.perception.AudioPerceptionModule
 
      preprocessor:
        normalize: 'NA'

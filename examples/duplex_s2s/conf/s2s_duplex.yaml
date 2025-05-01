@@ -13,11 +13,16 @@ model:
 
   pretrained_weights: True  # When False, we use pretrained_name to load the architecture, but with random init
 
+  # Regexp (re.compile) patterns matching parameters to be frozen.
+  freeze_params:
+    - "^audio_codec\\..+$"  # Keep audio codec frozen as it only provides supervision for training.
+  prevent_freeze_params: []  # Use to make specific submodules trainable; overrides freeze_params
+
   audio_loss_weight: 1
   text_loss_weight: 3
 
   perception:
-     target: nemo.collections.multimodal.speech_llm.modules.perception_modules.AudioPerceptionModule
+     target:  nemo.collections.duplex_s2s.modules.perception.AudioPerceptionModule
 
      preprocessor:
        normalize: 'NA'
