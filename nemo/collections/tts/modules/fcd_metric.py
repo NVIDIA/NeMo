@@ -46,8 +46,8 @@ class CodecEmbedder(nn.Module):
 
 class FrechetCodecDistance(Metric):
     """
-    Computes the Frechet Codec Distance between two distributions of audio codec codes (real and generated).
-    This is done in codec embedding space. We name this metric the Frechet Codec Distance (FCD).
+    Computes the Frechet Codec Distance between two distributions of audio codec frames (real and generated).
+    This is done in codec embedding space, one frame at a time. We name this metric the Frechet Codec Distance (FCD).
     """
 
     """
