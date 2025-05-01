@@ -110,6 +110,20 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         self.enforce_divisible_batch = True  # used for gradient accumulation
 
     def setup_metric(self, data_cfg):
+        """Initializes metric(s) for a given dataset configuration.
+
+        Supports single and multi-dataset setups, handles classification metrics requiring string-to-category
+        mappings, and validates presence of required fields like number of classes and class labels.
+
+        Args:
+            data_cfg: Dataset configuration containing metric name, label keys, and other metadata.
+
+        Returns:
+            A tuple (metric, metric_name) where:
+                - metric: One or more metric objects (wrapped in a list or torch.nn.ModuleList)
+                - metric_name: String name of the metric (e.g., "accuracy", "rouge")
+        """
+        
         metric_name = "exact_string_match"
         if not hasattr(data_cfg, "metric"):
             metric = MetricStringToTorchMetric["exact_string_match"]

@@ -18,6 +18,8 @@ from typing import Any, Dict, Optional
 
 @dataclass
 class MLFlowParams:
+    """ML Flow Configuration Dataclass."""
+
     # name of experiment, if none, defaults to the globally set experiment name
     experiment_name: Optional[str] = None
     run_name: Optional[str] = None
