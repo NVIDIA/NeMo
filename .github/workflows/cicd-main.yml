@@ -200,7 +200,7 @@ jobs:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/cicd-main-unit-tests.yml
     if: |
-      (success() || needs.pre-flight.outputs.is_ci_workload == 'true' || needs.pre-flight.outputs.no_fail_fast == 'true')) && !cancelled()
+      (success() || needs.pre-flight.outputs.is_ci_workload == 'true' || needs.pre-flight.outputs.no_fail_fast == 'true') && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
