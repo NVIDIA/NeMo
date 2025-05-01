@@ -29,8 +29,7 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
-from megatron.core.utils import get_batch_on_this_cp_rank
-from megatron.core.utils import make_viewless_tensor
+from megatron.core.utils import get_batch_on_this_cp_rank, make_viewless_tensor
 from torch import Tensor, nn
 
 from nemo.collections.llm import fn
