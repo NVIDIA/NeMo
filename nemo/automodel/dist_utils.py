@@ -30,7 +30,7 @@ class FirstRankPerNode(ContextDecorator):
     def __enter__(self):
         self._created_pg = False
         self._node0_group = None
-        self._first = True          # default for single‑GPU / no‑dist case
+        self._first = True  # default for single‑GPU / no‑dist case
 
         # ------------------------------------------------------------------ #
         # 1. Make sure there is at least *some* process‑group initialised
@@ -38,8 +38,9 @@ class FirstRankPerNode(ContextDecorator):
         if not dist.is_initialized():
             self._created_pg = self._try_bootstrap_pg()
 
-        if not dist.is_initialized():                     # pure single GPU
-            return True                                   # I am “first”
+        if not dist.is_initialized():
+            # pure single GPU
+            return True
 
         # ------------------------------------------------------------------ #
         # 2. Figure out local/global ranks
