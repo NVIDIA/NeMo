@@ -99,9 +99,8 @@ class DiarizationConfig:
     ignore_overlap: bool = False  # If True, DER will be calculated only for non-overlapping segments
 
     # Streaming diarization configs
-    streaming_mode: bool = False # If True, streaming diarization will be used.
     spkcache_len: int = 188
-    spkcache_refresh_rate: int = 24
+    spkcache_refresh_rate: int = 144
     fifo_len: int = 188
     chunk_len: int = 6
     chunk_left_context: int = 1
@@ -380,7 +379,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.setup_test_data(test_data_config=diar_model._cfg.test_ds)
 
     # Steaming mode setup
-    diar_model.streaming_mode = cfg.streaming_mode
     diar_model.sortformer_modules.chunk_len = cfg.chunk_len
     diar_model.sortformer_modules.spkcache_len = cfg.spkcache_len
     diar_model.sortformer_modules.chunk_left_context = cfg.chunk_left_context

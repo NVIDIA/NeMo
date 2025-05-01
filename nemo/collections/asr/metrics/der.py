@@ -26,6 +26,8 @@ from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assig
 
 from nemo.utils import logging
 
+import pandas as pd
+
 __all__ = [
     'score_labels',
     'calculate_session_cpWER',
@@ -205,6 +207,10 @@ def score_labels(
         itemized_errors = (DER, CER, FA, MISS)
 
         if verbose:
+            pd.set_option('display.max_rows', None)  # Show all rows
+            pd.set_option('display.max_columns', None)  # Show all columns
+            pd.set_option('display.width', None)  # Adjust width to avoid line wrapping
+            pd.set_option('display.max_colwidth', None)  # Show full content of each cell
             logging.info(f"\n{metric.report()}")
         logging.info(
             f"Cumulative Results for collar {collar} sec and ignore_overlap {ignore_overlap}: \n"
