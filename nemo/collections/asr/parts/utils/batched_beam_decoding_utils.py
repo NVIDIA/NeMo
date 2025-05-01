@@ -752,8 +752,6 @@ class BatchedBeamHypsCTC:
     def to_hyps_list(self) -> list[Hypothesis]:
         """
         Converts the batched beam search results into a list of signle best hypotheses for each batch.
-        Args:
-            score_norm (bool):  If True, normalize the scores before sorting. Defaults to True.
         Returns:
             list[Hypothesis]: A list where each element corresponds to a batch and contains
             best hypothesis.
@@ -781,8 +779,6 @@ class BatchedBeamHypsCTC:
     def to_nbest_hyps_list(self) -> list[NBestHypotheses]:
         """
         Converts the batched beam search results into a list of N-best hypotheses for each batch.
-        Args:
-            score_norm (bool, optional): If True, normalize the scores before sorting. Defaults to True.
         Returns:
             list[NBestHypotheses]: A list where each element corresponds to a batch and contains
             N-best hypotheses.
