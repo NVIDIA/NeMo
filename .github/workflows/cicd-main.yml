@@ -63,7 +63,7 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             python .github/scripts/components_to_run.py --source-sha ${{ github.event.pull_request.head.sha }} --target-sha ${{ github.event.pull_request.base.sha }}
           else
-            echo '["all"]' | tee -a test_modules.json
+            echo '["nemo2", "automodel", "export-deploy", "speech"]' | tee -a test_modules.json
           fi
 
           components_to_run=$(cat test_modules.json)
@@ -124,6 +124,14 @@ jobs:
           fi
 
           echo "main=$no_fail_fast" | tee -a "$GITHUB_OUTPUT"
+
+  debug:
+    needs: [pre-flight]
+    runs-on: ubuntu-latest
+    steps:
+      - name: test
+        run: |
+          echo "${{ needs.pre-flight.outputs.test_to_run }}"
 
   code-linting:
     if: needs.pre-flight.outputs.test_to_run != '[]'
@@ -247,8 +255,7 @@ jobs:
       (
         needs.pre-flight.outputs.test_to_run != '[]'
         && (
-          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy') 
-          || needs.pre-flight.outputs.components_to_run == '["all"]'
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy')
         )
       ) 
       && (
@@ -270,7 +277,6 @@ jobs:
         needs.pre-flight.outputs.test_to_run != '[]'
         && (
           contains(fromJson(needs.pre-flight.outputs.components_to_run), 'speech') 
-          || needs.pre-flight.outputs.components_to_run == '["all"]'
         )
       ) 
       && (
@@ -291,8 +297,7 @@ jobs:
       (
         needs.pre-flight.outputs.test_to_run != '[]'
         && (
-          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel') 
-          || needs.pre-flight.outputs.components_to_run == '["all"]'
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel')
         )
       ) 
       && (
@@ -313,8 +318,7 @@ jobs:
       (
         needs.pre-flight.outputs.test_to_run != '[]'
         && (
-          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2') 
-          || needs.pre-flight.outputs.components_to_run == '["all"]'
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2')
         )
       ) 
       && (
