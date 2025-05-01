@@ -123,7 +123,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 - metric: One or more metric objects (wrapped in a list or torch.nn.ModuleList)
                 - metric_name: String name of the metric (e.g., "accuracy", "rouge")
         """
-        
+
         metric_name = "exact_string_match"
         if not hasattr(data_cfg, "metric"):
             metric = MetricStringToTorchMetric["exact_string_match"]
