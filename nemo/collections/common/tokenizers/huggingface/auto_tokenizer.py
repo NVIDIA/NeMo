@@ -26,7 +26,7 @@ __all__ = [
 
 class AutoTokenizer(TokenizerSpec):
     """
-    Wrapper of HuggingFace AutoTokenizer https://huggingface.co/transformers/model_doc/auto.html#autotokenizer.
+    Wrapper of HuggingFace AutoTokenizer https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.
 
     """
 
@@ -51,8 +51,8 @@ class AutoTokenizer(TokenizerSpec):
         Args:
             pretrained_model_name: corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input
                 argument. For more details please refer to
-            https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.from_pretrained.
-                The list of all supported models can be found here: ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
+                https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.from_pretrained.
+                The list of all supported models can be found here: https://huggingface.co/models
             vocab_file: path to file with vocabulary which consists
                 of characters separated by newlines.
             mask_token: mask token

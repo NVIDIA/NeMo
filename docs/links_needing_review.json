@@ -655,14 +655,6 @@
   "info": "unauthorized"
 }
 {
-  "filename": "common/tokenizers.rst",
-  "lineno": 1,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://huggingface.co/transformers/model_doc/auto.html#autotokenizer",
-  "info": "Anchor 'autotokenizer' not found"
-}
-{
   "filename": "starthere/migration-guide.rst",
   "lineno": 11,
   "status": "broken",
