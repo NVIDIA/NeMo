@@ -224,6 +224,8 @@ class FloatList(click.Option):
     name = "list[float]"
 
     def type_cast_value(self, ctx, value):
+        if value is None:
+            return None
         if isinstance(value, list) and all(isinstance(v, float) for v in value):
             return value
         try:
@@ -264,6 +266,13 @@ class FloatList(click.Option):
     help="List of upper-bound bucket bins (i.e. first bucket is [0.0 - item0), second bucket is [item0 - item1), etc.). "
     "We also support a nested list for 2D bucketing, e.g. [[2.0, 10],[2.0,20],[4.5,15],[4.5,30],...], "
     "where each item is a pair of (max_input_seq_len, max_output_seq_len) for a given bucket.",
+)
+@click.option(
+    "-x",
+    "--max_tps",
+    cls=FloatList,
+    required=False,
+    help="List of maximum tokens per second for each bucket."
 )
 @click.option(
     "-t",
@@ -321,6 +330,7 @@ def oomptimizer(
     config_path: str | None,
     optimizer_name: str,
     buckets: list[float],
+    max_tps: list[float] | None,
     threshold: float,
     start_batch_size: int,
     ratio: int,
@@ -419,9 +429,9 @@ def oomptimizer(
         for direction in ("input", "output")
     ]
 
-    def get_max_seq_lens(buckets):
+    def get_max_seq_lens(buckets, max_tps):
 
-        def _determine_lens_for_bucket(bin):
+        def _determine_lens_for_bucket(bin, tps):
             if is_2d_bucketing:
                 input_len, output_len = bin
             else:
@@ -430,6 +440,10 @@ def oomptimizer(
             sampling_rate = getattr(
                 model, "sample_rate", 16000
             )  # TODO: may need to extend schema for broader model coverage
+
+            if tps:
+                output_len = math.ceil(tps * input_len)
+                
             match modalities:
                 case "audio", "audio":
                     return (
@@ -448,10 +462,13 @@ def oomptimizer(
                 case _:
                     raise RuntimeError(f"Unexpected modality combination: {_}")
 
-        return [_determine_lens_for_bucket(bin) for bin in buckets]
+        if not max_tps:
+            max_tps = [None] * len(buckets)
+
+        return [_determine_lens_for_bucket(bin, tps) for bin, tps in zip(buckets, max_tps)]
 
     click.echo("Starting profiling.")
-    max_seq_lens = get_max_seq_lens(buckets)
+    max_seq_lens = get_max_seq_lens(buckets, max_tps)
     gen = ProfilingBatchGenerator(schema=schema, start_batch_size=start_batch_size, rel_gap_thresh=threshold)
     profile = {}
 
