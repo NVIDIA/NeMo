@@ -16,12 +16,6 @@ on:
   schedule:
     - cron: 0 0 * * *
     - cron: "*/5 * * * *" # Runs every 5 minutes
-  pull_request:
-    branches:
-      - main
-      - r**
-      - weekly-bump*
-    types: [labeled]
   push:
     branches:
       - main
