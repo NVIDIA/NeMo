@@ -156,6 +156,7 @@ def main():
             warmup_steps=0,
             active_steps=args.max_steps,
             trace_dir=trace_dir,
+            profiler_kwargs={'with_stack': True},
         )
         pretrain_recipe.trainer.callbacks.append(profiler_cb)
 
