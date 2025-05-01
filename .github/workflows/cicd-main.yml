@@ -125,14 +125,6 @@ jobs:
 
           echo "main=$no_fail_fast" | tee -a "$GITHUB_OUTPUT"
 
-  debug:
-    needs: [pre-flight]
-    runs-on: ubuntu-latest
-    steps:
-      - name: test
-        run: |
-          echo "${{ needs.pre-flight.outputs.test_to_run }}"
-
   code-linting:
     if: needs.pre-flight.outputs.test_to_run != '[]'
     needs: [pre-flight]
@@ -245,6 +237,14 @@ jobs:
     uses: ./.github/workflows/cicd-main-unit-tests.yml
     if: |
       needs.pre-flight.outputs.test_to_run != '[]'
+      && (
+        success() 
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -318,7 +318,8 @@ jobs:
       (
         needs.pre-flight.outputs.test_to_run != '[]'
         && (
-          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2')
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2') 
+          || needs.pre-flight.outputs.components_to_run == '["all"]'
         )
       ) 
       && (
