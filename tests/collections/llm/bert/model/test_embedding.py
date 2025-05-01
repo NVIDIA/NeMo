@@ -123,7 +123,7 @@ def test_bert_embedding_data_step():
     with patch('megatron.core.parallel_state.is_pipeline_first_stage', return_value=True):
         # Mock context parallel rank function to return the same batch
         with patch(
-            'nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank', side_effect=lambda x: x
+            'megatron.core.utils.get_batch_on_this_cp_rank', side_effect=lambda x: x
         ):
             with patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1):
                 result = bert_embedding_data_step(mock_iterator)
@@ -167,7 +167,7 @@ def test_bert_embedding_data_step_tuple_input():
     # Mock pipeline first stage check
     with patch('megatron.core.parallel_state.is_pipeline_first_stage', return_value=True):
         with patch(
-            'nemo.collections.llm.bert.model.base.get_batch_on_this_context_parallel_rank', side_effect=lambda x: x
+            'megatron.core.utils.get_batch_on_this_cp_rank', side_effect=lambda x: x
         ):
             with patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1):
                 result = bert_embedding_data_step(mock_iterator)

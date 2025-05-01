@@ -20,7 +20,7 @@ from nemo.collections.llm.bert.model.base import (
     BertConfig,
     BertModel,
     bert_forward_step,
-    get_batch_on_this_context_parallel_rank,
+    get_batch_on_this_cp_rank,
     get_packed_seq_params,
 )
 
@@ -55,7 +55,7 @@ class TestBertBase:
         with patch('megatron.core.parallel_state') as mock_parallel_state:
             mock_parallel_state.get_context_parallel_world_size.return_value = 1
 
-            result = get_batch_on_this_context_parallel_rank(sample_batch)
+            result = get_batch_on_this_cp_rank(sample_batch)
 
             # When context parallel size is 1, should return original batch unchanged
             assert result == sample_batch
@@ -146,7 +146,7 @@ class TestBertBase:
             mock_parallel_state.get_context_parallel_world_size.return_value = 2
             mock_parallel_state.get_context_parallel_rank.return_value = 0
 
-            result = get_batch_on_this_context_parallel_rank(sample_batch)
+            result = get_batch_on_this_cp_rank(sample_batch)
 
             # Verify batch was properly split for context parallel processing
             for key, val in result.items():
