@@ -16,68 +16,45 @@
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
 
-FROM ${BASE_IMAGE} AS trt-base
-ARG IMAGE_LABEL
-LABEL "nemo.library"=${IMAGE_LABEL}
+FROM ${BASE_IMAGE}
 
 ENV TRANSFORMERS_OFFLINE=0
 ENV HYDRA_FULL_ERROR=1
 ENV PYTHONUNBUFFERED=1
 
-# APT packages
-RUN <<"EOF" bash -ex
-apt-get update
-apt-get install -y bc libsox-fmt-all -y
-apt-get clean
-EOF
-
-ARG TRTLLM_REPO
-ARG TRTLLM_TAG
-RUN --mount=type=bind,source=ci_scripts/reinstall_dep.sh,target=/tmp/NeMo/reinstall_dep.sh <<"EOF" bash -ex
-  
-  bash /tmp/NeMo/reinstall_dep.sh --library trt --mode install
-EOF
-
-
-FROM trt-base AS trt-llm-wheel
-
-ARG TRTLLM_REPO
-ARG TRTLLM_TAG
-RUN --mount=type=bind,source=ci_scripts/reinstall_dep.sh,target=/tmp/NeMo/reinstall_dep.sh <<"EOF" bash -ex
-  
-  bash /tmp/NeMo/reinstall_dep.sh --library trtllm --mode build
-EOF
-
-
-FROM trt-base as final
-
 ARG MLM_REPO
 ARG MLM_TAG
-RUN --mount=type=bind,source=ci_scripts/reinstall_dep.sh,target=/tmp/NeMo/reinstall_dep.sh <<"EOF" bash -ex
+RUN --mount=type=bind,source=docker/common/install.sh,target=/tmp/NeMo/install_dep.sh <<"EOF" bash -ex
   
-  bash /tmp/NeMo/reinstall_dep.sh --library mcore --mode build
+  bash /tmp/NeMo/install_dep.sh --library mcore --mode build
   ls -al /tmp/Megatron-LM || true
 EOF
 
-WORKDIR /workspace
+WORKDIR /tmp/NeMo
+ENV INSTALL_DIR="/workspace"
 RUN \
-  --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
   --mount=type=bind,source=requirements,target=/tmp/NeMo/requirements \
   --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=/tmp/NeMo/tools/ctc_segmentation/requirements.txt \
-  --mount=type=bind,source=ci_scripts/reinstall_dep.sh,target=/tmp/NeMo/reinstall_dep.sh \
-  --mount=type=bind,source=ci_scripts/reinstall_nemo.sh,target=/tmp/NeMo/reinstall_nemo.sh \
+  --mount=type=bind,source=docker/common/install_dep.sh,target=/tmp/NeMo/install_dep.sh \
+  --mount=type=bind,source=docker/common/install_nemo.sh,target=/tmp/NeMo/install_nemo.sh \
   --mount=type=bind,source=setup.py,target=/tmp/NeMo/setup.py \
   --mount=type=bind,source=external/patches,target=/tmp/NeMo/external/patches \
   --mount=type=bind,source=README.md,target=/tmp/NeMo/README.md \
   --mount=type=bind,source=nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
     
-    bash /tmp/NeMo/reinstall_dep.sh --library all --mode install
-    bash /tmp/NeMo/reinstall_nemo.sh --module deploy
-    rm -rf $NEMO_DIR || true
+  bash /tmp/NeMo/install_dep.sh --library mcore --mode install
+  bash /tmp/NeMo/install_nemo.sh --module all
+  rm -rf $NEMO_DIR || true
 EOF
 
 
+WORKDIR /workspace
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 ENV NEMO_HOME="/home/TestData/nemo_home"
 
+ARG IMAGE_LABEL
+LABEL "nemo.library"=${IMAGE_LABEL}
+
+ARG PR_NUMBER
+LABEL "nemo.pr_number"=${PR_NUMBER}

@@ -2,7 +2,7 @@
 set -ex
 
 export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
-export CURR=$INSTALL_DIR
+export CURR=$(pwd)
 export PIP=pip
 
 echo 'Installing nemo'
