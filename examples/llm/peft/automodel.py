@@ -230,10 +230,10 @@ def main():
         ),
         optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
-        # peft=llm.peft.LoRA(
-        #     target_modules=['*_proj'],
-        #     dim=8,
-        # ),
+        peft=llm.peft.LoRA(
+            target_modules=['*_proj'],
+            dim=8,
+        ),
         resume=resume,
     )
 
