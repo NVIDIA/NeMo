@@ -719,14 +719,6 @@
   "info": "404 Client Error: Not Found for url: https://catalog.ngc.nvidia.com/orgs/nvidia/models/diar_msdd_telephonic"
 }
 {
-  "filename": "common/metrics.rst",
-  "lineno": 1,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://pytorch-lightning.readthedocs.io/en/stable/ecosystem/metrics.html",
-  "info": "404 Client Error: Not Found for url: https://lightning.ai/docs/pytorch/stable/ecosystem/metrics.html"
-}
-{
   "filename": "core/export.rst",
   "lineno": 226,
   "status": "broken",
