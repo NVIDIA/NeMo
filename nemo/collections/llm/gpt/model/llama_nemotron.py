@@ -533,7 +533,7 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
     adapters, specifically LoRA and DoRA adapters.
     """
 
-    def init(self, dtype=torch.bfloat16) -> "AutoPeftModelForCausalLM":
+    def init(self, dtype=torch.bfloat16, from_config=False, model_name=None) -> "AutoPeftModelForCausalLM":
         """Initialize a HF PEFT model.
 
         Args:
@@ -544,7 +544,7 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
         """
         from peft import get_peft_model
 
-        model = super().init(dtype=dtype)
+        model = super().init(dtype=dtype, from_config=from_config, model_name=model_name)
 
         # Infer base model checkpoint from checkpoint metadata file
         adapter_meta_path = ckpt_to_weights_subdir(str(self), is_saving=False) / ADAPTER_META_FILENAME
