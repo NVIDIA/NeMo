@@ -311,7 +311,7 @@ class SuffixTreeStorage:
         self.states["final"] = NEG_INF
         self.bos_state = 1 if separate_bos_state else self.start_state
         self._node_cache[0] = 0
-        self.unk_prob = 0.0
+        self.unk_prob = -1.0
 
     def _add_tbranches_first_order(self, tbranches: list, bos_id: int, unk_id: int):
         """Add all unigrams"""
@@ -351,13 +351,19 @@ class SuffixTreeStorage:
             self.num_states += 1
             self.arcs[arc_id] = (self.start_state, next_state, ilabel, tbranch.next_node.token_score)
             self.num_arcs += 1
+
+            if tbranch.next_node.is_end:
+                backoff_weight = 0.0
+            else:
+                backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
+
             # state order
             self.states[next_state] = (
                 0,
                 0,
                 self.states[self.start_state]["order"] + 1,
                 self.start_state,
-                tbranch.next_node.node_score,
+                backoff_weight,
                 NEG_INF,
             )
             num_vocab_labels += 1
@@ -421,7 +427,11 @@ class SuffixTreeStorage:
             assert ilabel < self.vocab_size
             # backoff_state = self._find_state(symbols[1:], bos_id=bos_id)
             backoff_state = self._node_cache[tbranch.next_node.fail.id]
-            backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
+            if tbranch.next_node.is_end:
+                backoff_weight = 0.0
+            else:
+                backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
+            # print(f"from_state: {from_state}, backoff_state: {backoff_state}, backoff_weight: {backoff_weight}")
             # import pdb; pdb.set_trace()
 
             arc_id = self.num_arcs
@@ -623,30 +633,30 @@ class GPUBoostingTreeModel(ModelPT):
         """Stub necessary to create the ModelPT. Not used for LM"""
         pass
 
-    # @classmethod
-    # def from_nemo(
-    #     cls,
-    #     lm_path: Path | str,
-    #     vocab_size: int,
-    #     use_triton: bool | None = None,
-    # ) -> "GPUBoostingTreeModel":
-    #     """
-    #     Constructor from Nemo checkpoint (state dict).
+    @classmethod
+    def from_nemo(
+        cls,
+        lm_path: Path | str,
+        vocab_size: int,
+        use_triton: bool | None = None,
+    ) -> "GPUBoostingTreeModel":
+        """
+        Constructor from Nemo checkpoint (state dict).
 
-    #     Args:
-    #         lm_path: path to .nemo checkpoint
-    #         vocab_size: model vocabulary size
-    #         use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
-    #     """
-    #     model = GPUBoostingTreeModel.restore_from(restore_path=str(lm_path), map_location="cpu")
-    #     model._resolve_final()
-    #     assert model.vocab_size == vocab_size
-    #     model.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
-    #     if not model.use_triton:
-    #         logging.warning(
-    #             "Triton is disabled. Version without Triton is not compatible with Cuda graphs; decoding can be slow"
-    #         )
-    #     return model
+        Args:
+            lm_path: path to .nemo checkpoint
+            vocab_size: model vocabulary size
+            use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
+        """
+        model = GPUBoostingTreeModel.restore_from(restore_path=str(lm_path), map_location="cpu")
+        model._resolve_final()
+        assert model.vocab_size == vocab_size
+        model.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
+        if not model.use_triton:
+            logging.warning(
+                "Triton is disabled. Version without Triton is not compatible with Cuda graphs; decoding can be slow"
+            )
+        return model
 
     # @classmethod
     # def from_file(
