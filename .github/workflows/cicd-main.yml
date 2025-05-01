@@ -100,20 +100,27 @@ jobs:
           branch_name=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
           if [[ "$branch_name" =~ ^bump-ci-container ]]; then
+            is_ci_workload=true
             echo "main=true" | tee -a "$GITHUB_OUTPUT"
           else
-            echo "main=false" | tee -a "$GITHUB_OUTPUT"
+            is_ci_workload=false
           fi
+
+          # for debugging
+          is_ci_workload=true
+          echo "main=$is_ci_workload" | tee -a "$GITHUB_OUTPUT"
 
       - name: Check if no-fail-fast is set
         shell: bash
         id: no_fail_fast
         run: |
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}" == "true" ]]; then
-            echo "main=true" | tee -a "$GITHUB_OUTPUT"
+            no_fail_fast=true
           else
-            echo "main=false" | tee -a "$GITHUB_OUTPUT"
+            no_fail_fast=false
           fi
+
+          echo "main=$no_fail_fast" | tee -a "$GITHUB_OUTPUT"
 
   code-linting:
     if: needs.pre-flight.outputs.test_to_run != '[]'
