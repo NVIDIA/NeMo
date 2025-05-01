@@ -45,7 +45,6 @@ class FirstRankPerNode(ContextDecorator):
         # 2. Figure out local/global ranks
         # ------------------------------------------------------------------ #
         env = os.environ
-        world_size = dist.get_world_size()
         global_rank = dist.get_rank()
         local_rank = int(env.get("LOCAL_RANK", global_rank))  # fallback
         self._first = local_rank == 0
