@@ -50,7 +50,7 @@
 # MODIFICATION AND/OR DISTRIBUTION OF THE APPLE SOFTWARE, HOWEVER CAUSED
 # AND WHETHER UNDER THEORY OF CONTRACT, TORT (INCLUDING NEGLIGENCE),
 # STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE..
+# POSSIBILITY OF SUCH DAMAGE.
 
 
 # -------------------------------------------------------------------------------
@@ -61,8 +61,8 @@
 # -------------------------------------------------------------------------------
 
 import torch
-
 from nemo.utils.import_utils import safe_import_from
+
 
 linear_cross_entropy, HAVE_LINEAR_LOSS_CE = safe_import_from(
     "cut_cross_entropy",
