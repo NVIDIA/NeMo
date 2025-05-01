@@ -51,7 +51,7 @@ class TestBertBase:
             num_attention_heads=12,
         )
 
-    def test_get_batch_on_this_context_parallel_rank_no_cp(self, sample_batch):
+    def test_get_batch_on_this_cp_rank_no_cp(self, sample_batch):
         with patch('megatron.core.parallel_state') as mock_parallel_state:
             mock_parallel_state.get_context_parallel_world_size.return_value = 1
 
