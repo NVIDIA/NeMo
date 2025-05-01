@@ -226,7 +226,9 @@ def beam_search_eval(
             wer_dist_best / words_count, cer_dist_best / chars_count
         )
     )
-
+    
+    logging.info(f"=================================================================================")
+    
     return wer_dist_first / words_count, cer_dist_first / chars_count
 
 
