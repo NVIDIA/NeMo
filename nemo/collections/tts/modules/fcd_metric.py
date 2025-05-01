@@ -45,6 +45,55 @@ class CodecEmbedder(nn.Module):
 
 
 class FrechetCodecDistance(Metric):
+    """
+    Computes the Frechet Codec Distance between two distributions of audio codec codes (real and generated).
+    This is done in codec embedding space. We name this metric the Frechet Codec Distance (FCD).
+    """
+    
+    """
+    This class is adapted from the following implementation of FID (Frechet Inception Distance) on images:
+    
+    https://github.com/pytorch/torcheval/blob/main/torcheval/metrics/image/fid.py
+
+        # Copyright (c) Meta Platforms, Inc. and affiliates.
+        # All rights reserved.
+        #
+        # This source code is licensed under the BSD-style license found in the
+        # LICENSE file in the root directory of this source tree.
+
+    Contents of original LICENSE file:
+
+        #  BSD License
+        #                
+        #  For torcheval software
+        #
+        #  Copyright (c) Meta Platforms, Inc. and affiliates. All rights reserved.
+        #
+        #  Redistribution and use in source and binary forms, with or without modification,
+        #  are permitted provided that the following conditions are met:
+        #         
+        #  * Redistributions of source code must retain the above copyright notice, this
+        #  list of conditions and the following disclaimer.
+        #
+        #  * Redistributions in binary form must reproduce the above copyright notice,
+        #  this list of conditions and the following disclaimer in the documentation
+        #  and/or other materials provided with the distribution.
+        #
+        #  * Neither the name Meta nor the names of its contributors may be used to
+        #  endorse or promote products derived from this software without specific
+        #  prior written permission.
+        #
+        #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+        #  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+        #  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        #  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+        #  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+        #  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+        #  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+        #  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        #  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+        #  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    """
     is_differentiable = False
     higher_is_better = False
     full_state_update = False
@@ -55,50 +104,7 @@ class FrechetCodecDistance(Metric):
         feature_dim: int,
     ) -> None:
         """
-        This class is adapted from an implementation of FID on images:
-            https://github.com/pytorch/torcheval/blob/main/torcheval/metrics/image/fid.py
-
-                # Copyright (c) Meta Platforms, Inc. and affiliates.
-                # All rights reserved.
-                #
-                # This source code is licensed under the BSD-style license found in the
-                # LICENSE file in the root directory of this source tree.
-
-            Contents of original LICENSE file:
-                #  BSD License
-                #                
-                #  For torcheval software
-                #
-                #  Copyright (c) Meta Platforms, Inc. and affiliates. All rights reserved.
-                #
-                #  Redistribution and use in source and binary forms, with or without modification,
-                #  are permitted provided that the following conditions are met:
-                #         
-                #  * Redistributions of source code must retain the above copyright notice, this
-                #  list of conditions and the following disclaimer.
-                #
-                #  * Redistributions in binary form must reproduce the above copyright notice,
-                #  this list of conditions and the following disclaimer in the documentation
-                #  and/or other materials provided with the distribution.
-                #
-                #  * Neither the name Meta nor the names of its contributors may be used to
-                #  endorse or promote products derived from this software without specific
-                #  prior written permission.
-                #
-                #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-                #  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-                #  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-                #  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-                #  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-                #  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-                #  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-                #  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-                #  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-                #  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.            
-
         Computes the Frechet Codec Distance between two distributions of audio codec codes (real and generated).
-        This is done in codec embedding space. We name this metric the Frechet Codec Distance (FCD).
-
         The original paper (FID on images): https://arxiv.org/pdf/1706.08500.pdf
 
         Args:
@@ -112,7 +118,7 @@ class FrechetCodecDistance(Metric):
         self.model.eval()
         self.model.requires_grad_(False)
 
-        # Initialize state variables used to compute FID
+        # Initialize state variables used to compute FCD
         self.add_state("real_sum", default=torch.zeros(feature_dim), dist_reduce_fx="sum")
         self.add_state("real_cov_sum", default=torch.zeros((feature_dim, feature_dim)), dist_reduce_fx="sum")
         self.add_state("fake_sum", default=torch.zeros(feature_dim), dist_reduce_fx="sum")
@@ -122,7 +128,7 @@ class FrechetCodecDistance(Metric):
 
     def update_from_audio_file(self, audio_path: str, is_real: bool) -> Tensor:
         """
-        Takes a path to an audio file, embeds it, and updates the FID metric.
+        Takes a path to an audio file, embeds it, and updates the FCD metric.
         """
         codes, codes_len = self.model.encode_from_file(audio_path)
         self.update_from_codes(codes, codes_len, is_real)
@@ -134,7 +140,7 @@ class FrechetCodecDistance(Metric):
     def update_from_codes(self, codes: Tensor, codes_len: Tensor, is_real: bool):
         """
         Update the states with a batch of real and fake codes.
-        Takes pre-computed codec codes, embeds them, and updates the FID metric.
+        Takes pre-computed codec codes, embeds them, and updates the FCD metric.
 
         Args:
             codes (Tensor): A batch of codec frames of shape (B, C, T).
@@ -155,7 +161,7 @@ class FrechetCodecDistance(Metric):
         embeddings = torch.cat(valid_frames, dim=0)  # total_valid_frames, E
         valid_frame_count = embeddings.shape[0]
 
-        # Update the state variables used to compute FID
+        # Update the state variables used to compute FCD
         if is_real:
             self.num_real_frames += valid_frame_count
             self.real_sum += torch.sum(embeddings, dim=0)
@@ -238,11 +244,11 @@ class FrechetCodecDistance(Metric):
         # Take the square root of each eigenvalue and take its sum
         sqrt_eigenvals_sum = eigenvals.sqrt().real.sum(dim=-1)
 
-        # Calculate the FID using the squared distance between the means,
+        # Calculate the FCD using the squared distance between the means,
         # the sum of the traces of the covariance matrices, and the sum of the square roots of the eigenvalues
-        fid = mean_diff_squared + trace_sum - 2 * sqrt_eigenvals_sum
+        fcd = mean_diff_squared + trace_sum - 2 * sqrt_eigenvals_sum
 
-        return fid
+        return fcd
 
 
 if __name__ == "__main__":
