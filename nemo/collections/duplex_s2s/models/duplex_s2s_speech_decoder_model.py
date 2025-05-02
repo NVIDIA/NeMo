@@ -16,6 +16,7 @@ import torch.distributed as dist
 import torchaudio
 from lightning import LightningModule
 from omegaconf import DictConfig, OmegaConf, open_dict
+from peft import PeftModel
 from torch import Tensor
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 from torch.distributed.tensor import Replicate, Shard
@@ -423,8 +424,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         B, T_local, H = input_embeds.shape
 
         # Determine decoding length and pad if FSDP
-        fsdp = getattr(self, '_use_fsdp', False)
-        if fsdp:
+        if self._use_fsdp:
             T_tensor = torch.tensor([T_local], device=input_embeds.device)
             dist.all_reduce(T_tensor, op=dist.ReduceOp.MAX)
             T = int(T_tensor.item())
@@ -467,7 +467,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
             gen_audio[:, t] = ans["audio_logits"][:, -1].argmax(dim=-1)
 
         # Trim back to local length if padded
-        if fsdp and T > T_local:
+        if self._use_fsdp and T > T_local:
             gen_text = gen_text[:, :T_local]
             gen_audio = gen_audio[:, :T_local]
 
@@ -486,12 +486,13 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         Add FSDP for self.speech_generation
         TODO: To support larger model, need tp modify tensor_parallel
         '''
-
-        self._use_fsdp = False
-        self._use_tp = False
         device_mesh = self.device_mesh
         if device_mesh is None:
             return
+
+        llm = self.llm
+        if isinstance(llm, PeftModel):
+            llm = llm.base_model.model
 
         if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
             self._use_tp = True
@@ -504,9 +505,9 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
                 ),
                 "norm": SequenceParallel(),
             }
-            parallelize_module(self.llm, tp_mesh, plan)
+            parallelize_module(llm, tp_mesh, plan)
 
-            for transformer_block in self.llm.layers:
+            for transformer_block in llm.layers:
                 plan = {
                     "input_layernorm": SequenceParallel(),
                     "self_attn.q_proj": ColwiseParallel(),
@@ -554,8 +555,8 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
 
             fsdp_config = {"mesh": dp_mesh, "mp_policy": MixedPrecisionPolicy(torch.bfloat16)}
 
-            for idx, layer in enumerate(self.llm.layers):
-                self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
+            for idx, layer in enumerate(llm.layers):
+                llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)

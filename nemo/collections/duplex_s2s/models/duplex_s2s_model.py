@@ -18,6 +18,7 @@ import torch
 import torchaudio
 from lightning import LightningModule
 from omegaconf import DictConfig, open_dict
+from peft import PeftModel
 from torch import Tensor
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 from torch.distributed.tensor import Replicate, Shard
@@ -442,11 +443,24 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             input_signal=input_signal,
             input_signal_length=input_signal_lens,
         )
+        B, T_local, H = input_embeds.shape
+
+        # Determine decoding length and pad if FSDP
+        if self._use_fsdp:
+            T_tensor = torch.tensor([T_local], device=input_embeds.device)
+            torch.distributed.all_reduce(T_tensor, op=torch.distributed.ReduceOp.MAX)
+            T = int(T_tensor.item())
+            if T > T_local:
+                last_frame = input_embeds[:, T_local - 1 : T_local, :]  # (B,1,H)
+                pad = last_frame.repeat(1, T - T_local, 1)  # (B, T-T_local, H)
+                input_embeds = torch.cat([input_embeds, pad], dim=1)
+        else:
+            T = T_local
+
         input_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
 
         # Pre-allocate the memory for outputs.
         cache = DynamicCache()
-        B, T = input_embeds.shape[:2]
         gen_audio = torch.empty(B, T, self._num_codebooks, device=self.device, dtype=torch.long)
         gen_text = torch.empty(B, T, device=self.device, dtype=torch.long)
 
@@ -464,6 +478,11 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             ans = self(input_embeds[:, t : t + 1], cache=ans["cache"])
             gen_text[:, t] = ans["text_logits"].argmax(dim=-1)[:, -1]
             gen_audio[:, t] = ans["audio_logits"].argmax(dim=-1)[:, -1]
+
+        # Trim back to local length if padded
+        if self._use_fsdp and T > T_local:
+            gen_text = gen_text[:, :T_local]
+            gen_audio = gen_audio[:, :T_local]
 
         return gen_text, gen_audio, lengths
 
@@ -497,11 +516,13 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         }
 
     def configure_model(self) -> None:
-        self._use_fsdp = False
-        self._use_tp = False
         device_mesh = self.device_mesh
         if device_mesh is None:
             return
+
+        llm = self.llm
+        if isinstance(llm, PeftModel):
+            llm = llm.base_model.model
 
         if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
             self._use_tp = True
@@ -531,10 +552,10 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
                 ),
                 "norm": SequenceParallel(),
             }
-            parallelize_module(self.llm, tp_mesh, plan)
+            parallelize_module(llm, tp_mesh, plan)
 
             # Parallelize each transformer block
-            for transformer_block in self.llm.layers:
+            for transformer_block in llm.layers:
                 plan = {
                     "input_layernorm": SequenceParallel(),
                     "self_attn.q_proj": ColwiseParallel(),
@@ -583,24 +604,16 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
             self._use_fsdp = True
 
-            fsdp_config = {"mesh": dp_mesh, "mp_policy": MixedPrecisionPolicy(torch.bfloat16)}
+            fsdp_config = {"mesh": dp_mesh}
 
-            for idx, layer in enumerate(self.llm.layers):
-                # layer.self_attn = checkpoint_wrapper(layer.self_attn)
-                # layer.mlp = checkpoint_wrapper(layer.mlp)
-                self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
+            for idx, layer in enumerate(llm.layers):
+                llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             for idx in range(self._num_codebooks):
                 self.embed_audio_tokens[idx] = fully_shard(self.embed_audio_tokens[idx], **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
-            # self.lm_head = checkpoint_wrapper(self.lm_head)
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)
-            # self.audio_head = checkpoint_wrapper(self.audio_head)
             self.audio_head = fully_shard(self.audio_head, **fsdp_config)
-
-            # for idx, layer in enumerate(self.perception.encoder.layers):
-            #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
-            # self.perception = checkpoint_wrapper(self.perception)
             self.perception = fully_shard(self.perception, **fsdp_config)
 
 
