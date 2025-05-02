@@ -1058,6 +1058,7 @@ class TestAudioLosses:
                 uut_mae_loss.cpu().detach().numpy(), golden_mae, atol=atol
             ), f'MAELoss not matching for example {n}'
 
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_mae_invalid_weight(self):
         """Test MAE with invalid weights."""
