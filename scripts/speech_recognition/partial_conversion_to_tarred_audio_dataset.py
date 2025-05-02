@@ -101,8 +101,8 @@ def select_shards(manifest_filepath: str, shards_to_tar: str, slice_with_offset:
                         raise KeyError(
                             f"`slice_with_offset` is enabled, but `abs_audio_filepath` and/or `source_audio_offset` are not found in the entry:\n{entry}."
                         )
-                    entry['audio_filepath'] = entry['abs_audio_filepath']
-                    entry['offset'] = entry['source_audio_offset']
+                    entry['audio_filepath'] = entry.pop('abs_audio_filepath')
+                    entry['offset'] = entry.pop('source_audio_offset')
 
                 entries_to_shard[entry['shard_id']].append(entry)
 
