@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, Literal, Tuple
 
 import torch
 import torch.nn.functional as F
