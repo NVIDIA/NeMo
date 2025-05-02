@@ -655,38 +655,6 @@
   "info": "unauthorized"
 }
 {
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 11,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://lightning.ai/docs/pytorch/stable/common/trainer.html#:~:text=strategy%20(Union%5Bstr%2C%20Strategy%5D)%20%E2%80%93%20Supports%20different%20training%20strategies%20with%20aliases%20as%20well%20custom%20strategies.%20Default%3A%20%22auto%22.",
-  "info": "Anchor '%3A~%3Atext%3Dstrategy%20%28Union%5Bstr%2C%20Strategy%5D%29%20%E2%80%93%20Supports%20different%20training%20strategies%20with%20aliases%20as%20well%20custom%20strategies.%20Default%3A%20%22auto%22.' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 20,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://lightning.ai/docs/pytorch/stable/upgrade/from_1_9.html#:~:text=use%20use_distributed_sampler%3B%20the%20sampler%20gets%20created%20not%20only%20for%20the%20DDP%20strategies",
-  "info": "Anchor '%3A~%3Atext%3Duse%20use_distributed_sampler%3B%20the%20sampler%20gets%20created%20not%20only%20for%20the%20DDP%20strategies' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 13,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://lightning.ai/docs/pytorch/stable/upgrade/from_1_9.html#:~:text=used%20Trainer%E2%80%99s%20flag%20resume_from_checkpoint",
-  "info": "Anchor '%3A~%3Atext%3Dused%20Trainer%E2%80%99s%20flag%20resume_from_checkpoint' not found"
-}
-{
-  "filename": "starthere/migration-guide.rst",
-  "lineno": 28,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://lightning.ai/docs/pytorch/stable/upgrade/from_1_9.html#:~:text=used%20the%20pl.plugins.NativeMixedPrecisionPlugin%20plugin",
-  "info": "Anchor '%3A~%3Atext%3Dused%20the%20pl.plugins.NativeMixedPrecisionPlugin%20plugin' not found"
-}
-{
   "filename": "asr/api.rst",
   "lineno": 7,
   "status": "broken",
