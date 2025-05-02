@@ -271,14 +271,6 @@
   "info": "HTTPSConnectionPool(host='bark.phon.ioc.ee', port=443): Max retries exceeded with url: /voxlingua107/ (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)')))"
 }
 {
-  "filename": "asr/datasets.rst",
-  "lineno": 126,
-  "status": "broken",
-  "code": 0,
-  "uri": "http://www.speech.cs.cmu.edu/databases/an4/",
-  "info": "404 Client Error: Not Found for url: http://www.speech.cs.cmu.edu/databases/an4/"
-}
-{
   "filename": "nlp/megatron.rst",
   "lineno": 170,
   "status": "broken",
