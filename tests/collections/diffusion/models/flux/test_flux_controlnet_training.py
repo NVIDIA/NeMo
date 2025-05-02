@@ -141,10 +141,11 @@ def flux_training(
             MegatronFluxModel,
             flux_params=run.Config(
                 FluxModelParams,
-                num_joint_layers=flux_num_joint_layers,
-                num_single_layers=flux_num_single_layers,
-                ckpt_path='/home/TestData/diffusion/nemo_dist_ckpt/weights/',
-                load_dist_ckpt=True,
+                flux_config=run.Config(
+                    FluxConfig,
+                    num_joint_layers=flux_num_joint_layers,
+                    num_single_layers=flux_num_single_layers,
+                ),
             ),
         ),
         data=flux_mock_datamodule(),
