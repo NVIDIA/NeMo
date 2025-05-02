@@ -484,9 +484,7 @@ class ASRTarredDatasetBuilder:
             start_idx = (len(entries) // num_added_shards) * i
             end_idx = start_idx + (len(entries) // num_added_shards)
             shard_idx = i + config.num_shards
-            print(
-                f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}"
-            )
+            print(f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}")
 
             start_indices.append(start_idx)
             end_indices.append(end_idx)
