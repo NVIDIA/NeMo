@@ -122,9 +122,10 @@ class EvalBeamSearchNGramConfig:
     ))
 # fmt: on
 
-def apply_text_processing(punctuation_capitalization: PunctuationCapitalization, 
-                          cfg: EvalBeamSearchNGramConfig, 
-                          text: List[str]|str) ->  List[str]|str:
+
+def apply_text_processing(
+    punctuation_capitalization: PunctuationCapitalization, cfg: EvalBeamSearchNGramConfig, text: List[str] | str
+) -> List[str] | str:
     is_list = isinstance(text, list)
     text_arr = text if is_list else [text]
     if cfg.text_processing.do_lowercase:
@@ -133,8 +134,9 @@ def apply_text_processing(punctuation_capitalization: PunctuationCapitalization,
         text_arr = punctuation_capitalization.rm_punctuation(text_arr)
     if cfg.text_processing.separate_punctuation:
         text_arr = punctuation_capitalization.separate_punctuation(text_arr)
-    
+
     return text_arr if is_list else text_arr[0]
+
 
 def beam_search_eval(
     audio_filepaths,
@@ -192,7 +194,7 @@ def beam_search_eval(
         wer_dist_min = cer_dist_min = float("inf")
         for candidate_idx, candidate in enumerate(nbest_hyp):
             pred_text = apply_text_processing(punctuation_capitalization, cfg, candidate.text)
-            
+
             pred_split_w = pred_text.split()
             wer_dist = editdistance.eval(target_split_w, pred_split_w)
             pred_split_c = list(pred_text)
@@ -374,12 +376,20 @@ def main(cfg: EvalBeamSearchNGramConfig):
             )
 
             if candidate_cer < best_cer:
-                best_cer_beam_size, best_cer_alpha, best_cer_beta, best_cer = \
-                    hp["beam_width"], hp["beam_alpha"], hp["beam_beta"], candidate_cer
+                best_cer_beam_size, best_cer_alpha, best_cer_beta, best_cer = (
+                    hp["beam_width"],
+                    hp["beam_alpha"],
+                    hp["beam_beta"],
+                    candidate_cer,
+                )
 
             if candidate_wer < best_wer:
-                best_wer_beam_size, best_wer_alpha, best_wer_beta, best_wer = \
-                    hp["beam_width"], hp["beam_alpha"], hp["beam_beta"], candidate_wer
+                best_wer_beam_size, best_wer_alpha, best_wer_beta, best_wer = (
+                    hp["beam_width"],
+                    hp["beam_alpha"],
+                    hp["beam_beta"],
+                    candidate_wer,
+                )
 
         logging.info(
             f'Best WER Candidate = {best_wer:.2%} :: Beam size = {best_wer_beam_size}, '
