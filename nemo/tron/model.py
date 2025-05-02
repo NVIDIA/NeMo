@@ -72,6 +72,7 @@ def get_model_from_config(
                 post_process=post_process,
             )
             this_model.model_type = model_type
+            # this_model.vp_stage = i
             model.append(this_model)
     else:
         pre_process = parallel_state.is_pipeline_first_stage()
