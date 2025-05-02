@@ -347,6 +347,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
             if from_config:
                 # Llama-Nemotron Nano / Llama31Nemotron70BConfig
                 return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
+
             # Llama-Nemotron Super/Ultra
             assert model_name is not None
             # Since Llama-Nemotron Super/Ultra is not importable from transformers, we can only initialize the HF model
@@ -389,7 +390,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         source, _ = self.nemo_load(str(self))
         is_heterogeneous = isinstance(source.config, HeterogeneousTransformerConfig)
         if target_model_name is None:
-            # Llama-Nemotron Super/Ultra uses customize modeling class
+            # Llama-Nemotron Super/Ultra uses custom modeling class
             if is_heterogeneous:
                 num_layers = source.config.num_layers
                 if num_layers == 80:

@@ -69,6 +69,8 @@ class AutoTokenizer(TokenizerSpec):
             use_fast: whether to use fast HuggingFace tokenizer
             include_special_tokens: when True, converting text to ids will include special tokens / prompt tokens (if
                 any), yielding self.tokenizer(text).input_ids
+            chat_template: The chat template string to format "messages" with against the underlying HF tokneizer with
+                apply_chat_template function
         """
         try:
             self._initialize_tokenizer(
