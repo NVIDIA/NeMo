@@ -53,6 +53,12 @@ def parse_args():
         help="Clip version, provide either ckpt dir or clip version like google/t5-v1_1-xxl",
     )
     parser.add_argument(
+        "--t5_load_config_only",
+        action='store_true',
+        default=False,
+        help="randomly initialize T5 weights for testing purpose",
+    )
+    parser.add_argument(
         "--do_convert_from_hf",
         action='store_true',
         default=False,
@@ -121,6 +127,7 @@ if __name__ == '__main__':
         args.clip_version if os.path.exists(args.clip_version) else "openai/clip-vit-large-patch14"
     )
     params.t5_params.version = args.t5_version if os.path.exists(args.t5_version) else "google/t5-v1_1-xxl"
+    params.t5_params.load_config_only = args.t5_load_config_only
 
     controlnet_config = FluxControlNetConfig(
         num_joint_layers=args.num_joint_layers,

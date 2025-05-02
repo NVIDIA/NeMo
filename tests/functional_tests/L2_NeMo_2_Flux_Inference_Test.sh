@@ -15,6 +15,7 @@
 TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HOME=/home/TestData/diffusion coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   /workspace/scripts/flux/flux_controlnet_infer.py \
   --t5_version google/t5-v1_1-xxl \
+  --t5_load_config_only \
   --clip_version openai/clip-vit-large-patch14 \
   --vae_ckpt null \
   --flux_ckpt /home/TestData/diffusion/ckpt/transformer \
@@ -27,6 +28,7 @@ TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HO
 TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HOME=/home/TestData/diffusion coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   /workspace/scripts/flux/flux_infer.py \
   --t5_version google/t5-v1_1-xxl \
+  --t5_load_config_only \
   --clip_version openai/clip-vit-large-patch14 \
   --vae_ckpt /home/TestData/diffusion/ckpt/ae.safetensors \
   --num_joint_layers 1 \

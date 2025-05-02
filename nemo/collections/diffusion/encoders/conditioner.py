@@ -16,7 +16,7 @@ from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
-from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
+from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer, T5Config
 
 
 # pylint: disable=C0116
@@ -174,10 +174,17 @@ class FrozenT5Embedder(AbstractEmbModel):
         max_length=512,
         device="cuda",
         dtype=torch.float,
+        load_config_only=False
     ):
         super().__init__()
         self.tokenizer = T5Tokenizer.from_pretrained("google/t5-v1_1-xxl", max_length=max_length)
-        self.transformer = T5EncoderModel.from_pretrained(version, torch_dtype=dtype).to(device)
+        if load_config_only:
+            print("T5 will be randomly initialized for testing purpose only!")
+
+            config = T5Config.from_pretrained(version)
+            self.transformer = T5EncoderModel(config)
+        else:
+            self.transformer = T5EncoderModel.from_pretrained(version, torch_dtype=dtype).to(device)
         self.max_length = max_length
         self.freeze()
         self.device = device

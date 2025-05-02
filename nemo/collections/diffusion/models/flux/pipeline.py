@@ -150,7 +150,8 @@ class FluxInferencePipeline(nn.Module):
         )
         self.t5_encoder = (
             FrozenT5Embedder(
-                params.t5_params.version, max_length=params.t5_params.max_length, device=params.t5_params.device
+                params.t5_params.version, max_length=params.t5_params.max_length, device=params.t5_params.device,
+                load_config_only=params.t5_params.load_config_only
             )
             if t5 is None
             else t5
