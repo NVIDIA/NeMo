@@ -21,6 +21,9 @@ from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokeniz
 
 # pylint: disable=C0116
 class AbstractEmbModel(nn.Module):
+    """
+        Abstract encoder model
+    """
     def __init__(
         self,
         enable_lora_finetune: bool = False,
@@ -77,25 +80,7 @@ class AbstractEmbModel(nn.Module):
         raise NotImplementedError
 
     def _enable_lora(self, lora_model):
-        for module_name, module in lora_model.named_modules():
-            if module.__class__.__name__ in self.TARGET_BLOCK:
-                tmp = {}
-                for sub_name, sub_module in module.named_modules():
-                    if sub_module.__class__.__name__ in self.TARGET_MODULE:
-                        if hasattr(sub_module, "input_size") and hasattr(
-                            sub_module, "output_size"
-                        ):  # for megatron ParallelLinear
-                            lora = LoraWrapper(sub_module, sub_module.input_size, sub_module.output_size)
-                        else:  # for nn.Linear
-                            lora = LoraWrapper(sub_module, sub_module.in_features, sub_module.out_features)
-                        self.lora_layers.append(lora)
-                        if sub_name not in tmp.keys():
-                            tmp.update({sub_name: lora})
-                        else:
-                            print(f"Duplicate subnames are found in module {module_name}")
-                for sub_name, lora_layer in tmp.items():
-                    lora_name = f'{sub_name}_lora'
-                    module.add_module(lora_name, lora_layer)
+        raise NotImplementedError
 
 
 class FrozenCLIPEmbedder(AbstractEmbModel):
@@ -168,6 +153,9 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
 
 
 class FrozenT5Embedder(AbstractEmbModel):
+    '''
+        FrozenT5 encoder model from HF
+    '''
     def __init__(
         self,
         version="google/t5-v1_1-xxl",
