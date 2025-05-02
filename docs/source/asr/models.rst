@@ -101,7 +101,7 @@ Most of the config file for Conformer-Transducer models are similar to Conformer
 You may take a look at our :doc:`tutorials page <../starthere/tutorials>` on Transducer models to become familiar with their configs:
 `Introduction to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>`_ and
 `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`_
-You can find more details on the config files for the Conformer-Transducer models in the `Conformer-CTC configuration documentation <./configs.html#conformer-ctc>`_.
+You can find more details on the config files for the Conformer-Transducer models in the :ref:`Conformer-CTC configuration documentation <asr-configs-conformer-ctc>`.
 
 This model supports both the sub-word level and character level encodings. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class, while the
