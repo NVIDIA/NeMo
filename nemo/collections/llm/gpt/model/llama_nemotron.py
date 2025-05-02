@@ -335,7 +335,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         Raises:
             AssertionError: If model_name is not provided for heterogeneous models
         """
-        from transformers import AutoModelForCausalLM, AutoConfig
+        from transformers import AutoConfig, AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):

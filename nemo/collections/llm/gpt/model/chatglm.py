@@ -219,7 +219,7 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
     """
 
     def init(self, dtype=torch.bfloat16, model_name=None) -> "AutoModelForCausalLM":
-        from transformers import AutoModelForCausalLM, AutoConfig
+        from transformers import AutoConfig, AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         if model_name is None:

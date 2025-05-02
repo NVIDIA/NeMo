@@ -234,7 +234,7 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
         Returns:
             AutoModelForCausalLM: Initialized HF Baichuan model
         """
-        from transformers import AutoModelForCausalLM, AutoConfig
+        from transformers import AutoConfig, AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         if model_name is None:
