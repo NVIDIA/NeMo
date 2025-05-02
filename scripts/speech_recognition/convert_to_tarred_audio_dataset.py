@@ -101,8 +101,6 @@ try:
 except (ImportError, ModuleNotFoundError, FileNotFoundError):
     DALI_INDEX_SCRIPT_AVAILABLE = False
 
-from nemo.utils import logging
-
 
 @dataclass
 class ASRTarredDatasetConfig:
@@ -247,16 +245,16 @@ class ASRTarredDatasetBuilder:
             ]
         ]
 
-        logging.info('\n' + tabulate(data, headers=header, tablefmt="grid", colalign=["center"] * len(header)))
+        print('\n' + tabulate(data, headers=header, tablefmt="grid", colalign=["center"] * len(header)))
         if dry_run:
             return
 
         if len(entries) == 0:
-            logging.info("No tarred dataset was created as there were 0 valid samples after filtering!")
+            print("No tarred dataset was created as there were 0 valid samples after filtering!")
             return
         if config.shuffle:
             random.seed(config.shuffle_seed)
-            logging.info(f"Shuffling (seed: {config.shuffle_seed})...")
+            print(f"Shuffling (seed: {config.shuffle_seed})...")
             if config.keep_files_together:
                 filename_entries = defaultdict(list)
                 for ent in entries:
@@ -276,14 +274,14 @@ class ASRTarredDatasetBuilder:
         for i in range(config.num_shards):
             start_idx = (len(entries) // config.num_shards) * i
             end_idx = start_idx + (len(entries) // config.num_shards)
-            logging.info(f"Shard {i} has entries {start_idx} ~ {end_idx}")
+            print(f"Shard {i} has entries {start_idx} ~ {end_idx}")
             files = set()
             for ent_id in range(start_idx, end_idx):
                 files.add(entries[ent_id]["audio_filepath"])
-            logging.info(f"Shard {i} contains {len(files)} files")
+            print(f"Shard {i} contains {len(files)} files")
             if i == config.num_shards - 1:
                 # We discard in order to have the same number of entries per shard.
-                logging.info(f"Have {len(entries) - end_idx} entries left over that will be discarded.")
+                print(f"Have {len(entries) - end_idx} entries left over that will be discarded.")
 
             start_indices.append(start_idx)
             end_indices.append(end_idx)
@@ -314,7 +312,7 @@ class ASRTarredDatasetBuilder:
         new_entries = [sample for manifest in new_entries_list for sample in manifest]
         del new_entries_list
 
-        logging.info("Total number of entries in manifest :", len(new_entries))
+        print("Total number of entries in manifest :", len(new_entries))
 
         # Write manifest
         new_manifest_path = os.path.join(target_dir, 'tarred_audio_manifest.json')
@@ -351,7 +349,7 @@ class ASRTarredDatasetBuilder:
 
         cuts = CutSet(LazyNeMoIterator(manifest_path, metadata_only=True))
         bins = estimate_duration_buckets(cuts, num_buckets=num_buckets)
-        logging.warning(
+        print(
             f"Note: we estimated the optimal bucketing duration bins for {num_buckets} buckets. "
             "You can enable dynamic bucketing by setting the following options in your training script:\n"
             "  use_lhotse=true\n"
@@ -418,7 +416,7 @@ class ASRTarredDatasetBuilder:
 
         # Read the existing manifest (no filtering here)
         base_entries, _, _, _ = self._read_manifest(base_manifest_path, config)
-        logging.info(f"Read base manifest containing {len(base_entries)} samples.")
+        print(f"Read base manifest containing {len(base_entries)} samples.")
 
         # Precompute number of samples per shard
         if metadata.num_samples_per_shard is None:
@@ -426,11 +424,11 @@ class ASRTarredDatasetBuilder:
         else:
             num_samples_per_shard = metadata.num_samples_per_shard
 
-        logging.info("Number of samples per shard :", num_samples_per_shard)
+        print("Number of samples per shard :", num_samples_per_shard)
 
         # Compute min and max duration and update config (if no metadata passed)
-        logging.info(f"Selected max duration : {config.max_duration}")
-        logging.info(f"Selected min duration : {config.min_duration}")
+        print(f"Selected max duration : {config.max_duration}")
+        print(f"Selected min duration : {config.min_duration}")
 
         entries = []
         for new_manifest_idx in range(len(manifest_paths)):
@@ -439,23 +437,23 @@ class ASRTarredDatasetBuilder:
             )
 
             if len(filtered_new_entries) > 0:
-                logging.info(
+                print(
                     f"Filtered {len(filtered_new_entries)} files which amounts to {filtered_duration:0.2f}"
                     f" seconds of audio from manifest {manifest_paths[new_manifest_idx]}."
                 )
-            logging.info(
+            print(
                 f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio."
             )
 
             entries.extend(new_entries)
 
         if len(entries) == 0:
-            logging.info("No tarred dataset was created as there were 0 valid samples after filtering!")
+            print("No tarred dataset was created as there were 0 valid samples after filtering!")
             return
 
         if config.shuffle:
             random.seed(config.shuffle_seed)
-            logging.info(f"Shuffling (seed: {config.shuffle_seed})...")
+            print(f"Shuffling (seed: {config.shuffle_seed})...")
             random.shuffle(entries)
 
         # Drop last section of samples that cannot be added onto a chunk
@@ -463,7 +461,7 @@ class ASRTarredDatasetBuilder:
         total_new_entries = len(entries)
         entries = entries[:-drop_count]
 
-        logging.info(
+        print(
             f"Dropping {drop_count} samples from total new samples {total_new_entries} since they cannot "
             f"be added into a uniformly sized chunk."
         )
@@ -471,10 +469,10 @@ class ASRTarredDatasetBuilder:
         # Create shards and updated manifest entries
         num_added_shards = len(entries) // num_samples_per_shard
 
-        logging.info(f"Number of samples in base dataset : {len(base_entries)}")
-        logging.info(f"Number of samples in additional datasets : {len(entries)}")
-        logging.info(f"Number of added shards : {num_added_shards}")
-        logging.info(f"Remainder: {len(entries) % num_samples_per_shard}")
+        print(f"Number of samples in base dataset : {len(base_entries)}")
+        print(f"Number of samples in additional datasets : {len(entries)}")
+        print(f"Number of added shards : {num_added_shards}")
+        print(f"Remainder: {len(entries) % num_samples_per_shard}")
 
         if dry_run:
             return
@@ -486,7 +484,7 @@ class ASRTarredDatasetBuilder:
             start_idx = (len(entries) // num_added_shards) * i
             end_idx = start_idx + (len(entries) // num_added_shards)
             shard_idx = i + config.num_shards
-            logging.info(
+            print(
                 f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}"
             )
 
@@ -528,7 +526,7 @@ class ASRTarredDatasetBuilder:
         else:
             new_version = metadata.version + 1
 
-        logging.info("Total number of entries in manifest :", len(base_entries) + len(new_entries))
+        print("Total number of entries in manifest :", len(base_entries) + len(new_entries))
 
         new_manifest_path = os.path.join(target_dir, f'tarred_audio_manifest_version_{new_version}.json')
         with open(new_manifest_path, 'w', encoding='utf-8') as m2:
@@ -760,13 +758,13 @@ def main(args):
                 # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
                 bucket_config.max_duration += 1e-5
             bucket_config.target_dir = os.path.join(args.target_dir, f"bucket{i_bucket+1}")
-            logging.info(
+            print(
                 f"Creating bucket {i_bucket+1} with min_duration={bucket_config.min_duration} and max_duration={bucket_config.max_duration} ..."
             )
-            logging.info(f"Results are being saved at: {bucket_config.target_dir}.")
+            print(f"Results are being saved at: {bucket_config.target_dir}.")
             create_tar_datasets(**vars(bucket_config))
             if not args.dry_run:
-                logging.info(f"Bucket {i_bucket+1} is created.")
+                print(f"Bucket {i_bucket+1} is created.")
     else:
         create_tar_datasets(**vars(args))
 
@@ -815,7 +813,7 @@ def create_tar_datasets(
 
         output_path = os.path.join(target_dir, 'default_metadata.yaml')
         OmegaConf.save(metadata, output_path, resolve=True)
-        logging.info(f"Default metadata written to {output_path}")
+        print(f"Default metadata written to {output_path}")
         exit(0)
 
     if concat_manifest_paths is None or len(concat_manifest_paths) == 0:
@@ -846,7 +844,7 @@ def create_tar_datasets(
     else:
         if buckets_num > 1:
             raise ValueError("Concatenation feature does not support buckets_num > 1.")
-        logging.info("Concatenating multiple tarred datasets ...")
+        print("Concatenating multiple tarred datasets ...")
 
         # Implicitly update config from base details
         if metadata_path is not None:
@@ -882,7 +880,7 @@ def create_tar_datasets(
         )
 
     if not dry_run and (DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE):
-        logging.info("Constructing DALI Tarfile Index - ", target_dir)
+        print("Constructing DALI Tarfile Index - ", target_dir)
         index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=workers)
         dali_index.main(index_config)
 
