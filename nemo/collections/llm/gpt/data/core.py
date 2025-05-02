@@ -1167,9 +1167,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
 
         assert max_length <= self.max_seq_length
 
-        if not self.get_attention_mask_from_fusion:
-            attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-            attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
@@ -1193,6 +1190,8 @@ class GPTSFTChatDataset(GPTSFTDataset):
         }
 
         if not self.get_attention_mask_from_fusion:
+            attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+            attention_mask = torch.stack(attention_mask)
             processed_batch["attention_mask"] = attention_mask
 
         return processed_batch
