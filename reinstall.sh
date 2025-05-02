@@ -172,7 +172,7 @@ te() {
       cd $TE_DIR
       git submodule init
       git submodule update
-      pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
+      pip wheel --wheel-dir $WHEELS_DIR/ $TE_DIR
     fi
   }
 
