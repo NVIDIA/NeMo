@@ -94,7 +94,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
             resampled if necessary.
         volume_norm (bool): If True, applies peak volume normalization to audio
             waveforms. Defaults to True.
-        codec_model_downsample_factor (int): The total downsampling factor of the
+        codec_model_samples_per_frame (int): The total downsampling factor of the
             audio codec model used to generate codes. Used for padding audio
             and calculating number of codec frames.
         codec_model_name (str): Name identifier for the codec model, used to
@@ -141,7 +141,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         self,
         sample_rate: int,
         volume_norm: bool = True,
-        codec_model_downsample_factor: int = None,
+        codec_model_samples_per_frame: int = None,
         codec_model_name: str = "21fpsCausalDecoder",
         audio_bos_id: int = None,
         audio_eos_id: int = None,
@@ -169,7 +169,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         if codec_model_name not in SUPPORTED_CODEC_MODEL_NAMES:
             raise ValueError(f"Invalid `codec_model_name`: {codec_model_name}.")
         self.codec_model_name = codec_model_name
-        self.codec_model_downsample_factor = codec_model_downsample_factor
+        self.codec_model_samples_per_frame = codec_model_samples_per_frame
         self.num_audio_codebooks = num_audio_codebooks
 
         self.include_align_prior = prior_scaling_factor is not None
@@ -186,8 +186,8 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         self.text_conditioning_tokenizer = None
 
     def get_num_audio_samples_to_slice(self, duration, sample_rate):
-        num_codec_frames = int(duration * sample_rate / self.codec_model_downsample_factor)
-        num_audio_samples = num_codec_frames * self.codec_model_downsample_factor
+        num_codec_frames = int(duration * sample_rate / self.codec_model_samples_per_frame)
+        num_audio_samples = num_codec_frames * self.codec_model_samples_per_frame
         return num_audio_samples
 
     def __getitem__(self, cuts: CutSet) -> Dict[str, Union[torch.Tensor, List]]:
@@ -261,11 +261,11 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                 # Pad audio to be multiple of downsample factor
                 audio = torch.nn.functional.pad(
                     audio,
-                    (0, self.codec_model_downsample_factor - (audio.shape[0] % self.codec_model_downsample_factor)),
+                    (0, self.codec_model_samples_per_frame - (audio.shape[0] % self.codec_model_samples_per_frame)),
                     value=0,
                 )
                 audio_len = audio.shape[0]
-                spec_len = int(audio_len / self.codec_model_downsample_factor) + 1  # +1 for EOS
+                spec_len = int(audio_len / self.codec_model_samples_per_frame) + 1  # +1 for EOS
                 audio_list.append(audio)
                 audio_len_list.append(audio_len)
 
@@ -277,7 +277,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                 # Sample random duration between self.context_duration_min and self.context_duration_max
                 _context_duration_to_slice = random.uniform(self.context_duration_min, self.context_duration_max)
                 _num_frames_to_slice = int(
-                    _context_duration_to_slice * self.sample_rate / self.codec_model_downsample_factor
+                    _context_duration_to_slice * self.sample_rate / self.codec_model_samples_per_frame
                 )
                 if _num_frames_to_slice < context_audio_codes.shape[1]:
                     start_idx = random.randint(0, context_audio_codes.shape[1] - _num_frames_to_slice)
@@ -349,7 +349,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                     context_audio_codes_len_list.append(context_audio_codes_len)
                 else:
                     # @shehzeenh: Added this condition so that a batch does not have a mix of context_audio and context_audio_codes
-                    context_audio = torch.zeros(self.codec_model_downsample_factor, dtype=torch.float32)
+                    context_audio = torch.zeros(self.codec_model_samples_per_frame, dtype=torch.float32)
                     context_audio_len = context_audio.shape[0]
                     context_audio_list.append(context_audio)
                     context_audio_len_list.append(context_audio_len)
@@ -386,7 +386,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                     has_text_context = False
                 if self.pad_context_text_to_max_duration:
                     _required_len = (
-                        int(self.context_duration_max * self.sample_rate / self.codec_model_downsample_factor) + 2
+                        int(self.context_duration_max * self.sample_rate / self.codec_model_samples_per_frame) + 2
                     )  # +2 for BOS and EOS
                     if len(context_text_tokens) < _required_len:
                         _pad_id = self.text_conditioning_tokenizer.pad_token_id

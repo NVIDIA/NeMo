@@ -1590,7 +1590,7 @@ class MagpieTTSModel(ModelPT):
         dataset = MagpieTTSLhotseDataset(
             sample_rate=self.cfg.sample_rate,
             volume_norm=dataset_cfg.volume_norm,
-            codec_model_samples_per_frame=self.codec_model_samples_per_framed,
+            codec_model_samples_per_frame=self.codec_model_samples_per_frame,
             codec_model_name=self.cfg.codec_model_name,
             audio_bos_id=self.audio_bos_id,
             audio_eos_id=self.audio_eos_id,
