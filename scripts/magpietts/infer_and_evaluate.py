@@ -46,7 +46,12 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
     if "t5_decoder" in model_cfg:
         model_cfg.decoder = model_cfg.t5_decoder
         del model_cfg.t5_decoder
+    if hasattr(model_cfg, 'decoder') and hasattr(model_cfg.decoder, 'prior_eps'):
+        # Added to prevent crash after removing arg from transformer_2501.py in https://github.com/blisc/NeMo/pull/56
+        del model_cfg.decoder.prior_eps
     if legacy_codebooks:
+        # Added to address backward compatibility arising from
+        #  https://github.com/blisc/NeMo/pull/64
         print("WARNING: Using legacy codebook indices for backward compatibility. Should only be used with old checkpoints.")
         num_audio_tokens_per_codebook = model_cfg.num_audio_tokens_per_codebook
         model_cfg.forced_num_all_tokens_per_codebook = num_audio_tokens_per_codebook
@@ -177,7 +182,7 @@ def run_inference(
                 context_duration_max=context_durration_max,
             )
             assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
-            
+
             test_dataset.text_tokenizer = model.tokenizer
             test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
 
