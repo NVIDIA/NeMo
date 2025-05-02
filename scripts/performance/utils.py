@@ -378,6 +378,29 @@ def set_primary_perf_configs(
             recipe.model.config.recompute_num_layers is None
         ), "recompute_num_layers must be None when recompute_modules is provided"
 
+        # Misc. for overall faster experiment runtime
+    recipe.log.ckpt = None
+    recipe.trainer.enable_checkpointing = (os.getenv('ENABLE_CHECKPOINT', 'false') == 'true')
+    recipe.trainer.log_every_n_steps = 1
+    load_checkpoint_path = os.getenv('LOAD_CHECKPOINT_PATH')
+
+    if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
+        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
+
+    if load_checkpoint_path is not None:
+        recipe.resume = run.Config(
+            AutoResume,
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+            restore_config=run.Config(
+                nl.RestoreConfig,
+                path=load_checkpoint_path,
+                load_model_state=True,
+                load_optim_state=True,
+                load_artifacts=False,
+            ),
+        )
+
     return recipe
 
 
@@ -414,27 +437,7 @@ def set_exp_logging_configs(
         recipe.log.wandb = wandb_logger(project=wandb_prj_name, name=wandb_job_name)
 
     # Misc. for overall faster experiment runtime
-    recipe.log.ckpt = None
-    recipe.trainer.enable_checkpointing = (os.getenv('ENABLE_CHECKPOINT', 'false') == 'true')
     recipe.trainer.log_every_n_steps = 1
-    load_checkpoint_path = os.getenv('LOAD_CHECKPOINT_PATH')
-
-    if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
-        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
-
-    if load_checkpoint_path is not None:
-        recipe.resume = run.Config(
-            AutoResume,
-            resume_if_exists=True,
-            resume_ignore_no_checkpoint=False,
-            restore_config=run.Config(
-                nl.RestoreConfig,
-                path=load_checkpoint_path,
-                load_model_state=True,
-                load_optim_state=True,
-                load_artifacts=False,
-            ),
-        )
 
     return recipe
 
