@@ -24,28 +24,19 @@ import megatron.core.dist_checkpointing.serialization as dist_ckpt
 import torch
 from megatron.core.dist_checkpointing.core import check_is_distributed_checkpoint
 from megatron.core.dist_checkpointing.serialization import get_default_load_sharded_strategy
-from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.module import MegatronModule
 
+from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.inference.base import MCoreTokenizerWrappper
 from nemo.collections.llm.modelopt import set_modelopt_spec_if_exists_in_ckpt
+from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.tron.config import (
-    CheckpointConfig,
-    ConfigContainer,
-    DistributedInitConfig,
-    GPTDatasetConfig,
-    LoggerConfig,
-    RNGConfig,
-    SchedulerConfig,
-    TokenizerConfig,
-    TrainingConfig,
-)
-from nemo.tron.init import initialize_megatron
+from nemo.tron.config import DistributedInitConfig, RNGConfig
+from nemo.tron.init import _initialize_distributed, _initialize_tp_communicators, _set_random_seed
 from nemo.tron.model import get_model_from_config
-from nemo.tron.utils.common_utils import get_world_size_safe, print_rank_0
+from nemo.tron.utils.common_utils import print_rank_0
 
 
 def _load_dist_shards_into_model(model: List[MegatronModule], weights_dir: Path):
@@ -78,6 +69,58 @@ def _load_dist_shards_into_model(model: List[MegatronModule], weights_dir: Path)
     else:
         for i, m in enumerate(model):
             m.load_state_dict(sharded_state_dict[f"model{i}"], strict=False)
+
+
+def initialize_megatron_for_inference(
+    model_config: GPTConfig | T5Config,
+    dist_config: DistributedInitConfig,
+    rng_config: RNGConfig,
+    micro_batch_size: int,
+) -> None:
+    """
+    Initialize the Megatron-Tron runtime components required for *inference*.
+
+    This helper is a lightweight alternative to ``nemo.tron.init.initialize_megatron``.
+    It skips all training-specific initialization routines (such as the micro-batch
+    calculator and checkpoint handling) and performs only the steps strictly
+    necessary for running a model in inference / evaluation mode.
+
+    Args:
+        model_config (GPTConfig | T5Config):
+            The model configuration object that specifies tensor/pipeline parallel sizes,
+            model architecture details, and runtime flags such as
+            ``tp_comm_overlap`` (tensor-parallel communication overlap).
+        dist_config (DistributedInitConfig):
+            Distributed launcher configuration that controls how the global and local
+            ``torch.distributed`` process groups are created (backend, timeouts,
+            ranks, world size, etc.).
+        rng_config (RNGConfig):
+            Configuration that governs all random-number-generation behaviour,
+            including the global seed, whether each data parallel worker should
+            advance the RNG state independently, and which CUDA RNG trackers
+            (Transformer Engine vs. inference) should be initialised.
+        micro_batch_size (int):
+            The micro batch size used during model execution.  Although not
+            strictly required for the distributed initialisation itself, it is
+            needed later if tensor-parallel communicator overlap is enabled, as
+            that feature performs a small warm-up forward pass that depends on the
+            batch size.
+    """
+    _initialize_distributed(
+        model_config=model_config,
+        dist_config=dist_config,
+        num_distributed_optimizer_instances=1,
+        get_embedding_ranks=None,
+        get_position_embedding_ranks=None,
+    )
+    _set_random_seed(
+        rng_config.seed,
+        rng_config.data_parallel_random_init,
+        rng_config.te_rng_tracker,
+        rng_config.inference_rng_tracker,
+    )
+    if model_config.tp_comm_overlap:
+        _initialize_tp_communicators(model_config, micro_batch_size)
 
 
 def peel(m: torch.nn.Module) -> torch.nn.Module:
@@ -129,6 +172,7 @@ def setup_model_and_tokenizer_for_inference(
     context_parallel_size: Optional[int] = None,
     expert_model_parallel_size: Optional[int] = None,
     params_dtype: Optional[torch.dtype] = None,
+    micro_batch_size: Optional[int] = None,
 ) -> Tuple[List[MegatronModule], MCoreTokenizerWrappper]:
     """
     Initialise a Megatron-Core (Tron) model **and** its tokenizer for
@@ -150,6 +194,8 @@ def setup_model_and_tokenizer_for_inference(
             ``torch.bfloat16``, ``torch.float32``, …) to which model parameters should be
             cast before inference. If ``None`` the dtype present in the checkpoint is
             used.
+        micro_batch_size (int, optional): The micro batch size used during model execution.
+            Defaults to 1.
 
     Returns:
         Tuple[List[MegatronModule], MCoreTokenizerWrappper]:
@@ -185,73 +231,26 @@ def setup_model_and_tokenizer_for_inference(
     if params_dtype is None:
         params_dtype = model_config.params_dtype
 
-    # Calculate correct data parallel size
-    world_size = get_world_size_safe()
-
-    # Ensure non-zero values for parallelism dimensions
-    tensor_parallel_size = max(model_config.tensor_model_parallel_size, 1)
-    pipeline_parallel_size = max(model_config.pipeline_model_parallel_size, 1)
-    context_parallel_size = max(model_config.context_parallel_size, 1)
-    expert_parallel_size = max(model_config.expert_model_parallel_size, 1)
-
-    # Calculate data parallel size
-    model_parallel_size = tensor_parallel_size * pipeline_parallel_size * context_parallel_size * expert_parallel_size
-    data_parallel_size = max(world_size // model_parallel_size, 1)  # Ensure at least 1
-
-    # Setup minimal config container for inference
-    micro_batch_size = 1
-    global_batch_size = micro_batch_size * data_parallel_size
+    if micro_batch_size is None:
+        micro_batch_size = 1
 
     is_dist_ckpt = check_is_distributed_checkpoint(ckpt_to_weights_subdir(checkpoint_path, is_saving=False))
     if not is_dist_ckpt:
         raise ValueError("Checkpoint is not a NeMo-2 distributed checkpoint")
-    ckpt_format = "torch_dist"
 
-    # TODO: Create a config container for inference
-    cfg = ConfigContainer(
-        model_config=model_config,
-        train_config=TrainingConfig(
-            micro_batch_size=micro_batch_size, global_batch_size=global_batch_size, train_iters=1
-        ),
-        optimizer_config=OptimizerConfig(lr=0.0, weight_decay=0.0, optimizer="adam"),
-        scheduler_config=SchedulerConfig(lr_decay_style="constant"),
-        dataset_config=GPTDatasetConfig(
-            reset_position_ids=False,
-            reset_attention_mask=False,
-            eod_mask_loss=False,
-            sequence_length=model_config.seq_length,
-            random_seed=1234,
-        ),
-        logger_config=LoggerConfig(),
-        tokenizer_config=TokenizerConfig(
-            tokenizer_type=getattr(model_context.tokenizer, "tokenizer_type", "HuggingFaceTokenizer"),
-            tokenizer_model=getattr(model_context.tokenizer, "name", None),
-        ),
-        checkpoint_config=CheckpointConfig(
-            load=str(checkpoint_path),  # Will be updated during loading
-            load_optim=False,
-            load_rng=False,
-            ckpt_format=ckpt_format,
-            auto_detect_ckpt_format=True,  # Let it auto-detect the format
-        ),
-        dist_config=DistributedInitConfig(distributed_backend="nccl"),
-        rng_config=RNGConfig(inference_rng_tracker=True),
-    )
-
-    # Set data_parallel_size explicitly
-    cfg.data_parallel_size = data_parallel_size
-
-    # Initialize Megatron using tron API
-    initialize_megatron(cfg=cfg)
+    # Initialize Megatron for inference
+    rng_config = RNGConfig(inference_rng_tracker=True)
+    dist_config = DistributedInitConfig(distributed_backend="nccl")
+    initialize_megatron_for_inference(model_config, dist_config, rng_config, micro_batch_size)
 
     # Needed for model creation
-    if not cfg.model_config.vocab_size:
-        cfg.model_config.vocab_size = model_context.tokenizer.vocab_size
+    if not model_config.vocab_size:
+        model_config.vocab_size = model_context.tokenizer.vocab_size
 
     # Create the model using tron APIs
     model = get_model_from_config(
-        cfg.model_config,
-        ddp_config=cfg.ddp_config,
+        model_config,
+        ddp_config=dist_config,
         wrap_with_ddp=False,  # No need for DDP for inference
     )
 
