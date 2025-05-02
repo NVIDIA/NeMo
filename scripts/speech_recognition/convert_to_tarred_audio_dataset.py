@@ -953,7 +953,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--slice_with_offset",
         action='store_true',
-        help="If set, only slices the audio based on `duration` and `offset` entry parameters.",
+        help=(
+            "If set, the audio will be sliced based on `offset` and `duration` fields from the manifest. "
+            "This is useful for creating datasets from audio segments instead of full files. "
+            "When unset, the entire audio file is used without slicing, regardless of the offset/duration values in the manifest."
+        ),
     )
     parser.add_argument(
         "--sort_in_shards",
