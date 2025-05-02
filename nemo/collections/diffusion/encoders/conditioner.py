@@ -16,7 +16,7 @@ from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
-from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer, T5Config
+from transformers import CLIPTextModel, CLIPTokenizer, T5Config, T5EncoderModel, T5Tokenizer
 
 
 # pylint: disable=C0116
@@ -169,12 +169,7 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
 
 class FrozenT5Embedder(AbstractEmbModel):
     def __init__(
-        self,
-        version="google/t5-v1_1-xxl",
-        max_length=512,
-        device="cuda",
-        dtype=torch.float,
-        load_config_only=False
+        self, version="google/t5-v1_1-xxl", max_length=512, device="cuda", dtype=torch.float, load_config_only=False
     ):
         super().__init__()
         self.tokenizer = T5Tokenizer.from_pretrained("google/t5-v1_1-xxl", max_length=max_length)
