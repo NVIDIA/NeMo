@@ -137,7 +137,7 @@ class TestAudioLosses:
 
     @pytest.mark.unit
     def test_calculate_mae_input_and_mask(self):
-        """Test MAE calculation with simultaneous input length and mask."""
+        """Test MAE calculation with unsupported dimensions."""
         estimate = torch.randn(size=(1, 1, 100))
         target = torch.randn(size=(1, 1, 100))
         input_length = torch.tensor([100])
@@ -149,7 +149,7 @@ class TestAudioLosses:
 
     @pytest.mark.unit
     def test_calculate_mae_invalid_dimensions(self):
-        """Test MAE calculation with simultaneous input length and mask."""
+        """Test MAE calculation with unsupported dimensions."""
         estimate = torch.randn(size=(1, 1, 100, 10))
         target = torch.randn(size=(1, 1, 100))
 
@@ -856,7 +856,7 @@ class TestAudioLosses:
 
     @pytest.mark.unit
     def test_mse_invalid_weight(self):
-        """Test MSE with invalid weights."""
+        """Test MSE with unsupported weights."""
         with pytest.raises(ValueError):
             # negative weights are not allowed
             MSELoss(weight=[-1, 1])
@@ -867,14 +867,14 @@ class TestAudioLosses:
 
     @pytest.mark.unit
     def test_mse_invalid_reduction(self):
-        """Test MSE with invalid weights."""
+        """Test MSE with unsupported reduction."""
         with pytest.raises(ValueError):
-            # negative weights are not allowed
+            # unsupported reduction
             MSELoss(reduction='not-mean')
 
     @pytest.mark.unit
     def test_mse_invalid_ndim(self):
-        """Test MSE with invalid weights."""
+        """Test MSE with unsupported dimensions."""
         with pytest.raises(ValueError):
             # supports dimensions 3, 4
             MSELoss(ndim=2)
