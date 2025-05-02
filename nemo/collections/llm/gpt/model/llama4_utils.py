@@ -257,7 +257,7 @@ class Llama4SelfAttention(MCoreSelfAttention):
             output, bias = self.linear_proj(context_layer)
             return output, bias
 
-        query, key, value, rotary_pos_emb, attn_mask_type, block_table = self._adjust_key_value_for_inference(
+        result = self._adjust_key_value_for_inference(
             inference_context,
             query,
             key,
@@ -267,6 +267,12 @@ class Llama4SelfAttention(MCoreSelfAttention):
             rotary_pos_sin,
             sequence_len_offset,
         )
+
+        # Unpack mandatory outputs
+        query, key, value, rotary_pos_emb, attn_mask_type, *rest = result
+
+        # Handle optional block_table return
+        block_table = rest[0] if rest else None
 
         original_shape = None
         original_packed_seq_params = None
