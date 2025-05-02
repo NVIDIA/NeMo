@@ -37,9 +37,11 @@ trt() {
     return
   fi
 
-  if ! command -v sudo &>/dev/null; then
-    echo "sudo is not available, skipping TRT installation"
-    return
+  if [ "$(id -u)" -ne 0 ]; then
+    if ! command -v sudo &>/dev/null; then
+      echo "Not running as root and sudo is not available, skipping TRT installation"
+      return
+    fi
   fi
 
   if [ "$(id -u)" -eq 0 ]; then
