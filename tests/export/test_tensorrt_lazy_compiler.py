@@ -7,11 +7,11 @@ import torch
 import torch.nn as nn
 
 from nemo.export.tensorrt_lazy_compiler import (
-    TrtCompiler,
-    get_profile_shapes,
-    get_dynamic_axes,
-    trt_compile,
     ShapeError,
+    TrtCompiler,
+    get_dynamic_axes,
+    get_profile_shapes,
+    trt_compile,
 )
 
 

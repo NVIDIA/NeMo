@@ -205,8 +205,9 @@ class TestTensorRTMMExporter:
 
     @pytest.mark.run_only_on('GPU')
     def test_export_with_existing_files(self, model_dir):
-        from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
         import os
+
+        from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
 
         # Create some files in the model directory
         os.makedirs(model_dir, exist_ok=True)

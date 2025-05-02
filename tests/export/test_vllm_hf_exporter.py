@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-import pytest
-import numpy as np
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
 
 
 @pytest.fixture
