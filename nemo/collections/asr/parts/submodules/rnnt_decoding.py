@@ -357,6 +357,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
                         ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
+                        btree_model=self.cfg.greedy.get('btree_model', None),
+                        btree_alpha=self.cfg.greedy.get('btree_alpha', 0),
                     )
                 else:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(

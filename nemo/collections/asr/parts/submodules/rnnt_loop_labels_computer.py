@@ -22,6 +22,7 @@ import torch.nn.functional as F
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -219,6 +220,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         allow_cuda_graphs: bool = True,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Optional[str | Path] = None,
+        btree_alpha: float = 0.0,
     ):
         """
         Init method.
@@ -258,6 +261,22 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
+
+        # init btree model
+        if btree_model is not None:
+            assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            self.btree_model_batch = GPUBoostingTreeModel.from_nemo(lm_path=btree_model, vocab_size=self._blank_index)
+        else:
+            self.btree_model_batch = None
+        self.btree_alpha = btree_alpha
+
+        # logging.warning("******"*10)
+        # logging.warning(f"ngram_lm_model: {ngram_lm_model}")
+        # logging.warning(f"btree_model: {btree_model}")
+        # logging.warning(f"btree_alpha: {btree_alpha}")
+        # logging.warning(f"self.btree_model: {self.btree_model}")
+        # raise NotImplementedError()
+        # import pdb; pdb.set_trace()
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -325,6 +344,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         if self.ngram_lm_batch is not None:
             self.ngram_lm_batch.to(device)  # ngram_lm_batch is nn.Module, but self is not; need to move manually
 
+        if self.btree_model_batch is not None:
+            self.btree_model_batch.to(device)  # btree_model_batch is nn.Module, but self is not; need to move manually
+
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
         float_dtype = encoder_output_projected.dtype
@@ -376,6 +398,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         if self.ngram_lm_batch is not None:
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
 
+        if self.btree_model_batch is not None:
+            batch_btree_states = self.btree_model_batch.get_init_states(batch_size=batch_size, bos=False)
+
         # loop while there are active utterances
         while active_mask.any():
             active_mask_prev.copy_(active_mask, non_blocking=True)
@@ -396,6 +421,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 .squeeze(1)
             )
             scores, labels = logits.max(-1)
+
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                     states=batch_lm_states
@@ -406,6 +432,26 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 # preserve "blank" / "non-blank" category
                 torch.where(labels == self._blank_index, labels, labels_w_lm, out=labels)
                 torch.where(labels == self._blank_index, scores, scores_w_lm, out=scores)
+
+            
+            #############################################################################
+
+            if self.btree_model_batch is not None:
+                btree_scores, batch_btree_states_candidates = self.btree_model_batch.advance(
+                    states=batch_btree_states
+                )  # vocab_size_no_blank
+                btree_scores = btree_scores.to(dtype=float_dtype)
+                # combined scores with LM - without blank
+                scores_w_btree, labels_w_btree = (logits[:, :-1] + self.btree_alpha * btree_scores).max(dim=-1)
+                # preserve "blank" / "non-blank" category
+                torch.where(labels == self._blank_index, labels, labels_w_btree, out=labels)
+                torch.where(labels == self._blank_index, scores, scores_w_btree, out=scores)
+
+                # logging.warning("******"*10)
+                # logging.warning(f"self.btree_alpha: {self.btree_alpha}")
+                # logging.warning(f"btree_scores: {btree_scores}")
+                # raise NotImplementedError()
+            #############################################################################
 
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
@@ -447,11 +493,24 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
                 more_scores, more_labels = logits.max(dim=-1)
+
                 if self.ngram_lm_batch is not None:
                     # combined scores with LM - without blank
                     more_scores_w_lm, more_labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * lm_scores).max(dim=-1)
                     # preserve "blank" / "non-blank" category
                     torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
+
+                #############################################################################
+
+                if self.btree_model_batch is not None:
+                    # combined scores with LM - without blank
+                    more_scores_w_btree, more_labels_w_btree = (logits[:, :-1] + self.btree_alpha * btree_scores).max(dim=-1)
+                    # preserve "blank" / "non-blank" category
+                    torch.where(more_labels == self._blank_index, more_labels, more_labels_w_btree, out=more_labels)
+
+                #############################################################################
+
+
                 # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
@@ -523,6 +582,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
                 # same as: active_mask = time_indices < encoder_output_length
                 torch.less(time_indices, encoder_output_length, out=active_mask)
+            
             if self.ngram_lm_batch is not None:
                 # select necessary LM states based on chosen labels
                 torch.where(
@@ -531,6 +591,21 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                     batch_lm_states,
                     out=batch_lm_states,
                 )
+
+            #############################################################################
+
+            if self.btree_model_batch is not None:
+                # select necessary LM states based on chosen labels
+                torch.where(
+                    active_mask,
+                    batch_btree_states_candidates[batch_indices, labels * active_mask],
+                    batch_btree_states,
+                    out=batch_btree_states,
+                )
+            
+            #############################################################################
+
+        
         if use_alignments:
             return batched_hyps, alignments, last_decoder_state
         return batched_hyps, None, last_decoder_state
