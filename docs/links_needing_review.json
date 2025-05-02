@@ -31,22 +31,6 @@
   "info": ""
 }
 {
-  "filename": "asr/speaker_recognition/configs.rst",
-  "lineno": 50,
-  "status": "broken",
-  "code": 0,
-  "uri": "../configs.html#dataset-configuration",
-  "info": ""
-}
-{
-  "filename": "asr/speaker_recognition/datasets.rst",
-  "lineno": 62,
-  "status": "broken",
-  "code": 0,
-  "uri": "../datasets.html#tarred-datasets",
-  "info": ""
-}
-{
   "filename": "asr/ssl/intro.rst",
   "lineno": 10,
   "status": "broken",
@@ -180,14 +164,6 @@
   "status": "broken",
   "code": 0,
   "uri": "../datasets.html#preparing-custom-asr-data",
-  "info": ""
-}
-{
-  "filename": "asr/speaker_recognition/configs.rst",
-  "lineno": 55,
-  "status": "broken",
-  "code": 0,
-  "uri": "../configs.html#preprocessor-configuration",
   "info": ""
 }
 {
