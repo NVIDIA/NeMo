@@ -71,6 +71,36 @@ class BERTLossReduction(MegatronLossReduction):
         return loss_for_ub, {"avg": reduced_loss}
 
 
+    def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
+        """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
+        if losses_reduced_per_micro_batch:
+            if "avg" in losses_reduced_per_micro_batch[0]:
+                # legacy behavior, average over the number of microbatches
+                avg = [x["avg"] for x in losses_reduced_per_micro_batch]
+                loss = torch.cat(avg).mean()
+                return loss
+
+            from megatron.core import parallel_state
+
+            loss_sum_and_ub_size = [
+                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
+            ]
+            loss = (
+                torch.vstack(loss_sum_and_ub_size).sum(dim=0)
+                if len(loss_sum_and_ub_size) > 0
+                else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
+            )
+            torch.distributed.all_reduce(
+                loss,
+                group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+            )
+            # average over the total number of tokens across the global batch.
+            loss = loss[0] / loss[1]
+            return loss
+
+        return torch.tensor(0.0, device=torch.cuda.current_device())
+
+
 class HardNegativeRankingLoss(MegatronLossReduction):
     """
     This loss uses hard-negative samples.
@@ -127,6 +157,36 @@ class HardNegativeRankingLoss(MegatronLossReduction):
         ce_loss = self.cross_entropy_loss(scores, labels)
         reduced_loss = average_losses_across_data_parallel_group([ce_loss])
         return ce_loss, {"avg": reduced_loss}
+
+
+    def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
+        """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
+        if losses_reduced_per_micro_batch:
+            if "avg" in losses_reduced_per_micro_batch[0]:
+                # legacy behavior, average over the number of microbatches
+                avg = [x["avg"] for x in losses_reduced_per_micro_batch]
+                loss = torch.cat(avg).mean()
+                return loss
+
+            from megatron.core import parallel_state
+
+            loss_sum_and_ub_size = [
+                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
+            ]
+            loss = (
+                torch.vstack(loss_sum_and_ub_size).sum(dim=0)
+                if len(loss_sum_and_ub_size) > 0
+                else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
+            )
+            torch.distributed.all_reduce(
+                loss,
+                group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+            )
+            # average over the total number of tokens across the global batch.
+            loss = loss[0] / loss[1]
+            return loss
+
+        return torch.tensor(0.0, device=torch.cuda.current_device())
 
 
 class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
@@ -221,6 +281,36 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
         ce_loss = self.cross_entropy_loss(scores, labels)
         reduced_loss = average_losses_across_data_parallel_group([ce_loss])
         return ce_loss, {"avg": reduced_loss}
+
+
+    def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
+        """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
+        if losses_reduced_per_micro_batch:
+            if "avg" in losses_reduced_per_micro_batch[0]:
+                # legacy behavior, average over the number of microbatches
+                avg = [x["avg"] for x in losses_reduced_per_micro_batch]
+                loss = torch.cat(avg).mean()
+                return loss
+
+            from megatron.core import parallel_state
+
+            loss_sum_and_ub_size = [
+                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
+            ]
+            loss = (
+                torch.vstack(loss_sum_and_ub_size).sum(dim=0)
+                if len(loss_sum_and_ub_size) > 0
+                else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
+            )
+            torch.distributed.all_reduce(
+                loss,
+                group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+            )
+            # average over the total number of tokens across the global batch.
+            loss = loss[0] / loss[1]
+            return loss
+
+        return torch.tensor(0.0, device=torch.cuda.current_device())
 
 
 def masked_token_with_zero(tensor: Tensor, mask: Tensor):
