@@ -59,7 +59,13 @@ jobs:
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
           cpu-only: ${{ matrix.cpu-only || false }}
+
   e2e-tests:
+    if: |
+      success()
+        || (
+          inputs.test_to_run != '["all"]'
+        )
     strategy:
       fail-fast: false
       matrix:

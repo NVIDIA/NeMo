@@ -59,6 +59,11 @@ jobs:
           cpu-only: ${{ matrix.cpu-only || false }}
 
   e2e-tests:
+    if: |
+      success()
+        || (
+          inputs.test_to_run != '["all"]'
+        )
     strategy:
       fail-fast: false
       matrix:
