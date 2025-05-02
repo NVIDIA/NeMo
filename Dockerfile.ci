@@ -44,8 +44,8 @@ EOF
 FROM base-image 
 WORKDIR /workspace
 RUN \  
-  --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te \
-  --mount=type=bind,from=mcore-wheel,source=/opt/wheels/mcore,target=/opt/wheels/mcore \
+  --mount=type=bind,from=te-wheel,source=/tmp/wheels/te,target=/opt/wheels/te \
+  --mount=type=bind,from=mcore-wheel,source=/tmp/wheels/mcore,target=/opt/wheels/mcore \
   --mount=type=bind,source=requirements,target=/tmp/NeMo/requirements \
   --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=/tmp/NeMo/tools/ctc_segmentation/requirements.txt \
   --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh \
