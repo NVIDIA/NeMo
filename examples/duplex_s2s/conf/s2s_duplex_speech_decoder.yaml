@@ -15,6 +15,15 @@ model:
   audio_loss_weight: 4
   text_loss_weight: 3
 
+  # Note: Uncomment the block below to enable LoRA on LLM via HuggingFace PEFT library.
+  #   It will automatically freeze LLM parameters even if freeze_params was unused,
+  #   and prevent freezing any parameter that has the string '.lora_' in its name.
+  # lora:
+  #   task_type: CAUSAL_LM
+  #   r: 8
+  #   lora_alpha: 32
+  #   lora_dropout: 0.1
+
   perception:
      target:  nemo.collections.duplex_s2s.modules.perception.AudioPerceptionModule
 

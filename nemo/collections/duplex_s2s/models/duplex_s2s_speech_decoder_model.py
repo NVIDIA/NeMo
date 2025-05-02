@@ -39,6 +39,7 @@ from nemo.collections.duplex_s2s.models.duplex_s2s_model import (
 )
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule, TransformerARSpeechDecoder
 from nemo.collections.duplex_s2s.parts.hf_hub import HFHubMixin
+from nemo.collections.duplex_s2s.parts.lora import maybe_install_lora
 from nemo.collections.duplex_s2s.parts.metrics.asr_bleu import ASRBLEU
 from nemo.collections.duplex_s2s.parts.metrics.bleu import BLEU
 from nemo.collections.duplex_s2s.parts.optim_setup import configure_optimizers, is_frozen
@@ -84,6 +85,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.embed_tokens
         del self.llm.embed_tokens
+        maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
         asr = load_pretrained_nemo(

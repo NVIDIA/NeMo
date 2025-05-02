@@ -38,8 +38,9 @@ from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.duplex_s2s.parts.hf_hub import HFHubMixin
+from nemo.collections.duplex_s2s.parts.lora import maybe_install_lora
 from nemo.collections.duplex_s2s.parts.optim_setup import configure_optimizers, is_frozen
-from nemo.collections.duplex_s2s.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
+from nemo.collections.duplex_s2s.parts.pretrained import load_pretrained_hf, load_pretrained_nemo, move_embedding
 from nemo.utils import logging
 
 
@@ -69,6 +70,7 @@ class SALM(LightningModule, HFHubMixin):
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.model.embed_tokens
         del self.llm.model.embed_tokens
+        maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
         asr = (
@@ -358,12 +360,11 @@ class SALM(LightningModule, HFHubMixin):
             generation_inputs = {"input_ids": tokens, "attention_mask": attention_mask}
         # Generate the answers using HF Generate API.
         # Note: we need to put the text embedding layer back to the LLM for processing.
-        self.llm.model.embed_tokens = self.embed_tokens
-        answer_tokens = self.llm.generate(
-            **generation_inputs,
-            generation_config=generation_config,
-        )
-        del self.llm.model.embed_tokens
+        with move_embedding(self):
+            answer_tokens = self.llm.generate(
+                **generation_inputs,
+                generation_config=generation_config,
+            )
         return answer_tokens
 
     def configure_optimizers(self):

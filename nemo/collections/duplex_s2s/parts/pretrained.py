@@ -1,7 +1,9 @@
 import os
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from peft import PeftModel
 from transformers import AutoConfig, AutoModelForCausalLM
 
 from nemo.utils.model_utils import import_class_by_path
@@ -63,3 +65,17 @@ def load_pretrained_hf(model_path_or_name: str, pretrained_weights: bool = True)
     else:
         config = AutoConfig.from_pretrained(model_path_or_name)
         return AutoModelForCausalLM.from_config(config)
+
+
+@contextmanager
+def move_embedding(model):
+    """Temporarily restores the embedding layer into HF LLM. Supports LoRA models."""
+    if isinstance(model.llm, PeftModel):
+        model.llm.base_model.model.model.embed_tokens = model.embed_tokens
+    else:
+        model.llm.model.embed_tokens = model.embed_tokens
+    yield
+    if isinstance(model.llm, PeftModel):
+        del model.llm.base_model.model.model.embed_tokens
+    else:
+        del model.llm.model.embed_tokens
