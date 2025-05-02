@@ -20,6 +20,7 @@ import torch
 from lhotse.dataset.collation import collate_vectors
 from lightning import LightningModule
 from omegaconf import DictConfig, open_dict
+from peft import PeftModel
 from torch import Tensor
 from torch.distributed.fsdp import fully_shard
 from torch.distributed.tensor import Replicate, Shard
@@ -375,6 +376,10 @@ class SALM(LightningModule, HFHubMixin):
         if device_mesh is None:
             return
 
+        llm = self.llm
+        if isinstance(llm, PeftModel):
+            llm = llm.base_model.model
+
         if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
             self._use_tp = True
 
@@ -403,10 +408,10 @@ class SALM(LightningModule, HFHubMixin):
                 ),
                 "norm": SequenceParallel(),
             }
-            parallelize_module(self.llm, tp_mesh, plan)
+            parallelize_module(llm, tp_mesh, plan)
 
             # Parallelize each transformer block
-            for transformer_block in self.llm.model.layers:
+            for transformer_block in llm.model.layers:
                 plan = {
                     "input_layernorm": SequenceParallel(),
                     "self_attn.q_proj": ColwiseParallel(),
@@ -439,7 +444,7 @@ class SALM(LightningModule, HFHubMixin):
                 parallelize_module(transformer_block, tp_mesh, plan)
 
             parallelize_module(
-                self.llm.lm_head,
+                llm.lm_head,
                 tp_mesh,
                 ColwiseParallel(
                     input_layouts=Shard(1),
@@ -454,11 +459,11 @@ class SALM(LightningModule, HFHubMixin):
             assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
             self._use_fsdp = True
             fsdp_config = {"mesh": dp_mesh}
-            for idx, layer in enumerate(self.llm.model.layers):
-                self.llm.model.layers[idx] = fully_shard(layer, **fsdp_config)
+            for idx, layer in enumerate(llm.model.layers):
+                llm.model.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
-            self.llm.lm_head = fully_shard(self.llm.lm_head, **fsdp_config)
-            self.llm = fully_shard(self.llm, **fsdp_config)
+            llm.lm_head = fully_shard(llm.lm_head, **fsdp_config)
+            llm = fully_shard(llm, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
 
 
