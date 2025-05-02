@@ -69,15 +69,6 @@ EOF
 
 
 FROM base-image
-
-ARG MLM_REPO
-ARG MLM_TAG
-RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
-  
-  bash /tmp/NeMo/reinstall.sh --library mcore --mode build
-  ls -al /tmp/Megatron-LM || true
-EOF
-
 WORKDIR /workspace
 RUN \
   --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
