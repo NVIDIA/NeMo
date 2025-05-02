@@ -1,1 +1,2 @@
 from .duplex_s2s_model import DuplexS2SModel
+from .duplex_s2s_model_speech_decoder import DuplexS2SModelSpeechDecoder

@@ -19,7 +19,7 @@ from lightning.pytorch import Callback, Trainer
 from omegaconf import OmegaConf
 
 from nemo.collections.duplex_s2s.data.datamodule import S2SDataModule
-from nemo.collections.duplex_s2s.models.duplex_s2s_model import DuplexS2SModelSpeechDecoder
+from nemo.collections.duplex_s2s.models import DuplexS2SModelSpeechDecoder
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
