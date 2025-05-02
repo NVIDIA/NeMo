@@ -86,7 +86,6 @@ def run_inference(
         start_prior_after_n_audio_steps=10,
         confidence_level=0.95,
         use_local_transformer=False,
-        use_maskgit=False,
         maskgit_n_steps=3,
         legacy_codebooks=False
     ):
@@ -122,7 +121,7 @@ def run_inference(
     model.eval()
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MG_{}_MGsteps{}_sv_{}".format(
+    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
         checkpoint_name,
         temperature,
         topk,
@@ -135,7 +134,6 @@ def run_inference(
         "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
         "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
         use_local_transformer,
-        use_maskgit,
         maskgit_n_steps,
         sv_model
     )
@@ -224,7 +222,6 @@ def run_inference(
                     apply_prior_to_layers=apply_prior_to_layers,
                     start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
                     use_local_transformer_for_inference=use_local_transformer,
-                    use_maskgit_for_inference=use_maskgit,
                     maskgit_n_steps=maskgit_n_steps
                 )
                 all_rtf_metrics.append(rtf_metrics)
@@ -310,8 +307,7 @@ def main():
     parser.add_argument('--out_dir', type=str, default="/datap/misc/Evals/LocalTransformerAblations2")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
-    parser.add_argument('--use_local_transformer', action='store_true')
-    parser.add_argument('--use_maskgit', action='store_true')
+    parser.add_argument('--use_local_transformer', action='store_true', help="Enables use of local transformer for inference; applies to both Autoregressive and MaskGit sampling.")
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
@@ -366,7 +362,6 @@ def main():
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
-                use_maskgit=args.use_maskgit,
                 maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks
             )
@@ -397,7 +392,6 @@ def main():
             start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
-            use_maskgit=args.use_maskgit,
             maskgit_n_steps=args.maskgit_n_steps,            
             legacy_codebooks=args.legacy_codebooks
         )
@@ -461,7 +455,6 @@ def main():
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
-                use_maskgit=args.use_maskgit,
                 maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks
             )
