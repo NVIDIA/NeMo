@@ -681,10 +681,15 @@ class ASRTarredDatasetBuilder:
 
                 entry_offset = str(entry['offset']).split('.')
                 if len(entry_offset) == 1:
+                    # Example: offset = 12 -> becomes 12_0
                     entry_offset.append('0')
-                elif len(entry_offset) > 2:
+                elif len(entry_offset) == 2:
+                    # Example: offset = 12.34 -> becomes 12_34
+                    pass
+                else:
                     raise ValueError(
-                        f"The offset for the entry with audio_filepath '{entry['audio_filepath']}' is incorrectly provided ({entry['offset']})."
+                        f"The offset for the entry with audio_filepath '{entry['audio_filepath']}' is incorrectly provided ({entry['offset']}). "
+                        "Expected a float-like value (e.g., 12 or 12.34)."
                     )
                 entry_offset = "_".join(entry_offset)
 
