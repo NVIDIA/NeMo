@@ -367,6 +367,8 @@ jobs:
 
           if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 ]]; then
             RESULT="success"
+          elif [[ $NUM_FAILED -gt 0 ]]; then
+            RESULT="cancelled"
           else
             RESULT="failure"
           fi
@@ -385,7 +387,10 @@ jobs:
         run: gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
 
       - name: Pipeline successful, add PR comment
-        if: ${{ always() && steps.result.outputs.code == 'success' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'success' 
+          && github.event_name == 'pull_request' 
+          && env.SLACK_WEBHOOK != ''
         uses: peter-evans/create-or-update-comment@v4
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -406,7 +411,9 @@ jobs:
             //cc @chtruong814 @ko3n1g @pablo-garay @thomasdhc
 
       - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
-        if: ${{ always() && steps.result.outputs.code == 'failure' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'failure' 
+          && env.SLACK_WEBHOOK != ''
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
