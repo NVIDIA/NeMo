@@ -21,6 +21,7 @@ import requests
 
 LOGGER = logging.getLogger("NeMo")
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Query a deployed HuggingFace model using Ray")
     parser.add_argument(
@@ -43,6 +44,7 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 def test_completions_endpoint(base_url: str, model_id: str) -> None:
     """Test the completions endpoint."""
     url = f"{base_url}/v1/completions/"
@@ -52,7 +54,7 @@ def test_completions_endpoint(base_url: str, model_id: str) -> None:
         "max_tokens": 50,
         "temperature": 0.7,
     }
-    
+
     LOGGER.info(f"Testing completions endpoint at {url}")
     response = requests.post(url, json=payload)
     LOGGER.info(f"Response status code: {response.status_code}")
@@ -61,18 +63,17 @@ def test_completions_endpoint(base_url: str, model_id: str) -> None:
     else:
         LOGGER.error(f"Error: {response.text}")
 
+
 def test_chat_completions_endpoint(base_url: str, model_id: str) -> None:
     """Test the chat completions endpoint."""
     url = f"{base_url}/v1/chat/completions/"
     payload = {
         "model": model_id,
-        "messages": [
-            {"role": "user", "content": "Hello, how are you?"}
-        ],
+        "messages": [{"role": "user", "content": "Hello, how are you?"}],
         "max_tokens": 50,
         "temperature": 0.7,
     }
-    
+
     LOGGER.info(f"Testing chat completions endpoint at {url}")
     response = requests.post(url, json=payload)
     LOGGER.info(f"Response status code: {response.status_code}")
@@ -81,10 +82,11 @@ def test_chat_completions_endpoint(base_url: str, model_id: str) -> None:
     else:
         LOGGER.error(f"Error: {response.text}")
 
+
 def test_models_endpoint(base_url: str) -> None:
     """Test the models endpoint."""
     url = f"{base_url}/v1/models"
-    
+
     LOGGER.info(f"Testing models endpoint at {url}")
     response = requests.get(url)
     LOGGER.info(f"Response status code: {response.status_code}")
@@ -93,10 +95,11 @@ def test_models_endpoint(base_url: str) -> None:
     else:
         LOGGER.error(f"Error: {response.text}")
 
+
 def test_health_endpoint(base_url: str) -> None:
     """Test the health endpoint."""
     url = f"{base_url}/v1/health"
-    
+
     LOGGER.info(f"Testing health endpoint at {url}")
     response = requests.get(url)
     LOGGER.info(f"Response status code: {response.status_code}")
@@ -105,23 +108,22 @@ def test_health_endpoint(base_url: str) -> None:
     else:
         LOGGER.error(f"Error: {response.text}")
 
+
 def main():
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     args = parse_args()
     base_url = f"http://{args.host}:{args.port}"
-    
+
     LOGGER.info(f"Testing endpoints for model {args.model_id} at {base_url}")
-    
+
     # Test all endpoints
     # test_health_endpoint(base_url)
     # test_models_endpoint(base_url)
     test_completions_endpoint(base_url, args.model_id)
     test_chat_completions_endpoint(base_url, args.model_id)
 
+
 if __name__ == "__main__":
-    main() 
+    main()
