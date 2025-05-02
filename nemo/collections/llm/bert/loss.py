@@ -70,31 +70,6 @@ class BERTLossReduction(MegatronLossReduction):
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
         return loss_for_ub, {"avg": reduced_loss}
 
-    def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
-        """Taken from: https://github.com/NVIDIA/NeMo/blob/main
-        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
-        if losses_reduced_per_micro_batch:
-            if "avg" in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.concat(loss_tensors_list)
-
-                return loss_tensor.mean()
-
-            # Get the total loss since micro batches sizes are not uniform
-            loss_sum_tensors_list: List[torch.Tensor] = [
-                loss_sum["loss_sum_and_ub_size"]
-                for loss_sum in losses_reduced_per_micro_batch
-                if loss_sum["loss_sum_and_ub_size"][1] > 0
-            ]
-            loss_sum = (
-                torch.vstack(loss_sum_tensors_list).sum(dim=0)
-                if len(loss_sum_tensors_list) > 0
-                else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
-            )
-            return loss_sum
-
-        return torch.tensor(0.0, device=torch.cuda.current_device())
-
 
 class HardNegativeRankingLoss(MegatronLossReduction):
     """
