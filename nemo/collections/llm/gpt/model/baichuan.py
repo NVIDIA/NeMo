@@ -245,7 +245,7 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
             # The model_name will need to be passed in.
             config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
             hf_model = AutoModelForCausalLM.from_config(
-                model_name,
+                config,
                 trust_remote_code=True,
                 torch_dtype=dtype,
             )
