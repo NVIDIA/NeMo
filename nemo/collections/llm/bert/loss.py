@@ -70,7 +70,6 @@ class BERTLossReduction(MegatronLossReduction):
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
         return loss_for_ub, {"avg": reduced_loss}
 
-
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
         if losses_reduced_per_micro_batch:
@@ -157,7 +156,6 @@ class HardNegativeRankingLoss(MegatronLossReduction):
         ce_loss = self.cross_entropy_loss(scores, labels)
         reduced_loss = average_losses_across_data_parallel_group([ce_loss])
         return ce_loss, {"avg": reduced_loss}
-
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
@@ -281,7 +279,6 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
         ce_loss = self.cross_entropy_loss(scores, labels)
         reduced_loss = average_losses_across_data_parallel_group([ce_loss])
         return ce_loss, {"avg": reduced_loss}
-
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
