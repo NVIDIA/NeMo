@@ -239,7 +239,7 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
 
         if model_name is None:
             model_name = "baichuan-inc/Baichuan2-7B-Base"
-        with no_init_weights(True):
+        with no_init_weights():
             # Since Baichuan2 is not importable from transformers, we can only initialize the HF model
             # from a known checkpoint folder containing the config file and modeling files.
             # The model_name will need to be passed in.
