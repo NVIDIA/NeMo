@@ -15,10 +15,10 @@
 
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-import numpy as np
 
 from nemo.deploy.nlp.hf_deployable import HuggingFaceLLMDeploy
 
@@ -93,19 +93,21 @@ class TestHuggingFaceLLMDeploy:
         assert deployer.task == "text-generation"
 
     def test_initialization_with_model_path(self, mock_model, mock_tokenizer):
-        with patch("transformers.AutoModelForCausalLM.from_pretrained", return_value=mock_model), \
-             patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
+        with (
+            patch("transformers.AutoModelForCausalLM.from_pretrained", return_value=mock_model),
+            patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer),
+        ):
             deployer = HuggingFaceLLMDeploy(hf_model_id_path="test/model", task="text-generation")
             assert deployer.model == mock_model
             assert deployer.tokenizer == mock_tokenizer
 
     def test_initialization_with_peft_model(self, mock_model, mock_tokenizer, mock_peft_model):
-        with patch("transformers.AutoModelForCausalLM.from_pretrained", return_value=mock_model), \
-             patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer):
+        with (
+            patch("transformers.AutoModelForCausalLM.from_pretrained", return_value=mock_model),
+            patch("transformers.AutoTokenizer.from_pretrained", return_value=mock_tokenizer),
+        ):
             deployer = HuggingFaceLLMDeploy(
-                hf_model_id_path="test/model",
-                hf_peft_model_id_path="test/peft_model",
-                task="text-generation"
+                hf_model_id_path="test/model", hf_peft_model_id_path="test/peft_model", task="text-generation"
             )
             assert deployer.model == mock_peft_model.from_pretrained.return_value
 
@@ -141,13 +143,14 @@ class TestHuggingFaceLLMDeploy:
         mock_tokenizer.batch_decode.assert_called_once()
 
     def test_generate_with_output_logits_and_scores(self, mock_model, mock_tokenizer):
-        mock_model.generate.return_value = {"sequences": torch.tensor([[1, 2, 3]]), "logits": torch.tensor([1.0]), "scores": torch.tensor([0.5])}
+        mock_model.generate.return_value = {
+            "sequences": torch.tensor([[1, 2, 3]]),
+            "logits": torch.tensor([1.0]),
+            "scores": torch.tensor([0.5]),
+        }
         deployer = HuggingFaceLLMDeploy(model=mock_model, tokenizer=mock_tokenizer, task="text-generation")
         output = deployer.generate(
-            text_inputs=["test prompt"],
-            output_logits=True,
-            output_scores=True,
-            return_dict_in_generate=True
+            text_inputs=["test prompt"], output_logits=True, output_scores=True, return_dict_in_generate=True
         )
         assert isinstance(output, dict)
         assert "sentences" in output
@@ -163,7 +166,7 @@ class TestHuggingFaceLLMDeploy:
             "top_p": np.array([[0.0]]),
             "max_length": np.array([[10]]),
             "output_logits": np.array([[False]]),
-            "output_scores": np.array([[False]])
+            "output_scores": np.array([[False]]),
         }
         requests = [MockRequest(request_data)]
         output = deployer.triton_infer_fn(requests)
@@ -180,7 +183,7 @@ class TestHuggingFaceLLMDeploy:
             "top_p": np.array([[0.0]]),
             "max_length": np.array([[10]]),
             "output_logits": np.array([[False]]),
-            "output_scores": np.array([[False]])
+            "output_scores": np.array([[False]]),
         }
         requests = [MockRequest(request_data)]
         output = deployer.triton_infer_fn(requests)
