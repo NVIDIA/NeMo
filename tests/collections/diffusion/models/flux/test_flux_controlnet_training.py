@@ -68,10 +68,7 @@ def flux_controlnet_training(
                     num_joint_layers=flux_num_joint_layers,
                     num_single_layers=flux_num_single_layers,
                 ),
-                t5_params=run.Config(
-                    T5Config,
-                    load_config_only=True
-                ),
+                t5_params=run.Config(T5Config, load_config_only=True),
             ),
             flux_controlnet_config=run.Config(
                 FluxControlNetConfig,
@@ -150,10 +147,7 @@ def flux_training(
                     num_joint_layers=flux_num_joint_layers,
                     num_single_layers=flux_num_single_layers,
                 ),
-                t5_params=run.Config(
-                    T5Config,
-                    load_config_only=True
-                ),
+                t5_params=run.Config(T5Config, load_config_only=True),
             ),
         ),
         data=flux_mock_datamodule(),
