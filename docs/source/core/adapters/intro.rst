@@ -117,7 +117,8 @@ build large composite models out of multiple modules and combine them to build a
 
 .. note::
 
-    For an in-depth guide to supporting hierarchical adapter modules, please refer to the `Tutorials for NeMo Adapters <../../starthere/tutorials.html>`_.
+    For an in-depth guide to supporting hierarchical adapter modules, please refer to the NeMo Adapter :doc:`Tutorials <../../starthere/tutorials>`.
+
 
 .. autoclass:: nemo.core.adapter_mixins.AdapterModelPTMixin
     :show-inheritance:
