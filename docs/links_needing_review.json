@@ -359,14 +359,6 @@
   "info": "HTTPSConnectionPool(host='bark.phon.ioc.ee', port=443): Max retries exceeded with url: /voxlingua107/ (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)')))"
 }
 {
-  "filename": "asr/api.rst",
-  "lineno": 7,
-  "status": "broken",
-  "code": 0,
-  "uri": "http://www.ee.columbia.edu/~dpwe/resources/matlab/pvoc/",
-  "info": "403 Client Error: Forbidden for url: https://www.ee.columbia.edu/~dpwe/resources/matlab/pvoc/"
-}
-{
   "filename": "asr/datasets.rst",
   "lineno": 126,
   "status": "broken",
@@ -645,14 +637,6 @@
   "code": 0,
   "uri": "https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b",
   "info": "unauthorized"
-}
-{
-  "filename": "asr/api.rst",
-  "lineno": 7,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://librosa.github.io/librosa/generated/librosa.effects.time_stretch.html",
-  "info": "404 Client Error: Not Found for url: https://librosa.org/librosa/generated/librosa.effects.time_stretch.html"
 }
 {
   "filename": "nlp/question_answering.rst",
