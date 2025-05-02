@@ -189,7 +189,7 @@ def beam_search_eval(
         target_split_c = list(target)
         words_count += len(target_split_w)
         chars_count += len(target_split_c)
-        wer_dist_min = cer_dist_min = 10000
+        wer_dist_min = cer_dist_min = float("inf")
         for candidate_idx, candidate in enumerate(nbest_hyp):
             pred_text = apply_text_processing(punctuation_capitalization, cfg, candidate.text)
             
