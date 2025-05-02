@@ -147,7 +147,7 @@ trtllm() {
       build
     fi
 
-    pip install --no-cache-dir $WHEELS_DIR/trtllm/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com || true
+    pip install --no-cache-dir $WHEELS_DIR/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com || true
   fi
 }
 
@@ -183,7 +183,7 @@ te() {
       build
     fi
 
-    pip install --no-cache-dir $WHEELS_DIR/te/transformer_engine*.whl || true
+    pip install --no-cache-dir $WHEELS_DIR/transformer_engine*.whl || true
     patch -p1 --force /usr/local/lib/python3.12/dist-packages/triton/runtime/autotuner.py $CURR/external/patches/triton-lang_triton_6570_lazy_init.patch
   fi
 }
