@@ -119,14 +119,6 @@
   "info": ""
 }
 {
-  "filename": "asr/speech_classification/datasets.rst",
-  "lineno": 139,
-  "status": "broken",
-  "code": 0,
-  "uri": "../datasets.html#preparing-custom-asr-data",
-  "info": ""
-}
-{
   "filename": "asr/ssl/datasets.rst",
   "lineno": 4,
   "status": "broken",
@@ -141,14 +133,6 @@
   "code": 0,
   "uri": "http://TODOURL",
   "info": "HTTPConnectionPool(host='todourl', port=80): Max retries exceeded with url: / (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x10fe3a270>: Failed to resolve 'todourl' ([Errno 8] nodename nor servname provided, or not known)\"))"
-}
-{
-  "filename": "asr/speech_classification/datasets.rst",
-  "lineno": 126,
-  "status": "broken",
-  "code": 0,
-  "uri": "http://bark.phon.ioc.ee/voxlingua107/",
-  "info": "HTTPSConnectionPool(host='bark.phon.ioc.ee', port=443): Max retries exceeded with url: /voxlingua107/ (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1000)')))"
 }
 {
   "filename": "nlp/megatron.rst",
