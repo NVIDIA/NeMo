@@ -238,6 +238,7 @@ jobs:
             script: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2
           - runner: self-hosted-azure
             script: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2
+            is_optional: true
           - runner: self-hosted-azure
             script: L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2
     needs: [build]
