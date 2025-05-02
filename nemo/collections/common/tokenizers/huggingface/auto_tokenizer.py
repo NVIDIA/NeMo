@@ -26,7 +26,8 @@ __all__ = [
 
 class AutoTokenizer(TokenizerSpec):
     """
-    Wrapper of HuggingFace AutoTokenizer https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.
+    Wrapper of HuggingFace AutoTokenizer 
+    https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.
 
     """
 
