@@ -29,11 +29,15 @@ from tqdm import tqdm
 
 ## Overview
 
-This script facilitates the creation of tarred and sharded audio datasets from existing tarred manifests. It allows you to select specific shards from a manifest file and then tar them separately. This is useful when you need to process a subset of shards or manage tarred datasets in chunks.
+This script facilitates the creation of tarred and sharded audio datasets from existing tarred manifests. It allows you to select specific shards from a manifest file and then tar them separately. 
+
+This is useful in several scenarios:
+- When you only need to process a specific subset of shards (e.g., for debugging or incremental dataset preparation).
+- When you want to parallelize shard creation across multiple SLURM jobs to accelerate the dataset generation process and overcome per-job time limits.
 
 ## Prerequisites
 
-- Ensure that the `convert_to_tarred_audio_dataset` script is correctly configured and run with the `--dry_run` flag to generate the necessary manifest files.
+- Ensure that the `convert_to_tarred_audio_dataset` script is correctly configured and run with the `--only_manifests` flag to generate the necessary manifest files.
 - Make sure the paths to the manifest and metadata files are correct and accessible.
 
 ## Usage
@@ -42,7 +46,7 @@ This script facilitates the creation of tarred and sharded audio datasets from e
 
 To run the script, use the following command:
 
-python partial_tar_creator.py \
+python partial_convertion_to_tarred_audio_dataset.py \
     # the path to the tarred manifest file that contains the entries for the shards you want to process. This option is mandatory.
     --tarred_manifest_filepath=<path to the tarred manifest file > \
     # any other optional argument
@@ -52,7 +56,7 @@ python partial_tar_creator.py \
     --dataset_metadata_filepath=<dataset metadata YAML filepath>
 
 Example:
-python partial_tar_creator.py \
+python partial_convertion_to_tarred_audio_dataset.py \
     tarred_manifest_filepath="path/to/manifest.json" \
     shards_to_tar="0:3"
 """
