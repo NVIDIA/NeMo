@@ -174,6 +174,7 @@ class MagpieTTSModel(ModelPT):
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
 
         self.local_transformer_type = self.LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
+        print(f"Local transformer type: {self.local_transformer_type}")
         if self.local_transformer_type != self.LocalTransformerType.NO_LT:
             local_transformer_hidden_dim = cfg.get('local_transformer_hidden_dim', 256)
             if local_transformer_hidden_dim != cfg.decoder.d_model:
