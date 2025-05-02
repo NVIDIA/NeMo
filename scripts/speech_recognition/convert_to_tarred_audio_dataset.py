@@ -366,6 +366,7 @@ class ASRTarredDatasetBuilder:
         target_dir: str = "./tarred_concatenated/",
         num_workers: int = 1,
         only_manifests: bool = False,
+        dry_run: bool = False,
     ):
         """
         Creates a concatenated tarred dataset from the base manifest and additional manifest files.
@@ -463,6 +464,9 @@ class ASRTarredDatasetBuilder:
         print(f"Number of samples in additional datasets : {len(entries)}")
         print(f"Number of added shards : {num_added_shards}")
         print(f"Remainder: {len(entries) % num_samples_per_shard}")
+
+        if dry_run: 
+            return
 
         start_indices = []
         end_indices = []
@@ -854,13 +858,13 @@ def create_tar_datasets(
             num_workers=workers,
             slice_with_offset=slice_with_offset,
             only_manifests=only_manifests,
+            dry_run = dry_run,
         )
 
-    if not dry_run:
-        if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
-            print("Constructing DALI Tarfile Index - ", target_dir)
-            index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=workers)
-            dali_index.main(index_config)
+    if not dry_run and (DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE):
+        print("Constructing DALI Tarfile Index - ", target_dir)
+        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=workers)
+        dali_index.main(index_config)
 
 
 if __name__ == "__main__":
