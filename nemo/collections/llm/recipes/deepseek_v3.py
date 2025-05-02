@@ -121,10 +121,7 @@ def pretrain_recipe(
 
     # recompute
     recipe.model.config.recompute_granularity = "selective"
-    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"]  # , "moe", "mlp"]
-    # recipe.model.config.recompute_granularity = "full"
-    # recipe.model.config.recompute_method = "uniform"
-    # recipe.model.config.recompute_num_layers = 1
+    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"]
 
     # DeepEP
     recipe.model.config.moe_token_dispatcher_type = "flex"
@@ -133,8 +130,8 @@ def pretrain_recipe(
 
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,
-        gc_interval_train=1,
-        gc_interval_val=1,
+        gc_interval_train=5,
+        gc_interval_val=5,
     )
     comm_overlap_callback = run.Config(
         MegatronCommOverlapCallback,
@@ -198,7 +195,7 @@ def finetune_recipe(
 
     if num_nodes is None:
         if peft_scheme is None or peft_scheme.lower() == 'none':
-            num_nodes = 56
+            num_nodes = 64
         elif peft_scheme.lower() in ['lora', 'dora']:
             num_nodes = 5
 
@@ -210,11 +207,6 @@ def finetune_recipe(
         recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 6
         recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 7
         recipe.optim.config.lr = 5e-6
-
-        # recipe.model.config.recompute_granularity = "selective"
-        # recipe.model.config.recompute_method = "uniform"
-        # recipe.model.config.recompute_num_layers = 1
-
     elif peft_scheme.lower() in ['lora', 'dora']:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.target_modules = [
