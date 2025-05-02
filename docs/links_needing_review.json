@@ -7,14 +7,6 @@
   "info": ""
 }
 {
-  "filename": "asr/speech_intent_slot/configs.rst",
-  "lineno": 11,
-  "status": "broken",
-  "code": 0,
-  "uri": "../configs.html#DatasetConfiguration",
-  "info": ""
-}
-{
   "filename": "asr/ssl/intro.rst",
   "lineno": 10,
   "status": "broken",
@@ -28,14 +20,6 @@
   "status": "broken",
   "code": 0,
   "uri": "./clip.html#clip",
-  "info": ""
-}
-{
-  "filename": "asr/speech_intent_slot/intro.rst",
-  "lineno": 10,
-  "status": "broken",
-  "code": 0,
-  "uri": "./configs.html",
   "info": ""
 }
 {
@@ -68,14 +52,6 @@
   "status": "broken",
   "code": 0,
   "uri": "../datasets.html#bucketing-datasets",
-  "info": ""
-}
-{
-  "filename": "asr/speech_intent_slot/intro.rst",
-  "lineno": 6,
-  "status": "broken",
-  "code": 0,
-  "uri": "./results.html",
   "info": ""
 }
 {
