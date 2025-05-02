@@ -85,13 +85,13 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
-from tabulate import tabulate
 from typing import Any, List, Optional
 
 import numpy as np
 import soundfile
 from joblib import Parallel, delayed
 from omegaconf import DictConfig, OmegaConf, open_dict
+from tabulate import tabulate
 from tqdm import tqdm
 
 try:
@@ -102,6 +102,7 @@ except (ImportError, ModuleNotFoundError, FileNotFoundError):
     DALI_INDEX_SCRIPT_AVAILABLE = False
 
 from nemo.utils import logging
+
 
 @dataclass
 class ASRTarredDatasetConfig:
@@ -218,25 +219,35 @@ class ASRTarredDatasetBuilder:
 
         # Read the existing manifest
         entries, total_duration, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
-       
+
         header = [
-            "Min.\nduration", "Max.\nduration",
-            "Entries amount\nafter filtration", "Total duration\nafter filtration",
-            "Shards\namount", "Entries\nper shard", "Remainded\nentries"
+            "Min.\nduration",
+            "Max.\nduration",
+            "Entries amount\nafter filtration",
+            "Total duration\nafter filtration",
+            "Shards\namount",
+            "Entries\nper shard",
+            "Remainded\nentries",
         ]
 
         entires_amount = f'{len(entries)} / {len(entries) + len(filtered_entries)}'
         entries_duration = f'{total_duration:.2f} / {total_duration + filtered_duration:.2f} s'
         entries_per_shard = len(entries) // config.num_shards
-        remainder = len(entries) % config.num_shards 
+        remainder = len(entries) % config.num_shards
 
         data = [
-            [f"{config.min_duration} s", f"{config.max_duration} s",
-            f"{entires_amount}", f"{entries_duration}",
-            f"{config.num_shards}", f"{entries_per_shard}", f"{remainder}"]
+            [
+                f"{config.min_duration} s",
+                f"{config.max_duration} s",
+                f"{entires_amount}",
+                f"{entries_duration}",
+                f"{config.num_shards}",
+                f"{entries_per_shard}",
+                f"{remainder}",
+            ]
         ]
 
-        logging.info('\n' + tabulate(data, headers=header, tablefmt="grid", colalign = ["center"] * len(header)))
+        logging.info('\n' + tabulate(data, headers=header, tablefmt="grid", colalign=["center"] * len(header)))
         if dry_run:
             return
 
@@ -258,7 +269,6 @@ class ASRTarredDatasetBuilder:
                 entries = shuffled_entries
             else:
                 random.shuffle(entries)
-
 
         start_indices = []
         end_indices = []
@@ -466,7 +476,7 @@ class ASRTarredDatasetBuilder:
         logging.info(f"Number of added shards : {num_added_shards}")
         logging.info(f"Remainder: {len(entries) % num_samples_per_shard}")
 
-        if dry_run: 
+        if dry_run:
             return
 
         start_indices = []
@@ -476,7 +486,9 @@ class ASRTarredDatasetBuilder:
             start_idx = (len(entries) // num_added_shards) * i
             end_idx = start_idx + (len(entries) // num_added_shards)
             shard_idx = i + config.num_shards
-            logging.info(f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}")
+            logging.info(
+                f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}"
+            )
 
             start_indices.append(start_idx)
             end_indices.append(end_idx)
@@ -730,6 +742,7 @@ class ASRTarredDatasetBuilder:
                 metadata_copy.pop('history', None)
             history.append(metadata_copy)
 
+
 def main(args):
     if args.buckets_num > 1:
         bucket_length = (args.max_duration - args.min_duration) / float(args.buckets_num)
@@ -821,7 +834,7 @@ def create_tar_datasets(
             buckets_num=buckets_num,
             dynamic_buckets_num=dynamic_buckets_num,
             only_manifests=only_manifests,
-            dry_run = dry_run
+            dry_run=dry_run,
         )
 
     else:
@@ -859,7 +872,7 @@ def create_tar_datasets(
             num_workers=workers,
             slice_with_offset=slice_with_offset,
             only_manifests=only_manifests,
-            dry_run = dry_run,
+            dry_run=dry_run,
         )
 
     if not dry_run and (DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE):
