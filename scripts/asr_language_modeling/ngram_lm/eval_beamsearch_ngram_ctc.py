@@ -123,6 +123,19 @@ class EvalBeamSearchNGramConfig:
     ))
 # fmt: on
 
+def apply_text_processing(punctuation_capitalization: PunctuationCapitalization, 
+                          cfg: EvalBeamSearchNGramConfig, 
+                          text: List[str]|str) ->  List[str]|str:
+    is_list = isinstance(text, list)
+    text_arr = text if is_list else [text]
+    if cfg.text_processing.do_lowercase:
+        text_arr = punctuation_capitalization.do_lowercase(text_arr)
+    if cfg.text_processing.rm_punctuation:
+        text_arr = punctuation_capitalization.rm_punctuation(text_arr)
+    if cfg.text_processing.separate_punctuation:
+        text_arr = punctuation_capitalization.separate_punctuation(text_arr)
+    
+    return text_arr if is_list else text_arr[0]
 
 def beam_search_eval(
     audio_filepaths,
@@ -179,13 +192,8 @@ def beam_search_eval(
         chars_count += len(target_split_c)
         wer_dist_min = cer_dist_min = 10000
         for candidate_idx, candidate in enumerate(nbest_hyp):
-            pred_text = candidate.text
-            if cfg.text_processing.do_lowercase:
-                pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
-            if cfg.text_processing.rm_punctuation:
-                pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
-            if cfg.text_processing.separate_punctuation:
-                pred_text = punctuation_capitalization.separate_punctuation([pred_text])[0]
+            pred_text = apply_text_processing(punctuation_capitalization, cfg, candidate.text)
+            
             pred_split_w = pred_text.split()
             wer_dist = editdistance.eval(target_split_w, pred_split_w)
             pred_split_c = list(pred_text)
@@ -266,12 +274,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
             audio_file_paths.append(str(audio_file.absolute()))
 
     punctuation_capitalization = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
-    if cfg.text_processing.do_lowercase:
-        target_transcripts = punctuation_capitalization.do_lowercase(target_transcripts)
-    if cfg.text_processing.rm_punctuation:
-        target_transcripts = punctuation_capitalization.rm_punctuation(target_transcripts)
-    if cfg.text_processing.separate_punctuation:
-        target_transcripts = punctuation_capitalization.separate_punctuation(target_transcripts)
+    target_transcripts = apply_text_processing(punctuation_capitalization, cfg, target_transcripts)
 
     if cfg.hyps_cache_file and os.path.exists(cfg.hyps_cache_file):
         logging.info(f"Found a pickle file of hypotheses at '{cfg.hyps_cache_file}'.")
@@ -303,13 +306,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
     words_count = 0
     chars_count = 0
     for batch_idx, hyp in enumerate(all_hyps):
-        pred_text = hyp.text
-        if cfg.text_processing.do_lowercase:
-            pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
-        if cfg.text_processing.rm_punctuation:
-            pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
-        if cfg.text_processing.separate_punctuation:
-            pred_text = punctuation_capitalization.separate_punctuation([pred_text])[0]
+        pred_text = apply_text_processing(punctuation_capitalization, cfg, hyp.text)
 
         pred_split_w = pred_text.split()
         target_split_w = target_transcripts[batch_idx].split()
@@ -346,7 +343,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
         best_wer_beam_size, best_cer_beam_size = None, None
         best_wer_alpha, best_cer_alpha = None, None
         best_wer_beta, best_cer_beta = None, None
-        best_wer, best_cer = 1e6, 1e6
+        best_wer, best_cer = float("inf"), float("inf")
 
         logging.info(f"==============================Starting the beam search decoding===============================")
         logging.info(f"Grid search size: {len(hp_grid)}")
@@ -378,16 +375,12 @@ def main(cfg: EvalBeamSearchNGramConfig):
             )
 
             if candidate_cer < best_cer:
-                best_cer_beam_size = hp["beam_width"]
-                best_cer_alpha = hp["beam_alpha"]
-                best_cer_beta = hp["beam_beta"]
-                best_cer = candidate_cer
+                best_cer_beam_size, best_cer_alpha, best_cer_beta, best_cer = \
+                    hp["beam_width"], hp["beam_alpha"], hp["beam_beta"], candidate_cer
 
             if candidate_wer < best_wer:
-                best_wer_beam_size = hp["beam_width"]
-                best_wer_alpha = hp["beam_alpha"]
-                best_wer_beta = hp["beam_beta"]
-                best_wer = candidate_wer
+                best_wer_beam_size, best_wer_alpha, best_wer_beta, best_wer = \
+                    hp["beam_width"], hp["beam_alpha"], hp["beam_beta"], candidate_wer
 
         logging.info(
             f'Best WER Candidate = {best_wer:.2%} :: Beam size = {best_wer_beam_size}, '
