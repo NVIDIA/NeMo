@@ -54,13 +54,13 @@ An example Speech Classification train and validation configuration could look l
       batch_size: 128
       shuffle: False # No need to shuffle the validation data
 
-If you would like to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
+If you would like to use tarred dataset, have a look at :ref:`Datasets Configuration <asr-configs-dataset-configuration>`.
 
 
 Preprocessor Configuration
 --------------------------
 Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model. 
-For details on how to write this section, refer to `Preprocessor Configuration <../configs.html#preprocessor-configuration>`__
+For details on how to write this section, refer to :ref:`Preprocessor Configuration <asr-configs-preprocessor-configuration>`
 
 Check config yaml files in ``<NeMo_git_root>/examples/asr/conf`` to find the processors been used by speech classification models.
 

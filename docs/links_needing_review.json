@@ -23,22 +23,6 @@
   "info": ""
 }
 {
-  "filename": "asr/speech_classification/models.rst",
-  "lineno": 22,
-  "status": "broken",
-  "code": 0,
-  "uri": "../models.html#QuartzNet",
-  "info": ""
-}
-{
-  "filename": "asr/speech_classification/models.rst",
-  "lineno": 71,
-  "status": "broken",
-  "code": 0,
-  "uri": "../speaker_recognition/models.html#titanet",
-  "info": ""
-}
-{
   "filename": "multimodal/vlm/configs.rst",
   "lineno": 160,
   "status": "broken",

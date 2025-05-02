@@ -12,6 +12,7 @@ this page cover each of these in more detail.
 Example configuration files for all of the NeMo ASR scripts can be found in the
 `config directory of the examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf>`_.
 
+.. _asr-configs-dataset-configuration:
 
 Dataset Configuration
 ---------------------
@@ -95,7 +96,7 @@ For example, training data setup can be deferred as follows:
       defer_setup: true
 
 
-.. _asr-configs-preprocessor-configuration
+.. _asr-configs-preprocessor-configuration:
 
 Preprocessor Configuration
 --------------------------

@@ -146,4 +146,4 @@ Tarred Datasets
 
 Similarly to ASR, you can tar your audio files and use ASR Dataset class ``TarredAudioToClassificationLabelDataset`` (corresponding to the ``AudioToClassificationLabelDataset``) for this case.
 
-If you would like to use tarred dataset, have a look at `ASR Tarred Datasets <../datasets.html#tarred-datasets>`__.
+If you would like to use tarred dataset, have a look at :ref:`ASR Tarred Datasets <Tarred_Datasets>`.
