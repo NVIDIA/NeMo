@@ -184,7 +184,7 @@ te() {
     fi
 
     pip install --no-cache-dir $WHEELS_DIR/transformer_engine*.whl || true
-    patch -p1 --force /usr/local/lib/python3.12/dist-packages/triton/runtime/autotuner.py $CURR/external/patches/triton-lang_triton_6570_lazy_init.patch
+    patch -p1 --force $(python -c "import triton; print(triton.__path__[0])")/runtime/autotuner.py $CURR/external/patches/triton-lang_triton_6570_lazy_init.patch
   fi
 }
 
