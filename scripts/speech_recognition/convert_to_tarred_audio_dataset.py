@@ -1005,7 +1005,8 @@ if __name__ == "__main__":
         action='store_true',
         help=(
             "If set, only creates manifests for each shard without creating the actual tar files. "
-            "This allows you to verify the output structure and content before committing to the full tarball creation process."
+            "This allows you to verify the output structure and content before committing to the full tarball creation process. "
+            "Each manifest entry will also include the field `abs_audio_filepath`, which stores the absolute path to the original audio file."
         ),
     )
     parser.add_argument(
