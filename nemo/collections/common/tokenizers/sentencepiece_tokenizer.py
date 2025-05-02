@@ -281,8 +281,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
             for i, id in enumerate(ids):
                 if id in self.id_to_special_token:
-                    text += self.tokenizer.decode_ids(ids[last_i:i])
-                    text += self.id_to_special_token[id]
+                    text += self.tokenizer.decode_ids(ids[last_i:i]) + " "
+                    text += self.id_to_special_token[id] + " "
                     last_i = i + 1
 
             text += self.tokenizer.decode_ids(ids[last_i:])
