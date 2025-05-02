@@ -243,7 +243,7 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
             # Since Baichuan2 is not importable from transformers, we can only initialize the HF model
             # from a known checkpoint folder containing the config file and modeling files.
             # The model_name will need to be passed in.
-            config = AutoConfig.from_pretrained(model_name)
+            config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
             hf_model = AutoModelForCausalLM.from_config(
                 model_name,
                 trust_remote_code=True,
