@@ -120,7 +120,7 @@ class TestAudioLosses:
 
     @pytest.mark.unit
     def test_calculate_mse_invalid_dimensions(self):
-        """Test MSE calculation with simultaneous input length and mask."""
+        """Test MSE calculation with unsupported dimensions."""
         estimate = torch.randn(size=(1, 1, 100, 10))
         target = torch.randn(size=(1, 1, 100))
 
@@ -137,7 +137,7 @@ class TestAudioLosses:
 
     @pytest.mark.unit
     def test_calculate_mae_input_and_mask(self):
-        """Test MAE calculation with unsupported dimensions."""
+        """Test MAE calculation with simultaneous input length and mask."""
         estimate = torch.randn(size=(1, 1, 100))
         target = torch.randn(size=(1, 1, 100))
         input_length = torch.tensor([100])
