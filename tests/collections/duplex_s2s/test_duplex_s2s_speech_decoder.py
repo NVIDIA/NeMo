@@ -4,7 +4,7 @@ from lhotse import CutSet, SupervisionSegment
 from lhotse.testing.dummies import dummy_cut, dummy_recording
 
 from nemo.collections.duplex_s2s.data import DuplexS2SDataset
-from nemo.collections.duplex_s2s.models import DuplexS2SModel
+from nemo.collections.duplex_s2s.models import DuplexS2SSpeechDecoderModel
 
 
 @pytest.fixture(scope="session")
@@ -29,9 +29,17 @@ def model():
                 "subsampling_factor": 1,
             },
         },
+        "speech_decoder": {
+            "n_layers": 1,
+            "d_model": 768,
+            "d_ffn": 3072,
+            "sa_n_heads": 12,
+            "kernel_size": 3,
+            "is_causal": True,
+        },
         "optimizer": {"_target_": "torch.optim.AdamW"},
     }
-    return DuplexS2SModel(cfg).bfloat16()
+    return DuplexS2SSpeechDecoderModel(cfg).bfloat16()
 
 
 @pytest.fixture(scope="session")
@@ -87,28 +95,7 @@ def training_cutset_batch():
     return CutSet([cut])
 
 
-def test_s2s_dataset(dataset, training_cutset_batch):
-    batch = dataset[training_cutset_batch]
-    for key in (
-        "source_audio",
-        "target_audio",
-        "source_audio_lens",
-        "target_audio_lens",
-        "target_tokens",
-        "target_token_lens",
-        "source_tokens",
-        "source_token_lens",
-    ):
-        assert key in batch
-        assert torch.is_tensor(batch[key])
-    assert batch["source_audio"].shape == (1, 16000)
-    assert batch["target_audio"].shape == (1, 22050)
-    assert batch["target_texts"] == ["hello okay"]
-    assert batch["target_tokens"].tolist() == [[0, 0, 0, 0, 1, 2, 0, 0, 1, 20759, 0, 0, 0]]
-    assert batch["source_tokens"].tolist() == [[1, 2, 0, 0, 0, 0, 1, 3431, 2, 0, 0, 0, 0]]
-
-
-def test_s2s_training_step(model, dataset, training_cutset_batch):
+def test_s2s_speech_decoder_training_step(model, dataset, training_cutset_batch):
     batch = dataset[training_cutset_batch]
     results = model.training_step(batch, batch_idx=0)
     assert torch.is_tensor(results["loss"])
@@ -116,7 +103,7 @@ def test_s2s_training_step(model, dataset, training_cutset_batch):
     assert results["loss"] > 0
 
 
-def test_s2s_offline_generation(model):
+def test_s2s_speech_decoder_offline_generation(model):
     # 16000 samples == 1 second == 12.5 frames ~= 14 frames after encoder padding
     gen_text, gen_audio, lengths = model.offline_inference(
         input_signal=torch.randn(1, 16000),

@@ -10,9 +10,6 @@ from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.duplex_s2s.data import SALMDataset
 from nemo.collections.duplex_s2s.models import SALM
 
-if torch.cuda.is_available():
-    torch.set_default_device(torch.device('cuda'))
-
 
 AUDIO_LOCATOR_TAG = "<|audioplaceholder|>"
 PROMPT = "llama2"
