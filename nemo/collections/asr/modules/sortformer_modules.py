@@ -208,7 +208,7 @@ class SortformerModules(NeuralModule, Exportable):
         hidden_out = self.first_hidden_to_hidden(hidden_out)
         hidden_out = self.dropout(F.relu(hidden_out))
         spk_preds = self.single_hidden_to_spks(hidden_out)
-        preds = nn.Sigmoid()(spk_preds)
+        preds = F.sigmoid(spk_preds)
         return preds
 
     def concat_embs(
