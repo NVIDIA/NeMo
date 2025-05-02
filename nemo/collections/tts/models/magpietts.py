@@ -17,7 +17,7 @@ import random
 import string
 import time
 from typing import List
-from enum import Enum, verify, CONTINUOUS, UNIQUE
+from enum import Enum, StrEnum, auto, verify, CONTINUOUS, UNIQUE
 
 import librosa
 import numpy as np
@@ -172,7 +172,9 @@ class MagpieTTSModel(ModelPT):
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
-        if cfg.get('use_local_transformer', False):
+
+        self.local_transformer_type = self.LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
+        if self.local_transformer_type != self.LocalTransformerType.NO_LT:
             local_transformer_hidden_dim = cfg.get('local_transformer_hidden_dim', 256)
             if local_transformer_hidden_dim != cfg.decoder.d_model:
                 self.local_transformer_in_projection = nn.Linear(cfg.decoder.d_model, local_transformer_hidden_dim)
@@ -184,7 +186,7 @@ class MagpieTTSModel(ModelPT):
                 d_ffn=local_transformer_hidden_dim*4,
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
-                is_causal=cfg.get('use_maskgit', False),
+                is_causal=self.local_transformer_type == self.LocalTransformerType.AR,
                 max_length_causal_mask=self.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
@@ -239,6 +241,11 @@ class MagpieTTSModel(ModelPT):
             self.alignment_loss = ForwardSumLoss(loss_scale=alignment_loss_scale)
         if alignment_encoder_loss_scale > 0.0:
             self.alignment_encoder_loss = ForwardSumLoss(loss_scale=alignment_encoder_loss_scale)
+
+    class LocalTransformerType(StrEnum):
+        NO_LT = "none"
+        AR = "autoregressive"
+        MASKGIT = "maskgit"
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         if hasattr(self, '_no_state_dict') and self._no_state_dict:
@@ -518,7 +525,7 @@ class MagpieTTSModel(ModelPT):
 
         return all_preds
 
-    def maskgit_sample_codes(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3):
+    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """
@@ -528,7 +535,7 @@ class MagpieTTSModel(ModelPT):
         self.local_transformer.reset_cache(use_cache=False)
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
         local_transformer_input_init = self.local_transformer_in_projection(dec_output) # (B, 1, D) where D is the dimension of the local transformer
-        C = self.cfg.num_audio_codebooks
+        C = self.num_audio_codebooks
         B = dec_output.size(0)
 
         min_confidence = float("-inf")
@@ -610,7 +617,7 @@ class MagpieTTSModel(ModelPT):
             codes = codes[:actual_batch_size]
         return codes
 
-    def sample_codes_from_local_transformer(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
+    def local_transformer_sample_autoregressive(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
         # dec_output: (B, E)
         self.local_transformer.reset_cache(use_cache=True)
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
@@ -1175,15 +1182,16 @@ class MagpieTTSModel(ModelPT):
 
         local_transformer_loss = None
         local_transformer_logits = None
-        use_maskgit = self.cfg.get('use_maskgit', False)
-        if self.cfg.get('use_local_transformer', False) or use_maskgit:
-            if use_maskgit:
+        if self.local_transformer_type != self.LocalTransformerType.NO_LT:
+            if self.local_transformer_type == self.LocalTransformerType.MASKGIT:
                 # randomly replace some positions with MASK_TOKEN
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
                 #audio_codes_masked = audio_codes_masked[:, 1:, :]
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
-            else:            
+            else:
+                # autoregressive
+                assert self.local_transformer_type == self.LocalTransformerType.AR, "Unexpected local transformer type"
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target, targets_offset_by_one=False)
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
             local_transformer_loss_scale = self.cfg.get('local_transformer_loss_scale', 1.0)
@@ -1485,7 +1493,6 @@ class MagpieTTSModel(ModelPT):
             start_prior_after_n_audio_steps=10,
             compute_all_heads_attn_maps=False,
             use_local_transformer_for_inference=False,
-            use_maskgit_for_inference=False,
             maskgit_n_steps=3
         ):
         with torch.no_grad():
@@ -1636,11 +1643,10 @@ class MagpieTTSModel(ModelPT):
                 unifinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
-                if (self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference) or \
-                   (self.cfg.get('use_maskgit', False) and use_maskgit_for_inference):
-                    if not use_maskgit_for_inference:
+                if use_local_transformer_for_inference:
+                    if self.local_transformer_type == self.LocalTransformerType.AR :
                         # Autoregressive sampling with local transformer
-                        audio_codes_next = self.sample_codes_from_local_transformer(
+                        audio_codes_next = self.local_transformer_sample_autoregressive(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
                             topk=topk,
@@ -1649,10 +1655,8 @@ class MagpieTTSModel(ModelPT):
                             use_cfg=use_cfg,
                             cfg_scale=cfg_scale
                         )
-                    else:
-                        # MaskGit sampling with local transformer
-                        assert self.cfg.get("use_maskgit", False), "Can't inference with MaskGit if it wasn't enabled in training."
-                        audio_codes_next = self.maskgit_sample_codes(
+                    elif self.local_transformer_type == self.LocalTransformerType.MASKGIT:
+                        audio_codes_next = self.local_transformer_sample_maskgit(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
                             topk=topk,
@@ -1662,6 +1666,9 @@ class MagpieTTSModel(ModelPT):
                             cfg_scale=cfg_scale,
                             n_steps=maskgit_n_steps
                         )
+                    else:
+                        raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
+                    # TODO @rfejgin: should we add argmax sampling for EOS here too?
                     all_codes_next_argmax = audio_codes_next
                 else:
                     # Parallel sampling from all codebooks
@@ -1777,7 +1784,7 @@ class MagpieTTSModel(ModelPT):
         self.log("val/codebook_loss", val_codebook_loss, prog_bar=True, sync_dist=True)
         self.log("val/alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.log("val/aligner_encoder_loss", val_aligner_encoder_loss, prog_bar=True, sync_dist=True)
-        if self.cfg.get('use_local_transformer', False):
+        if self.local_transformer_type != self.LocalTransformerType.NO_LT:
             val_local_transformer_loss = collect("val_local_transformer_loss")
             self.log("val/local_transformer_loss", val_local_transformer_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()  # free memory
