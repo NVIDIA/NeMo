@@ -121,6 +121,8 @@ An example of specifying a preprocessor is as follows:
 Refer to the :ref:`Audio Preprocessors <asr-audio-preprocessors>` API section for the preprocessor options, expected arguments,
 and defaults.
 
+.. _asr-configs-augmentation-configurations:
+
 Augmentation Configurations
 ---------------------------
 
