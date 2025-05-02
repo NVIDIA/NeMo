@@ -7,14 +7,6 @@
   "info": ""
 }
 {
-  "filename": "asr/ssl/intro.rst",
-  "lineno": 10,
-  "status": "broken",
-  "code": 0,
-  "uri": "../models.html",
-  "info": ""
-}
-{
   "filename": "multimodal/vlm/configs.rst",
   "lineno": 160,
   "status": "broken",
@@ -47,14 +39,6 @@
   "info": ""
 }
 {
-  "filename": "asr/ssl/configs.rst",
-  "lineno": 32,
-  "status": "broken",
-  "code": 0,
-  "uri": "../datasets.html#bucketing-datasets",
-  "info": ""
-}
-{
   "filename": "vision/configs.rst",
   "lineno": 133,
   "status": "broken",
@@ -76,14 +60,6 @@
   "status": "broken",
   "code": 0,
   "uri": "./neva.html#neva",
-  "info": ""
-}
-{
-  "filename": "asr/ssl/datasets.rst",
-  "lineno": 4,
-  "status": "broken",
-  "code": 0,
-  "uri": "../datasets.html",
   "info": ""
 }
 {
