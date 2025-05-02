@@ -22,6 +22,7 @@ import pytest
 @pytest.fixture
 def exporter():
     from nemo.export.vllm_hf_exporter import vLLMHFExporter
+
     return vLLMHFExporter()
 
 
@@ -45,7 +46,7 @@ def test_export(exporter, mock_llm):
     """Test export method"""
     model_path = "/path/to/model"
     exporter.export(model=model_path)
-    
+
     assert exporter.model is not None
     mock_llm.assert_called_once_with(model=model_path, enable_lora=False)
 
@@ -55,7 +56,7 @@ def test_export_with_lora(exporter, mock_llm):
     """Test export method with LoRA enabled"""
     model_path = "/path/to/model"
     exporter.export(model=model_path, enable_lora=True)
-    
+
     assert exporter.model is not None
     mock_llm.assert_called_once_with(model=model_path, enable_lora=True)
 
@@ -65,9 +66,9 @@ def test_add_lora_models(exporter):
     """Test adding LoRA models"""
     lora_name = "test_lora"
     lora_model = "path/to/lora"
-    
+
     exporter.add_lora_models(lora_name, lora_model)
-    
+
     assert exporter.lora_models is not None
     assert lora_name in exporter.lora_models
     assert exporter.lora_models[lora_name] == lora_model
@@ -77,7 +78,7 @@ def test_add_lora_models(exporter):
 def test_get_triton_input(exporter):
     """Test triton input configuration"""
     inputs = exporter.get_triton_input
-    
+
     # Check that we have all expected inputs
     input_names = [tensor.name for tensor in inputs]
     assert "prompts" in input_names
@@ -85,7 +86,7 @@ def test_get_triton_input(exporter):
     assert "top_k" in input_names
     assert "top_p" in input_names
     assert "temperature" in input_names
-    
+
     # Check data types
     for tensor in inputs:
         if tensor.name == "prompts":
@@ -102,7 +103,7 @@ def test_get_triton_input(exporter):
 def test_get_triton_output(exporter):
     """Test triton output configuration"""
     outputs = exporter.get_triton_output
-    
+
     assert len(outputs) == 1
     assert outputs[0].name == "outputs"
     assert outputs[0].dtype == bytes
@@ -119,7 +120,7 @@ def test_forward_without_model(exporter):
 def test_forward_with_lora_not_added(exporter, mock_llm):
     """Test forward method with non-existent LoRA model"""
     exporter.export(model="/path/to/model")
-    
+
     with pytest.raises(Exception, match="No lora models are available"):
         exporter.forward(["test prompt"], lora_model_name="non_existent_lora")
 
@@ -129,7 +130,7 @@ def test_forward_with_invalid_lora(exporter, mock_llm):
     """Test forward method with invalid LoRA model name"""
     exporter.export(model="/path/to/model")
     exporter.add_lora_models("valid_lora", "path/to/lora")
-    
+
     with pytest.raises(AssertionError, match="Lora model was not added before"):
         exporter.forward(["test prompt"], lora_model_name="invalid_lora")
 
@@ -138,20 +139,18 @@ def test_forward_with_invalid_lora(exporter, mock_llm):
 def test_triton_infer_fn(exporter, mock_llm):
     """Test triton inference function"""
     exporter.export(model="/path/to/model")
-    mock_llm.generate.return_value = [
-        MagicMock(outputs=[MagicMock(text="test output")])
-    ]
-    
+    mock_llm.generate.return_value = [MagicMock(outputs=[MagicMock(text="test output")])]
+
     inputs = {
         "prompts": np.array([b"test prompt"]),
         "max_output_len": np.array([64]),
         "top_k": np.array([1]),
         "top_p": np.array([0.1]),
-        "temperature": np.array([1.0])
+        "temperature": np.array([1.0]),
     }
-    
+
     result = exporter.triton_infer_fn(**inputs)
-    
+
     assert "outputs" in result
     assert isinstance(result["outputs"], np.ndarray)
     assert result["outputs"].dtype == np.bytes_
@@ -160,13 +159,11 @@ def test_triton_infer_fn(exporter, mock_llm):
 @pytest.mark.skip(reason="Need to enable virtual environment for vLLM")
 def test_triton_infer_fn_error_handling(exporter):
     """Test triton inference function error handling"""
-    inputs = {
-        "prompts": np.array([b"test prompt"])
-    }
-    
+    inputs = {"prompts": np.array([b"test prompt"])}
+
     result = exporter.triton_infer_fn(**inputs)
-    
+
     assert "outputs" in result
     assert isinstance(result["outputs"], np.ndarray)
     assert result["outputs"].dtype == np.bytes_
-    assert b"An error occurred" in result["outputs"][0] 
+    assert b"An error occurred" in result["outputs"][0]

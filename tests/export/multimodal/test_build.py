@@ -41,7 +41,9 @@ class TestBuild(unittest.TestCase):
             }
         }
         self.mock_weights = {
-            "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.weight": torch.randn(4096, 768),
+            "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.weight": torch.randn(
+                4096, 768
+            ),
             "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.bias": torch.randn(4096),
         }
 
@@ -103,7 +105,7 @@ class TestBuild(unittest.TestCase):
 
         mock_mllama.from_hugging_face.assert_called_once()
         mock_build_trtllm.assert_called_once()
-    
+
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()
