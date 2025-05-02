@@ -52,14 +52,9 @@ def schroedinger_bridge_model_ncsn():
         'pad_dimension_to': 0,  # no padding in the frequency dimension
     }
 
-    loss_encoded = {
-        '_target_': 'nemo.collections.audio.losses.MSELoss',  # computed in the time domain
-        'ndim': 4
-    }
+    loss_encoded = {'_target_': 'nemo.collections.audio.losses.MSELoss', 'ndim': 4}  # computed in the time domain
 
-    loss_time = {
-        '_target_': 'nemo.collections.audio.losses.MAELoss'
-    }
+    loss_time = {'_target_': 'nemo.collections.audio.losses.MAELoss'}
 
     noise_schedule = {
         '_target_': 'nemo.collections.audio.parts.submodules.schroedinger_bridge.SBNoiseScheduleVE',
@@ -67,17 +62,15 @@ def schroedinger_bridge_model_ncsn():
         'c': 0.4,
         'time_min': 1e-4,
         'time_max': 1.0,
-        'num_steps': 1000 # num steps for the forward process
+        'num_steps': 1000,  # num steps for the forward process
     }
 
     sampler = {
         '_target_': 'nemo.collections.audio.parts.submodules.schroedinger_bridge.SBSampler',
         'time_min': 1e-4,
         'time_max': 1.0,
-        'num_steps': 5 # num steps for the reverse process
+        'num_steps': 5,  # num steps for the reverse process
     }
-
-
 
     model_config = DictConfig(
         {
@@ -94,7 +87,6 @@ def schroedinger_bridge_model_ncsn():
             'estimator_output': 'data_prediction',
             'noise_schedule': DictConfig(noise_schedule),
             'sampler': DictConfig(sampler),
-
             'optim': {
                 'optimizer': 'Adam',
                 'lr': 0.001,
@@ -157,7 +149,7 @@ class TestSchroedingerBridgeModelNCSN:
             )
 
         # It is generative model so we do not check the diffenence between output_instance and output_batch
-            
+
         # Check that the output and output length are the same for the instance and batch
         assert output_instance.shape == output_batch.shape
         assert output_length_instance.shape == output_length_batch.shape
