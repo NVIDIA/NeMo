@@ -679,54 +679,6 @@
   "info": "404 Client Error: Not Found for url: https://catalog.ngc.nvidia.com/orgs/nvidia/models/diar_msdd_telephonic"
 }
 {
-  "filename": "core/export.rst",
-  "lineno": 226,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://pytorch.org/docs/stable/onnx.html#example-end-to-end-alexnet-from-pytorch-to-onnx",
-  "info": "Anchor 'example-end-to-end-alexnet-from-pytorch-to-onnx' not found"
-}
-{
-  "filename": "core/export.rst",
-  "lineno": 45,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://pytorch.org/docs/stable/onnx.html#functions",
-  "info": "Anchor 'functions' not found"
-}
-{
-  "filename": "core/export.rst",
-  "lineno": 224,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://pytorch.org/docs/stable/onnx.html#supported-operators",
-  "info": "Anchor 'supported-operators' not found"
-}
-{
-  "filename": "core/export.rst",
-  "lineno": 225,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://pytorch.org/docs/stable/onnx.html#tracing-vs-scripting",
-  "info": "Anchor 'tracing-vs-scripting' not found"
-}
-{
-  "filename": "core/export.rst",
-  "lineno": 218,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://pytorch.org/docs/stable/onnx.html#write-pytorch-model-in-torch-way",
-  "info": "Anchor 'write-pytorch-model-in-torch-way' not found"
-}
-{
-  "filename": "core/export.rst",
-  "lineno": 81,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://pytorch.org/docs/stable/onnx.html#using-dictionaries-to-handle-named-arguments-as-model-inputs",
-  "info": "Anchor 'using-dictionaries-to-handle-named-arguments-as-model-inputs' not found"
-}
-{
   "filename": "checkpoints/intro.rst",
   "lineno": 28,
   "status": "broken",
