@@ -571,7 +571,7 @@ respectively. Some components of the configs of :ref:`Conformer-CTC <Conformer-C
 * ``trainer``
 * ``exp_manager``
 
-These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can
+These datasets are similar to other ASR models like :ref:`QuartzNet <Quartznet_model>`. There should be a tokenizer section where you can
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
 
@@ -702,7 +702,7 @@ The only condition that needs to be met is that **the final layer of the acousti
 Decoder / Prediction Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The Prediction model is generally an autoregressive, causal model that consumes text tokens and returns embeddings that will be used by the Joint model. The base config for an LSTM based Prediction network can be found in the the ``decoder`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+The Prediction model is generally an autoregressive, causal model that consumes text tokens and returns embeddings that will be used by the Joint model. The base config for an LSTM based Prediction network can be found in the the ``decoder`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -729,7 +729,7 @@ Let us discuss some of the important arguments:
 Joint Model
 ~~~~~~~~~~~
 
-The Joint model is a simple feed-forward Multi-Layer Perceptron network. This MLP accepts the output of the Acoustic and Prediction models and computes a joint probability distribution over the entire vocabulary space. The base config for the Joint network can be found in the the ``joint`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+The Joint model is a simple feed-forward Multi-Layer Perceptron network. This MLP accepts the output of the Acoustic and Prediction models and computes a joint probability distribution over the entire vocabulary space. The base config for the Joint network can be found in the the ``joint`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -845,7 +845,7 @@ The fused operation goes as follows :
 Transducer Decoding
 ~~~~~~~~~~~~~~~~~~~
 
-Models which have been trained with CTC can transcribe text simply by performing a regular argmax over the output of their decoder. For transducer-based models, the three networks must operate in a synchronized manner in order to transcribe the acoustic features. The base config for the Transducer decoding step can be found in the the ``decoding`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+Models which have been trained with CTC can transcribe text simply by performing a regular argmax over the output of their decoder. For transducer-based models, the three networks must operate in a synchronized manner in order to transcribe the acoustic features. The base config for the Transducer decoding step can be found in the the ``decoding`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -894,7 +894,7 @@ The most important component at the top level is the ``strategy``. It can take o
 Transducer Loss
 ~~~~~~~~~~~~~~~
 
-This section configures the type of Transducer loss itself, along with possible sub-sections. By default, an optimized implementation of Transducer loss will be used which depends on Numba for CUDA acceleration. The base config for the Transducer loss section can be found in the the ``loss`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+This section configures the type of Transducer loss itself, along with possible sub-sections. By default, an optimized implementation of Transducer loss will be used which depends on Numba for CUDA acceleration. The base config for the Transducer loss section can be found in the the ``loss`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 

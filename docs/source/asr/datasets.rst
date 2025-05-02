@@ -232,7 +232,7 @@ As such, there is no assured guarantee that all samples in the dataset will be s
 for these reasons it is not advisable to use tarred datasets as validation and test datasets.
 
 For more information about the individual tarred datasets and the parameters available, including shuffling options,
-see the corresponding class APIs in the `Datasets <./api.html#Datasets>`__ section.
+see the corresponding class APIs in the :ref:`Datasets <asr-api-datasets>` section.
 
 .. warning::
   If using multiple workers, the number of shards should be divisible by the world size to ensure an even
