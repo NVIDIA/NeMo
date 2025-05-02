@@ -268,6 +268,10 @@ nemo() {
   # needs no-deps to avoid installing triton on top of pytorch-triton.
   pip install --no-deps --no-cache-dir "liger-kernel==0.5.8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
   pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86aba72cfd2f0d8abecaf81c13c4528ea07d8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
+  # FA3
+  git clone --depth 1 https://github.com/Dao-AILab/flash-attention.git; \
+  cd flash-attention/hopper; \
+  python3 setup.py install
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
