@@ -279,14 +279,6 @@
   "info": "404 Client Error: Not Found for url: https://catalog.data.gov/dataset/pubmed"
 }
 {
-  "filename": "asr/examples/kinyarwanda_asr.rst",
-  "lineno": 534,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models",
-  "info": "404 Client Error: Not Found for url: https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models"
-}
-{
   "filename": "multimodal/mllm/datasets.rst",
   "lineno": 29,
   "status": "broken",
