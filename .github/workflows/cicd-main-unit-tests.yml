@@ -199,7 +199,7 @@ jobs:
             cpu-only: true
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
-    if: contains(fromJson(inputs.test_to_run), ${{ matrix.script }}) || inputs.test_to_run == '["all"]'
+    if: contains(fromJson(inputs.test_to_run), matrix.script) || inputs.test_to_run == '["all"]'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
