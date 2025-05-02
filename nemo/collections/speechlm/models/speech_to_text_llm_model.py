@@ -879,7 +879,8 @@ class SpeechToTextLLM(SpeechLanguageModel):
 
         if isinstance(forward_output, tuple):
             # reduce validation loss
-            loss = self.validation_loss_reduction.forward(batch=batch, forward_out=forward_output)[-1]['avg']
+            loss = self.validation_loss_reduction.forward(batch=batch, forward_out=forward_output)[-1]
+            loss = self.validation_loss_reduction.reduce([loss])
         else:
             # no labels provided, use a dummy loss value
             loss = 0.0
