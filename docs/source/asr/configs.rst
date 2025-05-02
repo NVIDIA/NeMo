@@ -578,6 +578,8 @@ specify the tokenizer if you want to use sub-word encoding instead of character-
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the
 config files and also :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`.
 
+.. _asr-configs-squeezeformer-ctc
+
 Squeezeformer-CTC
 ~~~~~~~~~~~~~~~~~
 
@@ -598,6 +600,8 @@ Conformer-Transducer
 ~~~~~~~~~~~~~~~~~~~~
 
 Please refer to the model page of :ref:`Conformer-Transducer <Conformer-Transducer_model>` for more information on this model.
+
+.. _asr-configs-lstm-transducer-and-ctc
 
 LSTM-Transducer and LSTM-CTC
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -70,7 +70,7 @@ Here is the overall architecture of the encoder of Conformer-CTC:
         :scale: 50%
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
-Conformer-CTC models in the `Conformer-CTC configuration documentation <./configs.html#conformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
+Conformer-CTC models in the :ref:`Conformer-CTC configuration documentation <asr-configs-conformer-ctc>`. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
 character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
 
@@ -87,7 +87,7 @@ Conformer-Transducer is the Conformer model introduced in :cite:`asr-models-gula
 It has the same encoder as Conformer-CTC but utilizes RNNT/Transducer loss/decoder which makes it an autoregressive model.
 
 Most of the config file for Conformer-Transducer models are similar to Conformer-CTC except the sections related to the decoder and loss: decoder, loss, joint, decoding.
-You may take a look at our `tutorials page <../starthere/tutorials.html>`_ on Transducer models to become familiar with their configs:
+You may take a look at our :doc:`tutorials page <../starthere/tutorials>` on Transducer models to become familiar with their configs:
 `Introduction to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>`_ and
 `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`_
 You can find more details on the config files for the Conformer-Transducer models in the `Conformer-CTC configuration documentation <./configs.html#conformer-ctc>`_.
@@ -404,7 +404,7 @@ Squeezeformer-CTC
 -----------------
 
 Squeezeformer-CTC is a CTC-based variant of the Squeezeformer model introduced in :cite:`asr-models-kim2022squeezeformer`. Squeezeformer-CTC has a
-similar encoder as the original Squeezeformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model. The vast majority of the architecture is similar to Conformer model, so please refer to `Conformer-CTC <./models.html#conformer-ctc>`_.
+similar encoder as the original Squeezeformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model. The vast majority of the architecture is similar to Conformer model, so please refer to :ref:`Conformer-CTC <Conformer-CTC_model>`.
 
 The model primarily differs from Conformer in the following ways :
 
@@ -420,7 +420,7 @@ Here is the overall architecture of the encoder of Squeezeformer-CTC:
         :scale: 50%
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
-Squeezeformer-CTC models at `Squeezeformer-CTC <./configs.html#squeezeformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
+Squeezeformer-CTC models at :ref:`Squeezeformer-CTC <asr-configs-squeezeformer-ctc>`. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
 character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
 
@@ -439,7 +439,7 @@ Layer norm is added between the layers to stabilize the training.
 It can be trained/used in unidirectional or bidirectional mode. The unidirectional mode is fully causal and can be used easily for simple and efficient streaming. However the accuracy of this model is generally lower than other models like Conformer and Citrinet.
 
 This model supports both the sub-word level and character level encodings. You may find the example config file of RNNT model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_transducer_bpe.yaml``.
-You can find more details on the config files for the RNNT models at `LSTM-Transducer <./configs.html#lstm-transducer>`_.
+You can find more details on the config files for the RNNT models at :ref:`LSTM-Transducer <asr-configs-lstm-transducer-and-ctc>`.
 
 .. _LSTM-CTC_model:
 
