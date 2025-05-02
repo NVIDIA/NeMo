@@ -58,7 +58,11 @@ def score_based_base_config():
         '_target_': 'nemo.collections.audio.parts.submodules.ncsnpp.SpectrogramNoiseConditionalScoreNetworkPlusPlus',
         'in_channels': 2,
         'out_channels': 1,
-        'channels': (4, 4, 4,),
+        'channels': (
+            4,
+            4,
+            4,
+        ),
         'num_resolutions': 2,
         'conditioned_on_time': True,
         'num_res_blocks': 1,
@@ -81,10 +85,7 @@ def score_based_base_config():
         'snr': 0.5,
     }
 
-    loss = {
-        '_target_': 'nemo.collections.audio.losses.MSELoss', 
-        'ndim': 4
-    }
+    loss = {'_target_': 'nemo.collections.audio.losses.MSELoss', 'ndim': 4}
 
     trainer = {
         'max_epochs': -1,
@@ -130,13 +131,14 @@ def test_score_based_model_init(score_based_base_config):
     assert isinstance(model, ScoreBasedGenerativeAudioToAudioModel)
 
 
-@pytest.fixture(params=["nemo_manifest", "lhotse_cuts"]) 
+@pytest.fixture(params=["nemo_manifest", "lhotse_cuts"])
 def mock_dataset_config(tmp_path, request):
     num_files = 8
     num_samples = 16000
-    
+
     import numpy as np
     import soundfile as sf
+
     for i in range(num_files):
         data = np.random.randn(num_samples, 1)
         sf.write(tmp_path / f"audio_{i}.wav", data, 16000)
@@ -146,13 +148,13 @@ def mock_dataset_config(tmp_path, request):
             for i in range(num_files):
                 recording = lhotse.Recording.from_file(tmp_path / f"audio_{i}.wav")
                 cut = lhotse.MonoCut(
-                        id=f"audio_{i}",
-                        start=0,
-                        channel=0,
-                        duration=num_samples / 16000,
-                        recording=recording,
-                        custom={"target_recording": recording},
-                    )
+                    id=f"audio_{i}",
+                    start=0,
+                    channel=0,
+                    duration=num_samples / 16000,
+                    recording=recording,
+                    custom={"target_recording": recording},
+                )
                 writer.write(cut)
 
             return {
@@ -169,7 +171,7 @@ def mock_dataset_config(tmp_path, request):
                     "clean_filepath": str(tmp_path / f"audio_{i}.wav"),
                     "duration": num_samples / 16000,
                     "offset": 0,
-                    }
+                }
                 f.write(f"{json.dumps(entry)}\n")
         return {
             'manifest_filepath': str(tmp_path / "small_manifest.jsonl"),
@@ -184,6 +186,7 @@ def mock_dataset_config(tmp_path, request):
 @pytest.fixture()
 def score_based_model(score_based_base_config):
     return ScoreBasedGenerativeAudioToAudioModel(cfg=convert_to_dictconfig(score_based_base_config))
+
 
 @pytest.fixture()
 def score_based_model_with_trainer_and_mock_dataset(score_based_base_config, mock_dataset_config):
@@ -203,13 +206,13 @@ def score_based_model_with_trainer_and_mock_dataset(score_based_base_config, moc
 
 
 @pytest.mark.parametrize(
-        "batch_size, sample_len",
-        [
-            (4, 4),
-            (2, 8),
-            (1, 10),
-        ],
-    )
+    "batch_size, sample_len",
+    [
+        (4, 4),
+        (2, 8),
+        (1, 10),
+    ],
+)
 def test_score_based_model_forward(score_based_model, batch_size, sample_len):
     model = score_based_model.eval()
 
@@ -221,10 +224,8 @@ def test_score_based_model_forward(score_based_model, batch_size, sample_len):
     input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.long)
 
     with torch.no_grad():
-        output_batch, output_length_batch = model.forward(
-            input_signal=input_signal, input_length=input_signal_length
-        )
-    
+        output_batch, output_length_batch = model.forward(input_signal=input_signal, input_length=input_signal_length)
+
     assert input_signal.shape == output_batch.shape, "Input and output batch shapes must match"
     assert input_signal_length.shape == output_length_batch.shape, "Input and output length shapes must match"
     assert torch.all(input_signal_length == output_length_batch), "Input and output lengths must match"
@@ -259,5 +260,5 @@ def test_score_based_model_training(score_based_model_with_trainer_and_mock_data
     """
     model, trainer = score_based_model_with_trainer_and_mock_dataset
     model = model.train()
-    
-    trainer.fit(model) 
+
+    trainer.fit(model)
