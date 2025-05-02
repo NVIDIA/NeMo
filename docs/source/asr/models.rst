@@ -20,13 +20,19 @@ Spotlight Models
 Canary
 ~~~~~~
 
-Canary-1B is the latest ASR model from NVIDIA NeMo. It sits at the top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of publishing.
+Canary is the latest family of models from NVIDIA NeMo. Canary models are encoder-decoder models with a :ref:`FastConformer Encoder <Fast-Conformer>` and Transformer Decoder :cite:`asr-models-vaswani2017aayn`.
+They are multi-lingual, multi-task model, supporting automatic speech-to-text recognition (ASR) in 4 languages (English, German, French, Spanish) as well as translation between English and the 3 other supported languages.
 
-You can `download the checkpoint <https://huggingface.co/nvidia/canary-1b>`__  or try out Canary in action in this `HuggingFace Space <https://huggingface.co/spaces/nvidia/canary-1b>`__.
+Models:
 
-Canary-1B is an encoder-decoder model with a :ref:`FastConformer Encoder <Fast-Conformer>` and Transformer Decoder :cite:`asr-models-vaswani2017aayn`.
+* `Canary-1B Flash <https://huggingface.co/nvidia/canary-1b-flash>`__ model card
+* `Canary-180M Flash <https://huggingface.co/nvidia/canary-180m-flash>`__ model card
+* `Canary-1B <https://huggingface.co/nvidia/canary-1b>`__ model card
 
-It is a multi-lingual, multi-task model, supporting automatic speech-to-text recognition (ASR) in 4 languages (English, German, French, Spanish) as well as translation between English and the 3 other supported languages.
+Spaces:
+
+* `Canary-1B Flash <https://huggingface.co/spaces/nvidia/canary-1b-flash>`__
+* `Canary-1B <https://huggingface.co/spaces/nvidia/canary-1b>`__
 
 
 Parakeet
@@ -36,14 +42,19 @@ Parakeet is the name of a family of ASR models with a :ref:`FastConformer Encode
 
 Model checkpoints:
 
+* `Parakeet-TDT-0.6B V2 <https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2>`__ model card
+
+  * this model sits top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of writing (May 2nd 2025)
+
 * `Parakeet-CTC-0.6B <https://huggingface.co/nvidia/parakeet-ctc-0.6b>`__ and `Parakeet-CTC-1.1B <https://huggingface.co/nvidia/parakeet-ctc-1.1b>`__ model cards
+
 * `Parakeet-RNNT-0.6B <https://huggingface.co/nvidia/parakeet-rnnt-0.6b>`__ and `Parakeet-RNNT-1.1B <https://huggingface.co/nvidia/parakeet-rnnt-1.1b>`__ model cards
+
 * `Parakeet-TDT-1.1B <https://huggingface.co/nvidia/parakeet-tdt-1.1b>`__ model card
 
 HuggingFace Spaces to try out Parakeet models in your browser:
 
-* `Parakeet-RNNT-1.1B <https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b>`__ space
-* `Parakeet-TDT-1.1B <https://huggingface.co/spaces/nvidia/parakeet-tdt-1.1b>`__ space
+* `Parakeet-TDT-0.6B V2 <https://huggingface.co/spaces/nvidia/parakeet-tdt-0.6b-v2>`__ space
 
 .. _Conformer_model:
 
@@ -64,10 +75,10 @@ self-attention with absolute positional encoding, and also Transformer-XL's self
 
 Here is the overall architecture of the encoder of Conformer-CTC:
 
-    .. image:: images/conformer_ctc.png
-        :align: center
-        :alt: Conformer-CTC Model
-        :scale: 50%
+.. image:: images/conformer_ctc.png
+    :align: center
+    :alt: Conformer-CTC Model
+    :scale: 50%
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
 Conformer-CTC models in the :ref:`Conformer-CTC configuration documentation <asr-configs-conformer-ctc>`. The variant with sub-word encoding is a BPE-based model
@@ -113,10 +124,10 @@ It can be helpful in the case of text-only adaptation for new domains.
 The only difference from the standard Conformer-Transducer model (RNNT) is the use of `"HATJoint" <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/asr/modules/hybrid_autoregressive_transducer.py#L39>`_
 class (instead of "RNNTJoint") for joint module. The all HAT logic is implemented in the "HATJoint" class.
 
-    .. image:: images/hat.png
-        :align: center
-        :alt: HAT Model
-        :scale: 50%
+.. image:: images/hat.png
+    :align: center
+    :alt: HAT Model
+    :scale: 50%
 
 You may find the example config files of Conformer-HAT model with character-based encoding at
 ``<NeMo_git_root>/examples/asr/conf/conformer/hat/conformer_hat_char.yaml`` and
@@ -288,10 +299,10 @@ The model consists of three models:
 * Frozen TTS Mel Spectrogram Generator (currently, only FastPitch model is supported)
 * Optional frozen Spectrogram Enhancer model trained to mitigate mismatch between real and generated mel spectrogram
 
-    .. image:: images/hybrid_asr_tts_model.png
-        :align: center
-        :alt: Hybrid ASR-TTS Model
-        :scale: 50%
+.. image:: images/hybrid_asr_tts_model.png
+    :align: center
+    :alt: Hybrid ASR-TTS Model
+    :scale: 50%
 
 For the detailed information see:
 
@@ -307,10 +318,10 @@ Confidence-based Ensembles
 Confidence-based ensemble is a simple way to combine multiple models into a single system by only retaining the
 output of the most confident model. Below is a schematic illustration of how such ensembles work.
 
-    .. image:: images/conf-ensembles-overview.png
-        :align: center
-        :alt: confidence-based ensembles
-        :scale: 50%
+.. image:: images/conf-ensembles-overview.png
+    :align: center
+    :alt: confidence-based ensembles
+    :scale: 50%
 
 For more details about this model, see the `paper <https://arxiv.org/abs/2306.15824>`_
 or read our `tutorial <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Confidence_Ensembles.ipynb>`_.
@@ -340,10 +351,10 @@ blocks of 1D-convolutional layers. The Jasper family of models are denoted as ``
 and ``R`` is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization,
 ReLU, and dropout:
 
-    .. image:: images/jasper_vertical.png
-        :align: center
-        :alt: jasper model
-        :scale: 50%
+.. image:: images/jasper_vertical.png
+    :align: center
+    :alt: jasper model
+    :scale: 50%
 
 Jasper models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
 
@@ -358,10 +369,10 @@ Similarly to Jasper, the QuartzNet family of models are denoted as ``QuartzNet_[
 is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization,
 ReLU, and dropout:
 
-    .. image:: images/quartz_vertical.png
-        :align: center
-        :alt: quartznet model
-        :scale: 40%
+.. image:: images/quartz_vertical.png
+    :align: center
+    :alt: quartznet model
+    :scale: 40%
 
 QuartzNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
 
@@ -375,10 +386,10 @@ Citrinet is a version of QuartzNet :cite:`asr-models-kriman2019quartznet` that e
 utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to
 obtain highly accurate audio transcripts while utilizing a non-autoregressive CTC based decoding scheme for efficient inference.
 
-    .. image:: images/citrinet_vertical.png
-        :align: center
-        :alt: citrinet model
-        :scale: 50%
+.. image:: images/citrinet_vertical.png
+    :align: center
+    :alt: citrinet model
+    :scale: 50%
 
 Citrinet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class.
 
@@ -414,10 +425,10 @@ The model primarily differs from Conformer in the following ways :
 
 Here is the overall architecture of the encoder of Squeezeformer-CTC:
 
-    .. image:: images/squeezeformer.png
-        :align: center
-        :alt: Squeezeformer-CTC Model
-        :scale: 50%
+.. image:: images/squeezeformer.png
+    :align: center
+    :alt: Squeezeformer-CTC Model
+    :scale: 50%
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
 Squeezeformer-CTC models at :ref:`Squeezeformer-CTC <asr-configs-squeezeformer-ctc>`. The variant with sub-word encoding is a BPE-based model
