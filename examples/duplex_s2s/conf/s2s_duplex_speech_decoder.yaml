@@ -166,7 +166,7 @@ data:
 
 exp_manager:
    exp_dir: null
-   explicit_log_dir: s2s_results/
+   explicit_log_dir: s2s_sdv2_results/
    name: duplex_s2s
    create_tensorboard_logger: false
    create_checkpoint_callback: true

@@ -11,15 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import warnings
-from collections import defaultdict
 from contextlib import contextmanager
-from itertools import chain
 from typing import Any
 
-import hydra
-import sacrebleu
 import torch
+import torchaudio
 from lightning import LightningModule
 from omegaconf import DictConfig, open_dict
 from torch import Tensor
@@ -34,14 +30,14 @@ from torch.distributed.tensor.parallel import (
     parallelize_module,
 )
 from transformers import DynamicCache
-from whisper_normalizer.english import EnglishTextNormalizer
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.data.utils import get_pad_id
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.duplex_s2s.parts.hf_hub import HFHubMixin
+from nemo.collections.duplex_s2s.parts.metrics.asr_bleu import ASRBLEU
+from nemo.collections.duplex_s2s.parts.metrics.bleu import BLEU
 from nemo.collections.duplex_s2s.parts.optim_setup import configure_optimizers, is_frozen
 from nemo.collections.duplex_s2s.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
 from nemo.collections.tts.models import AudioCodecModel
@@ -111,7 +107,6 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             "_control_codes",
             torch.tensor([self.speech_bos_id, self.speech_eos_id, self.speech_delay_id], device=self.device),
         )
-        self.normalizer = EnglishTextNormalizer()
 
         self._use_fsdp = False
         self._use_tp = False
@@ -359,92 +354,51 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         return ans
 
     def on_validation_epoch_start(self) -> None:
-        # Cleaning up GPU memory before we load ASRModel, because it may already
-        # be quite fragmented and close to the limit after observing many
-        # dynamic shapes during the training epoch.
-        torch.cuda.memory.empty_cache()
-        self.asr = ASRModel.from_pretrained(self.cfg.scoring_asr).eval()
-        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
-        # Setup a separate BLEU metric for each validation dataloader through CombinedLoader.
-        # See: https://lightning.ai/docs/pytorch/LTS/guides/data.html#accessing-dataloaders-within-lightningmodule
-        self._refs = defaultdict(list)
-        self._asr_preds = defaultdict(list)
-        self._txt_preds = defaultdict(list)
+        self.asr_bleu = ASRBLEU(self.cfg.scoring_asr).reset()
+        self.bleu = BLEU().reset()
 
-    def on_validation_epoch_end(self) -> None:
-        corpus_bleus = []
-        for name in self._refs.keys():
-            val_asr_bleu = torch.tensor(
-                sacrebleu.corpus_bleu(self._asr_preds[name], self._refs[name]).score, device=self.device
-            )
-            self.log(f"val_asr_bleu_{name}", val_asr_bleu, on_epoch=True, sync_dist=True)
-            corpus_bleus.append(val_asr_bleu)
-        self.log("val_asr_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
-
-        corpus_bleus = []
-        for name in self._refs.keys():
-            val_txt_bleu = torch.tensor(
-                sacrebleu.corpus_bleu(self._txt_preds[name], self._refs[name]).score, device=self.device
-            )
-            self.log(f"val_txt_bleu_{name}", val_txt_bleu, on_epoch=True, sync_dist=True)
-            corpus_bleus.append(val_txt_bleu)
-        self.log("val_txt_bleu", torch.stack(corpus_bleus).mean(), on_epoch=True, sync_dist=True)
-
-        self._refs.clear()
-        self._asr_preds.clear()
-        self._txt_preds.clear()
-
-        self.asr = None  # free up GPU memory
-        torch.cuda.memory.empty_cache()
+    def on_validation_epoch_end(self, prefix="val") -> None:
+        asr_bleu = self.asr_bleu.compute()
+        for k, m in asr_bleu.items():
+            self.log(f"{prefix}_{k}", m.to(self.device), on_epoch=True, sync_dist=True)
+        bleu = self.bleu.compute()
+        for k, m in bleu.items():
+            self.log(f"{prefix}_{k}", m.to(self.device), on_epoch=True, sync_dist=True)
 
     def validation_step(self, batch: dict, batch_idx: int):
         for name, dataset_batch in batch.items():
             if dataset_batch is None:
                 continue  # some dataset is exhausted
 
-            # AUTOREGRESSIVE INFERENCE
             gen_text, gen_audio_codes, lengths = self.offline_inference(
                 dataset_batch["source_audio"],
                 dataset_batch["source_audio_lens"],
             )
-
-            # ASR BLEU
-            import torchaudio
 
             with _safe_audio_codec_inference():
                 gen_audio_codes = replace_control_speech_codes(gen_audio_codes, self._control_codes)
                 predicted_audio, predicted_audio_lens = self.audio_codec.decode(
                     tokens=gen_audio_codes.transpose(1, 2), tokens_len=lengths
                 )
-            asr_hyps = self.asr.transcribe(
-                [
-                    audio[:alen]
-                    for audio, alen in zip(
-                        torchaudio.functional.resample(predicted_audio, 22050, 16000),
-                        predicted_audio_lens,
-                    )
-                ],
-                batch_size=predicted_audio.shape[0],
-                verbose=False,
+
+            self.asr_bleu.update(
+                name=name,
+                refs=dataset_batch["target_texts"],
+                pred_audio=torchaudio.functional.resample(predicted_audio.float(), 22050, 16000),
+                pred_audio_lens=(predicted_audio_lens / 22050 * 16000).to(torch.long),
             )
 
-            txt_hyps = [
-                self.tokenizer.ids_to_text(hyp_ids[:hyp_len]) for hyp_ids, hyp_len in zip(gen_text.cpu(), lengths)
-            ]
-            for ref, txt_hyp, asr_hyp in zip(dataset_batch["target_texts"], txt_hyps, asr_hyps):
-                asr_hyp = asr_hyp.text
-                self._refs[name].append([self.normalizer(ref)])
-                self._txt_preds[name].append(self.normalizer(txt_hyp))
-                self._asr_preds[name].append(self.normalizer(asr_hyp))
-                txtb = sacrebleu.sentence_bleu(txt_hyp, [ref]).score
-                asrb = sacrebleu.sentence_bleu(asr_hyp, [ref]).score
-                logging.info(f"[REF]\t{ref}\n[HYP]\t{txt_hyp} [{txtb:.2f}]\n[ASR]\t{asr_hyp} [{asrb:.2f}]")
+            self.bleu.update(
+                name=name,
+                refs=dataset_batch["target_texts"],
+                hyps=tokens_to_str(gen_text, lengths, self.tokenizer, self.text_pad_id),
+            )
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()
 
     def on_test_epoch_end(self) -> None:
-        return self.on_validation_epoch_end()
+        return self.on_validation_epoch_end(prefix="test")
 
     def test_step(self, *args: Any, **kwargs: Any):
         return self.validation_step(*args, **kwargs)
@@ -674,3 +628,12 @@ def replace_control_speech_codes(speech_codes: torch.Tensor, control_codes: torc
     assumed to consist of 'valid' codes representing silence.
     """
     return torch.where(torch.isin(speech_codes, control_codes), speech_codes[:, :1], speech_codes)
+
+
+def tokens_to_str(tokens: torch.Tensor, lengths: torch.Tensor, tokenizer: AutoTokenizer, pad_id: int) -> list[str]:
+    ans = []
+    for hyp_ids, hyp_len in zip(tokens.cpu(), lengths.cpu()):
+        hyp_ids = hyp_ids[:hyp_len]
+        hyp_ids = hyp_ids[hyp_ids != pad_id]
+        ans.append(tokenizer.ids_to_text(hyp_ids))
+    return ans
