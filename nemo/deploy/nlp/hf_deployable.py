@@ -14,7 +14,7 @@
 
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -243,10 +243,104 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             Tensor(name="scores", shape=(-1,), dtype=np.single),
         )
 
+    def _infer_fn_common(
+        self,
+        prompts,
+        temperature=1.0,
+        top_k=1,
+        top_p=0.0,
+        num_tokens_to_generate=256,
+        output_logits=False,
+        output_scores=False,
+        cast_output_func=None,
+    ):
+        """Common internal function for inference operations.
+
+        Args:
+            prompts: List of input prompts
+            temperature: Sampling temperature
+            top_k: Number of highest probability tokens to consider
+            top_p: Cumulative probability threshold for token sampling
+            num_tokens_to_generate: Maximum number of tokens to generate
+            output_logits: Whether to output logits
+            output_scores: Whether to output scores
+            cast_output_func: Optional function to cast output values
+
+        Returns:
+            Dict containing inference results
+        """
+        output_infer = {}
+        return_dict_in_generate = output_logits or output_scores
+
+        if torch.distributed.is_initialized():
+            if torch.distributed.get_world_size() > 1:
+                torch.distributed.broadcast(torch.tensor([0], dtype=torch.long, device="cuda"), src=0)
+                broadcast_list(prompts, src=0)
+                broadcast_list(
+                    data=[
+                        temperature,
+                        top_k,
+                        top_p,
+                        num_tokens_to_generate,
+                        output_logits,
+                        output_scores,
+                    ],
+                    src=0,
+                )
+
+        output = self.generate(
+            text_inputs=prompts,
+            do_sample=True,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
+            max_new_tokens=num_tokens_to_generate,
+            output_logits=output_logits,
+            output_scores=output_scores,
+            return_dict_in_generate=return_dict_in_generate,
+        )
+
+        if isinstance(output, dict):
+            output_infer = {"sentences": output["sentences"]}
+            if cast_output_func:
+                output_infer["sentences"] = cast_output_func(output["sentences"], np.bytes_)
+
+            if "scores" in output.keys():
+                output_scores = []
+                for r in output["scores"]:
+                    lp = torch.tensor(r).cpu().detach().numpy()
+                    if len(lp) == 0:
+                        output_scores.append([0])
+                    else:
+                        output_scores.append(lp)
+                output_infer["scores"] = np.array(output_scores).transpose(1, 0, 2)
+
+            if "logits" in output.keys():
+                output_logits = []
+                for r in output["logits"]:
+                    lp = torch.tensor(r).cpu().detach().numpy()
+                    if len(lp) == 0:
+                        output_logits.append([0])
+                    else:
+                        output_logits.append(lp)
+                output_infer["logits"] = np.array(output_logits).transpose(1, 0, 2)
+        else:
+            output_infer = {"sentences": output}
+            if cast_output_func:
+                output_infer["sentences"] = cast_output_func(output, np.bytes_)
+
+        return output_infer
+
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        output_infer = {}
+        """Triton inference function that processes numpy array inputs.
 
+        Args:
+            **inputs: Dictionary of numpy arrays containing input parameters
+
+        Returns:
+            Dict containing inference results with numpy arrays
+        """
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
             temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
@@ -255,65 +349,58 @@ class HuggingFaceLLMDeploy(ITritonDeployable):
             num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
             output_logits = inputs.pop("output_logits")[0][0] if "output_logits" in inputs else False
             output_scores = inputs.pop("output_scores")[0][0] if "output_scores" in inputs else False
-            return_dict_in_generate = False
-            if output_logits or output_scores:
-                return_dict_in_generate = True
 
-            if torch.distributed.is_initialized():
-                if torch.distributed.get_world_size() > 1:
-                    torch.distributed.broadcast(torch.tensor([0], dtype=torch.long, device="cuda"), src=0)
-                    broadcast_list(prompts, src=0)
-                    broadcast_list(
-                        data=[
-                            temperature,
-                            top_k,
-                            top_p,
-                            num_tokens_to_generate,
-                            output_logits,
-                            output_scores,
-                        ],
-                        src=0,
-                    )
-
-            output = self.generate(
-                text_inputs=prompts,
-                do_sample=True,
+            return self._infer_fn_common(
+                prompts=prompts,
+                temperature=temperature,
                 top_k=top_k,
                 top_p=top_p,
-                temperature=temperature,
-                max_new_tokens=num_tokens_to_generate,
+                num_tokens_to_generate=num_tokens_to_generate,
                 output_logits=output_logits,
                 output_scores=output_scores,
-                return_dict_in_generate=return_dict_in_generate,
+                cast_output_func=cast_output,
             )
-
-            if isinstance(output, dict):
-                output_infer = {"sentences": cast_output(output["sentences"], np.bytes_)}
-
-                if "scores" in output.keys():
-                    output_scores = []
-                    for r in output["scores"]:
-                        lp = torch.tensor(r).cpu().detach().numpy()
-                        if len(lp) == 0:
-                            output_scores.append([0])
-                        else:
-                            output_scores.append(lp)
-                    output_infer["scores"] = np.array(output_scores).transpose(1, 0, 2)
-
-                if "logits" in output.keys():
-                    output_logits = []
-                    for r in output["logits"]:
-                        lp = torch.tensor(r).cpu().detach().numpy()
-                        if len(lp) == 0:
-                            output_logits.append([0])
-                        else:
-                            output_logits.append(lp)
-                    output_infer["logits"] = np.array(output_logits).transpose(1, 0, 2)
-            else:
-                output_infer = {"sentences": cast_output(output, np.bytes_)}
-
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output_infer["sentences"] = cast_output([err_msg], np.bytes_)
+            return {"sentences": cast_output([err_msg], np.bytes_)}
 
-        return output_infer
+    def ray_infer_fn(self, inputs: Dict[Any, Any]):
+        """Perform inference using Ray with dictionary inputs and outputs.
+
+        Args:
+            inputs (Dict[Any, Any]): Dictionary containing input parameters:
+                - prompts: List of input prompts
+                - temperature: Sampling temperature (optional)
+                - top_k: Number of highest probability tokens to consider (optional)
+                - top_p: Cumulative probability threshold for token sampling (optional)
+                - max_length: Maximum number of tokens to generate (optional)
+                - output_logits: Whether to output logits (optional)
+                - output_scores: Whether to output scores (optional)
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - sentences: List of generated texts
+                - scores: Optional array of scores if output_scores is True
+                - logits: Optional array of logits if output_logits is True
+        """
+        try:
+            prompts = inputs.pop("prompts")
+            temperature = inputs.pop("temperature", 1.0)
+            top_k = int(inputs.pop("top_k", 1))
+            top_p = inputs.pop("top_p", 0.0)
+            num_tokens_to_generate = inputs.pop("max_length", 256)
+            output_logits = inputs.pop("output_logits", False)
+            output_scores = inputs.pop("output_scores", False)
+
+            return self._infer_fn_common(
+                prompts=prompts,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                num_tokens_to_generate=num_tokens_to_generate,
+                output_logits=output_logits,
+                output_scores=output_scores,
+            )
+        except Exception as error:
+            err_msg = "An error occurred: {0}".format(str(error))
+            return {"sentences": [err_msg]}
