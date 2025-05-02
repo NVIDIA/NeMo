@@ -380,7 +380,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Remove label if not cancelled
-        if: ${{ steps.result.outputs.code != 'cancelled' && github.event.label.name == 'Run CICD' && github.event.pull_request.head.repo.full_name == github.repository }}
+        if: |
+          steps.result.outputs.code != 'cancelled' 
+          && github.event.label.name == 'Run CICD' 
+          && github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
