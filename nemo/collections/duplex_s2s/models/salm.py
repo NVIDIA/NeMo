@@ -463,7 +463,7 @@ class SALM(LightningModule, HFHubMixin):
                 llm.model.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             llm.lm_head = fully_shard(llm.lm_head, **fsdp_config)
-            llm = fully_shard(llm, **fsdp_config)
+            self.llm = fully_shard(self.llm, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
 
 
