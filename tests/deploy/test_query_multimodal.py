@@ -119,7 +119,7 @@ class TestNemoQueryMultimodal:
     @patch('nemo.deploy.multimodal.query_multimodal.VideoReader')
     def test_setup_media_video(self, mock_video_reader, mock_video):
         nq = NemoQueryMultimodal(url="localhost", model_name="test_model", model_type="video-neva")
-        
+
         # Mock VideoReader
         mock_frames = [MagicMock(asnumpy=lambda: np.zeros((100, 100, 3))) for _ in range(10)]
         mock_video_reader.return_value = mock_frames
@@ -131,7 +131,7 @@ class TestNemoQueryMultimodal:
     @patch('soundfile.read')
     def test_setup_media_audio(self, mock_sf_read, mock_audio):
         nq = NemoQueryMultimodal(url="localhost", model_name="test_model", model_type="salm")
-        
+
         # Mock soundfile.read
         mock_sf_read.return_value = (np.zeros(1000), 16000)
 
@@ -139,4 +139,4 @@ class TestNemoQueryMultimodal:
         assert isinstance(result, dict)
         assert "input_signal" in result
         assert "input_signal_length" in result
-        os.unlink(mock_audio) 
+        os.unlink(mock_audio)
