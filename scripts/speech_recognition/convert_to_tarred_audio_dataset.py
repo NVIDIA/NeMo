@@ -646,7 +646,7 @@ class ASRTarredDatasetBuilder:
         count = dict()
         for entry in tqdm(entries, desc="Creating shard.."):
             # We squash the filename since we do not preserve directory structure of audio files in the tarball.
-            if os.path.exists(entry["audio_filepath"]):
+            if os.path.exists(entry["audio_filepath"]) or only_manifests:
                 audio_filepath = entry["audio_filepath"]
             else:
                 if not manifest_folder:
