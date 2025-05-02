@@ -22,8 +22,9 @@ from transformers import CLIPTextModel, CLIPTokenizer, T5Config, T5EncoderModel,
 # pylint: disable=C0116
 class AbstractEmbModel(nn.Module):
     """
-        Abstract encoder model
+    Abstract encoder model
     """
+
     def __init__(
         self,
         enable_lora_finetune: bool = False,
@@ -154,8 +155,9 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
 
 class FrozenT5Embedder(AbstractEmbModel):
     '''
-        FrozenT5 encoder model from HF
+    FrozenT5 encoder model from HF
     '''
+
     def __init__(
         self, version="google/t5-v1_1-xxl", max_length=512, device="cuda", dtype=torch.float, load_config_only=False
     ):
