@@ -686,7 +686,9 @@ class ConfigContainer(Container):
             * self.model_config.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
-        assert world_size % total_model_size == 0, f"""
+        assert (
+            world_size % total_model_size == 0
+        ), f"""
         world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})
         """
         self.data_parallel_size = world_size // total_model_size
