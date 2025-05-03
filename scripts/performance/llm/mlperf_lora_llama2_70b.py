@@ -24,7 +24,7 @@ from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.llama import *
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin, MemoryProfilePlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import args_sanity_check, import_ckpt_experiment, slurm_executor

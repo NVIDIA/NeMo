@@ -18,7 +18,7 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.nemotron3_22b import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin, MemoryProfilePlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (

@@ -23,7 +23,7 @@ from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora,
 )
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin, MemoryProfilePlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (

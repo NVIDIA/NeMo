@@ -18,7 +18,7 @@ import nemo_run as run
 
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin, MemoryProfilePlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
