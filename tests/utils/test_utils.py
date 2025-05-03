@@ -22,6 +22,7 @@ from nemo.utils.data_utils import (
     ais_binary,
     ais_endpoint_to_dir,
     bucket_and_object_from_uri,
+    datastore_path_to_webdataset_url,
     is_datastore_path,
     resolve_cache_dir,
 )
@@ -30,7 +31,8 @@ from nemo.utils.data_utils import (
 class TestDataUtils:
     @pytest.mark.unit
     def test_resolve_cache_dir(self):
-        """Test cache dir path."""
+        """Test cache dir path.
+        """
         TEST_NEMO_ENV_CACHE_DIR = 'TEST_NEMO_ENV_CACHE_DIR'
         with mock.patch('nemo.constants.NEMO_ENV_CACHE_DIR', TEST_NEMO_ENV_CACHE_DIR):
 
@@ -49,7 +51,8 @@ class TestDataUtils:
 
     @pytest.mark.unit
     def test_is_datastore_path(self):
-        """Test checking for datastore path."""
+        """Test checking for datastore path.
+        """
         # Positive examples
         assert is_datastore_path('ais://positive/example')
         # Negative examples
@@ -59,7 +62,8 @@ class TestDataUtils:
 
     @pytest.mark.unit
     def test_bucket_and_object_from_uri(self):
-        """Test getting bucket and object from URI."""
+        """Test getting bucket and object from URI.
+        """
         # Positive examples
         assert bucket_and_object_from_uri('ais://bucket/object') == ('bucket', 'object')
         assert bucket_and_object_from_uri('ais://bucket_2/object/is/here') == ('bucket_2', 'object/is/here')
@@ -73,7 +77,8 @@ class TestDataUtils:
 
     @pytest.mark.unit
     def test_ais_endpoint_to_dir(self):
-        """Test converting an AIS endpoint to dir."""
+        """Test converting an AIS endpoint to dir.
+        """
         assert ais_endpoint_to_dir('http://local:123') == os.path.join('local', '123')
         assert ais_endpoint_to_dir('http://1.2.3.4:567') == os.path.join('1.2.3.4', '567')
 
@@ -82,7 +87,8 @@ class TestDataUtils:
 
     @pytest.mark.unit
     def test_ais_binary(self):
-        """Test cache dir path."""
+        """Test cache dir path.
+        """
         with mock.patch('shutil.which', lambda x: '/test/path/ais'):
             assert ais_binary() == '/test/path/ais'
 
@@ -90,3 +96,9 @@ class TestDataUtils:
         with mock.patch('shutil.which', lambda x: None), mock.patch('os.path.isfile', lambda x: None):
             with pytest.raises(RuntimeError):
                 ais_binary()
+
+    @pytest.mark.unit
+    def test_datastore_path_to_webdataset_url(self):
+        """Test conversion of data store path to an URL for WebDataset.
+        """
+        assert datastore_path_to_webdataset_url('ais://test/path') == 'pipe:ais get ais://test/path - || true'
