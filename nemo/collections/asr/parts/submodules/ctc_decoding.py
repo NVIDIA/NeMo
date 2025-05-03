@@ -893,11 +893,11 @@ class AbstractCTCDecoding(ConfidenceMixin):
             # If the token is a punctuation mark and there is no built word, then the previous word is complete
             # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
             elif curr_punctuation and not built_word:
-                word_offsets[-1]['end_offset'] = offsets[i]['end_offset']
-                word_offsets[-1]['word'] = (
-                    word_offsets[-1]['word'][:-1] if word_offsets[-1]['word'][-1] == ' ' else word_offsets[-1]['word']
-                )
-                word_offsets[-1]['word'] += token_text.strip()
+                last_built_word = word_offsets[-1]
+                last_built_word['end_offset'] = offsets[i]['end_offset']
+                if last_built_word['word'][-1] == ' ':
+                    last_built_word['word'] = last_built_word['word'][:-1]
+                last_built_word['word'] += token_text.strip()
             else:
                 # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
                 # Append to current built word.
