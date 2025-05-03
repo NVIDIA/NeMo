@@ -243,6 +243,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
             elif self.cfg.strategy in ['beam']:
                 self.compute_timestamps = self.cfg.beam.get('compute_timestamps', False)
 
+        # Check if the model supports punctuation
+        # and compile regex pattern to remove A space before supported punctuation marks if applicable
+        # We remove only one space before punctuation marks as for some models punctuation marks are included in the vocabulary with a space.
+        # The presence of multiple spaces before punctuation marks is a result of erroneous prediction of the ASR model, which should not be fixed during the decoding process.
+        if self.supported_punctuation:
+            punct_pattern = '|'.join([re.escape(p) for p in self.supported_punctuation])
+            self.space_before_punct_pattern = re.compile(r'(\s)(' + punct_pattern + ')')
+
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
@@ -609,8 +617,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         """
         text = self.decode_tokens_to_str(tokens)
         if self.supported_punctuation:
-            punct_pattern = '|'.join([re.escape(p) for p in self.supported_punctuation])
-            text = re.sub(r'(\s)(' + punct_pattern + ')', r'\2', text)
+            text = self.space_before_punct_pattern.sub(r'\2', text)
         return text
 
     def compute_ctc_timestamps(self, hypothesis: Hypothesis, timestamp_type: str = "all"):
