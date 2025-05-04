@@ -24,7 +24,6 @@ import yaml
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
-from megatron.core.utils import is_te_min_version
 from safetensors.torch import load_file
 from torch import nn
 from transformers import AutoConfig
@@ -50,6 +49,8 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+if HAVE_TE:
+    from megatron.core.utils import is_te_min_version
 
 @dataclass
 class DeepSeekConfig(MLATransformerConfig, GPTConfig):
@@ -121,7 +122,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     gradient_accumulation_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
     cross_entropy_fusion_impl: str = "te"
-    moe_permute_fusion: bool = is_te_min_version("2.1.0")
+    moe_permute_fusion: bool = is_te_min_version("2.1.0") if HAVE_TE else False
 
     def __post_init__(self):
         super().__post_init__()
