@@ -13,7 +13,6 @@
 # limitations under the License.
 import pytest
 import torch
-import torch.nn.functional as F
 
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import count_tail_padding
 
