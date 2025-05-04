@@ -53,11 +53,13 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         global_attn_separate (bool): whether the q, k, v layers used for global tokens should be separate.
             Defaults to False.
         n_heads (int): number of heads for multi-head attention
+        conv_norm_type (str): normalization type for convolution module
         conv_kernel_size (int): kernel size for depthwise convolution in convolution module
         dropout (float): dropout probabilities for linear layers
         dropout_att (float): dropout probabilities for attention distributions
         use_bias (bool): Apply bias to all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
             Defaults to True.
+        use_convolution (bool): Whether to use the convolution module. Defaults to True.
     """
 
     def __init__(
@@ -70,7 +72,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         global_attn_separate=False,
         n_heads=4,
         conv_kernel_size=31,
-        ff_norm_type='rms_norm',
+        ff_norm_type='layer_norm',
         conv_norm_type='batch_norm',
         conv_context_size=None,
         dropout=0.1,
@@ -81,6 +83,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         use_bias=True,
         use_pytorch_sdpa=False,
         use_pytorch_sdpa_backends=None,
+        use_convolution=True,
     ):
         super(ConformerLayer, self).__init__()
 
@@ -93,6 +96,8 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         self.fc_factor = 0.5
         self.ff_norm_type = ff_norm_type
         self.conv_norm_type = conv_norm_type
+        self.use_convolution = use_convolution
+
         # first feed forward module
         if ff_norm_type == 'rms_norm':
             self.norm_feed_forward1 = RMSNorm(d_model)
@@ -100,18 +105,22 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
             self.norm_feed_forward1 = LayerNorm(d_model)
         self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout, use_bias=use_bias)
 
-        # convolution module
-        if ff_norm_type == 'rms_norm':
-            self.norm_conv = RMSNorm(d_model)
+        # convolution module (conditional)
+        if self.use_convolution:
+            if ff_norm_type == 'rms_norm':
+                self.norm_conv = RMSNorm(d_model)
+            else:
+                self.norm_conv = LayerNorm(d_model)
+            self.conv = ConformerConvolution(
+                d_model=d_model,
+                kernel_size=conv_kernel_size,
+                norm_type=conv_norm_type,
+                conv_context_size=conv_context_size,
+                use_bias=use_bias,
+            )
         else:
-            self.norm_conv = LayerNorm(d_model)
-        self.conv = ConformerConvolution(
-            d_model=d_model,
-            kernel_size=conv_kernel_size,
-            norm_type=conv_norm_type,
-            conv_context_size=conv_context_size,
-            use_bias=use_bias,
-        )
+            self.norm_conv = None
+            self.conv = None
 
         # multi-headed self-attention module
         if ff_norm_type == 'rms_norm':
@@ -220,11 +229,14 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
             pack_input = self.forward_enabled_adapters(pack_input)
             residual = pack_input['x']
 
-        x = self.norm_conv(residual)
-        x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
-        if cache_last_time is not None:
-            (x, cache_last_time) = x
-        residual = residual + self.dropout(x)
+        # Conditionally apply convolution module
+        if self.use_convolution:
+            x = self.norm_conv(residual)
+            x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
+            if cache_last_time is not None:
+                (x, cache_last_time) = x
+            residual = residual + self.dropout(x)
+        # If no convolution, residual connection is skipped for this block
 
         x = self.norm_feed_forward2(residual)
         x = self.feed_forward2(x)

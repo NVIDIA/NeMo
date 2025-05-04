@@ -174,6 +174,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             positional encoding buffers on all GPUs. Disabling this setting may help with deadlocks in certain
             scenarios such as model parallelism, or generally when this module is not being ran on some GPUs
             as a part of the training step.
+        use_convolution (bool): whether to use convolution in the ConformerLayer
+            Defaults to True
+
     """
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -310,7 +313,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         untie_biases=True,
         pos_emb_max_len=5000,
         conv_kernel_size=31,
-        ff_norm_type: str = 'rms_norm',
+        ff_norm_type: str = 'layer_norm',
         conv_norm_type='batch_norm',
         conv_context_size=None,
         use_bias=True,
@@ -327,6 +330,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         use_pytorch_sdpa: bool = False,
         use_pytorch_sdpa_backends=None,
         sync_max_audio_length: bool = True,
+        use_convolution: bool = True,
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -470,6 +474,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 use_bias=use_bias,
                 use_pytorch_sdpa=self.use_pytorch_sdpa,
                 use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
+                use_convolution=use_convolution,
             )
             self.layers.append(layer)
 
