@@ -52,6 +52,7 @@ if TYPE_CHECKING:
 if HAVE_TE:
     from megatron.core.utils import is_te_min_version
 
+
 @dataclass
 class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     """
