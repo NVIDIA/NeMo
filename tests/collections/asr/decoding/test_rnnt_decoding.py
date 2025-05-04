@@ -46,6 +46,8 @@ def char_vocabulary():
 def tmp_tokenizer(test_data_dir):
     cfg = DictConfig({'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'})
 
+    print("cfg", cfg)
+
     class _TmpASRBPE(mixins.ASRBPEMixin):
         def register_artifact(self, _, vocab_path):
             return vocab_path
@@ -53,6 +55,22 @@ def tmp_tokenizer(test_data_dir):
     asrbpe = _TmpASRBPE()
     asrbpe._setup_tokenizer(cfg)
     return asrbpe.tokenizer
+
+@pytest.fixture()
+def char_offsets_chars():
+    char_offsets = [
+        {"char": ["e"], "start_offset": 0, "end_offset": 1},
+        {"char": [" "], "start_offset": 2, "end_offset": 2},
+        {"char": ["e", " "], "start_offset": 3, "end_offset": 4},
+        {"char": [" "], "start_offset": 5, "end_offset": 5},
+        {"char": ["."], "start_offset": 6, "end_offset": 7},
+        {"char": [" "], "start_offset": 8, "end_offset": 9},
+        {"char": ["e"], "start_offset": 10, "end_offset": 11},
+        {"char": [" "], "start_offset": 12, "end_offset": 13},
+        {"char": ["?"], "start_offset": 14, "end_offset": 15},
+        {"char": [" "], "start_offset": 16, "end_offset": 17},
+    ]
+    return char_offsets
 
 
 @lru_cache(maxsize=2)
@@ -133,6 +151,9 @@ def check_char_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTDecoding):
     words = list(filter(lambda x: x != '', words))
     assert len(hyp.timestamp['word']) == len(words)
 
+    words_from_timestamps = [ts['word'] for ts in hyp.timestamp['word']]
+    assert hyp.text == decoding.word_seperator.join(words_from_timestamps)
+
     segments = []
     segment = []
 
@@ -146,6 +167,10 @@ def check_char_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTDecoding):
         segments.append(' '.join(segment))
 
     assert len(hyp.timestamp['segment']) == len(segments)
+
+    segments_from_timestamps = [ts['segment'] for ts in hyp.timestamp['segment']]
+    assert hyp.text == decoding.word_seperator.join(segments_from_timestamps)
+
 
 
 def check_subword_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTBPEDecoding):
@@ -163,11 +188,17 @@ def check_subword_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTBPEDecodi
     all_chars = list(filter(lambda x: x not in ['', ' ', '#'], all_chars))
     assert len(chars) == len(all_chars)
 
+    words_from_timestamps = [ts['word'] for ts in hyp.timestamp['word']]
+    assert hyp.text == decoding.word_seperator.join(words_from_timestamps)
+
     segments_count = sum([hyp.text.count(seperator) for seperator in decoding.segment_seperators])
     if not hyp.text or hyp.text[-1] not in decoding.segment_seperators:
         segments_count += 1
 
     assert len(hyp.timestamp['segment']) == segments_count
+
+    segments_from_timestamps = [ts['segment'] for ts in hyp.timestamp['segment']]
+    assert hyp.text == decoding.word_seperator.join(segments_from_timestamps)
 
 
 def check_beam_decoding(test_data_dir, beam_config):
@@ -579,3 +610,29 @@ class TestRNNTDecoding:
         )
         beam_config["ngram_lm_model"] = kenlm_model_path
         check_beam_decoding(test_data_dir, beam_config)
+
+    @pytest.mark.unit
+    def test_word_offsets_chars(self, char_offsets_chars):
+
+        cfg = RNNTDecodingConfig()
+        vocab = char_vocabulary()
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, vocabulary=vocab)
+
+
+        word_offsets =decoding._get_word_offsets_chars(offsets=char_offsets_chars, 
+                                                       word_delimiter_char=" ",
+                                                       supported_punctuation={'.', '!', '?'})
+
+        assert word_offsets == [
+            {'word': 'e', 'start_offset': 0, 'end_offset': 1},
+            {'word': 'e', 'start_offset': 3, 'end_offset': 4},
+            {'word': '.', 'start_offset': 6, 'end_offset': 7},
+            {'word': 'e?', 'start_offset': 10, 'end_offset': 15},
+            
+        ]
+
+
+
+    

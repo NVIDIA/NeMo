@@ -585,6 +585,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
         return hypotheses_list
 
     @abstractmethod
+    def get_words_offsets(self, hypothesis: Hypothesis) -> List[Dict[str, Union[str, float]]]:
+        """
+        Implemented by subclass in order to get the words offsets.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
         Implemented by subclass in order to decoder a token id list into a string.
@@ -616,6 +623,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
         Decodes a list of tokens to a string and removes a space before supported punctuation marks.
         """
         text = self.decode_tokens_to_str(tokens)
+
+        print("tokens in decode_tokens_to_str_with_strip_punctuation ", tokens)
+        print("text in decode_tokens_to_str_with_strip_punctuation ", text)
         if self.supported_punctuation:
             text = self.space_before_punct_pattern.sub(r'\2', text)
         return text
@@ -663,30 +673,15 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         char_offsets = self._refine_timestamps(char_offsets, self.supported_punctuation)
 
-        # detect char vs subword models
-        lens = [len(list(v["char"])) > 1 for v in char_offsets]
-        if any(lens):
-            text_type = 'subword'
-        else:
-            text_type = 'char'
-
         # retrieve word offsets from character offsets
         word_offsets = None
         if timestamp_type in ['word', 'segment', 'all']:
-            if text_type == 'char':
-                word_offsets = self._get_word_offsets_chars(
-                    char_offsets,
-                    word_delimiter_char=self.word_seperator,
-                    supported_punctuation=self.supported_punctuation,
-                )
-            else:
-                word_offsets = self._get_word_offsets_subwords_sentencepiece(
-                    char_offsets,
-                    hypothesis,
-                    decode_ids_to_tokens=self.decode_ids_to_tokens,
-                    decode_tokens_to_str=self.decode_tokens_to_str,
-                    supported_punctuation=self.supported_punctuation,
-                )
+            word_offsets = self.get_words_offsets(
+                char_offsets=char_offsets,
+                hypothesis=hypothesis,
+                word_delimiter_char=self.word_seperator,
+                supported_punctuation=self.supported_punctuation,
+            )
 
         segment_offsets = None
         if timestamp_type in ['segment', 'all']:
@@ -720,6 +715,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # Convert the token indices to text
         hypothesis.text = self.decode_tokens_to_str_with_strip_punctuation(hypothesis.text)
+        print("hypothesis.text", hypothesis.text)
 
         return hypothesis
 
@@ -776,163 +772,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 offset['end_offset'] = offset['start_offset']
 
         return char_offsets
-
-    @staticmethod
-    def _get_word_offsets_chars(
-        offsets: Dict[str, Union[str, float]],
-        word_delimiter_char: str = " ",
-        supported_punctuation: Optional[Set] = None,
-    ) -> Dict[str, Union[str, float]]:
-        """
-        Utility method which constructs word time stamps out of character time stamps.
-
-        References:
-            This code is a port of the Hugging Face code for word time stamp construction.
-
-        Args:
-            offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
-            word_delimiter_char: Character token that represents the word delimiter. By default, " ".
-
-        Returns:
-            A list of dictionaries containing the word offsets. Each item contains "word", "start_offset" and
-            "end_offset".
-        """
-
-        word_offsets = []
-
-        last_state = "SPACE"
-        word = ""
-        start_offset = 0
-        end_offset = 0
-        for i, offset in enumerate(offsets):
-            char = offset["char"]
-            state = "SPACE" if char == word_delimiter_char else "WORD"
-
-            if state == last_state:
-                # If we are in the same state as before, we simply repeat what we've done before
-                end_offset = offset["end_offset"]
-                word += char
-            else:
-                next_puntuation = (
-                    (supported_punctuation and offsets[i + 1]['char'] in supported_punctuation)
-                    if i < len(offsets) - 1
-                    else False
-                )
-                # Switching state
-                if state == "SPACE" and not next_puntuation:
-                    # Finishing a word
-                    word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
-                elif state == "SPACE" and next_puntuation:
-                    continue
-                else:
-                    # Starting a new word
-                    start_offset = offset["start_offset"]
-                    end_offset = offset["end_offset"]
-                    word = char
-
-            last_state = state
-        if last_state == "WORD":
-            word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
-
-        return word_offsets
-
-    @staticmethod
-    def _get_word_offsets_subwords_sentencepiece(
-        offsets: Dict[str, Union[str, float]],
-        hypothesis: Hypothesis,
-        decode_ids_to_tokens: Callable[[List[int]], str],
-        decode_tokens_to_str: Callable[[List[int]], str],
-        supported_punctuation: Optional[Set] = None,
-    ) -> Dict[str, Union[str, float]]:
-        """
-        Utility method which constructs word time stamps out of sub-word time stamps.
-
-        **Note**: Only supports Sentencepiece based tokenizers !
-
-        Args:
-            offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
-            hypothesis: Hypothesis object that contains `text` field, where each token is a sub-word id
-                after ctc collapse.
-            decode_ids_to_tokens: A Callable function that accepts a list of integers and maps it to a sub-word.
-            decode_tokens_to_str: A Callable function that accepts a list of integers and maps it to text / str.
-
-        Returns:
-            A list of dictionaries containing the word offsets. Each item contains "word", "start_offset" and
-            "end_offset".
-        """
-        word_offsets = []
-        built_word = ""
-        previous_token_index = 0
-        # For every collapsed sub-word token
-        for i, char in enumerate(hypothesis.text):
-            # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
-            token = decode_ids_to_tokens([char])[0]
-            token_text = decode_tokens_to_str([char])
-
-            curr_punctuation = supported_punctuation and token_text.strip() in supported_punctuation
-
-            # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
-            # after forcing partial text conversion of the token.
-            # AND it is not a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
-            if token != token_text and not curr_punctuation:
-                # If there are any partially or fully built sub-word token ids, construct to text.
-                # Note: This is "old" subword, that occurs *after* current sub-word has started.
-                if built_word:
-                    word_offsets.append(
-                        {
-                            "word": built_word,
-                            "start_offset": offsets[previous_token_index]["start_offset"],
-                            "end_offset": offsets[i - 1]["end_offset"],
-                        }
-                    )
-
-                # Prepare new built_word
-                built_word = ""
-                built_word += token_text
-                previous_token_index = i
-            # If the token is a punctuation mark and there is no built word, then the previous word is complete
-            # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
-            elif curr_punctuation and not built_word:
-                last_built_word = word_offsets[-1]
-                last_built_word['end_offset'] = offsets[i]['end_offset']
-                if last_built_word['word'][-1] == ' ':
-                    last_built_word['word'] = last_built_word['word'][:-1]
-                last_built_word['word'] += token_text.strip()
-            else:
-                # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
-                # Append to current built word.
-                built_word += token_text.strip()
-
-        # Inject the start offset of the first token to word offsets
-        # This is because we always skip the delay the injection of the first sub-word due to the loop
-        # condition and check whether built token is ready or not.
-        # Therefore without this forced injection, the start_offset appears as off by 1.
-        if len(word_offsets) == 0:
-            # alaptev: sometimes word_offsets can be empty
-            if built_word:
-                word_offsets.append(
-                    {
-                        "word": built_word,
-                        "start_offset": offsets[0]["start_offset"],
-                        "end_offset": offsets[-1]["end_offset"],
-                    }
-                )
-        else:
-            word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
-
-            # If there are any remaining tokens left, inject them all into the final word offset.
-            # Note: The start offset of this token is the start time of the first token inside build_token.
-            # Note: The end offset of this token is the end time of the last token inside build_token
-            if built_word:
-                word_offsets.append(
-                    {
-                        "word": built_word,
-                        "start_offset": offsets[previous_token_index]["start_offset"],
-                        "end_offset": offsets[-1]["end_offset"],
-                    }
-                )
-
-        return word_offsets
 
     @staticmethod
     def _get_segment_offsets(
@@ -1277,6 +1116,67 @@ class CTCDecoding(AbstractCTCDecoding):
         token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
         return token_list
 
+    @staticmethod
+    def get_words_offsets(
+        char_offsets: Dict[str, Union[str, float]],
+        hypothesis: Hypothesis,
+        word_delimiter_char: str = " ",
+        supported_punctuation: Optional[Set] = None,
+    ) -> Dict[str, Union[str, float]]:
+        """
+        Utility method which constructs word time stamps out of character time stamps.
+
+        References:
+            This code is a port of the Hugging Face code for word time stamp construction.
+
+        Args:
+            offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
+            word_delimiter_char: Character token that represents the word delimiter. By default, " ".
+            supported_punctuation: Set containing punctuation marks in the vocabulary.
+
+        Returns:
+            A list of dictionaries containing the word offsets. Each item contains "word", "start_offset" and
+            "end_offset".
+        """
+
+        word_offsets = []
+
+        last_state = "SPACE"
+        word = ""
+        start_offset = 0
+        end_offset = 0
+        for i, offset in enumerate(char_offsets):
+            char = offset["char"]
+            state = "SPACE" if char == word_delimiter_char else "WORD"
+
+            if state == last_state:
+                # If we are in the same state as before, we simply repeat what we've done before
+                end_offset = offset["end_offset"]
+                word += char
+            else:
+                next_puntuation = (
+                    (supported_punctuation and char_offsets[i + 1]['char'] in supported_punctuation)
+                    if i < len(char_offsets) - 1
+                    else False
+                )
+                # Switching state
+                if state == "SPACE" and not next_puntuation:
+                    # Finishing a word
+                    word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+                elif state == "SPACE" and next_puntuation:
+                    continue
+                else:
+                    # Starting a new word
+                    start_offset = offset["start_offset"]
+                    end_offset = offset["end_offset"]
+                    word = char
+
+            last_state = state
+        if last_state == "WORD":
+            word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+
+        return word_offsets
+
 
 class CTCBPEDecoding(AbstractCTCDecoding):
     """
@@ -1437,6 +1337,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
         vocabulary = self.tokenizer.vocab
+        self.tokenizer_type = self.define_tokenizer_type(vocabulary)
 
         supported_punctuation = {
             char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')
@@ -1458,6 +1359,27 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                 logging.warning("Could not resolve the vocabulary of the tokenizer !")
 
             self.decoding.set_decoding_type('subword')
+
+    @staticmethod
+    def define_tokenizer_type(vocabulary: List[str]) -> str:
+        """
+        Define the tokenizer type based on the vocabulary.
+        """
+        if any(token.startswith("##") for token in vocabulary):
+            return "wpe"
+        return "bpe"
+
+    @staticmethod
+    def define_word_start_condition(tokenizer_type: str, word_delimiter_char: str) -> Callable[[str, str], bool]:
+        """
+        Define the word start condition based on the tokenizer type and word delimiter character.
+        """
+        if word_delimiter_char == " ":
+            if tokenizer_type == "wpe":
+                return lambda token, token_text: token_text and not token_text.startswith("##")
+            return lambda token, token_text: token != token_text
+        else:
+            return lambda token, token_text: token_text == word_delimiter_char
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
@@ -1501,6 +1423,117 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         """
         token_list = self.tokenizer.ids_to_tokens(tokens)
         return token_list
+
+    def get_words_offsets(
+        self,
+        char_offsets: Dict[str, Union[str, float]],
+        hypothesis: Hypothesis,
+        word_delimiter_char: str = " ",
+        supported_punctuation: Optional[Set] = None,
+    ) -> Dict[str, Union[str, float]]:
+        """
+        Utility method which constructs word time stamps out of sub-word time stamps.
+
+        **Note**: Only supports Sentencepiece based tokenizers !
+
+        Args:
+            char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
+            hypothesis: Hypothesis object that contains `text` field, where each token is a sub-word id
+                after ctc collapse.
+            word_delimiter_char: Character token that represents the word delimiter. By default, " ".
+            supported_punctuation: Set containing punctuation marks in the vocabulary.
+
+        Returns:
+            A list of dictionaries containing the word offsets. Each item contains "word", "start_offset" and
+            "end_offset".
+        """
+        from pprint import pprint
+        word_offsets = []
+        built_tokens = []
+        previous_token_index = 0
+
+        condition_for_word_start = self.define_word_start_condition(self.tokenizer_type, word_delimiter_char)
+
+        # For every collapsed sub-word token
+        for i, char in enumerate(hypothesis.text):
+            # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
+            token = self.decode_ids_to_tokens([char])[0]
+            token_text = self.decode_tokens_to_str([char]).strip()
+
+            print("token_text", token_text, "token", token, "char", char)
+
+            curr_punctuation = supported_punctuation and token_text in supported_punctuation
+
+            # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
+            # after forcing partial text conversion of the token.
+            # AND it is not a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
+            if condition_for_word_start(token, token_text) and not curr_punctuation:
+                # If there are any partially or fully built sub-word token ids, construct to text.
+                # Note: This is "old" subword, that occurs *after* current sub-word has started.
+                print("creating a word offset before the current token: ", token_text)
+                pprint(word_offsets)
+                if built_tokens:
+                    built_word = self.decode_tokens_to_str(built_tokens)
+                    if built_word:
+                        word_offsets.append(
+                            {
+                                "word": built_word,
+                                "start_offset": char_offsets[previous_token_index]["start_offset"],
+                                "end_offset": char_offsets[i - 1]["end_offset"],
+                            }
+                        )
+
+                # Prepare new built_tokens
+                built_tokens.clear()
+                built_tokens.append(char)
+                previous_token_index = i
+            # If the token is a punctuation mark and there is no built word, then the previous word is complete
+            # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
+            elif curr_punctuation and not built_tokens:
+                last_built_word = word_offsets[-1]
+                last_built_word['end_offset'] = char_offsets[i]['end_offset']
+                if last_built_word['word'][-1] == ' ':
+                    last_built_word['word'] = last_built_word['word'][:-1]
+                last_built_word['word'] += token_text
+            else:
+                # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
+                # Append to current built word.
+                built_tokens.append(char)
+
+        # Inject the start offset of the first token to word offsets
+        # This is because we always skip the delay the injection of the first sub-word due to the loop
+        # condition and check whether built token is ready or not.
+        # Therefore without this forced injection, the start_offset appears as off by 1.
+        if len(word_offsets) == 0:
+            # alaptev: sometimes word_offsets can be empty
+            if built_tokens:
+                built_word = self.decode_tokens_to_str(built_tokens)
+                if built_word:
+                    word_offsets.append(
+                        {
+                            "word": built_word,
+                            "start_offset": char_offsets[0]["start_offset"],
+                            "end_offset": char_offsets[-1]["end_offset"],
+                        }
+                    )
+        else:
+            word_offsets[0]["start_offset"] = char_offsets[0]["start_offset"]
+
+            # If there are any remaining tokens left, inject them all into the final word offset.
+            # Note: The start offset of this token is the start time of the first token inside build_token.
+            # Note: The end offset of this token is the end time of the last token inside build_token
+            if built_tokens:
+                built_word = self.decode_tokens_to_str(built_tokens)
+                if built_word:
+                    word_offsets.append(
+                        {
+                            "word": built_word,
+                            "start_offset": char_offsets[previous_token_index]["start_offset"],
+                            "end_offset": char_offsets[-1]["end_offset"],
+                        }
+                    )
+
+        return word_offsets
 
 
 @dataclass

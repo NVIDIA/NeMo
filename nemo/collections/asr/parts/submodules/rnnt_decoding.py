@@ -959,7 +959,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 # so as to avoid tokenize -> detokenize -> compare -> merge steps.
                 word_offsets = self._get_word_offsets_subwords_sentencepiece(
                     encoded_char_offsets,
-                    hypothesis,
                     decode_ids_to_tokens=self.decode_ids_to_tokens,
                     decode_tokens_to_str=self.decode_tokens_to_str,
                     rnnt_token=self.blank_id,
@@ -1170,7 +1169,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
     @staticmethod
     def _get_word_offsets_subwords_sentencepiece(
         offsets: Dict[str, Union[str, float]],
-        hypothesis: Hypothesis,
         decode_ids_to_tokens: Callable[[List[int]], str],
         decode_tokens_to_str: Callable[[List[int]], str],
         rnnt_token: int,
@@ -1206,6 +1204,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
                     token = decode_ids_to_tokens([char])[0]
                     token_text = decode_tokens_to_str([char])
+
+                    print(f"token: {token}, token_text: {token_text}, char: {char}")
 
                     curr_punctuation = supported_punctuation and token_text.strip() in supported_punctuation
 
