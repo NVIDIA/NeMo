@@ -21,6 +21,7 @@ from typing import Callable, Iterator
 
 import torch
 from torch.nn.parallel import DistributedDataParallel
+from transformers import AutoTokenizer
 
 from nemo.automodel.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.automodel.config import ConfigContainer
@@ -398,6 +399,7 @@ def train(
     model,
     optimizer,
     scheduler,
+    tokenizer,
     train_data_iterator,
     valid_data_iterator,
     num_microbatches: int,
@@ -423,9 +425,9 @@ def train(
     if train_config.manual_gc:
         # Disable the default garbage collector and perform the collection manually.
         # This is to align the timing of garbage collection across ranks.
-        assert (
-            train_config.manual_gc_interval >= 0
-        ), "Manual garbage collection interval should be larger than or equal to 0"
+        assert train_config.manual_gc_interval >= 0, (
+            "Manual garbage collection interval should be larger than or equal to 0"
+        )
         gc.disable()
         gc.collect()
 
@@ -542,6 +544,7 @@ def train(
             model,
             optimizer,
             scheduler,
+            tokenizer,
         )
         if should_exit:
             break
@@ -557,6 +560,7 @@ def train(
             model,
             optimizer,
             scheduler,
+            tokenizer,
         )
 
     # If any exit conditions (signal handler, duration, iterations) have been reached, exit.
@@ -573,6 +577,7 @@ def train(
 
 def finetune(
     config: ConfigContainer,
+    tokenizer: AutoTokenizer,
 ):
     config.validate()
 
@@ -590,6 +595,7 @@ def finetune(
                 model=model,
                 optimizer=optimizer,
                 scheduler=scheduler,
+                tokenizer=tokenizer,
                 train_data_iterator=train_data_iterator,
                 valid_data_iterator=valid_data_iterator,
                 num_microbatches=num_microbatches_per_step,

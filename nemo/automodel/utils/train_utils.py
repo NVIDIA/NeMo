@@ -361,9 +361,9 @@ def get_start_time_from_progress_log(cfg: ConfigContainer):
                 if start_time is None:
                     start_time = line_tokens[0]
                     start_num_floating_point_operations = latest_num_floating_point_operations
-    assert (
-        start_time is not None and start_num_floating_point_operations is not None
-    ), "Should have seen at least one 'Starting job' entry with same world_size"
+    assert start_time is not None and start_num_floating_point_operations is not None, (
+        "Should have seen at least one 'Starting job' entry with same world_size"
+    )
     return datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S"), start_num_floating_point_operations
 
 
@@ -405,6 +405,7 @@ def save_checkpoint_and_time(
     model,
     optimizer,
     opt_param_scheduler,
+    tokenizer,
 ):
     timers = state.timers
 
@@ -420,7 +421,7 @@ def save_checkpoint_and_time(
         model,
         optimizer,
         opt_param_scheduler,
-        state.cfg.dataset_config.tokenizer,
+        tokenizer=tokenizer,
         save_rng=state.cfg.checkpoint_config.save_rng,
         save_optim=state.cfg.checkpoint_config.save_optim,
     )
@@ -439,6 +440,7 @@ def checkpoint_and_decide_exit(
     model,
     optimizer,
     opt_param_scheduler,
+    tokenizer,
 ):
     """Save checkpoint and decide whether to exit based on arguments (e.g., if
     --exit-duration-in-mins is set). Actual exit happens in main training loop
@@ -455,6 +457,7 @@ def checkpoint_and_decide_exit(
                     model,
                     optimizer,
                     opt_param_scheduler,
+                    tokenizer,
                 )
             barrier_and_log("exiting program after receiving SIGTERM.")
 
@@ -471,6 +474,7 @@ def checkpoint_and_decide_exit(
             model,
             optimizer,
             opt_param_scheduler,
+            tokenizer,
         )
         saved_checkpoint = True
 
@@ -489,6 +493,7 @@ def checkpoint_and_decide_exit(
                     model,
                     optimizer,
                     opt_param_scheduler,
+                    tokenizer,
                 )
             barrier_and_log(f"exiting program after {train_time} minutes")
 
@@ -502,6 +507,7 @@ def checkpoint_and_decide_exit(
                 model,
                 optimizer,
                 opt_param_scheduler,
+                tokenizer,
             )
         barrier_and_log(f"exiting program at iteration {state.train_state.step}")
 
