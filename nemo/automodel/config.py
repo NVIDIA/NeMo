@@ -199,9 +199,9 @@ class ConfigContainer(Container):
 
         # TODO: Add Model Parallel support
         total_model_size = 1
-        assert (
-            world_size % total_model_size == 0
-        ), f"world size ({world_size}) is not divisible by total_model_size ({total_model_size})"
+        assert world_size % total_model_size == 0, (
+            f"world size ({world_size}) is not divisible by total_model_size ({total_model_size})"
+        )
         self.data_parallel_size = world_size // total_model_size
 
         if self.dist_config.lazy_init:

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-import os
 import time
 from datetime import datetime
 from typing import Optional
@@ -325,78 +324,15 @@ def reduce_loss(
     return loss, denominator
 
 
-def get_start_time_from_progress_log(cfg: ConfigContainer):
-    """
-    Gets start time of earliest job with same world size. Also returns the number
-    of floating-point operations completed in last saved checkpoint.
-    """
-    assert cfg.checkpoint_config.save is not None
-    progress_log_filename = os.path.join(cfg.checkpoint_config.save, "progress.txt")
-
-    # start_time is time when job with same world size started.
-    # start_num_floating_point_operations is the number of floating-point operations
-    # completed when this job started.
-    # latest_num_floating_point_operations is the number of floating-point operations
-    # completed in most recent saved checkpoint.
-    start_time = None
-    start_num_floating_point_operations = None
-    latest_num_floating_point_operations = 0
-
-    def _get_field(string, type):
-        return type(string.split(": ")[1])
-
-    with open(progress_log_filename, "r") as f:
-        for line in f:
-            line = line.strip()
-            line_tokens = line.split("\t")
-            world_size_in_line = _get_field(line_tokens[2], int)
-            if line_tokens[3] == "Saved checkpoint":
-                latest_num_floating_point_operations = _get_field(line_tokens[7], float)
-            if world_size_in_line != get_world_size_safe():
-                # Re-start search if we see a different world size.
-                start_time = None
-                start_num_floating_point_operations = None
-                continue
-            if line_tokens[3] == "Starting job":
-                if start_time is None:
-                    start_time = line_tokens[0]
-                    start_num_floating_point_operations = latest_num_floating_point_operations
-    assert start_time is not None and start_num_floating_point_operations is not None, (
-        "Should have seen at least one 'Starting job' entry with same world_size"
-    )
-    return datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S"), start_num_floating_point_operations
-
-
-def compute_throughputs_and_append_to_progress_log(state: GlobalState):
+def append_checkpoint_save_to_progress_log(state: GlobalState):
     if state.cfg.checkpoint_config.save is None:
         return
 
-    num_floating_point_operations_so_far = state.train_state.floating_point_operations_so_far
-
-    # Compute job throughput.
-    # completed at the start of job.
-    job_throughput = (num_floating_point_operations_so_far - state.train_state.floating_point_operations_so_far) / (
-        (time.time() - state.start_time) * 10**12 * get_world_size_safe()
-    )
-
-    # Compute cumulative throughput since jobs of this world size were launched.
-    # `get_start_time_from_progress_log` returns start time and number of floating-point
-    # operations of first job of this world size.
-    start_time, start_num_floating_point_operations = get_start_time_from_progress_log(state.cfg)
-    elapsed_time = (datetime.now() - start_time).total_seconds()
-    cumulative_throughput = (num_floating_point_operations_so_far - start_num_floating_point_operations) / (
-        elapsed_time * 10**12 * get_world_size_safe()
-    )
-
     tokens_so_far = state.train_state.consumed_train_samples * state.cfg.dataset_config.seq_length
-    saved_ckpt_prefix = "Saving async checkpoint" if state.cfg.checkpoint_config.async_save else "Saved checkpoint"
+    saved_ckpt_prefix = "Saved checkpoint"
     append_to_progress_log(
         state.cfg.checkpoint_config.save,
-        f"{saved_ckpt_prefix}\tIteration: {state.train_state.step}\t"
-        f"Job throughput: {job_throughput:.1f} TFLOP/s/GPU\t"
-        f"Cumulative throughput: {cumulative_throughput:.1f} TFLOP/s/GPU\t"
-        f"Floating-point operations: {num_floating_point_operations_so_far:.2e}\t"
-        f"Tokens (in billions): {tokens_so_far / 10**9:.2f}",
+        f"{saved_ckpt_prefix}\tIteration: {state.train_state.step}\tTokens (in billions): {tokens_so_far / 10**9:.2f}",
     )
 
 
@@ -429,7 +365,7 @@ def save_checkpoint_and_time(
     timers.log([timer_key])
 
     if state.cfg.logger_config.log_progress:
-        compute_throughputs_and_append_to_progress_log(state)
+        append_checkpoint_save_to_progress_log(state)
 
     # Recover timing
     timers("interval-time", log_level=0).start(barrier=True)

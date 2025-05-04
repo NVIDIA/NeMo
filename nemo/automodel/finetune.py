@@ -26,7 +26,6 @@ from transformers import AutoTokenizer
 from nemo.automodel.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.automodel.config import ConfigContainer
 from nemo.automodel.init import initialize_automodel
-from nemo.automodel.utils import flop_utils
 from nemo.automodel.utils.train_utils import (
     checkpoint_and_decide_exit,
     eval_log,
@@ -415,8 +414,6 @@ def train(
     # Tracking loss.
     total_loss_dict = {}
 
-    num_floating_point_operations_since_last_log_event = 0.0
-
     timers("interval-time", log_level=0).start(barrier=True)
     report_memory_flag = True
     should_exit = False
@@ -473,12 +470,6 @@ def train(
         global_state.train_state.step += 1
         batch_size = config.data_parallel_size * train_config.micro_batch_size * num_microbatches
         global_state.train_state.consumed_train_samples += batch_size
-
-        num_floating_point_operations_in_batch = flop_utils.num_floating_point_operations(
-            config, config.model_config.hf_config, batch_size
-        )
-        global_state.train_state.floating_point_operations_so_far += num_floating_point_operations_in_batch
-        num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
 
         # Logging.
         # TODO: Add support for loss scaling and mixed precision training.
