@@ -29,7 +29,7 @@ export CUDA_VISIBLE_DEVICES=0,1
 
 # Run the test with torchrun and coverage
 echo "Running Hyena Mixer CP test with torchrun..."
-docoverage run -a \
+coverage run -a \
     --data-file=/workspace/.coverage \
     --source=/workspace/nemo \
     torchrun --nproc_per_node=2 \
