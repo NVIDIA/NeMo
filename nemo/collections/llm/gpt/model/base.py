@@ -26,6 +26,7 @@ from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import nn
 
 from nemo.collections.llm import fn
@@ -103,7 +104,7 @@ def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
             _batch_required_keys[key] = None
 
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch_required_keys)
+    output = get_batch_on_this_cp_rank(_batch_required_keys)
 
     return output
 
@@ -662,7 +663,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         params_dtype: torch.dtype,
         inference_batch_times_seqlen_threshold: int,
         inference_max_seq_length: int = 2560,
-    ) -> torch.Tensor:
+    ) -> GPTInferenceWrapper:
         """Get an inference wrapper for the model.
 
         Creates and configures a GPTInferenceWrapper around the model for efficient inference.
@@ -673,7 +674,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             inference_max_seq_length: Maximum sequence length for inference (prefill and decode)
 
         Returns:
-            torch.Tensor: Wrapped model for inference
+            GPTInferenceWrapper: Wrapped model for inference
         """
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
@@ -685,10 +686,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
         vocab_size = None
-        if self.tokenizer is not None:
-            vocab_size = self.tokenizer.vocab_size
-        elif hasattr(self.config, "vocab_size"):
+        if hasattr(self.config, "vocab_size"):
             vocab_size = self.config.vocab_size
+        elif self.tokenizer is not None:
+            vocab_size = self.tokenizer.vocab_size
         else:
             raise ValueError(
                 "Unable to find vocab size."
@@ -729,44 +730,6 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
-
-
-def get_batch_on_this_context_parallel_rank(batch) -> dict[str, torch.Tensor]:
-    """Process batch data for the current context parallel rank.
-
-    Handles the slicing of batch data across context parallel dimensions.
-
-    Args:
-        batch: Input batch
-
-    Returns:
-        dict[str, torch.Tensor]: Processed batch for the current context parallel rank
-    """
-    from megatron.core import parallel_state
-
-    if (cp_size := parallel_state.get_context_parallel_world_size()) > 1:
-        num_valid_tokens_in_ub = None
-        if "loss_mask" in batch and batch["loss_mask"] is not None:
-            num_valid_tokens_in_ub = batch["loss_mask"].sum()
-
-        cp_rank = parallel_state.get_context_parallel_rank()
-        for key, val in batch.items():
-            if val is not None:
-                seq_dim = 1 if key != "attention_mask" else 2
-                _val = val.view(
-                    *val.shape[0:seq_dim],
-                    2 * cp_size,
-                    val.shape[seq_dim] // (2 * cp_size),
-                    *val.shape[(seq_dim + 1) :],
-                )
-                index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).to(
-                    _val.device, non_blocking=True
-                )
-                _val = _val.index_select(seq_dim, index)
-                _val = _val.view(*val.shape[0:seq_dim], -1, *_val.shape[(seq_dim + 2) :])
-                batch[key] = _val
-        batch["num_valid_tokens_in_ub"] = num_valid_tokens_in_ub
-    return batch
 
 
 def get_packed_seq_params(batch):

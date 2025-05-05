@@ -31,10 +31,12 @@ _model_flops_map = {
     "gpt3": flops_formulas.gpt3,
     "llama2": flops_formulas.llama2,
     "llama3": flops_formulas.llama3,
+    "llama4": flops_formulas.llama3,  # TODO: add llama4 flops formulas
     "nemotron": flops_formulas.nemotron,
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
     "hyena": hyena,
+    "deepseekv3": flops_formulas.deepseekv3,
     "transformer": flops_formulas.transformer,
 }
 
@@ -81,18 +83,33 @@ class FLOPsMeasurementCallback(Callback):
         if query_groups is None:
             query_groups = attention_heads
 
-        self.flops_config = flops_formulas.FLOPSConfig(
-            gbs=gbs,
-            enc_seq_len=enc_seq_len,
-            hs=hs,
-            layers=layers,
-            ffn_hs=ffn_hs,
-            attention_heads=attention_heads,
-            moe_router_topk=moe_router_topk,
-            query_groups=query_groups,
-            vocab_size=vocab_size,
-            model_pattern=model_pattern,
-        )
+        config_kwargs = {
+            "gbs": gbs,
+            "enc_seq_len": enc_seq_len,
+            "hs": hs,
+            "layers": layers,
+            "ffn_hs": ffn_hs,
+            "attention_heads": attention_heads,
+            "moe_router_topk": moe_router_topk,
+            "query_groups": query_groups,
+            "vocab_size": vocab_size,
+            "model_pattern": model_pattern,
+        }
+
+        from megatron.core.transformer.transformer_config import MLATransformerConfig
+
+        if isinstance(self.model_cfg, MLATransformerConfig):
+            config_kwargs["qk_head_dim"] = self.model_cfg.qk_head_dim
+            config_kwargs["qk_pos_emb_head_dim"] = self.model_cfg.qk_pos_emb_head_dim
+            config_kwargs["v_head_dim"] = self.model_cfg.v_head_dim
+            config_kwargs["q_lora_rank"] = self.model_cfg.q_lora_rank
+            config_kwargs["kv_lora_rank"] = self.model_cfg.kv_lora_rank
+        config_kwargs["moe_layer_freq"] = self.model_cfg.moe_layer_freq
+        config_kwargs["moe_shared_expert_intermediate_size"] = self.model_cfg.moe_shared_expert_intermediate_size
+        config_kwargs["moe_ffn_hidden_size"] = self.model_cfg.moe_ffn_hidden_size
+        config_kwargs["mtp_num_layers"] = self.model_cfg.mtp_num_layers
+
+        self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
         self.model = self.model.lower() if self.model is not None else self.model
 

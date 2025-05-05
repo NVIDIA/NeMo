@@ -18,10 +18,11 @@ import fiddle as fdl
 import lightning.pytorch as pl
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
+from nemo.automodel.misc_utils import calculate_valid_accumulate_grad_batches
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -35,8 +36,16 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
+@FirstRankPerNode()
 def make_squad_hf_dataset(
-    tokenizer, micro_batch_size, seq_length, limit_dataset_samples=None, fp8=False, num_replicas=1, rank=0
+    tokenizer,
+    micro_batch_size,
+    seq_length,
+    packed_sequence_size,
+    limit_dataset_samples=None,
+    fp8=False,
+    num_replicas=1,
+    rank=0,
 ):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -49,29 +58,52 @@ def make_squad_hf_dataset(
         if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
             answer_ids.append(tokenizer.eos_id)
 
-        # Set input and labels, and pad to sequence length.
-        combined_query_answer = context_ids + answer_ids
-        seq_pad_len_ar = max(0, seq_length - len(combined_query_answer) + 1)
-        pad_token_id = tokenizer.eos_id if tokenizer.eos_id is not None else 0
-        return dict(
-            labels=combined_query_answer[1:] + [pad_token_id] * seq_pad_len_ar,
-            input_ids=combined_query_answer[:-1] + [pad_token_id] * seq_pad_len_ar,
-            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids) + [0] * seq_pad_len_ar,
-        )
+        # Do not perform padding for packed sequences
+        if packed_sequence_size > 0:
+            return dict(
+                labels=(context_ids + answer_ids)[1:],
+                input_ids=(context_ids + answer_ids)[:-1],
+                loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+            )
+        else:
+            # Set input and labels, and pad to sequence length.
+            combined_query_answer = context_ids + answer_ids
+            seq_pad_len_ar = max(0, seq_length - len(combined_query_answer) + 1)
+            pad_token_id = tokenizer.eos_id if tokenizer.eos_id is not None else 0
+            return dict(
+                labels=combined_query_answer[1:] + [pad_token_id] * seq_pad_len_ar,
+                input_ids=combined_query_answer[:-1] + [pad_token_id] * seq_pad_len_ar,
+                loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids) + [0] * seq_pad_len_ar,
+            )
 
     splits = ['train', 'validation']
     if limit_dataset_samples is not None:
         assert isinstance(limit_dataset_samples, int), "Expected limit_dataset_samples to be an int"
         splits = list(map(lambda x: f'{x}[:{limit_dataset_samples}]', splits))
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad",
-        split=splits,
-        micro_batch_size=micro_batch_size,
-        pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
-        pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-        num_replicas=num_replicas,
-        rank=rank,
-    )
+
+    if packed_sequence_size > 0:
+        # If packed_sequence_size > 0 instantiate HFDatasetDataModulePacked class
+        datamodule = llm.HFDatasetDataModulePacked(
+            "rajpurkar/squad",
+            packed_sequence_size=packed_sequence_size,
+            split=splits,
+            micro_batch_size=micro_batch_size,
+            pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
+            pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+            num_replicas=num_replicas,
+            rank=rank,
+        )
+    else:
+        datamodule = llm.HFDatasetDataModule(
+            "rajpurkar/squad",
+            split=splits,
+            micro_batch_size=micro_batch_size,
+            pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
+            pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+            num_replicas=num_replicas,
+            rank=rank,
+        )
+    ## tokenization is happening here
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -91,6 +123,7 @@ def make_strategy(
     tp_size=None,
     cp_size=None,
     sequence_parallel=False,
+    use_hf_tp_plan=False,
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -112,25 +145,10 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-        if cp_size is None:
-            cp_size = 1
-            if dp_size is None:
-                dp_size = devices * num_nodes
-            else:
-                assert (
-                    dp_size == devices * num_nodes
-                ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
-        else:
-            if dp_size is None:
-                dp_size = 1
-                assert (
-                    cp_size == devices * num_nodes
-                ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
-            else:
-                assert (
-                    dp_size * cp_size == devices * num_nodes
-                ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
-        print(f"Using FSDP2 with DP={dp_size}, TP={1}, CP={cp_size}")
+            assert (
+                dp_size * tp_size * cp_size == devices * num_nodes
+            ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+        print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
@@ -138,6 +156,7 @@ def make_strategy(
             sequence_parallel=sequence_parallel,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
+            use_hf_tp_plan=use_hf_tp_plan,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -185,13 +204,19 @@ def main():
         action='store_true',
         help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
     )
+    parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
-        '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
+        '--accumulate-grad-batches',
+        '--accumulate_grad_batches',
+        type=int,
+        default=1,
+        help='Number of batches to accumulate gradient over.',
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
+    parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
@@ -237,12 +262,36 @@ def main():
         default=None,
         help='If set will limit num of dataset samples. Default None (disabled)',
     )
+    parser.add_argument(
+        '--packed-sequence-size',
+        type=int,
+        default=-1,
+        help='If a positive integer, this arg enables training with sequence packing in case of HFDatasetDataModule'
+        'class and specifies the pack size. If less than or equal to 0, sequence packing is disabled. Packed sequences'
+        'are currently supported only with position_ids and not attention_mask. Hence packed sequences needs to be'
+        'run with --attn-implementation=flash_attention_2',
+    )
 
     args = parser.parse_args()
 
     # CPUOffload WA for known issue
     if args.enable_cpu_offload and args.use_te_optimizer:
         args.use_te_optimizer = False
+
+    try:
+        args.accumulate_grad_batches = calculate_valid_accumulate_grad_batches(
+            global_batch_size=args.global_batch_size,
+            micro_batch_size=args.micro_batch_size,
+            devices=args.devices,
+            num_nodes=args.num_nodes,
+            tp_size=args.tp_size,
+            cp_size=args.cp_size,
+        )
+    except ValueError as e:
+        print(f"Error calculating gradient accumulation steps: {e}")
+        print("Using default value of 1 for accumulate_grad_batches")
+        args.accumulate_grad_batches = 1
+    print(f"Accumulate grad batches: {args.accumulate_grad_batches}")
 
     wandb = None
     if args.wandb_project is not None:
@@ -265,7 +314,7 @@ def main():
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
         optimizer = fdl.build(
-            pytorch_adam_with_cosine_annealing(max_lr=args.lr, foreach=False)
+            llm.adam.pytorch_adam_with_flat_lr(lr=args.lr, foreach=False)
         )  # foreach need to be False for TP
 
     if args.fp8:
@@ -300,6 +349,7 @@ def main():
         tp_size=args.tp_size,
         cp_size=args.cp_size,
         sequence_parallel=args.sequence_parallel,
+        use_hf_tp_plan=args.use_hf_tp_plan,
     )
 
     resume = (
@@ -324,12 +374,20 @@ def main():
             pad_seq_len_divisible=16 if args.fp8 else None,
         )
     else:
+        if args.packed_sequence_size > 0:
+            assert args.attn_implementation == 'flash_attention_2', (
+                "Packed sequences is currently supported only "
+                "with flash_attention_2. Please set --attn_implementation flash_attention_2"
+            )
         dataset = make_squad_hf_dataset(
             tokenizer=model.tokenizer,
             micro_batch_size=args.micro_batch_size,
             seq_length=args.seq_length,
+            packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
+            num_replicas=args.dp_size,
+            rank=0,
         )
 
     llm.api.finetune(
@@ -339,6 +397,7 @@ def main():
             devices=args.devices,
             num_nodes=args.num_nodes,
             max_steps=args.max_steps,
+            max_epochs=args.max_epochs,
             accelerator='gpu',
             strategy=strategy,
             log_every_n_steps=args.log_every_n_steps,

@@ -21,6 +21,7 @@ import torch
 import torch.distributed as dist
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import masked_cross_entropy
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -195,6 +196,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 attn_implementation=attn_implementation,
             )
 
+    @FirstRankPerNode()
     def configure_model(self):
         """
         Configure and initialize the Hugging Face model.
@@ -220,7 +222,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.use_liger_kernel:
             from liger_kernel.transformers import _apply_liger_kernel_to_instance
 
-            _apply_liger_kernel_to_instance(model=self.model)
+            try:
+                _apply_liger_kernel_to_instance(model=self.model)
+            except Exception as e:
+                logging.warning("Liger failed with: {}. Switching to non-liger path.".format(e))
+                self.use_liger_kernel = False
+                del self.model
+                return self.configure_model()
 
         if self.model_accelerator is not None:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
@@ -291,9 +299,17 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch['input_ids'] = batch['tokens']
 
         # TODO(@boxiangw): Refractor. Needed for SP support
-        batch["position_ids"] = torch.arange(0, batch['input_ids'].shape[1]).unsqueeze(0).to(self.model.device)
+        # If 'position_ids' does not exist in batch already then override it. batch in case of Packed sequence
+        # contains 'position_ids' and we don't want to override it.
+        if 'position_ids' not in batch:
+            batch["position_ids"] = torch.arange(0, batch['input_ids'].shape[1]).unsqueeze(0).to(self.model.device)
 
         batch = self._remove_extra_batch_keys(batch)
+        # if attn_mask exists in the batch convert to float. For some reason although torch.bool when created,
+        # inside training step it becomes torch.int64 which can lead to error during transformers sdpa call,
+        # convert to float.
+        if 'attention_mask' in batch:
+            batch['attention_mask'] = batch['attention_mask'].float()
 
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
@@ -355,7 +371,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 logit_softcapping = 0
                 loss = fused_linear_cross_entropy(
                     hidden_states=hidden_states,
-                    lm_weight=lm_head,
+                    lm_weight=lm_head.full_tensor() if hasattr(lm_head, 'full_tensor') else lm_head,
                     labels=labels,
                     num_items_in_batch=num_items_in_batch,
                     logit_softcapping=logit_softcapping,
