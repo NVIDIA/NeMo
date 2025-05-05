@@ -87,6 +87,7 @@ class MCoreASRModule(MegatronModule):
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len
 
@@ -134,7 +135,7 @@ class HFWrappedEncoder(nn.Module):
 @dataclass
 class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
     _target_: Optional[str] = None
-    pretrained_model: Optional[str] = "stt_en_fastconformer_transducer_large"
+    pretrained_model: Optional[str] = "nvidia/canary-1b"
     hidden_size: Optional[int] = None    
     config: Optional[dict] = None
     preprocessor_config: Optional[dict] = None
@@ -153,7 +154,6 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             imported_cls = model_utils.import_class_by_path(self._target_)
         else:
             imported_cls = nemo_asr.models.ASRModel
-
         if self.pretrained_model is not None and self.config is None:
             if str(self.pretrained_model).endswith(".nemo"):
                 asr_model = imported_cls.restore_from(self.pretrained_model)  # type: nemo_asr.models.ASRModel
@@ -173,6 +173,7 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
                 }
             )
             asr_model.maybe_init_from_pretrained_checkpoint(init_cfg)
+
         model = asr_model
         if self.target_module is not None:
             model = get_nested_attr(asr_model, self.target_module)
