@@ -201,7 +201,7 @@ def prompted_inputs():
 def batch_prompted_inputs():
     B, T, C = 2, 5, 2
     return (
-        torch.tensor([[1, 0, 2, 3, 4, 5, 6], [1, 0, 2, 3, 4, 0, 0]], dtype=torch.long),  # prompt
+        torch.tensor([[1, 3, 4, 5, 6], [1, 5, 6, 4, 7]], dtype=torch.long),  # prompt
         torch.ones(B, T, C, dtype=torch.float),  # encoder_hidden_states
         torch.ones(B, T, dtype=torch.float),  # encoder_input_mask
     )
@@ -236,7 +236,6 @@ def test_transformer_aed_beam_infer_strips_prompt(prompted_inputs, decoder_nm, n
 
 def test_transformer_aed_greedy_infer_strips_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
     decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
-    decoder_input_ids = torch.tensor([[1, 0, 2, 3, 4]], dtype=torch.long)  # prompt
     *_, classifier = nnet
 
     # Run the actual top-level module used by MultiTask AED model for decoding.
@@ -263,6 +262,7 @@ def test_transformer_aed_greedy_infer_strips_prompt(prompted_inputs, decoder_nm,
 
 
 def test_transformer_aed_beam_infer_strips_batch_prompt(batch_prompted_inputs, decoder_nm, nnet, tokenizer):
+    """Test batch_size > 1"""
     decoder_input_ids, encoder_hidden_states, encoder_input_mask = batch_prompted_inputs
     *_, classifier = nnet
 
@@ -298,6 +298,7 @@ def test_transformer_aed_beam_infer_strips_batch_prompt(batch_prompted_inputs, d
 
 
 def test_transformer_aed_greedy_infer_strips_batch_prompt(batch_prompted_inputs, decoder_nm, nnet, tokenizer):
+    """Test batch_size > 1"""
     decoder_input_ids, encoder_hidden_states, encoder_input_mask = batch_prompted_inputs
     *_, classifier = nnet
 
@@ -329,5 +330,5 @@ def test_transformer_aed_greedy_infer_strips_batch_prompt(batch_prompted_inputs,
     )  # stripped the prompt from the beggining
 
     torch.testing.assert_close(
-        untrimmed1[decoder_input_ids.shape[1] :], best_path2
+        untrimmed2[decoder_input_ids.shape[1] :], best_path2
     )  # stripped the prompt from the beggining
