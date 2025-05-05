@@ -273,8 +273,8 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
     dependencies = bucket_deps
 
-    # # Sort dependencies by length of values (number of dependencies)
-    # dependencies = dict(sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True))
+    # Sort dependencies by length of values (number of dependencies)
+    dependencies = dict(sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True))
 
     return dependencies
 
