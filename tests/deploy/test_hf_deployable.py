@@ -59,6 +59,13 @@ def mock_distributed():
         yield mock
 
 
+@pytest.fixture
+def mock_torch_cuda():
+    with patch('torch.cuda.is_available', return_value=False):
+        with patch('torch.Tensor.cuda', return_value=torch.tensor([[1, 2, 3]])):
+            yield
+
+
 class MockRequest:
     def __init__(self, data):
         self.data = data
@@ -135,14 +142,14 @@ class TestHuggingFaceLLMDeploy:
         with pytest.raises(RuntimeError):
             deployer.generate(text_inputs=["test prompt"])
 
-    def test_generate_with_model(self, mock_model, mock_tokenizer):
+    def test_generate_with_model(self, mock_model, mock_tokenizer, mock_torch_cuda):
         deployer = HuggingFaceLLMDeploy(model=mock_model, tokenizer=mock_tokenizer, task="text-generation")
         output = deployer.generate(text_inputs=["test prompt"])
         assert output == ["Generated text"]
         mock_model.generate.assert_called_once()
         mock_tokenizer.batch_decode.assert_called_once()
 
-    def test_generate_with_output_logits_and_scores(self, mock_model, mock_tokenizer):
+    def test_generate_with_output_logits_and_scores(self, mock_model, mock_tokenizer, mock_torch_cuda):
         mock_model.generate.return_value = {
             "sequences": torch.tensor([[1, 2, 3]]),
             "logits": torch.tensor([1.0]),
