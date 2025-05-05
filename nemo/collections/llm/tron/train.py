@@ -44,7 +44,12 @@ from nemo.collections.llm.tron.init import destroy_global_state
 from nemo.collections.llm.tron.state import GlobalState
 from nemo.collections.llm.tron.utils import flop_utils
 from nemo.collections.llm.tron.utils.async_utils import maybe_finalize_async_save
-from nemo.collections.llm.tron.utils.common_utils import append_to_progress_log, barrier_and_log, get_world_size_safe, print_rank_0
+from nemo.collections.llm.tron.utils.common_utils import (
+    append_to_progress_log,
+    barrier_and_log,
+    get_world_size_safe,
+    print_rank_0,
+)
 from nemo.collections.llm.tron.utils.train_utils import (
     calc_params_l2_norm,
     check_forward_step_func_num_args,

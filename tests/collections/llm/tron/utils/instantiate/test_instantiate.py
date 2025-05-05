@@ -32,6 +32,7 @@ from nemo.collections.llm.tron.utils.instantiate_utils import (
     _convert_node,
     _convert_target_to_string,
     _locate,
+    _resolve_target,
     instantiate,
     instantiate_node,
 )
@@ -69,7 +70,6 @@ from tests.collections.llm.tron.utils.instantiate import (
     module_function2,
     partial_equal,
 )
-from nemo.collections.llm.tron.utils.instantiate_utils import _resolve_target
 
 
 @fixture(
