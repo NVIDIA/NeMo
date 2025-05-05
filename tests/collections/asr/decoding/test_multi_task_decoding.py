@@ -332,3 +332,68 @@ def test_transformer_aed_greedy_infer_strips_batch_prompt(batch_prompted_inputs,
     torch.testing.assert_close(
         untrimmed2[decoder_input_ids.shape[1] :], best_path2
     )  # stripped the prompt from the beggining
+
+
+def test_transformer_aed_beam_infer_padded_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
+    """Test that the output of TransformerAEDBeamInfer is the same with and without padding"""
+    decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
+    # Add padding to the decoder_input_ids
+    decoder_input_ids_with_padding = torch.cat([decoder_input_ids, torch.zeros((1, 2), dtype=torch.long)], dim=1)
+
+    *_, classifier = nnet
+
+    # Run the actual top-level module used by MultiTask AED model for decoding.
+    # This module is expected to trim the prompt from the beginning, and eos and pad from the end.
+    gen = TransformerAEDBeamInfer(decoder_nm, classifier, tokenizer)
+    ans = gen(
+        encoder_hidden_states=encoder_hidden_states,
+        encoder_input_mask=encoder_input_mask,
+        decoder_input_ids=decoder_input_ids,
+    )
+    ans_with_padding = gen(
+        encoder_hidden_states=encoder_hidden_states,
+        encoder_input_mask=encoder_input_mask,
+        decoder_input_ids=decoder_input_ids_with_padding,
+    )
+
+    # Extract result tensors
+    res = ans[0][0].y_sequence
+    res_with_padding = ans_with_padding[0][0].y_sequence
+
+    # Number of output tokens may vary as the number of input tokens is different (5 without padding and 7 with padding)
+    # and the randomly initialized model may decode for max_sequence_length steps.
+    assert res_with_padding.size(0) <= res.size(0), f"Expected len(res_with_padding) <= len(res), got {res_with_padding.size(0)} > {res.size(0)}"
+    min_length = res_with_padding.size(0)
+    assert torch.equal(res[:min_length], res_with_padding), f"Expected ans[:len(ans)] == ans_with_padding, got {res} != {res_with_padding[:res.size(0)]}"
+
+
+def test_transformer_aed_greedy_infer_padded_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
+    """Test that the output of TransformerAEDGreedyInfer is the same with and without padding"""
+    decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
+    # Add padding to the decoder_input_ids
+    decoder_input_ids_with_padding = torch.cat([decoder_input_ids, torch.zeros((1, 2), dtype=torch.long)], dim=1)
+
+    *_, classifier = nnet
+
+    # Run the actual top-level module used by MultiTask AED model for decoding.
+    gen = TransformerAEDGreedyInfer(decoder_nm, classifier, tokenizer)
+    ans = gen(
+        encoder_hidden_states=encoder_hidden_states,
+        encoder_input_mask=encoder_input_mask,
+        decoder_input_ids=decoder_input_ids,
+    )
+    ans_with_padding = gen(
+        encoder_hidden_states=encoder_hidden_states,
+        encoder_input_mask=encoder_input_mask,
+        decoder_input_ids=decoder_input_ids_with_padding,
+    )
+    
+    # Extract result tensors
+    res = ans[0][0].y_sequence
+    res_with_padding = ans_with_padding[0][0].y_sequence
+    
+    # Number of output tokens may vary as the number of input tokens is different (5 without padding and 7 with padding)
+    # because the randomly initialized model may not generate EOS and thus, decode for max_sequence_length steps.
+    assert res_with_padding.size(0) <= res.size(0), f"Expected len(res_with_padding) <= len(res), got {res_with_padding.size(0)} > {res.size(0)}"
+    min_length = res_with_padding.size(0)
+    assert torch.equal(res[:min_length], res_with_padding), f"Expected ans[:len(ans)] == ans_with_padding, got {res} != {res_with_padding[:res.size(0)]}"
