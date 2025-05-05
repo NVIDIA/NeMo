@@ -46,6 +46,7 @@ def predictive_model_ncsn():
         '_target_': 'nemo.collections.audio.parts.submodules.ncsnpp.SpectrogramNoiseConditionalScoreNetworkPlusPlus',
         'in_channels': 1,  # single-channel noisy input
         'out_channels': 1,  # single-channel estimate
+        'channels': [8, 8, 8, 8, 8],
         'num_res_blocks': 3,  # increased number of res blocks
         'pad_time_to': 64,  # pad to 64 frames for the time dimension
         'pad_dimension_to': 0,  # no padding in the frequency dimension
@@ -111,7 +112,7 @@ def predictive_model_conformer():
         'out_channels': 1,  # single-channel estimate
         'feat_in': 256,  # input feature dimension = number of subbands
         'n_layers': 8,  # number of layers in the model
-        'd_model': 512,  # the hidden size of the model
+        'd_model': 64,  # the hidden size of the model
         'subsampling_factor': 1,  # subsampling factor for the model
         'self_attention_model': 'rel_pos',
         'n_heads': 8,  # number of heads for the model
@@ -183,7 +184,7 @@ def predictive_model_streaming_conformer():
         'out_channels': 1,  # single-channel estimate
         'feat_in': 256,  # input feature dimension = number of subbands
         'n_layers': 8,  # number of layers in the model
-        'd_model': 512,  # the hidden size of the model
+        'd_model': 64,  # the hidden size of the model
         'subsampling_factor': 1,  # subsampling factor for the model
         'self_attention_model': 'rel_pos',
         'n_heads': 8,  # number of heads for the model
