@@ -87,7 +87,7 @@ trtllm() {
       build
     fi
 
-    pip install --no-cache-dir $WHEELS_DIR/trtllm/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com || true
+    pip install --no-cache-dir $WHEELS_DIR/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com && patch -p1 --force $(python -c "import triton; print(triton.__path__[0])")/runtime/autotuner.py $CURR/external/patches/triton-lang_triton_6570_lazy_init.patch || true
   fi
 }
 
