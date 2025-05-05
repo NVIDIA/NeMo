@@ -94,9 +94,6 @@ class TransformerARSpeechDecoder(NeuralModule):
                     input_audio_tokens = torch.cat([input_audio_tokens, input_audio_tokens], dim=0)
 
         if self.cond_on_prev_audio_tokens:
-            if self.detach_input:
-                input_audio_tokens = input_audio_tokens.detach()
-
             audio_tokens_embedded = self.embed_audio_tokens(input_audio_tokens.transpose(1, 2).contiguous()) # (B, T', E)
 
 
