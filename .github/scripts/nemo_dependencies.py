@@ -131,13 +131,14 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
     for file_path in find_python_files(nemo_root):
         relative_path = os.path.relpath(file_path, nemo_root)
+
         parts = relative_path.split(os.sep)
 
         if len(parts) == 1 or parts[-1] == "__init__.py" or (parts[0] != "nemo" and parts[0] != "tests"):
             continue
 
         module_path = relative_path.replace(".py", "").replace("/", ".")
-        if parts[1] in top_level_packages and parts[1] != 'collections':
+        if parts[1] in top_level_packages and parts[1] != 'collections' and parts[0] != 'tests':
             dependencies[module_path] = list(set(analyze_imports(nemo_root, file_path)))
         elif parts[0] == 'tests':
             dependencies[module_path] = [relative_path]
@@ -223,21 +224,50 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     for package, deps in dependencies.items():
         new_deps = []
         for dep in deps:
-            if "asr" in dep or "tts" in dep or "speechlm" in dep or "audio" in dep:
+            if (
+                "nemo/collections/asr" in dep
+                or "nemo/collections/tts" in dep
+                or "nemo/collections/speechlm" in dep
+                or "nemo/collections/audio" in dep
+                or "tests/collections/asr" in dep
+                or "tests/collections/tts" in dep
+                or "tests/collections/speechlm" in dep
+                or "tests/collections/audio" in dep
+            ):
                 new_deps.append("speech")
-
-            elif "export" in dep or "deploy" in dep:
-                new_deps.append("export-deploy")
-
-            elif "llm" in dep or "vlm" in dep or "automodel" in dep:
-                new_deps.append("automodel")
-
-            elif "tests/collections" in dep:
                 new_deps.append("unit-tests")
-                continue
 
-            else:
+            if "nemo/export" in dep or "nemo/deploy" in dep or "tests/export" in dep or "tests/deploy" in dep:
+                new_deps.append("export-deploy")
+                new_deps.append("unit-tests")
+
+            if (
+                "nemo/collections/llm" in dep
+                or "nemo/collections/vlm" in dep
+                or "nemo/automodel" in dep
+                or "tests/collections/llm" in dep
+                or "tests/collections/vlm" in dep
+                or "tests/automodel" in dep
+            ):
+                new_deps.append("automodel")
+                new_deps.append("unit-tests")
+
+            if "tests" in dep and "tests/functional_tests" not in dep:
+                new_deps.append("unit-tests")
+
+            if (
+                "nemo/collections" in deps
+                and "nemo/collections/asr" not in dep
+                and "nemo/collections/tts" not in dep
+                and "nemo/collections/speechlm" not in dep
+                and "nemo/collections/audio" not in dep
+                and "tests/collections/asr" not in dep
+                and "tests/collections/tts" not in dep
+                and "tests/collections/speechlm" not in dep
+                and "tests/collections/audio" not in dep
+            ):
                 new_deps.append("nemo2")
+                new_deps.append("unit-tests")
 
         bucket_deps[package] = sorted(list(set(new_deps)))
 
