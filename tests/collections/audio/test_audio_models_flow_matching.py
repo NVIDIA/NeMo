@@ -195,7 +195,10 @@ def mock_dataset_config(tmp_path, request):
 
 @pytest.fixture()
 def flow_matching_model(flow_matching_base_config, request):
-    return FlowMatchingAudioToAudioModel(cfg=convert_to_dictconfig(flow_matching_base_config))
+    # deterministic model init
+    with torch.random.fork_rng():
+        torch.random.manual_seed(0)
+        return FlowMatchingAudioToAudioModel(cfg=convert_to_dictconfig(flow_matching_base_config))
 
 
 @pytest.fixture()
@@ -211,7 +214,11 @@ def flow_matching_model_with_trainer_and_mock_dataset(flow_matching_base_config,
     flow_matching_config = convert_to_dictconfig(flow_matching_base_config)
 
     trainer = pl.Trainer(**flow_matching_config.trainer)
-    model = FlowMatchingAudioToAudioModel(cfg=flow_matching_config, trainer=trainer)
+
+    # deterministic model init
+    with torch.random.fork_rng():
+        torch.random.manual_seed(0)
+        model = FlowMatchingAudioToAudioModel(cfg=flow_matching_config, trainer=trainer)
     return model, trainer
 
 

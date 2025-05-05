@@ -185,7 +185,10 @@ def mock_dataset_config(tmp_path, request):
 
 @pytest.fixture()
 def score_based_model(score_based_base_config):
-    return ScoreBasedGenerativeAudioToAudioModel(cfg=convert_to_dictconfig(score_based_base_config))
+    # deterministic model init
+    with torch.random.fork_rng(devices=[]):
+        torch.random.manual_seed(0)
+        return ScoreBasedGenerativeAudioToAudioModel(cfg=convert_to_dictconfig(score_based_base_config))
 
 
 @pytest.fixture()
@@ -201,7 +204,11 @@ def score_based_model_with_trainer_and_mock_dataset(score_based_base_config, moc
     score_based_config = convert_to_dictconfig(score_based_base_config)
 
     trainer = pl.Trainer(**score_based_config.trainer)
-    model = ScoreBasedGenerativeAudioToAudioModel(cfg=score_based_config, trainer=trainer)
+
+    # deterministic model init
+    with torch.random.fork_rng(devices=[]):
+        torch.random.manual_seed(0)
+        model = ScoreBasedGenerativeAudioToAudioModel(cfg=score_based_config, trainer=trainer)
     return model, trainer
 
 
