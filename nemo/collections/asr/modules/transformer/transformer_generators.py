@@ -420,7 +420,9 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
         # generate initial buffer of beam_size prefixes-hypotheses
-        log_probs, decoder_mems_list, decoder_input_mask = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
+        log_probs, decoder_mems_list, decoder_input_mask = self._one_step_forward(
+            tgt, encoder_hidden_states, encoder_input_mask, None, 0
+        )
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
@@ -487,8 +489,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             # select masks which correspond to the chosen hypotheses
             decoder_input_mask = decoder_input_mask.unsqueeze(1).repeat(1, self.beam_size, 1)
             decoder_input_mask = decoder_input_mask.view(batch_size, self.beam_size**2, -1)
-            mask_ids = indices_i.unsqueeze(2).repeat(1, 1, p_len-1)
-            decoder_input_mask = decoder_input_mask.gather(1, mask_ids).view(-1, p_len-1)
+            mask_ids = indices_i.unsqueeze(2).repeat(1, 1, p_len - 1)
+            decoder_input_mask = decoder_input_mask.gather(1, mask_ids).view(-1, p_len - 1)
 
             # reshuffle cached decoder memory states to restore the order
             # of hypotheses broken after top-k selection
@@ -556,7 +558,9 @@ class BeamSearchSequenceGeneratorWithNGramLM(BeamSearchSequenceGenerator):
         batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
 
         # generate initial buffer of beam_size prefixes-hypotheses
-        log_probs, decoder_mems_list, _ = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
+        log_probs, decoder_mems_list, _ = self._one_step_forward(
+            tgt, encoder_hidden_states, encoder_input_mask, None, 0
+        )
         # get ngram lm scores
         lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states, eos_id=self.eos)
         log_probs += self.ngram_lm_alpha * lm_scores[:, None, :]
