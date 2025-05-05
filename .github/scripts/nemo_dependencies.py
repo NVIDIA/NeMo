@@ -131,13 +131,14 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
     for file_path in find_python_files(nemo_root):
         relative_path = os.path.relpath(file_path, nemo_root)
+
         parts = relative_path.split(os.sep)
 
         if len(parts) == 1 or parts[-1] == "__init__.py" or (parts[0] != "nemo" and parts[0] != "tests"):
             continue
 
         module_path = relative_path.replace(".py", "").replace("/", ".")
-        if parts[1] in top_level_packages and parts[1] != 'collections':
+        if parts[1] in top_level_packages and parts[1] != 'collections' and parts[0] != 'tests':
             dependencies[module_path] = list(set(analyze_imports(nemo_root, file_path)))
         elif parts[0] == 'tests':
             dependencies[module_path] = [relative_path]
