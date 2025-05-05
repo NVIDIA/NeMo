@@ -33,6 +33,7 @@ from nemo.automodel.utils.train_utils import (
     save_checkpoint_and_time,
     training_log,
 )
+from nemo.tron.config import ProfilingConfig
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import (
     append_to_progress_log,
@@ -363,6 +364,16 @@ def evaluate_and_print_results(
     eval_log(prefix, total_loss_dict, global_state)
 
 
+def pre_training_step_callbacks(global_state: GlobalState, prof_config: ProfilingConfig, prof):
+    if prof_config:
+        if prof_config.profile and torch.distributed.get_rank() in prof_config.profile_ranks:
+            if prof_config.use_pytorch_profiler:
+                prof.step()
+            elif global_state.train_state.step == prof_config.profile_step_start:
+                torch.cuda.cudart().cudaProfilerStart()
+                torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+
+
 def post_training_step_callbacks(
     iteration,
     prof,
@@ -454,14 +465,7 @@ def train(
 
     # Run training iterations till done.
     while global_state.train_state.step < train_config.train_iters:
-        if prof_config:
-            if prof_config.profile and torch.distributed.get_rank() in prof_config.profile_ranks:
-                if prof_config.use_pytorch_profiler:
-                    prof.step()
-                elif global_state.train_state.step == prof_config.profile_step_start:
-                    torch.cuda.cudart().cudaProfilerStart()
-                    torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
-
+        pre_training_step_callbacks(global_state, prof_config, prof)
         # Run training step.
         loss_dict, grad_norm = train_step(
             train_data_iterator, model, optimizer, scheduler, num_microbatches, global_state
@@ -494,6 +498,7 @@ def train(
             global_state=global_state,
         )
 
+        # Run validation if needed
         if (
             global_state.train_state.do_valid
             and train_config.eval_interval
@@ -503,6 +508,7 @@ def train(
             if train_config.manual_gc and train_config.manual_gc_eval:
                 # Collect all objects.
                 gc.collect()
+
             prefix = f"iteration {global_state.train_state.step}"
             timers("eval-time", log_level=0).start(barrier=True)
             evaluate_and_print_results(
