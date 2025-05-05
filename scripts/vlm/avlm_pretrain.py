@@ -41,25 +41,26 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 def main(args):
     # pylint: disable=C0115,C0116
 
-    # DEBUGGING
-    # if use context parallel, set AttnBackend to flash
-    if args.cp_size > 1:
-        attn_backend = AttnBackend.flash
-    else:
-        attn_backend = AttnBackend.auto
-
     # Global and micro batch sizes
     gbs = args.gbs
     mbs = args.mbs
     num_workers = args.num_workers
     max_steps = args.max_steps
-    decoder_seq_length = 8192
     if args.sequence_parallel == "true":
         args.sequence_parallel = True
     elif args.sequence_parallel == "false":
         args.sequence_parallel = False
     else:
         raise ValueError(f"Invalid sequence parallel value: {args.sequence_parallel}")
+    if args.use_packed_sequence == "true":
+        args.use_packed_sequence = True
+    elif args.use_packed_sequence == "false":
+        args.use_packed_sequence = False
+    else:
+        raise ValueError(f"Invalid use packed sequence value: {args.use_packed_sequence}")
+    decoder_seq_length = 8192
+    if args.use_packed_sequence:
+        decoder_seq_length = int(8192 * 2)
 
     if args.data_type == "energon":
         from nemo.collections.avlm.data.energon import AVLMDataModule
@@ -73,6 +74,7 @@ def main(args):
             #     "model_type": "whisper",
             #     "window_stride": 0.01,
             #     "sample_rate": 16000,
+            #     "fixed_max_audio_length": None,
             #     "encoder_down_sampling": 8,
             #     "num_mel_bins": None,
             #     "patch_size": None,
@@ -104,6 +106,8 @@ def main(args):
 
         task_encoder = AVLMTaskEncoder(
             multimodal_sample_config=avlm_sample_config,
+            packed_sequence=args.use_packed_sequence,
+            packed_sequence_size=decoder_seq_length,
         )
         data = AVLMDataModule(
             path=data_path,
@@ -114,6 +118,7 @@ def main(args):
             tokenizer=AutoTokenizer("llava-hf/llava-1.5-7b-hf"),
             multimodal_sample_config=avlm_sample_config,
             task_encoder=task_encoder,
+            packing_buffer_size=200 if args.use_packed_sequence else None,
         )
     elif args.data_type == "mock":
         data = avlm.data.AVLMMockDataModule(
@@ -131,7 +136,7 @@ def main(args):
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
         seq_length=decoder_seq_length,
-        attention_backend=attn_backend,
+        attention_backend=AttnBackend.fused,
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
@@ -196,9 +201,9 @@ def main(args):
         audio_model_from_pretrained=None,
         freeze_language_model=False,
         freeze_vision_model=True,
-        freeze_vision_projection=True,
+        freeze_vision_projection=False,
         freeze_audio_model=True,
-        freeze_audio_projection=True,
+        freeze_audio_projection=False,
     )
     model = avlm.AVLMModel(avlm_config, tokenizer=data.tokenizer)
 
@@ -210,6 +215,9 @@ def main(args):
         context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=args.sequence_parallel,
+        # DEBUGGING
+        # -> when set to True, sometimes that saved weights are turned into oddly large or small values, or NaNs
+        ckpt_async_save=True,
     )
 
     # Checkpoint callback setup
@@ -232,7 +240,8 @@ def main(args):
         callbacks=[checkpoint_callback, TimingCallback()],
         val_check_interval=args.val_check_interval,
         check_val_every_n_epoch=None,
-        limit_val_batches=1.0,
+        # limit_val_batches=1.0,
+        limit_val_batches=20,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
@@ -272,7 +281,7 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=nl.RestoreConfig(path=args.restore_path, load_optim_state=False) if args.restore_path is not None else None,
     )
 
     # Optimizer and scheduler setup
@@ -328,6 +337,7 @@ if __name__ == "__main__":
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--sequence_parallel", type=str, required=False, default="false", help="Enable sequence parallel")
+    parser.add_argument("--use_packed_sequence", type=str, required=False, default="false", help="Enable sequence packing")
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="avlm_pretrain")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)

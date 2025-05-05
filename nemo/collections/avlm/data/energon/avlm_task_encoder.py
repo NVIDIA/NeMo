@@ -39,7 +39,9 @@ from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AVLMEnergonInterleavedSample,
     AVLMEnergonQASample,
     AVLMSample,
+    PackedAVLMSample,
     AVLMRawBatch,
+    PackedAVLMRawBatch,
     AVLMSampleConfig,
 )
 
@@ -55,6 +57,7 @@ from nemo.collections.multimodal.data.energon.sample_encoder import (
     VQASampleEncoder,
 )
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.vlm.neva.data.sequence_packing import predict_seq_len_with_padding
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations as audio_process_augmentations
@@ -72,7 +75,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             Union[Callable, Dict[Literal["from_file", "from_decoded"], Callable]]
         ]=None,
         image_processor: Optional[Callable]=None, 
-        multimodal_sample_config=AVLMSampleConfig()
+        multimodal_sample_config=AVLMSampleConfig(),
     ):
         """
         Initialize the AVLMSampleEncoder
@@ -539,7 +542,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         tokenizer=None, 
         audio_processor=None,
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfig()
+        multimodal_sample_config=AVLMSampleConfig(),
     ):
         """
         Initialize the AVLMSampleEncoderQA
@@ -550,7 +553,12 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         multimodal_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to AVLMSampleConfig().
         """
-        super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
+        super().__init__(
+            tokenizer, 
+            audio_processor, 
+            image_processor, 
+            multimodal_sample_config,
+        )
         self.conversation_template_config = multimodal_sample_config.conversation_template_config
 
     def tokenize(self, prompt: str, input_sample: AVLMEnergonQASample) -> torch.Tensor:
@@ -723,20 +731,6 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
 
-
-        # # DEBUGGING
-        # rank = torch.distributed.get_rank()
-        # if rank == 0:
-        #     print("-------------")
-        #     tokens = output_sample.tokens
-        #     images = output_sample.images
-        #     audios = output_sample.audios
-        #     print(f"[rank {rank}] conversation_prompt: {conversation_prompt}")
-        #     print(f"[rank {rank}] tokens.shape: {tokens.shape if tokens is not None else 'None'}")
-        # print(stop_here)
-
-
-
         return output_sample
 
 
@@ -747,7 +741,10 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         tokenizer=None, 
         audio_processor=None, 
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfig()):
+        multimodal_sample_config=AVLMSampleConfig(),
+        packed_sequence=False,
+        packed_sequence_size=-1,
+    ):
         """
         Initialize the MeidaToTextTaskEncoder.
 
@@ -759,7 +756,13 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         image_processor (ImageProcessor): The image processor for preprocessing images.
         multimodal_sample_config (AVLMSampleConfig): Configuration settings for multimodal samples.
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        super().__init__(
+            tokenizer, 
+            image_processor, 
+            multimodal_sample_config,
+            packed_sequence,
+            packed_sequence_size,
+        )
         self.encoders: Dict[str, SampleEncoder] = {
             AVLMEnergonInterleavedSample.__name__: AVLMSampleEncoderInterleaved(
                 tokenizer=tokenizer, 
@@ -786,7 +789,7 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         encoded_sample = encoder.encode(input_sample=sample, output_sample=AVLMSample())
         return encoded_sample
 
-    def batch(self, samples: List[AVLMSample]) -> AVLMRawBatch:
+    def batch(self, samples: Union[List[AVLMSample], List[PackedAVLMSample]]) -> Union[AVLMRawBatch, PackedAVLMRawBatch]:
         """
         Batch multiple encoded samples into a single batch structure for model input.
 
@@ -813,79 +816,108 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
             image_sizes: [total_images_in_a_batch x 2]
             attention_mask: Optional[torch.tensor] = None
         """
-        keys, tokens, labels, loss_mask, \
-            audios, audio_lengths, \
-            videos, video_lengths, num_video_tiles, \
-            images, num_image_tiles, image_sizes, \
-            attention_mask = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        for sample in samples:
-            keys.append(sample.__key__)
-            tokens.append(sample.tokens)
-            labels.append(sample.labels)
-            loss_mask.append(sample.loss_mask)
-            if sample.audios is not None:
-                audios.append(sample.audios)
-            if sample.audio_lengths is not None:
-                audio_lengths.append(sample.audio_lengths)
-            if sample.videos is not None:
-                videos.append(sample.videos)
-            if sample.video_lengths is not None:
-                video_lengths.append(sample.video_lengths)
-            if sample.num_video_tiles is not None:
-                num_video_tiles.append(sample.num_video_tiles)
-            if sample.images is not None:
-                images.append(sample.images)
-            if sample.num_image_tiles is not None:
-                num_image_tiles.append(sample.num_image_tiles)
-            if sample.image_sizes is not None:
-                image_sizes.append(sample.image_sizes)
-            if sample.attention_mask is not None:
-                attention_mask.append(sample.attention_mask)
+        if self.packed_sequence:
+            if len(samples) > 1:
+                raise ValueError(
+                    "Micro batch size should be 1 when training with packed sequence, but your micro batch size "
+                    f"is {len(samples)}. \nThe following config is equivalent to your current setting for "
+                    f"a packed dataset. Please update your config to the following: \n"
+                    f"Set micro batch size to 1 (currently {len(samples)})\n"
+                    f"Set global batch size to `global_batch_size // {len(samples)}` "
+                    f"Set packed sequence length to `original_sample_seq_len * {len(samples)}` "
+                    f"(currently {self.packed_sequence_size}) \n"
+                    f"For details please visit "
+                    f"https://docs.nvidia.com/nemo-framework/user-guide/latest/sft_peft/packed_sequence.html"
+                )
+            # The batching are taken care by packing.
+            sample = samples[0]
 
-        rawBatch = AVLMRawBatch()
-        rawBatch.__keys__ = batch_list(keys)
-        # DEBUGGING
-        # need updates from Yuanhang
-        rawBatch.tokens = pad_sequence(tokens, batch_first=True)
-        rawBatch.labels = pad_sequence(labels, batch_first=True, padding_value=self.sample_config.ignore_place_holder)        
-        rawBatch.loss_mask = batch_pad_stack(loss_mask) # pad with 0s
+            return PackedAVLMRawBatch(
+                __keys__=sample.__key__,
+                images=sample.images,
+                audios=sample.audios,
+                tokens=sample.tokens,
+                labels=sample.labels,
+                loss_mask=sample.loss_mask,
+                num_image_tiles=sample.num_image_tiles,
+                image_sizes=sample.image_sizes,
+                audio_lengths=sample.audio_lengths,
+                attention_mask=sample.attention_mask,
+                position_ids=sample.position_ids,
+                packed_seq_params=sample.packed_seq_params,
+            )
+        else:
+            keys, tokens, labels, loss_mask, \
+                audios, audio_lengths, \
+                videos, video_lengths, num_video_tiles, \
+                images, num_image_tiles, image_sizes, \
+                attention_mask = (
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+            )
+            for sample in samples:
+                keys.append(sample.__key__)
+                tokens.append(sample.tokens)
+                labels.append(sample.labels)
+                loss_mask.append(sample.loss_mask)
+                if sample.audios is not None:
+                    audios.append(sample.audios)        
+                if sample.audio_lengths is not None:
+                    audio_lengths.append(sample.audio_lengths)
+                if sample.videos is not None:
+                    videos.append(sample.videos)
+                if sample.video_lengths is not None:
+                    video_lengths.append(sample.video_lengths)
+                if sample.num_video_tiles is not None:
+                    num_video_tiles.append(sample.num_video_tiles)
+                if sample.images is not None:
+                    images.append(sample.images)
+                if sample.num_image_tiles is not None:
+                    num_image_tiles.append(sample.num_image_tiles)
+                if sample.image_sizes is not None:
+                    image_sizes.append(sample.image_sizes)
+                if sample.attention_mask is not None:
+                    attention_mask.append(sample.attention_mask)
 
-        if audios:
-            audios = [audio for audio_list in audios for audio in audio_list]
-            # get the audio samples' maximum length and pad all samples to that length
-            rawBatch.audios = pad_sequence(audios, batch_first=True)
-            if audio_lengths:                
-                rawBatch.audio_lengths = torch.tensor(torch.cat(audio_lengths), dtype=torch.int)
-        if videos:
-            rawBatch.videos = torch.cat(videos)
-            if video_lengths:
-                rawBatch.video_lengths = torch.tensor(torch.cat(video_lengths), dtype=torch.int)
-            if num_video_tiles:
-                rawBatch.num_video_tiles = torch.tensor(torch.cat(num_video_tiles), dtype=torch.int)
-        if images:
-            rawBatch.images = torch.cat(images)
-            if num_image_tiles:
-                rawBatch.num_image_tiles = torch.tensor(torch.cat(num_image_tiles), dtype=torch.int)
-            if image_sizes:
-                rawBatch.image_sizes = torch.cat(image_sizes)
-        if attention_mask:
-            rawBatch.attention_mask = batch_pad_stack(attention_mask)            
-        
-        return rawBatch
+            rawBatch = AVLMRawBatch()
+            rawBatch.__keys__ = batch_list(keys)
+            rawBatch.tokens = pad_sequence(tokens, batch_first=True) # pad with 0s
+            rawBatch.labels = pad_sequence(labels, batch_first=True, padding_value=self.sample_config.ignore_place_holder) # pad with IGNORE tokens  
+            rawBatch.loss_mask = batch_pad_stack(loss_mask) # pad with 0s
+
+            if audios:
+                audios = [audio for audio_list in audios for audio in audio_list]
+                # get the audio samples' maximum length and pad all samples to that length
+                rawBatch.audios = pad_sequence(audios, batch_first=True)
+                if audio_lengths:                
+                    rawBatch.audio_lengths = torch.tensor(torch.cat(audio_lengths), dtype=torch.int)
+            if videos:
+                rawBatch.videos = torch.cat(videos)
+                if video_lengths:
+                    rawBatch.video_lengths = torch.tensor(torch.cat(video_lengths), dtype=torch.int)
+                if num_video_tiles:
+                    rawBatch.num_video_tiles = torch.tensor(torch.cat(num_video_tiles), dtype=torch.int)
+            if images:
+                rawBatch.images = torch.cat(images)
+                if num_image_tiles:
+                    rawBatch.num_image_tiles = torch.tensor(torch.cat(num_image_tiles), dtype=torch.int)
+                if image_sizes:
+                    rawBatch.image_sizes = torch.cat(image_sizes)
+            if attention_mask:
+                rawBatch.attention_mask = batch_pad_stack(attention_mask)            
+            
+            return rawBatch
 
     def encode_batch(self, batch_data: AVLMRawBatch) -> dict:
         """
@@ -909,3 +941,101 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         if 'attention_mask' not in batch_dict:
             batch_dict['attention_mask'] = None
         return batch_dict
+
+    def select_samples_to_pack(self, samples: List[Union[AVLMSample, PackedAVLMSample]]):
+        """Selects which samples will be packed together.
+
+        NOTE: Energon dataloader calls this method internally if packing is used.
+        Please see https://nvidia.github.io/Megatron-Energon/packing.html
+        """
+        from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack
+
+        # note: similar to Llava_next, the sample.tokens already take into account the final images/audio tokens, so
+        # no need to run predict_seq_len() as in NeVa
+        lengths = [predict_seq_len_with_padding(sample.tokens) for sample in samples]
+
+
+        packed_samples = greedy_knapsack(lengths, samples, self.packed_sequence_size)
+        avg_samples_per_bin = round(len(lengths) / len(packed_samples))
+        logging.info(
+            f"[Seq Packing Info] - Packing seq len: {self.packed_sequence_size}, "
+            f"Buffered samples: {len(lengths)}, Total number of bins: {len(packed_samples)}, "
+            f"Average samples per bin: {avg_samples_per_bin}"
+        )
+        return packed_samples
+
+    @stateless
+    def pack_selected_samples(self, samples):
+        """
+        Function to pack a list of ImageTaskSample into a single ImageTaskSamplePacked.
+
+        NOTE: Energon dataloader calls this method internally if packing is used.
+        Please see https://nvidia.github.io/Megatron-Energon/packing.html
+
+        Args:
+            samples: List of ImageTaskSample instances to pack into one sample.
+
+        Returns:
+            ImageTaskSamplePacked instance.
+        """
+        # import pdb; pdb.set_trace()
+
+        audio_lengths, num_image_tiles, image_sizes = (
+            [],
+            [],
+            [],
+        )
+
+        for sample in samples:
+            if sample.audios is not None:
+                audio_lengths.append(sample.audio_lengths)
+            if sample.images is not None:
+                num_image_tiles.append(sample.num_image_tiles)
+                image_sizes.append(sample.image_sizes)
+
+        audio_lengths = torch.cat(audio_lengths, dim=0)
+        image_sizes = torch.cat(image_sizes, dim=0)
+        batch_list_num_image_tiles = batch_list(num_image_tiles)
+        # if batch_list_num_media_tiles is nested lists, each sample has multiple images with different tiles
+        # we need to flatten the list so len is num_images (in the batch)
+        # image_sizes is also expected to be num_images, 2
+        batch_list_num_image_tiles = flatten_if_nested(batch_list_num_image_tiles)
+        batch_num_image_tiles = torch.tensor(batch_list_num_image_tiles, dtype=torch.int)
+
+        # packing audio and images
+        audios = [audio for sample in samples for audio in sample.audios]
+        packed_audios = pad_sequence(audios, batch_first=True)
+        packed_images = torch.cat([sample.images for sample in samples], dim=0)
+
+        # packing tokens, labels, position ids, loss mask, seq params
+        from nemo.collections.vlm.llava_next.data.utils import convert_to_packed_llava_next
+        packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = (
+            convert_to_packed_llava_next(
+                tokens=[sample.tokens for sample in samples],
+                labels=[sample.labels for sample in samples],
+                ignore_index=self.sample_config.ignore_place_holder,
+            )
+        )
+
+        return PackedAVLMSample(
+            __key__=",".join([s.__key__ for s in samples]),
+            __restore_key__=(),  # Will be set by energon based on `samples`
+            images=packed_images,
+            audios=packed_audios,
+            tokens=packed_tokens,
+            labels=packed_labels,
+            loss_mask=packed_loss_mask,
+            attention_mask=None,
+            position_ids=packed_position_ids,
+            packed_seq_params=packed_seq_params,
+            num_image_tiles=batch_num_image_tiles,
+            image_sizes=image_sizes,
+            audio_lengths=audio_lengths,
+        )
+
+from itertools import chain
+def flatten_if_nested(lst):
+    """Check if the first element is a list (assuming consistent structure)"""
+    if any(isinstance(i, list) for i in lst):
+        return list(chain.from_iterable(lst))
+    return lst

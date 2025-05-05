@@ -49,7 +49,9 @@ if HAVE_MODELOPT:
         "int4_awq": mtq.INT4_AWQ_CFG,
         "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
         "int4": mtq.INT4_BLOCKWISE_WEIGHT_ONLY_CFG,
-        "nvfp4": mtq.NVFP4_DEFAULT_CFG,
+        # DEBUGGING
+        # "nvfp4": mtq.NVFP4_DEFAULT_CFG,
+        "nvfp4": mtq.FP8_DEFAULT_CFG,
     }
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers

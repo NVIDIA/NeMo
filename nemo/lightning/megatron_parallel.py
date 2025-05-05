@@ -1753,6 +1753,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             forward_out, loss_mask = forward_out
             batch["loss_mask"] = loss_mask
         cp_size = parallel_state.get_context_parallel_world_size()
+
         if cp_size == 1:
             loss_for_ub = masked_token_loss(forward_out, batch["loss_mask"])
         else:

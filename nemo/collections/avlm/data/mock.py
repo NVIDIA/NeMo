@@ -23,8 +23,6 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoProcessor
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-# DEBUGGING
-# from nemo.collections.avlm.data.multimodal_tokens import IMAGE_TOKEN_INDEX, AUDIO_TOKEN_INDEX
 from nemo.collections.multimodal.data.energon.config import ImageToken, AudioToken
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
@@ -290,18 +288,6 @@ class _MockAVLMDataset(Dataset):
         # audios = torch.zeros([num_audios, audio_max_length])
         audio_lengths = torch.from_numpy(np_gen.integers(16000, audio_max_length, size=[num_audios]))
 
-        # # DEBUGGING
-        # print("[Dataloader]")
-        # print("[Dataloader] processed_images.shape: ", processed_images.shape)
-        # print("[Dataloader] num_image_tiles.shape: ", num_image_tiles.shape)
-        # print("[Dataloader] num_image_tiles: ", num_image_tiles)
-        # print("[Dataloader] image_sizes.shape: ", image_sizes.shape)
-        # print("[Dataloader] audios.shape: ", audios.shape)
-        # print("[Dataloader] audio_lengths.shape: ", audio_lengths.shape)
-        # print("[Dataloader] audio_lengths: ", audio_lengths)
-        # print("----------------------")
-        # # print(stop_here)
-
         return {
             "tokens": tokens,
             "labels": labels,
@@ -321,14 +307,6 @@ class _MockAVLMDataset(Dataset):
         Users should override this method to define custom data loaders.
         """
         collated_batch = data.dataloader.default_collate(batch)
-
-        # # DEBUGGING
-        # print("[before] collated_batch['images'].shape: ", collated_batch['images'].shape)
-        # print("[before] collated_batch['num_image_tiles'].shape: ", collated_batch['num_image_tiles'].shape)
-        # print("[before] collated_batch['image_sizes'].shape: ", collated_batch['image_sizes'].shape)
-        # print("[before] collated_batch['audios'].shape: ", collated_batch['audios'].shape)
-        # print("[before] collated_batch['audio_lengths'].shape: ", collated_batch['audio_lengths'].shape)
-
         collated_batch['images'] = collated_batch['images'].contiguous().view(-1, *collated_batch['images'].shape[2:])
         collated_batch['num_image_tiles'] = collated_batch['num_image_tiles'].flatten()
         collated_batch['image_sizes'] = (
@@ -336,17 +314,6 @@ class _MockAVLMDataset(Dataset):
         )
         collated_batch['audios'] = collated_batch['audios'].contiguous().view(-1, *collated_batch['audios'].shape[2:])
         collated_batch['audio_lengths'] = collated_batch['audio_lengths'].flatten()
-
-
-
-        # # DEBUGGING
-        # print("[after] collated_batch['images'].shape: ", collated_batch['images'].shape)
-        # print("[after] collated_batch['num_image_tiles'].shape: ", collated_batch['num_image_tiles'].shape)
-        # print("[after] collated_batch['image_sizes'].shape: ", collated_batch['image_sizes'].shape) 
-        # print("[after] collated_batch['audios'].shape: ", collated_batch['audios'].shape)
-        # print("[after] collated_batch['audio_lengths'].shape: ", collated_batch['audio_lengths'].shape)
-        # # print(stop_here)
-
         return collated_batch
 
     def collate_fn(self, batch):

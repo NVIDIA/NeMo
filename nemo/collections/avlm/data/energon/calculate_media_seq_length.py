@@ -36,8 +36,7 @@ def calculate_encoded_audio_seq_length(
             - int: The number of mel frames.
             """
 
-            # DEBUGGING
-            # when there is a fixed max audio length, we use the fixed max audio length instead of the audio_length
+            # when a model uses a fixed max audio length, we use the fixed max audio length instead of the audio_length
             # e.g. for whisper model, the audio_length is padded to 30 seconds
             if fixed_max_audio_length is not None:
                 audio_length = fixed_max_audio_length
@@ -81,12 +80,6 @@ def calculate_encoded_audio_seq_length(
         assert patch_size is not None, "patch_size must be provided for ast model"
         assert frequency_stride is not None, "frequency_stride must be provided for ast model"
         assert max_spectrogram_length is not None, "max_spectrogram_length must be provided for ast model"
-
-        # DEBUGGING
-        print(f"num_mel_bins: {num_mel_bins}")
-        print(f"patch_size: {patch_size}")
-        print(f"frequency_stride: {frequency_stride}")
-        print(f"max_spectrogram_length: {max_spectrogram_length}")
 
         # AST uses a fixed-size spectrogram and divides it into patches
         # The exact formula is based on how CNN output dimensions are calculated

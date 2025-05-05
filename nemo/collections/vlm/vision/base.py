@@ -160,6 +160,10 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
             model = CLIPVisionModel(self)
         else:
             model = CLIPVisionModel.from_pretrained(self.pretrained_model_name_or_path)
+
+        # add attribute "non_parallel_aware" to the model for TP grad all-reduce
+        model.non_parallel_aware = True
+
         return model
 
 

@@ -87,7 +87,6 @@ class MCoreASRModule(MegatronModule):
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len
 
@@ -99,10 +98,6 @@ class HFWrappedPreprocessor(nn.Module):
         self.sample_rate = sample_rate
 
     def forward(self, input_signal: torch.Tensor, length: torch.Tensor):
-
-        # DEBUGGING
-        input_signal = input_signal.to(torch.float32)
-
         processed = self.preprocessor(
             input_signal.cpu().numpy(), sampling_rate=self.sample_rate, return_tensors="pt"
         )  # type: transformers.feature_extraction_utils.BatchFeature
@@ -111,10 +106,6 @@ class HFWrappedPreprocessor(nn.Module):
         processed_signal_len = torch.tensor(
             [processed_signal.shape[2]] * processed_signal.shape[0], device=length.device, dtype=length.dtype
         )  # [batch]
-
-        # DEBUGGING
-        processed_signal = processed_signal.to(torch.bfloat16)
-
         return processed_signal, processed_signal_len
 
     def __call__(self, *args, **kwargs):
@@ -134,10 +125,6 @@ class HFWrappedEncoder(nn.Module):
         encoded = output["last_hidden_state"]  # [batch, time, hidden]
         encoded = encoded.transpose(1, 2)  # [batch, hidden, time]
         encoded_len = torch.tensor([encoded.shape[2]] * encoded.shape[0], device=encoded.device).long()  # [batch]
-
-        # DEBUGGING
-        encoded = encoded.to(torch.bfloat16)
-
         return encoded, encoded_len
 
     def __call__(self, *args, **kwargs):
@@ -167,9 +154,6 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
         else:
             imported_cls = nemo_asr.models.ASRModel
 
-        # DEBUGGING
-        print("Got here 1! [nemo/collections/speechlm/modules/asr_module.py]")
-
         if self.pretrained_model is not None and self.config is None:
             if str(self.pretrained_model).endswith(".nemo"):
                 asr_model = imported_cls.restore_from(self.pretrained_model)  # type: nemo_asr.models.ASRModel
@@ -189,10 +173,6 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
                 }
             )
             asr_model.maybe_init_from_pretrained_checkpoint(init_cfg)
-
-        # DEBUGGING
-        print("Got here 2! [nemo/collections/speechlm/modules/asr_module.py]")
-
         model = asr_model
         if self.target_module is not None:
             model = get_nested_attr(asr_model, self.target_module)
@@ -244,6 +224,9 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             model, preprocessor = self.configure_hf_auto_model()
         else:
             model, preprocessor = self.configure_nemo_asr_model()
+
+        # add attribute "non_parallel_aware" to the model for TP grad all-reduce
+        model.non_parallel_aware = True
 
         if self.spec_augment_config is not None:
             spec_augment = Serialization.from_config_dict(to_dict_config(self.spec_augment_config))
