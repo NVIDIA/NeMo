@@ -224,20 +224,19 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     for package, deps in dependencies.items():
         new_deps = []
         for dep in deps:
+            if "tests/collections" in dep:
+                new_deps.append("unit-tests")
+
+            if "export" in dep or "deploy" in dep:
+                new_deps.append("export-deploy")
+
             if "asr" in dep or "tts" in dep or "speechlm" in dep or "audio" in dep:
                 new_deps.append("speech")
 
-            elif "export" in dep or "deploy" in dep:
-                new_deps.append("export-deploy")
-
-            elif "llm" in dep or "vlm" in dep or "automodel" in dep:
+            if "llm" in dep or "vlm" in dep or "automodel" in dep:
                 new_deps.append("automodel")
 
-            elif "tests/collections" in dep:
-                new_deps.append("unit-tests")
-                continue
-
-            else:
+            if "collections" in dep and not ("asr" in dep or "tts" in dep or "speechlm" in dep or "audio" in dep):
                 new_deps.append("nemo2")
 
         bucket_deps[package] = sorted(list(set(new_deps)))
