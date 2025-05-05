@@ -28,6 +28,7 @@ class CallbackGroup:
     Attributes:
         _callbacks (list[Callback]): List of callback objects.
     """
+
     _instance = None
 
     @classmethod
@@ -68,7 +69,7 @@ class CallbackGroup:
 
     @property
     def callbacks(self):
-        """ Return callbacks in order.
+        """Return callbacks in order.
 
         Returns:
             list: callback objects
@@ -80,6 +81,7 @@ class Callback(Callback):
     """The base class for all callbacks. It inherits the pytorch lightning callback so the callback can be also passed to PTL trainer to reuse.
     Below list extra callback functions in NeMo.
     """
+
     def on_dataloader_init_start(self):
         """Called at the start of the data loading."""
 
