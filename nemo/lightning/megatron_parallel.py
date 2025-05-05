@@ -1779,7 +1779,8 @@ class MaskedTokenLossReduction(MegatronLossReduction):
     def forward(
         self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
-        """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 ."""  # pylint: disable=line-too-long
+        """Taken from: https://github.com/NVIDIA/NeMo/blob/main
+        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 ."""
 
         # neva returns (logits, loss_mask)
         if isinstance(forward_out, tuple):
@@ -1797,7 +1798,8 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         return loss_sum, num_valid_tokens, {"loss_sum_and_ub_size": loss_sum_and_ub_size}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
-        """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
+        """Taken from: https://github.com/NVIDIA/NeMo/blob/main
+        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
                 # legacy behavior, average over the number of microbatches

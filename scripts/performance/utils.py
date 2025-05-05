@@ -255,10 +255,32 @@ def set_primary_perf_configs(
     compute_dtype: str = None,
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
+    nccl_communicator_config_path: str = None,
     num_distributed_optimizer_instances: Optional[int] = 1,
     cu_global_batch_splits: Optional[List[int]] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
+
+    # print the received arguments for users to debug
+    logging.info("Received model parallel configs: ")
+    logging.info(f"num_nodes: {num_nodes}")
+    logging.info(f"num_gpus_per_node: {num_gpus_per_node}")
+    logging.info(f"mbs: {mbs}")
+    logging.info(f"gbs: {gbs}")
+    logging.info(f"tp_size: {tp_size}")
+    logging.info(f"pp_size: {pp_size}")
+    logging.info(f"cp_size: {cp_size}")
+    logging.info(f"vp_size: {vp_size}")
+    logging.info(f"ep_size: {ep_size}")
+    logging.info(f"etp_size: {etp_size}")
+    logging.info(f"enable_cuda_graphs: {enable_cuda_graphs}")
+    logging.info(f"use_mcore_fsdp: {use_mcore_fsdp}")
+    logging.info(f"recompute_layers: {recompute_layers}")
+    logging.info(f"activation_offload_layers: {activation_offload_layers}")
+    logging.info(f"compute_dtype: {compute_dtype}")
+    logging.info(f"fp8_recipe: {fp8_recipe}")
+    logging.info(f"recompute_modules: {recompute_modules}")
+
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes
     recipe.trainer.devices = num_gpus_per_node
@@ -283,6 +305,8 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
     recipe.trainer.strategy.num_distributed_optimizer_instances = num_distributed_optimizer_instances
+    if nccl_communicator_config_path is not None:
+        recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
@@ -341,6 +365,9 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading = True
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+
+    if compute_dtype.lower() == "bf16":
+        recipe.optim.config.use_precision_aware_optimizer = True
 
     # low precision training configs
     if compute_dtype is not None and compute_dtype.lower() == "fp8":

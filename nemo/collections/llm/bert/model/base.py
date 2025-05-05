@@ -29,8 +29,7 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
-from megatron.core.utils import get_batch_on_this_cp_rank as get_batch_on_this_context_parallel_rank
-from megatron.core.utils import make_viewless_tensor
+from megatron.core.utils import get_batch_on_this_cp_rank, make_viewless_tensor
 from torch import Tensor, nn
 
 from nemo.collections.llm import fn
@@ -74,7 +73,7 @@ def bert_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_cp_rank(_batch)
 
     return output
 

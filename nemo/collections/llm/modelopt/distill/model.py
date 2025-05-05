@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple
 
 import torch
 from megatron.core import parallel_state
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.utils.import_utils import safe_import
@@ -75,7 +75,7 @@ def gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=False) -> Dict[str
             batch_required_keys[key] = None
 
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(batch_required_keys)
+    output = get_batch_on_this_cp_rank(batch_required_keys)
 
     return output
 
