@@ -74,8 +74,7 @@ def predictive_model_ncsn():
         }
     )
 
-
-    # deterministic model init 
+    # deterministic model init
     with torch.random.fork_rng():
         torch.random.manual_seed(0)
         model = PredictiveAudioToAudioModel(cfg=model_config)
