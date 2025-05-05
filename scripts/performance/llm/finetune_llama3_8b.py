@@ -18,7 +18,6 @@ import nemo_run as run
 
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
@@ -28,6 +27,7 @@ from ..utils import (
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
+    set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
 )
@@ -65,12 +65,10 @@ def override_recipe_configs(
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=16384)
     else:
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
+
     recipe = set_primary_perf_configs(
         recipe,
-        args.tensorboard,
-        args.wandb,
-        args.wandb_prj_name,
-        args.wandb_job_name,
+        finetuning_scheme,
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -81,6 +79,19 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        enable_cuda_graphs=enable_cuda_graphs,
+        compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
+    )
+    recipe = set_exp_logging_configs(
+        recipe,
+        finetuning_scheme,
+        "llm",
+        "llama3",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
 
     # data module configs
@@ -89,14 +100,8 @@ def override_recipe_configs(
         # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True
 
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+    recipe.optim.config.use_distributed_optimizer = True
+    recipe.model.config.disable_parameter_transpose_cache = True
 
     return recipe
 
@@ -106,7 +111,7 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "llama3", "8b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
 
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
@@ -130,12 +135,19 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None)]
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
+            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         exp.add(
             recipe,

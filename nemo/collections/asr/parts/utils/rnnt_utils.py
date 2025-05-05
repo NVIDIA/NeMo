@@ -106,7 +106,7 @@ class Hypothesis:
     ngram_lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
     last_token: Optional[torch.Tensor] = None
-    token_duration: Optional[List[int]] = None
+    token_duration: Optional[torch.Tensor] = None
     last_frame: Optional[int] = None
 
     @property
@@ -641,17 +641,21 @@ def batched_hyps_to_hypotheses(
     """
     assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
+    # We clone `timestamps` and `y_sequence` to avoid keeping references
+    # to the tensors that can be allocated by CUDA graphs. If we don't do this,
+    # subsequent batches might reuse and overwrite the same memory,
+    # leading to unexpected results due to shared references.
     hypotheses = [
         Hypothesis(
             score=batched_hyps.scores[i].item(),
-            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]],
-            timestamp=batched_hyps.timestamps[i, : batched_hyps.current_lengths[i]],
+            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]].clone(),
+            timestamp=batched_hyps.timestamps[i, : batched_hyps.current_lengths[i]].clone(),
             token_duration=(
                 durations
                 if not torch.all(
                     (durations := batched_hyps.token_durations[i, : batched_hyps.current_lengths[i]]) == 0
                 )
-                else []
+                else torch.empty(0)
             ),
             alignments=None,
             dec_state=None,

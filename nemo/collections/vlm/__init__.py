@@ -20,6 +20,12 @@ from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPMo
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
 from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import HFAutoModelForImageTextToText
 
+# LLAMA4
+from nemo.collections.vlm.llama4.data import Llama4MockDataModule
+from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
+from nemo.collections.vlm.llama4.model.llama4_omni import Llama4MaverickExperts128Config, Llama4ScoutExperts16Config
+from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig, Llama4ViTModel
+
 # LLAVA_NEXT
 from nemo.collections.vlm.llava_next.data import LlavaNextMockDataModule, LlavaNextTaskEncoder
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
@@ -56,14 +62,19 @@ from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config
 
 # PEFT
 from nemo.collections.vlm.peft import LoRA
+from nemo.collections.vlm.qwen2vl.data import Qwen2VLDataConfig, Qwen2VLMockDataModule, Qwen2VLPreloadedDataModule
+from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
+from nemo.collections.vlm.qwen2vl.model.qwen2vl import Qwen2VLConfig2B, Qwen2VLConfig7B
 
 # RECIPES
 from nemo.collections.vlm.recipes import *
 
 # VISION
 from nemo.collections.vlm.vision import (
+    BaseCLIPViTModel,
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
+    CLIPViTModel,
     HFCLIPVisionConfig,
     InternViT_6B_448px_Config,
     InternViT_300M_448px_Config,
@@ -74,12 +85,16 @@ from nemo.collections.vlm.vision import (
 )
 
 __all__ = [
+    "CLIPViTModel",
+    "BaseCLIPViTModel",
     "HFDatasetDataModule",
     "HFAutoModelForImageTextToText",
     "NevaMockDataModule",
     "NevaPreloadedDataModule",
     "MLlamaMockDataModule",
     "MLlamaPreloadedDataModule",
+    "Qwen2VLMockDataModule",
+    "Qwen2VLPreloadedDataModule",
     "DataConfig",
     "ImageDataConfig",
     "VideoDataConfig",
@@ -98,6 +113,12 @@ __all__ = [
     "Llava15Config7B",
     "Llava15Config13B",
     "LlavaModel",
+    "Qwen2VLConfig",
+    "Qwen2VLConfig2B",
+    "Qwen2VLConfig7B",
+    "Qwen2VLVisionConfig",
+    "Qwen2VLModel",
+    "Qwen2VLDataConfig",
     "LlavaNextTaskEncoder",
     "MLlamaModel",
     "MLlamaModelConfig",
@@ -123,4 +144,11 @@ __all__ = [
     "CLIPConfigL14",
     "CLIPConfigB32",
     "ClipMockDataModule",
+    "Llama4MockDataModule",
+    "Llama4OmniConfig",
+    "Llama4OmniModel",
+    "Llama4VisionConfig",
+    "Llama4ViTModel",
+    "Llama4ScoutExperts16Config",
+    "Llama4MaverickExperts128Config",
 ]

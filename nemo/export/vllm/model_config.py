@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -99,6 +100,11 @@ class NemoModelConfig(ModelConfig):
         self.task = "generate"  # Only the generate task is supported
         self.is_hybrid = False  # No hybrid models are supported
 
+        if self.task in ("draft", "generate"):
+            self.truncation_side = "left"
+        else:
+            self.truncation_side = "right"
+
         self.encoder_config = self._get_encoder_config()
         self.pooler_config = self._init_pooler_config(override_pooler_config)
         self.enable_sleep_mode = enable_sleep_mode
@@ -158,6 +164,7 @@ class NemoModelConfig(ModelConfig):
         )
         self.is_attention_free = self._init_attention_free()
         self.has_inner_state = self._init_has_inner_state()
+        self.has_noops = self._init_has_noops()
 
         self._verify_tokenizer_mode()
         self._verify_quantization()
@@ -203,6 +210,7 @@ class NemoModelConfig(ModelConfig):
             'num_key_value_heads': 'num_query_groups',
             # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
             'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
+            'tie_word_embeddings': 'share_embeddings_and_output_weights',
             'rms_norm_eps': 'layernorm_epsilon',
             'attention_dropout': 'attention_dropout',
             'initializer_range': 'init_method_std',
@@ -223,3 +231,15 @@ class NemoModelConfig(ModelConfig):
                     break
 
         return hf_args
+
+    def try_get_generation_config(self, *args, **kwargs):
+        """
+        Prevent vLLM from trying to load a generation config
+        """
+        nemo_path = Path(self.nemo_checkpoint)
+        generation_config_path = nemo_path / "context" / "artifacts" / "generation_config.json"
+        if generation_config_path.exists():
+            with generation_config_path.open("r") as f:
+                return json.load(f)
+
+        return {}

@@ -237,11 +237,7 @@ class LlamaBidirectionalHFAdapter(torch.nn.Module):
 
             fill_value = torch.tensor(float("-inf"), dtype=embeddings.dtype, device=embeddings.device)
 
-            clipped_dimensions = torch.where(
-                dimensions < embeddings.shape[1],
-                dimensions,
-                torch.tensor(embeddings.shape[1], device=embeddings.device),
-            )
+            clipped_dimensions = torch.clamp(dimensions, max=embeddings.shape[1])
 
             embeddings = embeddings.masked_fill(
                 torch.arange(embeddings.shape[1], device=embeddings.device) >= clipped_dimensions.unsqueeze(-1),
@@ -273,14 +269,14 @@ class Pooling(torch.nn.Module):
         elif pool_type == "cls":  # tokenizer padding right
             emb = last_hidden[:, 0]
         elif pool_type == "cls__left":  # tokenizer padding left
-            seq_idxs = (1 - attention_mask).sum(dim=1)
+            seq_idxs = (1 - attention_mask).sum(dim=1).to(dtype=torch.long)
             batch_size = last_hidden.shape[0]
             batch_idxs = torch.arange(batch_size, device=last_hidden.device)
             emb = last_hidden[batch_idxs, seq_idxs]
         elif pool_type == "last":  # tokenizer padding left
             emb = last_hidden[:, -1]
         elif pool_type == "last__right":  # tokenizer padding right
-            sequence_lengths = attention_mask.sum(dim=1) - 1
+            sequence_lengths = (attention_mask.sum(dim=1) - 1).to(dtype=torch.long)
             batch_size = last_hidden.shape[0]
             emb = last_hidden[torch.arange(batch_size, device=last_hidden.device), sequence_lengths]
         else:

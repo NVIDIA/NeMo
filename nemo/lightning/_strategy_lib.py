@@ -88,6 +88,7 @@ def init_parallel_ranks(
         expert_model_parallel_size=parallel_config.expert_model_parallel_size,
         expert_tensor_parallel_size=parallel_config.expert_tensor_parallel_size,
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
+        pipeline_model_parallel_comm_backend=parallel_config.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
         encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
@@ -98,7 +99,10 @@ def init_parallel_ranks(
         init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
         and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
         use_te_rng_tracker=getattr(parallel_config, "use_te_rng_tracker", False),
+        use_sharp=getattr(parallel_config, "use_sharp", False),
         use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
+        num_distributed_optimizer_instances=getattr(parallel_config, "num_distributed_optimizer_instances", 1),
+        nccl_communicator_config_path=getattr(parallel_config, "nccl_communicator_config_path", None),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -124,12 +128,16 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+                pipeline_model_parallel_comm_backend=app_state.pipeline_model_parallel_comm_backend,
                 encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
                 encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
+                use_sharp=app_state.use_sharp,
                 order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
+                num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
+                nccl_communicator_config_path=app_state.nccl_communicator_config_path,
             )
 
             # assert that fake tp and pp rank match after model parallel init
