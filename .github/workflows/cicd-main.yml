@@ -416,6 +416,7 @@ jobs:
       - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
         if: |
           steps.result.outputs.code == 'failure' 
+          && github.event.label.name == 'Run CICD' 
           && env.SLACK_WEBHOOK != ''
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
