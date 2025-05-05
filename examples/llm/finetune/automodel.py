@@ -26,7 +26,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
-#   examples/llm/peft/automodel.py \
+#   examples/llm/finetune/automodel.py
 #   --strategy fsdp2 \
 #   --devices 8 \
 #   --model meta-llama/Llama-3.2-1B \
@@ -269,6 +269,11 @@ def main():
         'are currently supported only with position_ids and not attention_mask. Hence packed sequences needs to be'
         'run with --attn-implementation=flash_attention_2',
     )
+    parser.add_argument(
+        '--lora',
+        action='store_true',
+        help='Enables LoRA finetuning (PEFT); Default:  Supervised fine-tuning (SFT).'
+    )
 
     args = parser.parse_args()
 
@@ -341,7 +346,7 @@ def main():
         model,
         args.devices,
         args.num_nodes,
-        False,
+        args.lora,
         args.enable_cpu_offload,
         dp_size=args.dp_size,
         tp_size=args.tp_size,
@@ -411,6 +416,10 @@ def main():
         optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
         resume=resume,
+        peft=llm.peft.LoRA(
+            target_modules=['*_proj'],
+            dim=8,
+        ) if args.lora else None,
     )
 
 

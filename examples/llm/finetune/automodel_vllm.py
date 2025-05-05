@@ -31,11 +31,19 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', required=True, type=str, help="Local path or model name on Hugging Face")
+    parser.add_argument('--lora', required=True, type=str, default=None, help="Local path of the lora model")
     parser.add_argument('--triton-model-name', required=True, type=str, help="Name for the service")
     args = parser.parse_args()
 
     exporter = vLLMHFExporter()
     exporter.export(model=args.model)
+    if args.lora is not None:
+        exporter.add_lora_models(lora_model_name=lora_model_name, lora_model=args.lora_model)
+        print(
+            "------------- Output: ", exporter.forward(input_texts=["How are you doing?"], lora_model_name=lora_model_name)
+        )
+        quit()
+
 
     nm = DeployPyTriton(
         model=exporter,
