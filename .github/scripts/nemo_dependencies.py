@@ -229,25 +229,14 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
                 or "nemo/collections/tts" in dep
                 or "nemo/collections/speechlm" in dep
                 or "nemo/collections/audio" in dep
-                or "tests/collections/asr" in dep
-                or "tests/collections/tts" in dep
-                or "tests/collections/speechlm" in dep
-                or "tests/collections/audio" in dep
             ):
                 new_deps.append("speech")
 
-            if "nemo/export" in dep or "nemo/deploy" in dep or "tests/export" in dep or "tests/deploy" in dep:
+            if "nemo/export" in dep or "nemo/deploy" in dep:
                 new_deps.append("export-deploy")
                 new_deps.append("unit-tests")
 
-            if (
-                "nemo/collections/llm" in dep
-                or "nemo/collections/vlm" in dep
-                or "nemo/automodel" in dep
-                or "tests/collections/llm" in dep
-                or "tests/collections/vlm" in dep
-                or "tests/automodel" in dep
-            ):
+            if "nemo/collections/llm" in dep or "nemo/collections/vlm" in dep or "nemo/automodel" in dep:
                 new_deps.append("automodel")
                 new_deps.append("unit-tests")
 
