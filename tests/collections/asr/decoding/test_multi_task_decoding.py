@@ -362,9 +362,13 @@ def test_transformer_aed_beam_infer_padded_prompt(prompted_inputs, decoder_nm, n
 
     # Number of output tokens may vary as the number of input tokens is different (5 without padding and 7 with padding)
     # and the randomly initialized model may decode for max_sequence_length steps.
-    assert res_with_padding.size(0) <= res.size(0), f"Expected len(res_with_padding) <= len(res), got {res_with_padding.size(0)} > {res.size(0)}"
+    assert res_with_padding.size(0) <= res.size(
+        0
+    ), f"Expected len(res_with_padding) <= len(res), got {res_with_padding.size(0)} > {res.size(0)}"
     min_length = res_with_padding.size(0)
-    assert torch.equal(res[:min_length], res_with_padding), f"Expected ans[:len(ans)] == ans_with_padding, got {res} != {res_with_padding[:res.size(0)]}"
+    assert torch.equal(
+        res[:min_length], res_with_padding
+    ), f"Expected ans[:len(ans)] == ans_with_padding, got {res} != {res_with_padding[:res.size(0)]}"
 
 
 def test_transformer_aed_greedy_infer_padded_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
@@ -387,13 +391,17 @@ def test_transformer_aed_greedy_infer_padded_prompt(prompted_inputs, decoder_nm,
         encoder_input_mask=encoder_input_mask,
         decoder_input_ids=decoder_input_ids_with_padding,
     )
-    
+
     # Extract result tensors
     res = ans[0][0].y_sequence
     res_with_padding = ans_with_padding[0][0].y_sequence
-    
+
     # Number of output tokens may vary as the number of input tokens is different (5 without padding and 7 with padding)
     # because the randomly initialized model may not generate EOS and thus, decode for max_sequence_length steps.
-    assert res_with_padding.size(0) <= res.size(0), f"Expected len(res_with_padding) <= len(res), got {res_with_padding.size(0)} > {res.size(0)}"
+    assert res_with_padding.size(0) <= res.size(
+        0
+    ), f"Expected len(res_with_padding) <= len(res), got {res_with_padding.size(0)} > {res.size(0)}"
     min_length = res_with_padding.size(0)
-    assert torch.equal(res[:min_length], res_with_padding), f"Expected ans[:len(ans)] == ans_with_padding, got {res} != {res_with_padding[:res.size(0)]}"
+    assert torch.equal(
+        res[:min_length], res_with_padding
+    ), f"Expected ans[:len(ans)] == ans_with_padding, got {res} != {res_with_padding[:res.size(0)]}"
