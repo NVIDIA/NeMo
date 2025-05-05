@@ -1,21 +1,25 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import os
 import shutil
 import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import torch
-
-from nemo.export.utils.utils import (
-    get_example_inputs,
-    get_model_device_type,
-    is_nemo2_checkpoint,
-    is_nemo_tarfile,
-    prepare_directory_for_export,
-    torch_dtype_from_precision,
-    validate_fp8_network,
-)
 
 
 class TestUtils:
@@ -27,7 +31,10 @@ class TestUtils:
         # Cleanup after test
         shutil.rmtree(temp_dir)
 
+    @pytest.mark.run_only_on('GPU')
     def test_is_nemo2_checkpoint(self, temp_dir):
+        from nemo.export.utils.utils import is_nemo2_checkpoint
+
         # Test with non-existent path
         assert not is_nemo2_checkpoint("/non/existent/path")
 
@@ -39,7 +46,10 @@ class TestUtils:
         os.makedirs(os.path.join(temp_dir, "valid_ckpt", "context"))
         assert is_nemo2_checkpoint(os.path.join(temp_dir, "valid_ckpt"))
 
+    @pytest.mark.run_only_on('GPU')
     def test_prepare_directory_for_export(self, temp_dir):
+        from nemo.export.utils.utils import prepare_directory_for_export
+
         # Test creating new directory
         model_dir = os.path.join(temp_dir, "new_dir")
         prepare_directory_for_export(model_dir, delete_existing_files=False)
@@ -66,7 +76,10 @@ class TestUtils:
         prepare_directory_for_export(model_dir, delete_existing_files=False, subdir="subdir")
         assert os.path.exists(os.path.join(model_dir, "subdir"))
 
+    @pytest.mark.run_only_on('GPU')
     def test_is_nemo_tarfile(self, temp_dir):
+        from nemo.export.utils.utils import is_nemo_tarfile
+
         # Test with non-existent file
         assert not is_nemo_tarfile("/non/existent/file.nemo")
 
@@ -82,7 +95,10 @@ class TestUtils:
             f.write("test")
         assert is_nemo_tarfile(nemo_file)
 
+    @pytest.mark.run_only_on('GPU')
     def test_torch_dtype_from_precision(self):
+        from nemo.export.utils.utils import torch_dtype_from_precision
+
         # Test with megatron_amp_O2=False
         assert torch_dtype_from_precision("bf16", megatron_amp_O2=False) == torch.float32
 
@@ -100,7 +116,10 @@ class TestUtils:
         with pytest.raises(ValueError):
             torch_dtype_from_precision("invalid")
 
+    @pytest.mark.run_only_on('GPU')
     def test_get_example_inputs(self):
+        from nemo.export.utils.utils import get_example_inputs
+
         # Mock tokenizer
         mock_tokenizer = MagicMock()
         mock_tokenizer.return_value = {

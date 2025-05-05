@@ -1,21 +1,26 @@
-import json
-import os
-import tempfile
-from pathlib import Path
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import pytest
 import torch
-import yaml
-
-from nemo.export.utils.lora_converter import (
-    convert_lora_weights_to_canonical,
-    reformat_module_names_to_hf,
-    rename_qkv_keys,
-    replace_number_add_offset,
-)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_replace_number_add_offset():
+    from nemo.export.utils.lora_converter import replace_number_add_offset
+
     # Test with no offset
     key = "layers.0.self_attention.lora_kqv_adapter.linear_in.weight"
     assert replace_number_add_offset(key, 0) == key
@@ -31,7 +36,10 @@ def test_replace_number_add_offset():
     assert replace_number_add_offset(key, 1) == key
 
 
+@pytest.mark.run_only_on('GPU')
 def test_rename_qkv_keys():
+    from nemo.export.utils.lora_converter import rename_qkv_keys
+
     key = "layers.0.self_attention.lora_kqv_adapter.linear_in.weight"
     new_keys = rename_qkv_keys(key)
 
@@ -41,7 +49,10 @@ def test_rename_qkv_keys():
     assert new_keys[2] == "layers.0.self_attention.lora_unfused_kqv_adapter.v_adapter.linear_in.weight"
 
 
+@pytest.mark.run_only_on('GPU')
 def test_reformat_module_names_to_hf():
+    from nemo.export.utils.lora_converter import reformat_module_names_to_hf
+
     # Create sample tensors with NeMo-style names
     tensors = {
         "q_adapter.linear_in.weight": torch.randn(10, 10),
@@ -68,7 +79,10 @@ def test_reformat_module_names_to_hf():
     assert "base_model.v_proj.lora_A.weight" in new_tensors
 
 
+@pytest.mark.run_only_on('GPU')
 def test_convert_lora_weights_to_canonical():
+    from nemo.export.utils.lora_converter import convert_lora_weights_to_canonical
+
     # Create a sample config
     config = {
         "hidden_size": 512,
