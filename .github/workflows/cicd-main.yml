@@ -98,7 +98,7 @@ jobs:
     needs: [pre-flight, code-linting, cicd-wait-in-queue]
     with:
       image-name: nemo_container
-      dockerfile: Dockerfile.ci
+      dockerfile: docker/Dockerfile.ci
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
