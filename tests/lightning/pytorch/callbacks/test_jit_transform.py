@@ -126,7 +126,7 @@ def test_compile_module_torch():
 
 
 # Disabling due to issue with 25.03  https://github.com/pytorch/pytorch/issues/144567
-#def test_compile_module_thunder():
+# def test_compile_module_thunder():
 #    mock_module = MagicMock()
 #    config = JitConfig(use_thunder=True)
 #    compiled = compile_module(config, mock_module)
