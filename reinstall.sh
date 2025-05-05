@@ -138,7 +138,7 @@ trtllm() {
   build() {
     if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
       cd $TRTLLM_DIR
-      python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR/trtllm/ --python_bindings --benchmarks
+      python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR --python_bindings --benchmarks
     fi
   }
 
