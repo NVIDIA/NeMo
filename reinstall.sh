@@ -5,6 +5,7 @@ set -exou pipefail
 # This also defines the order in which they will be installed by --libraries "all"
 
 ALL_LIBRARIES=(
+  "torch"
   "trtllm"
   "te"
   "mcore"
@@ -25,6 +26,13 @@ export TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vc
 export TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
 export NVIDIA_PYTORCH_VERSION=${NVIDIA_PYTORCH_VERSION:-""}
 export CONDA_PREFIX=${CONDA_PREFIX:-""}
+
+torch() {
+  # workaround for issue with 25.03  https://github.com/pytorch/pytorch/issues/144567
+  patch \
+     /usr/local/lib/python3.12/dist-packages/torch/accelerator/__init__.py \
+     /$CURR/external/patches/torch_accelerator_144567_fix.patch
+}
 
 trt() {
   local mode="$1"
