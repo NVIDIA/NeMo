@@ -18,16 +18,9 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-import torch
 import torch.nn as nn
 
-from nemo.export.tensorrt_lazy_compiler import (
-    ShapeError,
-    TrtCompiler,
-    get_dynamic_axes,
-    get_profile_shapes,
-    trt_compile,
-)
+from nemo.export.tensorrt_lazy_compiler import TrtCompiler, get_dynamic_axes, get_profile_shapes, trt_compile
 
 
 class SimpleModel(nn.Module):

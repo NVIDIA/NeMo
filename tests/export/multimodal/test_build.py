@@ -20,8 +20,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
-import yaml
-from omegaconf import OmegaConf
 
 
 @pytest.mark.run_only_on('GPU')

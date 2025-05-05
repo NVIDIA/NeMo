@@ -26,6 +26,7 @@ def test_get_nemo_to_trtllm_conversion_dict_on_nemo_model():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     dummy_state = object()
     model_state_dict = {
@@ -53,6 +54,7 @@ def test_get_nemo_to_trtllm_conversion_dict_on_mcore_model():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     dummy_state = object()
     model_state_dict = {
@@ -72,6 +74,7 @@ def test_tensorrt_llm_initialization():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     # Test basic initialization
     model_dir = "/tmp/test_model_dir"
@@ -107,6 +110,7 @@ def test_tensorrt_llm_supported_models():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
@@ -130,6 +134,7 @@ def test_tensorrt_llm_input_dtype():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
@@ -155,6 +160,7 @@ def test_tensorrt_llm_hidden_size():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
@@ -175,6 +181,7 @@ def test_tensorrt_llm_triton_io():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
@@ -207,6 +214,7 @@ def test_tensorrt_llm_pad_logits():
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        return
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
