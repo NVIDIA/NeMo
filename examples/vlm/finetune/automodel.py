@@ -79,7 +79,9 @@ if __name__ == '__main__':
         default="quintend/rdr-items",
         help="Path to the dataset. Can be a local path or a HF dataset name",
     )
-    parser.add_argument("--lora", action='store_ture', help='Enables LoRA finetuning (PEFT); Default:  Supervised fine-tuning (SFT).')
+    parser.add_argument(
+        "--lora", action='store_ture', help='Enables LoRA finetuning (PEFT); Default:  Supervised fine-tuning (SFT).'
+    )
     parser.add_argument("--freeze-vision-model", action="store_true", help="Freeze the vision model parameters")
     parser.add_argument("--freeze-language-model", action="store_true", help="Freeze the language model parameters")
     args = parser.parse_args()

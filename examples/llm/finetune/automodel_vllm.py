@@ -40,10 +40,10 @@ if __name__ == '__main__':
     if args.lora is not None:
         exporter.add_lora_models(lora_model_name=lora_model_name, lora_model=args.lora_model)
         print(
-            "------------- Output: ", exporter.forward(input_texts=["How are you doing?"], lora_model_name=lora_model_name)
+            "------------- Output: ",
+            exporter.forward(input_texts=["How are you doing?"], lora_model_name=lora_model_name),
         )
         quit()
-
 
     nm = DeployPyTriton(
         model=exporter,

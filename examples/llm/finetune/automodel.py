@@ -270,9 +270,7 @@ def main():
         'run with --attn-implementation=flash_attention_2',
     )
     parser.add_argument(
-        '--lora',
-        action='store_true',
-        help='Enables LoRA finetuning (PEFT); Default:  Supervised fine-tuning (SFT).'
+        '--lora', action='store_true', help='Enables LoRA finetuning (PEFT); Default:  Supervised fine-tuning (SFT).'
     )
 
     args = parser.parse_args()
@@ -416,10 +414,14 @@ def main():
         optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
         resume=resume,
-        peft=llm.peft.LoRA(
-            target_modules=['*_proj'],
-            dim=8,
-        ) if args.lora else None,
+        peft=(
+            llm.peft.LoRA(
+                target_modules=['*_proj'],
+                dim=8,
+            )
+            if args.lora
+            else None
+        ),
     )
 
 
