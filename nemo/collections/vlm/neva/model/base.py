@@ -350,6 +350,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 arg in the constructor will be used.
             runtime_gather_output (bool): Gather output at runtime. Default None means
                 `parallel_output` arg in the constructor will be used.
+            image_token_mask (torch.Tensor): Tensor indicating the location of
+                image token index in input_ids.
             packed_seq_params (PackedSeqParams): Dict with padded token information.
                 Required for using SP/CP with padding mask type.
 
@@ -538,9 +540,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         """
         assert self.add_decoder, "input text preprocessing is only needed for the language model"
 
-        # NOTE: image_embeddings [num_tiles * img_seq_len , embed_dim] -> num_piles is all the tiles for all images in the batch
-        # based on num_image_tiles, image_token_index, we can determine which image_embeddings tile to use for each image token
-
         # No pre- or postprocessing needed.
         # With pipeline parallel > 2, this means a chunk in the middle of the model.
         if not self.pre_process and not self.post_process:
@@ -563,17 +562,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         # Create indices for new text and label positions.
         with torch.no_grad():
-            # NOTE: image_token_mask [batch_size, text_seq_len]
             image_token_mask = input_ids == image_token_index
-            # NOTE: num_images_per_sample [batch_size, num_images]
             num_images_per_sample = torch.sum(image_token_mask, dim=-1)
-
-            # NOTE: num_images_per_sample [1, batch_size] -> list of num_images for each sample
-            # NOTE: num_image_tiles [1, num_images]: list of num_tiles for each image
 
             # Number of tiles per sample.
             num_image_tiles_batch = num_image_tiles.split(num_images_per_sample.tolist(), dim=0)
-            # NOTE: num_image_tiles_batch [batch_size, num_tiles]
             num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
 
             # Sequence length for each sample is the image sequence length multiplied by
@@ -618,11 +611,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # new_position_ids = [576, 577, 578, 579]. text_position_ids are then [577, 578, 579].
             image_token_mask_lens = image_token_mask.int().clone()
             # -1 is for the removed image token index.
-            # NOTE: image_token_mask_lens [batch_size, text_seq_len] -> 0s for non_image tokens, and (num_tiles * img_seq_len - 1) for image tokens
             image_token_mask_lens[image_token_mask] = num_image_tiles * img_seq_len - 1
             # +1 is needed here for the cumulative sum. -1 is adjusting for zero-based indexing.
             new_position_ids = torch.cumsum((image_token_mask_lens + 1), dim=-1) - 1
-            # NOTE: text_position_ids [batch_size, text_seq_len] -> position ids for text tokens
             text_position_ids = new_position_ids[batch_indices, non_image_indices]
 
             # Labels are shifted to left by one.
@@ -646,7 +637,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # new_position_ids[:, -1] gives the last text position id for each sample.
             # Padding is needed when the number of image tokens differs.
             first_padding_idx = new_position_ids[:, -1] + 1
-            # NOTE: images_mask [batch_size, max_seq_len] -> 0s for text tokens or padding, 1s for image tokens
             images_mask[
                 torch.arange(max_seq_len, device=first_padding_idx.device).repeat(batch_size, 1)
                 >= first_padding_idx.unsqueeze(1)
@@ -668,7 +658,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_image_indices]
 
             # Put image embeddings to image positions.
-            # NOTE: final_embedding [batch_size, max_seq_len, embed_dim]
             final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
 
         # Create the final labels and loss mask (if this is the last language model stage).
