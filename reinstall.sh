@@ -5,7 +5,6 @@ set -exou pipefail
 # This also defines the order in which they will be installed by --libraries "all"
 
 ALL_LIBRARIES=(
-  "torch"
   "trtllm"
   "te"
   "mcore"
@@ -26,13 +25,6 @@ export TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vc
 export TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
 export NVIDIA_PYTORCH_VERSION=${NVIDIA_PYTORCH_VERSION:-""}
 export CONDA_PREFIX=${CONDA_PREFIX:-""}
-
-torch() {
-  # workaround for issue with 25.03  https://github.com/pytorch/pytorch/issues/144567
-  patch \
-     /usr/local/lib/python3.12/dist-packages/torch/accelerator/__init__.py \
-     /$CURR/external/patches/torch_accelerator_144567_fix.patch
-}
 
 trt() {
   local mode="$1"
@@ -349,6 +341,12 @@ nemo() {
   pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86aba72cfd2f0d8abecaf81c13c4528ea07d8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
+
+  if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
+    patch \
+      /usr/local/lib/python3.12/dist-packages/torch/accelerator/__init__.py \
+      /$CURR/external/patches/torch_accelerator_144567_fix.patch
+  fi
 }
 
 echo 'Uninstalling stuff'
