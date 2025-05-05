@@ -196,6 +196,14 @@ def prompted_inputs():
         torch.ones(B, T, dtype=torch.float),  # encoder_input_mask
     )
 
+@pytest.fixture()
+def batch_prompted_inputs():
+    B, T, C = 2, 5, 2
+    return (
+        torch.tensor([[1, 0, 2, 3, 4, 5, 6], [1, 0, 2, 3, 4, 0, 0]], dtype=torch.long),  # prompt
+        torch.ones(B, T, C, dtype=torch.float),  # encoder_hidden_states
+        torch.ones(B, T, dtype=torch.float),  # encoder_input_mask
+    )
 
 def test_transformer_aed_beam_infer_strips_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
     decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
@@ -249,4 +257,75 @@ def test_transformer_aed_greedy_infer_strips_prompt(prompted_inputs, decoder_nm,
     # Check that the expected trimming has indeed been done.
     torch.testing.assert_close(
         untrimmed[decoder_input_ids.shape[1] :], best_path
+    )  # stripped the prompt from the beggining
+
+
+def test_transformer_aed_beam_infer_strips_batch_prompt(batch_prompted_inputs, decoder_nm, nnet, tokenizer):
+    decoder_input_ids, encoder_hidden_states, encoder_input_mask = batch_prompted_inputs
+    *_, classifier = nnet
+
+    # Run the actual top-level module used by MultiTask AED model for decoding.
+    # This module is expected to trim the prompt from the beginning, and eos and pad from the end.
+    gen = TransformerAEDBeamInfer(decoder_nm, classifier, tokenizer)
+    ans = gen(
+        encoder_hidden_states=encoder_hidden_states,
+        encoder_input_mask=encoder_input_mask,
+        decoder_input_ids=decoder_input_ids,
+    )
+    best_path1 = ans[0][0].y_sequence
+    best_path2 = ans[0][1].y_sequence
+    assert best_path1 is not None
+    assert best_path2 is not None
+    assert torch.is_tensor(best_path1)
+    assert torch.is_tensor(best_path2)
+
+    # Now run the underlying beam search generator that doesn't trim anything.
+    *_, (untrimmed1, untrimmed2) = gen.beam_search(*batch_prompted_inputs, return_beam_scores=True)
+    assert untrimmed1 is not None
+    assert untrimmed2 is not None
+    assert torch.is_tensor(untrimmed1)
+    assert torch.is_tensor(untrimmed2)
+
+    # Check that the expected trimming has indeed been done.
+    torch.testing.assert_close(
+        untrimmed1[decoder_input_ids.shape[1] :], best_path1
+    )  # stripped the prompt from the beggining
+    torch.testing.assert_close(
+        untrimmed2[decoder_input_ids.shape[1] :], best_path2
+    )  # stripped the prompt from the beggining
+
+
+def test_transformer_aed_greedy_infer_strips_batch_prompt(batch_prompted_inputs, decoder_nm, nnet, tokenizer):
+    decoder_input_ids, encoder_hidden_states, encoder_input_mask = batch_prompted_inputs
+    *_, classifier = nnet
+
+    # Run the actual top-level module used by MultiTask AED model for decoding.
+    # This module is expected to trim the prompt from the beginning, and eos and pad from the end.
+    gen = TransformerAEDGreedyInfer(decoder_nm, classifier, tokenizer)
+    ans = gen(
+        encoder_hidden_states=encoder_hidden_states,
+        encoder_input_mask=encoder_input_mask,
+        decoder_input_ids=decoder_input_ids,
+    )
+    best_path1 = ans[0][0].y_sequence
+    best_path2 = ans[0][1].y_sequence
+    assert best_path1 is not None
+    assert best_path2 is not None
+    assert torch.is_tensor(best_path1)
+    assert torch.is_tensor(best_path2)
+
+    # Now run the underlying beam search generator that doesn't trim anything.
+    (untrimmed1, untrimmed2), _, _ = gen.greedy_search(*batch_prompted_inputs)
+    assert untrimmed1 is not None
+    assert untrimmed2 is not None
+    assert torch.is_tensor(untrimmed1)
+    assert torch.is_tensor(untrimmed2)
+
+    # Check that the expected trimming has indeed been done.
+    torch.testing.assert_close(
+        untrimmed1[decoder_input_ids.shape[1] :], best_path1
+    )  # stripped the prompt from the beggining
+
+    torch.testing.assert_close(
+        untrimmed1[decoder_input_ids.shape[1] :], best_path2
     )  # stripped the prompt from the beggining
