@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import os
 import pytest
 import torch
 
@@ -839,11 +840,10 @@ class TestAudioLosses:
                 uut_mae_loss.cpu().detach().numpy(), golden_mae, atol=atol
             ), f'MAELoss not matching for example {n}'
 
-    @pytest.mark.pleasefixme
     @pytest.mark.unit
     @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
-    def test_maxine_combined_loss(self):
-        INPUT_LOCATION = "/home/TestData/collections/audio/maxine/input.bin"
+    def test_maxine_combined_loss(self, test_data_dir):
+        INPUT_LOCATION = os.path.join(test_data_dir, 'audio', 'maxine', 'input.bin')
         ATOL = 1e-2
 
         GOLDEN_VALUES = [
