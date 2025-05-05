@@ -239,14 +239,25 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
             else:
                 input_ids = tgt[:, -1:]
 
-            logits, decoder_mems_list, _ = self._one_step_forward(
-                input_ids,
-                encoder_hidden_states,
-                encoder_input_mask,
-                decoder_mems_list,
-                i,
-                return_scores=return_beam_scores,
-            )
+            if i == 0:
+                logits, decoder_mems_list, decoder_input_mask = self._one_step_forward(
+                    input_ids,
+                    encoder_hidden_states,
+                    encoder_input_mask,
+                    decoder_mems_list,
+                    i,
+                    return_scores=return_beam_scores,
+                )
+            else:
+                logits, decoder_mems_list, decoder_input_mask = self._one_step_forward(
+                    input_ids,
+                    encoder_hidden_states,
+                    encoder_input_mask,
+                    decoder_mems_list,
+                    i,
+                    decoder_input_mask,
+                    return_scores=return_beam_scores,
+                )
 
             if self.temperature is None:  # Greedy decoding
                 next_tokens = torch.argmax(logits[:, -1], dim=-1)
