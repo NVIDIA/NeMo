@@ -226,6 +226,7 @@ class TransformerDecoder(nn.Module):
         encoder_states,
         encoder_mask,
         decoder_mems_list=None,
+        diagonalize_decoder_mask=True,
         return_mems=False,
         return_mems_as_list=True,
     ):
@@ -238,11 +239,16 @@ class TransformerDecoder(nn.Module):
             decoder_mems_list: list of the cached decoder hidden states
                 for fast autoregressive generation which will be used instead
                 of decoder_states as keys and values if not None
+            diagonalize_decoder_mask: bool, whether to diagonalize the decoder mask, True during training and False during inference
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
             return_mems_as_list: bool, when True, mems returned are as a list; otherwise mems are Tensor
         """
-        decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
+        if diagonalize_decoder_mask:
+            decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
+        else:
+            decoder_attn_mask = form_attention_mask(decoder_mask)
+        # breakpoint()
         encoder_attn_mask = form_attention_mask(encoder_mask)
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
         if return_mems:
