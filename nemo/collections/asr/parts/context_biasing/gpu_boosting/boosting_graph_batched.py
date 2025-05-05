@@ -311,7 +311,7 @@ class SuffixTreeStorage:
         self.states["final"] = NEG_INF
         self.bos_state = 1 if separate_bos_state else self.start_state
         self._node_cache[0] = 0
-        self.unk_prob = -1.0
+        self.unk_prob = 0.0  # 
 
     def _add_tbranches_first_order(self, tbranches: list, bos_id: int, unk_id: int):
         """Add all unigrams"""
@@ -350,12 +350,15 @@ class SuffixTreeStorage:
             next_state = self.num_states
             self.num_states += 1
             self.arcs[arc_id] = (self.start_state, next_state, ilabel, tbranch.next_node.token_score)
+            # self.arcs[arc_id] = (self.start_state, next_state, ilabel, tbranch.next_node.level)
             self.num_arcs += 1
 
             if tbranch.next_node.is_end:
                 backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
+
+            # backoff_weight = 0.0
 
             # state order
             self.states[next_state] = (
@@ -427,10 +430,14 @@ class SuffixTreeStorage:
             assert ilabel < self.vocab_size
             # backoff_state = self._find_state(symbols[1:], bos_id=bos_id)
             backoff_state = self._node_cache[tbranch.next_node.fail.id]
+
             if tbranch.next_node.is_end:
                 backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
+
+            # backoff_weight = 0.0
+
             # print(f"from_state: {from_state}, backoff_state: {backoff_state}, backoff_weight: {backoff_weight}")
             # import pdb; pdb.set_trace()
 
@@ -439,6 +446,7 @@ class SuffixTreeStorage:
             self.num_arcs += 1
             self.num_states += 1
             self.arcs[arc_id] = (from_state, next_state, ilabel, tbranch.next_node.token_score)
+            # self.arcs[arc_id] = (from_state, next_state, ilabel, tbranch.next_node.level)
             # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
             self.states[next_state] = (
                 0,
@@ -547,7 +555,7 @@ class NGramLMConfig:
     num_arcs: int = MISSING
     max_order: int = MISSING
     vocab_size: int = MISSING
-    separate_bos_state: bool = True
+    separate_bos_state: bool = False
     use_triton: bool | None = None
 
 

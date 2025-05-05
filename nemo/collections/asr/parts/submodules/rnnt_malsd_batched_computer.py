@@ -20,6 +20,7 @@ import torch
 import torch.nn.functional as F
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
     INACTIVE_SCORE,
@@ -236,6 +237,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         preserve_alignments=False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Optional[str | Path] = None,
+        btree_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         pruning_mode: Optional[str | PruningMode] = None,
         allow_cuda_graphs: bool = True,
@@ -294,6 +297,35 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             self.ngram_lm_batch = None
             self.blank_lm_score_mode = None
         self.ngram_lm_alpha = ngram_lm_alpha
+
+        ################################################################################################################
+        if btree_model is not None:
+            expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            if self._blank_index != expected_blank_index:
+                raise ValueError(f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}")
+
+            self.ngram_lm_batch = GPUBoostingTreeModel.from_nemo(lm_path=btree_model, vocab_size=self._blank_index)
+
+            self.pruning_mode = PruningMode.EARLY if pruning_mode is None else PruningMode(pruning_mode)
+            self.blank_lm_score_mode = (
+                BlankLMScoreMode.LM_WEIGHTED_FULL
+                if blank_lm_score_mode is None
+                else BlankLMScoreMode(blank_lm_score_mode)
+            )
+            self.ngram_lm_alpha = btree_alpha
+            self.BOS = False
+            logging.warning("******"*10)
+            logging.warning(f"self.ngram_lm_batch: {self.ngram_lm_batch}")
+            logging.warning(f"self.ngram_lm_alpha: {self.ngram_lm_alpha}")
+        else:
+            self.BOS = True
+            self.btree_model_batch = None
+            # self.blank_lm_score_mode = None
+        ################################################################################################################
+        # logging.warning("******"*10)
+        # logging.warning(f"btree_model: {btree_model}")
+        # logging.warning(f"ngram_lm_model: {ngram_lm_model}")
+
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -403,11 +435,26 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         if self.ngram_lm_batch is not None:
             self.ngram_lm_batch.to(device)
 
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=self.BOS)
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                 states=batch_lm_states
             )  # vocab_size_no_blank
             lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+
+        ######################################################################################
+
+        # if self.btree_model_batch is not None:
+        #     self.btree_model_batch.to(device)
+
+        #     batch_lm_states = self.btree_model_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=self.BOS)
+        #     lm_scores, batch_lm_states_candidates = self.btree_model_batch.advance(
+        #         states=batch_lm_states
+        #     )
+        #     lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+        
+        ######################################################################################
+
+
 
         decoder_state = self.decoder.initialize_state(
             torch.empty(
@@ -599,12 +646,15 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
             case PruningMode.LATE, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
-                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
-                log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
-                log_probs[..., -1] *= 1 + self.ngram_lm_alpha
+                # non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                # log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
+                # log_probs[..., -1] *= 1 + self.ngram_lm_alpha
+                log_probs[..., :-1] += lm_scores
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
+                # logging.warning(f"log_probs: {log_probs}")
+                # raise NotImplementedError("Not implemented yet")    
 
             case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 log_probs_top_k, labels_top_k = torch.topk(

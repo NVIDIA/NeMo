@@ -207,6 +207,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
     cuda_graphs_mode: Optional[CudaGraphsMode]
     state: Optional[LoopLabelsState]
     ngram_lm_batch: Optional[NGramGPULanguageModel]
+    btree_model_batch: Optional[GPUBoostingTreeModel]
 
     def __init__(
         self,
@@ -274,9 +275,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # logging.warning(f"ngram_lm_model: {ngram_lm_model}")
         # logging.warning(f"btree_model: {btree_model}")
         # logging.warning(f"btree_alpha: {btree_alpha}")
-        # logging.warning(f"self.btree_model: {self.btree_model}")
-        # raise NotImplementedError()
+        # logging.warning(f"self._blank_index: {self._blank_index}")
+        # logging.warning(f"self.btree_model: {self.btree_model_batch}")
         # import pdb; pdb.set_trace()
+        # raise NotImplementedError()
+        
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -420,6 +423,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 .squeeze(1)
                 .squeeze(1)
             )
+
+            logits = logits.log_softmax(dim=-1)
+
             scores, labels = logits.max(-1)
 
             if self.ngram_lm_batch is not None:
@@ -443,6 +449,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 btree_scores = btree_scores.to(dtype=float_dtype)
                 # combined scores with LM - without blank
                 scores_w_btree, labels_w_btree = (logits[:, :-1] + self.btree_alpha * btree_scores).max(dim=-1)
+                # logging.warning(f"logits.shape: {logits.shape}")
+                # logging.warning(f"logits: {logits}")
+                # raise NotImplementedError()
                 # preserve "blank" / "non-blank" category
                 torch.where(labels == self._blank_index, labels, labels_w_btree, out=labels)
                 torch.where(labels == self._blank_index, scores, scores_w_btree, out=scores)

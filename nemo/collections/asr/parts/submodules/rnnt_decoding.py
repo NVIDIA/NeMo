@@ -498,6 +498,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        btree_model=self.cfg.beam.get('btree_model', None),
+                        btree_alpha=self.cfg.beam.get('btree_alpha', 0.0),
                         blank_lm_score_mode=self.cfg.beam.get(
                             'blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL
                         ),

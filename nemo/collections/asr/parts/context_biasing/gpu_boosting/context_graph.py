@@ -213,6 +213,8 @@ class ContextGraph:
             for i, token in enumerate(tokens):
                 node_next = {}
                 if token not in node.next:
+                    # context_score = i + 1 # add node level
+                    context_score = (i+1) * 1.3*i # add node level
                     self.num_nodes += 1
                     is_end = i == len(tokens) - 1
                     node_score = node.node_score + context_score
