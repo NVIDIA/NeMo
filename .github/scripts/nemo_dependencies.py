@@ -131,13 +131,14 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
     for file_path in find_python_files(nemo_root):
         relative_path = os.path.relpath(file_path, nemo_root)
+
         parts = relative_path.split(os.sep)
 
         if len(parts) == 1 or parts[-1] == "__init__.py" or (parts[0] != "nemo" and parts[0] != "tests"):
             continue
 
         module_path = relative_path.replace(".py", "").replace("/", ".")
-        if parts[1] in top_level_packages and parts[1] != 'collections':
+        if parts[1] in top_level_packages and parts[1] != 'collections' and parts[0] != 'tests':
             dependencies[module_path] = list(set(analyze_imports(nemo_root, file_path)))
         elif parts[0] == 'tests':
             dependencies[module_path] = [relative_path]
@@ -234,9 +235,11 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
                 or "tests/collections/audio" in dep
             ):
                 new_deps.append("speech")
+                new_deps.append("unit-tests")
 
             if "nemo/export" in dep or "nemo/deploy" in dep or "tests/export" in dep or "tests/deploy" in dep:
                 new_deps.append("export-deploy")
+                new_deps.append("unit-tests")
 
             if (
                 "nemo/collections/llm" in dep
@@ -247,13 +250,24 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
                 or "tests/automodel" in dep
             ):
                 new_deps.append("automodel")
+                new_deps.append("unit-tests")
 
             if "tests" in dep and "tests/functional_tests" not in dep:
                 new_deps.append("unit-tests")
-                continue
 
-            else:
+            if (
+                "nemo/collections" in deps
+                and "nemo/collections/asr" not in dep
+                and "nemo/collections/tts" not in dep
+                and "nemo/collections/speechlm" not in dep
+                and "nemo/collections/audio" not in dep
+                and "tests/collections/asr" not in dep
+                and "tests/collections/tts" not in dep
+                and "tests/collections/speechlm" not in dep
+                and "tests/collections/audio" not in dep
+            ):
                 new_deps.append("nemo2")
+                new_deps.append("unit-tests")
 
         bucket_deps[package] = sorted(list(set(new_deps)))
 
