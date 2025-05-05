@@ -53,7 +53,7 @@ class TestUtils:
         # Test with existing non-empty directory
         with open(os.path.join(model_dir, "test.txt"), "w") as f:
             f.write("test")
-        
+
         with pytest.raises(RuntimeError):
             prepare_directory_for_export(model_dir, delete_existing_files=False)
 
@@ -100,24 +100,23 @@ class TestUtils:
         with pytest.raises(ValueError):
             torch_dtype_from_precision("invalid")
 
-
     def test_get_example_inputs(self):
         # Mock tokenizer
         mock_tokenizer = MagicMock()
         mock_tokenizer.return_value = {
             "input_ids": torch.tensor([[1, 2, 3], [4, 5, 6]]),
-            "attention_mask": torch.tensor([[1, 1, 1], [1, 1, 1]])
+            "attention_mask": torch.tensor([[1, 1, 1], [1, 1, 1]]),
         }
 
         result = get_example_inputs(mock_tokenizer)
-        
+
         # Verify tokenizer was called with correct arguments
         mock_tokenizer.assert_called_once_with(
             ["example query one", "example query two"],
             ["example passage one", "example passage two"],
-            return_tensors="pt"
+            return_tensors="pt",
         )
-        
+
         # Verify result structure
         assert isinstance(result, dict)
         assert "input_ids" in result
