@@ -18,6 +18,7 @@ import fiddle as fdl
 import lightning.pytorch as pl
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.automodel.misc_utils import calculate_valid_accumulate_grad_batches
 from nemo.collections import llm
@@ -35,6 +36,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
+@FirstRankPerNode()
 def make_squad_hf_dataset(
     tokenizer,
     micro_batch_size,
@@ -121,6 +123,7 @@ def make_strategy(
     tp_size=None,
     cp_size=None,
     sequence_parallel=False,
+    use_hf_tp_plan=False,
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -142,25 +145,10 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-        if cp_size is None:
-            cp_size = 1
-            if dp_size is None:
-                dp_size = devices * num_nodes
-            else:
-                assert (
-                    dp_size == devices * num_nodes
-                ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
-        else:
-            if dp_size is None:
-                dp_size = 1
-                assert (
-                    cp_size == devices * num_nodes
-                ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
-            else:
-                assert (
-                    dp_size * cp_size == devices * num_nodes
-                ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
-        print(f"Using FSDP2 with DP={dp_size}, TP={1}, CP={cp_size}")
+            assert (
+                dp_size * tp_size * cp_size == devices * num_nodes
+            ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+        print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
@@ -168,6 +156,7 @@ def make_strategy(
             sequence_parallel=sequence_parallel,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
+            use_hf_tp_plan=use_hf_tp_plan,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -215,6 +204,7 @@ def main():
         action='store_true',
         help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
     )
+    parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
@@ -323,7 +313,9 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=args.lr))  # foreach need to be False for TP
+        optimizer = fdl.build(
+            llm.adam.pytorch_adam_with_flat_lr(lr=args.lr, foreach=False)
+        )  # foreach need to be False for TP
 
     if args.fp8:
         from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
@@ -357,6 +349,7 @@ def main():
         tp_size=args.tp_size,
         cp_size=args.cp_size,
         sequence_parallel=args.sequence_parallel,
+        use_hf_tp_plan=args.use_hf_tp_plan,
     )
 
     resume = (
@@ -393,6 +386,8 @@ def main():
             packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
+            num_replicas=args.dp_size,
+            rank=0,
         )
 
     llm.api.finetune(
