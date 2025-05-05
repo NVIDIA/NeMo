@@ -18,7 +18,9 @@ import json
 import einops
 import lhotse
 import lightning.pytorch as pl
+import numpy as np
 import pytest
+import soundfile as sf
 import torch
 from omegaconf import DictConfig
 
@@ -145,9 +147,6 @@ def test_flow_matching_model_init(flow_matching_base_config):
 def mock_dataset_config(tmp_path, request):
     num_files = 8
     num_samples = 16000
-
-    import numpy as np
-    import soundfile as sf
 
     for i in range(num_files):
         data = np.random.randn(num_samples, 1)
