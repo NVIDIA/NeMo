@@ -56,7 +56,7 @@ class TestTensorRTLazyCompiler(unittest.TestCase):
         dynamic_batchsize = [1, 4, 8]
 
         min_shape, opt_shape, max_shape = get_profile_shapes(input_shape, dynamic_batchsize)
-        
+
         self.assertEqual(min_shape, [1, 3, 224, 224])
         self.assertEqual(opt_shape, [4, 3, 224, 224])
         self.assertEqual(max_shape, [8, 3, 224, 224])
@@ -68,16 +68,8 @@ class TestTensorRTLazyCompiler(unittest.TestCase):
         self.assertEqual(max_shape, input_shape)
 
     def test_get_dynamic_axes(self):
-        profiles = [
-            {
-                "input": [
-                    [1, 3, 224, 224],
-                    [4, 3, 224, 224],
-                    [8, 3, 224, 224]
-                ]
-            }
-        ]
-        
+        profiles = [{"input": [[1, 3, 224, 224], [4, 3, 224, 224], [8, 3, 224, 224]]}]
+
         dynamic_axes = get_dynamic_axes(profiles)
         self.assertEqual(dynamic_axes, {"input": [0]})
 
@@ -93,13 +85,9 @@ class TestTensorRTLazyCompiler(unittest.TestCase):
         compiled_model = trt_compile(
             self.model,
             self.plan_path,
-            args={
-                "method": "onnx",
-                "precision": "fp16",
-                "build_args": {"builder_optimization_level": 5}
-            }
+            args={"method": "onnx", "precision": "fp16", "build_args": {"builder_optimization_level": 5}},
         )
-        
+
         self.assertEqual(compiled_model, self.model)
         self.assertTrue(hasattr(compiled_model, '_trt_compiler'))
 
@@ -118,9 +106,9 @@ class TestTensorRTLazyCompiler(unittest.TestCase):
             method="onnx",
             input_names=["x"],
             output_names=["output"],
-            logger=MagicMock()
+            logger=MagicMock(),
         )
-        
+
         self.assertEqual(compiler.plan_path, self.plan_path)
         self.assertEqual(compiler.precision, "fp16")
         self.assertEqual(compiler.method, "onnx")
@@ -129,19 +117,11 @@ class TestTensorRTLazyCompiler(unittest.TestCase):
 
     def test_trt_compiler_invalid_precision(self):
         with self.assertRaises(ValueError):
-            TrtCompiler(
-                self.model,
-                self.plan_path,
-                precision="invalid_precision"
-            )
+            TrtCompiler(self.model, self.plan_path, precision="invalid_precision")
 
     def test_trt_compiler_invalid_method(self):
         with self.assertRaises(ValueError):
-            TrtCompiler(
-                self.model,
-                self.plan_path,
-                method="invalid_method"
-            )
+            TrtCompiler(self.model, self.plan_path, method="invalid_method")
 
     @patch('nemo.export.tensorrt_lazy_compiler.trt_imported', True)
     @patch('nemo.export.tensorrt_lazy_compiler.polygraphy_imported', True)
@@ -153,15 +133,11 @@ class TestTensorRTLazyCompiler(unittest.TestCase):
                 self.submodule = SimpleModel()
 
         model = NestedModel()
-        compiled_model = trt_compile(
-            model,
-            self.plan_path,
-            submodule=["submodule"]
-        )
-        
+        compiled_model = trt_compile(model, self.plan_path, submodule=["submodule"])
+
         self.assertEqual(compiled_model, model)
         self.assertTrue(hasattr(model.submodule, '_trt_compiler'))
 
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

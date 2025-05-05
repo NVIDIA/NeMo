@@ -110,7 +110,7 @@ def test_tensorrt_llm_supported_models():
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
-    
+
     # Test supported models list
     supported_models = trt_llm.get_supported_models_list
     assert isinstance(supported_models, list)
@@ -158,7 +158,7 @@ def test_tensorrt_llm_hidden_size():
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
-    
+
     # Test hidden size property
     hidden_size = trt_llm.get_hidden_size
     if hidden_size is not None:
@@ -178,7 +178,7 @@ def test_tensorrt_llm_triton_io():
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
-    
+
     # Test Triton input configuration
     triton_input = trt_llm.get_triton_input
     assert isinstance(triton_input, tuple)
@@ -191,7 +191,7 @@ def test_tensorrt_llm_triton_io():
     assert triton_input[6].name == "stop_words_list"
     assert triton_input[7].name == "bad_words_list"
     assert triton_input[8].name == "no_repeat_ngram_size"
-    
+
     # Test Triton output configuration
     triton_output = trt_llm.get_triton_output
     assert isinstance(triton_output, tuple)
@@ -210,13 +210,13 @@ def test_tensorrt_llm_pad_logits():
 
     model_dir = "/tmp/test_model_dir"
     trt_llm = TensorRTLLM(model_dir=model_dir, load_model=False)
-    
+
     # Create a sample logits tensor
     batch_size = 2
     seq_len = 3
     vocab_size = 1000
     logits = torch.randn(batch_size, seq_len, vocab_size)
-    
+
     # Test padding logits
     padded_logits = trt_llm._pad_logits(logits)
     assert isinstance(padded_logits, torch.Tensor)

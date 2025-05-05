@@ -126,7 +126,6 @@ class TestTensorRTMMExporter:
         assert outputs[0].name == "outputs"
         assert outputs[0].dtype == bytes
 
-
     @pytest.mark.run_only_on('GPU')
     def test_forward_with_all_params(self, model_dir, mock_runner):
         from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
@@ -144,7 +143,7 @@ class TestTensorRTMMExporter:
             temperature=0.7,
             repetition_penalty=1.2,
             num_beams=4,
-            lora_uids=["lora1", "lora2"]
+            lora_uids=["lora1", "lora2"],
         )
 
         assert result == "Test response"
@@ -159,7 +158,7 @@ class TestTensorRTMMExporter:
             0.7,
             1.2,
             4,
-            ["lora1", "lora2"]
+            ["lora1", "lora2"],
         )
 
     @pytest.mark.run_only_on('GPU')
@@ -168,7 +167,7 @@ class TestTensorRTMMExporter:
 
         exporter = TensorRTMMExporter(model_dir, load_model=False, modality="vision")
         tensors = exporter.get_input_media_tensors()
-        
+
         assert len(tensors) == 1
         assert tensors[0].name == "input_media"
         assert tensors[0].shape == (-1, -1, -1, 3)
@@ -180,7 +179,7 @@ class TestTensorRTMMExporter:
 
         exporter = TensorRTMMExporter(model_dir, load_model=False, modality="audio")
         tensors = exporter.get_input_media_tensors()
-        
+
         assert len(tensors) == 2
         assert tensors[0].name == "input_signal"
         assert tensors[0].shape == (-1,)
@@ -188,7 +187,6 @@ class TestTensorRTMMExporter:
         assert tensors[1].name == "input_signal_length"
         assert tensors[1].shape == (1,)
         assert tensors[1].dtype == np.intc
-
 
     @pytest.mark.run_only_on('GPU')
     def test_export_with_invalid_model_type(self, model_dir):
@@ -200,7 +198,7 @@ class TestTensorRTMMExporter:
                 visual_checkpoint_path="dummy/path",
                 model_type="invalid_model_type",
                 tensor_parallel_size=1,
-                load_model=False
+                load_model=False,
             )
 
     @pytest.mark.run_only_on('GPU')
@@ -221,6 +219,6 @@ class TestTensorRTMMExporter:
                 model_type="neva",
                 tensor_parallel_size=1,
                 load_model=False,
-                delete_existing_files=False
+                delete_existing_files=False,
             )
         assert "There are files in this folder" in str(exc_info.value)
