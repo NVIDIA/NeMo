@@ -248,7 +248,7 @@ class TransformerDecoder(nn.Module):
             decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
         else:
             decoder_attn_mask = form_attention_mask(decoder_mask)
-        # breakpoint()
+
         encoder_attn_mask = form_attention_mask(encoder_mask)
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
         if return_mems:
