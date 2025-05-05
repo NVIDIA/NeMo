@@ -191,7 +191,7 @@ def test_beam_decoding_beam_scores_true_with_lm(inputs, nnet, tmp_path):
 def prompted_inputs():
     B, T, C = 1, 5, 2
     return (
-        torch.tensor([[1, 0, 2, 3, 4]], dtype=torch.long),  # prompt
+        torch.tensor([[1, 3, 4, 5, 6]], dtype=torch.long),  # prompt
         torch.ones(B, T, C, dtype=torch.float),  # encoder_hidden_states
         torch.ones(B, T, dtype=torch.float),  # encoder_input_mask
     )
