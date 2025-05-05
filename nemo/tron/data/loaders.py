@@ -197,6 +197,8 @@ def build_train_valid_test_data_loaders(
         collate_fn=train_ds.collate_fn if hasattr(train_ds, "collate_fn") else None,
         pin_memory=cfg.dataset_config.pin_memory,
         persistent_workers=cfg.dataset_config.persistent_workers,
+        data_parallel_rank=mpu.get_data_parallel_rank(),
+        data_parallel_size=mpu.get_data_parallel_world_size(),
     )
     if cfg.train_config.skip_train:
         valid_dataloader = build_pretraining_data_loader(
@@ -210,6 +212,8 @@ def build_train_valid_test_data_loaders(
             collate_fn=valid_ds.collate_fn if hasattr(valid_ds, "collate_fn") else None,
             pin_memory=cfg.dataset_config.pin_memory,
             persistent_workers=cfg.dataset_config.persistent_workers,
+            data_parallel_rank=mpu.get_data_parallel_rank(),
+            data_parallel_size=mpu.get_data_parallel_world_size(),
         )
     else:
         valid_dataloader = build_pretraining_data_loader(
@@ -223,6 +227,8 @@ def build_train_valid_test_data_loaders(
             collate_fn=valid_ds.collate_fn if hasattr(valid_ds, "collate_fn") else None,
             pin_memory=cfg.dataset_config.pin_memory,
             persistent_workers=cfg.dataset_config.persistent_workers,
+            data_parallel_rank=mpu.get_data_parallel_rank(),
+            data_parallel_size=mpu.get_data_parallel_world_size(),
         )
     test_dataloader = build_pretraining_data_loader(
         test_ds,
@@ -235,6 +241,8 @@ def build_train_valid_test_data_loaders(
         collate_fn=test_ds.collate_fn if hasattr(test_ds, "collate_fn") else None,
         pin_memory=cfg.dataset_config.pin_memory,
         persistent_workers=cfg.dataset_config.persistent_workers,
+        data_parallel_rank=mpu.get_data_parallel_rank(),
+        data_parallel_size=mpu.get_data_parallel_world_size(),
     )
 
     # Flags to know if we need to do training/validation/testing.

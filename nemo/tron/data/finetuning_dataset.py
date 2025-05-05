@@ -51,7 +51,6 @@ class FinetuningDatasetBuilder:
         self,
         dataset_root: Union[str, Path],
         tokenizer,
-        is_built_on_rank: Callable,
         seq_length: int = 2048,
         seed: int = 1234,
         memmap_workers: int = 1,
@@ -66,7 +65,6 @@ class FinetuningDatasetBuilder:
         self.seq_length = seq_length
         self.seed = seed
         self.memmap_workers = memmap_workers
-        self.is_built_on_rank = is_built_on_rank
         self.max_train_samples = max_train_samples
         self.packed_sequence_specs = packed_sequence_specs
         self.packed_sequence_size = (

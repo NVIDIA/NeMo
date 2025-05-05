@@ -95,7 +95,6 @@ def hf_train_valid_test_datasets_provider(
 
     train_ds, valid_ds, test_ds = HFDatasetBuilder(
         tokenizer=tokenizer,
-        is_built_on_rank=is_dataset_built_on_rank,
         **{
             field.name: getattr(dataset_config, field.name)
             for field in fields(dataset_config)
@@ -130,7 +129,6 @@ def finetuning_train_valid_test_datasets_provider(
 
     train_ds, valid_ds, test_ds = FinetuningDatasetBuilder(
         tokenizer=tokenizer,
-        is_built_on_rank=is_dataset_built_on_rank,
         **{
             field.name: getattr(dataset_config, field.name)
             for field in fields(dataset_config)
