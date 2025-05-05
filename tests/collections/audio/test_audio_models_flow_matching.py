@@ -191,6 +191,8 @@ def mock_dataset_config(tmp_path, request):
             'batch_size': 2,
             'num_workers': 1,
         }
+    else:
+        raise NotImplementedError(f"Dataset type {request.param} not implemented")
 
 
 @pytest.fixture()
