@@ -241,7 +241,10 @@ class MagpieTTSModel(ModelPT):
             self.alignment_encoder_loss = ForwardSumLoss(loss_scale=alignment_encoder_loss_scale)
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
-        '''Only used for saving checkpoints'''
+        """
+        Only used for saving checkpoints. On save, we remove _speaker_verification_model and _codec_model
+        from the checkpoint. The codec model is saved in a separate checkpoint.
+        """
         if hasattr(self, '_no_state_dict') and self._no_state_dict:
             return {}
         # Don't save the speaker verification and codec model in the state dict
@@ -253,19 +256,25 @@ class MagpieTTSModel(ModelPT):
         return state_dict
 
     def load_state_dict(self, state_dict, strict=True):
+        """
+        Modify load_state_dict so that we don't restore weights to _speaker_verification_model and _codec_model when
+        strict is True.
+        When strict is False, we can call pytorch's load_state_dict.
+        When strict is True, we loop through all parameters and rename them to enable loading.
+        """
         if strict == False:
             super().load_state_dict(state_dict, strict=False)
-        # Override to load all the keys except _speaker_verification_model and _codec_model
         for name, child in self.named_children():
             if name in ['_speaker_verification_model', '_codec_model']:
                 continue
             if any(param.numel() > 0 for param in child.parameters()):
+                # If the module has parameters, we want to change the default mapping so that the state_dict gets
+                # loaded.
+                # Ex: state_dict[encoder.position_embeddings.weight] -> new_state_dict[position_embeddings.weight]
                 new_state_dict = {}
                 for key in state_dict.keys():
                     if key.startswith(name):
-                        new_state_dict[key[len(name)+1:]] = state_dict[key]
-                print(name)
-                print(new_state_dict)
+                        new_state_dict[key[len(name)+1:]] = state_dict[key]  # +1 for '.'
                 child.load_state_dict(new_state_dict)
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
