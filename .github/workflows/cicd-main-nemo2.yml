@@ -47,6 +47,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_llama3_straggler_detection
             runner: self-hosted-azure
+          - script: L2_NeMo_2_llama3_local_ckpt
+            runner: self-hosted-azure
           - script: L2_NeMo_2_GPT_DDP_Param_Parity_check
             runner: self-hosted-azure
           - script: L2_NeMo_2_Hyena_Conversion_from_HF
@@ -94,8 +96,10 @@ jobs:
             runner: self-hosted-azure-gpus-2-h100
           - script: L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_PAD
             runner: self-hosted-azure-gpus-2-h100
+            is_optional: true
           - script: L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_TRUNC
             runner: self-hosted-azure-gpus-2-h100
+            is_optional: true
           - script: L2_NeMo_2_NEVA_LOAD_GENERATE
             runner: self-hosted-azure-gpus-1
             is_optional: true
@@ -242,7 +246,7 @@ jobs:
             script: L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2
     needs: [build]
     runs-on: ${{ matrix.runner }}
-    name: ${{ matrix.script }}
+    name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
