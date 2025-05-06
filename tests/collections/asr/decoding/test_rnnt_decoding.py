@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from functools import lru_cache
+from functools import lru_cache, cached_property
 from pathlib import Path
 from typing import Optional
 
@@ -31,6 +31,7 @@ from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding,
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
+from tests.collections.asr.decoding.test_timestamps import BaseTimestampsTest
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
@@ -55,22 +56,6 @@ def tmp_tokenizer(test_data_dir):
     asrbpe = _TmpASRBPE()
     asrbpe._setup_tokenizer(cfg)
     return asrbpe.tokenizer
-
-@pytest.fixture()
-def char_offsets_chars():
-    char_offsets = [
-        {"char": ["e"], "start_offset": 0, "end_offset": 1},
-        {"char": [" "], "start_offset": 2, "end_offset": 2},
-        {"char": ["e", " "], "start_offset": 3, "end_offset": 4},
-        {"char": [" "], "start_offset": 5, "end_offset": 5},
-        {"char": ["."], "start_offset": 6, "end_offset": 7},
-        {"char": [" "], "start_offset": 8, "end_offset": 9},
-        {"char": ["e"], "start_offset": 10, "end_offset": 11},
-        {"char": [" "], "start_offset": 12, "end_offset": 13},
-        {"char": ["?"], "start_offset": 14, "end_offset": 15},
-        {"char": [" "], "start_offset": 16, "end_offset": 17},
-    ]
-    return char_offsets
 
 
 @lru_cache(maxsize=2)
@@ -137,68 +122,6 @@ def decode_text_from_nbest_hypotheses(hyps, decoding):
         all_hypotheses.append(decoded_hyps)
 
     return hypotheses, all_hypotheses
-
-
-def check_char_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTDecoding):
-    assert hyp.timestamp is not None
-    assert isinstance(hyp.timestamp, dict)
-    assert 'timestep' in hyp.timestamp
-    assert 'char' in hyp.timestamp
-    assert 'word' in hyp.timestamp
-    assert 'segment' in hyp.timestamp
-
-    words = hyp.text.split(decoding.word_seperator)
-    words = list(filter(lambda x: x != '', words))
-    assert len(hyp.timestamp['word']) == len(words)
-
-    words_from_timestamps = [ts['word'] for ts in hyp.timestamp['word']]
-    assert hyp.text == decoding.word_seperator.join(words_from_timestamps)
-
-    segments = []
-    segment = []
-
-    for word in words:
-        segment.append(word)
-        if word[-1] in decoding.segment_seperators:
-            segments.append(' '.join(segment))
-            segment = []
-
-    if segment:
-        segments.append(' '.join(segment))
-
-    assert len(hyp.timestamp['segment']) == len(segments)
-
-    segments_from_timestamps = [ts['segment'] for ts in hyp.timestamp['segment']]
-    assert hyp.text == decoding.word_seperator.join(segments_from_timestamps)
-
-
-
-def check_subword_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTBPEDecoding):
-    assert hyp.timestamp is not None
-    assert isinstance(hyp.timestamp, dict)
-    assert 'timestep' in hyp.timestamp
-    assert 'char' in hyp.timestamp
-    assert 'word' in hyp.timestamp
-    assert 'segment' in hyp.timestamp
-
-    chars = list(hyp.text)
-    chars = list(filter(lambda x: x not in ['', ' ', '#'], chars))
-    all_chars = [list(decoding.tokenizer.tokens_to_text(data['char'])) for data in hyp.timestamp['char']]
-    all_chars = [char for subword in all_chars for char in subword]
-    all_chars = list(filter(lambda x: x not in ['', ' ', '#'], all_chars))
-    assert len(chars) == len(all_chars)
-
-    words_from_timestamps = [ts['word'] for ts in hyp.timestamp['word']]
-    assert hyp.text == decoding.word_seperator.join(words_from_timestamps)
-
-    segments_count = sum([hyp.text.count(seperator) for seperator in decoding.segment_seperators])
-    if not hyp.text or hyp.text[-1] not in decoding.segment_seperators:
-        segments_count += 1
-
-    assert len(hyp.timestamp['segment']) == segments_count
-
-    segments_from_timestamps = [ts['segment'] for ts in hyp.timestamp['segment']]
-    assert hyp.text == decoding.word_seperator.join(segments_from_timestamps)
 
 
 def check_beam_decoding(test_data_dir, beam_config):
@@ -507,9 +430,9 @@ class TestRNNTDecoding:
 
         hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
         if isinstance(hyps[0], list):
-            check_subword_timestamps(hyps[0][0], decoding)
+            BaseTimestampsTest.check_subword_timestamps(hyps[0][0], decoding)
         else:
-            check_subword_timestamps(hyps[0], decoding)
+            BaseTimestampsTest.check_subword_timestamps(hyps[0], decoding)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -545,9 +468,9 @@ class TestRNNTDecoding:
         hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
         if isinstance(hyps[0], list):
-            check_char_timestamps(hyps[0][0], decoding)
+            BaseTimestampsTest.check_char_timestamps(hyps[0][0], decoding)
         else:
-            check_char_timestamps(hyps[0], decoding)
+            BaseTimestampsTest.check_char_timestamps(hyps[0], decoding)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -611,28 +534,66 @@ class TestRNNTDecoding:
         beam_config["ngram_lm_model"] = kenlm_model_path
         check_beam_decoding(test_data_dir, beam_config)
 
-    @pytest.mark.unit
-    def test_word_offsets_chars(self, char_offsets_chars):
+    
+class TestRNNTTimestamps(BaseTimestampsTest):
+    """RNNT-specific timestamp tests that inherit from BaseTimestampsTest"""
 
+    def _convert_offsets(self, offsets):
+        import copy
+        result = copy.deepcopy(offsets)
+        for offset in result:
+            offset['char'] = [offset['char']]
+        return result
+    
+    @property
+    def char_offsets_chars(self):
+        return self._convert_offsets(super().char_offsets_chars)
+
+    @property
+    def char_offsets_wpe(self):
+        return self._convert_offsets(super().char_offsets_wpe)
+
+    @property
+    def char_offsets_bpe(self):
+        return self._convert_offsets(super().char_offsets_bpe)
+
+    @cached_property
+    def decoding_char(self):
         cfg = RNNTDecodingConfig()
         vocab = char_vocabulary()
         decoder = get_rnnt_decoder(vocab_size=len(vocab))
         joint = get_rnnt_joint(vocab_size=len(vocab))
         decoding = RNNTDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, vocabulary=vocab)
+        return decoding
 
+    @cached_property
+    def decoding_subword_wpe(self):
+        cfg = RNNTDecodingConfig()
+        vocab = self.tmp_tokenizer.vocab
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=self.tmp_tokenizer)
+        return decoding
 
-        word_offsets =decoding._get_word_offsets_chars(offsets=char_offsets_chars, 
-                                                       word_delimiter_char=" ",
-                                                       supported_punctuation={'.', '!', '?'})
+    @cached_property
+    def decoding_subword_bpe(self):
+        model = ASRModel.from_pretrained("stt_en_conformer_transducer_small", map_location="cpu")
+        vocab = model.tokenizer.vocab
+        cfg = RNNTDecodingConfig()
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=model.tokenizer)
+        return decoding
 
-        assert word_offsets == [
-            {'word': 'e', 'start_offset': 0, 'end_offset': 1},
-            {'word': 'e', 'start_offset': 3, 'end_offset': 4},
-            {'word': '.', 'start_offset': 6, 'end_offset': 7},
-            {'word': 'e?', 'start_offset': 10, 'end_offset': 15},
-            
-        ]
+    @pytest.mark.unit
+    def test_word_offsets_subword_wpe(self, tmp_tokenizer):
+        self.tmp_tokenizer = tmp_tokenizer
+        super().test_word_offsets_subword_wpe()
 
+    @pytest.mark.unit
+    def test_word_offsets_subword_wpe_other_delimiter(self, tmp_tokenizer):
+        self.tmp_tokenizer = tmp_tokenizer
+        super().test_word_offsets_subword_wpe_other_delimiter()
 
 
     

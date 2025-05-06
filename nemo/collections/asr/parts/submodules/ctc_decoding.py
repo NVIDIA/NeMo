@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+import copy
 import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
@@ -585,7 +586,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         return hypotheses_list
 
     @abstractmethod
-    def get_words_offsets(self, hypothesis: Hypothesis) -> List[Dict[str, Union[str, float]]]:
+    def get_words_offsets(self) -> List[Dict[str, Union[str, float]]]:
         """
         Implemented by subclass in order to get the words offsets.
         """
@@ -624,8 +625,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
         """
         text = self.decode_tokens_to_str(tokens)
 
-        print("tokens in decode_tokens_to_str_with_strip_punctuation ", tokens)
-        print("text in decode_tokens_to_str_with_strip_punctuation ", text)
         if self.supported_punctuation:
             text = self.space_before_punct_pattern.sub(r'\2', text)
         return text
@@ -667,18 +666,23 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 f" {len(hypothesis.text)}"
             )
 
+        encoded_char_offsets = copy.deepcopy(char_offsets)
+
         # Correctly process the token ids to chars/subwords.
         for i, char in enumerate(hypothesis.text):
             char_offsets[i]["char"] = self.decode_tokens_to_str([char])
 
-        char_offsets = self._refine_timestamps(char_offsets, self.supported_punctuation)
+        encoded_char_offsets, char_offsets = self._refine_timestamps(
+            encoded_char_offsets=encoded_char_offsets, 
+            char_offsets=char_offsets,
+            supported_punctuation=self.supported_punctuation)
 
         # retrieve word offsets from character offsets
         word_offsets = None
         if timestamp_type in ['word', 'segment', 'all']:
             word_offsets = self.get_words_offsets(
                 char_offsets=char_offsets,
-                hypothesis=hypothesis,
+                encoded_char_offsets=encoded_char_offsets,
                 word_delimiter_char=self.word_seperator,
                 supported_punctuation=self.supported_punctuation,
             )
@@ -715,7 +719,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # Convert the token indices to text
         hypothesis.text = self.decode_tokens_to_str_with_strip_punctuation(hypothesis.text)
-        print("hypothesis.text", hypothesis.text)
 
         return hypothesis
 
@@ -758,20 +761,23 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
     @staticmethod
     def _refine_timestamps(
-        char_offsets: List[Dict[str, Union[str, int]]], supported_punctuation: Optional[Set] = None
+        encoded_char_offsets: List[Dict[str, Union[str, int]]],
+        char_offsets: List[Dict[str, Union[str, int]]], 
+        supported_punctuation: Optional[Set] = None
     ) -> List[Dict[str, Union[str, int]]]:
 
         if not supported_punctuation:
-            return char_offsets
+            return encoded_char_offsets, char_offsets
 
         for i, offset in enumerate(char_offsets):
             # Check if token is a punctuation mark
-            # If so, set its start and end offset as start and end of the previous token
-            # This is done because there was observed a behaviour, when punctuation marks are predicted long after preceding token (i.e. after silence)
+            # If so, set its end offset as its start offset
+            # This is done because there was observed a behaviour for CTC decoding, 
+            # when punctuation marks are predicted for long frames
             if offset['char'] and offset['char'][0] in supported_punctuation and i > 0:
-                offset['end_offset'] = offset['start_offset']
+                encoded_char_offsets[i]['end_offset'] = offset['end_offset'] = offset['start_offset']
 
-        return char_offsets
+        return encoded_char_offsets, char_offsets
 
     @staticmethod
     def _get_segment_offsets(
@@ -813,7 +819,6 @@ class AbstractCTCDecoding(ConfidenceMixin):
         for i, offset in enumerate(offsets):
 
             word = offset['word']
-            # check if thr word ends with any delimeter token or the word itself is a delimeter
             if segment_gap_threshold and segment_words:
                 gap_between_words = offset['start_offset'] - offsets[i - 1]['end_offset']
 
@@ -830,6 +835,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                     previous_word_index = i
                     continue
 
+            # check if the word ends with any delimeter token or the word itself is a delimeter
             elif word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
                 segment_words.append(word)
                 if segment_words:
@@ -1119,7 +1125,7 @@ class CTCDecoding(AbstractCTCDecoding):
     @staticmethod
     def get_words_offsets(
         char_offsets: Dict[str, Union[str, float]],
-        hypothesis: Hypothesis,
+        encoded_char_offsets: Dict[str, Union[str, float]],
         word_delimiter_char: str = " ",
         supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
@@ -1141,30 +1147,36 @@ class CTCDecoding(AbstractCTCDecoding):
 
         word_offsets = []
 
-        last_state = "SPACE"
+        last_state = "DELIMITER"
         word = ""
         start_offset = 0
         end_offset = 0
         for i, offset in enumerate(char_offsets):
             char = offset["char"]
-            state = "SPACE" if char == word_delimiter_char else "WORD"
+            state = "DELIMITER" if char == word_delimiter_char else "WORD"
+
+            next_char = char_offsets[i + 1]['char'] if i < len(char_offsets) - 1 else None
+
+            if next_char:
+                next_punctuation = next_char in supported_punctuation and next_char != word_delimiter_char
+            else:
+                next_punctuation = False
+
+            # If we have a space and the next character is a punctuation, we skip adding the space to the word
+            # This is for being consistent with the final hypothesis text,
+            # For which we are removing a space before a punctuation.
+            if char == " " and next_punctuation:
+                continue
 
             if state == last_state:
                 # If we are in the same state as before, we simply repeat what we've done before
                 end_offset = offset["end_offset"]
                 word += char
             else:
-                next_puntuation = (
-                    (supported_punctuation and char_offsets[i + 1]['char'] in supported_punctuation)
-                    if i < len(char_offsets) - 1
-                    else False
-                )
                 # Switching state
-                if state == "SPACE" and not next_puntuation:
+                if state == "DELIMITER":
                     # Finishing a word
                     word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
-                elif state == "SPACE" and next_puntuation:
-                    continue
                 else:
                     # Starting a new word
                     start_offset = offset["start_offset"]
@@ -1336,12 +1348,8 @@ class CTCBPEDecoding(AbstractCTCDecoding):
     def __init__(self, decoding_cfg, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
-        vocabulary = self.tokenizer.vocab
-        self.tokenizer_type = self.define_tokenizer_type(vocabulary)
-
-        supported_punctuation = {
-            char for token in vocabulary for char in token if unicodedata.category(char).startswith('P')
-        }
+        supported_punctuation = tokenizer.supported_punctuation
+        self.tokenizer_type = self.define_tokenizer_type(tokenizer.vocab)
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id, supported_punctuation=supported_punctuation)
 
@@ -1427,7 +1435,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
     def get_words_offsets(
         self,
         char_offsets: Dict[str, Union[str, float]],
-        hypothesis: Hypothesis,
+        encoded_char_offsets: Dict[str, Union[str, float]],
         word_delimiter_char: str = " ",
         supported_punctuation: Optional[Set] = None,
     ) -> Dict[str, Union[str, float]]:
@@ -1447,20 +1455,24 @@ class CTCBPEDecoding(AbstractCTCDecoding):
             A list of dictionaries containing the word offsets. Each item contains "word", "start_offset" and
             "end_offset".
         """
-        from pprint import pprint
+        char_offsets = encoded_char_offsets.copy()
         word_offsets = []
-        built_tokens = []
         previous_token_index = 0
+
+        # Built tokens should be list here as when dealing with wpe tokenizer, 
+        # ids should be decoded together to ensure tokens starting with ## are not split
+        built_tokens = []
 
         condition_for_word_start = self.define_word_start_condition(self.tokenizer_type, word_delimiter_char)
 
         # For every collapsed sub-word token
-        for i, char in enumerate(hypothesis.text):
+        for i, offset in enumerate(char_offsets):
+
+            char = offset['char']
+
             # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
             token = self.decode_ids_to_tokens([char])[0]
             token_text = self.decode_tokens_to_str([char]).strip()
-
-            print("token_text", token_text, "token", token, "char", char)
 
             curr_punctuation = supported_punctuation and token_text in supported_punctuation
 
@@ -1470,8 +1482,6 @@ class CTCBPEDecoding(AbstractCTCDecoding):
             if condition_for_word_start(token, token_text) and not curr_punctuation:
                 # If there are any partially or fully built sub-word token ids, construct to text.
                 # Note: This is "old" subword, that occurs *after* current sub-word has started.
-                print("creating a word offset before the current token: ", token_text)
-                pprint(word_offsets)
                 if built_tokens:
                     built_word = self.decode_tokens_to_str(built_tokens)
                     if built_word:
@@ -1485,19 +1495,26 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
                 # Prepare new built_tokens
                 built_tokens.clear()
-                built_tokens.append(char)
-                previous_token_index = i
+
+                if token_text != word_delimiter_char:
+                    built_tokens.append(char)
+                    previous_token_index = i
+
             # If the token is a punctuation mark and there is no built word, then the previous word is complete
             # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
             elif curr_punctuation and not built_tokens:
                 last_built_word = word_offsets[-1]
-                last_built_word['end_offset'] = char_offsets[i]['end_offset']
+                last_built_word['end_offset'] = offset['end_offset']
                 if last_built_word['word'][-1] == ' ':
                     last_built_word['word'] = last_built_word['word'][:-1]
                 last_built_word['word'] += token_text
             else:
                 # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
                 # Append to current built word.
+                # If this token is the first in the built_tokens, we should save its index as the previous token index
+                # because it will be used to calculate the start offset of the word.
+                if not built_tokens:
+                    previous_token_index = i
                 built_tokens.append(char)
 
         # Inject the start offset of the first token to word offsets
