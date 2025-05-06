@@ -92,20 +92,10 @@ class MagpieTTSModel(ModelPT):
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
 
-        # attach debugger if not attached
-        import debugpy
-        # only attach if not already attached
-        if not debugpy.is_client_connected():
-            debugpy.listen(('0.0.0.0', 5678))  # You can change the port if needed
-            print('Waiting for debugger to attach...')
-            debugpy.wait_for_client()  # This will block execution until the debugger attaches
-            print('Debugger is attached!')
         # load codec
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
         # del codec discriminator to free memory
         del codec_model.discriminator
-
-
 
         # Set up codebook configuration
         self.num_audio_codebooks = codec_model.num_codebooks
