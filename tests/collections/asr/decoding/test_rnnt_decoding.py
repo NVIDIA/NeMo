@@ -13,12 +13,8 @@
 # limitations under the License.
 
 import os
-<<<<<<< HEAD
 import copy
 from functools import lru_cache, cached_property
-=======
-from functools import cached_property, lru_cache
->>>>>>> e5a0ff0befd2c1e99dd4fb9e4017a95510696231
 from pathlib import Path
 from typing import Optional
 
@@ -542,11 +538,6 @@ class TestRNNTTimestamps(BaseTimestampsTest):
     """RNNT-specific timestamp tests that inherit from BaseTimestampsTest"""
 
     def _convert_offsets(self, offsets):
-<<<<<<< HEAD
-=======
-        import copy
-
->>>>>>> e5a0ff0befd2c1e99dd4fb9e4017a95510696231
         result = copy.deepcopy(offsets)
         for offset in result:
             offset['char'] = [offset['char']]

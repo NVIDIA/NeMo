@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import re
 from functools import cached_property, lru_cache
 
 import pytest
