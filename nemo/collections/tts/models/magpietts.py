@@ -17,7 +17,6 @@ import random
 import string
 import time
 from typing import List
-from enum import Enum, StrEnum, auto, verify, CONTINUOUS, UNIQUE
 
 import librosa
 import numpy as np
@@ -39,6 +38,7 @@ from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
+from nemo.collections.tts.modules.magpietts_modules import SpecialAudioToken, LocalTransformerType, cosine_schedule
 from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention_parallel,
     get_mask_from_lengths,
@@ -92,24 +92,20 @@ class MagpieTTSModel(ModelPT):
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
 
+        # attach debugger if not attached
+        import debugpy
+        # only attach if not already attached
+        if not debugpy.is_client_connected():
+            debugpy.listen(('0.0.0.0', 5678))  # You can change the port if needed
+            print('Waiting for debugger to attach...')
+            debugpy.wait_for_client()  # This will block execution until the debugger attaches
+            print('Debugger is attached!')
         # load codec
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
         # del codec discriminator to free memory
         del codec_model.discriminator
 
-        # Reserve special tokens (appended at the end of the codebook after the actual audio codec tokens)
-        # (the actual index is this value plus the number of codec tokens - do not use the Enum directy)
-        @verify(CONTINUOUS, UNIQUE)
-        class SpecialAudioToken(Enum):
-            AUDIO_BOS = 0
-            AUDIO_EOS = 1
-            AUDIO_CONTEXT_BOS = 2
-            AUDIO_CONTEXT_EOS = 3
-            MASK_TOKEN = 4
-            # Reserved so that if we need to add more special tokens in the future the codebook size will remain the same
-            RESERVED_1 = 5
-            RESERVED_2 = 6
-            RESERVED_3 = 7
+
 
         # Set up codebook configuration
         self.num_audio_codebooks = codec_model.num_codebooks
@@ -117,7 +113,7 @@ class MagpieTTSModel(ModelPT):
         # Our codebooks start with actual audio codec tokens, followed by special tokens. 
         # The `forced_*` options are for backward compatibility for models trained with older code.
         num_audio_tokens = codec_model.codebook_size
-        self.audio_bos_id = cfg.get('forced_audio_bos_id',num_audio_tokens + SpecialAudioToken.AUDIO_BOS.value)
+        self.audio_bos_id = cfg.get('forced_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_BOS.value)
         self.audio_eos_id = cfg.get('forced_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_EOS.value)
         self.context_audio_bos_id = cfg.get('forced_context_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_BOS.value)
         self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_EOS.value)
@@ -173,9 +169,9 @@ class MagpieTTSModel(ModelPT):
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
 
-        self.local_transformer_type = self.LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
-        print(f"Local transformer type: {self.local_transformer_type}")
-        if self.local_transformer_type != self.LocalTransformerType.NO_LT:
+        self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
+        logging.info(f"Local transformer type: {self.local_transformer_type}")
+        if self.local_transformer_type != LocalTransformerType.NO_LT:
             local_transformer_hidden_dim = cfg.get('local_transformer_hidden_dim', 256)
             if local_transformer_hidden_dim != cfg.decoder.d_model:
                 self.local_transformer_in_projection = nn.Linear(cfg.decoder.d_model, local_transformer_hidden_dim)
@@ -187,7 +183,7 @@ class MagpieTTSModel(ModelPT):
                 d_ffn=local_transformer_hidden_dim*4,
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
-                is_causal=self.local_transformer_type == self.LocalTransformerType.AR,
+                is_causal=self.local_transformer_type == LocalTransformerType.AR,
                 max_length_causal_mask=self.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
@@ -243,10 +239,7 @@ class MagpieTTSModel(ModelPT):
         if alignment_encoder_loss_scale > 0.0:
             self.alignment_encoder_loss = ForwardSumLoss(loss_scale=alignment_encoder_loss_scale)
 
-    class LocalTransformerType(StrEnum):
-        NO_LT = "none"
-        AR = "autoregressive"
-        MASKGIT = "maskgit"
+
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         if hasattr(self, '_no_state_dict') and self._no_state_dict:
@@ -259,21 +252,7 @@ class MagpieTTSModel(ModelPT):
                 del state_dict[key]
         return state_dict
     
-    def remap_names(self, state_dict):
-        # Backward compatibility for old checkpoints
-        keys = state_dict.keys()
-        keys_to_update = [k for k in keys if 't5_encoder.' in k or 't5_decoder.' in k]
-        for key in keys_to_update:
-            value = state_dict[key]
-            del state_dict[key]            
-            new_key = key.replace('t5_encoder.', 'encoder.').replace('t5_decoder.', 'decoder.')
-            state_dict[new_key] = value
-        return state_dict
-
-    def load_state_dict(self, state_dict, strict=True, remap_names=False):
-        # Override to load all the keys except _speaker_verification_model and _codec_model
-        if remap_names:
-            state_dict = self.remap_names(state_dict)
+    def load_state_dict(self, state_dict, strict=True):
         super().load_state_dict(state_dict, strict=False)
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
@@ -400,14 +379,6 @@ class MagpieTTSModel(ModelPT):
 
         return all_code_logits
 
-    @staticmethod
-    def cosine_schedule(x: torch.Tensor):
-        """
-        Maps input values from [0, 1] to [1, 0] using the first quadrant of the cosine function.
-        Used for MaskGit mask scheduling.
-        """
-        return torch.cos(x * (torch.pi / 2))
-
     def maskgit_create_random_mask(self, codes):
         """
         Creates a mask where True indicates the positions that should be replaced with a MASK_TOKEN.
@@ -417,7 +388,7 @@ class MagpieTTSModel(ModelPT):
         # get a uniform random vector uniformly sampled from [0,1) ## Todo does it need to be inclusive on the right?
         rand_values = torch.rand(B,T, device=codes.device)
         # apply the cosine schedule 
-        frac_masked = self.cosine_schedule(rand_values)
+        frac_masked = cosine_schedule(rand_values)
         # how many positions to mask
         n_masked = torch.ceil(frac_masked * C).long() # B,T
         # start from all unmasked
@@ -547,7 +518,7 @@ class MagpieTTSModel(ModelPT):
         sampled_codes = codes.clone()
         for step in range(n_steps):
             # get mask fraction
-            frac_masked = self.cosine_schedule(torch.tensor(step / (n_steps)))
+            frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
             # how many codebooks to mask
             n_masked = torch.ceil(C * frac_masked).long() # TODO @rfejgin: should we force this to be initialized to exactly `C` (to avoid numerical issues)?
             n_unmasked = C - n_masked
@@ -1183,8 +1154,8 @@ class MagpieTTSModel(ModelPT):
 
         local_transformer_loss = None
         local_transformer_logits = None
-        if self.local_transformer_type != self.LocalTransformerType.NO_LT:
-            if self.local_transformer_type == self.LocalTransformerType.MASKGIT:
+        if self.local_transformer_type != LocalTransformerType.NO_LT:
+            if self.local_transformer_type == LocalTransformerType.MASKGIT:
                 # randomly replace some positions with MASK_TOKEN
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
@@ -1192,7 +1163,7 @@ class MagpieTTSModel(ModelPT):
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
             else:
                 # autoregressive
-                assert self.local_transformer_type == self.LocalTransformerType.AR, "Unexpected local transformer type"
+                assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target, targets_offset_by_one=False)
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
             local_transformer_loss_scale = self.cfg.get('local_transformer_loss_scale', 1.0)
@@ -1645,7 +1616,7 @@ class MagpieTTSModel(ModelPT):
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
                 if use_local_transformer_for_inference:
-                    if self.local_transformer_type == self.LocalTransformerType.AR :
+                    if self.local_transformer_type == LocalTransformerType.AR :
                         # Autoregressive sampling with local transformer
                         audio_codes_next = self.local_transformer_sample_autoregressive(
                             dec_output=dec_out[:,-1,:],
@@ -1656,7 +1627,7 @@ class MagpieTTSModel(ModelPT):
                             use_cfg=use_cfg,
                             cfg_scale=cfg_scale
                         )
-                    elif self.local_transformer_type == self.LocalTransformerType.MASKGIT:
+                    elif self.local_transformer_type == LocalTransformerType.MASKGIT:
                         audio_codes_next = self.local_transformer_sample_maskgit(
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
@@ -1785,7 +1756,7 @@ class MagpieTTSModel(ModelPT):
         self.log("val/codebook_loss", val_codebook_loss, prog_bar=True, sync_dist=True)
         self.log("val/alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.log("val/aligner_encoder_loss", val_aligner_encoder_loss, prog_bar=True, sync_dist=True)
-        if self.local_transformer_type != self.LocalTransformerType.NO_LT:
+        if self.local_transformer_type != LocalTransformerType.NO_LT:
             val_local_transformer_loss = collect("val_local_transformer_loss")
             self.log("val/local_transformer_loss", val_local_transformer_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()  # free memory
