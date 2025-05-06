@@ -680,7 +680,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             MULTISTORAGECLIENT_PROTOCOL
         )
 
-        # TODO: add multistorageclient support for distributed checkpointing
         if multistorageclient_enabled:
             existing_marker_filepaths = multistorageclient.glob(
                 f"{checkpoint_dir}*{NeMoModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}"
