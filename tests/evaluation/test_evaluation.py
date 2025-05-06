@@ -14,7 +14,8 @@
 
 import argparse
 import subprocess
-
+import sys
+import signal
 from nemo.collections.llm import evaluate
 from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 from nemo.collections.llm.evaluation.base import wait_for_fastapi_server
@@ -66,5 +67,7 @@ if __name__ == '__main__':
     else:
         logging.error("Server is not ready.")
     # After evaluation, terminate deploy_proc
-    deploy_proc.terminate()
-    deploy_proc.wait()
+    deploy_proc.send_signal(signal.SIGINT)
+
+    if not server_ready:
+        sys.exit(1)
