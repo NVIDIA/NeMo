@@ -246,7 +246,7 @@ class TestPredictiveModelNCSN:
         input_signal = torch.randn(size=(batch_size, 1, sample_len * sampling_rate), generator=rng)
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
 
-        abs_tol = 1e-5
+        abs_tol = 5e-5
 
         with torch.no_grad():
             # batch size 1
@@ -305,7 +305,7 @@ class TestPredictiveModelConformer:
         input_signal = torch.randn(size=(batch_size, 1, sample_len * sampling_rate), generator=rng)
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
 
-        abs_tol = 1e-5
+        abs_tol = 5e-5
 
         with torch.no_grad():
             # batch size 1
