@@ -33,6 +33,7 @@ if __name__ == '__main__':
         api.deploy(
             nemo_checkpoint=args.nemo2_ckpt_path,
             max_batch_size=args.max_batch_size,
+            fastapi_port=8886,
         )
     except Exception as e:
         logging.error(f"Deploy process encountered an error: {e}")
