@@ -1,0 +1,2 @@
+[nemo_run.cli]
+llm = nemo.collections.llm
