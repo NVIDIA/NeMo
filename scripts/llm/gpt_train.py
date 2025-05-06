@@ -34,7 +34,11 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def get_args():
     """Parse the command line arguments."""
-    parser = ArgumentParser(description="""Run Knowledge Distillation from a teacher model to a student.""")
+    parser = ArgumentParser(
+        description="Train GPT model. Supports 4 modes: pretraining, SFT, knowledge distillation "
+        "from a teacher model to a student, and SFT distillation. To do SFT or SFT distillation, "
+        "specify --use-chat-data. To perform distillation, specify --teacher_path in addition to --model_path"
+    )
     parser.add_argument("--name", type=str, required=True, help="Experiment name")
     parser.add_argument(
         "--model_path",
