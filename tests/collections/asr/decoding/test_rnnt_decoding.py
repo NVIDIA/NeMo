@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import copy
 from functools import lru_cache, cached_property
 from pathlib import Path
 from typing import Optional
@@ -46,8 +47,6 @@ def char_vocabulary():
 @lru_cache(maxsize=8)
 def tmp_tokenizer(test_data_dir):
     cfg = DictConfig({'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'})
-
-    print("cfg", cfg)
 
     class _TmpASRBPE(mixins.ASRBPEMixin):
         def register_artifact(self, _, vocab_path):
@@ -539,7 +538,6 @@ class TestRNNTTimestamps(BaseTimestampsTest):
     """RNNT-specific timestamp tests that inherit from BaseTimestampsTest"""
 
     def _convert_offsets(self, offsets):
-        import copy
         result = copy.deepcopy(offsets)
         for offset in result:
             offset['char'] = [offset['char']]

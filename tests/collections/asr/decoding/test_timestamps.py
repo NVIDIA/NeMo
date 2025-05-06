@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import re
-import pytest
-from abc import abstractmethod, ABC
-from typing import Any, Dict, List, Set, Union
+from typing import Any
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
