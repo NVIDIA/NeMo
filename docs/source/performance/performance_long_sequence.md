@@ -268,7 +268,3 @@ even with full activation recomputation it is impossible to run the LLAMA3-8B mo
     </tr>
   </tbody>
 </table>
-
-
-### Speedup of LLAMA2 7B training with CP over without CP on the H100 GPU
-![cp_speedup_figure](https://github.com/NVIDIA/NeMo/releases/download/r2.0.0rc1/tutorial_cp_speedup_figure.png)
