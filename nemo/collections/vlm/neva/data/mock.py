@@ -25,6 +25,7 @@ from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
+
 # pylint: disable=C0115, C0116
 class MockDataModule(pl.LightningDataModule):
     def __init__(
