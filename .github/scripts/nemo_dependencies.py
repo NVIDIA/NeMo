@@ -44,6 +44,53 @@ def find_python_files(directory: str) -> List[str]:
 def analyze_imports(nemo_root: str, file_path: str) -> Set[str]:
     """Analyze a Python file and return its NeMo package dependencies using AST parsing."""
     imports = set()
+    visited = set()  # Track visited modules to prevent circular imports
+
+    def get_init_imports(module_path: str, depth: int = 0) -> Dict[str, str]:
+        """Recursively analyze imports from __init__.py files and map them to their final destinations."""
+        # Prevent infinite recursion
+        if depth > 10 or module_path in visited:  # Limit depth to 10 levels
+            return {}
+
+        visited.add(module_path)
+        init_path = os.path.join(module_path, '__init__.py')
+        if not os.path.exists(init_path):
+            return {}
+
+        try:
+            with open(init_path, 'r', encoding='utf-8') as f:
+                init_tree = ast.parse(f.read(), filename=init_path)
+
+            import_map = {}
+            for node in ast.walk(init_tree):
+                if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith('nemo.'):
+                    if node.names:
+                        for name in node.names:
+                            if name.name == '*':
+                                continue
+
+                            # Get the full module path for the import
+                            module_parts = node.module.split('.')
+                            module_dir = os.path.join(nemo_root, *module_parts)
+
+                            # If the imported module has an __init__.py, recursively analyze it
+                            if os.path.exists(os.path.join(module_dir, '__init__.py')):
+                                sub_imports = get_init_imports(module_dir, depth + 1)
+                                if name.name in sub_imports:
+                                    import_map[name.name] = sub_imports[name.name]
+                                else:
+                                    # If not found in sub-imports, it might be from the module itself
+                                    module_file = os.path.join(module_dir, f"{module_parts[-1]}.py")
+                                    if os.path.exists(module_file):
+                                        import_map[name.name] = f"{node.module}.{name.name}"
+                            else:
+                                # Direct module import
+                                import_map[name.name] = f"{node.module}.{name.name}"
+
+            return import_map
+        except Exception as e:
+            print(f"Error analyzing {init_path}: {e}")
+            return {}
 
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -68,14 +115,31 @@ def analyze_imports(nemo_root: str, file_path: str) -> Set[str]:
                                 if name.name == '*':
                                     continue
 
-                                imports.add(f"{node.module}.{name.name}")
+                                # Check if this is an __init__ import
+                                module_path = os.path.join(nemo_root, *parts)
+                                init_imports = get_init_imports(module_path)
+
+                                if name.name in init_imports:
+                                    # Use the mapped import path
+                                    imports.add(init_imports[name.name])
+                                else:
+                                    imports.add(f"{node.module}.{name.name}")
 
                     elif module_type in find_top_level_packages(nemo_root):
                         if node.names:
                             for name in node.names:
                                 if name.name == '*':
                                     continue
-                                imports.add(f"{node.module}.{name.name}")
+
+                                # Check if this is an __init__ import
+                                module_path = os.path.join(nemo_root, *parts)
+                                init_imports = get_init_imports(module_path)
+
+                                if name.name in init_imports:
+                                    # Use the mapped import path
+                                    imports.add(init_imports[name.name])
+                                else:
+                                    imports.add(f"{node.module}.{name.name}")
 
     except Exception as e:
         print(f"Error analyzing {file_path}: {e}")
@@ -131,16 +195,17 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
     for file_path in find_python_files(nemo_root):
         relative_path = os.path.relpath(file_path, nemo_root)
+
         parts = relative_path.split(os.sep)
 
         if len(parts) == 1 or parts[-1] == "__init__.py" or (parts[0] != "nemo" and parts[0] != "tests"):
             continue
 
         module_path = relative_path.replace(".py", "").replace("/", ".")
-        if parts[1] in top_level_packages and parts[1] != 'collections':
+        if parts[1] in top_level_packages and parts[1] != 'collections' and parts[0] != 'tests':
             dependencies[module_path] = list(set(analyze_imports(nemo_root, file_path)))
         elif parts[0] == 'tests':
-            dependencies[module_path] = [relative_path]
+            dependencies[module_path] = [relative_path.replace("/", ".").replace(".py", "")]
         elif parts[1] == 'collections':
             dependencies[module_path] = list(set(analyze_imports(nemo_root, file_path)))
 
@@ -187,7 +252,9 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     for package, deps in dependencies.items():
         package_parts = package.split('.')
 
-        if os.path.isfile((file_path := f"{os.path.join(*package_parts[:-1])}.py")):
+        if package_parts[0] == "tests":
+            simplified_package_path = f"{os.path.join(*package_parts)}.py"
+        elif os.path.isfile((file_path := f"{os.path.join(*package_parts[:-1])}.py")):
             simplified_package_path = file_path
         elif os.path.isdir((file_path := f"{os.path.join(*package_parts[:-1])}")):
             simplified_package_path = file_path
@@ -202,13 +269,14 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
             if (
                 len(dep_parts) >= 2
-                and dep_parts[1] in find_top_level_packages(nemo_root)
+                and (dep_parts[1] in find_top_level_packages(nemo_root))
                 and dep_parts[1] != 'collections'
             ):
                 simplified_dependencies[simplified_package_path].append(f"{dep_parts[0]}.{dep_parts[1]}")
-
+            elif dep_parts[0] == "tests":
+                simplified_dependencies[simplified_package_path].append(".".join(dep_parts))
             elif len(dep_parts) >= 3 and (
-                simplified_name := f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}"
+                simplified_name := f"nemo.{dep_parts[1]}.{dep_parts[2]}"
             ) in find_collection_modules(nemo_root):
                 simplified_dependencies[simplified_package_path].append(simplified_name)
 
@@ -223,21 +291,50 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     for package, deps in dependencies.items():
         new_deps = []
         for dep in deps:
-            if "asr" in dep or "tts" in dep or "speechlm" in dep or "audio" in dep:
+            if (
+                "nemo.collections.asr" in dep
+                or "nemo.collections.tts" in dep
+                or "nemo.collections.speechlm" in dep
+                or "nemo.collections.audio" in dep
+                or "tests.collections.asr" in dep
+                or "tests.collections.tts" in dep
+                or "tests.collections.speechlm" in dep
+                or "tests.collections.audio" in dep
+            ):
                 new_deps.append("speech")
-
-            elif "export" in dep or "deploy" in dep:
-                new_deps.append("export-deploy")
-
-            elif "llm" in dep or "vlm" in dep or "automodel" in dep:
-                new_deps.append("automodel")
-
-            elif "tests/collections" in dep:
                 new_deps.append("unit-tests")
-                continue
 
-            else:
+            if "nemo.export" in dep or "nemo.deploy" in dep or "tests.export" in dep or "tests.deploy" in dep:
+                new_deps.append("export-deploy")
+                new_deps.append("unit-tests")
+
+            if (
+                "nemo.collections.llm" in dep
+                or "nemo.collections.vlm" in dep
+                or "nemo.automodel" in dep
+                or "tests.collections.llm" in dep
+                or "tests.collections.vlm" in dep
+                or "tests.automodel" in dep
+            ):
+                new_deps.append("automodel")
+                new_deps.append("unit-tests")
+
+            if "tests" in dep and "tests.functional_tests" not in dep:
+                new_deps.append("unit-tests")
+
+            if (
+                "nemo.collections" in dep
+                and "nemo.collections.asr" not in dep
+                and "nemo.collections.tts" not in dep
+                and "nemo.collections.speechlm" not in dep
+                and "nemo.collections.audio" not in dep
+                and "tests.collections.asr" not in dep
+                and "tests.collections.tts" not in dep
+                and "tests.collections.speechlm" not in dep
+                and "tests.collections.audio" not in dep
+            ):
                 new_deps.append("nemo2")
+                new_deps.append("unit-tests")
 
         bucket_deps[package] = sorted(list(set(new_deps)))
 
@@ -259,7 +356,7 @@ def main():
 
     # Output as JSON
     data = json.dumps(dependencies, indent=4)
-    # print(data)
+
     with open('nemo_dependencies.json', 'w', encoding='utf-8') as f:
         f.write(data)
 
