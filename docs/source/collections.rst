@@ -25,6 +25,7 @@ Documentation for the individual collections
    asr/speaker_diarization/intro
    asr/ssl/intro
    asr/speech_intent_slot/intro
+   duplex_s2s/intro
 
 .. toctree::
    :maxdepth: 1
