@@ -21,7 +21,6 @@ except Exception:
     use_ray = False
 import logging
 import socket
-from typing import Dict
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -128,7 +127,7 @@ class DeployRay:
             port (int, optional): Port number to use. If None, an available port will be found.
         """
         if not port:
-            port = find_available_port()
+            port = find_available_port(8000)
         serve.start(
             http_options={
                 "host": host,

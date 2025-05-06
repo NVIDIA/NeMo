@@ -140,19 +140,21 @@ class HFRayDeployable:
             completion_tokens = sum(len(r.split()) for r in generated_texts)
             total_tokens = prompt_tokens + completion_tokens
 
-            return {
+            output = {
                 "id": f"cmpl-{int(time.time())}",
                 "object": "text_completion",
                 "created": int(time.time()),
                 "model": model_name,
                 "choices": [
                     {
-                        "text": result,
-                        "index": i,
-                        "logprobs": results.get("logits", None) if results.get("logits") is not None else None,
-                        "finish_reason": "length" if len(result) >= request.get('max_tokens', 50) else "stop",
+                        "text": generated_texts,
+                        "index": 0,
+                        "logprobs": {
+                            "token_logprobs": results.get("logits", None),
+                            "top_logprobs": results.get("scores", None)
+                        } if results.get("logits") is not None else None,
+                        "finish_reason": "length" if len(generated_texts[0]) >= request.get('max_tokens', 50) else "stop",
                     }
-                    for i, result in enumerate(generated_texts)
                 ],
                 "usage": {
                     "prompt_tokens": prompt_tokens,
@@ -160,9 +162,9 @@ class HFRayDeployable:
                     "total_tokens": total_tokens,
                 },
             }
+            return output
         except Exception as e:
             LOGGER.error(f"Error during inference: {str(e)}")
-            LOGGER.info(f"Request details: {request}")
             raise HTTPException(status_code=500, detail=f"Error during inference: {str(e)}")
 
     @app.post("/v1/chat/completions/")
@@ -219,18 +221,17 @@ class HFRayDeployable:
             completion_tokens = sum(len(r.split()) for r in generated_texts)
             total_tokens = prompt_tokens + completion_tokens
 
-            return {
+            output = {
                 "id": f"chatcmpl-{int(time.time())}",
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": request.get('model', 'nemo-model'),
                 "choices": [
                     {
-                        "message": {"role": "assistant", "content": result},
-                        "index": i,
-                        "finish_reason": "length" if len(result) >= request.get('max_tokens', 50) else "stop",
+                        "message": {"role": "assistant", "content": generated_texts},
+                        "index": 0,
+                        "finish_reason": "length" if len(generated_texts[0]) >= request.get('max_tokens', 50) else "stop",
                     }
-                    for i, result in enumerate(generated_texts)
                 ],
                 "usage": {
                     "prompt_tokens": prompt_tokens,
@@ -238,9 +239,9 @@ class HFRayDeployable:
                     "total_tokens": total_tokens,
                 },
             }
+            return output
         except Exception as e:
             LOGGER.error(f"Error during chat completion: {str(e)}")
-            LOGGER.info(f"Request details: {request}")
             raise HTTPException(status_code=500, detail=f"Error during chat completion: {str(e)}")
 
     @app.get("/v1/models")
