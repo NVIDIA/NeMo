@@ -43,9 +43,11 @@ from megatron.core.dist_checkpointing.strategies.fully_parallel import (
 from megatron.core.fp8_utils import is_float8tensor
 from megatron.core.num_microbatches_calculator import update_num_microbatches
 from megatron.core.rerun_state_machine import get_rerun_state_machine
+from megatron.core.transformer.module import MegatronModule
 
 from nemo.tron import fault_tolerance
 from nemo.tron.config import ConfigContainer
+from nemo.tron.peft import PEFT
 from nemo.tron.state import GlobalState, TrainState
 from nemo.tron.utils import wandb_utils
 from nemo.tron.utils.async_utils import is_empty_async_queue, schedule_async_save
@@ -461,6 +463,7 @@ def save_checkpoint(
     non_persistent_ckpt: bool = False,
     train_data_iterator: Optional[Any] = None,
     preprocess_common_state_dict_fn: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None,
+    peft: Optional[PEFT] = None,
 ) -> None:
     """Save a model checkpoint.
 
@@ -604,6 +607,7 @@ def save_checkpoint(
             iteration=train_state.step,
             optim_sd_kwargs=optim_sd_kwargs,
             rerun_state=rerun_state,
+            peft=peft,
         )
 
         if ckpt_type == CheckpointType.GLOBAL:
@@ -865,6 +869,7 @@ def generate_state_dict(
     iteration: Optional[int] = None,
     optim_sd_kwargs: Optional[dict[str, Any]] = None,
     rerun_state: Optional[dict[str, Any]] = None,
+    peft: Optional[PEFT] = None,
 ) -> dict[str, Any]:
     """Generate the state dictionary to be saved in a checkpoint.
 
@@ -889,15 +894,11 @@ def generate_state_dict(
         state_dict["iteration"] = iteration
 
     if len(model) == 1:
-        state_dict["model"] = (
-            model[0].sharded_state_dict() if use_dist_ckpt else model[0].state_dict_for_save_checkpoint()
-        )
+        state_dict["model"] = _get_filtered_model_state_dict(model[0], use_dist_ckpt, peft)
     else:
         for i in range(len(model)):
             mpu.set_virtual_pipeline_model_parallel_rank(i)
-            state_dict["model%d" % i] = (
-                model[i].sharded_state_dict() if use_dist_ckpt else model[i].state_dict_for_save_checkpoint()
-            )
+            state_dict["model%d" % i] = _get_filtered_model_state_dict(model[i], use_dist_ckpt, peft)
 
     # Optimizer stuff.
     if cfg.checkpoint_config.save_optim:
@@ -916,6 +917,17 @@ def generate_state_dict(
     # RNG states.
     if cfg.checkpoint_config.save_rng:
         state_dict["rng_state"] = rng_state
+    return state_dict
+
+
+def _get_filtered_model_state_dict(
+    model: MegatronModule,
+    use_dist_ckpt: bool,
+    peft: Optional[PEFT] = None,
+) -> dict[str, Any]:
+    state_dict = model.sharded_state_dict() if use_dist_ckpt else model.state_dict_for_save_checkpoint()
+    if peft is not None:
+        state_dict = {key: value for key, value in state_dict.items() if peft.adapter_key_filter(key)}
     return state_dict
 
 

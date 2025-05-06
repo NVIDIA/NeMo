@@ -52,6 +52,19 @@ def get_model_from_config(
     Returns:
         list of model modules, potentially wrapped with DistributedDataParallel or TorchFullyShardedDataParallel
     """
+    model = get_base_model(model_config)
+    model = get_distributed_model(
+        model,
+        ddp_config,
+        overlap_param_gather_with_optimizer_step=overlap_param_gather_with_optimizer_step,
+        use_torch_fsdp2=use_torch_fsdp2,
+        wrap_with_ddp=wrap_with_ddp,
+        data_parallel_random_init=data_parallel_random_init,
+    )
+    return model
+
+
+def get_base_model(model_config: GPTConfig | T5Config) -> List[MegatronModule]:
     model_type = _get_model_type(model_config)
     if (
         parallel_state.get_pipeline_model_parallel_world_size() > 1
@@ -97,7 +110,18 @@ def get_model_from_config(
 
     if not isinstance(model, list):
         model = [model]
+    
+    return model
 
+
+def get_distributed_model(
+    model: List[MegatronModule],
+    ddp_config: DistributedDataParallelConfig,
+    overlap_param_gather_with_optimizer_step: bool = False,
+    use_torch_fsdp2: bool = False,
+    wrap_with_ddp: bool = True,
+    data_parallel_random_init: bool = True,
+) -> List[MegatronModule]:
     # Set tensor model parallel attributes if not set.
     # Only parameters that are already tensor model parallel have these
     # attributes set for them. We should make sure the default attributes
@@ -160,7 +184,7 @@ def get_model_from_config(
         if data_parallel_random_init:
             for model_module in model:
                 model_module.broadcast_params()
-    return model
+    return model    
 
 
 def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
