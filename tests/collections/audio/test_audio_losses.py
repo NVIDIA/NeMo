@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import os
+
+import numpy as np
 import pytest
 import torch
 
@@ -37,7 +38,6 @@ except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
 
 from nemo.collections.audio.losses.maxine import CombinedLoss
-
 from nemo.collections.audio.parts.utils.audio import (
     calculate_sdr_numpy,
     convolution_invariant_target_numpy,
