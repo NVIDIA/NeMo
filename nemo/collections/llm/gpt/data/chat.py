@@ -53,8 +53,9 @@ class ChatDataModule(FineTuningDataModule):
         See base class `FineTuningDataModule` for more details of the arguments.
 
         Args:
-            use_hf_tokenizer_chat_template: Whether to use the chat template from the HuggingFace tokenizer. If True, uses the tokenizer's
-                built-in chat template. If False, uses default chat template from GPTSFTChatDataset. Defaults to False.
+            use_hf_tokenizer_chat_template: Whether to use the chat template from the HuggingFace tokenizer. If True,
+                uses the tokenizer's built-in chat template. If False, uses default chat template from
+                GPTSFTChatDataset.  Defaults to False.
         """
         super().__init__(
             dataset_root,
