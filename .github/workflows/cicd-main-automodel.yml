@@ -122,7 +122,7 @@ jobs:
             script: L2_HF_Transformer_PT_TE_Acceleration
     needs: [unit-tests]
     runs-on: ${{ matrix.runner }}
-    name: ${{ matrix.script }}
+    name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

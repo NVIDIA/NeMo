@@ -170,7 +170,7 @@ jobs:
             script: L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
     needs: [unit-tests]
     runs-on: ${{ matrix.runner }}
-    name: ${{ matrix.script }}
+    name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
