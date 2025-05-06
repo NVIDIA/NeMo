@@ -21,6 +21,7 @@ import torch
 import torch.distributed as dist
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import masked_cross_entropy
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -195,6 +196,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 attn_implementation=attn_implementation,
             )
 
+    @FirstRankPerNode()
     def configure_model(self):
         """
         Configure and initialize the Hugging Face model.
@@ -299,7 +301,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # TODO(@boxiangw): Refractor. Needed for SP support
         # If 'position_ids' does not exist in batch already then override it. batch in case of Packed sequence
         # contains 'position_ids' and we don't want to override it.
-        if not 'position_ids' in batch:
+        if 'position_ids' not in batch:
             batch["position_ids"] = torch.arange(0, batch['input_ids'].shape[1]).unsqueeze(0).to(self.model.device)
 
         batch = self._remove_extra_batch_keys(batch)
@@ -369,7 +371,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 logit_softcapping = 0
                 loss = fused_linear_cross_entropy(
                     hidden_states=hidden_states,
-                    lm_weight=lm_head,
+                    lm_weight=lm_head.full_tensor() if hasattr(lm_head, 'full_tensor') else lm_head,
                     labels=labels,
                     num_items_in_batch=num_items_in_batch,
                     logit_softcapping=logit_softcapping,
