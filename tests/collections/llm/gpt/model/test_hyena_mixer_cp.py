@@ -20,6 +20,7 @@ torchrun --nproc_per_node=2 tests/collections/llm/gpt/model/test_hyena_mixer_cp.
 import argparse
 import os
 from datetime import timedelta
+import time
 
 import torch
 import torch.distributed as dist
@@ -219,125 +220,133 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Initialize parallel state
+    # Initialize parallel state outside the try block
     local_rank = init_parallel_state(
         tensor_model_parallel_size=args.tensor_model_parallel_size,
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
         context_parallel_size=args.context_parallel_size,
     )
 
-    # Initialize the model parallel RNG
-    model_parallel_cuda_manual_seed(42)
+    try:
+        # Initialize the model parallel RNG
+        model_parallel_cuda_manual_seed(42)
 
-    # Your model initialization and other code here
-    hyena_config = HyenaConfig(num_groups_hyena=4096, num_groups_hyena_short=256, num_groups_hyena_medium=256)
-    hyena_test_config = HyenaTestConfig(params_dtype=torch.float32)
+        # Your model initialization and other code here
+        hyena_config = HyenaConfig(num_groups_hyena=4096, num_groups_hyena_short=256, num_groups_hyena_medium=256)
+        hyena_test_config = HyenaTestConfig(params_dtype=torch.float32)
 
-    batch_size = 2
-    seq_len = 512
-    b2b_conv1d = B2BConv1d(
-        hyena_config, hyena_test_config, seq_len=512, use_b2b_causal_conv1d=args.use_b2b_causal_conv1d
-    )
+        batch_size = 2
+        seq_len = 512
+        b2b_conv1d = B2BConv1d(
+            hyena_config, hyena_test_config, seq_len=512, use_b2b_causal_conv1d=args.use_b2b_causal_conv1d
+        )
 
-    # Print configuration
-    print(f"Rank {dist.get_rank()}: Using b2b_causal_conv1d: {args.use_b2b_causal_conv1d}")
+        # Print configuration
+        print(f"Rank {dist.get_rank()}: Using b2b_causal_conv1d: {args.use_b2b_causal_conv1d}")
 
-    ddp_b2b_conv1d = DDP(
-        b2b_conv1d,
-        process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-        find_unused_parameters=True,
-    )
+        ddp_b2b_conv1d = DDP(
+            b2b_conv1d,
+            process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+            find_unused_parameters=True,
+        )
 
-    input_features = torch.rand(
-        (batch_size, b2b_conv1d.mixer.hidden_size * 3, seq_len),
-        dtype=b2b_conv1d.mixer.transformer_config.params_dtype,
-        device=torch.cuda.current_device(),
-    )
+        input_features = torch.rand(
+            (batch_size, b2b_conv1d.mixer.hidden_size * 3, seq_len),
+            dtype=b2b_conv1d.mixer.transformer_config.params_dtype,
+            device=torch.cuda.current_device(),
+        )
 
-    # Broadcast within each group
-    cp_group = parallel_state.get_context_parallel_group()
-    dist.broadcast(input_features, min(dist.get_process_group_ranks(cp_group)), group=cp_group)
+        # Broadcast within each group
+        cp_group = parallel_state.get_context_parallel_group()
+        dist.broadcast(input_features, min(dist.get_process_group_ranks(cp_group)), group=cp_group)
 
-    print(f"Rank {dist.get_rank()}: Running without context parallel")
-    output_features = ddp_b2b_conv1d(input_features, _use_cp=False)
+        print(f"Rank {dist.get_rank()}: Running without context parallel")
+        output_features = ddp_b2b_conv1d(input_features, _use_cp=False)
 
-    if dist.get_rank() == 0:
-        assert output_features.shape == (
-            batch_size,
-            b2b_conv1d.mixer.hidden_size,
-            seq_len,
-        ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+        if dist.get_rank() == 0:
+            assert output_features.shape == (
+                batch_size,
+                b2b_conv1d.mixer.hidden_size,
+                seq_len,
+            ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
 
-    loss = output_features.float().mean()
-    loss.backward()
-    dist.barrier()
+        loss = output_features.float().mean()
+        loss.backward()
+        dist.barrier()
 
-    # Store the gradients for later comparison.
-    grads_without_cp = []
-    for n, p in ddp_b2b_conv1d.named_parameters():
-        if p.grad is not None:
-            grads_without_cp.append((n, p.grad.clone()))
+        # Store the gradients for later comparison.
+        grads_without_cp = []
+        for n, p in ddp_b2b_conv1d.named_parameters():
+            if p.grad is not None:
+                grads_without_cp.append((n, p.grad.clone()))
 
-    ddp_b2b_conv1d.zero_grad()
-    dist.barrier()
+        ddp_b2b_conv1d.zero_grad()
+        dist.barrier()
 
-    print(f"Rank {dist.get_rank()}: Running with context parallel")
-    # Split the input features across the context parallel group
-    input_features_cp = zigzag_split_across_group_ranks(input_features, group=cp_group, seq_dim=2)
+        print(f"Rank {dist.get_rank()}: Running with context parallel")
+        # Split the input features across the context parallel group
+        input_features_cp = zigzag_split_across_group_ranks(input_features, group=cp_group, seq_dim=2)
 
-    output_features_cp = ddp_b2b_conv1d(input_features_cp, _use_cp=True)
-    if dist.get_rank() == 0:
-        assert output_features_cp.shape == (
-            batch_size,
-            b2b_conv1d.mixer.hidden_size,
-            seq_len // parallel_state.get_context_parallel_world_size(),
-        ), f"output_features_cp.shape: {output_features_cp.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+        output_features_cp = ddp_b2b_conv1d(input_features_cp, _use_cp=True)
+        if dist.get_rank() == 0:
+            assert output_features_cp.shape == (
+                batch_size,
+                b2b_conv1d.mixer.hidden_size,
+                seq_len // parallel_state.get_context_parallel_world_size(),
+            ), f"output_features_cp.shape: {output_features_cp.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
 
-    # Gather from all ranks according to zigzag splitting.
-    output_features_cp_gathered = zigzag_gather_from_group_ranks(output_features_cp, group=cp_group, seq_dim=2)
-    if dist.get_rank() == 0:
-        # Verify shapes are correct
-        assert output_features_cp_gathered.shape == (
-            batch_size,
-            b2b_conv1d.mixer.hidden_size,
-            seq_len,
-        ), f"output_features_cp_gathered.shape: {output_features_cp_gathered.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+        # Gather from all ranks according to zigzag splitting.
+        output_features_cp_gathered = zigzag_gather_from_group_ranks(output_features_cp, group=cp_group, seq_dim=2)
+        if dist.get_rank() == 0:
+            # Verify shapes are correct
+            assert output_features_cp_gathered.shape == (
+                batch_size,
+                b2b_conv1d.mixer.hidden_size,
+                seq_len,
+            ), f"output_features_cp_gathered.shape: {output_features_cp_gathered.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
 
-    loss_with_cp = output_features_cp_gathered.float().mean()
-    loss_with_cp.backward()
-    dist.barrier()
+        loss_with_cp = output_features_cp_gathered.float().mean()
+        loss_with_cp.backward()
+        dist.barrier()
 
-    # Store the gradients for later comparison.
-    grads_with_cp = []
-    for n, p in ddp_b2b_conv1d.named_parameters():
-        if p.grad is not None:
-            grads_with_cp.append((n, p.grad.clone()))
+        # Store the gradients for later comparison.
+        grads_with_cp = []
+        for n, p in ddp_b2b_conv1d.named_parameters():
+            if p.grad is not None:
+                grads_with_cp.append((n, p.grad.clone()))
 
-    ddp_b2b_conv1d.zero_grad()
-    dist.barrier()
+        ddp_b2b_conv1d.zero_grad()
+        dist.barrier()
 
-    # Only perform comparison on rank 0
-    if dist.get_rank() == 0:
-        torch.testing.assert_close(loss, loss_with_cp)
-        torch.testing.assert_close(output_features, output_features_cp_gathered)
+        # Only perform comparison on rank 0
+        if dist.get_rank() == 0:
+            torch.testing.assert_close(loss, loss_with_cp)
+            torch.testing.assert_close(output_features, output_features_cp_gathered)
 
-        # Check gradients with and without CP.
-        assert len(grads_without_cp) == len(grads_with_cp)
+            # Check gradients with and without CP.
+            assert len(grads_without_cp) == len(grads_with_cp)
 
-        gradient_mismatch = False
-        for (n_without_cp, g_without_cp), (n_with_cp, g_with_cp) in zip(grads_without_cp, grads_with_cp):
-            try:
-                torch.testing.assert_close(g_without_cp, g_with_cp)
-            except AssertionError as e:
-                gradient_mismatch = True
-                print(f"Rank {dist.get_rank()}: Gradient mismatch for {n_without_cp}: {e}")
+            gradient_mismatch = False
+            for (n_without_cp, g_without_cp), (n_with_cp, g_with_cp) in zip(grads_without_cp, grads_with_cp):
+                try:
+                    torch.testing.assert_close(g_without_cp, g_with_cp)
+                except AssertionError as e:
+                    gradient_mismatch = True
+                    print(f"Rank {dist.get_rank()}: Gradient mismatch for {n_without_cp}: {e}")
 
-        if gradient_mismatch:
-            print(f"Rank {dist.get_rank()}: There were gradient mismatches!")
-        else:
-            print(f"Rank {dist.get_rank()}: All gradients matched successfully!")
+            if gradient_mismatch:
+                print(f"Rank {dist.get_rank()}: There were gradient mismatches!")
+            else:
+                print(f"Rank {dist.get_rank()}: All gradients matched successfully!")
 
-    # Clean up at the end
-    parallel_state.destroy_model_parallel()
-    if dist.is_initialized():
-        dist.destroy_process_group()
+    finally:
+        # Reset CUDA device
+        torch.cuda.empty_cache()
+
+        # Clean up any dangling context or process groups
+        parallel_state.destroy_model_parallel()
+        if dist.is_initialized():
+            dist.destroy_process_group()
+
+        # Force a small delay to ensure all cleanup is complete
+        time.sleep(1)
