@@ -810,7 +810,10 @@ def _transform_to_chat_message(source: dict):
     {"conversations": [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]}
 
     Output format:
-    {"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+    {
+      "messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."},
+                   {"role": "assistant", "content": "..."}]
+    }
     """
     messages = []
     for conv in source["conversations"]:
