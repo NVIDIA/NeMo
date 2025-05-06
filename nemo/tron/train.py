@@ -41,6 +41,7 @@ from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.init import destroy_global_state
+from nemo.tron.peft import PEFT
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import flop_utils
 from nemo.tron.utils.async_utils import maybe_finalize_async_save
@@ -66,6 +67,7 @@ def train(
     checkpointing_context: dict[str, Any],
     process_non_loss_data_func: Optional[Callable] = None,
     non_loss_data_func: Optional[Callable] = None,
+    peft: Optional[PEFT] = None,
 ) -> None:
     """Main training loop.
 
@@ -83,6 +85,7 @@ def train(
         checkpointing_context: Context dictionary for checkpointing.
         process_non_loss_data_func: Optional function to process non-loss data during evaluation.
         non_loss_data_func: Optional function to compute non-loss data during evaluation.
+        peft: Optional PEFT instance for parameter efficient fine-tuning. Used to selectively save adapter weights.
 
     Warnings:
         This is an experimental API and is subject to change in backwards
@@ -216,6 +219,7 @@ def train(
                     checkpointing_context,
                     non_persistent_ckpt=False,  # TODO: implement non-persistent checkpointing
                     train_data_iterator=train_data_iterator,
+                    peft=peft,
                 )
         num_microbatches = get_num_microbatches()
         update_num_microbatches(global_state.train_state.consumed_train_samples, consistency_check=True, verbose=True)
@@ -249,6 +253,7 @@ def train(
                 checkpointing_context,
                 train_data_iterator=train_data_iterator,
                 non_persistent_ckpt=False,  # TODO: implement non-persistent checkpointing
+                peft=peft,
             )
         if should_exit:
             break
@@ -707,6 +712,7 @@ def save_checkpoint_and_time(
     checkpointing_context: dict[str, Any],
     non_persistent_ckpt: bool = False,
     train_data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]] = None,
+    peft: Optional[PEFT] = None,
 ) -> None:
     """Saves a checkpoint and logs the timing.
 
@@ -724,6 +730,7 @@ def save_checkpoint_and_time(
         non_persistent_ckpt: Flag indicating if this is a non-persistent
                              (local) checkpoint. Defaults to False.
         train_data_iterator: Optional training data iterator to save its state.
+        peft: Optional PEFT instance for parameter efficient fine-tuning.
     """
     timers = state.timers
 
@@ -744,6 +751,7 @@ def save_checkpoint_and_time(
         checkpointing_context=checkpointing_context,
         non_persistent_ckpt=non_persistent_ckpt,
         train_data_iterator=train_data_iterator,
+        peft=peft,
     )
     if state.cfg.optimizer_config.use_distributed_optimizer and state.cfg.ddp_config.overlap_param_gather:
         enable_forward_pre_hook(model)
@@ -765,6 +773,7 @@ def checkpoint_and_decide_exit(
     num_floating_point_operations_so_far: float,
     checkpointing_context: dict[str, Any],
     train_data_iterator: Optional[Union[RerunDataIterator, list[RerunDataIterator]]],
+    peft: Optional[PEFT] = None,
 ) -> bool:
     """Handles checkpointing decisions and determines if training should exit.
 
@@ -780,6 +789,7 @@ def checkpoint_and_decide_exit(
         num_floating_point_operations_so_far: Cumulative TFLOPs up to this point.
         checkpointing_context: Dictionary holding checkpointing-related state.
         train_data_iterator: Optional training data iterator to save its state.
+        peft: Optional PEFT instance for parameter efficient fine-tuning.
 
     Returns:
         True if the training loop should exit, False otherwise.
@@ -799,6 +809,7 @@ def checkpoint_and_decide_exit(
                     num_floating_point_operations_so_far,
                     checkpointing_context,
                     train_data_iterator=train_data_iterator,
+                    peft=peft,
                 )
             barrier_and_log("exiting program after receiving SIGTERM.")
 
@@ -835,6 +846,7 @@ def checkpoint_and_decide_exit(
             checkpointing_context,
             non_persistent_ckpt=True,
             train_data_iterator=train_data_iterator,
+            peft=peft,
         )
         saved_checkpoint = True
 
@@ -856,6 +868,7 @@ def checkpoint_and_decide_exit(
                     num_floating_point_operations_so_far,
                     checkpointing_context,
                     train_data_iterator=train_data_iterator,
+                    peft=peft,
                 )
             barrier_and_log(f"exiting program after {train_time} minutes")
 
@@ -872,6 +885,7 @@ def checkpoint_and_decide_exit(
                 num_floating_point_operations_so_far,
                 checkpointing_context,
                 train_data_iterator=train_data_iterator,
+                peft=peft,
             )
         torch.distributed.barrier()
         barrier_and_log(f"exiting program at iteration {state.train_state.step}")
