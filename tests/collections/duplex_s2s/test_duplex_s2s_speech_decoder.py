@@ -5,6 +5,7 @@ from lhotse.testing.dummies import dummy_cut, dummy_recording
 
 from nemo.collections.duplex_s2s.data import DuplexS2SDataset
 from nemo.collections.duplex_s2s.models import DuplexS2SSpeechDecoderModel
+from nemo.collections.duplex_s2s.parts.testing import as_bfloat16
 
 
 @pytest.fixture(scope="session")
@@ -96,7 +97,7 @@ def training_cutset_batch():
 
 
 def test_s2s_speech_decoder_training_step(model, dataset, training_cutset_batch):
-    batch = dataset[training_cutset_batch]
+    batch = as_bfloat16(dataset[training_cutset_batch])
     results = model.training_step(batch, batch_idx=0)
     assert torch.is_tensor(results["loss"])
     assert not torch.isnan(results["loss"])

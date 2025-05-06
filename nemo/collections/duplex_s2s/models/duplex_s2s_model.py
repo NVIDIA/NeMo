@@ -57,13 +57,9 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         self.save_hyperparameters()
         self.cfg = DictConfig(cfg)
 
-        self.audio_codec = (
-            load_pretrained_nemo(
-                AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
-            )
-            .to(torch.bfloat16)
-            .eval()
-        )
+        self.audio_codec = load_pretrained_nemo(
+            AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
+        ).eval()
         del self.audio_codec.discriminator  # free up some memory
         self._codebook_size = self.audio_codec.vector_quantizer.codebook_size_per_group
         self._num_codebooks = self.audio_codec.vector_quantizer.num_groups
@@ -73,11 +69,9 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         # However, for S2S we need to access the activations before LM head directly
         # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
-        llm = (
-            load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)
-            .to(torch.bfloat16)
-            .train()
-        )
+        llm = load_pretrained_hf(
+            self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights, dtype=torch.bfloat16
+        ).train()
         self.llm = llm.model  # fetch PretrainedBaseModel from model "ForCausalLM"
         self.lm_head = llm.lm_head
         # Note: we have to "move out" the token embedding outside of LLM to avoid

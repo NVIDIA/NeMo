@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import torch
 from peft import PeftModel
 from transformers import AutoConfig, AutoModelForCausalLM
 
@@ -53,7 +54,7 @@ def _instantiate_nemo_from_config(cls, config):
             os.chdir(cwd)
 
 
-def load_pretrained_hf(model_path_or_name: str, pretrained_weights: bool = True):
+def load_pretrained_hf(model_path_or_name: str, pretrained_weights: bool = True, dtype=torch.float32):
     """
     Load pretrained HuggingFace AutoModelForCausalLM.
 
@@ -61,10 +62,10 @@ def load_pretrained_hf(model_path_or_name: str, pretrained_weights: bool = True)
     but is randomly initialized.
     """
     if pretrained_weights:
-        return AutoModelForCausalLM.from_pretrained(model_path_or_name)
+        return AutoModelForCausalLM.from_pretrained(model_path_or_name, torch_dtype=dtype)
     else:
         config = AutoConfig.from_pretrained(model_path_or_name)
-        return AutoModelForCausalLM.from_config(config)
+        return AutoModelForCausalLM.from_config(config, torch_dtype=dtype)
 
 
 @contextmanager
