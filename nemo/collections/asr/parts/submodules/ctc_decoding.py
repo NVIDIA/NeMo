@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 import copy
+import re
 import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
@@ -673,9 +673,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
             char_offsets[i]["char"] = self.decode_tokens_to_str([char])
 
         encoded_char_offsets, char_offsets = self._refine_timestamps(
-            encoded_char_offsets=encoded_char_offsets, 
+            encoded_char_offsets=encoded_char_offsets,
             char_offsets=char_offsets,
-            supported_punctuation=self.supported_punctuation)
+            supported_punctuation=self.supported_punctuation,
+        )
 
         # retrieve word offsets from character offsets
         word_offsets = None
@@ -762,8 +763,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
     @staticmethod
     def _refine_timestamps(
         encoded_char_offsets: List[Dict[str, Union[str, int]]],
-        char_offsets: List[Dict[str, Union[str, int]]], 
-        supported_punctuation: Optional[Set] = None
+        char_offsets: List[Dict[str, Union[str, int]]],
+        supported_punctuation: Optional[Set] = None,
     ) -> List[Dict[str, Union[str, int]]]:
 
         if not supported_punctuation:
@@ -772,7 +773,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         for i, offset in enumerate(char_offsets):
             # Check if token is a punctuation mark
             # If so, set its end offset as its start offset
-            # This is done because there was observed a behaviour for CTC decoding, 
+            # This is done because there was observed a behaviour for CTC decoding,
             # when punctuation marks are predicted for long frames
             if offset['char'] and offset['char'][0] in supported_punctuation and i > 0:
                 encoded_char_offsets[i]['end_offset'] = offset['end_offset'] = offset['start_offset']
@@ -1459,7 +1460,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         word_offsets = []
         previous_token_index = 0
 
-        # Built tokens should be list here as when dealing with wpe tokenizer, 
+        # Built tokens should be list here as when dealing with wpe tokenizer,
         # ids should be decoded together to ensure tokens starting with ## are not split
         built_tokens = []
 

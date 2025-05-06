@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 import os
-from functools import lru_cache, cached_property
+import re
+from functools import cached_property, lru_cache
 
 import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
-from nemo.collections.asr.models import ASRModel
 
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules.ctc_decoding import (
     CTCBPEDecoding,
@@ -31,6 +31,7 @@ from nemo.collections.asr.parts.submodules.ctc_decoding import (
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from tests.collections.asr.decoding.test_timestamps import BaseTimestampsTest
+
 
 def char_vocabulary():
     return [' ', 'a', 'b', 'c', 'd', 'e', 'f', '.']
@@ -355,5 +356,3 @@ class TestCTCTimestamps(BaseTimestampsTest):
     def test_word_offsets_subword_wpe_other_delimiter(self, tmp_tokenizer):
         self.tmp_tokenizer = tmp_tokenizer
         super().test_word_offsets_subword_wpe_other_delimiter()
-
-    
