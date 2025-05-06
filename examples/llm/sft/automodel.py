@@ -135,9 +135,6 @@ def make_strategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'fsdp2':
-        print(
-            f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}"
-        )
 
         offload_policy = None
         if enable_cpu_offload:
@@ -145,10 +142,12 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-            assert (
-                dp_size * tp_size * cp_size == devices * num_nodes
-            ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+
+        assert (
+            dp_size * tp_size * cp_size == devices * num_nodes
+        ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
         print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
+
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
@@ -194,11 +193,11 @@ def main():
         choices=['auto', 'ddp', 'fsdp2'],
         help='Training strategy e.g. ddp/fsdp2/single-gpu',
     )
-    parser.add_argument('--devices', type=int, default=2, help='Number of GPUs to use')
+    parser.add_argument('--devices', type=int, default=8, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
-    parser.add_argument('--dp-size', type=int, default=2, help='Data Parallel size; to be used with fsdp2')
+    parser.add_argument('--dp-size', type=int, default=4, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=1, help='Tensor Parallel size; to be used with fsdp2')
-    parser.add_argument('--cp-size', type=int, default=1, help='Context Parallel size; to be used with fsdp2')
+    parser.add_argument('--cp-size', type=int, default=2, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument(
         '--sequence-parallel',
         action='store_true',

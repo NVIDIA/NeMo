@@ -19,6 +19,7 @@ import _io
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
+from torch.distributed.device_mesh import _mesh_resources
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from nemo.automodel.dist_utils import FirstRankPerNode
@@ -438,7 +439,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = device_mesh[
                     (
                         "dp_cp"
-                        if device_mesh.mesh_dim_names is not None and "dp_cp" in device_mesh.mesh_dim_names
+                        if "dp_cp" in _mesh_resources.root_to_flatten_mapping[device_mesh]
                         else "data_parallel"
                     )
                 ].get_group()
