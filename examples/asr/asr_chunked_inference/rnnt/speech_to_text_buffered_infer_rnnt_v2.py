@@ -334,6 +334,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 buffer = torch.cat((buffer, audio_batch[:, left_sample:right_sample]), dim=1)
                 added_samples = min(right_sample, audio_batch.shape[1]) - left_sample
                 is_last_chunk = right_sample >= audio_batch.shape[1]
+                # TODO: is_last_chunk as tensor?
                 current_audio_chunk_len = torch.minimum(
                     rest_audio_lengths, torch.full_like(rest_audio_lengths, fill_value=added_samples)
                 )
