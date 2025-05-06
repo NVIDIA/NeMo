@@ -38,7 +38,7 @@ from nemo.utils.callbacks.dist_ckpt_io import (
     AsyncFinalizerCallback,
     DistributedCheckpointIO,
 )
-
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 
 class MegatronTrainerBuilder:
     """
@@ -227,6 +227,7 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
     def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
+        callbacks.extend(CallbackGroup.get_instance().callbacks)
         callbacks = self._callbacks(callbacks)
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 

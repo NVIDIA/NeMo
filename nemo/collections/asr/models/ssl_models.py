@@ -42,6 +42,7 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 
 __all__ = ['SpeechEncDecSelfSupervisedModel', 'EncDecMaskedTokenPredModel', 'EncDecDenoiseMaskedTokenPredModel']
 
@@ -245,6 +246,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
+        CallbackGroup.get_instance().on_dataloader_init_start()
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
 
@@ -274,6 +276,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                     "Model Trainer was not set before constructing the dataset, incorrect number of "
                     "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
+        CallbackGroup.get_instance().on_dataloader_init_end()
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         """

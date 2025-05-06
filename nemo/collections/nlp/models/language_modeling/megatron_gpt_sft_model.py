@@ -68,7 +68,7 @@ except (ImportError, ModuleNotFoundError):
         get_num_microbatches,
     )
 
-
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 __all__ = ['MegatronGPTSFTModel']
 
 
@@ -877,6 +877,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         )
 
     def setup_training_dataloader(self):
+        CallbackGroup.get_instance().on_dataloader_init_start()
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
             self._train_dl = self.build_data_loader(
@@ -884,6 +885,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 data_cfg=self.cfg.data.train_ds,
                 consumed_samples=consumed_samples,
             )
+        CallbackGroup.get_instance().on_dataloader_init_end()
 
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
