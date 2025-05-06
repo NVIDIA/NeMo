@@ -372,6 +372,7 @@ class SALM(LightningModule, HFHubMixin):
         return configure_optimizers(self)
 
     def configure_model(self) -> None:
+        # TODO(pzelasko): refactor into separate module re-usable across models
         device_mesh = self.device_mesh
         if device_mesh is None:
             return

@@ -481,11 +481,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         return configure_optimizers(self)
 
     def configure_model(self) -> None:
-        '''
-        Only test data_parallel > 1, which can train 8B LLaMA-3
-        Add FSDP for self.speech_generation
-        TODO: To support larger model, need tp modify tensor_parallel
-        '''
+        # TODO(pzelasko): refactor into separate module re-usable across models
         device_mesh = self.device_mesh
         if device_mesh is None:
             return
