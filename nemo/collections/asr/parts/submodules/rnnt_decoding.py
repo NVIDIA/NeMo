@@ -945,7 +945,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             max_len = max(len(c) for c in tokens)
             lens.append(max_len)
 
-
         # retrieve word offsets from character offsets
         word_offsets = None
         if timestamp_type in ['word', 'segment', 'all']:
@@ -1484,7 +1483,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
                 curr_punctuation = supported_punctuation and char.strip() in supported_punctuation
 
-                # If current character is a punctuation, 
+                # If current character is a punctuation,
                 # we add it to the last formed word after removing uts last space (if it exists)
                 # If there is already a word being formed, we add the punctuation to it by removing existent space at the end of the word.
 
@@ -1502,7 +1501,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
                         last_built_word['word'] += char
 
                     continue
-                    
+
                 if state == last_state and state != "DELIMITER":
                     # If we are in the same state as before, we simply repeat what we've done before
                     end_offset = offset["end_offset"]
@@ -1891,7 +1890,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         word_offsets = []
         previous_token_index = 0
 
-        # Built tokens should be list here as when dealing with wpe tokenizer, 
+        # Built tokens should be list here as when dealing with wpe tokenizer,
         # ids should be decoded together to ensure tokens starting with ## are not split
         built_tokens = []
 
@@ -1903,7 +1902,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             for char in offset['char']:
                 if char == self.blank_id:
                     continue
-                    
+
                 char = int(char)
                 # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
                 token = self.decode_ids_to_tokens([char])[0]

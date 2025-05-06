@@ -13,8 +13,12 @@
 # limitations under the License.
 
 import os
+<<<<<<< HEAD
 import copy
 from functools import lru_cache, cached_property
+=======
+from functools import cached_property, lru_cache
+>>>>>>> e5a0ff0befd2c1e99dd4fb9e4017a95510696231
 from pathlib import Path
 from typing import Optional
 
@@ -533,16 +537,21 @@ class TestRNNTDecoding:
         beam_config["ngram_lm_model"] = kenlm_model_path
         check_beam_decoding(test_data_dir, beam_config)
 
-    
+
 class TestRNNTTimestamps(BaseTimestampsTest):
     """RNNT-specific timestamp tests that inherit from BaseTimestampsTest"""
 
     def _convert_offsets(self, offsets):
+<<<<<<< HEAD
+=======
+        import copy
+
+>>>>>>> e5a0ff0befd2c1e99dd4fb9e4017a95510696231
         result = copy.deepcopy(offsets)
         for offset in result:
             offset['char'] = [offset['char']]
         return result
-    
+
     @property
     def char_offsets_chars(self):
         return self._convert_offsets(super().char_offsets_chars)
@@ -592,6 +601,3 @@ class TestRNNTTimestamps(BaseTimestampsTest):
     def test_word_offsets_subword_wpe_other_delimiter(self, tmp_tokenizer):
         self.tmp_tokenizer = tmp_tokenizer
         super().test_word_offsets_subword_wpe_other_delimiter()
-
-
-    

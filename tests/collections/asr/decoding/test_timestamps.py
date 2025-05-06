@@ -24,6 +24,7 @@ class BaseTimestampsTest:
     This class defines common test methods that can be inherited by both
     test_ctc_decoding.py and test_rnnt_decoding.py.
     """
+
     @property
     def char_offsets_chars(self):
         char_offsets = [
@@ -74,7 +75,7 @@ class BaseTimestampsTest:
             {'segment': 'e e.', 'start_offset': 0, 'end_offset': 7},
             {'segment': 'e?', 'start_offset': 10, 'end_offset': 15},
         ]
-    
+
     @property
     def char_offsets_wpe(self):
         char_offsets = [
@@ -132,7 +133,7 @@ class BaseTimestampsTest:
             {'word': "discuss absolute'", 'start_offset': 0, 'end_offset': 5},
             {'word': "friendship", 'start_offset': 6, 'end_offset': 9},
         ]
-    
+
     @staticmethod
     def check_char_timestamps(hyp: Hypothesis, decoding: Any):
         """Test character-level timestamps for both CTC and RNNT"""
@@ -187,14 +188,14 @@ class BaseTimestampsTest:
         assert len(chars) == len(all_chars)
 
         hypothesis_text = re.sub(r'\s+', ' ', hyp.text.strip())
-        
+
         words_from_timestamps = [ts['word'] for ts in hyp.timestamp['word']]
         assert hypothesis_text == decoding.word_seperator.join(words_from_timestamps)
 
         segments_count = sum([hyp.text.count(seperator) for seperator in decoding.segment_seperators])
         if hyp.text[-1] not in decoding.segment_seperators:
             segments_count += 1
-        
+
         if hyp.text in decoding.segment_seperators:
             segments_count = 0
 
@@ -203,46 +204,42 @@ class BaseTimestampsTest:
         segments_from_timestamps = [ts['segment'] for ts in hyp.timestamp['segment']]
         assert hypothesis_text == decoding.word_seperator.join(segments_from_timestamps)
 
-
     def test_word_offsets_chars(self):
         word_offsets = self.decoding_char.get_words_offsets(
             char_offsets=self.char_offsets_chars,
             encoded_char_offsets=None,
             word_delimiter_char=" ",
-            supported_punctuation={'.', '!', '?'}
+            supported_punctuation={'.', '!', '?'},
         )
 
         assert word_offsets == self.word_offsets_chars_expected_output
-
 
     def test_word_offsets_char_other_delimiter(self):
         word_offsets = self.decoding_char.get_words_offsets(
             char_offsets=self.char_offsets_chars,
             encoded_char_offsets=None,
             word_delimiter_char=".",
-            supported_punctuation={'.', '!', '?'}
+            supported_punctuation={'.', '!', '?'},
         )
 
         assert word_offsets == self.word_offsets_chars_expected_output_other_delimiter
-
 
     def test_word_offsets_subword_wpe(self):
         word_offsets = self.decoding_subword_wpe.get_words_offsets(
             char_offsets=None,
             encoded_char_offsets=self.char_offsets_wpe,
             word_delimiter_char=" ",
-            supported_punctuation={'.', '!', '?'}
+            supported_punctuation={'.', '!', '?'},
         )
 
         assert word_offsets == self.word_offsets_wpe_expected_output
-
 
     def test_word_offsets_subword_wpe_other_delimiter(self):
         word_offsets = self.decoding_subword_wpe.get_words_offsets(
             char_offsets=None,
             encoded_char_offsets=self.char_offsets_wpe,
             word_delimiter_char="re",
-            supported_punctuation={'.', '!', '?'}
+            supported_punctuation={'.', '!', '?'},
         )
 
         assert word_offsets == self.word_offsets_wpe_expected_output_other_delimiter
@@ -252,18 +249,17 @@ class BaseTimestampsTest:
             char_offsets=None,
             encoded_char_offsets=self.char_offsets_bpe,
             word_delimiter_char=" ",
-            supported_punctuation={'.', '!', '?'}
+            supported_punctuation={'.', '!', '?'},
         )
 
         assert word_offsets == self.word_offsets_bpe_expected_output
-
 
     def test_word_offsets_subword_bpe_other_delimiter(self):
         word_offsets = self.decoding_subword_bpe.get_words_offsets(
             char_offsets=None,
             encoded_char_offsets=self.char_offsets_bpe,
             word_delimiter_char="really",
-            supported_punctuation={'.', '!', '?'}
+            supported_punctuation={'.', '!', '?'},
         )
 
         assert word_offsets == self.word_offsets_bpe_expected_output_other_delimiter
@@ -272,7 +268,7 @@ class BaseTimestampsTest:
         segment_offsets = self.decoding_char._get_segment_offsets(
             offsets=self.word_offsets_chars_expected_output,
             segment_delimiter_tokens=['.', '!', '?'],
-            supported_punctuation={'.', '!', '?'}
+            supported_punctuation={'.', '!', '?'},
         )
 
         assert segment_offsets == self.segment_offsets_expected_output
@@ -282,7 +278,7 @@ class BaseTimestampsTest:
             offsets=self.word_offsets_chars_expected_output,
             segment_delimiter_tokens=[],
             supported_punctuation={},
-            segment_gap_threshold=10
+            segment_gap_threshold=10,
         )
 
         assert segment_offsets == self.segment_offsets_expected_output_gap
