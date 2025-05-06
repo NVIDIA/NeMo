@@ -32,13 +32,14 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPFSDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import (
     AsyncFinalizableCheckpointIO,
     AsyncFinalizerCallback,
     DistributedCheckpointIO,
 )
-from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
+
 
 class MegatronTrainerBuilder:
     """

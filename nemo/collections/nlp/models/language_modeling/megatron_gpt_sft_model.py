@@ -69,6 +69,7 @@ except (ImportError, ModuleNotFoundError):
     )
 
 from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
+
 __all__ = ['MegatronGPTSFTModel']
 
 
