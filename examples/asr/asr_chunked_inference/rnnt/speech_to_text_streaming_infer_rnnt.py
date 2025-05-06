@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,49 +13,36 @@
 # limitations under the License.
 
 """
-Script to perform buffered inference using RNNT models.
+Script to perform buffered and streaming inference using RNNT models.
 
 Buffered inference is the primary form of audio transcription when the audio segment is longer than 20-30 seconds.
+Also, this is a demonstration of the algorithm that can be used for streaming inference with low latency.
 This is especially useful for models such as Conformers, which have quadratic time and memory scaling with
 audio duration.
 
 The difference between streaming and buffered inference is the chunk size (or the latency of inference).
-Buffered inference will use large chunk sizes (5-10 seconds) + some additional buffer for context.
-Streaming inference will use small chunk sizes (0.1 to 0.25 seconds) + some additional buffer for context.
+Buffered inference will use large chunk sizes (5-10 seconds) + some additional right for context.
+Streaming inference will use small chunk sizes (0.1 to 0.25 seconds) + some additional right buffer for context.
+Theoretical latency (latency without model inference time) is the sum of the chunk size and the right context.
+Keeping large left context (~10s) is not required, but can improve the quality of transcriptions.
 
-# Middle Token merge algorithm
+Example usage:
 
-python speech_to_text_buffered_infer_rnnt.py \
-    model_path=null \
+```shell
+python speech_to_text_streaming_infer_rnnt.py \
+    model_path=nvidia/parakeet-rnnt-1.1b \
     pretrained_name=null \
     audio_dir="<remove or path to folder of audio files>" \
     dataset_manifest="<remove or path to manifest>" \
     output_filename="<remove or specify output filename>" \
-    total_buffer_in_secs=4.0 \
-    chunk_len_in_secs=1.6 \
-    model_stride=4 \
+    right_context_secs=2.0 \
+    chunk_len_in_secs=2 \
+    left_context_secs=10.0 \
+    model_stride=8 \
     batch_size=32 \
     clean_groundtruth_text=True \
     langid='en'
-
-# Longer Common Subsequence (LCS) Merge algorithm
-
-python speech_to_text_buffered_infer_rnnt.py \
-    model_path=null \
-    pretrained_name=null \
-    audio_dir="<remove or path to folder of audio files>" \
-    dataset_manifest="<remove or path to manifest>" \
-    output_filename="<remove or specify output filename>" \
-    total_buffer_in_secs=4.0 \
-    chunk_len_in_secs=1.6 \
-    model_stride=4 \
-    batch_size=32 \
-    merge_algo="lcs" \
-    lcs_alignment_dir=<OPTIONAL: Some path to store the LCS alignments> 
-
-# NOTE:
-    You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the
-    predictions of the model, and ground-truth text if presents in manifest.
+```
 """
 import copy
 import glob
