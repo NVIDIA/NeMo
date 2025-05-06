@@ -205,7 +205,8 @@ def finetune(
             optimizer from the model will be used.
         peft (Optional[PEFT]): A PEFT (Parameter-Efficient Fine-Tuning) configuration to be applied.
         tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
-            or an instance of TokenizerSpec.
+            or an instance of TokenizerSpec. If 'data' uses the data loader's tokenizer (useful if data loader
+            uses a separate tokenizer from model).
 
     Returns:
         Path: The directory path where finetuning artifacts are saved.
