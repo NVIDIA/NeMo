@@ -119,8 +119,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         codec = AudioCodecModel.restore_from(codecmodel_path, strict=False)
         codec = codec.to(device)
         codec.eval()
-        num_codebooks = codec.num_codebooks
-        codec_feature_dim = num_codebooks * codec.vector_quantizer.codebook_dim_per_group # only works for Group FSQ quantizers
+        codec_feature_dim = codec.vector_quantizer.codebook_dim
         fcd_metric = FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim).to(device)
     else:
         print("No codec model provided, skipping FCD metric")
