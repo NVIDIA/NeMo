@@ -13,11 +13,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union
+from typing import Optional
 
-import torch
 import torch.nn as nn
-from megatron.core import parallel_state
 from megatron.core.transformer.module import MegatronModule
 
 from nemo.collections.llm.fn.base import walk

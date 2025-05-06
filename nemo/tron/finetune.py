@@ -18,15 +18,6 @@ from functools import partial
 from typing import Callable, Optional
 
 import torch
-from megatron.core.distributed import (
-    DistributedDataParallel,
-    DistributedDataParallelConfig,
-    finalize_model_grads,
-)
-from megatron.core.optimizer import MegatronOptimizer
-from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
-from megatron.core.rerun_state_machine import RerunDataIterator
-from megatron.core.transformer import MegatronModule
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint, save_checkpoint
@@ -85,30 +76,30 @@ def megatron_peft(
         dataset_provider = get_dataset_provider(config.dataset_config)
 
     state = GlobalState()
-    state.cfg = cfg
+    state.cfg = config
     # TODO: Freeze state.cfg
 
     setup_logging(
-        logging_level=cfg.logger_config.logging_level,
-        filter_warning=cfg.logger_config.filter_warnings,
-        modules_to_filter=cfg.logger_config.modules_to_filter,
-        set_level_for_all_loggers=cfg.logger_config.set_level_for_all_loggers,
+        logging_level=config.logger_config.logging_level,
+        filter_warning=config.logger_config.filter_warnings,
+        modules_to_filter=config.logger_config.modules_to_filter,
+        set_level_for_all_loggers=config.logger_config.set_level_for_all_loggers,
     )
 
     # Initalize and get arguments, timers, and Tensorboard writer.
-    initialize_megatron(cfg=cfg)
+    initialize_megatron(cfg=config)
 
     timers = state.timers
 
-    if cfg.logger_config.log_progress:
-        append_to_progress_log(cfg.checkpoint_config.save, "Starting job")
+    if config.logger_config.log_progress:
+        append_to_progress_log(config.checkpoint_config.save, "Starting job")
 
-    if cfg.ft_config and cfg.ft_config.enable_ft_package:
-        fault_tolerance.setup(cfg, state)
-        fault_tolerance.maybe_setup_simulated_fault(cfg.ft_config)
+    if config.ft_config and config.ft_config.enable_ft_package:
+        fault_tolerance.setup(config, state)
+        fault_tolerance.maybe_setup_simulated_fault(config.ft_config)
 
     # Set pytorch JIT layer fusion options and warmup JIT functions.
-    set_jit_fusion_options(cfg.model_config, cfg.train_config.micro_batch_size)
+    set_jit_fusion_options(config.model_config, config.train_config.micro_batch_size)
 
     # Adjust the startup time so it reflects the largest value.
     # This will be closer to what scheduler will see (outside of
@@ -121,24 +112,24 @@ def megatron_peft(
     barrier_and_log("after megatron is initialized")
 
     # Context used for persisting some state between checkpoint saves.
-    checkpointing_context = _init_checkpointing_context(cfg.checkpoint_config)
+    ckpt_context = _init_checkpointing_context(config.checkpoint_config)
 
     # Tokenizer
     timers("tokenizer-setup", log_level=0).start(barrier=True)
     tokenizer = build_tokenizer(
-        cfg.tokenizer_config,
-        make_vocab_size_divisible_by=cfg.model_config.make_vocab_size_divisible_by,
-        tensor_model_parallel_size=cfg.model_config.tensor_model_parallel_size,
+        config.tokenizer_config,
+        make_vocab_size_divisible_by=config.model_config.make_vocab_size_divisible_by,
+        tensor_model_parallel_size=config.model_config.tensor_model_parallel_size,
     )
-    if not cfg.model_config.vocab_size:
-        cfg.model_config.vocab_size = tokenizer.vocab_size
+    if not config.model_config.vocab_size:
+        config.model_config.vocab_size = tokenizer.vocab_size
 
-    cfg.dataset_config.tokenizer = tokenizer
+    config.dataset_config.tokenizer = tokenizer
     timers("tokenizer-setup").stop()
     barrier_and_log("after tokenizer is built")
 
     # Load base model from pretrained checkpoint
-    model = get_base_model(cfg.model_config)
+    model = get_base_model(config.model_config)
     timers("load-base-checkpoint", log_level=0).start(barrier=True)
     load_checkpoint(
         state,
@@ -156,25 +147,25 @@ def megatron_peft(
     model = peft(model)
     model = get_distributed_model(
         model,
-        cfg.ddp_config,
-        use_torch_fsdp2=cfg.dist_config.use_torch_fsdp2,
-        overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
-        data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
+        config.ddp_config,
+        use_torch_fsdp2=config.dist_config.use_torch_fsdp2,
+        overlap_param_gather_with_optimizer_step=config.optimizer_config.overlap_param_gather_with_optimizer_step,
+        data_parallel_random_init=config.rng_config.data_parallel_random_init,
     )
-    cfg.model_config.timers = timers
-    cfg.optimizer_config.timers = timers
+    config.model_config.timers = timers
+    config.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(
-        optimizer_config=cfg.optimizer_config,
-        scheduler_config=cfg.scheduler_config,
+        optimizer_config=config.optimizer_config,
+        scheduler_config=config.scheduler_config,
         model=model,
-        use_gloo_process_groups=cfg.dist_config.use_gloo_process_groups,
+        use_gloo_process_groups=config.dist_config.use_gloo_process_groups,
     )
     _update_model_config_funcs(
         model,
-        cfg.model_config,
-        cfg.ddp_config,
+        config.model_config,
+        config.ddp_config,
         optimizer,
-        align_grad_reduce=cfg.dist_config.align_grad_reduce,
+        align_grad_reduce=config.dist_config.align_grad_reduce,
     )
     timers("model-and-optimizer-setup").stop()
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
@@ -183,14 +174,14 @@ def megatron_peft(
 
     # Data stuff.
     timers("train/valid/test-data-iterators-setup", log_level=0).start(barrier=True)
-    if "tokenizer" in inspect.signature(train_valid_test_datasets_provider).parameters:
-        train_valid_test_datasets_provider = partial(train_valid_test_datasets_provider, tokenizer=tokenizer)
+    if "tokenizer" in inspect.signature(dataset_provider).parameters:
+        dataset_provider = partial(dataset_provider, tokenizer=tokenizer)
 
     train_data_iterator, valid_data_iterator, test_data_iterator = setup_data_iterators(
-        cfg=cfg,
+        cfg=config,
         train_state=state.train_state,
         model_length=len(model),
-        train_valid_test_datasets_provider=train_valid_test_datasets_provider,
+        train_valid_test_datasets_provider=dataset_provider,
     )
     timers("train/valid/test-data-iterators-setup").stop()
     barrier_and_log("after dataloaders are built")
