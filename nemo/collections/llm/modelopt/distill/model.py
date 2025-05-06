@@ -36,9 +36,10 @@ mtd, HAVE_MODELOPT = safe_import("modelopt.torch.distill")
 class _DistillationLossReduction(MaskedTokenLossReduction):
     """Custom masking and reduction callable used only in training mode."""
 
-    def __init__(self, distillation_loss_fn, *args, **kwargs):
+    def __init__(self, distillation_loss_fn, ptl_logger_fn, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._distillation_loss_fn = distillation_loss_fn
+        self._ptl_logger_fn = ptl_logger_fn
         self._cp_size = parallel_state.get_context_parallel_world_size()
         self._tp_size = parallel_state.get_tensor_model_parallel_world_size()
 
@@ -61,13 +62,13 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
         losses_averaged = average_losses_across_data_parallel_group(
             [losses["kd_loss"], losses["logits_loss"], losses["intermediate_loss"]]
         )
-        report = {
-            "avg": losses_averaged[0:1],  # preserves shape for downstream ops like concatenation
-            "logits distillation loss": losses_averaged[1:2],
-            "intermediate distillation loss": losses_averaged[2:3],
-        }
 
-        return losses["kd_loss"], report
+        # Log the separated KD losses.
+        report = {"kd_logits_train_loss": losses_averaged[1], "kd_intermediate_train_loss": losses_averaged[2]}
+        self._ptl_logger_fn(report, rank_zero_only=True, batch_size=1, sync_dist=False)
+
+        loss_for_ub, reduced_loss = losses["kd_loss"], losses_averaged[0:1]  # maintains tensor shape
+        return loss_for_ub, reduced_loss
 
     def _masked_token_loss(self, loss_output: Tensor, mask: Tensor):
         """The function takes as input per-token loss and masks non-required values."""
@@ -190,7 +191,8 @@ class DistillationGPTModel(llm.GPTModel):
     def training_loss_reduction(self) -> _DistillationLossReduction:
         if not self._training_loss_reduction:
             self._training_loss_reduction = _DistillationLossReduction(
-                distillation_loss_fn=self.core_module.compute_kd_loss
+                distillation_loss_fn=self.core_module.compute_kd_loss,
+                ptl_logger_fn=self.log_dict,
             )
         return self._training_loss_reduction
 
