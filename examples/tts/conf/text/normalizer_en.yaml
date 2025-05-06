@@ -1,3 +1,0 @@
-_target_: nemo_text_processing.text_normalization.normalize.Normalizer
-lang: en
-input_case: cased

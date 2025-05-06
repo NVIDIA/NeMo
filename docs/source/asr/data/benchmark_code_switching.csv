@@ -1,3 +1,0 @@
-Model,Language
-`stt_enes_conformer_ctc_large_codesw <https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_enes_conformer_ctc_large_codesw>`_,"English, Spanish"
-`stt_enes_conformer_transducer_large_codesw <https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_enes_conformer_transducer_large_codesw>`_,"English, Spanish"

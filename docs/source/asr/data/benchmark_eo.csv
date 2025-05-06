@@ -1,3 +1,0 @@
-Model,Model Base Class
-`stt_eo_conformer_transducer_large <https://huggingface.co/nvidia/stt_eo_conformer_transducer_large>`_,EncDecRNNTBPEModel
-`stt_eo_conformer_ctc_large <https://huggingface.co/nvidia/stt_eo_conformer_ctc_large>`_,EncDecCTCModelBPE
