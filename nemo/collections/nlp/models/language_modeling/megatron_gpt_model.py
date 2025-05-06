@@ -16,6 +16,7 @@ import itertools
 import os
 import queue
 import warnings
+from contextlib import nullcontext
 from functools import cache, partial
 from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -71,7 +72,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
-from nemo.utils.te_utils import is_float8tensor
+from nemo.utils.te_utils import is_float8tensor, te_version
 
 try:
     from megatron.core import InferenceParams, parallel_state
@@ -426,12 +427,27 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
             )
         else:
-            self.model = build_model(
-                model_provider_func=self.model_provider_func,
-                wrap_with_ddp=False,
-                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
-                on_cpu=cfg.get('use_cpu_initialization', False),
-            )
+            build_model_context = nullcontext
+            if self.mcore_gpt:
+                # MCoreGPTModel already supports per-layer fp8 initialization, so no need to
+                # wrap the whole model with context
+                build_model_context = nullcontext
+            elif HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
+                if te_version() >= (2, 0):
+                    recipe = transformer_engine.common.recipe.DelayedScaling()
+                    build_model_context = partial(
+                        transformer_engine.pytorch.fp8_model_init,
+                        recipe=recipe,
+                    )
+                else:
+                    build_model_context = transformer_engine.pytorch.fp8_model_init
+            with build_model_context():
+                self.model = build_model(
+                    model_provider_func=self.model_provider_func,
+                    wrap_with_ddp=False,
+                    virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                    on_cpu=cfg.get('use_cpu_initialization', False),
+                )
 
         # if we're not using interleaved, then self.model is a module.
         if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None and (not self.use_mcore_dist_optim):
