@@ -16,11 +16,13 @@ from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple
 
 import torch
 from megatron.core import parallel_state
+from megatron.core.transformer import TransformerConfig
 from torch import Tensor, nn
 
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
+from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
 
@@ -49,22 +51,20 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
 
         # Calculate original LM loss if desired for aggregate loss.
         # (Will be zeros if distillation config enables skipping LM loss)
-        lm_loss = self._masked_token_loss(forward_out, batch["loss_mask"], batch.get("num_valid_tokens_in_ub"))
+        lm_loss = self._masked_token_loss(forward_out, batch["loss_mask"])
 
         # [ModelOpt]: KD loss calculation.
         losses = self._distillation_loss_fn(
             student_loss=lm_loss,
-            loss_reduction_fn=lambda x: self._masked_token_loss(
-                x, batch["loss_mask"], batch.get("num_valid_tokens_in_ub")
-            ),
+            loss_reduction_fn=lambda x: self._masked_token_loss(x, batch["loss_mask"]),
         )
         losses_averaged = average_losses_across_data_parallel_group(
             [losses["kd_loss"], losses["logits_loss"], losses["intermediate_loss"]]
         )
         report = {
             "avg": losses_averaged[0:1],  # preserves shape for downstream ops like concatenation
-            "logits distillation loss": losses_averaged[1:2],
-            "intermediate distillation loss": losses_averaged[2:3],
+            "kd_logits_train_loss": losses_averaged[1:2],
+            "kd_intermediate_train_loss": losses_averaged[2:3],
         }
 
         return losses["kd_loss"], report
@@ -105,8 +105,8 @@ class DistillationGPTModel(llm.GPTModel):
 
     def __init__(
         self,
-        config: llm.GPTConfig,
-        teacher_config: llm.GPTConfig,
+        config: TransformerConfig,
+        teacher_config: TransformerConfig,
         teacher_ckpt_path: str,
         distillation_config_path: Optional[str] = None,
         optim: Optional["OptimizerModule"] = None,
@@ -143,7 +143,10 @@ class DistillationGPTModel(llm.GPTModel):
         self._train_called = False
 
         if not isinstance(config, llm.GPTConfig) or not isinstance(teacher_config, llm.GPTConfig):
-            raise ValueError("Student and Teacher must both be subclasses of `llm.GPTModel`")
+            logging.warning(
+                "Student and Teacher configs should both inherit from llm.GPTConfig. "
+                "Configs may not work properly with DistillationGPTModel"
+            )
         if self.config.virtual_pipeline_model_parallel_size is not None:
             raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
 
