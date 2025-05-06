@@ -892,9 +892,13 @@ class GPTSFTChatDataset(GPTSFTDataset):
     ShareGPT format:
     {"conversations": [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]}
     HuggingFace chat template format:
-    {"messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+    {
+        "messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."},
+                     {"role": "assistant", "content": "..."}]
+    }
 
-    If use_hf_tokenizer_chat_template is True, the dataset will try to usethe HuggingFace chat template format or convert the ShareGPT format if needed.
+    If use_hf_tokenizer_chat_template is True, the dataset will try to use the HuggingFace chat template format or
+        convert the ShareGPT format if needed.
     """
 
     def __init__(
@@ -1035,7 +1039,8 @@ class GPTSFTChatDataset(GPTSFTDataset):
                 x = torch.tensor(x)
                 if x.sum().item() == 0:
                     logger.warning(
-                        "Due to truncation to max_seq_length, no assistant tokens are found in sample. Setting loss_mask to all ones."
+                        "Due to truncation to max_seq_length, no assistant tokens are found in sample. "
+                        "Setting loss_mask to all ones."
                     )
                     loss_mask[i] = [1] * self.max_seq_length
             if not self.use_hf_tokenizer_chat_template:
