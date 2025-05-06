@@ -396,7 +396,7 @@ def main():
             limit_val_batches=args.limit_val_batches,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
-            use_distributed_sampler=True, # needed to use PL DistributedSampler
+            use_distributed_sampler=True,  # needed to use PL DistributedSampler
             logger=wandb,
             callbacks=callbacks,
             precision="bf16-mixed",
