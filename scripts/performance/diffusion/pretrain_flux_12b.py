@@ -82,14 +82,16 @@ def override_recipe_configs(
         None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
     from nemo.collections.diffusion.models.flux.model import FluxConfig
+
     recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=11, num_single_layers=22)
-    #recipe.model.flux_params.flux_config.enable_cuda_graph = True
-    #recipe.model.flux_params.flux_config.use_te_rng_tracker = True
-    #recipe.model.flux_params.flux_config.cuda_graph_warmup_steps = 2
+    # recipe.model.flux_params.flux_config.enable_cuda_graph = True
+    # recipe.model.flux_params.flux_config.use_te_rng_tracker = True
+    # recipe.model.flux_params.flux_config.cuda_graph_warmup_steps = 2
     recipe.model.flux_params.flux_config.apply_rope_fusion = True
     recipe.model.flux_params.flux_config.rotary_interleaved = False
-    recipe.trainer.strategy.use_te_rng_tracker=True
+    recipe.trainer.strategy.use_te_rng_tracker = True
     from megatron.core.distributed import DistributedDataParallelConfig
+
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
         use_custom_fsdp=False,
