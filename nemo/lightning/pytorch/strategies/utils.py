@@ -505,7 +505,6 @@ def fsdp2_strategy_parallelize(
     dp_mesh = device_mesh[
         ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping[device_mesh] else "data_parallel")
     ]
-    print(f"dp_mesh: {dp_mesh.size()}")
     tp_mesh = device_mesh["tensor_parallel"]
 
     if dp_mesh.size() > 1:
