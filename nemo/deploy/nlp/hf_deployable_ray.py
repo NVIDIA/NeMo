@@ -149,11 +149,17 @@ class HFRayDeployable:
                     {
                         "text": generated_texts,
                         "index": 0,
-                        "logprobs": {
-                            "token_logprobs": results.get("logits", None),
-                            "top_logprobs": results.get("scores", None)
-                        } if results.get("logits") is not None else None,
-                        "finish_reason": "length" if len(generated_texts[0]) >= request.get('max_tokens', 50) else "stop",
+                        "logprobs": (
+                            {
+                                "token_logprobs": results.get("logits", None),
+                                "top_logprobs": results.get("scores", None),
+                            }
+                            if results.get("logits") is not None
+                            else None
+                        ),
+                        "finish_reason": (
+                            "length" if len(generated_texts[0]) >= request.get('max_tokens', 50) else "stop"
+                        ),
                     }
                 ],
                 "usage": {
@@ -230,7 +236,9 @@ class HFRayDeployable:
                     {
                         "message": {"role": "assistant", "content": generated_texts},
                         "index": 0,
-                        "finish_reason": "length" if len(generated_texts[0]) >= request.get('max_tokens', 50) else "stop",
+                        "finish_reason": (
+                            "length" if len(generated_texts[0]) >= request.get('max_tokens', 50) else "stop"
+                        ),
                     }
                 ],
                 "usage": {
