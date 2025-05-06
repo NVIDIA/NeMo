@@ -41,8 +41,8 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
-from nemo.utils import logging
 from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
+from nemo.utils import logging
 
 __all__ = ['SpeechEncDecSelfSupervisedModel', 'EncDecMaskedTokenPredModel', 'EncDecDenoiseMaskedTokenPredModel']
 
