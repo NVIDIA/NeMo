@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import argparse
+import signal
 import subprocess
 import sys
-import signal
+
 from nemo.collections.llm import evaluate
 from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 from nemo.collections.llm.evaluation.base import wait_for_fastapi_server
