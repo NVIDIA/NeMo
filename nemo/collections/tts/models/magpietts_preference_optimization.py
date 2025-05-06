@@ -280,9 +280,9 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
         rejected_policy_logprobs = None
         chosen_ref_logprobs = None
         rejected_ref_logprobs = None
-        for codebook_idx in range(self.cfg.num_audio_codebooks):
-            si = codebook_idx * self.cfg.num_audio_tokens_per_codebook
-            ei = si + self.cfg.num_audio_tokens_per_codebook
+        for codebook_idx in range(self.num_audio_codebooks):
+            si = codebook_idx * self.num_all_tokens_per_codebook
+            ei = si + self.num_all_tokens_per_codebook
             codebook_logits_chosen = model_output_chosen['logits'][:, :, si:ei]
             codebook_logits_rejected = model_output_rejected['logits'][:, :, si:ei]
 
@@ -671,9 +671,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
 
         total_loss = None
         total_kl = None
-        for codebook_idx in range(self.cfg.num_audio_codebooks):
-            si = codebook_idx * self.cfg.num_audio_tokens_per_codebook
-            ei = si + self.cfg.num_audio_tokens_per_codebook
+        for codebook_idx in range(self.num_audio_codebooks):
+            si = codebook_idx * self.num_all_tokens_per_codebook
+            ei = si + self.num_all_tokens_per_codebook
             codebook_logits = policy_model_outputs['logits'][:, :, si:ei] # B, T, C
             codebook_labels = batch_repeated['audio_codes'][:,codebook_idx,1:]
             per_token_codebook_log_probs = self._get_per_token_logps(codebook_logits, codebook_labels, policy_model_outputs['loss_mask'])
@@ -701,7 +701,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 total_kl += codebook_kl_loss_mean
 
 
-        total_loss /= self.cfg.num_audio_codebooks
+        total_loss /= self.num_audio_codebooks
         print("Total kl", total_kl, n_generations_per_item)
         return {
             'mean_reward': generated_codes_and_metrics['mean_reward'],
