@@ -133,13 +133,16 @@ def get_tokenizer(
     )
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-    return AutoTokenizer(
+    tokenizer = AutoTokenizer(
         pretrained_model_name=tokenizer_name,
         vocab_file=vocab_file,
         merges_file=merges_file,
         **special_tokens_dict,
         use_fast=use_fast,
     )
+    if chat_template:
+        tokenizer.tokenizer.chat_template = chat_template
+    return tokenizer
 
 
 def get_nmt_tokenizer(
@@ -197,7 +200,8 @@ def get_nmt_tokenizer(
             use_fast=use_fast,
             trust_remote_code=trust_remote_code,
         )
-        tokenizer.tokenizer.chat_template = chat_template
+        if chat_template:
+            tokenizer.tokenizer.chat_template = chat_template
         return tokenizer
     elif library == 'sentencepiece':
         from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
