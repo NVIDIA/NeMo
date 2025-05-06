@@ -252,9 +252,6 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     for package, deps in dependencies.items():
         package_parts = package.split('.')
 
-        if package == "tests.collections.audio.test_audio_models_schroedinger_bridge":
-            print(package_parts)
-            print(f"{os.path.join(*package_parts)}.py")
         if package_parts[0] == "tests":
             simplified_package_path = f"{os.path.join(*package_parts)}.py"
         elif os.path.isfile((file_path := f"{os.path.join(*package_parts[:-1])}.py")):
@@ -277,12 +274,7 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
             ):
                 simplified_dependencies[simplified_package_path].append(f"{dep_parts[0]}.{dep_parts[1]}")
             elif dep_parts[0] == "tests":
-                if package == "tests.collections.audio.test_audio_models_schroedinger_bridge":
-                    print(simplified_package_path)
-                    print(".".join(dep_parts))
-
                 simplified_dependencies[simplified_package_path].append(".".join(dep_parts))
-
             elif len(dep_parts) >= 3 and (
                 simplified_name := f"nemo.{dep_parts[1]}.{dep_parts[2]}"
             ) in find_collection_modules(nemo_root):
@@ -364,7 +356,7 @@ def main():
 
     # Output as JSON
     data = json.dumps(dependencies, indent=4)
-    # print(data)
+
     with open('nemo_dependencies.json', 'w', encoding='utf-8') as f:
         f.write(data)
 
