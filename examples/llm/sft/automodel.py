@@ -44,8 +44,6 @@ def make_squad_hf_dataset(
     packed_sequence_size,
     limit_dataset_samples=None,
     fp8=False,
-    num_replicas=1,
-    rank=0,
 ):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -90,8 +88,6 @@ def make_squad_hf_dataset(
             micro_batch_size=micro_batch_size,
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
             pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-            num_replicas=num_replicas,
-            rank=rank,
         )
     else:
         datamodule = llm.HFDatasetDataModule(
@@ -100,8 +96,6 @@ def make_squad_hf_dataset(
             micro_batch_size=micro_batch_size,
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
             pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-            num_replicas=num_replicas,
-            rank=rank,
         )
     ## tokenization is happening here
     datamodule.map(
@@ -213,7 +207,7 @@ def main():
         default=1,
         help='Number of batches to accumulate gradient over.',
     )
-    parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
+    parser.add_argument('--max-steps', type=int, default=20, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
@@ -385,8 +379,6 @@ def main():
             packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
-            num_replicas=args.dp_size,
-            rank=0,
         )
 
     llm.api.finetune(
@@ -404,7 +396,7 @@ def main():
             limit_val_batches=args.limit_val_batches,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
-            use_distributed_sampler=False,
+            use_distributed_sampler=True, # needed to use PL DistributedSampler
             logger=wandb,
             callbacks=callbacks,
             precision="bf16-mixed",
