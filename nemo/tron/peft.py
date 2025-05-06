@@ -20,6 +20,7 @@ from megatron.core.transformer.module import MegatronModule
 
 from nemo.collections.llm.fn.base import walk
 
+
 class PEFT(ABC):
     """Abstract base class for Parameter-Efficient Fine-Tuning (PEFT) methods.
 
@@ -38,11 +39,8 @@ class PEFT(ABC):
         self.training = training
         self.params_to_save: set[str] = set()
 
-
     @abstractmethod
-    def transform(
-        self, module: nn.Module, name: Optional[str] = None, prefix: Optional[str] = None
-    ) -> nn.Module:
+    def transform(self, module: nn.Module, name: Optional[str] = None, prefix: Optional[str] = None) -> nn.Module:
         """Transforms a single module according to the PEFT method.
 
         This method is called recursively for each module in the base model during
@@ -60,7 +58,6 @@ class PEFT(ABC):
                        transformation is applied).
         """
         raise NotImplementedError("Subclasses must implement the 'transform' method.")
-
 
     def __call__(self, model: list[MegatronModule]) -> list[MegatronModule]:
         """Applies the PEFT transformation to the entire model.
@@ -84,11 +81,10 @@ class PEFT(ABC):
 
         if not self.training:
             self.freeze(model)
-        
+
         self.set_params_to_save(model)
 
         return model
-
 
     def freeze_model(self, model: list[MegatronModule]) -> None:
         """Freezes all parameters of the base model.
@@ -106,7 +102,6 @@ class PEFT(ABC):
         if self.training:
             for model_chunk in model:
                 model_chunk.train(mode=True)
-
 
     def set_params_to_save(self, model: list[MegatronModule]) -> None:
         """Identifies and sets the names of the trainable parameters (adapter parameters).
@@ -130,7 +125,6 @@ class PEFT(ABC):
                         if buffer is not None:
                             names.add(module_name + "." + buffer_name)
         self.params_to_save = names
-
 
     def adapter_key_filter(self, key: str | tuple) -> bool:
         """

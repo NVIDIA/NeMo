@@ -111,7 +111,7 @@ def get_base_model(model_config: GPTConfig | T5Config) -> list[MegatronModule]:
 
     if not isinstance(model, list):
         model = [model]
-    
+
     return model
 
 
@@ -186,7 +186,7 @@ def get_distributed_model(
         if data_parallel_random_init:
             for model_module in model:
                 model_module.broadcast_params()
-    return model    
+    return model
 
 
 def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:

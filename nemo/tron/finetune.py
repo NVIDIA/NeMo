@@ -25,14 +25,14 @@ from nemo.tron.config import ConfigContainer
 from nemo.tron.data.loaders import setup_data_iterators
 from nemo.tron.data.utils import get_dataset_provider
 from nemo.tron.eval import evaluate_and_print_results
-from nemo.tron.peft import PEFT
-from nemo.tron.setup import _init_checkpointing_context, _update_model_config_funcs
-from nemo.tron.train import _finish_train, train
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_base_model, get_distributed_model
 from nemo.tron.optim import setup_optimizer
+from nemo.tron.peft import PEFT
+from nemo.tron.setup import _init_checkpointing_context, _update_model_config_funcs
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
+from nemo.tron.train import _finish_train, train
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
 from nemo.tron.utils.decorators import experimental_fn
 from nemo.tron.utils.log_utils import setup_logging
@@ -205,7 +205,7 @@ def megatron_peft(
                 valid_data_iterator,
                 state,
                 ckpt_context,
-                peft=peft
+                peft=peft,
             )
 
         barrier_and_log("after training is done")
