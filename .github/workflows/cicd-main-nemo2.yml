@@ -54,18 +54,15 @@ jobs:
           - script: L2_NeMo_2_Hyena_DDP_Pretraining_Test
             runner: self-hosted-azure
           - script: L2_NeMo_2_SSM_Pretraining
-            runner: self-hosted-azure-gpus-1
-            is_optional: true
+            runner: self-hosted-azure
           - script: L2_NeMo_2_SSM_Finetuning
             runner: self-hosted-azure-gpus-1
-            is_optional: true
           - script: L2_NeMo_2_HF_MODEL_IMPORT
             runner: self-hosted-azure
           - script: L2_NeMo_2_jit_callback
             runner: self-hosted-azure
           - script: L2_NeMo_2_T5_Pretraining
             runner: self-hosted-azure
-            is_optional: true
           - script: L2_NeMo_2_T5_MockData_Pretraining
             runner: self-hosted-azure
           - script: L2_NeMo_2_T5_Finetuning
@@ -100,15 +97,12 @@ jobs:
             is_optional: true
           - script: L2_NeMo_2_NEVA_LOAD_GENERATE
             runner: self-hosted-azure-gpus-1
-            is_optional: true
           - script: L2_NeMo_2_LLAVA_IMPORT
             runner: self-hosted-azure-gpus-1
           - script: L2_NEMO_2_MLLAMA_Inference
             runner: self-hosted-azure-gpus-1
-            is_optional: true
           - script: L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2
             runner: self-hosted-azure
-            is_optional: true
           - script: L2_NeMo_2_MLLAMA_PRELOADED_FINETUNE_TP2
             runner: self-hosted-azure
           - script: L2_NeMo_2_MLLAMA_ENERGON_FINETUNE_TP2
@@ -191,9 +185,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_CLIP_INFER
             runner: self-hosted-azure
-          - script: Optional_L2_NeMo_2_EVAL
+          - script: L2_NeMo_2_EVAL
             runner: self-hosted-azure-gpus-1
-            is_optional: true
           - script: L2_NeMo_2_Auto_Configurator_llama_TP1_PP1_MBS124
             runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_Auto_Configurator_bert_TP1_PP1_MBS124
