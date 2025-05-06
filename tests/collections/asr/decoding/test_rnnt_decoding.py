@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import copy
-from functools import lru_cache, cached_property
+import os
+from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import Optional
 
