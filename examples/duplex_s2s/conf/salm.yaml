@@ -1,6 +1,6 @@
 model:
   # Every name/path here starting with 'pretrained' is used to initialize the model weights.
-  pretrained_llm: nvidia/Llama-3.1-Nemotron-Nano-8B-v1
+  pretrained_llm: TinyLlama/TinyLlama_v1.1
   pretrained_asr: nvidia/canary-1b-flash
 
   pretrained_weights: True  # When False, we use pretrained_name to load the architecture, but with random init
@@ -15,7 +15,7 @@ model:
     - "^perception\\.encoder\\..+$"
   prevent_freeze_params: []  # Use to make specific submodules trainable; overrides freeze_params
 
-  prompt_format: llama3
+  prompt_format: llama2
   audio_locator_tag: "<|audioplaceholder|>"  # placeholder token for audio turn is expected
 
   # Note: Uncomment the block below to enable LoRA on LLM via HuggingFace PEFT library.
@@ -29,16 +29,6 @@ model:
 
   perception:
      target: nemo.collections.duplex_s2s.modules.perception.AudioPerceptionModule
-
-     preprocessor:
-       normalize: 'NA'
-
-     encoder:
-       self_attention_model: rel_pos
-       att_context_size: [-1, -1]
-       conv_context_size: regular
-       conv_norm_type: batch_norm
-
      modality_adapter:
        _target_: nemo.collections.asr.modules.ConformerEncoder
        feat_in: 1024
@@ -68,13 +58,6 @@ model:
        dropout_pre_encoder: 0 # The dropout used before the encoder
        dropout_emb: 0.0 # The dropout used for embeddings
        dropout_att: 0 # The dropout for multi-headed attention modules
-
-#     spec_augment:
-#       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-#       freq_masks: 2 # set to zero to disable it
-#       time_masks: 10 # set to zero to disable it
-#       freq_width: 27
-#       time_width: 5  # 5 frames = 50ms
 
   optimizer:
     _target_: torch.optim.AdamW
@@ -106,12 +89,13 @@ trainer:
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
-#    _target_: lightning.pytorch.strategies.ModelParallelStrategy
-#    tensor_parallel_size: 1
-#    data_parallel_size: 2
+    # Replace DDPStrategy with ModelParallelStrategy to enable model parallelism
     _target_: lightning.pytorch.strategies.DDPStrategy
     gradient_as_bucket_view: true
     find_unused_parameters: true
+    # _target_: lightning.pytorch.strategies.ModelParallelStrategy
+    # tensor_parallel_size: 1
+    # data_parallel_size: 2
 
 data:
   train_ds:
@@ -120,28 +104,24 @@ data:
     token_equivalent_duration: 0.08
     input_cfg:
       - type: lhotse_as_conversation
-        cuts_path: /home/pzelasko/data/mini-libri/cuts_dev-clean-2-lower.jsonl.gz
+        cuts_path: ???  # needs to be set
         audio_locator_tag: ${model.audio_locator_tag}
         tags:
-          system_prompt: "detailed thinking off"
+          # Uncomment below line to include a system prompt.
+          # system_prompt: "some system prompt"
           context: "Repeat after me, typing in lowercase."
-#      - type: lhotse_as_conversation
-#        shar_path: /home/pzelasko/data/mini-libri/train-clean-5-shar
-#        audio_locator_tag: ${model.audio_locator_tag}
-#        tags:
-#          system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
-#          context: "Repeat after me, typing in lowercase."
     seed: 42
     shuffle: true
     shard_seed: "randomized"
     num_workers: 1
-
-    batch_size: 3
-#    batch_duration: 100
-#    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
-#    use_bucketing: true
-#    num_buckets: 5
-#    bucket_buffer_size: 5000
+    batch_size: 4
+    # Optional bucketing:
+    # batch_size: null
+    # batch_duration: 100
+    # bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
+    # use_bucketing: true
+    # num_buckets: 5
+    # bucket_buffer_size: 5000
 
   validation_ds:
     # The entries under 'datasets' are a list of separate dataloaders.
@@ -150,26 +130,15 @@ data:
     prompt_format: ${model.prompt_format}
     token_equivalent_duration: 0.08
     datasets:
-      dev-clean-2:
+      val_set_0:  # rename to your dataset name, add more as needed
         input_cfg:
           - type: lhotse_as_conversation
-            cuts_path: /home/pzelasko/data/mini-libri/cuts_dev-clean-2-lower.jsonl.gz
+            cuts_path: ???  # needs to be set
             audio_locator_tag: ${model.audio_locator_tag}
             tags:
-              system_prompt: "detailed thinking off"
+              # Uncomment below line to include a system prompt.
+              # system_prompt: "some system prompt"
               context: "Repeat after me, typing in lowercase."
-#      train-clean-5:
-#        input_cfg:
-#          - type: lhotse_as_conversation
-#            cuts_path: /home/pzelasko/data/mini-libri/cuts_train-clean-5-lower.jsonl.gz
-#            audio_locator_tag: ${model.audio_locator_tag}
-#            tags:
-#              system_prompt: "You are a helpful assistant that carefully listens to the user. The user tends to ask about repeating, rephrasing, or translating various queries. Do your best to accommodate."
-#              context: "Repeat after me, typing in lowercase."
-#      traindata:
-#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
-#      valdata:
-#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_val
     sample_rate: 16000
     batch_size: 1
     seed: 42
@@ -204,3 +173,4 @@ exp_manager:
      every_n_epochs: 1
      save_top_k: 1
      always_save_nemo: false
+     save_nemo_on_train_end: false

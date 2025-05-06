@@ -34,6 +34,7 @@ class SalmEvalConfig:
     use_normalizer: bool = True
     device: str = "cuda"
     extra_eos_tokens: Optional[list[str]] = None
+    system_prompt: Optional[str] = None
 
 
 @hydra_runner(config_name="SalmEvalConfig", schema=SalmEvalConfig)
@@ -65,6 +66,10 @@ def main(cfg: SalmEvalConfig):
             assert tid is not None, f"Token '{t}' is not in the model's vocabulary."
             eos_tokens.append(tid)
 
+    system_prompt = []
+    if cfg.system_prompt is not None:
+        system_prompt.append({"role": "system", "slots": {"message": cfg.system_prompt}})
+
     refs = []
     hyps = []
     input_durations = []
@@ -73,10 +78,12 @@ def main(cfg: SalmEvalConfig):
         ts = perf_counter()
         answer_ids = model.generate(
             prompts=[
-                [
-                    {"role": "system", "slots": {"message": "detailed thinking off"}},
-                    {"role": "user", "slots": {"message": f"Repeat after me. {model.audio_locator_tag}"}},
-                    # {"role": "user", "slots": {"message": f"Repeat after me, typing in lowercase. {model.audio_locator_tag}"}}
+                system_prompt
+                + [
+                    {
+                        "role": "user",
+                        "slots": {"message": f"Repeat after me, typing in lowercase. {model.audio_locator_tag}"},
+                    }
                 ]
             ]
             * len(batch["cuts"]),

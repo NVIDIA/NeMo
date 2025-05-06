@@ -26,16 +26,6 @@ model:
 
   perception:
      target:  nemo.collections.duplex_s2s.modules.perception.AudioPerceptionModule
-
-     preprocessor:
-       normalize: 'NA'
-
-     encoder:
-       self_attention_model:
-       att_context_size: [70, 1]
-       conv_context_size: causal
-       conv_norm_type: layer_norm
-
      modality_adapter:
        _target_: nemo.collections.asr.modules.ConformerEncoder
        feat_in: 512
@@ -66,13 +56,6 @@ model:
        dropout_emb: 0.0 # The dropout used for embeddings
        dropout_att: 0 # The dropout for multi-headed attention modules
 
-#     spec_augment:
-#       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-#       freq_masks: 2 # set to zero to disable it
-#       time_masks: 10 # set to zero to disable it
-#       freq_width: 27
-#       time_width: 5  # 5 frames = 50ms
-
   optimizer:
     _target_: torch.optim.AdamW
     lr: 3e-4
@@ -81,9 +64,8 @@ model:
     foreach: true # set to false if having issues with tensor-parallelism
 
   lr_scheduler:
-#    _target_: nemo.core.optim.lr_scheduler.InverseSquareRootAnnealing
     _target_: nemo.core.optim.lr_scheduler.CosineAnnealing
-    warmup_steps: 0  #2500
+    warmup_steps: 0
     min_lr: 1e-6
     max_steps: ${trainer.max_steps}
 
@@ -104,12 +86,13 @@ trainer:
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
   strategy:
-#    _target_: lightning.pytorch.strategies.ModelParallelStrategy
-#    tensor_parallel_size: 1
-#    data_parallel_size: 2
+    # Replace DDPStrategy with ModelParallelStrategy to enable model parallelism
     _target_: lightning.pytorch.strategies.DDPStrategy
     gradient_as_bucket_view: true
     find_unused_parameters: true
+    # _target_: lightning.pytorch.strategies.ModelParallelStrategy
+    # tensor_parallel_size: 1
+    # data_parallel_size: 2
 
 data:
   frame_length: 0.08
@@ -123,20 +106,17 @@ data:
     input_cfg:
       - type: lhotse_shar
         shar_path: /home/pzelasko/exp/duplex_s2s/train_micro
-#      - type: lhotse_shar
-#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
-#      - type: lhotse_shar
-#        shar_path: /home/pzelasko/exp/duplex_s2s/timestamp_train
     seed: 42
     shard_seed: "randomized"
     num_workers: 2
-
-    batch_size: 16
-#    batch_duration: 100
-#    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
-#    use_bucketing: true
-#    num_buckets: 5
-#    bucket_buffer_size: 5000
+    batch_size: 4
+    # Optional bucketing:
+    # batch_size: null
+    # batch_duration: 100
+    # bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
+    # use_bucketing: true
+    # num_buckets: 5
+    # bucket_buffer_size: 5000
 
   validation_ds:
     # The entries under 'datasets' are a list of separate dataloaders.
@@ -145,10 +125,6 @@ data:
     datasets:
       train_micro:
         shar_path: /home/pzelasko/exp/duplex_s2s/train_micro
-#      traindata:
-#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_000000
-#      valdata:
-#        shar_path: /home/pzelasko/exp/duplex_s2s/shar_duplex_manifest_val
     sample_rate: ${data.target_sample_rate}
     batch_size: 1
     seed: 42
@@ -183,3 +159,4 @@ exp_manager:
      every_n_epochs: 1
      save_top_k: 1
      always_save_nemo: false
+     save_nemo_on_train_end: false
