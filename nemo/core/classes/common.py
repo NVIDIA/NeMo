@@ -46,6 +46,7 @@ from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils.data_utils import resolve_cache_dir
 from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck', 'PretrainedModelInfo']
 

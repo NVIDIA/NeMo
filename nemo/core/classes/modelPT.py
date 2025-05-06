@@ -52,6 +52,7 @@ from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 
 __all__ = ['ModelPT']
 
@@ -80,6 +81,7 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
+        CallbackGroup.get_instance().on_model_init_start()
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
                 f"trainer constructor argument must be either None or lightning.pytorch.Trainer. "
@@ -221,6 +223,7 @@ class ModelPT(LightningModule, Model):
 
         # A flag for the profile generation
         self._chakra_profile_in_progress = False
+        CallbackGroup.get_instance().on_model_init_end()
 
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
@@ -658,6 +661,7 @@ class ModelPT(LightningModule, Model):
                 compatible with OmegaConf.
 
         """
+        CallbackGroup.get_instance().on_optimizer_init_start()
         # Setup the optimizer parameter groups (by default use all parameters that are trainable)
         self.setup_optimizer_param_groups()
 
@@ -806,6 +810,7 @@ class ModelPT(LightningModule, Model):
         self._scheduler = prepare_lr_scheduler(
             optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
         )
+        CallbackGroup.get_instance().on_optimizer_init_end()
 
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created
