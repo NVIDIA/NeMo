@@ -189,12 +189,17 @@ class TestImportCkpt:
                 overwrite=False,
             )
 
+
 class TestExportCkpt:
 
     def test_output_path_exists_no_overwrite(self):
         """Test that an error is raised when the output path exists and overwrite is set to False."""
 
-        with pytest.raises(FileExistsError), tempfile.TemporaryDirectory() as output_path, tempfile.TemporaryDirectory() as path:
+        with (
+            pytest.raises(FileExistsError),
+            tempfile.TemporaryDirectory() as output_path,
+            tempfile.TemporaryDirectory() as path,
+        ):
             llm.export_ckpt(
                 path=path,
                 target="hf",
