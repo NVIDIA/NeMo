@@ -47,6 +47,7 @@ def schroedinger_bridge_model_ncsn():
         'in_channels': 2,  # single-channel noisy input
         'out_channels': 1,  # single-channel estimate
         'conditioned_on_time': True,
+        'channels': [8, 8, 8, 8, 8],
         'num_res_blocks': 3,  # increased number of res blocks
         'pad_time_to': 64,  # pad to 64 frames for the time dimension
         'pad_dimension_to': 0,  # no padding in the frequency dimension
