@@ -143,7 +143,7 @@ data:
     # The structure is <dataset-name>: {<dataloader-dict-config>}
     # They inherit all settings from validation_ds, but can individually override them.
     datasets:
-      train_micro:
+      val_set_0:  # rename to your dataset name, add more as needed
         shar_path: /home/pzelasko/exp/duplex_s2s/train_micro
     sample_rate: ${data.target_sample_rate}
     batch_size: 1

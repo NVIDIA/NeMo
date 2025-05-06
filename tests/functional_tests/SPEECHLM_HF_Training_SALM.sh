@@ -15,15 +15,17 @@
 # Run training
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   torchrun --nproc-per-node 1 examples/duplex_s2s/salm_train.py \
-    data.train_ds.input_cfg.0.cuts_path=/mnt/datadrive/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_train-clean-5.jsonl.gz \
-    data.validation_ds.datasets.val_set_0.input_cfg.0.cuts_path=/mnt/datadrive/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2.jsonl.gz \
+    model.pretrained_llm=/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1 \
+    model.pretrained_asr=/home/TestData/speechlm/pretrained_models/canary-1b-flash.nemo \
+    data.train_ds.input_cfg.0.cuts_path=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_train-clean-5.jsonl.gz \
+    data.validation_ds.datasets.val_set_0.input_cfg.0.cuts_path=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2.jsonl.gz \
     trainer.max_steps=10
 
 # Convert to HF format
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   python examples/duplex_s2s/to_hf.py \
   class_path=nemo.collections.duplex_s2s.models.SALM \
-  ckpt_path=salm_results/checkpoints/step\\=10.ckpt \
+  ckpt_path=salm_results/checkpoints/step\\=10-last.ckpt \
   ckpt_config=examples/duplex_s2s/conf/salm.yaml \
   output_dir=test_salm_hf_model
 
@@ -31,7 +33,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   python examples/duplex_s2s/salm_eval.py \
   pretrained_name=test_salm_hf_model \
-  inputs=/mnt/datadrive/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2-first10.jsonl.gz \
+  inputs=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2-first10.jsonl.gz \
   batch_size=4 \
   output_manifest=generations.jsonl
 
