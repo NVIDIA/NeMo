@@ -24,7 +24,7 @@ ENV PYTHONUNBUFFERED=1
 
 ARG MLM_REPO
 ARG MLM_TAG
-RUN --mount=type=bind,source=docker/common/install.sh,target=/tmp/NeMo/install_dep.sh <<"EOF" bash -ex
+RUN --mount=type=bind,source=docker/common/install_dep.sh,target=/tmp/NeMo/install_dep.sh <<"EOF" bash -ex
   
   bash /tmp/NeMo/install_dep.sh --library mcore --mode build
   ls -al /tmp/Megatron-LM || true
