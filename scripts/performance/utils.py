@@ -19,12 +19,11 @@ from typing import Dict, List, Optional
 
 import nemo_run as run
 import pandas as pd
-import nemo.lightning as nl
-from nemo.lightning import AutoResume
 from lightning.pytorch.callbacks.callback import Callback
 from nemo_run.config import get_nemorun_home
 from numpy import nan
 
+import nemo.lightning as nl
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -35,6 +34,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
     bf16_with_fp8_mixed,
     bf16_with_mxfp8_mixed,
 )
+from nemo.lightning import AutoResume
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.utils import logging
@@ -90,7 +90,7 @@ def slurm_executor(
         env_vars.update({"NEMO_HOME": nemo_home})
         mounts.extend([f"{nemo_home}:{nemo_home}"])
 
-    #Extra location mount for checkpointing support
+    # Extra location mount for checkpointing support
     STAGE_PATH = os.getenv('STAGE_PATH')
     mounts.extend([f"{STAGE_PATH}:{STAGE_PATH}"])
 
@@ -380,7 +380,7 @@ def set_primary_perf_configs(
 
         # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
-    recipe.trainer.enable_checkpointing = (os.getenv('ENABLE_CHECKPOINT', 'false') == 'true')
+    recipe.trainer.enable_checkpointing = os.getenv('ENABLE_CHECKPOINT', 'false') == 'true'
     recipe.trainer.log_every_n_steps = 1
     load_checkpoint_path = os.getenv('LOAD_CHECKPOINT_PATH')
 
