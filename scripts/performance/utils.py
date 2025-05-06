@@ -287,21 +287,21 @@ def set_primary_perf_configs(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
 
-    # enable cross entropy fusion with TE kernel
-    recipe.model.config.cross_entropy_fusion_impl = "te"
+    # # enable cross entropy fusion with TE kernel
+    # recipe.model.config.cross_entropy_fusion_impl = "te"
 
-    # Cuda graph configs
-    if use_mcore_fsdp and enable_cuda_graphs:
-        logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
-        enable_cuda_graphs = False
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    if (
-        task in ["none", "lora"]
-        and hasattr(recipe.data, "packed_sequence_specs")
-        and recipe.data.packed_sequence_specs is not None
-    ):
-        recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+    # # Cuda graph configs
+    # if use_mcore_fsdp and enable_cuda_graphs:
+    #     logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
+    #     enable_cuda_graphs = False
+    # recipe.model.config.enable_cuda_graph = enable_cuda_graphs
+    # recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+    # if (
+    #     task in ["none", "lora"]
+    #     and hasattr(recipe.data, "packed_sequence_specs")
+    #     and recipe.data.packed_sequence_specs is not None
+    # ):
+    #     recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
 
     # FSDP configs
     if use_mcore_fsdp:

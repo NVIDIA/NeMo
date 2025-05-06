@@ -204,7 +204,7 @@ def pretrain_recipe(
             resume_ignore_no_checkpoint=True,
             resume_past_end=True,
         ),
-        model_transform=None,
+        # model_transform=None,
     )
 
     return recipe
