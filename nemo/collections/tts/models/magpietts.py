@@ -243,6 +243,7 @@ class MagpieTTSModel(ModelPT):
         return state_dict
     
     def load_state_dict(self, state_dict, strict=True):
+        # Override to load all the keys except _speaker_verification_model and _codec_model
         super().load_state_dict(state_dict, strict=False)
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
