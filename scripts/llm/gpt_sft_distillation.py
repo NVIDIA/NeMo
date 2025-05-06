@@ -35,7 +35,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 def get_args():
     """Parse the command line arguments."""
     parser = ArgumentParser(description="""Run Knowledge Distillation from a teacher model to a student.""")
-    # TODO custom chat template?
     parser.add_argument("--name", type=str, required=True, help="Experiment name")
     parser.add_argument(
         "--model_path",
