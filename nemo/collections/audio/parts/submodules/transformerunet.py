@@ -399,6 +399,7 @@ class SpectrogramTransformerUNet(NeuralModule):
         time_hidden_dim: Optional[int] = None,
         conv_pos_embed_kernel_size: int = 31,
         conv_pos_embed_groups: Optional[int] = None,
+        adaptive_rmsnorm: Optional[bool] = True,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -409,8 +410,8 @@ class SpectrogramTransformerUNet(NeuralModule):
             time_hidden_dim = dim * 4
 
         self.proj_in = nn.Linear(dim_in, dim)
-
-        self.sinu_pos_emb = nn.Sequential(LearnedSinusoidalPosEmb(dim), nn.Linear(dim, time_hidden_dim), nn.SiLU())
+        if adaptive_rmsnorm:
+            self.sinu_pos_emb = nn.Sequential(LearnedSinusoidalPosEmb(dim), nn.Linear(dim, time_hidden_dim), nn.SiLU())
 
         self.conv_embed = ConvPositionEmbed(
             dim=dim, kernel_size=conv_pos_embed_kernel_size, groups=conv_pos_embed_groups
@@ -424,7 +425,7 @@ class SpectrogramTransformerUNet(NeuralModule):
             ff_dropout=ff_dropout,
             attn_dropout=attn_dropout,
             max_positions=max_positions,
-            adaptive_rmsnorm=True,
+            adaptive_rmsnorm=adaptive_rmsnorm,
             adaptive_rmsnorm_cond_dim_in=time_hidden_dim,
             use_unet_skip_connection=True,
         )
@@ -494,9 +495,9 @@ class SpectrogramTransformerUNet(NeuralModule):
         x = self.conv_embed(x, mask=key_padding_mask) + x
 
         if condition is None:
-            raise NotImplementedError
-
-        time_emb = self.sinu_pos_emb(condition)
+            time_emb = None
+        else:
+            time_emb = self.sinu_pos_emb(condition)
 
         x = self.transformerunet(x=x, key_padding_mask=key_padding_mask, adaptive_rmsnorm_cond=time_emb)
 
