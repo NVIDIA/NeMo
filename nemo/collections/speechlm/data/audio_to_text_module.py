@@ -100,17 +100,20 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         data_cfg = self.data_cfg
 
         if data_cfg.get('prompt_format', None):
-            # Text processor for lhotse datasets
-            text_processor = MultimodalConversationTextProcessor(
-                self.tokenizer,
-                prompt_format=data_cfg['prompt_format'],
-                max_seq_length=data_cfg["max_seq_length"],
-                add_boa_eoa=data_cfg.get("add_boa_eoa", False),
-                boa_string=data_cfg.get("boa_string", "<BOA>"),
-                eoa_string=data_cfg.get("eoa_string", "<EOA>"),
-            )
+            prompt_format = data_cfg['prompt_format']
         else:
-            raise ValueError("You need to specify the prompt format in the data config.")
+            logging.warning(f"Prompt format is not specified in the data config. Using default prompt format `plain`.")
+            prompt_format = "plain"
+
+        # Text processor for lhotse datasets
+        text_processor = MultimodalConversationTextProcessor(
+            self.tokenizer,
+            prompt_format=prompt_format,
+            max_seq_length=data_cfg["max_seq_length"],
+            add_boa_eoa=data_cfg.get("add_boa_eoa", False),
+            boa_string=data_cfg.get("boa_string", "<BOA>"),
+            eoa_string=data_cfg.get("eoa_string", "<EOA>"),
+        )
 
         return text_processor
 
