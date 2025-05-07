@@ -679,7 +679,9 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
         # TODO @ataghibakhsh: Change AutoConfig to NemotronHConfig once merged to HF
-        if type(source) == NemotronHConfig8B:
+        if type(source) == NemotronHConfig4B:
+            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-4B-Base", trust_remote_code=True)
+        elif type(source) == NemotronHConfig8B:
             hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
         elif type(source) == NemotronHConfig47B:
             hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-47B-Base-8K", trust_remote_code=True)
