@@ -130,7 +130,7 @@ class MegatronLLMRayDeployable:
         try:
             loop = asyncio.get_event_loop()
             model_name = request.get('model', 'nemo-model')
-            
+
             # Prepare inference parameters
             inference_inputs = {
                 "prompts": request.get("prompts", []),
@@ -139,15 +139,11 @@ class MegatronLLMRayDeployable:
                 "top_k": request.get("top_k", 1),
                 "top_p": request.get("top_p", 0.0),
                 "compute_logprob": False,
-                "apply_chat_template": False
+                "apply_chat_template": False,
             }
-            
+
             # Run model inference in the thread pool
-            results = await loop.run_in_executor(
-                None,
-                self.model.ray_infer_fn,
-                inference_inputs
-            )
+            results = await loop.run_in_executor(None, self.model.ray_infer_fn, inference_inputs)
 
             # Extract generated texts from results
             generated_texts = results["sentences"]
@@ -167,7 +163,9 @@ class MegatronLLMRayDeployable:
                         "text": generated_texts,
                         "index": 0,
                         "logprobs": results.get("log_probs"),  # Now we can include logprobs if they were requested
-                        "finish_reason": "length" if len(generated_texts[0]) >= inference_inputs["max_length"] else "stop",
+                        "finish_reason": (
+                            "length" if len(generated_texts[0]) >= inference_inputs["max_length"] else "stop"
+                        ),
                     }
                 ],
                 "usage": {
@@ -224,17 +222,13 @@ class MegatronLLMRayDeployable:
                 "top_k": request.get("top_k", 1),
                 "top_p": request.get("top_p", 0.0),
                 "compute_logprob": False,
-                "apply_chat_template": False  # We already applied the template
+                "apply_chat_template": False,  # We already applied the template
             }
 
             loop = asyncio.get_event_loop()
 
             # Run model inference in the thread pool
-            results = await loop.run_in_executor(
-                None,
-                self.model.ray_infer_fn,
-                inference_inputs
-            )
+            results = await loop.run_in_executor(None, self.model.ray_infer_fn, inference_inputs)
 
             # Extract generated texts from results
             generated_texts = results["sentences"]
@@ -253,7 +247,9 @@ class MegatronLLMRayDeployable:
                     {
                         "message": {"role": "assistant", "content": generated_texts},
                         "index": 0,
-                        "finish_reason": "length" if len(generated_texts[0]) >= inference_inputs["max_length"] else "stop",
+                        "finish_reason": (
+                            "length" if len(generated_texts[0]) >= inference_inputs["max_length"] else "stop"
+                        ),
                     }
                 ],
                 "usage": {
@@ -293,4 +289,4 @@ class MegatronLLMRayDeployable:
         Returns:
             Dict containing health status.
         """
-        return {"status": "healthy"} 
+        return {"status": "healthy"}

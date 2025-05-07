@@ -298,11 +298,22 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="log_probs", shape=(-1,), dtype=np.single),
         )
 
-    def _infer_fn(self, prompts, max_batch_size=32, random_seed=None, temperature=1.0, top_k=1, top_p=0.0, 
-                 num_tokens_to_generate=256, log_probs=False, apply_chat_template=False, text_only=True):
+    def _infer_fn(
+        self,
+        prompts,
+        max_batch_size=32,
+        random_seed=None,
+        temperature=1.0,
+        top_k=1,
+        top_p=0.0,
+        num_tokens_to_generate=256,
+        log_probs=False,
+        apply_chat_template=False,
+        text_only=True,
+    ):
         """
         Private helper function that handles the core inference logic shared between triton and ray inference.
-        
+
         Args:
             prompts (List[str]): List of input prompts
             max_batch_size (int): Maximum batch size for inference
@@ -314,7 +325,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             log_probs (bool): Whether to compute log probabilities
             apply_chat_template (bool): Whether to apply chat template
             text_only (bool): Whether to return only text or full results
-            
+
         Returns:
             tuple: (output_texts, output_log_probs) where output_log_probs is None if log_probs is False
         """
@@ -350,7 +361,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         results = self.generate(prompts, max_batch_size, inference_params, random_seed)
         output_texts = [r.generated_text if text_only else r for r in results]
         output_texts = self.remove_eos_token(output_texts)
-        
+
         output_log_probs = None
         if log_probs:
             output_log_probs = []
@@ -361,7 +372,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 else:
                     output_log_probs.append(lp)
             output_log_probs = np.array(output_log_probs)
-            
+
         return output_texts, output_log_probs
 
     def triton_infer_fn(self, **inputs: np.ndarray):
@@ -375,7 +386,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         num_tokens_to_generate = inputs.pop("max_length", 256)
         log_probs = inputs.pop("compute_logprob", False)
         apply_chat_template = inputs.pop("apply_chat_template", False)
-        
+
         output_texts, output_log_probs = self._infer_fn(
             prompts=prompts,
             max_batch_size=max_batch_size,
@@ -387,17 +398,17 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             log_probs=log_probs,
             apply_chat_template=apply_chat_template,
         )
-        
+
         output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
         if output_log_probs is not None:
             output_infer["log_probs"] = output_log_probs
-            
+
         return output_infer
 
     def ray_infer_fn(self, inputs: dict):
         """
         Ray-compatible inference function that takes a dictionary of inputs and returns a dictionary of outputs.
-        
+
         Args:
             inputs (dict): Dictionary containing the following optional keys:
                 - prompts (List[str]): List of input prompts
@@ -409,7 +420,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 - max_length (int): Maximum number of tokens to generate (default: 256)
                 - compute_logprob (bool): Whether to compute log probabilities (default: False)
                 - apply_chat_template (bool): Whether to apply chat template (default: False)
-        
+
         Returns:
             dict: Dictionary containing:
                 - sentences (List[str]): List of generated texts
@@ -424,7 +435,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         num_tokens_to_generate = inputs.get("max_length", 256)
         log_probs = inputs.get("compute_logprob", False)
         apply_chat_template = inputs.get("apply_chat_template", False)
-        
+
         output_texts, output_log_probs = self._infer_fn(
             prompts=prompts,
             max_batch_size=max_batch_size,
@@ -436,9 +447,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             log_probs=log_probs,
             apply_chat_template=apply_chat_template,
         )
-        
+
         output_infer = {"sentences": output_texts}
         if output_log_probs is not None:
             output_infer["log_probs"] = output_log_probs
-            
+
         return output_infer
