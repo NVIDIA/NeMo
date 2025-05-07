@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Any
 
 import torch
 
@@ -33,6 +33,16 @@ class SeparateGraphsLoopLabels:
     before_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+
+
+@dataclass
+class BatchedGreedyDecodingState:
+    """Decoding state to pass between invocations"""
+    predictor_state: Any
+    labels: torch.Tensor
+    decoded_length: torch.Tensor
+    lm_state: Optional[torch.Tensor] = None
+    time_jumps: Optional[torch.Tensor] = None
 
 
 class GreedyBatchedLoopLabelsComputerBase(ABC):
@@ -103,8 +113,8 @@ class GreedyBatchedLoopLabelsComputerBase(ABC):
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
         """
         Pure PyTorch implementation
 
@@ -120,8 +130,8 @@ class GreedyBatchedLoopLabelsComputerBase(ABC):
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
         """
         Implementation with CUDA graphs.
 
@@ -141,8 +151,8 @@ class GreedyBatchedLoopLabelsComputerBase(ABC):
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
         """
         Entry point for the decoding algorithm
 

@@ -23,9 +23,10 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
     GreedyBatchedLoopLabelsComputerBase,
+    BatchedGreedyDecodingState,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.rnnt_utils import BatchedGreedyDecodingState, batched_hyps_to_hypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import batched_hyps_to_hypotheses
 
 DEVICES = [torch.device("cpu")]
 if torch.cuda.is_available():
@@ -78,16 +79,18 @@ def get_model_encoder_output(
 @pytest.mark.parametrize("is_tdt", [False, True])
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
+@pytest.mark.parametrize("max_symbols", [10])
 def test_loop_labels_decoding_streaming(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
     stt_en_fastconformer_tdt_large,
     device: torch.device,
+    use_cuda_graph_decoder: bool,
     is_tdt: bool,
     chunk_size: int,
     batch_size: int,
-    use_cuda_graph_decoder: bool,
+    max_symbols: int,
 ):
     model = stt_en_fastconformer_tdt_large if is_tdt else stt_en_fastconformer_transducer_large
     model.eval()
@@ -97,7 +100,7 @@ def test_loop_labels_decoding_streaming(
     decoding_cfg.strategy = "greedy_batch"
     with open_dict(decoding_cfg):
         decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
-        decoding_cfg.greedy.max_symbols = 10
+        decoding_cfg.greedy.max_symbols = max_symbols
     model.change_decoding_strategy(decoding_cfg)
 
     manifest = read_manifest(an4_val_manifest_corrected)

@@ -15,7 +15,7 @@
 
 import copy
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -26,6 +26,7 @@ from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
     GreedyBatchedLoopLabelsComputerBase,
     SeparateGraphsLoopLabels,
+    BatchedGreedyDecodingState,
 )
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
@@ -253,8 +254,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
         """
         Pure PyTorch implementation
 
@@ -499,7 +500,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
             # TODO: alignments
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
-        decoding_state = rnnt_utils.BatchedGreedyDecodingState(
+        decoding_state = BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
             labels=(
                 torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
@@ -522,8 +523,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[rnnt_utils.BatchedGreedyDecodingState] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], rnnt_utils.BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
         """
         Implementation with CUDA graphs.
 
@@ -619,7 +620,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         if prev_batched_state is not None:
             self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length.unsqueeze(1)
             # TODO: alignments
-        decoding_state = rnnt_utils.BatchedGreedyDecodingState(
+        decoding_state = BatchedGreedyDecodingState(
             predictor_state=copy.deepcopy(self.state.last_decoder_state),
             labels=self.state.batched_hyps.get_last_labels(pad_id=self._blank_index),
             decoded_length=(

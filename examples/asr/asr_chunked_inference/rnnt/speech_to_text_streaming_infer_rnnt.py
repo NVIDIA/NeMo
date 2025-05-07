@@ -60,10 +60,11 @@ from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTMode
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
     GreedyBatchedLoopLabelsComputerBase,
+    BatchedGreedyDecodingState,
 )
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.rnnt_utils import BatchedGreedyDecodingState, batched_hyps_to_hypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import batched_hyps_to_hypotheses
 from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, setup_model, write_transcription
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

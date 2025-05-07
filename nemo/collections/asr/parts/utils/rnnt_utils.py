@@ -701,12 +701,3 @@ def batched_hyps_to_hypotheses(
                     )
                 start += timestamp_cnt
     return hypotheses
-
-
-@dataclass
-class BatchedGreedyDecodingState:
-    predictor_state: Any
-    labels: torch.Tensor
-    decoded_length: torch.Tensor
-    lm_state: Optional[torch.Tensor] = None
-    time_jumps: Optional[torch.Tensor] = None
