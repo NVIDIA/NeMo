@@ -82,6 +82,8 @@ def override_recipe_configs(
         MegatronCommOverlapCallback,
         tp_comm_overlap=False,
     )
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
     callbacks.extend([garbage_collection_callback, comm_overlap_callback])
     recipe.trainer.callbacks.extend(callbacks)
 
